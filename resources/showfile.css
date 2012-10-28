@@ -1,0 +1,401 @@
+/* -*- mode: css; indent-tabs-mode: nil -*-
+
+ Copyright 2012 Jens Lindström, Opera Software ASA
+
+ Licensed under the Apache License, Version 2.0 (the "License"); you may not
+ use this file except in compliance with the License.  You may obtain a copy of
+ the License at
+
+   http://www.apache.org/licenses/LICENSE-2.0
+
+ Unless required by applicable law or agreed to in writing, software
+ distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.  See the
+ License for the specific language governing permissions and limitations under
+ the License.
+
+*/
+
+/*
+
+body { font-size: 12px; font-family: sans-serif }
+
+div.main {
+    text-align: center
+}
+
+div.main table.file {
+    table-layout: fixed;
+    background: #ffd;
+    margin-top: 1em;
+    padding: 1em;
+    border: 3px solid #996
+}
+
+div.main table td {
+    padding-left: 1em
+}
+
+div.main table td.h1 {
+    text-align: left
+}
+
+div.main table td.h1 h1 {
+    text-align: left;
+    margin-top: 0;
+    margin-bottom: 0.5em
+}
+
+*/
+
+div.main table.file {
+    table-layout: fixed
+}
+
+div.main table.file td.h1 {
+    border-bottom: none
+}
+
+div.main table td.line {
+    padding-left: 0
+}
+
+div.main table td.h1 h1 > a {
+    text-decoration: none;
+    color: black
+}
+div.main table td.h1 h1 > a.root {
+    font-size: 80%
+}
+div.main table td.h1 h1 > a:hover {
+    text-decoration: underline;
+    color: black
+}
+div.main table td.h1 h1 span {
+    padding-left: 3px;
+    padding-right: 3px;
+}
+
+div.main table td.h1 h1 span.right {
+    font-size: 50%;
+    float: right
+}
+
+table.file col.edge {
+    width: 1em
+}
+
+table.file col.linenr {
+    width: 4em
+}
+
+table.file col.middle {
+    width: 1em
+}
+
+table.file col.line {
+    width: 50%
+}
+
+table.file > tbody.spacer > tr > td {
+    background-color: #eee;
+    text-align: center;
+    border-left: 1px solid #888;
+    border-right: 1px solid #888
+}
+
+table.file > tbody.spacer.bottom > tr > td {
+    border-bottom: 1px solid #888
+}
+
+table.file > tbody.spacer.top > tr > td {
+    border-top: 1px solid #888
+}
+
+table.file > tbody.spacer > tr > td {
+    padding: 0
+}
+
+table.file > tbody.spacer > tr + tr.spacer {
+    display: none
+}
+
+table.file > tbody.spacer > tr.expand > td,
+table.file > tbody.spacer > tr.context > td {
+    padding-top: 3px;
+    padding-bottom: 3px
+}
+
+table.file > tbody.spacer > tr.expand > td > select {
+    background-color: #eee;
+    border: 0
+}
+
+table.file > tbody.lines > tr > td.edge,
+table.file > tbody.lines > tr > td.middle,
+table.file > tbody.lines > tr > td.linenr {
+    background-color: #eee
+}
+
+table.file > tbody.lines > tr > td.edge:first-child {
+    border-left: 1px solid #888
+}
+
+table.file > tbody.lines > tr > td.edge:last-child {
+    border-right: 1px solid #888
+}
+
+table.file > tbody.lines > tr > td.linenr.old {
+    text-align: right;
+    padding-right: 3px
+}
+
+table.file > tbody.lines > tr > td.linenr.new {
+    text-align: left;
+    padding-left: 3px
+}
+
+table.file > tbody.lines > tr > td.line {
+    background-color: white;
+    text-align: left;
+    font-family: monospace;
+    border-left: 1px solid #888;
+    border-right: 1px solid #888;
+    white-space: pre-wrap;
+    overflow: hidden;
+    padding-left: 3px
+}
+
+table.file > tbody.lines > tr > td.comment {
+    white-space: pre-wrap;
+    border-left: 1px solid #888;
+    border-right: 1px solid #888
+}
+
+table.file > tbody.lines > tr:first-child > td.line {
+    border-top: 1px solid #888;
+    padding-top: 3px
+}
+
+table.file > tbody.lines > tr:last-child > td.line {
+    border-bottom: 1px solid #888;
+    padding-bottom: 3px
+}
+
+table.file > tbody.lines > tr.context:hover > td.line,
+table.file > tbody.lines > tr.context.markold > td.line.old,
+table.file > tbody.lines > tr.context.marknew > td.line.new
+{
+    background-color: #eee
+}
+
+table.file > tbody.lines > tr > td.line.highlight {
+    background-color: #dfd
+}
+table.file > tbody.lines > tr:hover > td.line.highlight {
+    background-color: #cec
+}
+
+td.line.highlight b.t { color: #aca }
+
+
+table.file > tbody.lines > tr.commented > td.line.commented {
+    background-color: #eef
+}
+table.file > tbody.lines > tr.commented:hover > td.line.commented {
+    background-color: #dde
+}
+
+table.file > tbody.lines > tr.commenthead > td.commenthead {
+    font-family: sans-serif;
+    background-color: #ccf;
+    font-weight: bold;
+    border-top: 1px solid #99b;
+    border-bottom: 1px solid #99b;
+    text-align: center
+}
+
+table.file > tbody.lines > tr.commentchain > td.commentchain,
+table.file > tbody.lines > tr.commentchain > td.comment {
+    font-family: sans-serif;
+    background-color: #ccf;
+    border-bottom: 1px solid #99b;
+    padding-left: 3px;
+    padding-right: 3px;
+}
+
+table.file > tbody.lines > tr.commentchain > td.comment > div {
+    padding: 3px
+}
+
+table.file > tbody.lines > tr.commentchain > td.comment > div.comment.draft > span.time:after {
+    content: " (draft)";
+    font-weight: bold;
+    color: #f00
+}
+
+table.file > tbody.lines > tr.commentchain > td.comment > div.warning {
+    font-weight: bold;
+    color: #f00
+}
+
+table.file > tbody.lines > tr.commentchain > td > div > span.type {
+    font-weight: bold
+}
+
+table.file > tbody.lines > tr.commentchain > td > div > span.author {
+    font-weight: bold
+}
+
+table.file > tbody.lines > tr.commentchain > td > div > span.draft {
+    font-weight: bold;
+    color: #f00
+}
+
+table.file > tbody.lines > tr.commentchain > td.comment > div > div.text {
+    font-family: monospace;
+    background-color: #ddf;
+    border: 1px solid #99b;
+    margin-top: 3px;
+    padding: 5px;
+    white-space: pre-wrap
+}
+
+table.file > tbody.lines > tr.commentchain > td.comment > div > div.text > textarea {
+    background-color: #ddf;
+    border: 0;
+    width: 100%
+}
+
+table.file > tbody.lines > tr.commentchain > td.comment > div.buttons {
+    text-align: right;
+    padding-top: 3px
+}
+
+table.file > tbody.content > tr > td {
+    background-color: #eee
+}
+
+table.file > tbody.deleted > tr > td {
+    background-color: #eee;
+    text-align: center
+}
+
+table.file > tbody.deleted > tr > td > h2 {
+    margin-top: 0
+}
+
+table.file > tbody.binary > tr > td {
+    background-color: #eee;
+    text-align: center
+}
+
+table.file > tbody.binary > tr > td > h2 {
+    margin-top: 0
+}
+
+table.commit-info { margin-top: 1em; width: auto !important }
+
+table.commit-info span.branches,
+table.commit-info span.tags {
+    margin-left: 1em
+}
+
+table.commit-info span.branch,
+table.commit-info span.tag {
+    margin-right: 0.2em
+}
+
+pre.commit-msg { padding: 0.5em 1em  }
+
+b.tab:before { content: "\2192" }
+b.tab { color: #ccc }
+
+tr.modified b.tab {
+    color: #cca
+}
+
+tr.replaced > td.old b.tab,
+tr.deleted > td.old b.tab {
+    color: #caa
+}
+
+tr.replaced > td.new b.tab,
+tr.inserted > td.new b.tab {
+    color: #aca
+}
+
+/*
+table.file > tbody.lines > tr.commenthead > td.commenthead {
+    background-color: #ccf;
+    font-weight: bold;
+    border-top: 1px solid #99b;
+    border-bottom: 1px solid #99b;
+    text-align: center
+}
+
+table.file > tbody.lines > tr.commentchain > td.comment {
+    background-color: #ccf;
+    font-weight: bold;
+    border-bottom: 1px solid #99b
+}
+*/
+
+input.approve {
+    background-color: #eec;
+    font-weight: bold
+}
+
+body { font-size: 12px; font-family: sans-serif }
+
+div.playground {
+    white-space: pre;
+    font-family: monospace
+}
+
+div.parent {
+    display: none
+}
+
+div.parent.show {
+    display: block
+}
+
+div.parent > h1 {
+    padding-left: 1em;
+    font-size: 150%;
+    font-weight: bold
+}
+
+div.detectmoves select {
+    width: 100%;
+    background-color: #fff;
+    padding: 3px
+}
+
+table.commit-info tr.commit-msg > td {
+    padding-top: 1.5em;
+    padding-bottom: 1.5em
+}
+
+table.commit-msg tr.line:hover {
+    background-color: #eee
+}
+
+/*table.commit-msg tr.line td {
+    line-height: 100%
+}*/
+
+table.commit-msg tr.line td.edge {
+    padding: 0 1em 0 1em
+}
+
+table.commit-msg tr.line td.line {
+    white-space: pre;
+    font-family: monospace;
+    padding: 0
+}
+
+table.commit-msg tr.line.first td.line {
+    font-weight: bold
+}

@@ -1,0 +1,186 @@
+/* -*- mode: css; indent-tabs-mode: nil -*-
+
+ Copyright 2012 Jens Lindström, Opera Software ASA
+
+ Licensed under the Apache License, Version 2.0 (the "License"); you may not
+ use this file except in compliance with the License.  You may obtain a copy of
+ the License at
+
+   http://www.apache.org/licenses/LICENSE-2.0
+
+ Unless required by applicable law or agreed to in writing, software
+ distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.  See the
+ License for the specific language governing permissions and limitations under
+ the License.
+
+*/
+
+table.repositories {
+    margin-top: 1em;
+    padding: 1em;
+    border: 2px solid #996;
+    background-color: #ffe;
+    font-family: monospace
+}
+
+table.repositories tr.repository td {
+    padding-top: 2px;
+    padding-bottom: 2px
+}
+
+table.repositories tr.repository:hover {
+    background-color: #eed;
+    cursor: pointer
+}
+
+table.repositories tr.spacer td {
+    padding-top: 0.5em
+}
+
+table.repositories .name,
+table.repositories .location {
+    text-align: left;
+    padding-right: 4em
+}
+
+table.repositories .upstream {
+    text-align: right
+}
+
+table.repositories > tbody > tr.headings > th {
+    border-bottom: 1px solid #996
+}
+
+table.repositories .details {
+    display: none
+}
+
+table.repositories .details > td {
+    padding-top: 0.5em;
+    padding-bottom: 1em
+}
+
+table.repositories .details.show {
+    display: table-row
+}
+
+table.repositories .details .buttons {
+    text-align: right;
+    padding-top: 0.5em
+}
+
+table.trackedbranches {
+    width: 100%
+}
+
+table.trackedbranches th {
+    border-bottom: 1px solid black;
+    font-family: serif
+}
+
+table.trackedbranches tr.branch td {
+    padding-top: 3px;
+    padding-bottom: 3px
+}
+
+table.trackedbranches tr.branch:hover {
+    background-color: #eed;
+    cursor: pointer
+}
+
+table.trackedbranches .localname, table.trackedbranches .remote, table.trackedbranches .remotename {
+    text-align: left;
+    padding-right: 1em
+}
+
+table.trackedbranches .enabled {
+    text-align: right
+}
+
+table.trackedbranches .users {
+    text-align: left;
+    padding-left: 1em
+}
+
+table.trackedbranches td.buttons {
+    text-align: right
+}
+
+div.trackedbranchlog .log {
+    max-height: 500px;
+    overflow: auto
+}
+
+div.trackedbranchlog .log > table {
+    width: 100%
+}
+
+div.trackedbranchlog .when,
+div.trackedbranchlog .from,
+div.trackedbranchlog .to {
+    text-align: left
+}
+
+div.trackedbranchlog .from,
+div.trackedbranchlog .to {
+    font-family: monospace
+}
+
+div.trackedbranchlog .range > a {
+    text-decoration: none
+}
+
+div.trackedbranchlog .output {
+    padding-bottom: 0.5em
+}
+
+div.trackedbranchlog .output pre {
+    font-family: monospace;
+    white-space: pre;
+    background-color: #fff;
+    margin: 0;
+    border: 1px solid #888;
+    padding: 3px;
+}
+
+div#addtrackedbranch table {
+    width: 100%
+}
+
+div#addtrackedbranch td {
+    white-space: nowrap
+}
+
+div#addtrackedbranch td.key {
+    font-weight: bold
+}
+
+div#addtrackedbranch td.value {
+    font-family: monospace
+}
+
+div#addtrackedbranch td.note {
+    font-family: serif;
+    font-style: italic;
+    white-space: normal;
+    padding-bottom: 0.5em
+}
+
+div#addtrackedbranch select {
+    font-family: monospace;
+    background-color: white;
+    width: 40%
+}
+
+div#addtrackedbranch input {
+    font-family: monospace
+}
+
+div#addtrackedbranch input#sourcepath {
+    width: 60%
+}
+
+div#addtrackedbranch input#sourcename, div#addtrackedbranch input#targetname, div#addtrackedbranch input#users {
+    width: 100%
+}

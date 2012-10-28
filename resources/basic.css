@@ -1,0 +1,240 @@
+/* -*- mode: css; indent-tabs-mode: nil -*-
+
+ Copyright 2012 Jens Lindström, Opera Software ASA
+
+ Licensed under the Apache License, Version 2.0 (the "License"); you may not
+ use this file except in compliance with the License.  You may obtain a copy of
+ the License at
+
+   http://www.apache.org/licenses/LICENSE-2.0
+
+ Unless required by applicable law or agreed to in writing, software
+ distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.  See the
+ License for the specific language governing permissions and limitations under
+ the License.
+
+*/
+
+h1.noscript {
+    color: red;
+    text-align: center
+}
+
+div.main > table {
+    width: 95%
+}
+
+div.shortcuts a.shortcut {
+    text-decoration: none;
+    color: black
+}
+
+table.pageheader {
+    border-bottom: 3px solid black
+}
+
+table.pageheader td.left {
+    text-align: left;
+    vertical-align: bottom
+}
+
+table.pageheader td.left b {
+    font-family: sans-serif
+}
+
+table.pageheader td.left b.opera {
+    font-size: 40px;
+    color: #d32226;
+    cursor: pointer
+}
+
+table.pageheader td.left b.opera.development {
+    color: black
+}
+
+table.pageheader td.left b.critic {
+    font-size: 50px;
+    color: #666666;
+    cursor: pointer
+}
+
+table.pageheader td.left span.link {
+    font-weight: bold;
+    margin-left: 1.5em
+}
+
+table.pageheader td.left span.link a {
+    text-decoration: none;
+    color: black
+}
+
+table.pageheader td.right {
+    padding-bottom: 10px;
+    text-align: right;
+    vertical-align: bottom
+}
+
+table.pageheader td.right div {
+    display: inline-block
+}
+
+table.pageheader td.right div span.buttonscope-global > :first-child {
+    margin-left: 0.5em
+}
+
+table.pagefooter {
+    margin-top: 10px;
+    border-top: 3px solid black
+}
+
+table.pagefooter td.left {
+    color: #666666;
+    padding-top: 10px
+}
+
+table.pagefooter td.right {
+    text-align: right
+}
+
+div.fatal {
+}
+
+div.fatal pre {
+    text-align: left
+}
+
+div.paleyellow {
+    text-align: center
+}
+
+table.paleyellow {
+    margin-top: 1.5em;
+    margin-bottom: 2em;
+    padding: 1em 1em 1.5em 1em;
+    background: #ffd;
+    border: 3px solid #996;
+    border-radius: 10px
+}
+
+table.paleyellow > tbody > tr > td {
+    padding-left: 1em
+}
+
+table.paleyellow > * > tr > td.h1 {
+    text-align: left;
+    border-bottom: 1px solid #996
+}
+
+table.paleyellow > * > tr > td.h1 > h1 {
+    text-align: left;
+    margin-top: 0;
+    margin-bottom: 0.5em
+}
+
+table.paleyellow > * > tr > td.h1 > h1 > * {
+    text-shadow: none
+}
+
+table.paleyellow > * > tr > td.h1 > h1 > span.right {
+    font-size: 50%;
+    float: right
+}
+
+table.paleyellow > tbody > tr > td.h2 {
+    text-align: left;
+    padding-top: 1em;
+    padding-left: 2em;
+    border-bottom: 1px solid #996
+}
+
+table.paleyellow > tbody > tr > td.h2 > h2 {
+    text-align: left;
+    margin-top: 0;
+    margin-bottom: 0.5em
+}
+
+table.paleyellow > tbody > tr > td.h2 > h2 > span.right {
+    font-size: 50%;
+    float: right
+}
+
+table.paleyellow > tbody > tr.item > td {
+    padding-top: 0.5em
+}
+
+table.paleyellow > tbody > tr.item > td.name {
+    font-family: serif;
+    font-weight: bold;
+    text-align: right;
+    vertical-align: top
+}
+
+table.paleyellow > tbody > tr.item > td.value {
+    font-family: monospace;
+    white-space: pre-wrap;
+    text-align: left;
+    vertical-align: top;
+    padding-left: 1em
+}
+
+table.paleyellow > tbody > tr.item > td.value > div.buttons {
+    float: right
+}
+
+table.paleyellow > tbody > tr.item > td.value > div.buttons button {
+    margin-left: 3px
+}
+
+table.paleyellow > tbody > tr.help > td {
+    font-style: italic;
+    text-align: right;
+    border-bottom: 1px solid #996
+}
+
+table.paleyellow > tbody > tr.centered > td {
+    text-align: center
+}
+
+table.paleyellow > tbody > tr.centered > td > button {
+    margin-top: 1em
+}
+
+table.paleyellow > tbody > tr.html > td {
+    text-align: left
+}
+
+@media (min-width: 1348px) {
+    div.main > table,
+    table.paleyellow {
+        width: 1280px
+    }
+}
+
+.ui-dialog { box-shadow: 0 5px 5px rgba(0, 0, 0, 0.5), 0 7px 25px rgba(0, 0, 0, 0.5) }
+
+table.pageheader td.left > ul {
+  display: inline-block;
+  margin: 0 0 0 1em;
+  padding: 0;
+  font-weight: bold
+}
+
+table.pageheader td.left > ul > li {
+  display: inline;
+  margin: 0;
+  padding: 0
+}
+
+table.pageheader td.left > ul > li > a {
+  text-decoration: none;
+  color: black
+}
+
+table.pageheader td.left > ul > li:before {
+  content: " | "
+}
+
+table.pageheader td.left > ul > li:first-child:before {
+  content: none
+}

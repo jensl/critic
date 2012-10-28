@@ -1,0 +1,459 @@
+/* -*- mode: css; indent-tabs-mode: nil -*-
+
+ Copyright 2012 Jens Lindström, Opera Software ASA
+
+ Licensed under the Apache License, Version 2.0 (the "License"); you may not
+ use this file except in compliance with the License.  You may obtain a copy of
+ the License at
+
+   http://www.apache.org/licenses/LICENSE-2.0
+
+ Unless required by applicable law or agreed to in writing, software
+ distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.  See the
+ License for the specific language governing permissions and limitations under
+ the License.
+
+*/
+
+div.main {
+    text-align: center
+}
+
+div.main table.basic td.h1 h1 a.edit,
+div.main table.progress td.h1 h1 a {
+    font-size: 12px
+}
+
+div.main table.basic td.h1 h1 a.edit {
+    padding-left: 1em
+}
+
+div.main table.progress td.h1 span.right {
+    font-size: 50%;
+    float: right
+}
+
+div.main table.basic tr.line > td {
+    padding-top: 0.5em
+}
+
+div.main table.basic tr.line > td div.buttons {
+    float: right
+}
+
+div.main table.basic tr.line > td div.buttons button {
+    margin-left: 3px
+}
+
+div.main table.basic td.heading {
+    font-family: serif;
+    font-weight: bold;
+    text-align: right;
+    vertical-align: top
+}
+
+div.main table.basic td.value {
+    font-family: monospace;
+    white-space: pre-wrap;
+    text-align: left;
+    vertical-align: top
+}
+
+div.main table.basic span.user.retired > span.name {
+    text-decoration: line-through
+}
+div.main table.basic span.user > span.status {
+    color: red
+}
+
+div.main table.basic table.reviewfilters {
+    white-space: normal;
+    margin-top: 1em
+}
+
+div.main table.basic table.reviewfilters tbody.hidden,
+div.main table.basic table.reviewfilters tfoot.hidden {
+    display: none
+}
+
+div.main table.basic table.reviewfilters tfoot tr td {
+    font-style: italic
+}
+
+div.main table.basic table.reviewfilters tr.h1 th.h1 {
+    font-family: serif;
+    font-weight: bold;
+    text-align: left;
+    border-bottom: 1px solid black
+}
+
+div.main table.basic table.reviewfilters td {
+    vertical-align: top
+}
+
+div.main table.basic table.reviewfilters td.username {
+    font-weight: bold;
+    text-align: right
+}
+
+div.main table.basic table.reviewfilters td.reviews {
+    font-family: sans-serif;
+    text-align: center;
+    padding-left: 0.5em;
+    padding-right: 0.5em
+}
+
+div.main table.basic table.reviewfilters td.path {
+    text-align: left;
+    white-space: pre
+}
+
+div.main table.basic table.reviewfilters tr.filter td.remove {
+    text-align: right;
+    padding-left: 0.5em
+}
+
+div.main table.basic table.reviewfilters tr.filter td.remove a {
+    visibility: hidden
+}
+
+div.main table.basic table.reviewfilters tr.filter:hover td.remove a {
+    visibility: visible;
+    color: red;
+    text-decoration: none
+}
+div.main table.basic table.reviewfilters tr.filter:hover td.remove a:hover {
+    text-decoration: underline
+}
+
+div.main table.basic td.value div.text {
+    white-space: pre-wrap
+}
+
+div.main table.basic td.value input.value {
+    font-family: monospace;
+    width: 32em
+}
+
+div.main table.basic td.right {
+    text-align: right
+}
+
+div.main table.basic td.help {
+    font-style: italic;
+    text-align: right;
+    border-bottom: 1px solid #996
+}
+
+div.main table.basic td.value span.mode {
+    font-style: italic
+}
+
+div.main table.progress td.percent h1 {
+    font-size: 100px;
+    margin: 10px
+}
+
+div.main table.progress td.percent h1 span.comments {
+    font-size: 30%;
+    padding-left: 1em;
+    padding-right: 1em
+}
+
+div.main table.progress td.percent h1 div {
+    margin-top: -60px;
+}
+
+div.main table.progress td.percent h1 div span.remark {
+    font-size: 12px;
+    padding-left: 1em;
+    padding-right: 1em
+}
+
+div.main table.progress td.stuck {
+    padding-bottom: 10px
+}
+
+div.main table.progress td.stuck a {
+    font-weight: bold;
+    color: red;
+    text-decoration: none
+}
+
+div.main table.progress td.stragglers {
+    font-weight: bold;
+    text-decoration: underline;
+    padding-bottom: 3px
+}
+
+div.main table.progress td.straggler {
+    font-family: monospace
+}
+
+div.main table.progress td.straggler.absent:after {
+    content: " (absent)";
+    color: red
+}
+
+div.main table.progress td.pinging {
+    font-style: italic;
+    padding-top: 5px
+}
+
+div.main table.progress td.pinging span {
+    border-top: 1px solid #996
+}
+
+div.main table.shared tr.h1 td.buttons {
+    text-align: right;
+    border-bottom: 1px solid #996
+}
+
+div.main table.shared tr.reviewers td
+{
+    padding-top: 0.5em;
+    vertical-align: top
+}
+
+div.main table.shared tr.reviewers td.reviewers
+{
+    font-weight: bold;
+    text-align: right;
+    width: 30%
+}
+
+div.main table.shared tr.reviewers td.files
+{
+    font-family: monospace;
+    text-align: left;
+    width: 40%
+}
+
+div.main table.shared tr.reviewers td.files span.file
+{
+    white-space: pre
+}
+
+div.main table.shared tr.reviewers td.files
+{
+    width: 30%
+}
+
+div.main table.log td.when {
+    text-align: left
+}
+
+div.main table.log td.approval,
+div.main table.log td.total {
+    text-align: right;
+    white-space: pre
+}
+
+div.main table.log td.approval.user span,
+div.main table.log td.total.user span {
+    outline: 3px dotted #f66;
+    padding-left: 3px;
+    padding-right: 3px
+}
+
+div.main table.log td.approval span,
+div.main table.log td.total span {
+    font-family: monospace
+}
+
+div.main table.log td.approval.user span,
+div.main table.log td.total.user span {
+    font-weight: bold
+}
+
+div.main table.log td.approval.approved span {
+    background-color: #dfd
+}
+
+div.main table.log td.approval.pending span {
+    background-color: #fdd
+}
+
+div.main table.comments td,
+div.main table.batches td {
+    padding-left: 1em
+}
+
+div.main table.comments td.h1,
+div.main table.batches td.h1 {
+    text-align: left;
+    border-bottom: 1px solid #996
+}
+
+div.main table.comments td.h1 h1,
+div.main table.batches td.h1 h1 {
+    text-align: left;
+    margin-top: 0;
+    margin-bottom: 0.5em
+}
+
+div.main table.comments td.h1 h1 a {
+    font-size: 50%;
+    margin-left: 1em
+}
+
+div.main table.comments td.h2 {
+    padding-top: 1em;
+    padding-left: 2em;
+    text-align: left;
+    border-bottom: 1px solid #996
+}
+
+div.main table.comments td.h2 h2 {
+    text-align: left;
+    margin-top: 0;
+    margin-bottom: 0.5em
+}
+
+div.main table.comments td.h2 a {
+    font-size: 50%;
+    margin-left: 1em
+}
+
+div.main table.comments tr.comment td,
+div.main table.batches tr.batch td {
+    padding-top: 3px;
+    padding-bottom: 3px
+}
+
+div.main table.comments tr.comment:hover,
+div.main table.batches tr.batch:hover {
+    background: #eec
+}
+
+div.main table.comments td.author,
+div.main table.batches td.author {
+    font-weight: bold;
+    text-align: left;
+    white-space: pre
+}
+
+div.main table.comments td.title,
+div.main table.batches td.title {
+    font-family: monospace;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    overflow: hidden;
+    text-align: left;
+    width: 70%
+}
+
+div.main table.comments td.when,
+div.main table.batches td.when {
+    text-align: right;
+    white-space: pre;
+    padding-right: 1em
+}
+
+div.main table.comments td.buttons {
+    border-top: 1px solid #996;
+    padding-top: 15px;
+    text-align: right
+}
+
+div.summary-tooltip > div.header {
+    font-weight: bold;
+    text-decoration: underline
+}
+
+div.summary-tooltip > div.reviewer {
+    font-family: monospace
+}
+div.summary-tooltip > div.reviewer > span.absent {
+    color: red
+}
+
+div.text input {
+    margin-top: 1em;
+    padding: 3px;
+    width: 95%
+}
+
+dt {
+    font-weight: bold
+}
+
+dd {
+    padding-top: 0.5em;
+    padding-bottom: 1em
+}
+
+dd .notsupported {
+    font-weight: bold;
+    color: red;
+    margin-bottom: 0.5em
+}
+
+div.specifyupstream input[name='sha1'] {
+    font-family: monospace;
+    width: 100%
+}
+
+div.specifyupstream select {
+    font-family: monospace;
+    background-color: white;
+    width: 100%
+}
+
+div.removefilter div {
+    padding-left: 1em
+}
+
+div.removefilter .user {
+    font-weight: bold
+}
+
+div.removefilter .path {
+    font-family: monospace
+}
+
+div.main > div.error {
+    text-align: left;
+    width: 50%;
+    margin-left: auto;
+    margin-right: auto;
+    border: 10px solid red;
+    border-radius: 20px;
+    padding: 0.5em 2em 2em 2em;
+    font-weight: bold
+}
+
+div.main > div.error > h1 {
+    text-decoration: underline
+}
+
+code.branch, code.repository {
+    border: 1px solid #996;
+    background-color: #ffe;
+    padding: 2px 6px
+}
+
+code.branch > a, code.repository > a {
+    color: black;
+    text-decoration: none
+}
+
+code.branch > a:hover, code.repository > a:hover {
+    color: blue;
+    text-decoration: underline
+}
+
+p.tracking {
+    font-style: italic;
+    padding-left: 2em
+}
+p.tracking.disabled {
+    text-decoration: line-through;
+    color: red
+}
+
+span.lastupdate {
+    font-style: italic;
+    padding-left: 1em
+}

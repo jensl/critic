@@ -1,0 +1,52 @@
+/* -*- mode: css; indent-tabs-mode: nil -*-
+
+ Copyright 2012 Jens Lindström, Opera Software ASA
+
+ Licensed under the Apache License, Version 2.0 (the "License"); you may not
+ use this file except in compliance with the License.  You may obtain a copy of
+ the License at
+
+   http://www.apache.org/licenses/LICENSE-2.0
+
+ Unless required by applicable law or agreed to in writing, software
+ distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.  See the
+ License for the specific language governing permissions and limitations under
+ the License.
+
+*/
+
+body { font-size: 12px; font-family: sans-serif }
+
+div.main { text-align: center }
+
+div.main table td.repositories { text-align: right; border-bottom: 1px solid #996 }
+div.main table td.repositories select { background-color: #ffd }
+
+div.main table.basic tr.line td { padding-top: 0.5em }
+div.main table.basic td.heading { font-family: serif; font-weight: bold; text-align: right; width: 20% }
+div.main table.basic td.value { font-family: monospace; text-align: left }
+div.main table.basic td.value input.value { font-family: monospace; width: 32em }
+div.main table.basic td.status { text-align: right; width: 20%; font-weight: bold }
+div.main table.basic td.help { font-style: italic; text-align: right; border-bottom: 1px solid #996 }
+
+div.main table.filters td.help { font-style: italic; text-align: left; padding-top: 1em; border-bottom: 1px solid #996 }
+div.main table.filters td.help p { margin-left: 10%; margin-top: 0; width: 60em }
+div.main table.filters td.help p strong { font-weight: bold; font-style: normal }
+div.main table.filters td.help p code { font-style: normal; font-style: normal }
+div.main table.filters td.filter.empty { text-align: left; font-weight: bold; padding-top: 0.5em }
+div.main table.filters td.filter.type { text-align: right; width: 10%; font-weight: bold }
+div.main table.filters td.filter.type select { background-color: #ffd }
+div.main table.filters td.filter.path { text-align: left; width: 50%; font-family: monospace }
+div.main table.filters td.filter.path input { font-family: monospace; width: 90% }
+div.main table.filters td.filter.delegate { text-align: left; width: 30%; font-family: monospace }
+div.main table.filters td.filter.delegate input { font-family: monospace; width: 95% }
+div.main table.filters td.filter.buttons { text-align: right; width: 10%; white-space: pre }
+div.main table.filters tr.buttons td.buttons { text-align: right; padding-top: 0.5em }
+
+div.main table.filters tr.filter:hover { background: #eec }
+
+div.main table.filters td.heading.type { text-align: right; width: 10%; font-weight: bold; text-decoration: underline }
+div.main table.filters td.heading.path { text-align: left; width: 50%; font-weight: bold; text-decoration: underline }
+div.main table.filters td.heading.delegate { text-align: left; width: 30%; font-weight: bold; text-decoration: underline }
+div.main table.filters td.heading.buttons { text-align: right; width: 10% }

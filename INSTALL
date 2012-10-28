@@ -1,0 +1,47 @@
+Installation
+============
+
+To install Critic, run the script install.py as root.  It will ask a
+number of question and then perform the installation.  In short, what
+it does is:
+
+  * Check for and/or install required software packages.
+
+  * Create a system user (typically named "critic") and group (also
+    typically named "critic").
+
+  * Generate system configuration into /etc/critic/.
+
+  * Install the source code into /usr/share/critic/.
+
+  * Create a PostgreSQL user and database, both named "critic".
+
+  * Create a System-V style init script, /etc/init.d/critic-main, and
+    create links to it in the /etc/rcN.d/ directories.
+
+  * Enable the Apache modules mod_expires and mod_wsgi.
+
+  * Create an Apache site named "critic-main" and enable it.
+
+
+Required Software Packages
+--------------------------
+
+Critic depends on the following software packages:
+
+  * PostgreSQL (8.4 or later)
+
+  * Apache (2.2 or later; 2.4 hasn't been tested)
+
+  * Git
+
+  * Python (2.7 or later; 3.x not supported)
+
+  * Non-standard Python modules:
+
+    - bcrypt (if Critic does user authentication)
+
+    - psycopg2
+
+Note that on Debian/Ubuntu systems, the install.py script can install
+all of these software packages automatically.

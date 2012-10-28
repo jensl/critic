@@ -1,0 +1,89 @@
+/* -*- mode: css; indent-tabs-mode: nil -*-
+
+ Copyright 2012 Jens Lindström, Opera Software ASA
+
+ Licensed under the Apache License, Version 2.0 (the "License"); you may not
+ use this file except in compliance with the License.  You may obtain a copy of
+ the License at
+
+   http://www.apache.org/licenses/LICENSE-2.0
+
+ Unless required by applicable law or agreed to in writing, software
+ distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.  See the
+ License for the specific language governing permissions and limitations under
+ the License.
+
+*/
+
+table.services {
+    margin-top: 1em;
+    padding: 1em;
+    border: 2px solid #996;
+    background-color: #ffe;
+    font-family: monospace
+}
+
+th, td {
+    padding-left: 0.5em;
+    padding-right: 0.5em
+}
+
+tr.spacer > td {
+    padding-top: 0.5em
+}
+
+tr.headings > th {
+    border-bottom: 1px solid #996
+}
+
+th.name, td.name {
+    text-align: left
+}
+
+th.path, td.path {
+    text-align: left
+}
+
+th.uptime, td.uptime {
+    text-align: right
+}
+
+th.pid, td.pid {
+    text-align: right
+}
+
+th.rss, td.rss {
+    text-align: right
+}
+
+th.commands, td.commands {
+    text-align: right
+}
+
+tr.service > td {
+    font-family: monospace;
+    padding-top: 2px;
+    padding-bottom: 2px
+}
+
+tr.service:hover {
+    background-color: #eed;
+    cursor: pointer
+}
+
+tr.service > td.commands a {
+    visibility: hidden;
+    text-decoration: none
+}
+
+tr.service:hover > td.commands a {
+    visibility: visible
+}
+
+div.servicelog > pre {
+    border: 1px solid black;
+    padding: 0.5em;
+    background: white;
+    overflow: auto
+}

@@ -1,0 +1,196 @@
+Reviewing Changes
+=================
+
+Progress and State
+------------------
+
+Critic keeps track of the progress and state of a review in order to be able to
+declare when a set of changes has been accepted, and in order to be able to tell
+individual users what new changes they need to review.  A review is considered
+accepted when there are nothing that blocks if from being accepted; there is no
+need for any (or all) reviewers to explicitly signal final acceptance.  Two
+things block a review from being accepted: changes that haven't been reviewed
+yet, and issues raised by reviewers (or others) while reviewing the changes.  A
+review is thus considered accepted once all changes have been reviewed, and
+either no issues were raised or all raised issues have been addressed.
+
+The current progress and/or state of a review is indicated on the review
+front-page in big letters.  While a review is in progress, the progress is
+displayed as a percentage of changed lines that have been reviewed, and a count
+of open issues that need to be addressed.  Once the review is accepted, the
+progress is displayed as "Accepted!".  When the review is in this state, the
+review owner (or anyone else) can close the review as finished.
+
+At any point during the review process the review can also be dropped.  To drop
+a review, press the "Drop Review" button in the top-right corner of the review
+front-page.  Normally, only the review owner is given the option to drop the
+review.  This limitation is convenience only: the assumption is that normally
+only the review owner is ever interested in dropping the review.  If the
+configuration option
+  <a href=config?highlight=review.dropAnyReview#go><code>review.dropAnyReview</code></a>
+is enabled the "Drop Review" button is displayed on the front-page of all
+reviews.
+
+
+Displaying Changes
+------------------
+
+As a reviewer, the main task in a review is of course to review the
+actual code changes.  The review front-page provides a range of options
+for displaying the changes:
+
+* In the list of commits, clicking the summary text of any commit will load a
+  full diff of that commit.  If there are changes in a commit that need your
+  reviewing, the numbers in the columns "Pending" and "Total" in the table of
+  commits are surrounded by a thick red dotted border.
+* If there are several commits in the review, a range of commits can be
+  "squashed" to display the sum of changes in those commits.  To do this, press
+  the left mouse button over the summary text of the first commit in the range,
+  move the mouse pointer to the summary text of the last commit in the range and
+  release the left mouse button.
+* In addition, you can display either all changes that remain for you to review
+  or all changes you have reviewed or should review by following the links
+  labelled "[pending]" and "[reviewable]" in the top-right corner of the
+  "Commits" table.  In this view, changes in modules or files you are not
+  reviewing are skipped, producing a smaller diff, but of course not a complete
+  set of changes.
+
+
+Reviewing Changes
+-----------------
+
+When a diff is displayed in the context of a review&mdash;whether it's a full
+commit, a range of commits or a filtered set of changes&mdash;the table of
+changed files displayed will have an extra column titled "Reviewed".  For any
+file in which there are changes for you to review, this column will contain a
+checkbox.  This checkbox is used to mark the changes as reviewed.  In addition,
+the first row in the table will have checkbox that can be used to check (or
+uncheck) all the checkboxes in the table.
+
+As an alternative to manually checking checkboxes after reading the diff, the
+whole set of changes can be "paged through" using the SPACE key.  Repeatedly
+pressing the SPACE key will display the changes in the first file, then scroll
+down one page at a time until the bottom of the page is reached, then hide the
+file, mark the changes in it as reviewed (checking the checkbox) and display the
+next file.  Thus, by simply pressing the SPACE key, you can read all the changes
+and check all the checkboxes as you go along.
+
+All changes made to a review are immediately communicated to the server, but
+recorded as "draft changes" that are not visible to other users.  As soon as any
+draft changes are stored, the top-right corner of any page related to the review
+will contain a summary of the changes made, and the buttons "Submit" and
+"Abort".  Pressing the "Submit" button makes the changes visible to other users
+(that is, removes the draft status) and sends emails to all participants of the
+review about the changes made.
+
+Note: "Reviewed" does not mean "Approved"
+-----------------------------------------
+Marking changes as reviewed does not in itself represent approval!  It merely
+means you reviewed the changes; that you don't expect to be reviewing these same
+changes much more and that no other user needs to review them.  This is how
+Critic keeps track of what you and other users need to do, and what remains to
+do before a review is finished.
+
+Approval is signalled implicitly by marking changes as reviewed without
+complaining about anything while doing so; there is no explicit approval action.
+You are of course free to express your approval of the changes in comments, but
+it is not required for Critic to consider a review as accepted.
+
+Leaving changes "unreviewed" after reading them because you found flaws in the
+code and don't wish to approve the code before those flaws are fixed is in
+itself flawed.  The commit you are looking at is fixed and cannot be altered,
+only an additional commit can fix the flaws in the code.  So the commit you are
+looking at must either be "approved" in its current form, with raised issues
+that block the review, or the entire review would have to be dropped.
+
+
+Writing Comments
+----------------
+
+A vital component in the reviewing of changes is of course the ability to
+annotate the code with comments.  In Critic, such code comments are attached to
+specific lines of code, not to lines of a particular diff.  In practice, this
+difference is not very significant; often you will barely notice the difference.
+Comments are added by selecting a range of lines in the diff; just press the
+left mouse button over the first line, move the mouse pointer over to the last
+line and release the left mouse button, after which a dialog is displayed in
+which you write the comment.
+
+  There's typically no need to select additional context lines surrounding the
+  code you wish to comment on when writing a comment; Critic will add such
+  context lines itself when the comment is displayed.  It is thus better to only
+  select the specific lines that the comment relates to.
+
+In Critic, there are two types of comments: issues and notes.  Issues are
+significant to the progress of the review; any issue raised by a reviewer (or
+other user) blocks the review from being accepted until the issue has been
+addressed or resolved.  Notes, on the other hand, do not, and exist to allow
+users to add informational comments without affecting the progress of the
+review.
+
+It may seem drastic sometimes to call a comment an "issue", but think of it like
+this: an issue comment is something, anything, that needs to be handled somehow
+before the review is closed.  An answer, from the review owner, to a question
+might really be all you're after, but by calling it an issue, Critic will help
+both you and the review owner to not forget about it before going ahead.  If you
+call it a note instead, feeling that "issue" is too harsh, Critic will not care
+whether the comment receives any further attention from anyone.
+
+If a comment is added with the wrong type&mdash;an issue that ought to be just a
+note or a note that ought to be an issue&mdash;the type of the comment can be
+altered after it's been added, using the buttons labelled "Convert to Note" and
+"Convert to Issue".  Converting an issue into a note may cause the review to
+become accepted, since it is quite similar to explicitly resolving the issue.
+
+
+Handling Issues
+---------------
+Since open issues block the review from being accepted and closed, they
+need to be handled.  There are two basic ways to handle an open issue:
+
+1 Explicitly mark the issue as resolved using the "Resolve&nbsp;Issue" button
+  displayed along with the comment.
+2 Push additional commits to the review that change the commented lines, which
+  causes Critic to automatically mark the comment as "Addressed".  This is the
+  preferred choice when the comment asked for the code to be changed, since it
+  makes it easy for both the reviewer and review owner to verify that all
+  requested changes have been made, and also spares someone the trouble of
+  manually marking issues as resolved.
+
+Anyone is allowed to explicitly resolve an open issue, including the review
+owner.  This may seem as an opportunity to "cheat" and approve your own changes,
+and in practice, that is what it is.  But the reason is simple: Critic is here
+to facilitate reviews, not prevent cheating or enforce rules.
+
+When a comment is marked as addressed automatically, there's of course the
+possibility that the change didn't actually address the issue, either because it
+was a completely unrelated change that just happened to intersect the comment,
+or because it wasn't what the reviewer had in mind.  It may seem easy for issues
+to get lost because of this, but in practice this ought not be a problem, since
+the change that caused the comment to be marked as addressed still needs to be
+reviewed as any other change, which provides the reviewer with ample opportunity
+to verify that addressed issues were truly addressed.
+
+If an issue is incorrectly marked as addressed, it can be reopened.  To do this,
+press the "Reopen Issue" button displayed along with the comment.  A dialog will
+be displayed asking you to select the range of lines in the new version of the
+code where the issue still exists.  When done, the issue will be open again, and
+the new range of lines will be the lines that need to be changed for the comment
+to be marked as addressed again.
+
+Draft Comments
+--------------
+All actions involving comments, writing, editing, resolving and reopening, are
+immediately communicated to the server and stored in the database as draft
+changes.  Once stored on the server, you can navigate to a different page in
+your browser, or reload the page, or crash the browser, without risk losing any
+data.  You will be able to submit the changes, making them visible to all users,
+on any page related to the review.  If no "Submit" button is displayed, you
+probably just need to reload the page for it to appear.
+
+As a rule of thumb: if there's a text input on the screen, any editing you've
+done in it would be lost if you, for instance, closed the window.  As soon as
+the text input is removed from the screen, whatever was in the text input is
+stored on the server (unless you used a "Cancel" button, of course.)  If the
+operation to store information on the server fails, an error dialog is displayed
+and the dialog containing the text input stays open.

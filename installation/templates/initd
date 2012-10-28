@@ -1,0 +1,79 @@
+#!/bin/sh
+set -e
+
+### BEGIN INIT INFO
+# Provides:		critic-main
+# Required-Start:	postgresql $local_fs $remote_fs $network $time
+# Required-Stop:	postgresql $local_fs $remote_fs $network $time
+# Should-Start:
+# Should-Stop:
+# Default-Start:	2 3 4 5
+# Default-Stop:		0 1 6
+# Short-Description:	Critic code review system (main)
+### END INIT INFO
+
+critic_etc=%(installation.paths.etc_dir)s/main
+critic_root=%(installation.paths.install_dir)s
+critic_run=%(installation.paths.run_dir)s
+pidfile=%(installation.paths.run_dir)s/main/servicemanager.pid
+
+. /lib/lsb/init-functions
+
+start () {
+    log_daemon_msg "Starting Critic service manager" "servicemanager.py"
+
+    if test ! -d $critic_run
+    then
+        mkdir -p $critic_run
+        chown %(installation.system.username)s.%(installation.system.groupname)s $critic_run
+        chmod ug+s $critic_run
+    fi
+
+    cd $critic_root
+    sudo -u %(installation.system.username)s PYTHONPATH=$critic_etc:$critic_root %(installation.prereqs.python)s background/servicemanager.py
+
+    log_end_msg $?
+}
+
+stop () {
+    log_daemon_msg "Stopping Critic service manager" "servicemanager.py"
+
+    if test -f $pidfile
+    then
+	pid=$(cat $pidfile)
+
+	if kill -TERM $pid
+	then
+	    while test -f $pidfile
+	    do
+		sleep 0.1
+	    done
+	else
+	    rm $pidfile
+	fi
+    fi
+
+    log_end_msg 0
+}
+
+case "$1" in
+    start)
+	start
+	;;
+
+    stop)
+	stop
+	;;
+
+    restart)
+	stop
+	start
+	;;
+
+    *)
+        echo "Usage: $0 {start|stop|restart}"
+        exit 1
+        ;;
+esac
+
+exit 0

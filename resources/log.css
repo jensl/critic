@@ -1,0 +1,126 @@
+/* -*- mode: css; indent-tabs-mode: nil -*-
+
+ Copyright 2012 Jens Lindström, Opera Software ASA
+
+ Licensed under the Apache License, Version 2.0 (the "License"); you may not
+ use this file except in compliance with the License.  You may obtain a copy of
+ the License at
+
+   http://www.apache.org/licenses/LICENSE-2.0
+
+ Unless required by applicable law or agreed to in writing, software
+ distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.  See the
+ License for the specific language governing permissions and limitations under
+ the License.
+
+*/
+
+table.log { background: #ffd; table-layout: fixed }
+
+div.main > table.log,
+tbody.content table.log {
+    padding: 1em; margin-top: 1em; border: 3px solid #996
+}
+
+tbody.content table.log {
+    width: 70%
+}
+
+div.main > table.log > thead > tr.headings > td,
+tbody.content table.log > thead > tr.headings > td {
+    padding-top: 0.5em
+}
+
+table.log table.log { width: 98% }
+
+table.log tr.title td { padding-left: 1em }
+table.log tr.title td { text-align: left; border-bottom: 1px solid #996 }
+table.log tr.title td h1 { text-align: left; margin-top: 0; margin-bottom: 0.5em }
+table.log tr.title td h1 span.right { font-size: 50%; float: right }
+
+table.log tr.headings td { padding-left: 1em; font-weight: bold; text-decoration: underline }
+table.log tr.headings td.when { text-align: right; padding-right: 1em }
+table.log tr.headings td.type { text-align: left; text-decoration: none }
+table.log tr.headings td.summary { text-align: left }
+table.log tr.headings td.author { text-align: right }
+
+table.log tr.commit:hover { background: #eec }
+table.log tr.commit td { padding-left: 1em; padding-top: 3px; padding-bottom: 3px }
+table.log tr.commit td.when { text-align: right; font-weight: bold; padding-right: 1em }
+table.log tr.commit td.type { text-align: left; font-weight: bold }
+table.log tr.commit td.summary {
+    text-align: left;
+    font-family: monospace;
+    font-size: 10pt;
+    background-color: #ffe;
+    border-left: 1px dotted #996;
+    border-bottom: 1px dotted #996;
+    border-right: 1px dotted #996;
+    white-space: nowrap;
+    overflow: hidden;
+    cursor: pointer
+}
+table.log tr.commit:hover td.summary { background-color: #eed }
+table.log tr.commit.highlight td.summary { background-color: #dfd }
+table.log tr.commit td.summary.selected { background-color: #eed }
+/*table.log tr.commit td.summary:hover { background-color: #eed }*/
+table.log tr.commit:first-child td.summary { border-top: 1px dotted #996 }
+table.log tr.commit td.author { text-align: right; font-weight: bold }
+table.log tr.commit.selected { background: #ddb }
+table.log tr.commit td.summary .nocomment { font-style: italic; text-decoration: none }
+
+table.log > thead > tr.basemerge > td,
+table.log > thead > tr.rebase > td { padding-top: 0.5em; padding-bottom: 0.5em; font-weight: bold }
+table.log > thead > tr.upstream > td { padding-top: 0.5em; font-weight: bold }
+table.log > thead > tr.error > td { padding-top: 0.5em; padding-bottom: 0.5em; font-weight: bold }
+
+table.log > tfoot > tr > td {
+    text-align: right; border-top: 1px solid #966; padding-top: 0.5em
+}
+
+table.log.collapsable.collapsed > thead.title { display: table-row-group }
+table.log.collapsable.collapsed > thead.title > tr.headings { display: none }
+table.log.collapsable.collapsed > thead,
+table.log.collapsable.collapsed > tbody { display: none }
+
+tr.sublog > td { padding-bottom: 0.5em }
+tr.sublog > td > table.log { /*border-top: 1px solid #996; border-bottom: 1px solid #996;*/ padding-top: 0.5em; padding-bottom: 0.5em }
+tr.sublog > td > table.log tr > td.when { border-left: 3px solid #996; }
+
+div.main div.submit { margin-left: 30%; margin-right: 30%; background-color: #8f8; border: 3px solid #6b6; text-align: center; margin-top: 1em; margin-bottom: 1em; border-radius: 10px; color: #141 }
+div.main div.submit:hover { background-color: #7e7; border-color: #5a5; cursor: hand }
+div.main div.submit:active { background-color: #6d6; border-color: #494; cursor: hand }
+
+div.marker {
+    position: absolute;
+    border: 2px solid;
+    width: 7px;
+    background-color: #88f;
+    border-color: #66b
+}
+
+div.marker.right {
+    border-top-right-radius: 10px;
+    border-bottom-right-radius: 10px;
+}
+
+div.marker.left {
+    border-top-left-radius: 10px;
+    border-bottom-left-radius: 10px;
+}
+
+select.base {
+    background-color: #ffd;
+    font-family: monospace
+}
+
+select.base option.base {
+    font-weight: bold
+}
+
+table.log.relevant tr.commit.merge { display: none }
+table.log.relevant td h1 a {
+    font-size: 12px;
+    margin-left: 1em
+}

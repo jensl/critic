@@ -1,0 +1,166 @@
+Requesting a Review
+===================
+
+What is a Review?
+-----------------
+
+Critic is based around regular git repositories.  A review consists of one or
+more commits at the tip of a branch in this git repository, annotated by
+comments written by the reviewers and other participants along the way.  Any
+code changes involved in a review are always communicated to Critic via the git
+repository, through
+  <code>git push</code>,
+and are always available in the git repository for anyone to fetch, checkout and
+test.
+
+Not every branch in Critic's git repositories is associated with a review.
+Regular branches, such as 'master', also exist in the repositories, and can be
+pushed to the repositories without any particular side-effects.  Branches that
+are associated with reviews always have names that start with the prefix
+  "<code class=bold>r/</code>",
+and no branches in the repositories not associated with reviews can have names
+with that prefix.  This unambigiously identifies branches that are being
+reviewed.
+
+
+Step 1: Pushing changes to Critic
+---------------------------------
+
+In order to request a review of the changes made by one or more commits, those
+commits must first be pushed to one of Critic's git repositories.  Branches are
+pushed to Critic's git repositories as they are to any other git repository;
+just add one of Critic's repositories as a remote in your local repository and
+use 'git push' to push the branch to Critic's repository.  These are the
+repositories that Critic has right now:
+
+[repositories]
+
+Of course, you need to select a name for your branch.  There's really only one
+concern that is different from when selecting a branch name when pushing a
+branch to any other shared repository: if it starts with the
+  "<code class=bold>r/</code>"
+prefix the branch is associated with a review.  So you have two choices:
+
+1 Push to a branch whose name doesn't have the
+    "<code class=bold>r/</code>"
+  prefix, in which case no significant further actions are triggered, or
+2 Push to a branch whose name does have the
+    "<code class=bold>r/</code>"
+  prefix, in which case a review of only the first (head) commit of the branch
+  is created automatically and immediately, and emails are sent to relevant
+  users.
+
+If the prospect of creating a review immediately merely by pushing a branch to a
+remote seems frightening, fear not.  The ability to create a review by pushing a
+branch is controlled by the configuration option
+  <a href=config?highlight=review.createViaPush#go><code>review.createViaPush</code></a>,
+which is disabled by default.  Trying to push a branch whose name has
+the
+  "<code class=bold>r/</code>"
+prefix without enabling the configuration option first causes the push to be
+rejected with a message saying you need to enable the option.
+
+<b>Note:</b> If you pushed to a branch whose name doesn't have the
+  "<code class=bold>r/</code>"
+prefix, this branch is only used to create the review.  When the review is
+created, a second branch will be created to go with it, and any updates to the
+first branch will have no effect on the review!
+
+
+Step 2: Locating Commit(s)
+--------------------------
+
+If in step 1 you pushed a branch whose name had the
+  "<code class=bold>r/</code>"
+prefix, then there is no step 2.  You're done.  If you used any other
+branch name, read on.
+
+Locate the branch you pushed, or the commit you want reviewed, in Critic's
+repository viewer.  A branch can be displayed by loading the URL
+
+  %(configuration.URL)s/log?repository=&lt;short name>&amp;branch=&lt;branch>
+
+and a single commit can be displayed by loading the URL
+
+  %(configuration.URL)s/&lt;SHA-1>
+
+Also, when you pushed the branch, the reply from the remote, and output from
+your git client, should have contained a link to the branch and a direct link
+for creating a review of the whole branch.
+
+On every page displaying either the branch or a single commit you should see a
+button in the top-right corner of the page, with the label "Create Review".
+Press that button to proceed to the next step.  Note that pressing the button
+does not create a review right away and is not final; you'll still have a chance
+to change your mind.  Also note that there may be a significant delay between
+pressing the button and the next page loading.  Do not be worried by this; it is
+simply Critic preparing all the commits for quicker viewing and takes some time
+if there are many commits and/or large files were modified.
+
+
+Step 3: Creating the Review
+---------------------------
+
+The "Create Review" button takes you to a page where you will get to select a
+branch name for the review, write a one-line summary, a longer description
+(which is optional) and inspect what users would be assigned to review the
+changes, and what additional users would be watching the review.  The page also
+lists all the commits that would be part of the review (initially) with links
+allowing you to inspect the diffs and make sure everything is to your
+satisfaction.
+
+Branch Name
+-----------
+A branch name needs to be selected for the review.  It must have the
+  "<code class=bold>r/</code>"
+prefix, but can otherwise be chosen freely.  Two simple patterns are
+recommended, however:
+
+1 For a review of a bug fix, use the branch name
+    "<code class=bold>r/&lt;bug ID&gt;</code>".
+  Critic will automatically pre-fill the branch name field with such a branch
+  name if the review contains a single commit and the first line of its commit
+  message indicates that it's a fix for a bug.  (The detection of such an
+  indication is a bit hit-and-miss; it's just a regexp.)
+2 For other reviews, use a branch name with the prefix
+    "<code class=bold>r/&lt;username&gt;/</code>".
+
+These patterns are only recommendations.  Overly generic branch names should be
+avoided, of course, but this holds equally true for the same reasons in any
+other shared repository.
+
+Description
+-----------
+The longer review description is optional since commits, and thus commit
+messages, are an integral part of the review in Critic.  For a review of
+a single-commit bug fix, any sensible longer description of the review
+would likely be more or less exactly the same as the commit message of
+the single commit, and thus redundant.  For a review of a larger body of
+work consisting of many commits, a description that summarizes the work
+would of course make sense.
+
+
+Step 4: Submit the Review
+-------------------------
+
+The final step in the process is to submit the review by pressing the button
+labelled "Submit Review" found in the top-right corner of the "Create Review"
+page.  Before that, no trace of the review exists in Critic's database.  There
+is therefore no need, and no possibility, to "abort" the review at this point:
+it doesn' exist yet.
+
+Submitting the review does a number of things:
+
+1 Creates the review branch in Critic's git repository.
+2 Assigns all the changes in all the commits to all the appropriate reviewers.
+3 Sends emails to all users associated with the review about the review having
+  been created.
+
+After submitting the review, you're redirected to the newly created review's
+front-page, which contains or links to all information relevant to the review.
+At this point, the most prominent feature of the page will be the text "No
+progress", in big letters.  As reviewers (and others) review the changes, this
+text will change to a percentage counter describing how much of the changes have
+been reviewed so far, and ultimately to the text "Accepted!" when all the
+changes have been reviewed without issues, at which point you'll be able to
+close the review.

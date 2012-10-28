@@ -1,0 +1,75 @@
+/* -*- mode: css; indent-tabs-mode: nil -*-
+
+ Copyright 2012 Jens Lindström, Opera Software ASA
+
+ Licensed under the Apache License, Version 2.0 (the "License"); you may not
+ use this file except in compliance with the License.  You may obtain a copy of
+ the License at
+
+   http://www.apache.org/licenses/LICENSE-2.0
+
+ Unless required by applicable law or agreed to in writing, software
+ distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.  See the
+ License for the specific language governing permissions and limitations under
+ the License.
+
+*/
+
+tr.item > td.value > span.name {
+    border-bottom: 1px solid #996
+}
+
+tr.item > td.value > span.installed {
+    font-weight: bold;
+    color: #0e0
+}
+
+tr.item > td.value > span.details {
+    float: right
+}
+
+tr.item > td.value > span.details > select {
+    background-color: #ffd
+}
+
+tr.item > td.value > div.description {
+    padding-top: 1em;
+    padding-bottom: 1em;
+    font-family: serif
+}
+
+tr.item > td.value > div.description.broken > a {
+    font-weight: bold;
+    color: red;
+    text-decoration: none
+}
+
+table.roles {
+    margin-left: 1em
+}
+
+table.roles > tbody > tr > th {
+    padding-top: 0.5em;
+    border-bottom: 1px solid #996;
+    text-align: left
+}
+
+table.roles > tbody > tr > td.description {
+    font-family: serif
+}
+
+table.roles > tbody > tr > td.pattern {
+    padding-right: 1em
+}
+
+table.roles > tbody > tr > td > ul {
+    padding-left: 1.5em;
+    margin: 0;
+    font-family: serif
+}
+
+table.roles span.inactive {
+    font-weight: bold;
+    color: red
+}

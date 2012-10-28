@@ -1,0 +1,42 @@
+Reconfiguring Critic
+====================
+
+Email Configuration
+-------------------
+
+When Critic sends emails about new or updated reviews, it generates a separate
+email for every recipient.  (It then lies about whom it sent the email to by
+adding all recipients to the "To" header in each email sent.)  You can configure
+what changes you wish to receive emails about, to some degree what information
+those emails should contain, and how the emails should be formatted.  Any such
+configuration affects only emails sent to you.  They do not affect emails sent
+to others because of things you do.
+
+Email Activation
+----------------
+First of all you can configure whether emails are sent to you at all, using the
+configuration item CONFIG(email.activated).  It's enabled by default, and you
+should typically not disable it.
+
+Subject Line Formats
+--------------------
+There are a number of configuration items that control the subject line of
+emails sent.  Their names all start with "email.subjectLine.", for instance
+CONFIG(email.subjectLine.newReview).
+
+They all work the same way.  The value should be a valid
+  <a href="http://docs.python.org/library/stdtypes.html#string-formatting">Python format string</a>
+containing "%%(key)s" conversion specifiers to insert details about the review
+into the subject line.  If the format string is invalid, instead of a useful
+subject line your emails will contain the error message Python produced.
+
+The following keys can be used in conversion specifiers:
+
+? id
+= The review ID in "r/NNNN" format.
+? summary
+= The review title or summary.
+? progress
+= The current progress of the review in "NN %% and N issues" format.
+? branch
+= The name of the review branch.

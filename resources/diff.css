@@ -1,0 +1,181 @@
+/* -*- mode: css; indent-tabs-mode: nil -*-
+
+ Copyright 2012 Jens Lindström, Opera Software ASA
+
+ Licensed under the Apache License, Version 2.0 (the "License"); you may not
+ use this file except in compliance with the License.  You may obtain a copy of
+ the License at
+
+   http://www.apache.org/licenses/LICENSE-2.0
+
+ Unless required by applicable law or agreed to in writing, software
+ distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.  See the
+ License for the specific language governing permissions and limitations under
+ the License.
+
+*/
+
+/* The colouring of diffs (deleted => red, inserted => green, et.c.)
+
+   Basic line HTML:
+
+     <tr class="line [type]">
+       ...
+       <td class="line old">
+         [old code]
+       </td>
+       ...
+       <td class="line new">
+         [new code]
+       </td>
+       ...
+     </tr>
+
+   The [type] is one of the following:
+
+     context    => a line that wasn't changed
+     whitespace => line with only white-space changes
+     replaced   => changed line where old and new version has little in common
+     modified   => changed line with inter-line diff
+     inserted   => line that only exists in new version ([old code] is empty)
+     deleted    => line that only exists in old version ([new code] is empty)
+
+*/
+
+/* White background color for context lines, the left side where the right side
+   is an inserted line and the right side where the left side is a deleted line;
+   and slightly darker white when hovered. */
+tr.line.context    > td.line,
+tr.line.inserted   > td.line.old,
+tr.line.deleted    > td.line.new {
+    background-color: #fff
+}
+tr.line.context:hover    > td.line {
+    background-color: #eee
+}
+
+/* Red background color on the left side of deleted or replaced lines; and
+   slightly darker red when hovered. */
+tr.line.deleted  > td.line.old,
+tr.line.replaced > td.line.old {
+    background-color: #fdd
+}
+tr.line.deleted:hover  > td.line.old,
+tr.line.replaced:hover > td.line.old {
+    background-color: #ecc
+}
+
+/* Green background color on the left side of inserted or replaced lines; and
+   slightly darker green when hovered. */
+tr.line.inserted > td.line.new,
+tr.line.replaced > td.line.new {
+    background-color: #dfd
+}
+tr.line.inserted:hover > td.line.new,
+tr.line.replaced:hover > td.line.new {
+    background-color: #cec
+}
+
+/* Yellowish background color on both sides of modified lines; and slightly
+   darker yellowish when hovered. */
+tr.line.modified > td.line {
+    background-color: #ffd
+}
+tr.line.modified:hover > td.line {
+    background-color: #eec
+}
+
+/* White background color for white-space change lines and slightly darker white
+   when hovered.  This overrides the 'modified' style which otherwise also
+   applies to white-space lines. */
+tr.line.whitespace > td.line {
+    background-color: #fff
+}
+tr.line.whitespace:hover > td.line {
+    background-color: #eee
+}
+
+/* Blue background color on left side of conflict markers; and slightly darker
+   blue when hovered. */
+tr.line.conflict > td.line.old {
+    background-color: #8af !important
+}
+tr.line.conflict:hover > td.line.old {
+    background-color: #79e !important
+}
+
+
+/* Inter-line diff highlight is done using i (italics) elements, with the
+   classes:
+
+   r   => replaced (both sides)
+   d   => deleted  (left side only)
+   i   => inserted (right side only)
+
+   Additionally, to represent changes in line ending on last line:
+
+   eol => marker element signaling missing line break
+*/
+
+/* We don't actually want italics: */
+tr.line i {
+    font-style: normal
+}
+
+/* Slightly darker color for replaced/edited portions of the line (and slightly
+   darker still when hovered): */
+tr.line          i.r,
+tr.line.modified i.d,
+tr.line.modified i.i {
+    background-color: #eec
+}
+tr.line:hover          i.r,
+tr.line.modified:hover i.d,
+tr.line.modified:hover i.i {
+    background-color: #ddb
+}
+
+/* Darker red on deleted line.  (This is never used, I think; on a deleted line
+   there is no inter-line diff.) */
+tr.line.deleted i {
+    background-color: #ecc
+}
+tr.line.deleted:hover i {
+    background-color: #dbb
+}
+
+/* Darker green on inserted line.  (This is never used, I think; on a deleted
+   line there is no inter-line diff.) */
+tr.line.inserted i {
+    background-color: #cec
+}
+tr.line.inserted:hover i {
+    background-color: #bdb
+}
+
+/* On line with white-space changes, render deleted white-space in red (the line
+   will otherwise be rendered as a context line.) */
+tr.line.whitespace i.d {
+    background-color: #fdd
+}
+tr.line.whitespace:hover i.d {
+    background-color: #ecc
+}
+
+/* On line with white-space changes, render inserted white-space in green (the
+   line will otherwise be rendered as a context line.) */
+tr.line.whitespace i.i {
+    background-color: #dfd
+}
+tr.line.whitespace:hover i.i {
+    background-color: #cec
+}
+
+/* This element will contain the text "[missing linebreak]" and be added last on
+   the last line of the file if it was changed and is missing a linebreak. */
+tr.line i.eol {
+    font-weight: bold;
+    float: right;
+    padding-right: 1em
+}

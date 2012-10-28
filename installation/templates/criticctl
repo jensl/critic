@@ -1,0 +1,262 @@
+#!%(installation.prereqs.python)s
+# -*- mode: python -*-
+
+import sys
+import argparse
+import os
+import os.path
+import pwd
+
+system_user_uid = pwd.getpwnam("%(installation.system.username)s").pw_uid
+
+if os.getuid() != system_user_uid:
+    try: os.setuid(system_user_uid)
+    except:
+        print "setuid failed: script must be run by root"
+        sys.exit(-1)
+
+etc_dir = "%(installation.paths.etc_dir)s"
+
+argv = sys.argv[1:]
+global_argv = []
+command_argv = []
+command = None
+
+for index, argument in enumerate(argv):
+    if not argument[0] == "-":
+        global_argv = argv[1:index]
+        command_argv = argv[index + 1:]
+        command = argument
+        break
+
+if command not in set(["adduser", "deluser", "addrole", "delrole"]):
+    print """\
+usage: criticctl [OPTIONS] COMMAND [ARGS]
+
+Available commands are:
+
+  adduser  Add a user.
+  deluser  Retire a user.
+  addrole  Add a role to a user.
+  delrole  Remove a role from a user."""
+    sys.exit(-1)
+
+global_parser = argparse.ArgumentParser(description="Critic administration interface")
+global_parser.add_argument("--identity", "-i", default="main", help="system identity to manage")
+
+global_arguments = global_parser.parse_args(global_argv)
+
+etc_path = os.path.join(etc_dir, global_arguments.identity)
+
+if not os.path.isdir(etc_path):
+    print >>sys.stderr, "invalid identity: %%s" %% global_arguments.identity
+    sys.exit(-1)
+
+sys.path.insert(0, etc_path)
+
+import configuration
+
+sys.path.insert(1, configuration.paths.INSTALL_DIR)
+sys.path.insert(2, configuration.paths.DATA_DIR)
+
+import dbutils
+
+def input_string(prompt, default=None, check=None):
+    prompt = "%%s%%s " %% (prompt, (" [%%s]" %% default) if default is not None else "")
+
+    while True:
+        try: input = raw_input(prompt)
+        except KeyboardInterrupt:
+            print
+            raise
+
+        if default and not input:
+            return default
+        elif check:
+            result = check(input)
+            if result is None:
+                return input
+            elif result is True:
+                print "Invalid input."
+                print
+            else:
+                print "Invalid input: %%s." %% result
+                print
+        elif not input:
+            print "Invalid input: empty."
+        else:
+            return input
+
+def input_password(prompt):
+    import termios
+
+    def internal(prompt):
+        old = termios.tcgetattr(sys.stdin)
+        new = old[:]
+        new[3] = new[3] & ~termios.ECHO
+        try:
+            termios.tcsetattr(sys.stdin, termios.TCSADRAIN, new)
+            try: password = raw_input(prompt + " ")
+            except KeyboardInterrupt:
+                print
+                raise
+        finally:
+            termios.tcsetattr(sys.stdin, termios.TCSADRAIN, old)
+        print
+        return password
+
+    while True:
+        password = internal(prompt)
+        andagain = internal("And again:")
+
+        if password == andagain:
+            return password
+        else:
+            print
+            print "Passwords differ.  Please try again."
+            print
+
+db = dbutils.Database()
+
+cursor = db.cursor()
+cursor.execute("SELECT name FROM roles")
+
+roles = [role for (role,) in cursor]
+
+def valid_user(name):
+    try: user = dbutils.User.fromName(db, name)
+    except dbutils.NoSuchUser: return "no such user"
+
+def valid_role(role):
+    if role not in roles: return "invalid role; must be one of %%s" %% ", ".join(roles)
+
+def invalid_user(name):
+    try:
+        user = dbutils.User.fromName(db, name)
+        return "user exists"
+    except dbutils.NoSuchUser: pass
+
+if command == "adduser":
+    import bcrypt
+
+    command_parser = argparse.ArgumentParser(description="Critic administration interface: adduser")
+    command_parser.add_argument("--name", help="user name")
+    command_parser.add_argument("--email", "-e", help="email address")
+    command_parser.add_argument("--fullname", "-f", help="full name")
+    command_parser.add_argument("--password", "-p", help="password")
+
+    command_arguments = command_parser.parse_args(command_argv)
+
+    if command_arguments.name:
+        name = command_arguments.name
+    else:
+        name = input_string("Username:", check=invalid_user)
+
+    if command_arguments.fullname:
+        fullname = command_arguments.fullname
+    else:
+        fullname = input_string("Full name:")
+
+    if command_arguments.email:
+        email = command_arguments.email
+    else:
+        email = input_string("Email address:")
+
+    if command_arguments.password:
+        password = command_arguments.password
+    else:
+        password = input_password("Password:")
+
+    password = bcrypt.hashpw(password, bcrypt.gensalt())
+
+    cursor.execute("""SELECT id
+                        FROM users
+                       WHERE name=%%s""",
+                   (name,))
+
+    if cursor.fetchone():
+        print "%%s: user already exists!" %% name
+        sys.exit(-1)
+
+    cursor.execute("""INSERT INTO users (name, email, fullname, password, status)
+                           VALUES (%%s, %%s, %%s, %%s, 'current')""",
+                   (name, email, fullname, password))
+
+    db.commit()
+
+    print "%%s: user added" %% name
+elif command == "deluser":
+    command_parser = argparse.ArgumentParser(description="Critic administration interface: deluser")
+    command_parser.add_argument("--name", help="user name")
+
+    command_arguments = command_parser.parse_args(command_argv)
+
+    if command_arguments.name:
+        name = command_arguments.name
+    else:
+        name = input_string("Username:", check=valid_user)
+
+    try: user = dbutils.User.fromName(db, name)
+    except dbutils.NoSuchUser:
+        print "%%s: no such user!" %% name
+        sys.exit(-1)
+
+    user.retire(db)
+
+    db.commit()
+
+    print "%%s: user retired" %% name
+elif command in ("addrole", "delrole"):
+    command_parser = argparse.ArgumentParser(description="Critic administration interface: %%s" %% command)
+    command_parser.add_argument("--name", help="user name")
+    command_parser.add_argument("--role", choices=roles, help="role name")
+
+    command_arguments = command_parser.parse_args(command_argv)
+
+    if command_arguments.name:
+        name = command_arguments.name
+    else:
+        name = input_string("Username:", check=valid_user)
+
+    try: user = dbutils.User.fromName(db, name)
+    except dbutils.NoSuchUser:
+        print "%%s: no such user!" %% name
+        sys.exit(-1)
+
+    if command_arguments.role:
+        role = command_arguments.role
+
+        if not valid_role(role):
+            print "%%s: no such role" %% role
+            sys.exit(-1)
+    else:
+        role = input_string("Role:", check=valid_role)
+
+    cursor.execute("""SELECT 1
+                        FROM userroles
+                       WHERE uid=%%s
+                         AND role=%%s""",
+                   (user.id, role))
+
+    if command == "addrole":
+        if cursor.fetchone():
+            print "%%s: user already has role '%%s'" %% (name, role)
+        else:
+            cursor.execute("""INSERT INTO userroles (uid, role)
+                                   VALUES (%%s, %%s)""",
+                           (user.id, role))
+            db.commit()
+
+            print "%%s: role '%%s' added" %% (name, role)
+    else:
+        if cursor.fetchone():
+            print "%%s: user doesn't have role '%%s'" %% (name, role)
+        else:
+            cursor.execute("""DELETE FROM userroles
+                                    WHERE uid=%%s
+                                      AND role=%%s""",
+                           (user.id, role))
+
+            db.commit()
+
+            print "%%s: role '%%s' removed" %% (name, role)

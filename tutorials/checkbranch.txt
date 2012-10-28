@@ -1,0 +1,109 @@
+Branch Review Status Analyzer
+=============================
+
+Commit Status
+-------------
+
+Critic's automatic branch review status analyzer is designed to answer the
+question "If branch A was merged into branch B, would any unreviewed changes be
+merged?"  In the typical use-case, "A" would be a task branch, and "B" would be
+master.
+
+To analyze a branch, visit the
+  <a href=checkbranch>/checkbranch</a>
+page, enter the name of the branch to check, select the repository in which it
+lives, optionally request that the branch be fetched from the repository's
+upstream repository (on <code>git.oslo.osa</code> or <code>dvcs.oslo.osa</code>,)
+and then press the "Check" button.
+
+The list of commits that would be merged is calculated using
+  <code>git rev-list</code>;
+the exact command used is included on the result page.
+
+The review status of the branch is calculated per commit, and is signalled using
+the colors green, yellow and red.
+
+Green
+-----
+A green commit status means that the commit is verified by Critic to have been
+reviewed in an accepted review in Critic.  To be assigned this status, one of
+these two statements must be true about the commit:
+
+1 The commit is the same as the head commit on the review branch (same SHA-1)
+2 The commit is included on the review branch, and is the parent of another
+  green commit from the same review.
+
+The meaning of the second point is simply that if the head commit of an accepted
+review is among the checked commits, then all other commits from that review are
+also green.  It also means that if the head commit of an accepted review is not
+among the checked commits, then no other commits from the review will be green,
+even if they are exactly the same commits (same SHA-1); this is because the
+changes that were accepted in the review were exactly all the changes, not just
+some of them.  Trying to merge only some of the commits from the review can't be
+verified by Critic as a safe operation, since it might mean that you are
+accidentally trying to merge an incomplete set of changes, for instance missing
+fixes for all review issues.
+
+Yellow
+------
+A yellow commit status means that the commit has been manually connected to a
+review, or had its review status otherwise explained, by a user.  This might
+mean that the commit is a squash of the changes in a review, but that a strong
+SHA-1-based connection can't be made by Critic because the review hasn't been
+rebased, or can't be rebased.  It could also mean that the changes in the commit
+were reviewed outside of Critic.
+
+Red
+---
+A red commit status either means that Critic hasn't been able to connect the
+commit to a review at all, or that the review to which the commit has been
+connected isn't accepted or finished.
+
+That the commit hasn't been connected to a review does not conclusively mean the
+commit hasn't been reviewed, it just means Critic can't say anything for sure
+about it.  Since Critic requires the same SHA-1 to automatically match a review
+to a commit, simply cherry-picking a commit from a review branch to the checked
+branch will always make it show up as red, even if the cherry-pick was
+conflict-free and the commit message is identical.
+
+
+Usage
+-----
+
+The only way in which one needs to interact with the branch review status page
+is by manually connecting commits to reviews when Critic can't make the
+connection automatically, or otherwise explain how a commit was reviewed.  To do
+this, every non-green commit has an <code>[edit]</code> link in the right-most
+column.  Red commits committed by the user looking at the
+  <code>/checkbranch</code>
+are highlighted in red for visibility.
+
+The <code>[edit]</code> link opens up a dialog.  This dialog has an input field
+for entering the ID number of a review, and a text area for writing a comment.
+Also, if Critic finds any reviews that seem like likely candidates to have
+contained the changes in the commit, the dialog also contains a drop-down
+containing those candidate reviews.  Selecting an item in the drop-down simply
+sets the review ID input field's value.
+
+Entering a comment is optional if a review ID is specified.  If no review ID is
+specified, for instance because the changes were reviewed outside of Critic, a
+comment is required.  The comment should just be a very short explanation for
+how the changes were reviewed.
+
+Review Rebase
+-------------
+If the ID number of a review is entered, Critic will automatically check if it
+would be possible to rebase the review to contain this single commit.  Doing so
+would make the commit appear green and is always preferable to having it appear
+yellow, since green means Critic has verified that the commit contains exactly
+the same changes as the ones that were approved in the review, and thus
+eliminates the possibility of the wrong changes having been pushed to the branch
+by mistake.
+
+<b>Note:</b> It's important to only accept the offer to rebase the review if the
+commit is a squash of all changes in the review.  If the commit is only part of
+the review, for instance a cherry-pick of a single bug fix made on a larger task
+branch, rebasing the review would be a very bad idea.  But since the green
+commit status is a much stronger guarantee that the right changes made it onto
+the branch, it's strongly recommended that the branch is rebased whenever
+possible, so that the commit appears green.

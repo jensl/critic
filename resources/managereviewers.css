@@ -1,0 +1,94 @@
+/* -*- mode: css; indent-tabs-mode: nil -*-
+
+ Copyright 2012 Jens Lindström, Opera Software ASA
+
+ Licensed under the Apache License, Version 2.0 (the "License"); you may not
+ use this file except in compliance with the License.  You may obtain a copy of
+ the License at
+
+   http://www.apache.org/licenses/LICENSE-2.0
+
+ Unless required by applicable law or agreed to in writing, software
+ distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.  See the
+ License for the specific language governing permissions and limitations under
+ the License.
+
+*/
+
+div.main {
+    text-align: center
+}
+
+div.main table.manage {
+    table-layout: fixed;
+}
+
+/*
+div.main table.manage td.h1 {
+    text-align: left;
+    border-bottom: 1px solid #996
+}
+
+div.main table.manage td.h1 h1 {
+    text-align: left;
+    margin-top: 0;
+    margin-bottom: 0.5em
+}
+*/
+
+div.main table.manage tr.current td.select,
+div.main table.manage tr.reviewer td.select,
+div.main table.manage tr.headings td {
+    font-weight: bold
+}
+
+div.main table.manage tr.current td,
+div.main table.manage tr.reviewer td,
+div.main table.manage tr.headings td {
+    padding-top: 1em
+}
+
+div.main table.manage tr.reviewer td.value {
+    text-align: left
+}
+
+div.main table.manage tr.reviewer span.message {
+    font-weight: normal;
+    font-style: italic;
+    padding-left: 2em
+}
+
+div.main table.manage tr.reviewer input.reviewer {
+    font-family: monospace
+}
+
+div.main table.manage tr td.select {
+    text-align: right;
+    padding-right: 1em
+}
+
+div.main table.manage tr.current td.select {
+    vertical-align: top
+}
+
+div.main table.manage tr.current td.value {
+    text-align: left;
+    font-family: monospace
+}
+
+div.main table.manage tr td.path {
+    text-align: left;
+    white-space: pre;
+    font-family: monospace
+}
+
+div.main table.manage tr td.right {
+    text-align: right
+}
+
+div.main table.manage tr td.help {
+    font-style: italic;
+    text-align: right;
+    border-bottom: 1px solid #996
+}

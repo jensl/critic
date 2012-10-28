@@ -1,0 +1,109 @@
+Repository Viewer
+=================
+
+Displaying diffs
+----------------
+
+The core functionality of Critic is of course the display of diffs, since that's
+what is reviewed, and reviewing is what it's all about.  But this functionality
+is not limited to reviews.  A diff of any commit in Critic's repository can be
+displayed, and also a diff between any two commits in Critic's repository.
+
+The diff display in Critic is based on the output of the 'git diff' command, but
+is post-processed and analyzed to produce an optimal visualization of the
+changes made.  It may not always succeed in producing an optimal visualization
+of the changes, of course, and when it doesn't, please
+  <a href="https://github.com/jensl/critic/issues/new">report bugs</a>
+about its failures.
+
+
+Single commit
+-------------
+To display a diff of a commit, all you need to specify in the URL is the SHA-1
+sum of the commit.  A simple URL such as
+
+  %(configuration.URL)s/&lt;SHA-1>
+
+is enough.  Critic supports having multiple repositories, and here we didn't
+specify the repository in the URL.  In this case, Critic searches all of its
+repositories for a commit.  If it finds one, it doesn't really matter which
+repository it found it in, of course, since it would be the same commit
+regardless of repository.  The first searched repository will be the user's
+  <a href="%(configuration.URL)s/config?highlight=defaultRepository">default repository</a>.
+
+The SHA-1 sum specified can also be abbreviated--a prefix instead of the
+full 40 characters--or be specified in any form supported by the
+  <code>git rev-parse</code>
+command, such as the name of a branch, or a SHA-1 sum followed by a caret (^).
+In this case, no search for an appropriate repository is done--only the user's
+default repository is considered unless a repository is specified explicitly, in
+which case only that repository is considered.
+
+A longer URL for displaying a single commit is
+
+  %(configuration.URL)s/showcommit?sha1=&lt;SHA-1>
+
+but this is rarely meaningful to use.  This form of URL needs a full 40
+character SHA-1 sum--it doesn't support neither abbreviated SHA-1 sums or other
+ways of specifying commits.
+
+
+Multiple commits
+----------------
+To display a diff of multiple commits, or between two commits, specify the two
+commits separated by two full stops/periods (..) similar to the syntax used by
+the
+  <code>git diff</code>
+command.  Like when displaying a single commit, the commits can be specified
+using any format supported by the
+  <code>git rev-parse</code>
+command, and again the repository used is always the user's default repository
+unless one is explicitly specified.
+
+Examples:
+
+  %(configuration.URL)s/&lt;SHA-1>..&lt;SHA-1>
+
+  %(configuration.URL)s/master..&lt;branch name>
+
+The longer form of URL can be used to display multiple commits as well, and
+supports two different, but largely redundant, ways to specify the range of
+commits:
+
+  %(configuration.URL)s/showcommit?from=&lt;SHA-1>&amp;to=&lt;SHA-1>
+
+  %(configuration.URL)s/showcommit?first=&lt;SHA-1>&amp;last=&lt;SHA-1>
+
+The from/to form is exactly equivalent to the A..B form supported by the shorter
+URL, except it requires full 40 character SHA-1 sums.  The first/last form is
+different in that it includes the changes made in the first commit in the diff,
+and is thus equivalent to the A^..B short form.  These longer forms have few
+advantages over the shorter forms in practice, and might as well be avoided
+entirely.
+
+
+Specifying repository
+---------------------
+In some cases, it may be necessary to explicitly specify the repository to use.
+This is typically the case when the URL used relies on using
+  <code>git rev-parse</code>
+to interpret the arguments, and the result depends on the repository in which
+the command is run, and the user's default repository is not the right one.
+
+The repository to use is specified in two ways depending on whether a short URL
+or the longer variant is used:
+
+  %(configuration.URL)s/&lt;repository>/&lt;SHA-1>
+
+  %(configuration.URL)s/showcommit?sha1=&lt;SHA-1>&amp;repository=&lt;repository>
+
+In both cases, the repository parameter is the short name of the repository.
+This is the name used in the drop-down list used to set the user's
+  <a href="%(configuration.URL)s/config?highlight=defaultRepository">default repository</a>.
+In the case of the longer URL, the repository can also be specified by ID,
+typically 1-N, in the order the repositories occur in drop-down lists, but this
+is of course less convenient to use.
+
+These are the available repositories, and their corresponding short names:
+
+[repositories]

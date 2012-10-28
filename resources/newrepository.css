@@ -1,0 +1,38 @@
+/* -*- mode: css; indent-tabs-mode: nil -*-
+
+ Copyright 2012 Jens Lindström, Opera Software ASA
+
+ Licensed under the Apache License, Version 2.0 (the "License"); you may not
+ use this file except in compliance with the License.  You may obtain a copy of
+ the License at
+
+   http://www.apache.org/licenses/LICENSE-2.0
+
+ Unless required by applicable law or agreed to in writing, software
+ distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.  See the
+ License for the specific language governing permissions and limitations under
+ the License.
+
+*/
+
+body { font-size: 12px; font-family: sans-serif }
+
+div.main { text-align: center }
+
+div.main table { background: #ffd; margin-top: 1em; padding: 1em; border: 3px solid #996 }
+div.main table td { padding-left: 1em }
+div.main table td.h1 { text-align: left; border-bottom: 1px solid #996 }
+div.main table td.h1 h1 { text-align: left; margin-top: 0; margin-bottom: 0.5em }
+div.main table td.repositories { text-align: right; border-bottom: 1px solid #996 }
+div.main table td.repositories select { background-color: #ffd }
+
+div.main table.information tr td { padding-top: 0.5em }
+div.main table.information td.heading { font-family: serif; font-weight: bold; text-align: right; width: 20% }
+div.main table.information td.prefix { font-family: monospace; text-align: right; white-space: nowrap }
+div.main table.information td.value { font-family: monospace; text-align: left; padding-left: 5px }
+div.main table.information td.value input { font-family: monospace; width: 100% }
+div.main table.information td.suffix { font-family: monospace; text-align: left; padding-left: 5px }
+div.main table.information tr.help td { font-style: italic; text-align: right; border-bottom: 1px solid #996 }
+
+div.main table.information tr.buttons td { padding-top: 1em }

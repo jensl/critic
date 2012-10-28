@@ -1,0 +1,140 @@
+Rebasing a Review
+=================
+
+Rebase Types
+------------
+
+Critic's review rebase functionality handles two limited types of rebase:
+
+1 In-place rebase
+2 Move rebase
+
+The first type is typically used to clean-up or rewrite the history of the
+branch, without changing the branch's upstream commit (the parent commit of the
+first commit in the review.)  Typically, such a rebase doesn't change the state
+of the source tree as it is at the head of the branch; it only changes how it
+came to be that way.  Critic in fact requires that this type of rebase doesn't
+change the tree.
+
+The second type is typically used to update to a newer version of the upstream
+branch.  Because the source tree onto which the review's changes are applied
+changes with this type of review, it can typically not produce an identical
+tree.  Critic doesn't require that for this type of rebase, instead it only
+requires the new upstream commit to be a descendant of the old upstream commit,
+and that you tell it in advance which new upstream commit you're rebasing onto.
+
+Preparing to Rebase
+-------------------
+
+To perform either kind of rebase, you must first visit the review's front-page
+and press the button labelled "Prepare Rebase" that is placed at the bottom of
+the table titled "Commits."  Without being told in advance that you intend to
+rebase a review, Critic will reject all non-fast-forward updates.
+
+Pressing the button opens a dialog that asks you to select which type of rebase
+you're planning.  Once the process of preparing the review for a rebase is
+completed, only a valid rebase push is accepted, and only by you.  If other
+users try to push to the review branch, their pushes will be rejected, even if
+they are plain fast-forward updates, or correct rebases.  If you change your
+mind, there's a button labelled "Cancel Rebase" on the review front-page where
+the "Prepare Rebase" button used to be.
+
+In-place Rebase
+---------------
+
+By selecting the "History Rewrite / In-place" alternative in the dialog and
+pressing the "Continue" button, the process of preparing for an in-place rebase
+is complete, and a dialog telling you that will be displayed.  You can now go
+ahead and push the rebased branch using
+
+  <code>git push -f critic HEAD:r/&lt;name&gt;</code>
+
+(the "-f" argument is required since Git otherwise rejects all non-fast-forward
+updates.)
+
+With this type of rebase you can add new changes to the review as well when
+pushing the rebased branch, as long as those new changes are in separate
+commits.  The push is accepted as long as there is some commit on the rebased
+branch that references the exact same tree as the current head of the review
+branch.
+
+Move Rebase
+-----------
+
+By selecting the "New Upstream / Move" alternative in the dialog and pressing
+the "Continue" button, a new dialog is displayed asking you to specify which
+upstream commit you intend to rebase the branch onto.  If you rebase using a
+command like
+
+  <code>git rebase --onto &lt;newbase&gt; &lt;upstream&gt;</code>
+
+then the upstream commit you should specify is whatever "&lt;newbase&gt;" resolves
+to.  If you rebase using a command like
+
+  <code>git rebase &lt;upstream&gt;</code>
+
+then the upstream commit you should specify is whatever "&lt;upstream&gt;" resolves
+to.  Critic lets you specify the upstream commit either as a full 40-character
+SHA-1 sum or by selecting a tag that references a suitable commit.  Abbreviated
+SHA-1 sums or branch names are not accepted since it is possible that the commit
+you intend to rebase onto doesn't exist in Critic's repository yet, or that your
+local branch (even 'master') doesn't reference the same commit as Critic's
+branch with the same names.  (It could be said that the same problem might exist
+with tags, but it's much less likely.)
+
+It's very important that you specify the correct upstream commit, or, if you
+prepared the rebase before you performed it locally, that you actually rebase
+onto the upstream commit you specified.  If the specified upstream commit is not
+reachable from the commit you later push, the push is rejected.  If the
+specified upstream commit is reachable from the commit you later push, the push
+is accepted, even if you actually rebased on a different upstream commit; the
+effect of this is that commits are added to the review that you didn't mean to
+add, and that reviewing any conflict resolutions you did while rebasing becomes
+more difficult.
+
+It's also very important that you don't add any new changes to the rebased
+branch before pushing.  Such changes, even if added as separate commits, will
+not be directly visible in the review.  They will, if at all, show up as some
+sort of conflict resolutions.  Critic simply assumes that the rebased branch you
+push corresponds exactly to the current review branch, only rebased onto another
+upstream commit.
+
+Like with an in-place rebase, to finish the rebase you simply push the rebased
+branch using
+
+  <code>git push -f critic HEAD:r/&lt;name&gt;</code>
+
+The push will automatically add a constructed "equivalent" merge commit to the
+review.  This commit has as its parents the old head of the review branch and
+the new upstream commit that you previous specified, and references the same
+tree as the head of the rebased review branch.  The constructed merge is exactly
+the same as you would get if you had merged the new upstream commit into the
+review branch instead of rebasing onto it, and is used to let reviewers review
+your resolutions to any conflicts that happened while rebasing the branch.
+
+Review Front-page Additions
+---------------------------
+
+The branch log on the review front-page is rendered slightly differently once
+the review branch has been rebased.  In fact, it's no longer strictly speaking a
+branch log at all.  All commits that had been added to the review before the
+review branch was rebased are still displayed, with whatever review status they
+had before.  All issues and notes are still attached to these commits.
+
+The point at which the rebase took place is signalled by a line that says either
+
+  History rewritten by &lt;name&gt;
+
+or
+
+  Branch rebased by &lt;name&gt;
+
+depending on the type of rebase.  The first (most recent) such line also
+contains a link to the actual rebased/cleaned-up log of the branch.
+
+Commits pushed to the review branch after the rebase are displayed above the
+rebase signalling line.  Issues and notes should be transferred from the old
+branch to the rebased branch automatically unless addressed by rebase, in which
+case they would be marked as addressed by the constructed merge commit instead.
+(An in-place rebase can't address open issues since the source tree can't be
+modified.)

@@ -1,0 +1,68 @@
+/* -*- mode: css; indent-tabs-mode: nil -*-
+
+ Copyright 2012 Jens Lindström, Opera Software ASA
+
+ Licensed under the Apache License, Version 2.0 (the "License"); you may not
+ use this file except in compliance with the License.  You may obtain a copy of
+ the License at
+
+   http://www.apache.org/licenses/LICENSE-2.0
+
+ Unless required by applicable law or agreed to in writing, software
+ distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.  See the
+ License for the specific language governing permissions and limitations under
+ the License.
+
+*/
+
+/* C++ syntax highlighting is done using b (bold) elements, with the classes:
+
+   com => comment
+   pp  => pre-processing directive
+   kw  => keyword
+   op  => operator
+   id  => identifier
+   str => string literal
+   ch  => character literal
+   fp  => floating point literal
+   int => integer literal
+ */
+
+/* We didn't really want bold: */
+td.line b { font-weight: normal }
+
+/* Comments. */
+td.line b.com {
+    font-style: italic;
+    color: darkblue
+}
+
+/* Preprocessing directives. */
+td.line b.pp {
+    color: maroon
+}
+
+/* Keywords and operators. */
+td.line b.kw,
+td.line b.op {
+    font-weight: bold;
+    color: black
+}
+
+/* Identifiers. */
+td.line b.id {
+    color: black
+}
+
+/* String and character literals. */
+td.line b.str,
+td.line b.ch {
+    color: blue
+}
+
+/* Numberic literals. */
+td.line b.fp,
+td.line b.int {
+    color: green
+}

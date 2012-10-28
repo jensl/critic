@@ -1,0 +1,45 @@
+/* -*- mode: css; indent-tabs-mode: nil -*-
+
+ Copyright 2012 Jens Lindström, Opera Software ASA
+
+ Licensed under the Apache License, Version 2.0 (the "License"); you may not
+ use this file except in compliance with the License.  You may obtain a copy of
+ the License at
+
+   http://www.apache.org/licenses/LICENSE-2.0
+
+ Unless required by applicable law or agreed to in writing, software
+ distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.  See the
+ License for the specific language governing permissions and limitations under
+ the License.
+
+*/
+
+body { font-size: 12px; font-family: sans-serif }
+
+div.main { text-align: center }
+
+div.main table tr.title td.description { text-align: right; border-bottom: 1px solid #996; margin-left: 0; margin-top: 0; margin-bottom: 0.5em; font-style: italic }
+div.main table tr.title td.repositories { text-align: right; border-bottom: 1px solid #996 }
+div.main table tr.title td.repositories select { background-color: #ffd }
+
+div.main table.branches tr.headings td { padding-top: 0.5em; font-weight: bold; text-decoration: underline }
+div.main table.branches tr.headings td.when { text-align: right; width: 10% }
+div.main table.branches tr.headings td.name { text-align: left; width: 40% }
+div.main table.branches tr.headings td.base { text-align: left; width: 40% }
+div.main table.branches tr.headings td.commits { text-align: right; width: 10% }
+
+div.main table.branches tr.nothing td.nothing { text-align: center; font-weight: bold; padding-top: 1em }
+
+div.main table.branches tr.branch:hover { background: #eec }
+div.main table.branches tr.branch td.when { text-align: right; font-weight: bold }
+div.main table.branches tr.branch td.name { text-align: left; font-family: monospace; font-size: 10pt }
+div.main table.branches tr.branch td.name span.review { padding-left: 1em; font-size: smaller }
+div.main table.branches tr.branch td.name span.check { padding-left: 1em; font-size: smaller }
+div.main table.branches tr.branch td.base { text-align: left; font-family: monospace; font-size: 10pt }
+div.main table.branches tr.branch td.commits { text-align: right; font-weight: bold }
+
+div.main div.submit { margin-left: 30%; margin-right: 30%; background-color: #8f8; border: 3px solid #6b6; text-align: center; margin-top: 1em; margin-bottom: 1em; border-radius: 10px; color: #141 }
+div.main div.submit:hover { background-color: #7e7; border-color: #5a5; cursor: hand }
+div.main div.submit:active { background-color: #6d6; border-color: #494; cursor: hand }

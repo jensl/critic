@@ -1,0 +1,30 @@
+Copyright 2012 Jens Lindström, Opera Software ASA
+
+The Critic code review system is licensed under the Apache License, version
+2.0, with exceptions noted below.  You may obtain a copy of the License at
+
+  http://www.apache.org/licenses/LICENSE-2.0
+
+
+The jQuery library is licensed under the MIT License, available in the file
+MIT-LICENSE.txt.  These files distributed with Critic are part of jQuery:
+
+  MIT-LICENSE.txt
+  resources/jquery-1.7.1.min.js
+  resources/jquery-ui-1.8.17.custom.css
+  resources/jquery-ui-1.8.17.custom.min.js
+
+For more information, see:
+
+  http://jquery.org/
+
+
+The jQuery tooltip plugin is licensed under the MIT License.  These files
+distributed with Critic are part of the jQuery tooltip plugin:
+
+  resources/jquery-tooltip.css
+  resources/jquery-tooltip.js
+
+For more information, see:
+
+  http://bassistance.de/jquery-plugins/jquery-plugin-tooltip/
