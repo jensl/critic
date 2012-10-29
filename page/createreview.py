@@ -183,7 +183,7 @@ def renderSelectSource(req, db, user):
 
         cursor.execute("SELECT name, path FROM knownhosts ORDER BY id")
 
-        default_remote = default_remotes[default_repository]
+        default_remote = default_remotes.get(default_repository)
 
         for name, path in cursor:
             option = hosts.option("remotehost", value=name, critic_default_path=path,
