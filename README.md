@@ -12,7 +12,7 @@ To install Critic, run the script `install.py` as root:
 
     # python install.py
 
-It will ask a number of question and then perform the installation.
+It will ask a number of questions and then perform the installation.
 
 You should probably read the [INSTALL file][install] for all the information.
 
