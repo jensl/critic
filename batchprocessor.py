@@ -49,7 +49,7 @@ def processLoop():
         if not queue:
             # Nothing to do right now; sleep a little to avoid a tight loop of
             # DB queries.  (Not that the query will be expensive at all in the
-            # forseeable future, but 
+            # foreseeable future, but)
 
             time.sleep(POLLING_INTERVAL)
         else:

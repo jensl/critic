@@ -32,7 +32,7 @@
 #   the preprocessor directive; including any backslashes and linebreak
 #   characters following backslashes.
 #
-#   Character and string literal tokens are returned exactly as they occured in
+#   Character and string literal tokens are returned exactly as they occurred in
 #   the source string, with any escape sequences (including escaped linebreaks)
 #   preserved.
 #
@@ -83,7 +83,7 @@
 #
 #   Splits the sequence of tokens returned by the iterable 'tokens' by the token
 #   'separator'.  Normally, the token sequence 'tokens' should be grouped using
-#   group() first, so that occurences of 'separator' inside groups are ignored.
+#   group() first, so that occurrences of 'separator' inside groups are ignored.
 #   The return value is a list of lists of tokens (or lists as created by
 #   group()).
 #
@@ -127,11 +127,11 @@
 #
 # line()
 #
-#   Returns the line number (first line=1) at which the token occured.
+#   Returns the line number (first line=1) at which the token occurred.
 #
 # column()
 #
-#   Returns the column number (first column=0) at which the token occured.
+#   Returns the column number (first column=0) at which the token occurred.
 #
 # isidentifier()
 #

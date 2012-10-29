@@ -164,7 +164,7 @@ function editRecipientList()
 {
   var recipient_list_dialog =
     $("<div id='recipients' title='Edit Recipient List'>"
-    +   "<p>The recipient list determines the list of users that recieve "
+    +   "<p>The recipient list determines the list of users that receive "
     +      "e-mails about various updates to the review.  The recipient "
     +      "list is constructed from the list of users associated with the "
     +      "review (reviewers and watchers) either in an opt-in or opt-out "

@@ -67,7 +67,7 @@ def renderSearch(req, db, user):
     def renderButton(target):
         target.button(onclick="search();").text("Search")
 
-    search.addItem("Summary", renderSummary, "Words occuring in the review's summary.")
+    search.addItem("Summary", renderSummary, "Words occurring in the review's summary.")
     search.addItem("Branch", renderBranch, "Name of review branch.")
     search.addItem("Owner", renderOwner, "Owner of the review.")
     search.addItem("Path", renderPath, "Path (file or directory) that the review contains changes in.")
