@@ -814,7 +814,7 @@ including the unrelated changes.</p>
 
     tail = gitutils.Commit.fromSHA1(db, review.repository, tail.parents[0])
 
-    commits = getCommitList(review.repository, tail, head)
+    commits = getCommitList(db, review.repository, tail, head)
 
     if not commits:
         raise page.utils.DisplayMessage, "Filtered view not possible since it includes a merge commit."
