@@ -17,14 +17,14 @@
 -- Returns a single-column table containing the IDs of each directory in the
 -- file's path, with the file's immediate containing directory first and the
 -- directory at the root last.  The root directory (ID=zero) is not included.
-CREATE OR REPLACE FUNCTION filepath(file INTEGER) RETURNS TABLE (directory INTEGER) AS
+CREATE OR REPLACE FUNCTION filepath(file INTEGER) RETURNS TABLE (directory_out INTEGER) AS
 $$
 BEGIN
-  SELECT files.directory INTO STRICT directory FROM files WHERE files.id=file;
+  SELECT files.directory INTO STRICT directory_out FROM files WHERE files.id=file;
 
-  WHILE directory != 0 LOOP
+  WHILE directory_out != 0 LOOP
     RETURN NEXT;
-    SELECT directories.directory INTO STRICT directory FROM directories WHERE directories.id=directory;
+    SELECT directories.directory INTO STRICT directory_out FROM directories WHERE directories.id=directory_out;
   END LOOP;
 
   RETURN;
@@ -36,14 +36,14 @@ LANGUAGE 'plpgsql';
 -- directory's path, with the directory's immediate containing directory first
 -- and the directory at the root last.  Neither the directory itself nor the
 -- root directory (ID=zero) is not included.
-CREATE OR REPLACE FUNCTION directorypath(directory_in INTEGER) RETURNS TABLE (directory INTEGER) AS
+CREATE OR REPLACE FUNCTION directorypath(directory_in INTEGER) RETURNS TABLE (directory_out INTEGER) AS
 $$
 BEGIN
-  SELECT directories.directory INTO STRICT directory FROM directories WHERE directories.id=directory_in;
+  SELECT directories.directory INTO STRICT directory_out FROM directories WHERE directories.id=directory_in;
 
-  WHILE directory != 0 LOOP
+  WHILE directory_out != 0 LOOP
     RETURN NEXT;
-    SELECT directories.directory INTO STRICT directory FROM directories WHERE directories.id=directory;
+    SELECT directories.directory INTO STRICT directory_out FROM directories WHERE directories.id=directory_out;
   END LOOP;
 
   RETURN;
@@ -55,12 +55,12 @@ LANGUAGE 'plpgsql';
 -- this directory in its path (as returned by the directorypath() function.)
 -- The order is undefined except that parent directories come before all of
 -- their sub-directories.
-CREATE OR REPLACE FUNCTION subdirectories(directory_in INTEGER) RETURNS TABLE (directory INTEGER) AS
+CREATE OR REPLACE FUNCTION subdirectories(directory_in INTEGER) RETURNS TABLE (directory_out INTEGER) AS
 $$
 BEGIN
-  FOR directory IN SELECT directories.id FROM directories WHERE directories.directory=directory_in LOOP
+  FOR directory_out IN SELECT directories.id FROM directories WHERE directories.directory=directory_in LOOP
     RETURN NEXT;
-    RETURN QUERY SELECT recursive.directory FROM subdirectories(directory) AS recursive;
+    RETURN QUERY SELECT recursive.directory FROM subdirectories(directory_out) AS recursive;
   END LOOP;
 
   RETURN;
@@ -72,14 +72,14 @@ LANGUAGE 'plpgsql';
 -- directory in its path (as returned by the filepath() function.)  The order is
 -- undefined except that files in parent directories come before any files in
 -- those directories' sub-directories.
-CREATE OR REPLACE FUNCTION containedfiles(directory_in INTEGER) RETURNS TABLE (file INTEGER) AS
+CREATE OR REPLACE FUNCTION containedfiles(directory_in INTEGER) RETURNS TABLE (file_out INTEGER) AS
 $$
 DECLARE
-  directory INTEGER;
+  directory_id INTEGER;
 BEGIN
   RETURN QUERY SELECT files.id FROM files WHERE files.directory=directory_in;
-  FOR directory IN SELECT directories.id FROM directories WHERE directories.directory=directory_in LOOP
-    RETURN QUERY SELECT recursive.file FROM containedfiles(directory) AS recursive;
+  FOR directory_id IN SELECT directories.id FROM directories WHERE directories.directory=directory_in LOOP
+    RETURN QUERY SELECT recursive.file_out FROM containedfiles(directory_id) AS recursive;
   END LOOP;
 
   RETURN;
