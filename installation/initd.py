@@ -29,7 +29,7 @@ rclinks_added = False
 servicemanager_started = False
 
 def execute():
-    global servicemanager_started
+    global servicemanager_started, rclinks_added
 
     source_path = os.path.join("installation", "templates", "initd")
     target_path = os.path.join("/etc", "init.d", "critic-main")
