@@ -112,5 +112,5 @@ marked either as addressed or closed.
 
 Reviews can also be dropped, meaning the changes are not meant to be merged in
 their current change.  To drop a previously accepted (but not closed) review,
-you need to create an issue to "un-accept" it. It is suitable to explain
+you need to create an issue to "un-accept" it.  It is suitable to explain
 why the review will be dropped in that issue.
