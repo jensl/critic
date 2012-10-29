@@ -75,14 +75,14 @@ def processCommits(repository_name, sha1):
 
     try:
         base_sha1 = cursor.fetchone()[0]
-
         count = int(repository.run("rev-list", "--count", "%s..%s" % (base_sha1, sha1)).strip())
-        if count > configuration.limits.PUSH_COMMIT_LIMIT:
-            raise IndexException, """\
-You're trying to add more than %d commits to this repository.
-Are you perhaps pushing to the wrong repository?""" % count
     except:
-        pass
+        count = 0
+
+    if count > configuration.limits.PUSH_COMMIT_LIMIT:
+        raise IndexException, """\
+You're trying to add %d new commits to this repository.  Are you
+perhaps pushing to the wrong repository?""" % count
 
     commit_count = 0
 
@@ -349,12 +349,6 @@ def createBranch(user, repository, name, head):
                                                      AND commits.sha1=%s""",
                                                (base_chain, sha1))
                                 return cursor.fetchone()
-
-                if (len(commit_list) % 1000) == 0:
-                    stdout.write(".")
-                    if (len(commit_list) % 10000) == 0:
-                        stdout.write("\n")
-                    stdout.flush()
 
             if stack: sha1 = stack.pop(0)
             else: break
