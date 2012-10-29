@@ -109,9 +109,6 @@ class MorphCommentChain(Operation):
         elif new_type == "note" and chain.state in ("closed", "addressed"):
             raise OperationError, "can't convert resolved or addressed issue to a note"
 
-        if new_type == "issue": old_type = "note"
-        else: old_type = "issue"
-
         cursor = db.cursor()
 
         if chain.state == "draft":
