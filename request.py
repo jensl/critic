@@ -132,9 +132,9 @@ class Request:
         self.original_path = self.path
         self.query = environ.get("QUERY_STRING", "")
 
-        self.__setUser(db)
+        self.__setUser(db, environ)
 
-    def __setUser(self, db):
+    def __setUser(self, db, environ):
         if configuration.base.AUTHENTICATION_MODE == "host":
             self.user = environ.get("REMOTE_USER")
         elif configuration.base.AUTHENTICATION_MODE == "critic":
