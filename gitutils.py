@@ -831,7 +831,7 @@ class FetchCommits(threading.Thread):
                 try: object_sha1, object_type, object_size = line.split(" ")
                 except: raise Exception, "unexpected header line: %r" % line
 
-                assert object_sha1 == sha1, "%s != %s (%s)" % (object_sha1, sha1)
+                assert object_sha1 == sha1, "%s != %s" % (object_sha1, sha1)
                 assert object_type == "commit"
 
                 object_size = int(object_size)
