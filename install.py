@@ -16,7 +16,6 @@
 
 import os
 import sys
-import json
 import traceback
 
 if os.getuid() != 0:
@@ -25,6 +24,8 @@ ERROR: This script must be run as root.
 """
     sys.exit(1)
 
+# Python version check is done before imports below so
+# that python 2.6/2.5 users can see the error message.
 if sys.version_info[0] != 2 or sys.version_info[1] < 7:
     print """\
 Unsupported Python version!  Critic requires Python 2.7.x or later,
@@ -32,6 +33,7 @@ but not Python 3.x.  This script must be run in the Python interpreter
 that will be used to run Critic."""
     sys.exit(2)
 
+import json
 import argparse
 import installation
 
