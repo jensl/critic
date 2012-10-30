@@ -53,5 +53,7 @@ top level menu item, and then select 'Requesting a Review'.
 See also
 --------
 
-The [Critic user FAQ](documentation/user_faq.md) answers some common questions and gives some useful
+The [Critic user FAQ][faq] answers some common questions and gives some useful
 tips on how to use Critic efficiently.
+
+[faq]: https://github.com/jensl/critic/blob/master/documentation/user_faq.md
