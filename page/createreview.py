@@ -197,13 +197,14 @@ def renderSelectSource(req, db, user):
     def renderWorkBranch(target):
         target.input("workbranch")
 
-    def renderUpstreamBranch(target):
-        target.input("upstreambranch", value=default_branches[default_repository])
+    def renderUpstreamCommit(target):
+        default_branch = default_branches.get(default_repository)
+        target.input("upstreamcommit", value=("refs/heads/%s" % default_branch) if default_branch else "")
 
     table.addItem("Local Repository", renderLocalRepository, "Critic repository to create review in.")
     table.addItem("Remote Repository", renderRemoteRepository, "Remote repository to fetch commits from.")
-    table.addItem("Work Branch", renderWorkBranch, "Work branch containing commits to create review of.")
-    table.addItem("Upstream Branch", renderUpstreamBranch, "Upstream branch off of which the work branch was branched.")
+    table.addItem("Work Branch", renderWorkBranch, "Work branch (in remote repository) containing commits to create review of.")
+    table.addItem("Upstream Commit", renderUpstreamCommit, "Upstream commit from which the work branch was branched.")
 
     def renderButtons(target):
         target.button("fetchbranch").text("Fetch Branch")

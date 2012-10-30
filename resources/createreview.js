@@ -298,7 +298,7 @@ $(document).ready(function ()
         }
 
         if (default_branches[name])
-          $("input.upstreambranch").val(default_branches[name]);
+          $("input.upstreamcommit").val(default_branches[name] ? "refs/heads/" + default_branches[name] : "");
       });
 
     function getCurrentRemote()
@@ -315,59 +315,66 @@ $(document).ready(function ()
     branches_request = null;
     branches_response = null;
 
-    function autocompleteBranch(request, response)
+    function AutocompleteRef(prefix)
     {
-      function callResponse()
+      prefix = prefix || "";
+
+      function autocompleteBranch(request, response)
       {
-        function match(name)
+        function callResponse()
         {
-          return name.substring(0, branches_request.term.length) == branches_request.term;
+          function match(name)
+          {
+            return name.substring(0, branches_request.term.length) == branches_request.term;
+          }
+
+          var matches = branches.filter(match);
+
+          if (matches.length < 20)
+            branches_response(matches);
+          else
+            branches_response([{ label: matches.length + " matching branches", value: branches_request.term }]);
+
+          branches_request = branches_response = null;
         }
 
-        var matches = branches.filter(match);
+        function handleResult(result)
+        {
+          branches = result.branches.map(function (name) { return prefix + name; });
+          callResponse();
+        }
 
-        if (matches.length < 20)
-          branches_response(matches);
-        else
-          branches_response([{ label: matches.length + " matching branches", value: branches_request.term }]);
+        if (branches_response)
+          branches_response([]);
 
-        branches_request = branches_response = null;
+        branches_request = request;
+        branches_response = response;
+
+        var current_remote = getCurrentRemote();
+
+        if (branches_remote != current_remote)
+        {
+          branches_remote = current_remote;
+          branches = null;
+
+          var operation = new Operation({ action: "fetch remote branches",
+                                          url: "fetchremotebranches",
+                                          data: { remote: branches_remote,
+                                                  pattern: "refs/heads/*" },
+                                          callback: handleResult });
+
+          operation.execute();
+        }
+        else if (branches)
+          return callResponse();
       }
 
-      function handleResult(result)
-      {
-        branches = result.branches;
-        callResponse();
-      }
-
-      if (branches_response)
-        branches_response([]);
-
-      branches_request = request;
-      branches_response = response;
-
-      var current_remote = getCurrentRemote();
-
-      if (branches_remote != current_remote)
-      {
-        branches_remote = current_remote;
-        branches = null;
-
-        var operation = new Operation({ action: "fetch remote branches",
-                                        url: "fetchremotebranches",
-                                        data: { remote: branches_remote,
-                                                pattern: "refs/heads/*" },
-                                        callback: handleResult });
-
-        operation.execute();
-      }
-      else if (branches)
-        return callResponse();
+      return autocompleteBranch;
     }
 
     var input_workbranch = $("input.workbranch");
 
-    input_workbranch.autocomplete({ source: autocompleteBranch });
+    input_workbranch.autocomplete({ source: AutocompleteRef() });
     input_workbranch.keypress(
       function (ev)
       {
@@ -375,9 +382,9 @@ $(document).ready(function ()
           $("button.fetchbranch").click();
       });
 
-    var input_upstreambranch = $("input.upstreambranch");
+    var input_upstreamcommit = $("input.upstreamcommit");
 
-    input_upstreambranch.autocomplete({ source: autocompleteBranch });
+    input_upstreamcommit.autocomplete({ source: AutocompleteRef("refs/heads/") });
 
     $("button.fetchbranch").click(
       function ()
@@ -386,7 +393,8 @@ $(document).ready(function ()
                                         url: "fetchremotebranch",
                                         data: { repository_name: $("select.repository").val(),
                                                 remote: getCurrentRemote(),
-                                                branch: $("input.workbranch").val() },
+                                                branch: $("input.workbranch").val(),
+                                                upstream: $("input.upstreamcommit").val() },
                                         wait: "Fetching branch..." });
         var result = operation.execute();
 
@@ -396,7 +404,7 @@ $(document).ready(function ()
                            "&commits=" + encodeURIComponent(result.commit_ids) +
                            "&remote=" + encodeURIComponent(getCurrentRemote()) +
                            "&branch=" + encodeURIComponent($("input.workbranch").val()) +
-                           "&upstream=" + encodeURIComponent($("input.upstreambranch").val()) +
+                           "&upstream=" + encodeURIComponent($("input.upstreamcommit").val()) +
                            "&reviewbranchname=" + encodeURIComponent($("input.workbranch").val()));
       });
   });

@@ -149,11 +149,18 @@ class FetchRemoteBranch(Operation):
                                    "branch": str,
                                    "upstream": Optional(str) })
 
-    def process(self, db, user, repository_name, remote, branch, upstream="master"):
+    def process(self, db, user, repository_name, remote, branch, upstream="refs/heads/master"):
         repository = gitutils.Repository.fromName(db, repository_name)
 
+        if not branch.startswith("refs/"):
+            branch = "refs/heads/%s" % branch
+
         head_sha1 = repository.fetchTemporaryFromRemote(remote, branch)
-        upstream_sha1 = repository.fetchTemporaryFromRemote(remote, upstream)
+
+        if upstream.startswith("refs/"):
+            upstream_sha1 = repository.fetchTemporaryFromRemote(remote, upstream)
+        else:
+            upstream_sha1 = repository.revparse(upstream)
 
         commit_sha1s = repository.revlist(included=[head_sha1], excluded=[upstream_sha1])
 

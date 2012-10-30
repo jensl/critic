@@ -422,14 +422,14 @@ class Repository:
         finally:
             self.runRelay("remote", "rm", remote_id)
 
-    def fetchTemporaryFromRemote(self, remote, branch_name):
+    def fetchTemporaryFromRemote(self, remote, ref):
         remote_id = "t%d" % int((time.time() * 1e6) % 1e9)
 
         self.runRelay("remote", "add", remote_id, remote)
         try:
-            self.runRelay("fetch", remote_id, "refs/heads/%s:refs/remotes/%s/%s" % (branch_name, remote_id, branch_name))
-            self.runRelay("push", "-f", "origin", "refs/remotes/%s/%s:refs/temporary/%s" % (remote_id, branch_name, branch_name))
-            return self.revparse("refs/temporary/%s" % branch_name)
+            self.runRelay("fetch", remote_id, "%s:refs/remotes/%s/temporary" % (ref, remote_id))
+            self.runRelay("push", "-f", "origin", "refs/remotes/%s/temporary:refs/temporary/%s" % (remote_id, remote_id))
+            return self.revparse("refs/temporary/%s" % remote_id)
         finally:
             self.runRelay("remote", "rm", remote_id)
 
