@@ -72,19 +72,19 @@ def renderNewRepository(req, db, user):
     row.td("heading").text("Source repository:")
     row.td("prefix").text()
     row.td("value").input(name="remote")
-    row.td("suffix").text()
+    row.td("suffix").text("(optional)")
 
     row = basic.tr("help")
     row.td(colspan=4).text("Git URL of repository to mirror.")
 
     row = basic.tr("branch")
-    row.td("heading").text("Main branch:")
+    row.td("heading").text("Source branch:")
     row.td("prefix").text()
-    row.td("value").input(name="branch", value="master")
+    row.td("value").input(name="branch", value="master", disabled="disabled")
     row.td("suffix").text()
 
     row = basic.tr("help")
-    row.td(colspan=4).text("Main branch.  This branch frequently pulled from the source repository and pushed to the mirror repository.")
+    row.td(colspan=4).text("This branch in the source repository is automatically mirrored in Critic's repository.")
 
     row = basic.tr("buttons")
     row.td(colspan=4).button("add").text("Add Repository")

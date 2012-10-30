@@ -16,11 +16,22 @@
 
 */
 
-/* -*- Mode: js; js-indent-level: 2; indent-tabs-mode: nil -*- */
-
 $(document).ready(
   function ()
   {
+    function updateBranchDisabled()
+    {
+      if ($("input[name='remote']").val().trim())
+        $("input[name='branch']").removeAttr("disabled");
+      else
+        $("input[name='branch']").attr("disabled", "disabled");
+    }
+
+    $("input[name='remote']")
+      .keyup(updateBranchDisabled)
+      .change(updateBranchDisabled)
+      .bind("input", updateBranchDisabled);
+
     $("button.add").click(
       function (ev)
       {
@@ -31,13 +42,13 @@ $(document).ready(
 
         if (!/^[.a-z_0-9-]+$/.test(name))
         {
-          alert("Invalid 'Short name'; please use only lower-case letters and digits.");
+          alert("Invalid 'Short name'; please use only lower-case letters, digits or the characters '.', '_' and '-'.");
           return;
         }
 
-        if (!/^(?:[.a-z_0-9-]+\/)?[.a-z_0-9-]+$/.test(path))
+        if (!/^(?:[.a-z_0-9-]+\/)*[.a-z_0-9-]+$/.test(path))
         {
-          alert("Invalid 'path'; must consist only of lower-case letters and digits.");
+          alert("Invalid 'path'; please use only lower-case letters, digits or the characters '.', '_' or '-'.");
           return;
         }
 
