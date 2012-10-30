@@ -128,15 +128,21 @@ function updateFilters(add_reviewer)
     var name = content.find("input.name").val();
     var path = content.find("input.path").val();
 
-    var names = name.split(/[, ]+/);
+    var names = {};
+
+    name.split(/[, ]+/).forEach(function (name) { names[name] = true; });
 
     if (!/\/$/.test(path))
       path += "/";
 
-    new_reviewfilters = reviewfilters.slice();
+    new_reviewfilters = [];
 
-    for (var index = 0; index < names.length; ++index)
-      new_reviewfilters.push({ username: names[index],
+    for (var index = 0; index < reviewfilters.length; ++index)
+      if (!(reviewfilters[index].username in names) || reviewfilters[index].path != path)
+        new_reviewfilters.push(reviewfilters[index]);
+
+    for (var name in names)
+      new_reviewfilters.push({ username: name,
                                type: add_reviewer ? "reviewer" : "watcher",
                                path: path });
 
