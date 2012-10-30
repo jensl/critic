@@ -49,3 +49,9 @@ the 'Home' top level menu item.
 
 For information about how to request a new code review, click the 'Tutorial'
 top level menu item, and then select 'Requesting a Review'.
+
+See also
+--------
+
+The [Critic user FAQ](documentation/user_faq.md) answers some common questions and gives some useful
+tips on how to use Critic efficiently.
