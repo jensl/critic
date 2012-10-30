@@ -88,14 +88,6 @@ missing software using it.
         else:
             return False
 
-    if sys.version_info[0] != 2 or sys.version_info[1] < 7:
-        print """\
-Unsupported Python version!  Critic requires Python 2.7.x or later,
-but not Python 3.x.  This script must be run in the Python interpreter
-that will be used to run Critic.
-"""
-        return False
-
     git = find_executable("git")
     if not git:
         if aptget_approved and install("git-core"):
