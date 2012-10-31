@@ -531,8 +531,6 @@ def executeProcessCommits(db, user, review, all_commits, old_head, new_head, out
         assert new_head in commitset.getHeads()
         assert len(commitset.getHeads()) == 1
 
-        review_arg = "new critic.Review(%d)" % review.id
-
         tails = commitset.getFilteredTails(review.repository)
         if len(tails) == 1:
             tail = gitutils.Commit.fromSHA1(db, review.repository, tails.pop())

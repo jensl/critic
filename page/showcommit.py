@@ -1175,8 +1175,6 @@ def renderShowCommit(req, db, user):
     document.addInternalScript(repository.getJS())
     document.addInternalScript("var keyboardShortcuts = %s;" % (user.getPreference(db, "ui.keyboardShortcuts") and "true" or "false"))
 
-    started = False
-
     for stop in render(db, body, user, repository, review, changesets, commits, listed_commits, context_lines=context, conflicts=conflicts, moves=moves, compact=compact, wrap=wrap, tabify=tabify, profiler=profiler, rebases=rebases):
         yield document.render(stop=stop, pretty=not compact)
 
