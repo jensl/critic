@@ -24,9 +24,11 @@ import changeset.load as changeset_load
 import htmlutils
 import re
 import page.utils
+
 from htmlutils import jsify
 from time import strftime
 from review.filters import Filters
+from operation import OperationFailure
 
 class Comment:
     def __init__(self, chain, batch_id, id, state, user, time, comment, code, unread):
@@ -357,7 +359,9 @@ def loadCommentChains(db, review, user, file=None, changeset=None, commit=None, 
 
 def createCommentChain(db, user, review, chain_type, commit_id=None, origin=None, file_id=None, parent_id=None, child_id=None, old_sha1=None, new_sha1=None, offset=None, count=None):
     if chain_type == "issue" and review.state != "open":
-        raise Exception, "review not open; can't raise issue"
+        raise OperationFailure(code="reviewclosed",
+                               title="Review is closed!",
+                               message="You need to reopen the review before you can raise new issues.")
 
     cursor = db.cursor()
 
