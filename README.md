@@ -34,7 +34,7 @@ Adding push rights
 ------------------
 
 Before a user can push review branches to the newly created Critic repository
-their account must be a member of the 'critic' Unix group (or whatever group
+their account must be a member of the 'critic' system group (or whatever group
 name was chosen during installation).  In Debian/Ubuntu this can be done using:
 
     usermod -a -G critic <user-who-wants-push-rights>
