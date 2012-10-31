@@ -83,8 +83,9 @@ missing software using it.
                 match = re.search(r"([^ ]+) \(.* \.\.\./([^)]+\.deb)\) \.\.\.", line)
                 if match:
                     need_blankline = True
+                    installed_anything = True
                     print "Installed: %s (%s)" % (match.group(1), match.group(2))
-            return True
+            return installed_anything
         else:
             return False
 
