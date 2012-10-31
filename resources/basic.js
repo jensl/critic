@@ -44,14 +44,17 @@ function Branch(id, name, base)
   this.base = base;
 }
 
-function reportError(what, specifics, title)
+function reportError(what, specifics, title, callback)
 {
   if (!title)
     title = "Communication Error!";
 
   var content = $("<div title='" + title + "'><h1>Failed to " + what + ".</h1><p>" + specifics + "</p></div>");
 
-  content.dialog({ width: 800, height: 400, modal: true, buttons: { OK: function () { content.dialog("close"); }}});
+  content.dialog({ width: 800,
+                   height: 400,
+                   modal: true,
+                   buttons: { OK: function () { content.dialog("close"); if (callback) callback(); }}});
 }
 
 function showMessage(title, heading, message, callback)
@@ -127,28 +130,30 @@ Operation.prototype.execute = function ()
     var result = null;
     var wait = null;
 
-    function handleResult(result)
+    function handleResult(result, callback)
     {
+      callback = callback || function (result) { return result; };
+
       if (result.status == "failure")
       {
         var handler = self.failure[result.code];
 
         if (!handler || !handler(result))
-          showMessage("Oups...", result.title, result.message);
+          showMessage("Oups...", result.title, result.message, function () { callback(null); });
 
         return null;
       }
       else if (result.status == "error")
       {
         if (result.error.indexOf("\n") != -1)
-          reportError(self.action, "Server reply:<pre>" + htmlify(result.error) + "</pre>");
+          reportError(self.action, "Server reply:<pre>" + htmlify(result.error) + "</pre>", null, function () { callback(null); });
         else
-          reportError(self.action, "Server reply: <i>" + htmlify(result.error) + "</i>");
+          reportError(self.action, "Server reply: <i>" + htmlify(result.error) + "</i>", null, function () { callback(null); });
 
         return null;
       }
       else
-        return result;
+        return callback(result);
     }
 
     function success(data)
@@ -160,19 +165,18 @@ Operation.prototype.execute = function ()
         wait.dialog("close");
       if (self.callback)
       {
-        self.callback(handleResult(result));
+        handleResult(result, self.callback);
         Operation.finished(self.id);
       }
     }
 
     function error(xhr)
     {
-      reportError(self.action, "Server reply:<pre>" + (xhr.responseText ? htmlify(xhr.responseText) : "N/A") + "</pre>");
+      if (wait)
+        wait.dialog("close");
+      reportError(self.action, "Server reply:<pre>" + (xhr.responseText ? htmlify(xhr.responseText) : "N/A") + "</pre>", null, self.callback);
       if (self.callback)
-      {
-        self.callback(null);
         Operation.finished(self.id);
-      }
     }
 
     if (this.wait)
