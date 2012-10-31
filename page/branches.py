@@ -124,6 +124,12 @@ def renderBranches(req, db, user):
             commit_times.append(commit_time.timetuple())
 
     document = htmlutils.Document(req)
+
+    if repository:
+        document.setTitle("Branches in %s" % repository.name)
+    else:
+        document.setTitle("Branches")
+
     html = document.html()
     head = html.head()
     body = html.body()

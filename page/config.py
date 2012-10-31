@@ -24,6 +24,7 @@ def renderConfig(req, db, user):
     cursor = db.cursor()
 
     document = htmlutils.Document(req)
+    document.setTitle("User Preferences")
 
     html = document.html()
     head = html.head()

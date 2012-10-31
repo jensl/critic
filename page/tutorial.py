@@ -66,6 +66,7 @@ def renderTutorial(req, db, user):
 
     document = htmlutils.Document(req)
     document.setBase(None)
+    document.setTitle("Tutorials")
 
     html = document.html()
     head = html.head()
