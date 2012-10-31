@@ -37,8 +37,6 @@ def prepare(arguments):
     global hostname, username, email, create_system_user
     global groupname, create_system_group
 
-    all_ok = True
-
     print """
 Critic Installation: System
 ===========================

@@ -25,8 +25,6 @@ password = None
 def prepare(arguments):
     global username, email, fullname, password
 
-    all_ok = True
-
     print """
 Critic Installation: Administrator
 ==================================
