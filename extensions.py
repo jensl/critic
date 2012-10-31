@@ -256,7 +256,7 @@ class Extension:
 
         if not os.path.isdir(os.path.join(configuration.extensions.INSTALL_DIR, sha1)):
             git_archive = process([configuration.executables.GIT, "archive", "--format=tar", "--prefix=%s/" % sha1, sha1], stdout=PIPE, cwd=self.__path)
-            check_call([TAR, "x"], stdin=git_archive.stdout, cwd=configuration.extensions.INSTALL_DIR)
+            check_call([configuration.executables.TAR, "x"], stdin=git_archive.stdout, cwd=configuration.extensions.INSTALL_DIR)
 
         return sha1
 
