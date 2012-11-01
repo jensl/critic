@@ -107,12 +107,12 @@ else:
                                     compressed_count += 1
                             elif filename.endswith(".ctx"):
                                 self.debug("deleting context file: %s/%s" % (section, filename))
-                                unlink(fullname)
+                                os.unlink(fullname)
 
             self.debug("uncompressed=%d / compressed=%d / purged=%d" % (uncompressed_count, compressed_count, len(purged_paths)))
 
             if purged_paths:
-                for path in purged_paths: unlink(path)
+                for path in purged_paths: os.unlink(path)
                 cursor.execute("DELETE FROM codecontexts USING purged WHERE codecontexts.sha1=purged.sha1")
 
             db.commit()
