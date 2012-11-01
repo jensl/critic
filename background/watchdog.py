@@ -77,7 +77,7 @@ class Watchdog(BackgroundProcess):
                     self.info("Killing pid(%d): hard memory limit exceeded, RSS: %d kilobytes" % (pid, rss))
                     os.kill(pid, signal.SIGKILL)
                 elif rss > configuration.services.WATCHDOG["rss_soft_limit"] and pid not in soft_restart_attempted:
-                    sendAdministratorMessage("watchdog", "pid(%d): soft memory limit exceeded" % process.pid,
+                    sendAdministratorMessage("watchdog", "pid(%d): soft memory limit exceeded" % pid,
                                              ("Current RSS: %d kilobytes\nSending process SIGINT (%d).\n\n"
                                               % (rss, signal.SIGINT)))
                     self.info("Killing pid(%d): soft memory limit exceeded, RSS: %d kilobytes" % (pid, rss))
