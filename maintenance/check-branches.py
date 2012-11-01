@@ -147,7 +147,7 @@ for repository_id in repository_ids:
                     head = getReviewHead(repository, getReview(branch_id))
 
                     if not head:
-                        progress.write("  invalid review meta-data: r/%d" % review_id)
+                        progress.write("  invalid review meta-data: r/%d" % getReview(branch_id))
                         continue
 
                     if head.sha1 == branch_sha1:
