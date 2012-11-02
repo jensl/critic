@@ -29,7 +29,7 @@ def doPrepareRebase(db, user, review, new_upstream=None, branch=None):
     cursor.execute("SELECT uid FROM reviewrebases WHERE review=%s AND new_head IS NULL", (review.id,))
     row = cursor.fetchone()
     if row:
-        rebaser = User.fromId(db, row[0])
+        rebaser = dbutils.User.fromId(db, row[0])
         raise OperationError("The review is already being rebased by %s <%s>." % (rebaser.fullname, rebaser.email))
 
     head = commitset.getHeads().pop()
