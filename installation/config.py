@@ -25,7 +25,19 @@ def prepare(arguments):
     global auth_mode
 
     if installation.prereqs.bcrypt_available:
-        print """
+
+        def check(value):
+            if value.strip() not in ("host", "critic"):
+                return "must be one of 'host' and 'critic'"
+
+        if arguments.auth_mode:
+            error = check(arguments.auth_mode)
+            if error:
+                print "Invalid --auth-mode argument: %s." % arguments.auth_mode
+                return False
+            auth_mode = arguments.auth_mode
+        else:
+            print """
 Critic Installation: Authentication
 ===================================
 
@@ -40,12 +52,8 @@ the Web front-end.  This can be handled in two different ways:
           stored (encrypted) in its database.
 """
 
-        def check(value):
-            if value.strip() not in ("host", "critic"):
-                return "must be one of 'host' and 'critic'"
-
-        auth_mode = installation.input.string("Which authentication mode should be used?",
-                                              default="critic", check=check)
+            auth_mode = installation.input.string("Which authentication mode should be used?",
+                                                  default="critic", check=check)
 
     return True
 
