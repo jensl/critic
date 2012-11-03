@@ -100,6 +100,10 @@ def renderBranches(req, db, user):
     cursor = db.cursor()
 
     repository = req.getParameter("repository", None, gitutils.Repository.FromParameter(db))
+
+    if not repository:
+        repository = user.getDefaultRepository(db)
+
     all_branches = []
     commit_times = []
 
@@ -120,6 +124,12 @@ def renderBranches(req, db, user):
             commit_times.append(commit_time.timetuple())
 
     document = htmlutils.Document(req)
+
+    if repository:
+        document.setTitle("Branches in %s" % repository.name)
+    else:
+        document.setTitle("Branches")
+
     html = document.html()
     head = html.head()
     body = html.body()

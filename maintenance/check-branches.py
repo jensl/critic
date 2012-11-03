@@ -51,7 +51,7 @@ def getBranchCommits(repository, branch_id):
     cursor = db.cursor()
     cursor.execute("SELECT sha1 FROM commits JOIN reachable ON (commit=id) WHERE branch=%s", (branch_id,))
 
-    return log.commitset.CommitSet(gitutils.Commit.fromSHA1(repository, sha1) for (sha1,) in cursor)
+    return log.commitset.CommitSet(gitutils.Commit.fromSHA1(db, repository, sha1) for (sha1,) in cursor)
 
 def getReview(branch_id):
     cursor = db.cursor()
@@ -129,8 +129,12 @@ for repository_id in repository_ids:
 
     heads_path = os.path.join(repository.path, "refs", "heads")
 
+    branches_in_db = set()
+
     for branch_id, branch_name, branch_type, branch_base_id, branch_sha1 in branches:
         progress.update()
+
+        branches_in_db.add(branch_name)
 
         try:
             try: repository_sha1 = open(os.path.join(heads_path, branch_name)).read().strip()
@@ -143,7 +147,7 @@ for repository_id in repository_ids:
                     head = getReviewHead(repository, getReview(branch_id))
 
                     if not head:
-                        progress.write("  invalid review meta-data: r/%d" % review_id)
+                        progress.write("  invalid review meta-data: r/%d" % getReview(branch_id))
                         continue
 
                     if head.sha1 == branch_sha1:
@@ -159,12 +163,12 @@ for repository_id in repository_ids:
                         incorrect_reviews.append((getReview(branch_id), "review meta-data matches neither branches.head nor repository"))
                 else:
                     try:
-                        gitutils.Commit.fromSHA1(repository, branch_sha1)
+                        gitutils.Commit.fromSHA1(db, repository, branch_sha1)
                         progress.write("  branches.head exists in repository")
                     except KeyboardInterrupt: sys.exit(1)
                     except:
                         progress.write("  branches.head not in repository; updating branches.head")
-                        head = gitutils.Commit.fromSHA1(repository, repository_sha1)
+                        head = gitutils.Commit.fromSHA1(db, repository, repository_sha1)
                         if force: cursor.execute("UPDATE branches SET head=%s WHERE id=%s", (head.getId(db), branch_id))
                         db.commit()
                         continue
@@ -254,6 +258,31 @@ for repository_id in repository_ids:
                 except:
                     progress.write("  failed to re-create review branch")
                     incorrect_reviews.append((getReview(branch_id), "failed to re-create review branch"))
+
+    processed = set()
+
+    def exists_in_db(branch_name):
+        return branch_name in branches_in_db
+
+    def process(path, prefix=None):
+        for entry in os.listdir(path):
+            entry_path = os.path.join(path, entry)
+            branch_name = os.path.join(prefix, entry) if prefix else entry
+            if os.path.isdir(entry_path):
+                process(entry_path, branch_name)
+            elif not exists_in_db(branch_name):
+                progress.write("WARNING[%s]: %s exists in the repository but not in the database!" % (repository.name, branch_name))
+                if force: repository.run("update-ref", "-d", "refs/heads/%s" % branch_name)
+                progress.write("  deleted from repository")
+            processed.add(branch_name)
+
+    for branch_name in refs.keys():
+        if branch_name not in processed and not exists_in_db(branch_name):
+            progress.write("WARNING[%s]: %s exists in the repository but not in the database!" % (repository.name, branch_name))
+            if force: repository.run("update-ref", "-d", "refs/heads/%s" % branch_name)
+            progress.write("  deleted from repository")
+
+    process(heads_path)
 
     progress.end(".")
 

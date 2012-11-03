@@ -256,7 +256,7 @@ class Extension:
 
         if not os.path.isdir(os.path.join(configuration.extensions.INSTALL_DIR, sha1)):
             git_archive = process([configuration.executables.GIT, "archive", "--format=tar", "--prefix=%s/" % sha1, sha1], stdout=PIPE, cwd=self.__path)
-            check_call([TAR, "x"], stdin=git_archive.stdout, cwd=configuration.extensions.INSTALL_DIR)
+            check_call([configuration.executables.TAR, "x"], stdin=git_archive.stdout, cwd=configuration.extensions.INSTALL_DIR)
 
         return sha1
 
@@ -530,8 +530,6 @@ def executeProcessCommits(db, user, review, all_commits, old_head, new_head, out
         assert old_head is None or old_head in commitset.getTails()
         assert new_head in commitset.getHeads()
         assert len(commitset.getHeads()) == 1
-
-        review_arg = "new critic.Review(%d)" % review.id
 
         tails = commitset.getFilteredTails(review.repository)
         if len(tails) == 1:

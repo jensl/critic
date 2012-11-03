@@ -18,6 +18,7 @@ import sys
 import traceback
 import mailutils
 import dbutils
+import htmlutils
 
 try: from json import dumps as json_encode, loads as json_decode
 except: from cjson import encode as json_encode, decode as json_decode
@@ -66,12 +67,15 @@ class OperationFailure(Exception):
     and message=<message>.
     """
 
-    def __init__(self, code, title, message):
+    def __init__(self, code, title, message, is_html=False):
         self.__code = code
-        self.__title = title
-        self.__message = message
+        self.__title = htmlutils.htmlify(title)
+        self.__message = message if is_html else htmlutils.htmlify(message)
     def __str__(self):
-        return json_encode({ "status": "failure", "code": self.__code, "title": self.__title, "message": self.__message })
+        return json_encode({ "status": "failure",
+                             "code": self.__code,
+                             "title": self.__title,
+                             "message": self.__message })
 
 class TypeChecker:
     """\

@@ -14,6 +14,8 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
+import re
+
 def convertUTF8(text):
     # Check if it's already valid UTF-8 and return it unchanged if so.
     try:

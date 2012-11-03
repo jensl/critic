@@ -877,7 +877,7 @@ class Review:
         except:
             branch = Branch.fromName(db, str(argument))
             if not branch: return None
-            return dbutils.Review.fromBranch(db, branch)
+            return Review.fromBranch(db, branch)
 
 class Branch:
     def __init__(self, id, repository, name, head, base, tail, branch_type, review_id):

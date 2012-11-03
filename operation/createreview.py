@@ -23,7 +23,7 @@ import gitutils
 import htmlutils
 import configuration
 
-from operation import Operation, OperationResult, OperationError, Optional
+from operation import Operation, OperationResult, OperationError, Optional, OperationFailure
 from review.utils import parseReviewFilters, parseRecipientFilters, createReview, getReviewersAndWatchers
 from page.createreview import generateReviewersAndWatchersTable
 from log.commitset import CommitSet
@@ -87,7 +87,7 @@ class SubmitReview(Operation):
         if not branch.startswith("r/"):
             raise OperationFailure(code="invalidbranch",
                                    title="Invalid review branch name",
-                                   message="'%s' is not a valid review branch name; it must have a \"r/\" prefix." % branch_name)
+                                   message="'%s' is not a valid review branch name; it must have a \"r/\" prefix." % branch)
 
         repository = gitutils.Repository.fromId(db, repository_id)
         commits = [gitutils.Commit.fromId(db, repository, commit_id) for commit_id in commit_ids]
@@ -149,11 +149,18 @@ class FetchRemoteBranch(Operation):
                                    "branch": str,
                                    "upstream": Optional(str) })
 
-    def process(self, db, user, repository_name, remote, branch, upstream="master"):
+    def process(self, db, user, repository_name, remote, branch, upstream="refs/heads/master"):
         repository = gitutils.Repository.fromName(db, repository_name)
 
+        if not branch.startswith("refs/"):
+            branch = "refs/heads/%s" % branch
+
         head_sha1 = repository.fetchTemporaryFromRemote(remote, branch)
-        upstream_sha1 = repository.fetchTemporaryFromRemote(remote, upstream)
+
+        if upstream.startswith("refs/"):
+            upstream_sha1 = repository.fetchTemporaryFromRemote(remote, upstream)
+        else:
+            upstream_sha1 = repository.revparse(upstream)
 
         commit_sha1s = repository.revlist(included=[head_sha1], excluded=[upstream_sha1])
 

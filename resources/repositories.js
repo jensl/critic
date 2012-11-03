@@ -78,6 +78,17 @@ $(function ()
 
         var dialog = $(html);
 
+        function triggerUpdate()
+        {
+          var operation = new Operation({ action: "trigger update",
+                                          url: "triggertrackedbranchupdate",
+                                          data: { branch_id: branch_id }});
+          var result = operation.execute();
+
+          if (result)
+            dialog.dialog("close");
+        }
+
         function disable()
         {
           function finish()
@@ -145,7 +156,10 @@ $(function ()
         if (user_ids.indexOf(user.id) != -1 || user.administrator)
         {
           if (branch_row.find("td.enabled").text() == "Yes")
+          {
+            buttons["Update now"] = triggerUpdate;
             buttons["Disable"] = disable;
+          }
           else if (branch_row.find("td.enabled").text() == "No")
             buttons["Enable"] = enable;
 

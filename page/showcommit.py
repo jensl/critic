@@ -814,7 +814,7 @@ including the unrelated changes.</p>
 
     tail = gitutils.Commit.fromSHA1(db, review.repository, tail.parents[0])
 
-    commits = getCommitList(review.repository, tail, head)
+    commits = getCommitList(db, review.repository, tail, head)
 
     if not commits:
         raise page.utils.DisplayMessage, "Filtered view not possible since it includes a merge commit."
@@ -1174,8 +1174,6 @@ def renderShowCommit(req, db, user):
     document.addInternalScript(user.getJS(db))
     document.addInternalScript(repository.getJS())
     document.addInternalScript("var keyboardShortcuts = %s;" % (user.getPreference(db, "ui.keyboardShortcuts") and "true" or "false"))
-
-    started = False
 
     for stop in render(db, body, user, repository, review, changesets, commits, listed_commits, context_lines=context, conflicts=conflicts, moves=moves, compact=compact, wrap=wrap, tabify=tabify, profiler=profiler, rebases=rebases):
         yield document.render(stop=stop, pretty=not compact)

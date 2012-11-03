@@ -128,7 +128,7 @@ input.remotepath {
     width: 40em
 }
 
-input.workbranch, input.upstreambranch {
+input.workbranch, input.upstreamcommit {
     font-family: monospace;
     width: 40em
 }

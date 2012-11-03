@@ -848,7 +848,7 @@ if configuration.extensions.ENABLED:
     operations["installextension"] = operation.extensioninstallation.InstallExtension()
     operations["uninstallextension"] = operation.extensioninstallation.UninstallExtension()
     operations["reinstallextension"] = operation.extensioninstallation.ReinstallExtension()
-    operatinos["loadmanifest"] = loadmanifest
+    operations["loadmanifest"] = loadmanifest
     operations["processcommits"] = processcommits
     pages["manageextensions"] = page.manageextensions.renderManageExtensions
 

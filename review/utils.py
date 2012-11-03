@@ -437,7 +437,8 @@ using the command<p>
 <pre>  git push &lt;remote&gt; :%s</pre>
 
 <p>and then press the "Submit Review" button on this page again."""
-                               % (htmlutils.htmlify(branch_name), htmlutils.htmlify(branch_name)))
+                               % (htmlutils.htmlify(branch_name), htmlutils.htmlify(branch_name)),
+                               is_html=True)
 
     commitset = log_commitset.CommitSet(commits)
 

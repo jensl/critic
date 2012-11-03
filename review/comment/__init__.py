@@ -24,9 +24,11 @@ import changeset.load as changeset_load
 import htmlutils
 import re
 import page.utils
+
 from htmlutils import jsify
 from time import strftime
 from review.filters import Filters
+from operation import OperationFailure
 
 class Comment:
     def __init__(self, chain, batch_id, id, state, user, time, comment, code, unread):
@@ -357,7 +359,9 @@ def loadCommentChains(db, review, user, file=None, changeset=None, commit=None, 
 
 def createCommentChain(db, user, review, chain_type, commit_id=None, origin=None, file_id=None, parent_id=None, child_id=None, old_sha1=None, new_sha1=None, offset=None, count=None):
     if chain_type == "issue" and review.state != "open":
-        raise Exception, "review not open; can't raise issue"
+        raise OperationFailure(code="reviewclosed",
+                               title="Review is closed!",
+                               message="You need to reopen the review before you can raise new issues.")
 
     cursor = db.cursor()
 
@@ -371,12 +375,63 @@ def createCommentChain(db, user, review, chain_type, commit_id=None, origin=None
                              AND fileversions.new_sha1!='0000000000000000000000000000000000000000'""",
                        (review.id, file_id))
 
-        if cursor.fetchone(): raise Exception, "file changed in review"
+        if cursor.fetchone():
+            cursor.execute("""SELECT parent, child
+                                FROM changesets
+                                JOIN reviewchangesets ON (reviewchangesets.changeset=changesets.id)
+                                JOIN fileversions ON (fileversions.changeset=changesets.id)
+                               WHERE fileversions.file=%s
+                                 AND fileversions.new_sha1=%s""",
+                           (file_id, new_sha1))
 
-        cursor.execute("INSERT INTO commentchains (review, uid, type, file, first_commit, last_commit) VALUES (%s, %s, %s, %s, %s, %s) RETURNING id", [review.id, user.id, chain_type, file_id, child_id, child_id])
+            rows = cursor.fetchall()
+
+            if not rows:
+                cursor.execute("""SELECT parent, child
+                                    FROM changesets
+                                    JOIN reviewchangesets ON (reviewchangesets.changeset=changesets.id)
+                                    JOIN fileversions ON (fileversions.changeset=changesets.id)
+                                   WHERE fileversions.file=%s
+                                     AND fileversions.old_sha1=%s""",
+                               (file_id, new_sha1))
+
+                rows = cursor.fetchall()
+
+            parent = child = None
+
+            for row_parent_id, row_child_id in rows:
+                if row_child_id == child_id:
+                    parent = gitutils.Commit.fromId(db, review.repository, row_parent_id)
+                    child = gitutils.Commit.fromId(db, review.repository, row_child_id)
+                    break
+                elif row_parent_id == child_id and parent is None:
+                    parent = gitutils.Commit.fromId(db, review.repository, row_parent_id)
+                    child = gitutils.Commit.fromId(db, review.repository, row_child_id)
+
+            if parent and child:
+                url = "/%s/%s..%s?review=%d&file=%d" % (review.repository.name, parent.sha1[:8], child.sha1[:8], review.id, file_id)
+                link = ("<p>The link below goes to a diff that can be use to create the comment:</p>" +
+                        "<p style='padding-left: 2em'><a href='%s'>%s%s</a></p>") % (url, dbutils.getURLPrefix(db), url)
+            else:
+                link = ""
+
+            raise OperationFailure(code="notsupported",
+                                   title="File changed in review",
+                                   message=("<p>Due to limitations in the code used to create comments, " +
+                                            "it's only possible to create comments via a diff view if " +
+                                            "the commented file has been changed in the review.</p>" +
+                                            link),
+                                   is_html=True)
+
+        cursor.execute("""INSERT INTO commentchains (review, uid, type, file, first_commit, last_commit)
+                               VALUES (%s, %s, %s, %s, %s, %s)
+                            RETURNING id""",
+                       (review.id, user.id, chain_type, file_id, child_id, child_id))
         chain_id = cursor.fetchone()[0]
 
-        cursor.execute("INSERT INTO commentchainlines (chain, uid, commit, sha1, first_line, last_line) VALUES (%s, %s, %s, %s, %s, %s)", (chain_id, user.id, child_id, new_sha1, offset, offset + count - 1))
+        cursor.execute("""INSERT INTO commentchainlines (chain, uid, commit, sha1, first_line, last_line)
+                               VALUES (%s, %s, %s, %s, %s, %s)""",
+                       (chain_id, user.id, child_id, new_sha1, offset, offset + count - 1))
     elif file_id is not None:
         parents_returned = set()
 

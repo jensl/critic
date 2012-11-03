@@ -46,6 +46,18 @@ Critic Installation: Paths
         if error: return error
         if os.path.exists(path): return "already exists"
 
+    if arguments.etc_dir:
+        error = is_new_dir(arguments.etc_dir)
+        if error:
+            print "Invalid --etc-dir argument: %s." % error
+            return False
+        etc_dir = arguments.etc_dir
+    else:
+        all_ok = False
+        etc_dir = installation.input.string(prompt="Where should Critic's configuration files be installed?",
+                                            default=etc_dir,
+                                            check=is_new_dir)
+
     if arguments.install_dir:
         error = is_new_dir(arguments.install_dir)
         if error:
