@@ -31,10 +31,10 @@ servicemanager_started = False
 def execute():
     global servicemanager_started, rclinks_added
 
-    source_path = os.path.join("installation", "templates", "initd")
+    source_path = os.path.join(installation.root_dir, "installation", "templates", "initd")
     target_path = os.path.join("/etc", "init.d", "critic-main")
 
-    with open(".install.data") as install_data:
+    with open(os.path.join(installation.root_dir, ".install.data")) as install_data:
         data = json.load(install_data)
 
     with open(target_path, "w") as target:

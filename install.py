@@ -98,7 +98,7 @@ try:
             if isinstance(value, str):
                 data["%s.%s" % (module.__name__, name)] = value
 
-    with open(".install.data", "w") as install_data:
+    with open(os.path.join(installation.root_dir, ".install.data"), "w") as install_data:
         json.dump(data, install_data)
 
     for module in installation.modules:

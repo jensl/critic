@@ -23,7 +23,8 @@ def prepare(arguments):
     return True
 
 def execute():
-    process.check_call(["sudo", "-u", installation.system.username, "PYTHONPATH=%s" % os.path.join(installation.paths.etc_dir, "main"), installation.prereqs.python, "maintenance/installpreferences.py"])
+    process.check_call(["sudo", "-u", installation.system.username, "PYTHONPATH=%s" % os.path.join(installation.paths.etc_dir, "main"), installation.prereqs.python, os.path.join(installation.paths.install_dir, "maintenance/installpreferences.py")])
+
     return True
 
 def undo():
