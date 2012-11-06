@@ -73,24 +73,25 @@ def execute():
         data = json.load(install_data)
 
     for entry in os.listdir(source_dir):
-        source_path = os.path.join(source_dir, entry)
-        target_path = os.path.join(target_dir, entry)
+        if entry.endswith(".py"):
+            source_path = os.path.join(source_dir, entry)
+            target_path = os.path.join(target_dir, entry)
 
-        with open(target_path, "w") as target:
-            created_file.append(target_path)
+            with open(target_path, "w") as target:
+                created_file.append(target_path)
 
-            if entry in ("database.py", "smtp.py"):
-                # May contain secrets (passwords.)
-                mode = 0600
-            else:
-                # Won't contain secrets.
-                mode = 0640
+                if entry in ("database.py", "smtp.py"):
+                    # May contain secrets (passwords.)
+                    mode = 0600
+                else:
+                    # Won't contain secrets.
+                    mode = 0640
 
-            os.chmod(target_path, mode)
-            os.chown(target_path, installation.system.uid, installation.system.gid)
+                os.chmod(target_path, mode)
+                os.chown(target_path, installation.system.uid, installation.system.gid)
 
-            with open(source_path, "r") as source:
-                target.write((source.read().decode("utf-8") % data).encode("utf-8"))
+                with open(source_path, "r") as source:
+                    target.write((source.read().decode("utf-8") % data).encode("utf-8"))
 
     return True
 
