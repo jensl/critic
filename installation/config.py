@@ -61,7 +61,7 @@ created_file = []
 created_dir = []
 
 def execute():
-    source_dir = os.path.join("installation", "templates", "configuration")
+    source_dir = os.path.join(installation.root_dir, "installation", "templates", "configuration")
     target_dir = os.path.join(installation.paths.etc_dir, "main", "configuration")
 
     os.mkdir(target_dir, 0750)
@@ -69,7 +69,7 @@ def execute():
 
     os.chown(target_dir, installation.system.uid, installation.system.gid)
 
-    with open(".install.data") as install_data:
+    with open(os.path.join(installation.root_dir, ".install.data")) as install_data:
         data = json.load(install_data)
 
     for entry in os.listdir(source_dir):

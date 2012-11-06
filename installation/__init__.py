@@ -16,6 +16,7 @@
 
 __doc__ = "Installation utilities."
 
+import os
 import input
 import process
 
@@ -44,3 +45,5 @@ modules = [prereqs,
            prefs,
            git,
            criticctl]
+
+root_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")

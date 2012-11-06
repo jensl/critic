@@ -25,10 +25,10 @@ def prepare(arguments):
 created_file = []
 
 def execute():
-    source_path = os.path.join("installation", "templates", "criticctl")
+    source_path = os.path.join(installation.root_dir, "installation", "templates", "criticctl")
     target_path = os.path.join("/usr", "bin", "criticctl")
 
-    with open(".install.data") as install_data:
+    with open(os.path.join(installation.root_dir, ".install.data")) as install_data:
         data = json.load(install_data)
 
     with open(target_path, "w") as target:

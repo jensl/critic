@@ -35,10 +35,10 @@ created_file = []
 site_enabled = False
 
 def execute():
-    source_path = os.path.join("installation", "templates", "site")
+    source_path = os.path.join(installation.root_dir, "installation", "templates", "site")
     target_path = os.path.join("/etc", "apache2", "sites-available", "critic-main")
 
-    with open(".install.data") as install_data:
+    with open(os.path.join(installation.root_dir, ".install.data")) as install_data:
         data = json.load(install_data)
 
     with open(target_path, "w") as target:
