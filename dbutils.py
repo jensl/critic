@@ -457,7 +457,7 @@ def explode_path(db, invalid=None, file_id=None, directory_id=None):
 
 def contained_files(db, directory_id):
     cursor = db.cursor()
-    cursor.execute("SELECT file FROM containedfiles(%s)", (directory_id,))
+    cursor.execute("SELECT file_out FROM containedfiles(%s)", (directory_id,))
     return [file_id for (file_id,) in cursor]
 
 class ReviewState:
