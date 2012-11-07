@@ -871,6 +871,7 @@ def main(environ, start_response):
             try:
                 user = dbutils.User.fromName(db, req.user)
             except dbutils.NoSuchUser:
+                cursor = db.cursor()
                 cursor.execute("""INSERT INTO users (name, email, fullname)
                                        VALUES (%s, %s, %s)
                                     RETURNING id""",
