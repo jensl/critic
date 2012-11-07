@@ -29,6 +29,9 @@ SYSTEM_USER_NAME = "%(installation.system.username)s"
 # user whose email address it makes sense to use instead.
 SYSTEM_USER_EMAIL = "%(installation.system.email)s"
 
+# The name of the system group that Critic runs as.
+SYSTEM_GROUP_NAME = "%(installation.system.groupname)s"
+
 ADMINISTRATORS = [{ "name": "%(installation.admin.username)s",
                     "email": "%(installation.admin.email)s",
                     "fullname": "%(installation.admin.fullname)s" }]

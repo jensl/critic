@@ -19,6 +19,7 @@ __doc__ = "Installation utilities."
 import os
 import input
 import process
+import utils
 
 import prereqs
 import system
@@ -32,6 +33,7 @@ import initd
 import prefs
 import git
 import criticctl
+import migrate
 
 modules = [prereqs,
            system,
@@ -44,6 +46,7 @@ modules = [prereqs,
            initd,
            prefs,
            git,
-           criticctl]
+           criticctl,
+           migrate]
 
 root_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")

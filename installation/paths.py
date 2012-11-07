@@ -25,118 +25,143 @@ git_dir = "/var/git"
 log_dir = "/var/log/critic"
 run_dir = "/var/run/critic"
 
-def prepare(arguments):
+def prepare(mode, arguments, data):
     global etc_dir, install_dir, data_dir, cache_dir, git_dir, log_dir, run_dir
 
-    all_ok = True
+    if mode == "install":
+        all_ok = True
 
-    print """
+        print """
 Critic Installation: Paths
 ==========================
 """
 
-    def is_good_dir(path):
-        if not path: return "empty path"
-        elif not path.startswith("/"): return "must be an absolute path"
-        elif os.path.exists(path) and not os.path.isdir(path):
-            return "exists and is not a directory"
+        def is_good_dir(path):
+            if not path: return "empty path"
+            elif not path.startswith("/"): return "must be an absolute path"
+            elif os.path.exists(path) and not os.path.isdir(path):
+                return "exists and is not a directory"
 
-    def is_new_dir(path):
-        error = is_good_dir(path)
-        if error: return error
-        if os.path.exists(path): return "already exists"
+        def is_new_dir(path):
+            error = is_good_dir(path)
+            if error: return error
+            if os.path.exists(path): return "already exists"
 
-    if arguments.etc_dir:
-        error = is_new_dir(arguments.etc_dir)
-        if error:
-            print "Invalid --etc-dir argument: %s." % error
-            return False
-        etc_dir = arguments.etc_dir
-    else:
-        all_ok = False
-        etc_dir = installation.input.string(prompt="Where should Critic's configuration files be installed?",
-                                            default=etc_dir,
-                                            check=is_new_dir)
-
-    if arguments.install_dir:
-        error = is_new_dir(arguments.install_dir)
-        if error:
-            print "Invalid --install-dir argument: %s." % error
-            return False
-        install_dir = arguments.install_dir
-    else:
-        all_ok = False
-        install_dir = installation.input.string(prompt="Where should Critic's source code be installed?",
-                                                default=install_dir,
+        if arguments.etc_dir:
+            error = is_new_dir(arguments.etc_dir)
+            if error:
+                print "Invalid --etc-dir argument: %s." % error
+                return False
+            etc_dir = arguments.etc_dir
+        else:
+            all_ok = False
+            etc_dir = installation.input.string(prompt="Where should Critic's configuration files be installed?",
+                                                default=etc_dir,
                                                 check=is_new_dir)
 
-    if arguments.data_dir:
-        error = is_new_dir(arguments.data_dir)
-        if error:
-            print "Invalid --data-dir argument: %s." % error
-            return False
-        data_dir = arguments.data_dir
-    else:
-        all_ok = False
-        data_dir = installation.input.string(prompt="Where should Critic's persistent data files live?",
-                                             default=data_dir,
-                                             check=is_new_dir)
+        if arguments.install_dir:
+            error = is_new_dir(arguments.install_dir)
+            if error:
+                print "Invalid --install-dir argument: %s." % error
+                return False
+            install_dir = arguments.install_dir
+        else:
+            all_ok = False
+            install_dir = installation.input.string(prompt="Where should Critic's source code be installed?",
+                                                    default=install_dir,
+                                                    check=is_new_dir)
 
-    if arguments.cache_dir:
-        error = is_new_dir(arguments.cache_dir)
-        if error:
-            print "Invalid --cache-dir argument: %s." % error
-            return False
-        cache_dir = arguments.cache_dir
-    else:
-        all_ok = False
-        cache_dir = installation.input.string(prompt="Where should Critic's temporary data files live?",
-                                              default=cache_dir,
-                                              check=is_new_dir)
+        if arguments.data_dir:
+            error = is_new_dir(arguments.data_dir)
+            if error:
+                print "Invalid --data-dir argument: %s." % error
+                return False
+            data_dir = arguments.data_dir
+        else:
+            all_ok = False
+            data_dir = installation.input.string(prompt="Where should Critic's persistent data files live?",
+                                                 default=data_dir,
+                                                 check=is_new_dir)
 
-    if arguments.git_dir:
-        error = is_new_dir(arguments.git_dir)
-        if error:
-            print "Invalid --git-dir argument: %s." % error
-            return False
-        git_dir = arguments.git_dir
-    else:
-        all_ok = False
-        git_dir = installation.input.string(prompt="Where should Critic's Git repositories live?",
-                                            default=git_dir,
-                                            check=is_new_dir)
+        if arguments.cache_dir:
+            error = is_new_dir(arguments.cache_dir)
+            if error:
+                print "Invalid --cache-dir argument: %s." % error
+                return False
+            cache_dir = arguments.cache_dir
+        else:
+            all_ok = False
+            cache_dir = installation.input.string(prompt="Where should Critic's temporary data files live?",
+                                                  default=cache_dir,
+                                                  check=is_new_dir)
 
-    if arguments.log_dir:
-        error = is_new_dir(arguments.log_dir)
-        if error:
-            print "Invalid --log-dir argument: %s." % error
-            return False
-        log_dir = arguments.log_dir
-    else:
-        all_ok = False
-        log_dir = installation.input.string(prompt="Where should Critic's log files live?",
-                                            default=log_dir,
-                                            check=is_good_dir)
+        if arguments.git_dir:
+            error = is_new_dir(arguments.git_dir)
+            if error:
+                print "Invalid --git-dir argument: %s." % error
+                return False
+            git_dir = arguments.git_dir
+        else:
+            all_ok = False
+            git_dir = installation.input.string(prompt="Where should Critic's Git repositories live?",
+                                                default=git_dir,
+                                                check=is_new_dir)
 
-    if arguments.run_dir:
-        error = is_new_dir(arguments.run_dir)
-        if error:
-            print "Invalid --run-dir argument: %s." % error
-            return False
-        run_dir = arguments.run_dir
-    else:
-        all_ok = False
-        run_dir = installation.input.string(prompt="Where should Critic's runtime files live?",
-                                            default=run_dir,
-                                            check=is_good_dir)
+        if arguments.log_dir:
+            error = is_new_dir(arguments.log_dir)
+            if error:
+                print "Invalid --log-dir argument: %s." % error
+                return False
+            log_dir = arguments.log_dir
+        else:
+            all_ok = False
+            log_dir = installation.input.string(prompt="Where should Critic's log files live?",
+                                                default=log_dir,
+                                                check=is_good_dir)
 
-    if all_ok: print "All okay."
+        if arguments.run_dir:
+            error = is_new_dir(arguments.run_dir)
+            if error:
+                print "Invalid --run-dir argument: %s." % error
+                return False
+            run_dir = arguments.run_dir
+        else:
+            all_ok = False
+            run_dir = installation.input.string(prompt="Where should Critic's runtime files live?",
+                                                default=run_dir,
+                                                check=is_good_dir)
+
+        if all_ok: print "All okay."
+    else:
+        import configuration
+
+        def strip_identity(path):
+            if os.path.basename(path) == configuration.base.SYSTEM_IDENTITY:
+                return os.path.dirname(path)
+            else:
+                return path
+
+        etc_dir = strip_identity(configuration.paths.CONFIG_DIR)
+        install_dir = configuration.paths.INSTALL_DIR
+        data_dir = configuration.paths.DATA_DIR
+        cache_dir = strip_identity(configuration.paths.CACHE_DIR)
+        git_dir = configuration.paths.GIT_DIR
+        log_dir = strip_identity(configuration.paths.LOG_DIR)
+        run_dir = strip_identity(configuration.paths.RUN_DIR)
+
+    data["installation.paths.etc_dir"] = etc_dir
+    data["installation.paths.install_dir"] = install_dir
+    data["installation.paths.data_dir"] = data_dir
+    data["installation.paths.cache_dir"] = cache_dir
+    data["installation.paths.git_dir"] = git_dir
+    data["installation.paths.log_dir"] = log_dir
+    data["installation.paths.run_dir"] = run_dir
 
     return True
 
 created = []
 
-def execute():
+def install(data):
     import errno
     import stat
 

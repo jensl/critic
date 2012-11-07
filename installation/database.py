@@ -23,9 +23,6 @@ import shutil
 import stat
 import os
 
-def prepare(arguments):
-    return True
-
 user_created = False
 database_created = False
 language_created = False
@@ -38,8 +35,8 @@ def psql_import(sql_file):
     process.check_output(["su", "-s", "/bin/sh", "-c", "psql -f %s" % temp_file, installation.system.username])
     os.unlink(temp_file)
 
-def execute():
-    global user_created, database_created
+def install(data):
+    global user_created, database_created, language_created
 
     print "Creating database ..."
 

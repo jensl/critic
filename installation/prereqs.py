@@ -52,7 +52,7 @@ def blankline():
         print
         need_blankline = False
 
-def prepare(arguments):
+def check(arguments):
     global git, tar, psql, bcrypt_available, aptget, apache2ctl, a2enmod, a2ensite, a2dissite
 
     print """
@@ -330,8 +330,16 @@ so you might just need to restart this script."""
 
     return success
 
-def execute():
-    return True
+def prepare(mode, arguments, data):
+    if mode == "install":
+        data["installation.prereqs.python"] = python
+        data["installation.prereqs.git"] = git
+        data["installation.prereqs.tar"] = tar
+    else:
+        import configuration
 
-def undo():
-    pass
+        data["installation.prereqs.python"] = configuration.executables.PYTHON
+        data["installation.prereqs.git"] = configuration.executables.GIT
+        data["installation.prereqs.tar"] = configuration.executables.TAR
+
+    return True

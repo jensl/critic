@@ -22,10 +22,11 @@ email = None
 fullname = None
 password = None
 
-def prepare(arguments):
+def prepare(mode, arguments, data):
     global username, email, fullname, password
 
-    print """
+    if mode == "install":
+        print """
 Critic Installation: Administrator
 ==================================
 
@@ -36,23 +37,35 @@ interface that most users are not allowed to do.
 This user does not need to match a system user on this machine.
 """
 
-    if arguments.admin_username: username = arguments.admin_username
-    else: username = installation.input.string(prompt="Administrator user name:")
+        if arguments.admin_username: username = arguments.admin_username
+        else: username = installation.input.string(prompt="Administrator user name:")
 
-    if arguments.admin_email: email = arguments.admin_email
-    else: email = installation.input.string(prompt="Administrator email address:")
+        if arguments.admin_email: email = arguments.admin_email
+        else: email = installation.input.string(prompt="Administrator email address:")
 
-    if arguments.admin_fullname: fullname = arguments.admin_fullname
-    else: fullname = installation.input.string(prompt="Administrator full name:")
+        if arguments.admin_fullname: fullname = arguments.admin_fullname
+        else: fullname = installation.input.string(prompt="Administrator full name:")
 
-    if installation.config.auth_mode == "critic":
-        import bcrypt
+        if installation.config.auth_mode == "critic":
+            import bcrypt
 
-        password = bcrypt.hashpw(installation.input.password("Password for '%s':" % username), bcrypt.gensalt())
+            password = bcrypt.hashpw(installation.input.password("Password for '%s':" % username), bcrypt.gensalt())
+    else:
+        import configuration
+
+        admin = configuration.base.ADMINISTRATORS[0]
+
+        username = admin["name"]
+        email = admin["email"]
+        fullname = admin["fullname"]
+
+    data["installation.admin.username"] = username
+    data["installation.admin.email"] = email
+    data["installation.admin.fullname"] = fullname
 
     return True
 
-def execute():
+def install(data):
     import psycopg2
 
     def adapt(value): return psycopg2.extensions.adapt(value).getquoted()
@@ -80,6 +93,3 @@ def execute():
                                % adapt(username)))
 
     return True
-
-def undo():
-    pass
