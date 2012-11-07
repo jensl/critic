@@ -397,8 +397,10 @@ class File:
             return "objective-c"
         elif self.path.endswith(".sql"):
             return "sql"
-        elif self.path.endswith(".xml"):
-            return "xml"
+        # XML syntax highlighting is disabled due to issues (the pygments
+        # lexer messes with the line-endings in the file.)
+        #elif self.path.endswith(".xml"):
+        #    return "xml"
 
         if use_content:
             interpreter = self.getInterpreter(use_content)
