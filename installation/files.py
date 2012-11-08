@@ -218,7 +218,7 @@ deleted.
                             shutil.copyfile(source_path, target_path + ".new")
 
                     update_query = installation.utils.UpdateModifiedFile(
-                        prompt="""\
+                        message="""\
 A source file is about to be updated, but the existing source file
 appears to have been edited since it was installed.
 
