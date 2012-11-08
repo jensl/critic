@@ -125,33 +125,21 @@ tr.line i {
 
 /* Slightly darker color for replaced/edited portions of the line (and slightly
    darker still when hovered): */
-tr.line          i.r,
-tr.line.modified i.d,
-tr.line.modified i.i {
-    background-color: #eec
+tr.line          td.old i.r,
+tr.line.modified        i.d {
+    background-color: #fdd
 }
-tr.line:hover          i.r,
-tr.line.modified:hover i.d,
-tr.line.modified:hover i.i {
-    background-color: #ddb
-}
-
-/* Darker red on deleted line.  (This is never used, I think; on a deleted line
-   there is no inter-line diff.) */
-tr.line.deleted i {
+tr.line:hover          td.old i.r,
+tr.line.modified:hover        i.d {
     background-color: #ecc
 }
-tr.line.deleted:hover i {
-    background-color: #dbb
+tr.line          td.new i.r,
+tr.line.modified        i.i {
+    background-color: #dfd
 }
-
-/* Darker green on inserted line.  (This is never used, I think; on a deleted
-   line there is no inter-line diff.) */
-tr.line.inserted i {
+tr.line:hover          td.new i.r,
+tr.line.modified:hover        i.i {
     background-color: #cec
-}
-tr.line.inserted:hover i {
-    background-color: #bdb
 }
 
 /* On line with white-space changes, render deleted white-space in red (the line
