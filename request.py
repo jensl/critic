@@ -200,6 +200,10 @@ class Request:
                         return
                     except auth.CheckFailed: pass
 
+    def getUser(self, db):
+        import dbutils
+        return dbutils.User.fromName(db, self.user)
+
     def getParameter(self, name, default=NoDefault(), filter=lambda value: value):
         """\
         Get URI query parameter.

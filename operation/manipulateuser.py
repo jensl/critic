@@ -16,8 +16,9 @@
 
 import dbutils
 import gitutils
+import auth
 
-from operation import Operation, OperationResult, OperationError, Optional
+from operation import Operation, OperationResult, OperationError, OperationFailure, Optional
 
 class SetFullname(Operation):
     def __init__(self):
@@ -26,7 +27,9 @@ class SetFullname(Operation):
 
     def process(self, db, user, user_id, value):
         if user.id != user_id and not user.hasRole(db, "administrator"):
-            raise OperationError("operation not permitted")
+            raise OperationFailure(code="notallowed",
+                                   title="Not allowed!",
+                                   message="Operation not permitted.")
 
         if not value.strip():
             raise OperationError("empty display name is not allowed")
@@ -43,7 +46,9 @@ class SetEmail(Operation):
 
     def process(self, db, user, user_id, value):
         if user.id != user_id and not user.hasRole(db, "administrator"):
-            raise OperationError("operation not permitted")
+            raise OperationFailure(code="notallowed",
+                                   title="Not allowed!",
+                                   message="Operation not permitted.")
 
         if not value.strip():
             raise OperationError("empty email address is not allowed")
@@ -62,7 +67,9 @@ class SetGitEmails(Operation):
 
     def process(self, db, user, user_id, value):
         if user.id != user_id and not user.hasRole(db, "administrator"):
-            raise OperationError("operation not permitted")
+            raise OperationFailure(code="notallowed",
+                                   title="Not allowed!",
+                                   message="Operation not permitted.")
 
         for address in value:
             if not address.strip():
@@ -80,6 +87,39 @@ class SetGitEmails(Operation):
             cursor.execute("DELETE FROM usergitemails WHERE uid=%s AND email=%s", (user_id, address))
         for address in (new_addresses - current_addresses):
             cursor.execute("INSERT INTO usergitemails (uid, email) VALUES (%s, %s)", (user_id, address))
+
+        db.commit()
+
+        return OperationResult()
+
+class ChangePassword(Operation):
+    def __init__(self):
+        Operation.__init__(self, { "user_id": int,
+                                   "current_pw": Optional(str),
+                                   "new_pw": str })
+
+    def process(self, db, user, user_id, new_pw, current_pw=None):
+        if (user.id != user_id or current_pw is None) and not user.hasRole(db, "administrator"):
+            raise OperationFailure(code="notallowed",
+                                   title="Not allowed!",
+                                   message="Operation not permitted.")
+
+        subject = dbutils.User.fromId(db, user_id)
+
+        if current_pw is not None:
+            try: auth.checkPassword(db, subject.name, current_pw)
+            except auth.WrongPassword:
+                raise OperationFailure(code="wrongpassword",
+                                       title="Wrong password!",
+                                       message="The provided current password is not correct.")
+
+        if not new_pw:
+            raise OperationFailure(code="emptypassword",
+                                   title="Empty password!",
+                                   message="Setting an empty password is not allowed.")
+
+        cursor = db.cursor()
+        cursor.execute("UPDATE users SET password=%s WHERE id=%s", (auth.hashPassword(new_pw), user_id))
 
         db.commit()
 

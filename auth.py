@@ -29,3 +29,6 @@ def checkPassword(db, username, password):
 
     if bcrypt.hashpw(password, hashed) == hashed: return
     else: raise WrongPassword
+
+def hashPassword(password):
+    return bcrypt.hashpw(password, bcrypt.gensalt())

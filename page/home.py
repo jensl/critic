@@ -51,6 +51,10 @@ def renderHome(req, db, user):
     document.addExternalScript("resource/home.js")
     if repository: document.addInternalScript(repository.getJS())
     else: document.addInternalScript("var repository = null;")
+    if user.name != req.user and req.getUser(db).hasRole(db, "administrator"):
+        document.addInternalScript("var administrator = true;")
+    else:
+        document.addInternalScript("var administrator = false;")
     document.addInternalScript(user.getJS())
     document.addInternalScript("user.gitEmails = %s;" % htmlutils.jsify(gitemails))
     document.setTitle("%s Home" % title_fullname)
@@ -60,18 +64,19 @@ def renderHome(req, db, user):
     basic = target.table('paleyellow basic', align='center')
     basic.tr().td('h1', colspan=3).h1().text("%s Home" % title_fullname)
 
-    def row(heading, value, help, status_id=None):
+    def row(heading, value, help=None, status_id=None):
         main_row = basic.tr('line')
         main_row.td('heading').text("%s:" % heading)
-        if callable(value): value(main_row.td('value'))
-        else: main_row.td('value').text(value)
-        main_row.td('status', id=status_id)
-        if help: basic.tr('help').td('help', colspan=3).text(help)
+        value_cell = main_row.td('value', colspan=2)
+        if callable(value): value(value_cell)
+        else: value_cell.text(value)
+        basic.tr('help').td('help', colspan=3).text(help)
 
     def renderFullname(target):
         if readonly: target.text(user.fullname)
         else:
             target.input("value", id="user_fullname", value=user.fullname)
+            target.span("status", id="status_fullname")
             target.button(onclick="saveFullname();").text("Save")
             target.button(onclick="resetFullname();").text("Reset")
 
@@ -79,6 +84,7 @@ def renderHome(req, db, user):
         if readonly: target.text(user.email)
         else:
             target.input("value", id="user_email", value=user.email)
+            target.span("status", id="status_email")
             target.button(onclick="saveEmail();").text("Save")
             target.button(onclick="resetEmail();").text("Reset")
 
@@ -86,14 +92,23 @@ def renderHome(req, db, user):
         if readonly: target.text(gitemails)
         else:
             target.input("value", id="user_gitemails", value=gitemails)
+            target.span("status", id="status_gitemails")
             target.button(onclick="saveGitEmails();").text("Save")
             target.button(onclick="resetGitEmails();").text("Reset")
 
-    row("User ID", str(user.id), "This is the user ID in the database.  It really doesn't matter.")
-    row("User Name", user.name, "This is the user name.  You probably already knew that.")
+    def renderPassword(target):
+        target.text("****")
+        if not readonly:
+            target.button(onclick="changePassword();").text("Change")
+
+    row("User ID", str(user.id))
+    row("User Name", user.name)
     row("Display Name", renderFullname, "This is the name used when displaying commits or comments.", status_id="status_fullname")
     row("Email", renderEmail, "This is the primary email address, to which emails are sent.", status_id="status_email")
     row("Git Emails", renderGitEmails, "These email addresses are used to map Git commits to the user.", status_id="status_gitemails")
+
+    if configuration.base.AUTHENTICATION_MODE == "critic":
+        row("Password", renderPassword)
 
     filters = target.table('paleyellow filters', align='center')
     row = filters.tr()
