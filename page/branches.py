@@ -115,7 +115,6 @@ def renderBranches(req, db, user):
                            WHERE branches.type='normal'
                              AND branches.name NOT LIKE 'replay/%%'
                              AND repositories.id=%s
-                             AND repositories.branch!=branches.id
                         ORDER BY commits.commit_time DESC LIMIT %s""",
                        (repository.id, count))
 
