@@ -307,7 +307,10 @@ $(document).ready(function ()
       if (host.indexOf(":") == -1)
         host += ":";
       var path = $("input.remotepath").val();
-      return host + path;
+      if (!/[:\/]$/.test(host) && !/^\//.test(path))
+        return host + "/" + path;
+      else
+        return host + path;
     }
 
     branches_remote = null;
