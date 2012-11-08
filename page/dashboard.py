@@ -74,8 +74,6 @@ def renderDashboard(req, db, user):
     document.addExternalScript("resource/dashboard.js")
     document.addInternalScript(user.getJS())
 
-    empty = True
-
     target = body.div("main")
 
     def flush(target):
@@ -148,8 +146,6 @@ def renderDashboard(req, db, user):
         profiler.check("processing: owned")
 
         if owned_accepted or owned_open:
-            empty = False
-
             table = target.table("paleyellow reviews", id="owned", align="center", cellspacing=0)
             table.col(width="15%")
             table.col(width="55%")
@@ -168,6 +164,7 @@ def renderDashboard(req, db, user):
                 renderReviews(table, owned_open)
 
             profiler.check("generate: owned")
+            return True
 
     def renderDraft():
         draft_changes = {}
@@ -216,8 +213,6 @@ def renderDashboard(req, db, user):
         profiler.check("processing: draft comments")
 
         if draft_both or draft_changes or draft_comments:
-            empty = False
-
             table = target.table("paleyellow reviews", id="draft", align="center", cellspacing=0)
             table.col(width="15%")
             table.col(width="55%")
@@ -240,6 +235,7 @@ def renderDashboard(req, db, user):
                 renderReviews(table, sortedReviews(draft_comments), links=False)
 
             profiler.check("generate: draft")
+            return True
 
     active = {}
 
@@ -296,8 +292,6 @@ def renderDashboard(req, db, user):
         fetchActive()
 
         if active["both"] or active["changes"] or active["comments"]:
-            empty = False
-
             table = target.table("paleyellow reviews", id="active", align="center", cellspacing=0)
             table.col(width="15%")
             table.col(width="55%")
@@ -320,6 +314,7 @@ def renderDashboard(req, db, user):
                 renderReviews(table, sortedReviews(active["comments"]))
 
             profiler.check("generate: active")
+            return True
 
     other = {}
 
@@ -381,8 +376,6 @@ def renderDashboard(req, db, user):
                 pending.append((review_id, (summary, branch_id, lines, comments)))
 
         if accepted or pending:
-            empty = False
-
             table = target.table("paleyellow reviews", id="watched", align="center", cellspacing=0)
             table.col(width="30%")
             table.col(width="70%")
@@ -398,7 +391,8 @@ def renderDashboard(req, db, user):
                 table.tr(id="active-changes-comments").td("h2", colspan=4).h2().text("Pending")
                 renderReviews(table, pending, False)
 
-        profiler.check("generate: watched")
+            profiler.check("generate: watched")
+            return True
 
     def renderClosed():
         fetchWatchedAndClosed()
@@ -407,8 +401,6 @@ def renderDashboard(req, db, user):
         other_closed = other["other-closed"]
 
         if owned_closed or other_closed:
-            empty = False
-
             table = target.table("paleyellow reviews", id="closed", align="center", cellspacing=0)
             table.col(width="30%")
             table.col(width="70%")
@@ -425,6 +417,7 @@ def renderDashboard(req, db, user):
                 renderReviews(table, sortedReviews(other_closed), False)
 
             profiler.check("generate: closed")
+            return True
 
     def renderOpen():
         other_open = {}
@@ -445,8 +438,6 @@ def renderDashboard(req, db, user):
         profiler.check("processing: open")
 
         if other_open:
-            empty = False
-
             accepted = []
             pending = []
 
@@ -472,6 +463,7 @@ def renderDashboard(req, db, user):
                 renderReviews(table, pending, False)
 
             profiler.check("generate: open")
+            return True
 
     render = { "owned": renderOwned,
                "draft": renderDraft,
@@ -480,11 +472,13 @@ def renderDashboard(req, db, user):
                "closed": renderClosed,
                "open": renderOpen }
 
+    empty = True
+
     for item in showlist:
         if item in render:
             target.comment(repr(item))
-            render[item]()
-            if not empty:
+            if render[item]():
+                empty = False
                 yield flush(target)
 
     if empty:
