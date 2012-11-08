@@ -74,6 +74,8 @@ def renderDashboard(req, db, user):
     document.addExternalScript("resource/dashboard.js")
     document.addInternalScript(user.getJS())
 
+    empty = True
+
     target = body.div("main")
 
     def flush(target):
@@ -146,6 +148,8 @@ def renderDashboard(req, db, user):
         profiler.check("processing: owned")
 
         if owned_accepted or owned_open:
+            empty = False
+
             table = target.table("paleyellow reviews", id="owned", align="center", cellspacing=0)
             table.col(width="15%")
             table.col(width="55%")
@@ -212,6 +216,8 @@ def renderDashboard(req, db, user):
         profiler.check("processing: draft comments")
 
         if draft_both or draft_changes or draft_comments:
+            empty = False
+
             table = target.table("paleyellow reviews", id="draft", align="center", cellspacing=0)
             table.col(width="15%")
             table.col(width="55%")
@@ -290,6 +296,8 @@ def renderDashboard(req, db, user):
         fetchActive()
 
         if active["both"] or active["changes"] or active["comments"]:
+            empty = False
+
             table = target.table("paleyellow reviews", id="active", align="center", cellspacing=0)
             table.col(width="15%")
             table.col(width="55%")
@@ -372,20 +380,23 @@ def renderDashboard(req, db, user):
             else:
                 pending.append((review_id, (summary, branch_id, lines, comments)))
 
-        table = target.table("paleyellow reviews", id="watched", align="center", cellspacing=0)
-        table.col(width="30%")
-        table.col(width="70%")
-        header = table.tr().td("h1", colspan=4).h1()
-        header.text("Watched Reviews")
-        header.span("right").a(href=hidden("watched")).text("[hide]")
+        if accepted or pending:
+            empty = False
 
-        if accepted:
-            table.tr(id="active-changes-comments").td("h2", colspan=4).h2().text("Accepted")
-            renderReviews(table, accepted, False)
+            table = target.table("paleyellow reviews", id="watched", align="center", cellspacing=0)
+            table.col(width="30%")
+            table.col(width="70%")
+            header = table.tr().td("h1", colspan=4).h1()
+            header.text("Watched Reviews")
+            header.span("right").a(href=hidden("watched")).text("[hide]")
 
-        if pending:
-            table.tr(id="active-changes-comments").td("h2", colspan=4).h2().text("Pending")
-            renderReviews(table, pending, False)
+            if accepted:
+                table.tr(id="active-changes-comments").td("h2", colspan=4).h2().text("Accepted")
+                renderReviews(table, accepted, False)
+
+            if pending:
+                table.tr(id="active-changes-comments").td("h2", colspan=4).h2().text("Pending")
+                renderReviews(table, pending, False)
 
         profiler.check("generate: watched")
 
@@ -396,6 +407,8 @@ def renderDashboard(req, db, user):
         other_closed = other["other-closed"]
 
         if owned_closed or other_closed:
+            empty = False
+
             table = target.table("paleyellow reviews", id="closed", align="center", cellspacing=0)
             table.col(width="30%")
             table.col(width="70%")
@@ -432,6 +445,8 @@ def renderDashboard(req, db, user):
         profiler.check("processing: open")
 
         if other_open:
+            empty = False
+
             accepted = []
             pending = []
 
@@ -469,7 +484,11 @@ def renderDashboard(req, db, user):
         if item in render:
             target.comment(repr(item))
             render[item]()
-            yield flush(target)
+            if not empty:
+                yield flush(target)
+
+    if empty:
+        raise page.utils.DisplayMessage, "No reviews!"
 
     profiler.output(db=db, user=user, target=document)
 
