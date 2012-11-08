@@ -245,6 +245,7 @@ table.file > tbody.binary > tr.download > td > a > img {
 }
 
 table.commit-info { margin-top: 1em; width: auto !important }
+table.commit-info tr.commit-info td { white-space: nowrap }
 
 table.commit-info span.links,
 table.commit-info span.branches,

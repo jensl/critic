@@ -73,7 +73,7 @@ def renderCommitInfo(db, target, user, repository, review, commit, conflicts=Fal
             target.span("tag").text("[%s]" % tag)
 
     if len(commit.parents) > 1:
-        row = commit_info.tr()
+        row = commit_info.tr("commit-info")
         row.th(align='right').text("Alternate view:")
 
         review_arg = "&review=%d" % review.id if review else ""
@@ -83,7 +83,7 @@ def renderCommitInfo(db, target, user, repository, review, commit, conflicts=Fal
         else:
             row.td(align='left').a(href="showcommit?sha1=%s&repository=%d%s&conflicts=yes" % (commit.sha1, repository.id, review_arg)).text("display conflict resolution changes")
 
-    row = commit_info.tr()
+    row = commit_info.tr("commit-info")
     row.th(align='right').text("SHA-1:")
     cell = row.td(align='left')
 
@@ -102,7 +102,7 @@ def renderCommitInfo(db, target, user, repository, review, commit, conflicts=Fal
 
         span = cell.span("links").span("link")
         span.text("[")
-        span.a("link", href="showtree?sha1=%s%s" % (commit.sha1, review_arg)).text("browse tree")
+        span.a("link", href="showtree?sha1=%s%s" % (commit.sha1, review_arg)).innerHTML("browse&nbsp;tree")
         span.text("]")
 
     if not review:
@@ -115,7 +115,7 @@ def renderCommitInfo(db, target, user, repository, review, commit, conflicts=Fal
         if user_id: fullname = dbutils.User.fromId(db, user_id).fullname
         else: fullname = commit.author.name
 
-        row = commit_info.tr()
+        row = commit_info.tr("commit-info")
         row.th(align='right').text("Author:")
         row.td(align='left').text("%s <%s> at %s" % (fullname, commit.author.email, strftime("%Y-%m-%d %H:%M:%S", commit.author.time)))
 
@@ -125,7 +125,7 @@ def renderCommitInfo(db, target, user, repository, review, commit, conflicts=Fal
             if user_id: fullname = dbutils.User.fromId(db, user_id).fullname
             else: fullname = commit.committer.name
 
-            row = commit_info.tr()
+            row = commit_info.tr("commit-info")
             row.th(align='right').text("Commit:")
             row.td(align='left').text("%s <%s> at %s" % (fullname, commit.committer.email, strftime("%Y-%m-%d %H:%M:%S", commit.committer.time)))
     else:
@@ -134,7 +134,7 @@ def renderCommitInfo(db, target, user, repository, review, commit, conflicts=Fal
         if user_id: fullname = dbutils.User.fromId(db, user_id).fullname
         else: fullname = commit.author.name
 
-        row = commit_info.tr()
+        row = commit_info.tr("commit-info")
         row.th(align='right').text("Author/Commit:")
         row.td(align='left').text("%s <%s> at %s" % (fullname, commit.author.email, strftime("%Y-%m-%d %H:%M:%S", commit.author.time)))
 
@@ -148,7 +148,7 @@ def renderCommitInfo(db, target, user, repository, review, commit, conflicts=Fal
             if not review or review.containsCommit(db, parent):
                 parent_href = "%s/%s%s" % (repository.name, parent.sha1, review_url_contribution)
 
-                row = commit_info.tr()
+                row = commit_info.tr("commit-info")
                 row.th(align='right').text("Parent:")
                 cell = row.td(align='left')
                 cell.a(href=parent_href, rel="previous").text("%s" % parent.niceSummary())
@@ -168,7 +168,7 @@ def renderCommitInfo(db, target, user, repository, review, commit, conflicts=Fal
 
                 child_href = "%s/%s%s" % (repository.name, child.sha1, review_url_contribution)
 
-                row = commit_info.tr()
+                row = commit_info.tr("commit-info")
                 row.th(align='right').text("Child:")
                 cell = row.td(align='left')
                 cell.a(href=child_href).text("%s" % child.niceSummary())
