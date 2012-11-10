@@ -159,10 +159,10 @@ class User():
         self.__resources = {}
 
     def __eq__(self, other):
-        return self.id == int(other)
+        return not self.isAnonymous() and self.id == int(other)
 
     def __ne__(self, other):
-        return self.id != int(other)
+        return self.isAnonymous() or self.id != int(other)
 
     def __int__(self):
         return self.id
@@ -172,6 +172,13 @@ class User():
 
     def __hash__(self):
         return hash(self.id)
+
+    @staticmethod
+    def makeAnonymous():
+        return User(None, None, None, None, 'anonymous')
+
+    def isAnonymous(self):
+        return self.status == 'anonymous'
 
     def hasRole(self, db, role):
         cursor = db.cursor()
@@ -268,6 +275,8 @@ class User():
         return self.fullname.split(" ")[0]
 
     def getJSConstructor(self, db=None):
+        if self.isAnonymous():
+            return "new User(null, null, null, null, null, { ui: {} }"
         if db:
             options = ("{ ui: { keyboardShortcuts: %s, resolveIssueWarning: %s, convertIssueToNote: %s, asynchronousReviewMarking: %s } }" %
                        ("true" if self.getPreference(db, "ui.keyboardShortcuts") else "false",

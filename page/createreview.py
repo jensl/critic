@@ -214,6 +214,8 @@ def renderSelectSource(req, db, user):
     return document
 
 def renderCreateReview(req, db, user):
+    if user.isAnonymous(): raise page.utils.NeedLogin, req
+
     repository = req.getParameter("repository", filter=gitutils.Repository.FromParameter(db), default=None)
     applyparentfilters = req.getParameter("applyparentfilters", "yes" if user.getPreference(db, 'review.applyUpstreamFilters') else "no") == "yes"
 

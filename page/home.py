@@ -21,6 +21,8 @@ import gitutils
 import configuration
 
 def renderHome(req, db, user):
+    if user.isAnonymous(): raise page.utils.NeedLogin, req
+
     cursor = db.cursor()
 
     readonly = req.getParameter("readonly", "yes" if user.name != req.user else "no") == "yes"

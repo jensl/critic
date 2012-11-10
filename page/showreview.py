@@ -777,18 +777,20 @@ def renderShowReview(req, db, user):
                (7, ApprovalColumn(user, review, ApprovalColumn.TOTAL, approval_cache))]
 
     def renderReviewPending(db, target):
-        target.text("Filter: ")
+        if not user.isAnonymous():
+            target.text("Filter: ")
 
-        if hasPendingChanges:
-            target.a(href="showcommit?review=%d&filter=pending" % review.id, title="All changes you need to review.").text("[pending]")
-            target.text()
-        if user in review.reviewers:
-            target.a(href="showcommit?review=%d&filter=reviewable" % review.id, title="All changes you can review, including what you've already reviewed.").text("[reviewable]")
+            if hasPendingChanges:
+                target.a(href="showcommit?review=%d&filter=pending" % review.id, title="All changes you need to review.").text("[pending]")
+                target.text()
+            if user in review.reviewers:
+                target.a(href="showcommit?review=%d&filter=reviewable" % review.id, title="All changes you can review, including what you've already reviewed.").text("[reviewable]")
+                target.text()
+
+            target.a(href="showcommit?review=%d&filter=relevant" % review.id, title="All changes that match your filters.").text("[relevant]")
             target.text()
 
-        target.a(href="showcommit?review=%d&filter=relevant" % review.id, title="All changes that match your filters.").text("[relevant]")
-        target.text()
-        target.text("manual: ")
+        target.text("Manual: ")
         target.a(href="filterchanges?review=%d" % review.id, title="Manually select what files to display of the changes from all commits.").text("[full]")
         target.text()
         target.a(href="javascript:void(filterPartialChanges());", title="Manually select what what files to display of the changes in a selection of commits.").text("[partial]")
@@ -894,18 +896,20 @@ def renderShowReview(req, db, user):
 
     if all_chains:
         links.a(href="showcomments?review=%d&filter=all" % review.id).text("[display all]")
-        links.a(href="showcomments?review=%d&filter=all&blame=%s" % (review.id, user.name)).text("[in my commits]")
 
-        cursor.execute("""SELECT count(commentstoread.comment) > 0
-                            FROM commentchains
-                            JOIN comments ON (comments.chain=commentchains.id)
-                            JOIN commentstoread ON (commentstoread.comment=comments.id)
-                           WHERE commentchains.review=%s
-                             AND commentstoread.uid=%s""",
-                       [review.id, user.id])
+        if not user.isAnonymous():
+            links.a(href="showcomments?review=%d&filter=all&blame=%s" % (review.id, user.name)).text("[in my commits]")
 
-        if cursor.fetchone()[0]:
-            links.a(href="showcomments?review=%d&filter=toread" % review.id).text("[display unread]")
+            cursor.execute("""SELECT count(commentstoread.comment) > 0
+                                FROM commentchains
+                                JOIN comments ON (comments.chain=commentchains.id)
+                                JOIN commentstoread ON (commentstoread.comment=comments.id)
+                               WHERE commentchains.review=%s
+                                 AND commentstoread.uid=%s""",
+                           [review.id, user.id])
+
+            if cursor.fetchone()[0]:
+                links.a(href="showcomments?review=%d&filter=toread" % review.id).text("[display unread]")
 
         def renderChains(target, chains):
             for chain in chains:

@@ -52,3 +52,7 @@ SESSION_TYPE = "%(installation.config.session_type)s"
 # age of session in seconds.  Zero means no maximum age; session is
 # valid until user logs out.
 SESSION_MAX_AGE = 0
+
+# Allow (restricted) anonymous access to the system.  Only supported if
+# AUTHENTICATION_MODE="critic" and SESSION_TYPE="cookie".
+ALLOW_ANONYMOUS_USER = %(installation.config.allow_anonymous_user)r

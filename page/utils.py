@@ -85,7 +85,9 @@ def generateHeader(target, db, user, generate_right=None, current_page=None, ext
 
     links = []
 
-    links.append(["home", "Home", current_page != "home", None, None])
+    if not user.isAnonymous():
+        links.append(["home", "Home", current_page != "home", None, None])
+
     links.append(["dashboard", "Dashboard", current_page != "dashboard", None, None])
     links.append(["branches", "Branches", current_page != "branches", None, None])
     links.append(["search", "Search", current_page != "search", None, None])
@@ -124,7 +126,9 @@ def generateHeader(target, db, user, generate_right=None, current_page=None, ext
     req = target.getRequest()
 
     if configuration.base.AUTHENTICATION_MODE == "critic" and configuration.base.SESSION_TYPE == "cookie":
-        if not req or req.user == user.name:
+        if user.isAnonymous():
+            links.append(["login", "Sign in", current_page != "login", None, None])
+        elif not req or req.user == user.name:
             links.append(["javascript:signOut();", "Sign out", True, None, None])
 
     for url, label, make_link in extra_links:

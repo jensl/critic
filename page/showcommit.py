@@ -1163,7 +1163,7 @@ def renderShowCommit(req, db, user):
     else:
         def generateButtons(target):
             buttons = target.div("buttons")
-            if commit or commits:
+            if not user.isAnonymous() and (commit or commits):
                 buttons.button(onclick='createReview();').text('Create Review')
             buttons.span("buttonscope buttonscope-global")
         page.utils.generateHeader(body, db, user, generateButtons)

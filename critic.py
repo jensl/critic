@@ -378,6 +378,9 @@ def reapplyfilters(req, db, user):
     return result
 
 def savesettings(req, db, user):
+    if user.isAnonymous():
+        return "ok"
+
     data = req.read()
     values = [line.strip().split("=", 1) for line in data.splitlines() if line.strip()]
 
@@ -874,8 +877,15 @@ def main(environ, start_response):
                         req.addResponseHeader("WWW-Authenticate", "Basic realm=\"Critic\"")
                         req.start()
                         return
-                    else:
+                    elif configuration.base.ALLOW_ANONYMOUS_USER or req.path in ("login", "validatelogin"):
+                        user = dbutils.User.makeAnonymous()
+                    elif req.method == "GET":
                         raise page.utils.NeedLogin, req
+                    else:
+                        # Don't try to redirect POST requests to the login page.
+                        req.setStatus(403)
+                        req.start()
+                        return
             else:
                 try:
                     user = dbutils.User.fromName(db, req.user)
@@ -900,7 +910,10 @@ def main(environ, start_response):
                 db.disableProfiling()
 
             if not req.path:
-                location = user.getPreference(db, "defaultPage")
+                if user.isAnonymous():
+                    location = "tutorial"
+                else:
+                    location = user.getPreference(db, "defaultPage")
 
                 if req.query:
                     location += "?" + req.query
@@ -985,7 +998,7 @@ def main(environ, start_response):
                 pagefn = pages.get(req.path)
                 if pagefn:
                     try:
-                        if override_user:
+                        if not user.isAnonymous() and override_user:
                             user = dbutils.User.fromName(db, override_user)
 
                         req.setContentType("text/html")

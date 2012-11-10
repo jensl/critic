@@ -68,7 +68,7 @@ def renderShowComment(req, db, user):
     document.addInternalScript("var contextLines = %d;" % context_lines)
     document.addInternalScript("var keyboardShortcuts = %s;" % (user.getPreference(db, "ui.keyboardShortcuts") and "true" or "false"))
 
-    if user.name == req.user:
+    if not user.isAnonymous() and user.name == req.user:
         document.addInternalScript("$(function () { markChainsAsRead([%d]); });" % chain_id)
 
     review_html.renderCommentChain(db, body.div("main"), user, review, chain, context_lines=context_lines, compact=compact, tabify=tabify, original=original, linkify=linkify.Context(db=db, request=req, review=review))
@@ -79,7 +79,6 @@ def renderShowComment(req, db, user):
     yield document.render(pretty=not compact)
 
 def renderShowComments(req, db, user):
-    user = dbutils.User.fromName(db, req.getParameter("user", req.user))
     context_lines = req.getParameter("context", user.getPreference(db, "comment.diff.contextLines"), filter=int)
 
     default_compact = "yes" if user.getPreference(db, "commit.diff.compactMode") else "no"
@@ -198,7 +197,7 @@ def renderShowComments(req, db, user):
 
     target = body.div("main")
 
-    if chain_ids and user.name == req.user:
+    if chain_ids and not user.isAnonymous() and user.name == req.user:
         document.addInternalScript("$(function () { markChainsAsRead([%s]); });" % ", ".join(map(str, chain_ids)))
 
     #yield document.render(stop=target, pretty=not compact)

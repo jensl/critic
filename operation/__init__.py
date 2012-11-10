@@ -275,7 +275,7 @@ class Operation:
     converted to OperationError objects.
 
     """
-    def __init__(self, parameter_types):
+    def __init__(self, parameter_types, accept_anonymous_user=False):
         """\
         Initialize input data type checker.
 
@@ -299,8 +299,14 @@ class Operation:
         if not type(parameter_types) is dict:
             raise Exception, "invalid source type"
         self.__checker = TypeChecker.make(parameter_types)
+        self.__accept_anonymous_user = accept_anonymous_user
 
     def __call__(self, req, db, user):
+        if user.isAnonymous() and not self.__accept_anonymous_user:
+            return OperationFailure(code="mustlogin",
+                                    title="Login Required",
+                                    message="You have to sign in to perform this operation.")
+
         if req.method == "POST": data = req.read()
         else: data = req.getParameter("data")
 

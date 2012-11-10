@@ -64,7 +64,7 @@ def renderShowBranch(req, db, user):
     document.addExternalStylesheet("resource/showbranch.css")
 
     def renderCreateReview(target):
-        if branch and branch.review is None and not rebased:
+        if not user.isAnonymous() and branch and branch.review is None and not rebased:
             target.button(onclick="location.href = " + htmlutils.jsify("createreview?repository=%d&branch=%s" % (repository.id, branch_name))).text("Create Review")
 
     page.utils.generateHeader(body, db, user, renderCreateReview)

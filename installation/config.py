@@ -23,9 +23,10 @@ import grp
 
 auth_mode = "host"
 session_type = None
+allow_anonymous_user = False
 
 def prepare(mode, arguments, data):
-    global auth_mode, session_type
+    global auth_mode, session_type, allow_anonymous_user
 
     header_printed = False
 
@@ -104,8 +105,11 @@ other type of authentication supports limited anonymous access.
     else:
         session_type = "cookie"
 
+    allow_anonymous_user = auth_mode == "critic" and session_type == "cookie"
+
     data["installation.config.auth_mode"] = auth_mode
     data["installation.config.session_type"] = session_type
+    data["installation.config.allow_anonymous_user"] = allow_anonymous_user
 
     return True
 
