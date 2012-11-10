@@ -58,6 +58,10 @@ parser.add_argument("--admin-username", help="name of Critic administrator user"
 parser.add_argument("--admin-email", help="email address to Critic administrator user", action="store")
 parser.add_argument("--admin-fullname", help="Critic administrator user's full name", action="store")
 
+for module in installation.modules:
+    if hasattr(module, "add_arguments"):
+        module.add_arguments("install", parser)
+
 arguments = parser.parse_args()
 
 def abort():

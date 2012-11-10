@@ -26,6 +26,7 @@ import system
 import paths
 import files
 import database
+import smtp
 import config
 import apache
 import admin
@@ -43,6 +44,7 @@ modules = [prereqs,
            config,
            apache,
            admin,
+           smtp,
            initd,
            prefs,
            git,

@@ -66,8 +66,10 @@ def string(prompt, default=None, check=None):
         else:
             return input
 
-def password(prompt):
+def password(prompt, default=None, twice=True):
     import termios
+
+    prompt = "%s%s " % (prompt, " [****]" if default is not None else "")
 
     def internal(prompt):
         old = termios.tcgetattr(sys.stdin)
@@ -75,22 +77,27 @@ def password(prompt):
         new[3] = new[3] & ~termios.ECHO
         try:
             termios.tcsetattr(sys.stdin, termios.TCSADRAIN, new)
-            try: password = raw_input(prompt + " ")
+            try: password = raw_input(prompt)
             except KeyboardInterrupt:
                 print
                 raise
         finally:
             termios.tcsetattr(sys.stdin, termios.TCSADRAIN, old)
         print
-        return password
+        if default and not password: return default
+        else: return password
 
     while True:
         password = internal(prompt)
-        andagain = internal("And again:")
 
-        if password == andagain:
-            return password
+        if twice:
+            andagain = internal("And again:")
+
+            if password == andagain:
+                return password
+            else:
+                print
+                print "Passwords differ.  Please try again."
+                print
         else:
-            print
-            print "Passwords differ.  Please try again."
-            print
+            return password

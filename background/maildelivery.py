@@ -102,10 +102,14 @@ class MailDelivery(PeerServer):
 
             while True:
                 try:
-                    self.__connection = smtplib.SMTP()
+                    if configuration.smtp.USE_SSL:
+                        self.__connection = smtplib.SMTP_SSL()
+                    else:
+                        self.__connection = smtplib.SMTP()
+
                     self.__connection.connect(configuration.smtp.HOST, configuration.smtp.PORT)
 
-                    if configuration.smtp.USE_TLS:
+                    if configuration.smtp.USE_STARTTLS:
                         self.__connection.starttls()
 
                     if configuration.smtp.USERNAME and configuration.smtp.PASSWORD:
