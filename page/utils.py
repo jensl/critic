@@ -20,10 +20,10 @@ import htmlutils
 import configuration
 from cStringIO import StringIO
 import traceback
-from request import NoDefault, DisplayMessage, InvalidParameterValue, decodeURIComponent
+from request import NoDefault, DisplayMessage, InvalidParameterValue, decodeURIComponent, Request
+import urllib
 
-try: from json import dumps as json_encode, loads as json_decode
-except: from cjson import encode as json_encode, decode as json_decode
+from textutils import json_encode, json_decode
 
 LINK_RELS = { "Home": "home",
               "Dashboard": "contents",
@@ -34,9 +34,20 @@ LINK_RELS = { "Home": "home",
 class NotModified:
     pass
 
-class MovedTemporarily:
-    def __init__(self, location):
+class MovedTemporarily(Exception):
+    def __init__(self, location, no_cache=False):
         self.location = location
+        self.no_cache = no_cache
+
+class NeedLogin(MovedTemporarily):
+    def __init__(self, source):
+        if isinstance(source, Request):
+            target = "/" + source.path
+            if source.query:
+                target += "?" + source.query
+        else:
+            target = str(source)
+        super(NeedLogin, self).__init__("/login?target=%s" % urllib.quote(target), no_cache=True)
 
 def YesOrNo(value):
     if value == "yes": return True
@@ -110,10 +121,15 @@ def generateHeader(target, db, user, generate_right=None, current_page=None, ext
     else:
         links.append(["news", "News", current_page != "news", None, None])
 
+    req = target.getRequest()
+
+    if configuration.base.AUTHENTICATION_MODE == "critic" and configuration.base.SESSION_TYPE == "cookie":
+        if not req or req.user == user.name:
+            links.append(["javascript:signOut();", "Sign out", True, None, None])
+
     for url, label, make_link in extra_links:
         links.append([url, label, make_link, None, None])
 
-    req = target.getRequest()
     if req and configuration.extensions.ENABLED:
         injected = {}
 

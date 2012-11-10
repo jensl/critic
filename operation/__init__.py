@@ -39,10 +39,20 @@ class OperationResult:
         self.__value = kwargs
         if "status" not in self.__value:
             self.__value["status"] = "ok"
+        self.__cookies = {}
     def __str__(self):
         return json_encode(self.__value)
     def set(self, key, value):
         self.__value[key] = value
+    def setCookie(self, name, value=None):
+        self.__cookies[name] = value
+        return self
+    def addResponseHeaders(self, req):
+        for name, value in self.__cookies.items():
+            if value:
+                req.addResponseHeader("Set-Cookie", "%s=%s; HttpOnly" % (name, value))
+            else:
+                req.addResponseHeader("Set-Cookie", "%s=invalid; Expires=Thursday 01-Jan-1970 00:00:00 GMT" % name)
 
 class OperationError(Exception):
     """\

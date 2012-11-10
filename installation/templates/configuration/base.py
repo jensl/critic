@@ -44,3 +44,11 @@ HOSTNAME = "%(installation.system.hostname)s"
 
 # The way Critic identifies/authenticates users: "host" or "critic"
 AUTHENTICATION_MODE = "%(installation.config.auth_mode)s"
+
+# If AUTHENTICATION_MODE="critic", type of session: "httpauth" or "cookie"
+SESSION_TYPE = "%(installation.config.session_type)s"
+
+# If AUTHENTICATION_MODE="critic" and SESSION_TYPE="cookie", maximum
+# age of session in seconds.  Zero means no maximum age; session is
+# valid until user logs out.
+SESSION_MAX_AGE = 0

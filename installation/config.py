@@ -22,9 +22,10 @@ import pwd
 import grp
 
 auth_mode = "host"
+session_type = None
 
 def prepare(mode, arguments, data):
-    global auth_mode
+    global auth_mode, session_type
 
     header_printed = False
 
@@ -65,7 +66,46 @@ the Web front-end.  This can be handled in two different ways:
 
         auth_mode = configuration.base.AUTHENTICATION_MODE
 
+        try: session_type = configuration.base.SESSION_TYPE
+        except AttributeError: pass
+
+    if auth_mode == "critic":
+        if session_type is None:
+            def check(value):
+                if value.strip() not in ("httpauth", "cookie"):
+                    return "must be one of 'http' and 'cookie'"
+
+            if mode == "install" and arguments.session_type:
+                error = check(arguments.session_type)
+                if error:
+                    print "Invalid --session_type argument: %s." % arguments.session_type
+                    return False
+                session_type = arguments.session_type
+            else:
+                if not header_printed:
+                    header_printed = True
+                    print """
+Critic Installation: Authentication
+==================================="""
+
+                print """
+Critic can authenticate users either via HTTP authentication or via a
+"Sign in" form and session cookies.  The major difference is that HTTP
+authentication requires a valid login to access any page whereas the
+other type of authentication supports limited anonymous access.
+
+  httpauth  Use HTTP authentication.
+
+  cookie    Use session cookie based authentication.
+"""
+
+                session_type = installation.input.string("Which session type should be used?",
+                                                         default="cookie", check=check)
+    else:
+        session_type = "cookie"
+
     data["installation.config.auth_mode"] = auth_mode
+    data["installation.config.session_type"] = session_type
 
     return True
 

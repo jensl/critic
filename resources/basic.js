@@ -302,3 +302,13 @@ var critic = {
     escape: htmlify
   }
 };
+
+function signOut()
+{
+  var operation = new Operation({ action: "sign out",
+                                  url: "endsession",
+                                  data: {}});
+
+  if (operation.execute())
+    location.href = "/";
+}
