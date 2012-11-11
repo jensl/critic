@@ -42,8 +42,11 @@ def add_arguments(mode, parser):
     parser.add_argument("--smtp-no-starttls", dest="smtp_use_starttls", action="store_const", const=False,
                         help="don't use STARTTLS when connecting to SMTP server")
 
+    parser.add_argument("--skip-testmail", dest="skip_testmail", action="store_const", const=True,
+                        help="do not send a test e-mail to verify that given SMTP settings actually work")
+
 def prepare(mode, arguments, data):
-    global host, port, username, password, use_ssl, use_starttls
+    global host, port, username, password, use_ssl, use_starttls, skip_testmail
 
     if mode == "install" or "installation.smtp.host" not in data:
         print """
@@ -121,7 +124,7 @@ well as to the system administrator to alert about problems.
 
             print
 
-            if installation.input.yes_or_no("Do you want to send a test email to verify the SMTP configuration?",
+            if not arguments.skip_testmail and installation.input.yes_or_no("Do you want to send a test email to verify the SMTP configuration?",
                                             default=True):
                 import smtplib
                 import email.mime.text
