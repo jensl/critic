@@ -674,6 +674,14 @@ def renderShowReview(req, db, user):
         progress_h1.img(src=htmlutils.getStaticResourceURI("seal-of-approval-left.png"),
                         style="position: absolute; margin-left: -80px; margin-top: -100px")
         progress_h1.text("Finished!")
+
+        if review.repository.hasMainBranch():
+            main_branch = review.repository.getMainBranch(db)
+            if review.branch.getHead(db).isAncestorOf(main_branch.getHead(db)):
+                remark = progress_h1.div().span("remark")
+                remark.text("Merged to ")
+                remark.a(href="/log?repository=%s&branch=%s" % (review.repository.name, main_branch.name)).text(main_branch.name)
+                remark.text(".")
     elif review.state == "dropped":
         progress_h1.text("Dropped...")
     elif review.state == "open" and review_state.accepted:

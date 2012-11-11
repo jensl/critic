@@ -43,6 +43,18 @@ class Branch(object):
             cursor.execute("SELECT 1 FROM reachable, commits WHERE branch=%s AND commit=id AND sha1=%s", [self.id, str(commit)])
         return cursor.fetchone() is not None
 
+    def getHead(self, db):
+        if not self.head:
+            cursor = db.cursor()
+            cursor.execute("""SELECT commits.id, commits.sha1
+                                FROM commits
+                                JOIN branches ON (commits.id=branches.head)
+                               WHERE branches.id=%s""",
+                           (self.id,))
+            head_id, head_sha1 = cursor.fetchone()
+            self.head = gitutils.Commit.fromSHA1(db, self.repository, head_sha1, head_id)
+        return self.head
+
     def getJSConstructor(self):
         from htmlutils import jsify
         if self.base:
