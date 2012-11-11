@@ -41,7 +41,7 @@ class MovedTemporarily:
 def YesOrNo(value):
     if value == "yes": return True
     elif value == "no": return False
-    else: raise DisplayMessage, "invaild parameter value; expected 'yes' or 'no'"
+    else: raise DisplayMessage, "invalid parameter value; expected 'yes' or 'no'"
 
 def generateEmpty(target):
     pass
