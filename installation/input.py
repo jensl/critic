@@ -91,7 +91,7 @@ def password(prompt, default=None, twice=True):
         password = internal(prompt)
 
         if twice:
-            andagain = internal("And again:")
+            andagain = internal("And again: ")
 
             if password == andagain:
                 return password
