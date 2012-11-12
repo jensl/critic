@@ -1010,6 +1010,15 @@ def main(environ, start_response):
                         result = pagefn(req, db, user)
                     except gitutils.NoSuchRepository, error:
                         raise page.utils.DisplayMessage("Invalid URI Parameter!", error.message)
+                    except gitutils.GitError, error:
+                        if error.ref:
+                            raise page.utils.DisplayMessage(title="Specified ref not found",
+                                                            body="There is no ref named \"%s\" in %s." % (error.ref, error.repository))
+                        elif error.sha1:
+                            raise page.utils.DisplayMessage(title="SHA-1 not found",
+                                                            body="There is no object %s in %s." % (error.sha1, error.repository))
+                        else:
+                            raise
                     except dbutils.NoSuchUser, error:
                         raise page.utils.DisplayMessage("Invalid URI Parameter!", error.message)
 
