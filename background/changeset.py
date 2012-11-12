@@ -22,6 +22,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(sys.argv[0]), ".
 import configuration
 
 from dbutils import Database
+from textutils import json_decode, json_encode
 
 if "--json-job" in sys.argv[1:]:
     from resource import getrlimit, setrlimit, RLIMIT_RSS
@@ -33,7 +34,6 @@ if "--json-job" in sys.argv[1:]:
         setrlimit(RLIMIT_RSS, (rss_limit, hard_limit))
 
     from changeset.create import createChangeset
-    from textutils import json_decode, json_encode
 
     request = json_decode(sys.stdin.read())
 
@@ -62,9 +62,23 @@ else:
 
     class ChangesetServer(JSONJobServer):
         def __init__(self):
-            super(ChangesetServer, self).__init__(service=configuration.services.CHANGESET)
+            service = configuration.services.CHANGESET
 
-            self.register_maintenance(hour=2, minute=15, callback=self.__purge)
+            super(ChangesetServer, self).__init__(service)
+
+            if "purge_at" in service:
+                hour, minute = service["purge_at"]
+                self.register_maintenance(hour=hour, minute=minute, callback=self.__purge)
+
+        def execute_command(self, client, command):
+            if command["command"] == "purge":
+                purged_count = self.__purge()
+
+                client.write(json_encode({ "status": "ok",
+                                           "purged": purged_count }))
+                client.close()
+            else:
+                super(ChangesetServer, self).execute_command(client, command)
 
         def request_started(self, job, request):
             super(ChangesetServer, self).request_started(job, request)
@@ -98,6 +112,8 @@ else:
                 db.commit()
 
             db.close()
+
+            return npurged
 
     server = ChangesetServer()
     server.run()
