@@ -29,6 +29,10 @@ parser.add_argument("--etc-dir", default="/etc/critic", help="directory where th
 parser.add_argument("--identity", "-i", default="main", help="system identity to upgrade", action="store")
 parser.add_argument("--dry-run", "-n", help="produce output but don't modify the system at all", action="store_true")
 
+for module in installation.modules:
+    if hasattr(module, "add_arguments"):
+        module.add_arguments("install", parser)
+
 arguments = parser.parse_args()
 
 if os.getuid() != 0:
