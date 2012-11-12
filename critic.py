@@ -67,7 +67,6 @@ import operation.autocompletedata
 import operation.servicemanager
 import operation.addrepository
 import operation.news
-import operation.usersession
 
 import page.utils
 import page.createreview
@@ -95,7 +94,6 @@ import page.checkbranch
 import page.search
 import page.repositories
 import page.services
-import page.login
 
 try:
     from customization.email import getUserEmailAddress
@@ -816,9 +814,7 @@ operations = { "fetchlines": operation.fetchlines.FetchLines(),
                "deletetrackedbranch": operation.trackedbranch.DeleteTrackedBranch(),
                "addtrackedbranch": operation.trackedbranch.AddTrackedBranch(),
                "restartservice": operation.servicemanager.RestartService(),
-               "getservicelog": operation.servicemanager.GetServiceLog(),
-               "validatelogin": operation.usersession.ValidateLogin(),
-               "endsession": operation.usersession.EndSession() }
+               "getservicelog": operation.servicemanager.GetServiceLog() }
 
 pages = { "showreview": page.showreview.renderShowReview,
           "showcommit": page.showcommit.renderShowCommit,
@@ -846,8 +842,7 @@ pages = { "showreview": page.showreview.renderShowReview,
           "editresource": page.editresource.renderEditResource,
           "search": page.search.renderSearch,
           "repositories": page.repositories.renderRepositories,
-          "services": page.services.renderServices,
-          "login": page.login.renderLogin }
+          "services": page.services.renderServices }
 
 if configuration.extensions.ENABLED:
     import extensions
@@ -860,6 +855,14 @@ if configuration.extensions.ENABLED:
     operations["loadmanifest"] = loadmanifest
     operations["processcommits"] = processcommits
     pages["manageextensions"] = page.manageextensions.renderManageExtensions
+
+if configuration.base.AUTHENTICATION_MODE == "critic" and configuration.base.SESSION_TYPE == "cookie":
+    import operation.usersession
+    import page.login
+
+    operations["validatelogin"] = operation.usersession.ValidateLogin()
+    operations["endsession"] = operation.usersession.EndSession()
+    pages["login"] = page.login.renderLogin
 
 def main(environ, start_response):
     request_start = time.time()
