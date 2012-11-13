@@ -1093,6 +1093,31 @@ def main(environ, start_response):
                 req.addResponseHeader("Cache-Control", "no-cache")
             req.start()
             return
+        except request.MissingWSGIRemoteUser, err:
+            # req object is not initialized yet.
+            start_response("200 OK", [("Content-Type", "text/html")])
+            yield """\
+<pre>error: Critic was configured with '--auth-mode host' but there was no REMOTE_USER
+variable in the WSGI environ dict provided by the web server.
+
+To fix this you can either reinstall Critic using '--auth-mode critic' (to let Critic handle user authentication
+automatically), or you can configure user authentication properly in the web server.  For apache2, the latter can be done
+by adding the something like the following to the apache site configuration for Critic:
+
+        &lt;Location /&gt;
+                AuthType Basic
+                AuthName "Authentication Required"
+                AuthUserFile "/path/to/critic-main.htpasswd.users"
+                Require valid-user
+        &lt;/Location&gt;
+
+If you need more dynamic http authentication you can instead setup mod_wsgi with a custom WSGIAuthUserScript
+directive.  This will cause the provided credentials to be passed to a Python function called check_password()
+that you can implement yourself.  This way you can validate the user/pass via any existing database or for
+example an LDAP server.  For more information on setting up such authentication in apache2, see:
+<a href="http://code.google.com/p/modwsgi/wiki/AccessControlMechanisms#Apache_Authentication_Provider">
+http://code.google.com/p/modwsgi/wiki/AccessControlMechanisms#Apache_Authentication_Provider</a></pre>"""
+            return
         except page.utils.DisplayMessage, message:
             document = page.utils.displayMessage(db, req, user, title=message.title, message=message.body, review=message.review, is_html=message.html)
 
