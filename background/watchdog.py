@@ -55,7 +55,7 @@ class Watchdog(BackgroundProcess):
             if os.path.isdir(pidfile_dir):
                 pids = set(map(int, os.listdir(pidfile_dir)))
             else:
-                pids = []
+                pids = set()
 
             for pid in pids:
                 try: rss = getRSS(pid)

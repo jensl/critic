@@ -397,8 +397,10 @@ class File:
             return "objective-c"
         elif self.path.endswith(".sql"):
             return "sql"
-        elif self.path.endswith(".xml"):
-            return "xml"
+        # XML syntax highlighting is disabled due to issues (the pygments
+        # lexer messes with the line-endings in the file.)
+        #elif self.path.endswith(".xml"):
+        #    return "xml"
 
         if use_content:
             interpreter = self.getInterpreter(use_content)
@@ -465,8 +467,11 @@ class File:
     @staticmethod
     def sorted(files, key=lambda file: file.path):
         def compareFilenames(a, b):
-            if a.endswith(".h") and b.endswith(".cpp") and a[:-2] == b[:-4]: return -1
-            elif a.endswith(".cpp") and b.endswith(".h") and a[:-4] == b[:-2]: return 1
+            def isSource(name): return name.endswith(".cpp") or name.endswith(".cc")
+            def isHeader(name): return name.endswith(".h")
+
+            if isHeader(a) and isSource(b) and a.rsplit(".", 1)[0] == b.rsplit(".", 1)[0]: return -1
+            elif isSource(a) and isHeader(b) and a.rsplit(".", 1)[0] == b.rsplit(".", 1)[0]: return 1
             else: return cmp(a, b)
 
         return sorted(files, key=key, cmp=compareFilenames)

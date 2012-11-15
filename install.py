@@ -53,10 +53,15 @@ parser.add_argument("--system-email", help="address used as sender of emails", a
 parser.add_argument("--system-groupname", help="name of system group to run as", action="store")
 
 parser.add_argument("--auth-mode", help="user authentication mode", choices=["host", "critic"], action="store")
+parser.add_argument("--session-type", help="session type", choices=["httpauth", "cookie"], action="store")
 
 parser.add_argument("--admin-username", help="name of Critic administrator user", action="store")
 parser.add_argument("--admin-email", help="email address to Critic administrator user", action="store")
 parser.add_argument("--admin-fullname", help="Critic administrator user's full name", action="store")
+
+for module in installation.modules:
+    if hasattr(module, "add_arguments"):
+        module.add_arguments("install", parser)
 
 arguments = parser.parse_args()
 
@@ -66,7 +71,9 @@ def abort():
     print
 
     for module in reversed(installation.modules):
-        try: module.undo()
+        try:
+            if hasattr(module, "undo"):
+                module.undo()
         except:
             print >>sys.stderr, "FAILED: %s.undo()" % module.__name__
             traceback.print_exc()
@@ -74,9 +81,35 @@ def abort():
     sys.exit(1)
 
 try:
+    try:
+        if not installation.prereqs.check(arguments):
+            abort()
+    except KeyboardInterrupt:
+        abort()
+    except SystemExit:
+        raise
+    except:
+        print >>sys.stderr, "FAILED: installation.prereqs.check()"
+        traceback.print_exc()
+        abort()
+
+    git = installation.prereqs.git
+
+    if installation.process.check_output([git, "status", "--porcelain"]).strip():
+        print """
+ERROR: This Git repository has local modifications.
+
+Installing from a Git repository with local changes is not supported.
+Please commit or stash the changes and then try again.
+"""
+        sys.exit(1)
+
+    sha1 = installation.process.check_output([git, "rev-parse", "HEAD"]).strip()
+    data = { "sha1": sha1 }
+
     for module in installation.modules:
         try:
-            if not module.prepare(arguments):
+            if hasattr(module, "prepare") and not module.prepare("install", arguments, data):
                 abort()
         except KeyboardInterrupt:
             abort()
@@ -89,21 +122,12 @@ try:
 
     print
 
-    data = {}
-
-    for module in installation.modules:
-        for name in dir(module):
-            if name.startswith("__"): continue
-            value = getattr(module, name)
-            if isinstance(value, str):
-                data["%s.%s" % (module.__name__, name)] = value
-
-    with open(".install.data", "w") as install_data:
+    with open(os.path.join(installation.root_dir, ".install.data"), "w") as install_data:
         json.dump(data, install_data)
 
     for module in installation.modules:
         try:
-            if not module.execute():
+            if hasattr(module, "install") and not module.install(data):
                 abort()
         except KeyboardInterrupt:
             abort()
@@ -113,6 +137,14 @@ try:
             print >>sys.stderr, "FAILED: %s.execute()" % module.__name__
             traceback.print_exc()
             abort()
+
+    for module in installation.modules:
+        try:
+            if hasattr(module, "finish"):
+                module.finish()
+        except:
+            print >>sys.stderr, "WARNING: %s.finish() failed" % module.__name__
+            traceback.print_exc()
 
     print
     print "SUCCESS: Installation complete!"

@@ -79,7 +79,7 @@ function resetFullname()
   var status = $("#status_fullname");
 
   input.val(user.displayName);
-  status.text();
+  status.text("");
 }
 
 function saveEmail()
@@ -114,7 +114,7 @@ function resetEmail()
   var status = $("#status_email");
 
   input.val(user.email);
-  status.text();
+  status.text("");
 }
 
 function saveGitEmails()
@@ -149,7 +149,74 @@ function resetGitEmails()
   var status = $("#status_gitemails");
 
   input.val(user.gitEmails);
-  status.text();
+  status.text("");
+}
+
+function changePassword()
+{
+  var dialog;
+
+  if (administrator)
+    dialog = $("<div class=password title='Change password'>"
+               +   "<p><b>New password:</b><br>"
+               +     "<input class=new1 type=password><br>"
+               +     "<input class=new2 type=password>"
+               +   "</p>"
+               + "</div>");
+  else
+    dialog = $("<div class=password title='Change password'>"
+               +   "<p><b>Current password:</b><br>"
+               +     "<input class=current type=password>"
+               +   "</p>"
+               +   "<p><b>New password:</b><br>"
+               +     "<input class=new1 type=password><br>"
+               +     "<input class=new2 type=password>"
+               +   "</p>"
+               + "</div>");
+
+  function save()
+  {
+    var new1 = dialog.find("input.new1").val();
+    var new2 = dialog.find("input.new2").val();
+
+    if (new1 != new2)
+    {
+      showMessage("Invalid input", "New password mismatch!", "The new password must be input twice.");
+      return;
+    }
+
+    var data = { user_id: user.id, new_pw: new1 };
+
+    if (!administrator)
+    {
+      var current = dialog.find("input.current").val();
+
+      if (!current)
+      {
+        showMessage("Invalid input", "Current password empty!", "The current password must be input.");
+        return;
+      }
+
+      data.current_pw = current;
+    }
+
+    var operation = new Operation({ action: "change password",
+                                    url: "changepassword",
+                                    data: data });
+
+    if (operation.execute())
+    {
+      dialog.dialog("close");
+      showMessage("Success", "Password changed!");
+    }
+  }
+
+  function cancel()
+  {
+    dialog.dialog("close");
+  }
+
+  dialog.dialog({ width: 400, buttons: { "Save": save, "Cancel": cancel }});
 }
 
 function ModificationChecker(current, input, status)

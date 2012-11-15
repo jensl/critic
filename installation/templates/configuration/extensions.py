@@ -29,6 +29,3 @@ JS_LIBRARY_DIR = os.path.join(configuration.paths.INSTALL_DIR, "library", "js")
 
 # Directory into which extension version snapshots are installed.
 INSTALL_DIR = os.path.join(configuration.paths.DATA_DIR, "extensions")
-
-# Directory into which extension repository work copies are created.
-

@@ -32,8 +32,7 @@ def renderShowBatch(req, db, user):
     user = dbutils.User.fromName(db, page.utils.getParameter(req, "user", req.user))
 
     if batch_id is None and review_id is None:
-        page.utils.displayMessage(db, req, user, "Missing argument: 'batch'")
-        return
+        return page.utils.displayMessage(db, req, user, "Missing argument: 'batch'")
 
     if batch_id:
         cursor.execute("SELECT review, uid, comment, time FROM batches WHERE id=%s", (batch_id,))

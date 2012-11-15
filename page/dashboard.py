@@ -21,12 +21,19 @@ import profiling
 import page.utils
 
 def renderDashboard(req, db, user):
-    user_name = req.getParameter("user", req.user)
-    user = dbutils.User.fromName(db, user_name)
+    if user.isAnonymous(): default_show = "open"
+    else: default_show = user.getPreference(db, "dashboard.defaultGroups")
 
-    show = user.getPreference(db, "dashboard.defaultGroups")
-    show = req.getParameter("show", show)
-    showlist = filter(None, show.split(","))
+    show = req.getParameter("show", default_show)
+
+    if user.isAnonymous():
+        def possible(group):
+            return group in ("open", "closed")
+    else:
+        def possible(group):
+            return True
+
+    showlist = filter(possible, show.split(","))
     showset = set(showlist)
 
     if user.getPreference(db, "commit.diff.compactMode"): default_compact = "yes"
@@ -48,10 +55,6 @@ def renderDashboard(req, db, user):
     body = html.body()
 
     def generateRight(target):
-        target.text("[")
-        target.a(href="config?highlight=dashboard.defaultGroups").text("configure defaults")
-        target.text("]")
-
         def addLink(key, title=None):
             if not title: title = key
             if key not in showset:
@@ -59,12 +62,20 @@ def renderDashboard(req, db, user):
                 target.a(href="dashboard?show=%s" % ",".join(showlist + [key])).text("show %s" % title)
                 target.text("]")
 
-        addLink("owned")
-        addLink("draft")
-        addLink("active")
-        addLink("watched")
-        addLink("open", "other open")
-        addLink("closed")
+        if user.isAnonymous():
+            addLink("open", "open")
+            addLink("closed")
+        else:
+            target.text("[")
+            target.a(href="config?highlight=dashboard.defaultGroups").text("configure defaults")
+            target.text("]")
+
+            addLink("owned")
+            addLink("draft")
+            addLink("active")
+            addLink("watched")
+            addLink("open", "other open")
+            addLink("closed")
 
     page.utils.generateHeader(body, db, user, current_page="dashboard", generate_right=generateRight)
 
@@ -164,6 +175,7 @@ def renderDashboard(req, db, user):
                 renderReviews(table, owned_open)
 
             profiler.check("generate: owned")
+            return True
 
     def renderDraft():
         draft_changes = {}
@@ -234,6 +246,7 @@ def renderDashboard(req, db, user):
                 renderReviews(table, sortedReviews(draft_comments), links=False)
 
             profiler.check("generate: draft")
+            return True
 
     active = {}
 
@@ -312,6 +325,7 @@ def renderDashboard(req, db, user):
                 renderReviews(table, sortedReviews(active["comments"]))
 
             profiler.check("generate: active")
+            return True
 
     other = {}
 
@@ -324,10 +338,10 @@ def renderDashboard(req, db, user):
             else:
                 state_filter = ""
 
-            cursor.execute("""SELECT reviews.id, reviews.summary, reviews.branch, reviews.state, reviewusers.owner
+            cursor.execute("""SELECT reviews.id, reviews.summary, reviews.branch, reviews.state, reviewusers.owner, reviewusers.uid IS NULL
                                 FROM reviews
-                                JOIN reviewusers ON (reviewusers.review=reviews.id)
-                               WHERE reviewusers.uid=%s""" + state_filter,
+                     LEFT OUTER JOIN reviewusers ON (reviewusers.review=reviews.id AND reviewusers.uid=%s)
+                               WHERE TRUE""" + state_filter,
                            (user.id,))
 
             profiler.check("query: watched/closed")
@@ -338,11 +352,13 @@ def renderDashboard(req, db, user):
 
             if "watched" in showset: fetchActive()
 
-            for review_id, summary, branch_id, review_state, is_owner in cursor:
+            for review_id, summary, branch_id, review_state, is_owner, not_associated in cursor:
                 if includeReview(review_id):
                     if review_state == 'open':
-                        if is_owner:
+                        if is_owner or not_associated:
                             continue
+
+                        fetchActive()
 
                         if active["both"].has_key(review_id) or active["changes"].has_key(review_id) or active["comments"].has_key(review_id):
                             continue
@@ -372,22 +388,24 @@ def renderDashboard(req, db, user):
             else:
                 pending.append((review_id, (summary, branch_id, lines, comments)))
 
-        table = target.table("paleyellow reviews", id="watched", align="center", cellspacing=0)
-        table.col(width="30%")
-        table.col(width="70%")
-        header = table.tr().td("h1", colspan=4).h1()
-        header.text("Watched Reviews")
-        header.span("right").a(href=hidden("watched")).text("[hide]")
+        if accepted or pending:
+            table = target.table("paleyellow reviews", id="watched", align="center", cellspacing=0)
+            table.col(width="30%")
+            table.col(width="70%")
+            header = table.tr().td("h1", colspan=4).h1()
+            header.text("Watched Reviews")
+            header.span("right").a(href=hidden("watched")).text("[hide]")
 
-        if accepted:
-            table.tr(id="active-changes-comments").td("h2", colspan=4).h2().text("Accepted")
-            renderReviews(table, accepted, False)
+            if accepted:
+                table.tr(id="active-changes-comments").td("h2", colspan=4).h2().text("Accepted")
+                renderReviews(table, accepted, False)
 
-        if pending:
-            table.tr(id="active-changes-comments").td("h2", colspan=4).h2().text("Pending")
-            renderReviews(table, pending, False)
+            if pending:
+                table.tr(id="active-changes-comments").td("h2", colspan=4).h2().text("Pending")
+                renderReviews(table, pending, False)
 
-        profiler.check("generate: watched")
+            profiler.check("generate: watched")
+            return True
 
     def renderClosed():
         fetchWatchedAndClosed()
@@ -403,15 +421,19 @@ def renderDashboard(req, db, user):
             header.text("Closed Reviews")
             header.span("right").a(href=hidden("closed")).text("[hide]")
 
-            if owned_closed:
-                table.tr().td("h2", colspan=4).h2().text("Owned")
-                renderReviews(table, sortedReviews(owned_closed), False)
+            if not user.isAnonymous():
+                if owned_closed:
+                    table.tr().td("h2", colspan=4).h2().text("Owned")
+                    renderReviews(table, sortedReviews(owned_closed), False)
 
-            if other_closed:
-                table.tr().td("h2", colspan=4).h2().text("Other")
+                if other_closed:
+                    table.tr().td("h2", colspan=4).h2().text("Other")
+                    renderReviews(table, sortedReviews(other_closed), False)
+            else:
                 renderReviews(table, sortedReviews(other_closed), False)
 
             profiler.check("generate: closed")
+            return True
 
     def renderOpen():
         other_open = {}
@@ -445,7 +467,7 @@ def renderDashboard(req, db, user):
             table.col(width="30%")
             table.col(width="70%")
             header = table.tr().td("h1", colspan=4).h1()
-            header.text("Other Open Reviews")
+            header.text("Open Reviews" if user.isAnonymous() else "Other Open Reviews")
             header.span("right").a(href=hidden("open")).text("[hide]")
 
             if accepted:
@@ -457,6 +479,7 @@ def renderDashboard(req, db, user):
                 renderReviews(table, pending, False)
 
             profiler.check("generate: open")
+            return True
 
     render = { "owned": renderOwned,
                "draft": renderDraft,
@@ -465,11 +488,18 @@ def renderDashboard(req, db, user):
                "closed": renderClosed,
                "open": renderOpen }
 
+    empty = True
+
     for item in showlist:
         if item in render:
             target.comment(repr(item))
-            render[item]()
-            yield flush(target)
+            if render[item]():
+                empty = False
+                yield flush(target)
+
+    if empty:
+        document.addExternalStylesheet("resource/message.css")
+        body.div("message").h1("center").text("No reviews!")
 
     profiler.output(db=db, user=user, target=document)
 

@@ -744,7 +744,7 @@ def getTaggedCommit(repository, sha1):
         if git_object.type == "commit":
             return sha1
         elif git_object.type != "tag":
-            raise Exception, "invalid tag: %s" % sha1
+            return
 
         sha1 = git_object.data.split("\n", 1)[0].split(" ", 1)[-1]
 

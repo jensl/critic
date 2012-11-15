@@ -33,93 +33,112 @@ created_system_user = False
 create_system_group = None
 created_system_group = False
 
-def prepare(arguments):
+def prepare(mode, arguments, data):
     global hostname, username, email, create_system_user
     global groupname, create_system_group
+    global uid, gid
 
-    print """
+    if mode == "install":
+        print """
 Critic Installation: System
 ===========================
 """
 
-    if arguments.system_hostname: hostname = arguments.system_hostname
-    else:
-        try: hostname = process.check_output(["hostname", "--fqdn"]).strip()
-        except: pass
-
-        hostname = installation.input.string(prompt="What is the machine's FQDN?",
-                                                    default=hostname)
-
-    while True:
-        if arguments.system_username: username = arguments.system_username
+        if arguments.system_hostname: hostname = arguments.system_hostname
         else:
-            username = installation.input.string(prompt="What system user should Critic run as?",
-                                                        default=username)
+            try: hostname = process.check_output(["hostname", "--fqdn"]).strip()
+            except: pass
 
-        try:
-            pwd.getpwnam(username)
-            user_exists = True
-        except:
-            user_exists = False
+            hostname = installation.input.string(prompt="What is the machine's FQDN?",
+                                                        default=hostname)
 
-        if user_exists:
-            print """
+        while True:
+            if arguments.system_username: username = arguments.system_username
+            else:
+                username = installation.input.string(prompt="What system user should Critic run as?",
+                                                            default=username)
+
+            try:
+                pwd.getpwnam(username)
+                user_exists = True
+            except:
+                user_exists = False
+
+            if user_exists:
+                print """
 The system user '%s' already exists.
 """ % username
 
-            if installation.input.yes_or_no(prompt="Use the existing system user '%s'?" % username,
-                                            default=True):
-                create_system_user = False
-                break
-        else:
-            print """
+                if installation.input.yes_or_no(prompt="Use the existing system user '%s'?" % username,
+                                                default=True):
+                    create_system_user = False
+                    break
+            else:
+                print """
 The system user '%s' doesn't exists.
 """ % username
 
-            if installation.input.yes_or_no(prompt="Create a system user named '%s'?" % username,
-                                            default=True):
-                create_system_user = True
-                break
+                if installation.input.yes_or_no(prompt="Create a system user named '%s'?" % username,
+                                                default=True):
+                    create_system_user = True
+                    break
 
-    while True:
-        if arguments.system_groupname: groupname = arguments.system_groupname
-        else:
-            groupname = installation.input.string(prompt="What system group should Critic run as?",
-                                                        default=groupname)
+        while True:
+            if arguments.system_groupname: groupname = arguments.system_groupname
+            else:
+                groupname = installation.input.string(prompt="What system group should Critic run as?",
+                                                            default=groupname)
 
-        try:
-            grp.getgrnam(groupname)
-            group_exists = True
-        except:
-            group_exists = False
+            try:
+                grp.getgrnam(groupname)
+                group_exists = True
+            except:
+                group_exists = False
 
-        if group_exists:
-            print """
+            if group_exists:
+                print """
 The system group '%s' already exists.
 """ % groupname
 
-            if installation.input.yes_or_no(prompt="Use the existing system group '%s'?" % groupname,
-                                            default=True):
-                create_system_group = False
-                break
-        else:
-            print """
+                if installation.input.yes_or_no(prompt="Use the existing system group '%s'?" % groupname,
+                                                default=True):
+                    create_system_group = False
+                    break
+            else:
+                print """
 The system group '%s' doesn't exists.
 """ % groupname
 
-            if installation.input.yes_or_no(prompt="Create a system group named '%s'?" % groupname,
-                                            default=True):
-                create_system_group = True
-                break
+                if installation.input.yes_or_no(prompt="Create a system group named '%s'?" % groupname,
+                                                default=True):
+                    create_system_group = True
+                    break
 
-    if arguments.system_email: email = arguments.system_email
+        if arguments.system_email: email = arguments.system_email
+        else:
+            email = installation.input.string(prompt="What address should be used as the sender of emails from the system?",
+                                              default=("%s@%s" % (username, hostname)))
     else:
-        email = installation.input.string(prompt="What address should be used as the sender of emails from the system?",
-                                          default=("%s@%s" % (username, hostname)))
+        import configuration
+
+        hostname = configuration.base.HOSTNAME
+        username = configuration.base.SYSTEM_USER_NAME
+        email = configuration.base.SYSTEM_USER_EMAIL
+
+        try: groupname = configuration.base.SYSTEM_GROUP_NAME
+        except AttributeError: groupname = data["installation.system.groupname"]
+
+        uid = pwd.getpwnam(username).pw_uid
+        gid = grp.getgrnam(groupname).gr_gid
+
+    data["installation.system.hostname"] = hostname
+    data["installation.system.username"] = username
+    data["installation.system.email"] = email
+    data["installation.system.groupname"] = groupname
 
     return True
 
-def execute():
+def install(data):
     global uid, gid
 
     if create_system_group:

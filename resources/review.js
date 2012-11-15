@@ -360,7 +360,7 @@ function dropReview()
       location.reload();
   }
 
-  var content = $("<div title=Please Confirm'><p>Are you sure you mean to drop the review?</p></div>");
+  var content = $("<div title='Please Confirm'><p>Are you sure you mean to drop the review?</p></div>");
   content.dialog({ width: 400, modal: true, buttons: { "Drop Review": function () { content.dialog("close"); proceed(); }, "Do Nothing": function () { content.dialog("close"); }}});
 }
 

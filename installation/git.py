@@ -19,13 +19,7 @@ import os.path
 import installation
 from installation import process
 
-def prepare(arguments):
-    return True
-
-def execute():
+def install(data):
     socket_path = os.path.join(installation.paths.run_dir, "main", "sockets", "githook.unix")
     process.check_call([installation.prereqs.git, "config", "--system", "critic.socket", socket_path])
     return True
-
-def undo():
-    pass

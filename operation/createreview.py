@@ -133,7 +133,8 @@ class SubmitReview(Operation):
 class FetchRemoteBranches(Operation):
     def __init__(self):
         Operation.__init__(self, { "remote": str,
-                                   "pattern": Optional(str) })
+                                   "pattern": Optional(str) },
+                           accept_anonymous_user=True)
 
     def process(self, db, user, remote, pattern=None):
         if pattern: regexp = re.compile(pattern.replace("*", ".*"))
@@ -147,7 +148,8 @@ class FetchRemoteBranch(Operation):
         Operation.__init__(self, { "repository_name": str,
                                    "remote": str,
                                    "branch": str,
-                                   "upstream": Optional(str) })
+                                   "upstream": Optional(str) },
+                           accept_anonymous_user=True)
 
     def process(self, db, user, repository_name, remote, branch, upstream="refs/heads/master"):
         repository = gitutils.Repository.fromName(db, repository_name)

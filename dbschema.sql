@@ -38,6 +38,11 @@ CREATE TABLE users
     status userstatus NOT NULL DEFAULT 'unknown' );
 CREATE INDEX users_email ON users (email);
 
+CREATE TABLE usersessions
+  ( key CHAR(28) PRIMARY KEY,
+    uid INTEGER NOT NULL REFERENCES users,
+    atime TIMESTAMP DEFAULT NOW() );
+
 CREATE TABLE gitusers
   ( id SERIAL PRIMARY KEY,
     email VARCHAR(256) NOT NULL,

@@ -18,47 +18,67 @@ import re
 
 import installation
 from installation import process
-
-def prepare(arguments):
-    return True
+import tempfile
+import shutil
+import stat
+import os
 
 user_created = False
 database_created = False
 language_created = False
 
-def execute():
-    global user_created, database_created
+def psql_import(sql_file):
+    temp_file = tempfile.mkstemp()[1]
+    shutil.copy(sql_file, temp_file)
+    # Make sure file is readable by postgres user
+    os.chmod(temp_file, stat.S_IROTH)
+    process.check_output(["su", "-s", "/bin/sh", "-c", "psql -f %s" % temp_file, installation.system.username])
+    os.unlink(temp_file)
+
+def install(data):
+    global user_created, database_created, language_created
 
     print "Creating database ..."
 
-    process.check_output(["su", "-c", "psql -c 'CREATE USER \"%s\";'" % installation.system.username, "postgres"])
-    user_created = True
-
-    process.check_output(["su", "-c", "psql -c 'CREATE DATABASE \"critic\";'", "postgres"])
-    database_created = True
-
+    # Several subsequent commands will run as Critic system user or "postgres" user,
+    # and these users typically don't have read access to the installation 'root_dir'
+    root_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
+    original_dir = os.getcwd()
     try:
-        process.check_output(["su", "-c", "createlang plpgsql critic", "postgres"], stderr=process.STDOUT)
-        language_created = True
-    except process.CalledProcessError, error:
-        if re.search(r"\blanguage\b.*\balready installed\b", error.output): pass
-        else: raise
+        # Set cwd to something that Critic system / "postgres" users has access to.
+        os.chdir(tempfile.gettempdir())
 
-    process.check_output(["su", "-c", "psql -c 'GRANT ALL ON DATABASE \"critic\" TO \"%s\";'" % installation.system.username, "postgres"])
-    process.check_output(["su", "-s", "/bin/sh", "-c", "psql -f dbschema.sql", installation.system.username])
-    process.check_output(["su", "-s", "/bin/sh", "-c", "psql -f dbschema.comments.sql", installation.system.username])
-    process.check_output(["su", "-s", "/bin/sh", "-c", "psql -f path.pgsql", installation.system.username])
-    process.check_output(["su", "-s", "/bin/sh", "-c", "psql -f comments.pgsql", installation.system.username])
-    process.check_output(["su", "-s", "/bin/sh", "-c", "psql -f roles.sql", installation.system.username])
+        process.check_output(["su", "-c", "psql -c 'CREATE USER \"%s\";'" % installation.system.username, "postgres"])
+        user_created = True
 
-    import psycopg2
+        process.check_output(["su", "-c", "psql -c 'CREATE DATABASE \"critic\";'", "postgres"])
+        database_created = True
 
-    def adapt(value): return psycopg2.extensions.adapt(value).getquoted()
+        try:
+            process.check_output(["su", "-c", "createlang plpgsql critic", "postgres"], stderr=process.STDOUT)
+            language_created = True
+        except process.CalledProcessError, error:
+            if re.search(r"\blanguage\b.*\balready installed\b", error.output): pass
+            else: raise
 
-    process.check_input(["su", "-s", "/bin/sh", "-c", "psql -q -f -", installation.system.username],
-                        stdin=("""INSERT INTO systemidentities (key, name, url_prefix, description)
-                                      VALUES ('main', 'main', %s, 'Main');"""
-                               % adapt("http://%s" % installation.system.hostname)))
+        process.check_output(["su", "-c", "psql -c 'GRANT ALL ON DATABASE \"critic\" TO \"%s\";'" % installation.system.username, "postgres"])
+        psql_import(os.path.join(root_dir, "dbschema.sql"))
+        psql_import(os.path.join(root_dir, "dbschema.comments.sql"))
+        psql_import(os.path.join(root_dir, "path.pgsql"))
+        psql_import(os.path.join(root_dir, "comments.pgsql"))
+        psql_import(os.path.join(root_dir, "roles.sql"))
+
+        import psycopg2
+
+        def adapt(value): return psycopg2.extensions.adapt(value).getquoted()
+
+        process.check_input(["su", "-s", "/bin/sh", "-c", "psql -q -f -", installation.system.username],
+                            stdin=("""INSERT INTO systemidentities (key, name, url_prefix, description)
+                                          VALUES ('main', 'main', %s, 'Main');"""
+                                   % adapt("http://%s" % installation.system.hostname)))
+
+    finally:
+        os.chdir(original_dir)
 
     return True
 

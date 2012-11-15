@@ -35,14 +35,14 @@ div.main table td.h2 {
 div.main table td.h2 div {
     text-align: left;
     margin: 0 auto 0.5em auto;
-    width: 60em
+    width: 50em
 }
 
 div.main table td.toc div {
     text-align: left;
     margin: 0 auto 0.5em auto;
     padding-top: 1em;
-    width: 60em
+    width: 40em
 }
 
 div.main table td.short {
@@ -59,7 +59,7 @@ div.main table td.text div {
     text-align: justify;
     margin-left: auto;
     margin-right: auto;
-    width: 60em;
+    width: 50em;
     line-height: 140%;
     margin-top: 0.5em;
     margin-bottom: 0.5em
@@ -129,7 +129,7 @@ div.main table td.text code.bold {
 div.main table td.goto div {
     text-align: right;
     margin: 0 auto 0.5em auto;
-    width: 60em
+    width: 50em
 }
 
 div.main table td.back {
@@ -193,7 +193,7 @@ td.pre div {
     text-align: justify;
     margin-left: auto;
     margin-right: auto;
-    width: 60em;
+    width: 50em;
     line-height: 140%
 }
 

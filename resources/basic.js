@@ -59,7 +59,7 @@ function reportError(what, specifics, title, callback)
 
 function showMessage(title, heading, message, callback)
 {
-  var content = $("<div title='" + title + "'><h1>" + heading + "</h1>" + message + "</div>");
+  var content = $("<div title='" + title + "'><h1>" + heading + "</h1>" + (message || "") + "</div>");
 
   content.dialog({ width: 600, modal: true, buttons: { OK: function () { content.dialog("close"); if (callback) callback(); }}});
 }
@@ -302,3 +302,13 @@ var critic = {
     escape: htmlify
   }
 };
+
+function signOut()
+{
+  var operation = new Operation({ action: "sign out",
+                                  url: "endsession",
+                                  data: {}});
+
+  if (operation.execute())
+    location.href = "/";
+}

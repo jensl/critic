@@ -67,6 +67,7 @@ import operation.autocompletedata
 import operation.servicemanager
 import operation.addrepository
 import operation.news
+import operation.usersession
 
 import page.utils
 import page.createreview
@@ -94,6 +95,7 @@ import page.checkbranch
 import page.search
 import page.repositories
 import page.services
+import page.login
 
 try:
     from customization.email import getUserEmailAddress
@@ -376,6 +378,9 @@ def reapplyfilters(req, db, user):
     return result
 
 def savesettings(req, db, user):
+    if user.isAnonymous():
+        return "ok"
+
     data = req.read()
     values = [line.strip().split("=", 1) for line in data.splitlines() if line.strip()]
 
@@ -764,6 +769,7 @@ operations = { "fetchlines": operation.fetchlines.FetchLines(),
                "setfullname": operation.manipulateuser.SetFullname(),
                "setemail": operation.manipulateuser.SetEmail(),
                "setgitemails": operation.manipulateuser.SetGitEmails(),
+               "changepassword": operation.manipulateuser.ChangePassword(),
                "getassignedchanges": operation.manipulateassignments.GetAssignedChanges(),
                "setassignedchanges": operation.manipulateassignments.SetAssignedChanges(),
                "watchreview": watchreview,
@@ -810,7 +816,9 @@ operations = { "fetchlines": operation.fetchlines.FetchLines(),
                "deletetrackedbranch": operation.trackedbranch.DeleteTrackedBranch(),
                "addtrackedbranch": operation.trackedbranch.AddTrackedBranch(),
                "restartservice": operation.servicemanager.RestartService(),
-               "getservicelog": operation.servicemanager.GetServiceLog() }
+               "getservicelog": operation.servicemanager.GetServiceLog(),
+               "validatelogin": operation.usersession.ValidateLogin(),
+               "endsession": operation.usersession.EndSession() }
 
 pages = { "showreview": page.showreview.renderShowReview,
           "showcommit": page.showcommit.renderShowCommit,
@@ -838,7 +846,8 @@ pages = { "showreview": page.showreview.renderShowReview,
           "editresource": page.editresource.renderEditResource,
           "search": page.search.renderSearch,
           "repositories": page.repositories.renderRepositories,
-          "services": page.services.renderServices }
+          "services": page.services.renderServices,
+          "login": page.login.renderLogin }
 
 if configuration.extensions.ENABLED:
     import extensions
@@ -862,21 +871,33 @@ def main(environ, start_response):
         try:
             req = request.Request(db, environ, start_response)
 
-            if configuration.base.AUTHENTICATION_MODE == "critic" and req.user is None:
-                req.setStatus(401)
-                req.addResponseHeader("WWW-Authenticate", "Basic realm=\"Critic\"")
-                req.start()
-                return
-
-            try:
-                user = dbutils.User.fromName(db, req.user)
-            except dbutils.NoSuchUser:
-                cursor.execute("""INSERT INTO users (name, email, fullname)
-                                       VALUES (%s, %s, %s)
-                                    RETURNING id""",
-                               (req.user, getUserEmailAddress(req.user), req.user))
-                user = dbutils.User.fromId(db, cursor.fetchone()[0])
-                db.commit()
+            if req.user is None:
+                if configuration.base.AUTHENTICATION_MODE == "critic":
+                    if configuration.base.SESSION_TYPE == "httpauth":
+                        req.setStatus(401)
+                        req.addResponseHeader("WWW-Authenticate", "Basic realm=\"Critic\"")
+                        req.start()
+                        return
+                    elif configuration.base.ALLOW_ANONYMOUS_USER or req.path in ("login", "validatelogin"):
+                        user = dbutils.User.makeAnonymous()
+                    elif req.method == "GET":
+                        raise page.utils.NeedLogin, req
+                    else:
+                        # Don't try to redirect POST requests to the login page.
+                        req.setStatus(403)
+                        req.start()
+                        return
+            else:
+                try:
+                    user = dbutils.User.fromName(db, req.user)
+                except dbutils.NoSuchUser:
+                    cursor = db.cursor()
+                    cursor.execute("""INSERT INTO users (name, email, fullname)
+                                           VALUES (%s, %s, %s)
+                                        RETURNING id""",
+                                   (req.user, getUserEmailAddress(req.user), req.user))
+                    user = dbutils.User.fromId(db, cursor.fetchone()[0])
+                    db.commit()
 
             user.loadPreferences(db)
 
@@ -890,7 +911,10 @@ def main(environ, start_response):
                 db.disableProfiling()
 
             if not req.path:
-                location = user.getPreference(db, "defaultPage")
+                if user.isAnonymous():
+                    location = "tutorial"
+                else:
+                    location = user.getPreference(db, "defaultPage")
 
                 if req.query:
                     location += "?" + req.query
@@ -899,6 +923,20 @@ def main(environ, start_response):
                 req.addResponseHeader("Location", location)
                 req.start()
                 return
+
+            if req.path == "redirect":
+                target = req.getParameter("target", "/")
+
+                if req.method == "POST":
+                    # Don't use HTTP redirect for POST requests.
+
+                    req.setContentType("text/html")
+                    req.start()
+
+                    yield "<meta http-equiv='refresh' content='0; %s'>" % htmlify(target)
+                    return
+                else:
+                    raise page.utils.MovedTemporarily, target
 
             if req.path.startswith("!/"):
                 req.path = req.path[2:]
@@ -942,8 +980,9 @@ def main(environ, start_response):
                 if isinstance(result, (OperationResult, OperationError)):
                     req.setContentType("text/json")
 
-                    if db.profiling and isinstance(result, OperationResult):
-                        result.set("__profiling__", formatDBProfiling(db))
+                    if isinstance(result, OperationResult):
+                        if db.profiling: result.set("__profiling__", formatDBProfiling(db))
+                        result.addResponseHeaders(req)
                 else:
                     req.setContentType("text/plain")
 
@@ -960,7 +999,7 @@ def main(environ, start_response):
                 pagefn = pages.get(req.path)
                 if pagefn:
                     try:
-                        if override_user:
+                        if not user.isAnonymous() and override_user:
                             user = dbutils.User.fromName(db, override_user)
 
                         req.setContentType("text/html")
@@ -1050,6 +1089,8 @@ def main(environ, start_response):
         except page.utils.MovedTemporarily, redirect:
             req.setStatus(307)
             req.addResponseHeader("Location", redirect.location)
+            if redirect.no_cache:
+                req.addResponseHeader("Cache-Control", "no-cache")
             req.start()
             return
         except page.utils.DisplayMessage, message:

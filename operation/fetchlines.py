@@ -28,7 +28,8 @@ class FetchLines(Operation):
                                    "ranges": [{ "offset": int,
                                                 "count": int,
                                                 "context": bool }],
-                                   "tabify": bool })
+                                   "tabify": bool },
+                           accept_anonymous_user=True)
 
     def process(self, db, user, repository_id, path, sha1, ranges, tabify):
         repository = gitutils.Repository.fromId(db, repository_id)

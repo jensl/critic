@@ -29,6 +29,9 @@ SYSTEM_USER_NAME = "%(installation.system.username)s"
 # user whose email address it makes sense to use instead.
 SYSTEM_USER_EMAIL = "%(installation.system.email)s"
 
+# The name of the system group that Critic runs as.
+SYSTEM_GROUP_NAME = "%(installation.system.groupname)s"
+
 ADMINISTRATORS = [{ "name": "%(installation.admin.username)s",
                     "email": "%(installation.admin.email)s",
                     "fullname": "%(installation.admin.fullname)s" }]
@@ -41,3 +44,15 @@ HOSTNAME = "%(installation.system.hostname)s"
 
 # The way Critic identifies/authenticates users: "host" or "critic"
 AUTHENTICATION_MODE = "%(installation.config.auth_mode)s"
+
+# If AUTHENTICATION_MODE="critic", type of session: "httpauth" or "cookie"
+SESSION_TYPE = "%(installation.config.session_type)s"
+
+# If AUTHENTICATION_MODE="critic" and SESSION_TYPE="cookie", maximum
+# age of session in seconds.  Zero means no maximum age; session is
+# valid until user logs out.
+SESSION_MAX_AGE = 0
+
+# Allow (restricted) anonymous access to the system.  Only supported if
+# AUTHENTICATION_MODE="critic" and SESSION_TYPE="cookie".
+ALLOW_ANONYMOUS_USER = %(installation.config.allow_anonymous_user)r

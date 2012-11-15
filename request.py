@@ -127,10 +127,16 @@ class Request:
         self.__response_headers = []
         self.__started = False
 
+        self.server_name = \
+            self.getRequestHeader("X-Forwarded-Host") \
+            or environ.get("SERVER_NAME") \
+            or configuration.base.HOSTNAME
+
         self.method = environ.get("REQUEST_METHOD", "")
         self.path = environ.get("PATH_INFO", "").lstrip("/")
         self.original_path = self.path
         self.query = environ.get("QUERY_STRING", "")
+        self.user = None
 
         self.__setUser(db, environ)
 
@@ -138,26 +144,65 @@ class Request:
         if configuration.base.AUTHENTICATION_MODE == "host":
             self.user = environ.get("REMOTE_USER")
         elif configuration.base.AUTHENTICATION_MODE == "critic":
-            import auth
-            import base64
+            if configuration.base.SESSION_TYPE == "cookie":
+                header = self.getRequestHeader("Cookie")
+                if header:
+                    cookies = map(str.strip, header.split(";"))
+                    key = None
 
-            self.user = None
+                    for cookie in cookies:
+                        name, value = cookie.split("=", 1)
+                        if name == "sid":
+                            key = value
+                            break
 
-            authorization = self.getRequestHeader("Authorization")
-            if not authorization: return
+                    if key:
+                        cursor = db.cursor()
+                        cursor.execute("""SELECT name, EXTRACT('epoch' FROM NOW() - atime) AS age
+                                            FROM usersessions
+                                            JOIN users ON (id=uid)
+                                           WHERE key=%s""",
+                                       (key,))
 
-            authtype, base64_credentials = authorization.split()
-            if authtype != "Basic": return
+                        try: user, session_age = cursor.fetchone()
+                        except: return
 
-            credentials = base64.b64decode(base64_credentials).split(":")
-            if len(credentials) < 2: return
+                        if configuration.base.SESSION_MAX_AGE == 0 \
+                                or session_age < configuration.base.SESSION_MAX_AGE:
+                            self.user = user
 
-            for index in range(1, len(credentials)):
-                username = ":".join(credentials[:index])
-                password = ":".join(credentials[index:])
-                if auth.checkPassword(db, username, password):
-                    self.user = username
-                    return
+                            cursor.execute("""UPDATE usersessions
+                                                 SET atime=NOW()
+                                               WHERE key=%s""",
+                                           (key,))
+                            db.commit()
+            else:
+                import auth
+                import base64
+
+                self.user = None
+
+                authorization = self.getRequestHeader("Authorization")
+                if not authorization: return
+
+                authtype, base64_credentials = authorization.split()
+                if authtype != "Basic": return
+
+                credentials = base64.b64decode(base64_credentials).split(":")
+                if len(credentials) < 2: return
+
+                for index in range(1, len(credentials)):
+                    username = ":".join(credentials[:index])
+                    password = ":".join(credentials[index:])
+                    try:
+                        auth.checkPassword(db, username, password)
+                        self.user = username
+                        return
+                    except auth.CheckFailed: pass
+
+    def getUser(self, db):
+        import dbutils
+        return dbutils.User.fromName(db, self.user)
 
     def getParameter(self, name, default=NoDefault(), filter=lambda value: value):
         """\

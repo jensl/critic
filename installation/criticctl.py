@@ -19,17 +19,11 @@ import os
 import os.path
 import json
 
-def prepare(arguments):
-    return True
-
 created_file = []
 
-def execute():
-    source_path = os.path.join("installation", "templates", "criticctl")
+def install(data):
+    source_path = os.path.join(installation.root_dir, "installation", "templates", "criticctl")
     target_path = os.path.join("/usr", "bin", "criticctl")
-
-    with open(".install.data") as install_data:
-        data = json.load(install_data)
 
     with open(target_path, "w") as target:
         created_file.append(target_path)

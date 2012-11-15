@@ -14,10 +14,11 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-HOST = "localhost"
-PORT = 25
-USERNAME = None
-PASSWORD = None
-USE_TLS = False
+HOST = %(installation.smtp.host)r
+PORT = %(installation.smtp.port)r
+USERNAME = %(installation.smtp.username)r
+PASSWORD = %(installation.smtp.password)r
+USE_SSL = %(installation.smtp.use_ssl)r
+USE_STARTTLS = %(installation.smtp.use_starttls)r
 
 MAX_ATTEMPTS = 10

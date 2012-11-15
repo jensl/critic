@@ -712,7 +712,7 @@ def executePage(db, req, user):
 
             before = time.time()
 
-            jsshell = process(getJSShellCommandLine(), stdin=PIPE, stdout=PIPE, stderr=PIPE, cwd=extension_path)
+            jsshell = process(getJSShellCommandLine(rlimit_cpu="60s"), stdin=PIPE, stdout=PIPE, stderr=PIPE, cwd=extension_path)
 
             stdout_data, stderr_data = jsshell.communicate(stdin_data)
 

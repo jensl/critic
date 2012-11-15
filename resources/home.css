@@ -23,11 +23,12 @@ div.main { text-align: center }
 div.main table td.repositories { text-align: right; border-bottom: 1px solid #996 }
 div.main table td.repositories select { background-color: #ffd }
 
-div.main table.basic tr.line td { padding-top: 0.5em }
+div.main table.basic tr.line td { padding-top: 0.5em; vertical-align: top }
 div.main table.basic td.heading { font-family: serif; font-weight: bold; text-align: right; width: 20% }
 div.main table.basic td.value { font-family: monospace; text-align: left }
 div.main table.basic td.value input.value { font-family: monospace; width: 32em }
-div.main table.basic td.status { text-align: right; width: 20%; font-weight: bold }
+div.main table.basic td.value button { float: right }
+div.main table.basic td.value span.status { padding-left: 1em; font-weight: bold }
 div.main table.basic td.help { font-style: italic; text-align: right; border-bottom: 1px solid #996 }
 
 div.main table.filters td.help { font-style: italic; text-align: left; padding-top: 1em; border-bottom: 1px solid #996 }
@@ -50,3 +51,8 @@ div.main table.filters td.heading.type { text-align: right; width: 10%; font-wei
 div.main table.filters td.heading.path { text-align: left; width: 50%; font-weight: bold; text-decoration: underline }
 div.main table.filters td.heading.delegate { text-align: left; width: 30%; font-weight: bold; text-decoration: underline }
 div.main table.filters td.heading.buttons { text-align: right; width: 10% }
+
+div.password input {
+    width: 100%;
+    font-family: monospace
+}

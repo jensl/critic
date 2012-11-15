@@ -39,10 +39,20 @@ class OperationResult:
         self.__value = kwargs
         if "status" not in self.__value:
             self.__value["status"] = "ok"
+        self.__cookies = {}
     def __str__(self):
         return json_encode(self.__value)
     def set(self, key, value):
         self.__value[key] = value
+    def setCookie(self, name, value=None):
+        self.__cookies[name] = value
+        return self
+    def addResponseHeaders(self, req):
+        for name, value in self.__cookies.items():
+            if value:
+                req.addResponseHeader("Set-Cookie", "%s=%s; HttpOnly" % (name, value))
+            else:
+                req.addResponseHeader("Set-Cookie", "%s=invalid; Expires=Thursday 01-Jan-1970 00:00:00 GMT" % name)
 
 class OperationError(Exception):
     """\
@@ -265,7 +275,7 @@ class Operation:
     converted to OperationError objects.
 
     """
-    def __init__(self, parameter_types):
+    def __init__(self, parameter_types, accept_anonymous_user=False):
         """\
         Initialize input data type checker.
 
@@ -289,8 +299,14 @@ class Operation:
         if not type(parameter_types) is dict:
             raise Exception, "invalid source type"
         self.__checker = TypeChecker.make(parameter_types)
+        self.__accept_anonymous_user = accept_anonymous_user
 
     def __call__(self, req, db, user):
+        if user.isAnonymous() and not self.__accept_anonymous_user:
+            return OperationFailure(code="mustlogin",
+                                    title="Login Required",
+                                    message="You have to sign in to perform this operation.")
+
         if req.method == "POST": data = req.read()
         else: data = req.getParameter("data")
 

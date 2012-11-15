@@ -30,7 +30,11 @@ def renderConfig(req, db, user):
     head = html.head()
     body = html.body()
 
-    injected = page.utils.generateHeader(body, db, user, lambda target: target.button(onclick='saveSettings();').text('Save Settings'), current_page="config")
+    def renderRight(target):
+        if not user.isAnonymous():
+            target.button(onclick='saveSettings();').text('Save Settings')
+
+    injected = page.utils.generateHeader(body, db, user, generate_right=renderRight, current_page="config")
 
     document.addExternalStylesheet("resource/config.css")
     document.addExternalScript("resource/config.js")

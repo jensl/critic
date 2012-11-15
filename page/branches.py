@@ -79,7 +79,7 @@ def render(db, target, title, repository, branches, linkToBranch=linkToBranch, e
             if review_id is not None:
                 span = cell.span("review").preformatted()
                 span.a(href="r/%d" % review_id).text("r/%d" % review_id)
-            else:
+            elif base:
                 span = cell.span("check").preformatted()
                 span.a(href="checkbranch?repository=%d&commit=%s&upstream=%s&fetch=no" % (repository.id, name, base)).text("check")
 
@@ -115,7 +115,6 @@ def renderBranches(req, db, user):
                            WHERE branches.type='normal'
                              AND branches.name NOT LIKE 'replay/%%'
                              AND repositories.id=%s
-                             AND repositories.branch!=branches.id
                         ORDER BY commits.commit_time DESC LIMIT %s""",
                        (repository.id, count))
 
