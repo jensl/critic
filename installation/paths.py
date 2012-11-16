@@ -180,7 +180,7 @@ def install(data):
     mkdir(install_dir, 0755)
     mkdir(os.path.join(data_dir, "relay"))
     mkdir(os.path.join(data_dir, "outbox", "sent"), mode=0700)
-    mkdir(os.path.join(cache_dir, "highlight"))
+    mkdir(os.path.join(cache_dir, "main", "highlight"))
     mkdir(git_dir)
     mkdir(os.path.join(log_dir, "main"))
     mkdir(os.path.join(run_dir, "main", "sockets"))

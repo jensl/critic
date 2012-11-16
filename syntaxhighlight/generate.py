@@ -41,7 +41,7 @@ def generateHighlight(repository_path, sha1, language, output_file=None):
     else:
         output_path = syntaxhighlight.generateHighlightPath(sha1, language)
 
-        try: os.makedirs(os.path.dirname(output_path))
+        try: os.makedirs(os.path.dirname(output_path), 0750)
         except OSError, error:
             if error.errno == errno.EEXIST: pass
             else: raise
