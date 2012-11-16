@@ -338,12 +338,6 @@ def renderDashboard(req, db, user):
             else:
                 state_filter = ""
 
-            cursor.execute("""SELECT reviews.id, reviews.summary, reviews.branch, reviews.state, reviewusers.owner, reviewusers.uid IS NULL
-                                FROM reviews
-                     LEFT OUTER JOIN reviewusers ON (reviewusers.review=reviews.id AND reviewusers.uid=%s)
-                               WHERE TRUE""" + state_filter,
-                           (user.id,))
-
             profiler.check("query: watched/closed")
 
             watched = {}
@@ -351,6 +345,12 @@ def renderDashboard(req, db, user):
             other_closed = {}
 
             if "watched" in showset: fetchActive()
+
+            cursor.execute("""SELECT reviews.id, reviews.summary, reviews.branch, reviews.state, reviewusers.owner, reviewusers.uid IS NULL
+                                FROM reviews
+                     LEFT OUTER JOIN reviewusers ON (reviewusers.review=reviews.id AND reviewusers.uid=%s)
+                               WHERE TRUE""" + state_filter,
+                           (user.id,))
 
             for review_id, summary, branch_id, review_state, is_owner, not_associated in cursor:
                 if includeReview(review_id):
