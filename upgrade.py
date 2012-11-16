@@ -86,9 +86,15 @@ if not os.path.isfile(install_data_path):
 This installation of Critic appears to be incomplete or corrupt.""" % install_data_path
     sys.exit(1)
 
+def deunicode(v):
+    if type(v) == unicode: return v.encode("utf-8")
+    elif type(v) == list: return map(deunicode, v)
+    elif type(v) == dict: return dict([(deunicode(a), deunicode(b)) for a, b in v.items()])
+    else: return v
+
 try:
     with open(install_data_path, "r") as install_data:
-        data = json.load(install_data)
+        data = deunicode(json.load(install_data))
         if not isinstance(data, dict): raise ValueError
 except ValueError:
     print """\
