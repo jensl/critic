@@ -20,6 +20,18 @@ import json
 
 import installation
 
+def will_modify_dbschema(data):
+    performed_migrations = data.get("migrations", [])
+
+    if os.path.exists("installation/migrations"):
+        for script in os.listdir("installation/migrations"):
+            if script.startswith("dbschema.") \
+                    and script.endswith(".py") \
+                    and script not in performed_migrations:
+                return True
+
+    return False
+
 def upgrade(arguments, data):
     if "migrations" not in data:
         data["migrations"] = []
