@@ -332,7 +332,7 @@ class Operation:
             if user.hasRole(db, "developer"):
                 return OperationError(error_message)
             else:
-                error_message = "User: %s\nReferrer: %s\nData: %s\n\n%s" % (user.name, req.getReferrer(), json_encode(value, indent=2), error_message)
+                error_message = "User: %s\nReferrer: %s\nData: %s\n\n%s" % (user.name, req.getReferrer(), json_encode(self.sanitize(value), indent=2), error_message)
                 mailutils.sendExceptionMessage("wsgi[%s]" % req.path, error_message)
                 return OperationError("An unexpected error occurred.  " +
                                       "A message has been sent to the system administrator(s) " +
@@ -340,3 +340,7 @@ class Operation:
 
     def process(self, db, user, **kwargs):
         raise OperationError, "not implemented!?!"
+
+    def sanitize(self, value):
+        """Sanitize arguments value for use in error messages or logs."""
+        return value

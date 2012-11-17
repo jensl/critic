@@ -125,3 +125,10 @@ class ChangePassword(Operation):
         db.commit()
 
         return OperationResult()
+
+    def sanitize(self, value):
+        sanitized = value.copy()
+        if "current_pw" in value:
+            sanitized["current_pw"] = "****"
+        sanitized["new_pw"] = "****"
+        return sanitized
