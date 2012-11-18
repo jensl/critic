@@ -159,10 +159,19 @@ class User():
         self.__resources = {}
 
     def __eq__(self, other):
-        return not self.isAnonymous() and self.id == int(other)
+        if self.isAnonymous(): return False
+        elif isinstance(other, User):
+            if other.isAnonymous(): return False
+            else: return self.id == other.id
+        elif isinstance(other, int):
+            return self.id == other
+        elif isinstance(other, str):
+            return self.name == other
+        else:
+            raise base.Error, "invalid comparison"
 
     def __ne__(self, other):
-        return self.isAnonymous() or self.id != int(other)
+        return not (self == other)
 
     def __int__(self):
         return self.id
