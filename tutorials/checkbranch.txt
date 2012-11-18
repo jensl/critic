@@ -13,8 +13,7 @@ To analyze a branch, visit the
   <a href=checkbranch>/checkbranch</a>
 page, enter the name of the branch to check, select the repository in which it
 lives, optionally request that the branch be fetched from the repository's
-upstream repository (on <code>git.oslo.osa</code> or <code>dvcs.oslo.osa</code>,)
-and then press the "Check" button.
+upstream repository and then press the "Check" button.
 
 The list of commits that would be merged is calculated using
   <code>git rev-list</code>;
@@ -76,14 +75,14 @@ connection automatically, or otherwise explain how a commit was reviewed.  To do
 this, every non-green commit has an <code>[edit]</code> link in the right-most
 column.  Red commits committed by the user looking at the
   <code>/checkbranch</code>
-are highlighted in red for visibility.
+page are highlighted for visibility.
 
 The <code>[edit]</code> link opens up a dialog.  This dialog has an input field
 for entering the ID number of a review, and a text area for writing a comment.
-Also, if Critic finds any reviews that seem like likely candidates to have
-contained the changes in the commit, the dialog also contains a drop-down
-containing those candidate reviews.  Selecting an item in the drop-down simply
-sets the review ID input field's value.
+If Critic finds any reviews that seem like likely candidates to have contained
+the changes in the commit, the dialog also contains a drop-down containing those
+candidate reviews.  Selecting an item in the drop-down simply sets the review ID
+input field's value.
 
 Entering a comment is optional if a review ID is specified.  If no review ID is
 specified, for instance because the changes were reviewed outside of Critic, a
@@ -105,5 +104,5 @@ commit is a squash of all changes in the review.  If the commit is only part of
 the review, for instance a cherry-pick of a single bug fix made on a larger task
 branch, rebasing the review would be a very bad idea.  But since the green
 commit status is a much stronger guarantee that the right changes made it onto
-the branch, it's strongly recommended that the branch is rebased whenever
+the branch, it's strongly recommended that the review is rebased whenever
 possible, so that the commit appears green.
