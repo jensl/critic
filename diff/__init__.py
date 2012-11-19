@@ -260,6 +260,9 @@ class File:
         self.old_highlighted = None
         self.new_highlighted = None
 
+    def __hash__(self):
+        return hash(self.id)
+
     def __int__(self):
         return self.id
 
