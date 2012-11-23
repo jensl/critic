@@ -141,7 +141,7 @@ def renderSelectSource(req, db, user):
                  LEFT OUTER JOIN branches ON (branches.id=repositories.branch)
                         ORDER BY id""")
 
-        for repository_id, name, path, branch_name in cursor:
+        for repository_id, name, path, branch_name in cursor.fetchall():
             option = repositories.option("repository", value=name, selected="selected" if name == default_repository else None)
             option.text("%s [%s:%s]" % (name, configuration.base.HOSTNAME, path))
 
