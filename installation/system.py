@@ -78,7 +78,7 @@ The system user '%s' already exists.
 The system user '%s' doesn't exists.
 """ % username
 
-                if installation.input.yes_or_no(prompt="Create a system user named '%s'?" % username,
+                if arguments.force_create_system_user or installation.input.yes_or_no(prompt="Create a system user named '%s'?" % username,
                                                 default=True):
                     create_system_user = True
                     break
@@ -109,7 +109,7 @@ The system group '%s' already exists.
 The system group '%s' doesn't exists.
 """ % groupname
 
-                if installation.input.yes_or_no(prompt="Create a system group named '%s'?" % groupname,
+                if arguments.force_create_system_group or installation.input.yes_or_no(prompt="Create a system group named '%s'?" % groupname,
                                                 default=True):
                     create_system_group = True
                     break
