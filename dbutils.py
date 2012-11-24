@@ -249,7 +249,17 @@ class User():
                 cursor.execute("INSERT INTO userpreferences (uid, item, string) VALUES (%s, %s, %s)", [self.id, item, str(value)])
 
     def getDefaultRepository(self, db):
-        return gitutils.Repository.fromName(db, self.getPreference(db, "defaultRepository"))
+        default_repo = self.getPreference(db, "defaultRepository")
+        if not default_repo:
+            cursor = db.cursor()
+            cursor.execute("SELECT COUNT(*) FROM repositories")
+
+            repo_count = cursor.fetchone()[0]
+            if repo_count == 1:
+                cursor.execute("SELECT name FROM repositories")
+                default_repo = cursor.fetchone()[0]
+
+        return gitutils.Repository.fromName(db, default_repo)
 
     def getResource(self, db, name):
         if name in self.__resources:
