@@ -40,7 +40,7 @@ def renderSections(target):
     section("request", "Requesting a Review", """\
 Introduction to the different ways of requesting a review of changes in
 Critic.  You'll be able to request a review of your bug fix in 10 seconds,
-using your favourite git client!  (Though it'll take you more than 10
+using your favorite git client!  (Though it'll take you more than 10
 seconds to read all the text&#8230;)""")
 
     section("review", "Reviewing Changes", """\
