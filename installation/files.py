@@ -226,7 +226,7 @@ appears to have been edited since it was installed.
   Current version  : %(current)s
   Updated version  : %(updated)s
 
-Not installating the updated version can cause unpredictable results.
+Not installing the updated version can cause unpredictable results.
 """,
                         versions={ "installed": target_path + ".org",
                                    "current": target_path,

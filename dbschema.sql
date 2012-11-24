@@ -360,7 +360,7 @@ CREATE TABLE previousreachable
 CREATE INDEX previousreachable_rebase ON previousreachable (rebase);
 
 CREATE TYPE reviewfilestate AS ENUM
-  ( 'pending',    -- No-one's said anything.
+  ( 'pending',    -- No one has said anything.
     'reviewed'    -- The file has been reviewed.
   );
 CREATE TABLE reviewfiles

@@ -61,7 +61,7 @@ td.line b.ch {
     color: blue
 }
 
-/* Numberic literals. */
+/* Numeric literals. */
 td.line b.fp,
 td.line b.int {
     color: green

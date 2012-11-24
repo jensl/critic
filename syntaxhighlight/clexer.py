@@ -38,7 +38,7 @@
 #
 #   Escaped linebreaks outside of preprocessor directives and string literals
 #   are not handled; in practice the backslash will vanish and the linebreak
-#   will be returned as a whitespace token (possibly combined with any folloing
+#   will be returned as a whitespace token (possibly combined with any following
 #   whitespace.)  If whitespace preceded the backslash, there will be two
 #   separate whitespace tokens, split where the backslash was.
 #
@@ -106,7 +106,7 @@
 # CLexerException
 #
 #   Exception type thrown by the functions group() and group1().  Inherits
-#   the builtin Exception type and adds absolutely nothing.
+#   the built-in Exception type and adds absolutely nothing.
 #
 # Token Objects
 # =============
@@ -122,7 +122,7 @@
 #
 # filename()
 #
-#   Returns the filename from which the token stems.  In pracice, either the
+#   Returns the filename from which the token stems.  In practice, either the
 #   filename passed to tokenize() or to the Token constructor.
 #
 # line()
