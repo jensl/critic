@@ -187,7 +187,8 @@ function decompact(id)
 
             var line_id = parent + "f" + file_id + "o" + line_old_offset + "n" + line_new_offset;
 
-            html += "<tr class='line " + line_classes[line_type] + "' id='" + line_id + "'>" +
+            html += "<tr class='line " + (sides != 2 ? "single " : "") +
+                    line_classes[line_type] + "' id='" + line_id + "'>" +
                     "<td class=edge>&nbsp;</td>" +
                     "<td class='linenr old'>";
 
@@ -860,7 +861,7 @@ function fetchFile(file_id, side, replace_tbody)
     var line = lines[offset - 1] || "&nbsp;";
     var row_id = "f" + file_id + (deleted ? "o" + offset + "n0" : "o0n" + offset);
 
-    html += "<tr class='line " + row_class + "' id=" + row_id + ">"
+    html += "<tr class='line single " + row_class + "' id=" + row_id + ">"
           +   "<td class=edge></td>"
           +   "<td class='linenr old'>" + offset + "</td>"
           +   "<td class='line single " + side + "' colspan=4>" + line + "</td>"

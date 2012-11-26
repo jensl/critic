@@ -196,7 +196,7 @@ def renderCommitInfo(db, target, user, repository, review, commit, conflicts=Fal
 
     commit_msg = commit_info.tr("commit-msg").td(colspan=2).table("commit-msg", cellspacing=0)
     for index, text in enumerate(msg):
-        className = "line"
+        className = "line single"
         if index == 0: className += " first"
         elif index == len(msg) - 1: className += " last"
         if index < highlight_index or len(commit.parents) > 1:
