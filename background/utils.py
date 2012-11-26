@@ -46,7 +46,7 @@ class AdministratorMailHandler(logging.Handler):
         mailutils.sendAdministratorMessage(self.__logfile_name, record.message.splitlines()[0], self.formatter.format(record))
 
 class BackgroundProcess(object):
-    def __init__(self, service):
+    def __init__(self, service, send_administrator_mails=True):
         try: loglevel = getattr(logging, service["loglevel"].upper())
         except: loglevel = logging.INFO
 
@@ -56,14 +56,17 @@ class BackgroundProcess(object):
         file_handler.setFormatter(formatter)
         file_handler.setLevel(loglevel)
 
-        mail_handler = AdministratorMailHandler(service["logfile_path"])
-        mail_handler.setFormatter(formatter)
-        mail_handler.setLevel(logging.WARNING)
+        if send_administrator_mails:
+            mail_handler = AdministratorMailHandler(service["logfile_path"])
+            mail_handler.setFormatter(formatter)
+            mail_handler.setLevel(logging.WARNING)
 
         logger = logging.getLogger()
         logger.setLevel(loglevel)
         logger.addHandler(file_handler)
-        logger.addHandler(mail_handler)
+
+        if send_administrator_mails:
+            logger.addHandler(mail_handler)
 
         self.terminated = False
         self.interrupted = False
@@ -117,8 +120,11 @@ class BackgroundProcess(object):
     def debug(self, message):
         self.__logger.debug(message)
 
-    def exception(self, message="uncaught exception:"):
-        self.__logger.error(message + "\n" + indent(traceback.format_exc()))
+    def exception(self, message=None):
+        backtrace = traceback.format_exc()
+        if message is None:
+            message = "unhandled exception: " + backtrace.splitlines()[-1]
+        self.__logger.error(message + "\n" + indent(backtrace))
 
     def register_maintenance(self, hour, minute, callback):
         now = time.localtime()
@@ -258,8 +264,8 @@ class PeerServer(BackgroundProcess):
             else:
                 self.server.debug("child process exited (pid=%d, returncode=0)" % self.pid)
 
-    def __init__(self, service):
-        super(PeerServer, self).__init__(service)
+    def __init__(self, service, **kwargs):
+        super(PeerServer, self).__init__(service, **kwargs)
 
         self.__peers = []
         self.__address = service.get("address")

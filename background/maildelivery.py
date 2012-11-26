@@ -38,11 +38,66 @@ class User():
 
 class MailDelivery(PeerServer):
     def __init__(self):
-        super(MailDelivery, self).__init__(service=configuration.services.MAILDELIVERY)
+        # We disable the automatic administrator mails (using the
+        # 'send_administrator_mails' argument) since
+        #
+        # 1) it's pretty pointless to report mail delivery problems
+        #    via mail, and
+        #
+        # 2) it can cause runaway mail generation, since failure to
+        #    timely deliver the mail delivery problem report emails
+        #    would trigger further automatic problem report emails.
+        #
+        # Instead, we keep track of having encountered any problems,
+        # and send a single administrator mail ("check the logs")
+        # after having successfully delivered an email.
+
+        super(MailDelivery, self).__init__(service=configuration.services.MAILDELIVERY,
+                                           send_administrator_mails=False)
 
         self.__connection = None
+        self.__has_logged_warning = 0
+        self.__has_logged_error = 0
 
         self.register_maintenance(hour=3, minute=45, callback=self.__cleanup)
+
+    def __sendAdministratorMessage(self):
+        class User:
+            def __init__(self, name, email, fullname):
+                self.name = name
+                self.email = email
+                self.fullname = fullname
+
+        from_user = User(configuration.base.SYSTEM_USER_NAME, configuration.base.SYSTEM_USER_EMAIL, "Critic System")
+        recipients = []
+
+        for administrator in configuration.base.ADMINISTRATORS:
+            recipients.append(User(**administrator))
+
+        if self.__has_logged_warning and self.__has_logged_error:
+            what = "%d warning%s and %d error%s" % (self.__has_logged_warning,
+                                                    "s" if self.__has_logged_warning > 1 else "",
+                                                    self.__has_logged_error,
+                                                    "s" if self.__has_logged_error > 1 else "")
+        elif self.__has_logged_warning:
+            what = "%d warning%s" % (self.__has_logged_warning,
+                                     "s" if self.__has_logged_warning > 1 else "")
+        else:
+            what = "%d error%s" % (self.__has_logged_error,
+                                     "s" if self.__has_logged_error > 1 else "")
+
+        for to_user in recipients:
+            self.__send(message_id=None,
+                        parent_message_id=None,
+                        headers={},
+                        from_user=from_user,
+                        to_user=to_user,
+                        recipients=recipients,
+                        subject="maildelivery: check the logs!",
+                        body="%s have been logged.\n\n-- critic\n" % what)
+
+        self.__has_logged_warning = 0
+        self.__has_logged_error = 0
 
     def run(self):
         try:
@@ -62,18 +117,34 @@ class MailDelivery(PeerServer):
                     self.__connect()
                     sleeptime = 0
 
+                    now = time.time()
+
+                    def age(filename):
+                        return now - os.stat(filename).st_ctime
+
+                    too_old = len(filter(lambda filename: age(filename) > 60, pending))
+                    oldest_age = max(map(age, pending))
+
+                    if too_old > 0:
+                        self.warning(("%d files were created more than 60 seconds ago\n"
+                                      "  The oldest is %s which is %d seconds old.")
+                                     % (too_old, os.path.basename(filename), oldest_age))
+                        self.__has_logged_warning += 1
+
                     for filename in sorted(pending):
-                        age = time.time() - os.stat(filename).st_ctime
-
-                        if age > 60:
-                            self.warning("%s: file created %d seconds ago" % (os.path.basename(filename), age))
-
                         lines = open(filename).readlines()
 
                         try:
                             self.__send(**eval(lines[0]))
+
+                            if self.__has_logged_warning or self.__has_logged_error:
+                                try: self.__sendAdministratorMessage()
+                                except:
+                                    self.exception()
+                                    self.__has_logged_error += 1
                         except:
                             self.exception()
+                            self.__has_logged_error += 1
                             os.rename(filename, "%s/%s.invalid" % (configuration.paths.OUTBOX, os.path.basename(filename)))
                             continue
 
@@ -119,6 +190,7 @@ class MailDelivery(PeerServer):
                     break
                 except:
                     self.error("failed to connect to SMTP server")
+                    self.__has_logged_error += 1
 
                 attempts += 1
                 seconds = min(60, 2 ** attempts)
@@ -192,6 +264,7 @@ class MailDelivery(PeerServer):
                 return
             except:
                 self.exception()
+                self.__has_logged_error += 1
 
                 attempts += 1
                 sleeptime = min(60, 2 ** attempts)
@@ -207,7 +280,7 @@ class MailDelivery(PeerServer):
         deleted = 0
 
         for filename in os.listdir(os.path.join(configuration.paths.OUTBOX, "sent")):
-            if filename.endswith(".txt"):
+            if filename.endswith(".txt.sent"):
                 filename = os.path.join(configuration.paths.OUTBOX, "sent", filename)
                 age = now - os.stat(filename).st_ctime
 
