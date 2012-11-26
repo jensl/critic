@@ -955,7 +955,10 @@ def executeInject(db, paths, args, user, document, links, injected, profiler=Non
             if sha1 is None: extension_path = os.path.join(configuration.extensions.SEARCH_ROOT, author.name, "CriticExtensions", extension_name)
             else: extension_path = os.path.join(configuration.extensions.INSTALL_DIR, sha1)
 
-            manifest = loadManifest(extension_path)
+            try: manifest = loadManifest(extension_path)
+            except Exception, error:
+                document.comment("\n\nExtension error:\n%s\n\n" % str(error))
+                continue
 
             for role in manifest.roles:
                 if isinstance(role, InjectRole) and role.regexp == regexp and role.script == script and role.function == function:
