@@ -39,7 +39,7 @@ class NoDefault:
 
     pass
 
-class DisplayMessage:
+class DisplayMessage(Exception):
     """\
     Utility exception raised by pages to display a simply message.
     """

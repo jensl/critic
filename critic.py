@@ -14,35 +14,21 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-from dbutils import *
 import gitutils
 import time
 import re
-from htmlutils import htmlify, jsify, tabify, Document
-from profiling import Profiler, formatDBProfiling
-from utf8utils import convertUTF8
 import itertools
 import traceback
-import sys
-import os
-import resource as resource_module
 import cStringIO
-import sys
-import gc
 
-try: from json import dumps as json_encode, loads as json_decode
-except: from cjson import encode as json_encode, decode as json_decode
+from htmlutils import htmlify, Document
+from profiling import formatDBProfiling
+from textutils import json_encode
 
 import request
 import dbutils
-import changeset.text
-import changeset.html
-import changeset.utils
 import review.utils as review_utils
-import review.comment as review_comment
-import review.html as review_html
 import review.filters as review_filters
-import log.html as log_html
 import log.commitset as log_commitset
 import diff
 import mailutils
@@ -98,31 +84,13 @@ import page.services
 try:
     from customization.email import getUserEmailAddress
 except ImportError:
-    def getUserEmailAddress(username):
+    def getUserEmailAddress(_username):
         return None
 
 if configuration.extensions.ENABLED:
     RE_EXTENSION_RESOURCE = re.compile("^extension-resource/([a-z0-9][-._a-z0-9]+(?:/[a-z0-9][-._a-z0-9]+)+)$", re.IGNORECASE)
 
-YesOrNo = page.utils.YesOrNo
-
 from operation import OperationResult, OperationError
-
-from traceback import format_exc
-
-def generateEmpty(target):
-    pass
-
-def generateHeader(target, generate_right=generateEmpty):
-    page.utils.generateHeader(target, generate_right)
-
-def reviewFromArgument(db, argument):
-    try:
-        return dbutils.Review.fromId(db, int(argument))
-    except:
-        branch = dbutils.Branch.fromName(db, str(argument))
-        if not branch: return None
-        return dbutils.Review.fromBranch(db, branch)
 
 def download(req, db, user):
     sha1 = req.getParameter("sha1")
@@ -238,13 +206,13 @@ def addfilter(req, db, user):
     if filter_path == '/':
         directory_id, file_id = 0, 0
     elif filter_path[-1] == '/':
-        directory_id, file_id = find_directory(db, path=filter_path[:-1]), 0
+        directory_id, file_id = dbutils.find_directory(db, path=filter_path[:-1]), 0
     else:
-        if not force and is_directory(db, filter_path): return "error:directory"
-        else: directory_id, file_id = find_directory_file(db, filter_path)
+        if not force and dbutils.is_directory(db, filter_path): return "error:directory"
+        else: directory_id, file_id = dbutils.find_directory_file(db, filter_path)
 
     if directory_id:
-        specificity = len(explode_path(db, directory_id=directory_id))
+        specificity = len(dbutils.explode_path(db, directory_id=directory_id))
         if file_id: specificity += 1
     else:
         specificity = 0
@@ -287,12 +255,9 @@ def reapplyfilters(req, db, user):
     assign_changes = {}
     watch_reviews = set()
 
-    reviews_with_filters = 0
-    reviews_without_filters = 0
-
     own_commit = {}
 
-    for review_id, applyfilters ,applyparentfilters, repository_id in cursor1:
+    for review_id, applyfilters, applyparentfilters, repository_id in cursor1:
         if repository_id not in repositories:
             repositories[repository_id] = gitutils.Repository.fromId(db, repository_id)
         repository = repositories[repository_id]
@@ -301,9 +266,7 @@ def reapplyfilters(req, db, user):
         filters.load(db, review=review_filters.Filters.Review(review_id, applyfilters, applyparentfilters, repository), user=user)
 
         if filters.hasFilters():
-            reviews_with_filters += 1
-
-            cursor2.execute("""SELECT changesets.id, changesets.child, reviewfiles.file, reviewfiles.id
+            cursor2.execute("""SELECT changesets.child, reviewfiles.file, reviewfiles.id
                                  FROM changesets
                                  JOIN reviewfiles ON (reviewfiles.changeset=changesets.id)
                       LEFT OUTER JOIN reviewuserfiles ON (reviewuserfiles.file=reviewfiles.id
@@ -312,7 +275,7 @@ def reapplyfilters(req, db, user):
                                   AND reviewuserfiles.uid IS NULL""",
                             (user.id, review_id))
 
-            for changeset_id, commit_id, file_id, review_file_id in cursor2:
+            for commit_id, file_id, review_file_id in cursor2:
                 users = filters.listUsers(db, file_id)
 
                 if user.id in users:
@@ -330,8 +293,6 @@ def reapplyfilters(req, db, user):
                             assign_changes.setdefault(review_id, set()).add((file_id, review_file_id))
                         else:
                             watch_reviews.add(review_id)
-        else:
-            reviews_without_filters += 1
 
     new_reviews = set()
 
@@ -357,16 +318,16 @@ def reapplyfilters(req, db, user):
         if review.state == 'open':
             result += "review,%s:%d:%s\n" % ("new" if review_id in new_reviews else "old", review.id, review.summary)
 
-            paths = [describe_file(db, file_id) for file_id, review_file_id in file_ids]
+            paths = [dbutils.describe_file(db, file_id) for file_id, review_file_id in file_ids]
 
             for path in diff.File.eliminateCommonPrefixes(sorted(paths), text=True):
                 result += "  " + path + "\n"
 
     for review_id in sorted(watch_reviews & new_reviews):
-       review = dbutils.Review.fromId(db, review_id, load_commits=False)
+        review = dbutils.Review.fromId(db, review_id, load_commits=False)
 
-       if review.state == 'open':
-           result += "watch:%d:%s\n" % (review.id, review.summary)
+        if review.state == 'open':
+            result += "watch:%d:%s\n" % (review.id, review.summary)
 
     db.commit()
 
@@ -392,14 +353,14 @@ def savesettings(req, db, user):
 
         row = cursor.fetchone()
         if row:
-            type = row[0]
-            if type == "boolean":
+            preference_type = row[0]
+            if preference_type == "boolean":
                 value = int(bool(int(value)))
                 integers.append((user.id, item, value))
-            elif type == "integer":
+            elif preference_type == "integer":
                 value = int(value)
                 integers.append((user.id, item, value))
-            elif type == "string":
+            elif preference_type == "string":
                 strings.append((user.id, item, value))
 
     cursor.executemany("DELETE FROM userpreferences WHERE uid=%s AND item=%s", [(user.id, item[1]) for item in integers])
@@ -419,8 +380,8 @@ def showfilters(req, db, user):
 
     path = path.rstrip("/")
 
-    if is_directory(db, path):
-        directory_id = find_directory(db, path=path)
+    if dbutils.is_directory(db, path):
+        directory_id = dbutils.find_directory(db, path=path)
         show_path = path + "/"
 
         cursor = db.cursor()
@@ -432,7 +393,7 @@ def showfilters(req, db, user):
     else:
         show_path = path
 
-    file_id = find_file(db, path=path)
+    file_id = dbutils.find_file(db, path=path)
 
     filters = review_filters.Filters()
     filters.load(db, repository=repository, recursive=True)
@@ -440,7 +401,7 @@ def showfilters(req, db, user):
     reviewers = []
     watchers = []
 
-    for user_id, (filter_type, delegate) in filters.listUsers(db, file_id).items():
+    for user_id, (filter_type, _delegate) in filters.listUsers(db, file_id).items():
         if filter_type == 'reviewer': reviewers.append(user_id)
         else: watchers.append(user_id)
 
@@ -500,7 +461,7 @@ def checkserial(req, db, user):
     elif check_serial < current_serial: return "old"
     else: return "invalid"
 
-def findreview(req, db, user):
+def findreview(req, db, _user):
     sha1 = req.getParameter("sha1")
 
     try:
@@ -517,23 +478,27 @@ def findreview(req, db, user):
                        WHERE reachable.commit=%s""",
                    (commit.getId(db),))
 
-    try:
-        review_id = cursor.fetchone()[0]
-    except:
+    row = cursor.fetchone()
+
+    if row:
+        review_id = row[0]
+    else:
         cursor.execute("""SELECT reviewchangesets.review
                             FROM reviewchangesets
                             JOIN changesets ON (changesets.id=reviewchangesets.changeset)
                            WHERE changesets.child=%s""",
                        (commit.getId(db),))
 
-        try:
-            review_id = cursor.fetchone()[0]
-        except:
+        row = cursor.fetchone()
+
+        if row:
+            review_id = row[0]
+        else:
             raise page.utils.DisplayMessage, "No review found!"
 
     raise page.utils.MovedTemporarily, "/r/%d?highlight=%s#%s" % (review_id, sha1, sha1)
 
-def suggestreview(req, db, user):
+def suggestreview(req, db, _user):
     repository_id = req.getParameter("repository", filter=int)
     sha1 = req.getParameter("sha1")
 
@@ -573,15 +538,15 @@ def suggestreview(req, db, user):
 
     return json_encode(suggestions)
 
-def loadmanifest(req, db, user):
+def loadmanifest(req, _db, _user):
     author = req.getParameter("author")
     name = req.getParameter("name")
 
     try:
-        manifest = extensions.loadManifest(extensions.getExtensionPath(author, name))
+        extensions.loadManifest(extensions.getExtensionPath(author, name))
         return "That's a valid manifest, friend."
-    except Exception, e:
-        return str(e)
+    except extensions.ManifestError, error:
+        return str(error)
 
 def processcommits(req, db, user):
     review_id = req.getParameter("review", filter=int)
@@ -608,7 +573,7 @@ def processcommits(req, db, user):
 
     return output.getvalue()
 
-operations = { "fetchlines": operation.fetchlines.FetchLines(),
+OPERATIONS = { "fetchlines": operation.fetchlines.FetchLines(),
                "reviewersandwatchers": operation.createreview.ReviewersAndWatchers(),
                "submitreview": operation.createreview.SubmitReview(),
                "fetchremotebranches": operation.createreview.FetchRemoteBranches(),
@@ -679,7 +644,7 @@ operations = { "fetchlines": operation.fetchlines.FetchLines(),
                "restartservice": operation.servicemanager.RestartService(),
                "getservicelog": operation.servicemanager.GetServiceLog() }
 
-pages = { "showreview": page.showreview.renderShowReview,
+PAGES = { "showreview": page.showreview.renderShowReview,
           "showcommit": page.showcommit.renderShowCommit,
           "dashboard": page.dashboard.renderDashboard,
           "showcomment": page.showcomment.renderShowComment,
@@ -712,20 +677,20 @@ if configuration.extensions.ENABLED:
     import operation.extensioninstallation
     import page.manageextensions
 
-    operations["installextension"] = operation.extensioninstallation.InstallExtension()
-    operations["uninstallextension"] = operation.extensioninstallation.UninstallExtension()
-    operations["reinstallextension"] = operation.extensioninstallation.ReinstallExtension()
-    operations["loadmanifest"] = loadmanifest
-    operations["processcommits"] = processcommits
-    pages["manageextensions"] = page.manageextensions.renderManageExtensions
+    OPERATIONS["installextension"] = operation.extensioninstallation.InstallExtension()
+    OPERATIONS["uninstallextension"] = operation.extensioninstallation.UninstallExtension()
+    OPERATIONS["reinstallextension"] = operation.extensioninstallation.ReinstallExtension()
+    OPERATIONS["loadmanifest"] = loadmanifest
+    OPERATIONS["processcommits"] = processcommits
+    PAGES["manageextensions"] = page.manageextensions.renderManageExtensions
 
 if configuration.base.AUTHENTICATION_MODE == "critic" and configuration.base.SESSION_TYPE == "cookie":
     import operation.usersession
     import page.login
 
-    operations["validatelogin"] = operation.usersession.ValidateLogin()
-    operations["endsession"] = operation.usersession.EndSession()
-    pages["login"] = page.login.renderLogin
+    OPERATIONS["validatelogin"] = operation.usersession.ValidateLogin()
+    OPERATIONS["endsession"] = operation.usersession.EndSession()
+    PAGES["login"] = page.login.renderLogin
 
 def main(environ, start_response):
     request_start = time.time()
@@ -831,17 +796,17 @@ def main(environ, start_response):
                         req.start()
                         return
 
-            if req.path.startswith("download/"): operation = download
-            else: operation = operations.get(req.path)
-            if operation:
+            if req.path.startswith("download/"): operationfn = download
+            else: operationfn = OPERATIONS.get(req.path)
+            if operationfn:
                 req.setContentType("text/plain")
 
-                try: result = operation(req, db, user)
+                try: result = operationfn(req, db, user)
                 except OperationError, error: result = error
                 except page.utils.DisplayMessage, message:
                     result = "error:" + message.title
                     if message.body: result += "  " + message.body
-                except Exception, exception: result = "error:\n" + "".join(traceback.format_exception(*sys.exc_info()))
+                except Exception: result = "error:\n" + traceback.format_exc()
 
                 if isinstance(result, (OperationResult, OperationError)):
                     req.setContentType("text/json")
@@ -862,7 +827,7 @@ def main(environ, start_response):
             override_user = req.getParameter("user", None)
 
             while True:
-                pagefn = pages.get(req.path)
+                pagefn = PAGES.get(req.path)
                 if pagefn:
                     try:
                         if not user.isAnonymous() and override_user:
@@ -902,15 +867,16 @@ def main(environ, start_response):
 
                 path = req.path
 
-                try:
+                if "/" in path:
                     repository = gitutils.Repository.fromName(db, path.split("/", 1)[0])
                     if repository: path = path.split("/", 1)[1]
-                except:
+                else:
                     repository = None
 
-                def revparse(item):
+                def revparsePlain(item):
                     try: return gitutils.getTaggedCommit(repository, repository.revparse(item))
                     except: raise
+                revparse = revparsePlain
 
                 if repository is None:
                     review_id = req.getParameter("review", None, filter=int)
@@ -918,14 +884,22 @@ def main(environ, start_response):
                     if review_id:
                         cursor = db.cursor()
                         cursor.execute("SELECT repository FROM branches JOIN reviews ON (reviews.branch=branches.id) WHERE reviews.id=%s", (review_id,))
-                        try:
-                            repository = gitutils.Repository.fromId(db, cursor.fetchone()[0])
-                            def revparse(item):
+                        row = cursor.fetchone()
+                        if row:
+                            repository = gitutils.Repository.fromId(db, row[0])
+                            def revparseWithReview(item):
                                 if re.match("^[0-9a-f]+$", item):
-                                    cursor.execute("SELECT sha1 FROM commits JOIN changesets ON (changesets.child=commits.id) JOIN reviewchangesets ON (reviewchangesets.changeset=changesets.id) WHERE reviewchangesets.review=%s AND commits.sha1 LIKE %s", (review_id, item + "%"))
-                                    try: return cursor.fetchone()[0]
-                                    except: return gitutils.getTaggedCommit(repository, repository.revparse(item))
-                        except: pass
+                                    cursor.execute("""SELECT sha1
+                                                        FROM commits
+                                                        JOIN changesets ON (changesets.child=commits.id)
+                                                        JOIN reviewchangesets ON (reviewchangesets.changeset=changesets.id)
+                                                       WHERE reviewchangesets.review=%s
+                                                         AND commits.sha1 LIKE %s""",
+                                                   (review_id, item + "%"))
+                                    row = cursor.fetchone()
+                                    if row: return row[0]
+                                    else: return revparsePlain(item)
+                            revparse = revparseWithReview
 
                 if repository is None:
                     repository = gitutils.Repository.fromName(db, user.getPreference(db, "defaultRepository"))
@@ -949,7 +923,7 @@ def main(environ, start_response):
                             req.query = "repository=%d&from=%s&to=%s&%s" % (repository.id, items[0], items[1], req.query)
                             req.path = "showcommit"
                             continue
-                    except: pass
+                    except gitutils.GitError: pass
 
                 break
 
