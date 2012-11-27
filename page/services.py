@@ -90,6 +90,7 @@ def renderServices(req, db, user):
         headings.th("path").text("Path")
         headings.th("pid").text("PID")
         headings.th("rss").text("RSS")
+        headings.th("cpu").text("CPU")
         headings.th("uptime").text("Uptime")
         headings.th("commands").text()
 
@@ -109,24 +110,32 @@ def renderServices(req, db, user):
             elif bytes < 1024 ** 3: return "%.1f MB" % (float(bytes) / 1024 ** 2)
             else: return "%.1f GB" % (float(bytes) / 1024 ** 3)
 
-        def getRSS(pid):
+        def formatCPU(seconds):
+            minutes = int(seconds / 60)
+            seconds = seconds - minutes * 60
+            seconds = "%2.2f" % seconds
+            if seconds.find(".") == 1: seconds = "0" + seconds
+            return "%d:%s" % (minutes, seconds)
+
+        def getProcessData(pid):
             try:
-                for line in open("/proc/%d/status" % pid):
-                    words = line.split()
-                    if words[0] == "VmRSS:":
-                        if words[2].lower() == "kb": unit = 1024
-                        elif words[2].lower() == "mb": unit = 1024 ** 2
-                        else: raise Exception, "unknown unit: %s" % words[2]
-                        return formatRSS(int(words[1]) * unit)
-            except: pass
-            return "N/A"
+                items = open("/proc/%d/stat" % pid).read().split()
+
+                return { "cpu": formatCPU(float(int(items[13]) + int(items[14])) / os.sysconf("SC_CLK_TCK")),
+                         "rss": formatRSS(int(items[23]) * os.sysconf("SC_PAGE_SIZE")) }
+            except:
+                return { "cpu": "N/A",
+                         "rss": "N/A" }
 
         for service_name, service_data in sorted(result["services"].items()):
+            process_data = getProcessData(service_data["pid"])
+
             row = table.tr("service")
             row.td("name").text(service_name)
             row.td("path").text(service_data["path"])
             row.td("pid").text(service_data["pid"] if service_data["pid"] != -1 else "(not running)")
-            row.td("rss").text(getRSS(service_data["pid"]))
+            row.td("rss").text(process_data["rss"])
+            row.td("cpu").text(process_data["cpu"])
             row.td("uptime").innerHTML(formatUptime(service_data["uptime"]))
 
             commands = row.td("commands")
@@ -137,11 +146,14 @@ def renderServices(req, db, user):
             startup = float(open(os.path.join(configuration.paths.WSGI_PIDFILE_DIR, pid)).read())
             uptime = time.time() - startup
 
+            process_data = getProcessData(int(pid))
+
             row = table.tr("service")
             row.td("name").text("wsgi:%d" % index)
             row.td("path").text()
             row.td("pid").text(pid)
-            row.td("rss").text(getRSS(int(pid)))
+            row.td("rss").text(process_data["rss"])
+            row.td("cpu").text(process_data["cpu"])
             row.td("uptime").innerHTML(formatUptime(uptime))
 
             commands = row.td("commands")

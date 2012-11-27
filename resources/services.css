@@ -57,6 +57,10 @@ th.rss, td.rss {
     text-align: right
 }
 
+th.cpu, td.cpu {
+    text-align: right
+}
+
 th.commands, td.commands {
     text-align: right
 }
