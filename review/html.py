@@ -33,12 +33,6 @@ def renderComments(db, target, user, chain, position, linkify):
 
     div_chain = target.div("comments %s" % position)
 
-    def linkToCommit(commit):
-        cursor.execute("SELECT 1 FROM commits JOIN changesets ON (child=commits.id) JOIN reviewchangesets ON (changeset=changesets.id) WHERE sha1=%s AND review=%s", (commit.sha1, review.id))
-        if cursor.fetchone():
-            return "%s/%s?review=%d" % (repository.name, commit.sha1, chain.review.id)
-        return "%s/%s" % (repository.name, commit.sha1)
-
     for comment in chain.comments:
         div_comment = div_chain.div("comment%s" % (comment.state == "draft" and " draft" or ""), id="c%dc%d" % (chain.id, comment.id))
 
