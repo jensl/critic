@@ -192,7 +192,6 @@ class Blame(Operation):
             blame = gitutils.Blame(parent, child)
 
             paths = {}
-            commits = {}
 
             for file in files:
                 file_id = file["id"]

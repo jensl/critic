@@ -123,7 +123,6 @@ def renderShowFile(req, db, user):
                           GROUP BY id""",
                        [review.id, file_id, file_sha1, user.id])
 
-        chains = []
         comment_chain_script = ""
 
         for (chain_id,) in cursor.fetchall():

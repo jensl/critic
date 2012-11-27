@@ -98,7 +98,6 @@ def renderCodeCommentChain(db, target, user, review, chain, context_lines=3, com
 
     old_sha1 = None
     new_sha1 = None
-    chunks = None
 
     old = 1
     new = 2

@@ -20,7 +20,6 @@ def generateReviewReport(db, review):
     report = "%s\n%s\n\n\n" % (title, "=" * len(title))
     report += "Reviewed Commits\n----------------\n\n"
 
-    commits = []
     commit_map = {}
 
     for changeset in review.changesets:

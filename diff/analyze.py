@@ -122,8 +122,6 @@ def analyzeChunk1(deletedLines, insertedLines, offsetA=0, offsetB=0):
         previousDeletedIndex = -1
         previousInsertedIndex = -1
 
-        equals0 = equals[:]
-
         final.append((len(deletedLines), len(insertedLines), None, None, None))
 
         for deletedIndex, insertedIndex, deletedWords, insertedWords, sm in final:

@@ -63,9 +63,6 @@ def createChunks(delete_offset, deleted_lines, insert_offset, inserted_lines):
     ws_before = None
     ws_after = None
 
-    dl = deleted_lines
-    il = inserted_lines
-
     if deleted_lines and inserted_lines and isWhitespaceChange(deleted_lines[0], inserted_lines[0]):
         ws_lines = 1
         max_lines = min(len(deleted_lines), len(inserted_lines))

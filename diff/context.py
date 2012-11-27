@@ -248,9 +248,6 @@ class ContextLines:
         if self.chains and not self.merge:
             for chain in self.chains:
                 if chain.comments:
-                    old_table_keys = old_table.keys()
-                    new_table_keys = new_table.keys()
-
                     if self.file.new_sha1 in chain.lines_by_sha1:
                         chain_offset, chain_count = chain.lines_by_sha1[self.file.new_sha1]
                         old_offset = findMatchingOldOffset(chain_offset)
@@ -261,9 +258,6 @@ class ContextLines:
                         old_offset = chain_offset
                         new_offset = findMatchingNewOffset(chain_offset)
                         first_line = old_table.get(old_offset)
-
-                    org_old_offset = old_offset
-                    org_new_offset = new_offset
 
                     count = chain_count
 

@@ -63,9 +63,6 @@ def processCommits(process_commits):
 
     processed_commits = set()
 
-    current = 0
-    total = len(process_commits)
-
     for commit_id in process_commits:
         try:
             gitobject = repository.fetch(commits[commit_id])

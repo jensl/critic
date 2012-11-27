@@ -19,7 +19,6 @@ class CommitSet:
         self.__commits = dict([(str(commit), commit) for commit in commits])
 
         parents = set()
-        tails = set()
 
         for commit in self.__commits.values():
             parents.update([parent for parent in commit.parents])

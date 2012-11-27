@@ -36,7 +36,6 @@ def render(db, target, title, repository, branches, linkToBranch=linkToBranch, e
     target.addExternalStylesheet("resource/branches.css")
 
     cursor = db.cursor()
-    rows = ""
 
     table = target.table("paleyellow branches", align="center", cellspacing="0")
 
