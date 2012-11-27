@@ -159,7 +159,6 @@ if "--slave" in sys.argv:
 else:
     import daemon
     import errno
-    import os
 
     pidfile_path = configuration.services.SERVICEMANAGER["pidfile_path"]
 
