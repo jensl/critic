@@ -338,10 +338,6 @@ class User(object):
         row = cursor.fetchone()
         return "absent until %04d-%02d-%02d" % (row[0].year, row[0].month, row[0].day)
 
-    def retire(self, db):
-        import review.utils
-        review.utils.retireUser(db, self)
-
     @staticmethod
     def cache(db, user):
         storage = db.storage["User"]
