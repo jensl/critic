@@ -873,7 +873,7 @@ def renderShowReview(req, db, user):
         else:
             div.text("Failed to read commits from the repository: %s" % error.message)
 
-    all_chains = review.getCommentChains(db, user, skip=set(['commits', 'lines']))
+    all_chains = review_comment.CommentChain.fromReview(db, review, user)
 
     profiler.check("chains (load)")
 

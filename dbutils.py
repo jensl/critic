@@ -726,21 +726,6 @@ class Review(object):
 
         return cursor.fetchone() is not None
 
-    def getCommentChains(self, db, user, skip=None):
-        import review.comment
-        import time
-
-        if self.commentchains is None:
-            if "commits" in skip and "lines" in skip:
-                self.commentchains = review.comment.CommentChain.fromReview(db, self, user)
-            else:
-                cursor = db.cursor()
-                if user: cursor.execute("SELECT id FROM commentchains WHERE review=%s AND (state!='draft' OR uid=%s) ORDER BY id DESC", [self.id, user.id])
-                else: cursor.execute("SELECT id FROM commentchains WHERE review=%s AND state!='draft' ORDER BY id DESC", [self.id])
-                self.commentchains = [review.comment.CommentChain.fromId(db, id, user, review=self, skip=skip) for (id,) in cursor.fetchall()]
-
-        return self.commentchains
-
     def getJS(self):
         return "var review = critic.review = { id: %d, branch: { id: %d, name: %r }, owners: [ %s ], serial: %d };" % (self.id, self.branch.id, self.branch.name, ", ".join(owner.getJSConstructor() for owner in self.owners), self.serial)
 
