@@ -814,6 +814,9 @@ class Review(object):
         self.serial += 1
         db.cursor().execute("UPDATE reviews SET state='open', serial=%s, closed_by=NULL WHERE id=%s", (self.serial, self.id))
 
+    def disableTracking(self, db):
+        db.cursor().execute("UPDATE trackedbranches SET disabled=TRUE WHERE repository=%s AND local_name=%s", (self.repository.id, self.branch.name))
+
     def setSummary(self, db, summary):
         self.serial += 1
         self.summary = summary

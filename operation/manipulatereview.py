@@ -35,6 +35,7 @@ class CloseReview(Operation):
             raise OperationError("review is not accepted; can't close")
 
         review.close(db, user)
+        review.disableTracking(db)
 
         db.commit()
 
@@ -51,6 +52,7 @@ class DropReview(Operation):
             raise OperationError("review not open; can't drop")
 
         review.drop(db, user)
+        review.disableTracking(db)
 
         db.commit()
 
