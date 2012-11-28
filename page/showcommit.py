@@ -579,7 +579,8 @@ def render(db, target, user, repository, review, changesets, commits, listed_com
 
         if profiler: profiler.check("collecting relevant commits")
 
-        target.script(type="text/javascript").text("calculateTabWidth();")
+        if tabify:
+            target.script(type="text/javascript").text("calculateTabWidth();")
 
         for index, changeset in enumerate(changesets):
             parent = target.div("parent", id="p%d" % index)

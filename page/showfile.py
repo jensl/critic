@@ -152,7 +152,9 @@ def renderShowFile(req, db, user):
         document.addInternalScript("var firstSelectedLine = %d, lastSelectedLine = %d;" % (first, last))
 
     target = body.div("main")
-    target.script(type="text/javascript").text("calculateTabWidth();")
+
+    if tabify:
+        target.script(type="text/javascript").text("calculateTabWidth();")
 
     table = target.table('file show expanded paleyellow', align='center', cellspacing=0)
 

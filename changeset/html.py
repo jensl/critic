@@ -305,7 +305,8 @@ def renderFile(db, target, user, review, file, first_file=False, options={}, con
     if customFileId:
         file_id = customFileId(file_id)
 
-    target.script(type="text/javascript").text("calculateTabWidth();")
+    if options.get("tabify"):
+        target.script(type="text/javascript").text("calculateTabWidth();")
 
     table = target.table(file_table_class, width='100%', cellspacing=0, cellpadding=0, id=file_id, critic_file_id=file.id, critic_parent_index=options.get("parent_index"))
 
