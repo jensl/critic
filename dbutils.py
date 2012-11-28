@@ -488,6 +488,69 @@ def contained_files(db, directory_id):
     cursor.execute("SELECT file_out FROM containedfiles(%s)", (directory_id,))
     return [file_id for (file_id,) in cursor]
 
+def countDraftItems(db, user, review):
+    cursor = db.cursor()
+
+    cursor.execute("SELECT reviewfilechanges.to, SUM(deleted) + SUM(inserted) FROM reviewfiles JOIN reviewfilechanges ON (reviewfilechanges.file=reviewfiles.id) WHERE reviewfiles.review=%s AND reviewfilechanges.uid=%s AND reviewfilechanges.state='draft' GROUP BY reviewfilechanges.to", (review.id, user.id))
+
+    reviewed = unreviewed = 0
+
+    for to_state, lines in cursor:
+        if to_state == "reviewed": reviewed = lines
+        else: unreviewed = lines
+
+    cursor.execute("SELECT reviewfilechanges.to, COUNT(*) FROM reviewfiles JOIN reviewfilechanges ON (reviewfilechanges.file=reviewfiles.id) WHERE reviewfiles.review=%s AND reviewfiles.deleted=0 AND reviewfiles.inserted=0 AND reviewfilechanges.uid=%s AND reviewfilechanges.state='draft' GROUP BY reviewfilechanges.to", (review.id, user.id))
+
+    reviewedBinary = unreviewedBinary = 0
+
+    for to_state, lines in cursor:
+        if to_state == "reviewed": reviewedBinary = lines
+        else: unreviewedBinary = lines
+
+    cursor.execute("SELECT count(*) FROM commentchains, comments WHERE commentchains.review=%s AND comments.chain=commentchains.id AND comments.uid=%s AND comments.state='draft'", [review.id, user.id])
+    comments = cursor.fetchone()[0]
+
+    cursor.execute("""SELECT count(*) FROM commentchains, commentchainchanges
+                       WHERE commentchains.review=%s
+                         AND commentchains.state=commentchainchanges.from_state
+                         AND commentchainchanges.chain=commentchains.id
+                         AND commentchainchanges.uid=%s
+                         AND commentchainchanges.state='draft'
+                         AND (commentchainchanges.from_state='addressed' OR commentchainchanges.from_state='closed')
+                         AND commentchainchanges.to_state='open'""",
+                   [review.id, user.id])
+    reopened = cursor.fetchone()[0]
+
+    cursor.execute("""SELECT count(*) FROM commentchains, commentchainchanges
+                       WHERE commentchains.review=%s
+                         AND commentchains.state='open'
+                         AND commentchainchanges.chain=commentchains.id
+                         AND commentchainchanges.uid=%s
+                         AND commentchainchanges.state='draft'
+                         AND commentchainchanges.from_state='open'
+                         AND commentchainchanges.to_state='closed'""",
+                   [review.id, user.id])
+    closed = cursor.fetchone()[0]
+
+    cursor.execute("""SELECT count(*) FROM commentchains, commentchainchanges
+                       WHERE commentchains.review=%s
+                         AND commentchainchanges.chain=commentchains.id
+                         AND commentchainchanges.uid=%s
+                         AND commentchainchanges.state='draft'
+                         AND commentchainchanges.from_type=commentchains.type
+                         AND commentchainchanges.to_type!=commentchains.type""",
+                   [review.id, user.id])
+    morphed = cursor.fetchone()[0]
+
+    return { "reviewedNormal": reviewed,
+             "unreviewedNormal": unreviewed,
+             "reviewedBinary": reviewedBinary,
+             "unreviewedBinary": unreviewedBinary,
+             "writtenComments": comments,
+             "reopenedIssues": reopened,
+             "resolvedIssues": closed,
+             "morphedChains": morphed }
+
 class ReviewState:
     def __init__(self, review, accepted, pending, reviewed, issues):
         self.review = review
@@ -699,8 +762,7 @@ class Review:
 
     def getDraftStatus(self, db, user):
         if self.draft_status is None:
-            import review.utils
-            self.draft_status = review.utils.countDraftItems(db, user, self)
+            self.draft_status = countDraftItems(db, user, self)
         return self.draft_status
 
     def incrementSerial(self, db):
