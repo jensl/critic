@@ -24,7 +24,7 @@ import htmlutils
 import configuration
 
 from operation import Operation, OperationResult, OperationError, Optional, OperationFailure
-from review.utils import parseReviewFilters, parseRecipientFilters, createReview, getReviewersAndWatchers
+from reviewing.utils import parseReviewFilters, parseRecipientFilters, createReview, getReviewersAndWatchers
 from page.createreview import generateReviewersAndWatchersTable
 from log.commitset import CommitSet
 

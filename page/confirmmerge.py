@@ -19,7 +19,7 @@ import htmlutils
 import gitutils
 
 import page.utils
-import review.utils as review_utils
+import reviewing.utils as review_utils
 import log.html
 import log.commitset
 

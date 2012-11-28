@@ -18,7 +18,7 @@ import dbutils
 import htmlutils
 
 import page.utils
-import review.utils as review_utils
+import reviewing.utils as review_utils
 
 def renderManageReviewers(req, db, user):
     review_id = req.getParameter("review", filter=int)

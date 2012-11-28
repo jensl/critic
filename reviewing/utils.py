@@ -15,13 +15,14 @@
 # the License.
 
 import dbutils
+import gitutils
 from dbutils import *
 from itertools import izip, repeat, chain
 import htmlutils
 
 import mail
 import changeset.utils as changeset_utils
-import review.comment as review_comment
+import reviewing.comment as review_comment
 import log.commitset as log_commitset
 
 from operation import OperationError, OperationFailure

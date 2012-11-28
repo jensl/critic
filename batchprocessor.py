@@ -26,7 +26,7 @@ import cStringIO
 
 import dbaccess
 import extensions
-import review.mail
+import reviewing.mail
 
 POLLING_INTERVAL = 5
 
@@ -59,8 +59,8 @@ def processLoop():
                 output = cStringIO.StringIO()
 
                 if extensions.executeProcessChanges(db, user_id, batch_id, output):
-                    pending_mails = review.mail.sendExtensionOutput(db, user_id, batch_id, output.getvalue())
-                    review.mail.sendPendingMails(pending_mails)
+                    pending_mails = reviewing.mail.sendExtensionOutput(db, user_id, batch_id, output.getvalue())
+                    reviewing.mail.sendPendingMails(pending_mails)
 
 # Main loop.
 while True:

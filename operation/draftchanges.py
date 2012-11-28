@@ -18,9 +18,9 @@ import dbutils
 import profiling
 
 from operation import Operation, OperationResult, Optional
-from review.comment import CommentChain, createCommentChain, createComment
-from review.mail import sendPendingMails
-from review.utils import generateMailsForBatch
+from reviewing.comment import CommentChain, createCommentChain, createComment
+from reviewing.mail import sendPendingMails
+from reviewing.utils import generateMailsForBatch
 
 class ReviewStateChange(Operation):
     def __init__(self):

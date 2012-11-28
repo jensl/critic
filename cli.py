@@ -20,7 +20,7 @@ try: from json import dumps as json_encode, loads as json_decode
 except: from cjson import encode as json_encode, decode as json_decode
 
 import dbutils
-import review.utils as review_utils
+import reviewing.utils as review_utils
 
 db = None
 

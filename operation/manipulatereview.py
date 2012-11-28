@@ -17,7 +17,7 @@
 import dbutils
 import gitutils
 
-import review.mail as review_mail
+import reviewing.mail as review_mail
 import mailutils
 
 from operation import Operation, OperationResult, OperationError, Optional

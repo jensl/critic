@@ -16,7 +16,6 @@
 
 import diff
 import diff.html
-import review.comment
 import sys
 import traceback
 

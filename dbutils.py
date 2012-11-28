@@ -858,7 +858,7 @@ class Review(object):
 
     def getRelevantFiles(self, db, user):
         if not self.filters:
-            from review.filters import Filters
+            from reviewing.filters import Filters
 
             self.filters = Filters()
             self.filters.load(db, review=self)

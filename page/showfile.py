@@ -20,8 +20,8 @@ import page.utils
 import os.path
 import htmlutils
 import diff
-import review.utils as review_utils
-import review.comment as review_comment
+import reviewing.utils as review_utils
+import reviewing.comment as review_comment
 
 from syntaxhighlight.request import requestHighlights
 

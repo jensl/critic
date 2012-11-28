@@ -23,7 +23,7 @@ import dbutils
 import diff
 import diff.context
 import changeset.utils as changeset_utils
-import review.comment as review_comment
+import reviewing.comment as review_comment
 import htmlutils
 import itertools
 import configuration

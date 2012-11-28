@@ -17,7 +17,7 @@
 import dbutils
 
 from operation import Operation, OperationResult, OperationError, Optional
-from review.comment import Comment, CommentChain
+from reviewing.comment import Comment, CommentChain
 
 class SetCommentChainState(Operation):
     def __init__(self, parameters):

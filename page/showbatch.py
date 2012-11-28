@@ -16,8 +16,8 @@
 
 import page.utils
 import dbutils
-import review.comment as review_comment
-import review.utils as review_utils
+import reviewing.comment as review_comment
+import reviewing.utils as review_utils
 import htmlutils
 import diff
 

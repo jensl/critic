@@ -17,7 +17,7 @@
 import dbutils
 
 from operation import Operation, OperationResult, Optional
-from review.comment import CommentChain, validateCommentChain, createCommentChain, createComment
+from reviewing.comment import CommentChain, validateCommentChain, createCommentChain, createComment
 
 class ValidateCommentChain(Operation):
     def __init__(self):

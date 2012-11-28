@@ -27,8 +27,8 @@ from textutils import json_encode
 
 import request
 import dbutils
-import review.utils as review_utils
-import review.filters as review_filters
+import reviewing.utils as review_utils
+import reviewing.filters as review_filters
 import log.commitset as log_commitset
 import diff
 import mailutils
