@@ -45,9 +45,11 @@ HIGHLIGHT["cache_dir"] = os.path.join(configuration.paths.CACHE_DIR, "highlight"
 HIGHLIGHT["min_context_length"] = 5
 HIGHLIGHT["max_context_length"] = 256
 HIGHLIGHT["max_workers"] = 4
+HIGHLIGHT["compact_at"] = (3, 15)
 
 CHANGESET["max_workers"] = 4
 CHANGESET["rss_limit"] = 1024 ** 3
+CHANGESET["purge_at"] = (2, 15)
 
 WATCHDOG["rss_soft_limit"] = 1024 ** 3
 WATCHDOG["rss_hard_limit"] = 2 * WATCHDOG["rss_soft_limit"]

@@ -48,12 +48,15 @@ $(function ()
                                                 password: password.val() }});
         var result = operation.execute();
 
-        if (result.message)
+        if (!result || result.message)
         {
-          $("tr.status td").text(result.message);
-          $("tr.status").removeClass("disabled");
-
           ev.preventDefault();
+
+          if (result)
+          {
+            $("tr.status td").text(result.message);
+            $("tr.status").removeClass("disabled");
+          }
         }
       });
   });

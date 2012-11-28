@@ -53,6 +53,11 @@ class ValidateLogin(Operation):
 
         return OperationResult().setCookie("sid", sid)
 
+    def sanitize(self, value):
+        sanitized = value.copy()
+        sanitized["password"] = "****"
+        return sanitized
+
 class EndSession(Operation):
     def __init__(self):
         Operation.__init__(self, {})

@@ -15,6 +15,7 @@
 # the License.
 
 import sys
+import os
 
 try: import readline
 except: pass
@@ -72,17 +73,20 @@ def password(prompt, default=None, twice=True):
     prompt = "%s%s " % (prompt, " [****]" if default is not None else "")
 
     def internal(prompt):
-        old = termios.tcgetattr(sys.stdin)
-        new = old[:]
-        new[3] = new[3] & ~termios.ECHO
-        try:
-            termios.tcsetattr(sys.stdin, termios.TCSADRAIN, new)
-            try: password = raw_input(prompt)
-            except KeyboardInterrupt:
-                print
-                raise
-        finally:
-            termios.tcsetattr(sys.stdin, termios.TCSADRAIN, old)
+        if os.isatty(sys.stdin.fileno()):
+            old = termios.tcgetattr(sys.stdin)
+            new = old[:]
+            new[3] = new[3] & ~termios.ECHO
+            try:
+                termios.tcsetattr(sys.stdin, termios.TCSADRAIN, new)
+                try: password = raw_input(prompt)
+                except KeyboardInterrupt:
+                    print
+                    raise
+            finally:
+                termios.tcsetattr(sys.stdin, termios.TCSADRAIN, old)
+        else:
+            password = sys.stdin.readline().rstrip("\n")
         print
         if default and not password: return default
         else: return password

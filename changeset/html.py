@@ -148,23 +148,31 @@ var useFiles = files[parent_index] = {};
 
     parent_index_property = "parent: %d, " % parent_index if parent_index is not None else ""
 
+    all_files = set()
+
     for file in changeset.files:
-        if file.hasChanges():
-            data_script += """
+        if file.move_source_file and file.move_target_file:
+            all_files.add(file.move_source_file)
+            all_files.add(file.move_target_file)
+        elif file.hasChanges():
+            all_files.add(file)
+
+    for file in all_files:
+        data_script += """
 useFiles[%d] = { old_sha1: %r,
                %snew_sha1: %r,
                %spath: %s };
 """ % (file.id, file.old_sha1, " " * len(str(file.id)), file.new_sha1, " " * len(str(file.id)), jsify(file.path))
-            if file.old_sha1 != "0" * 40 and file.new_sha1 != "0" * 40:
-                data_script += """files[%r] = { %sid: %d, side: 'o' };
+        if file.old_sha1 != "0" * 40 and file.new_sha1 != "0" * 40:
+            data_script += """files[%r] = { %sid: %d, side: 'o' };
 """ % (file.old_sha1, parent_index_property, file.id)
-                data_script += """files[%r] = { id: %d, side: 'n' };
+            data_script += """files[%r] = { id: %d, side: 'n' };
 """ % (file.new_sha1, file.id)
-            elif file.new_sha1 != "0" * 40:
-                data_script += """files[%r] = { id: %d, side: 'n' };
+        elif file.new_sha1 != "0" * 40:
+            data_script += """files[%r] = { id: %d, side: 'n' };
 """ % (file.new_sha1, file.id)
-            else:
-                data_script += """files[%r] = { %sid: %d, side: 'o' };
+        else:
+            data_script += """files[%r] = { %sid: %d, side: 'o' };
 """ % (file.old_sha1, parent_index_property, file.id)
 
     if review:
@@ -370,17 +378,31 @@ def renderFile(db, target, user, review, file, first_file=False, options={}, con
             display_type = "old"
             deleted_file = not options.get("include_deleted", False)
 
-    def baseLineId(file, line, index):
-        if line.type == diff.Line.DELETED:
-            return "f%do%dn0" % (file.id, line.old_offset)
-        elif line.type == diff.Line.INSERTED:
-            return "f%do0n%d" % (file.id, line.new_offset)
+    def baseFileId(file):
+        if file.move_source_file and file.move_target_file:
+            return "fm%d_%d" % (file.move_source_file.id, file.move_target_file.id)
         else:
-            return "f%do%dn%d" % (file.id, line.old_offset, line.new_offset)
+            return "f%d" % file.id
+
+    def baseLineId(file, line, index):
+        file_id = fileId(file)
+        if line.type == diff.Line.DELETED:
+            return "%so%dn0" % (file_id, line.old_offset)
+        elif line.type == diff.Line.INSERTED:
+            return "%so0n%d" % (file_id, line.new_offset)
+        else:
+            return "%so%dn%d" % (file_id, line.old_offset, line.new_offset)
 
     def baseLineCellId(file, version, line):
-        if line: return "f%d%s%d" % (file.id, version, line)
+        if file.move_source_file and file.move_target_file:
+            if version == "o": file_id = file.move_source_file.id
+            else: file_id = file.move_target_file.id
+        else:
+            file_id = file.id
+        if line: return "f%d%s%d" % (file_id, version, line)
         else: return None
+
+    fileId = baseFileId
 
     customLineId = options.get("line_id")
     if customLineId:

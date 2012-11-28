@@ -44,7 +44,7 @@ def renderEditResource(req, db, user):
     select_row.td('heading').text('Resource:')
     select = select_row.td('value').select()
     if name is None: select.option(selected="selected").text("Select resource")
-    select.option(value="diff.css", selected="selected" if name=="diff.css" else None).text("Diff colouring")
+    select.option(value="diff.css", selected="selected" if name=="diff.css" else None).text("Diff coloring")
     select.option(value="syntax.css", selected="selected" if name=="syntax.css" else None).text("Syntax highlighting")
 
     help_row = table.tr('help')

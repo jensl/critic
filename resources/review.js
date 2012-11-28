@@ -254,7 +254,7 @@ function submitChanges()
       if (result.current_state == "open" && result.new_state == "accepted")
         state_change = "<p class='state' style='margin: 0; margin-bottom: 5px; padding-bottom: 5px; border-bottom: 1px solid black; font-weight: bold'>With these changes, the review will be ACCEPTED.</p>";
       else if (result.current_state == "accepted" && result.new_state == "open")
-        state_change = "<p class='state' style='margin: 0; badding-bottom: 3px; border-bottom: 1px solid black; font-weight: bold'>With these changes, the review will NO LONGER be ACCEPTED.</p>";
+        state_change = "<p class='state' style='margin: 0; padding-bottom: 3px; border-bottom: 1px solid black; font-weight: bold'>With these changes, the review will NO LONGER be ACCEPTED.</p>";
 
     var content = $("<div class='comment' title='Submit Changes'>" + state_change + "<p class='message' style='margin: 0'>Additional note (optional):</p><div class='text'><textarea></textarea></div></div>");
 

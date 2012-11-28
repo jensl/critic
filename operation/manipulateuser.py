@@ -16,7 +16,6 @@
 
 import dbutils
 import gitutils
-import auth
 
 from operation import Operation, OperationResult, OperationError, OperationFailure, Optional
 
@@ -99,6 +98,8 @@ class ChangePassword(Operation):
                                    "new_pw": str })
 
     def process(self, db, user, user_id, new_pw, current_pw=None):
+        import auth
+
         if (user.id != user_id or current_pw is None) and not user.hasRole(db, "administrator"):
             raise OperationFailure(code="notallowed",
                                    title="Not allowed!",
@@ -124,3 +125,10 @@ class ChangePassword(Operation):
         db.commit()
 
         return OperationResult()
+
+    def sanitize(self, value):
+        sanitized = value.copy()
+        if "current_pw" in value:
+            sanitized["current_pw"] = "****"
+        sanitized["new_pw"] = "****"
+        return sanitized

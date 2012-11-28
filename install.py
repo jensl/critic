@@ -49,8 +49,10 @@ parser.add_argument("--run-dir", help="directory where Critic's runtime files ar
 
 parser.add_argument("--system-hostname", help="FQDN of the system", action="store")
 parser.add_argument("--system-username", help="name of system user to run as", action="store")
+parser.add_argument("--force-create-system-user", help="don't prompt for permission to create a new system user if doesn't exist", action="store_true")
 parser.add_argument("--system-email", help="address used as sender of emails", action="store")
 parser.add_argument("--system-groupname", help="name of system group to run as", action="store")
+parser.add_argument("--force-create-system-group", help="don't prompt for permission to create a new system group if it doesn't exist", action="store_true")
 
 parser.add_argument("--auth-mode", help="user authentication mode", choices=["host", "critic"], action="store")
 parser.add_argument("--session-type", help="session type", choices=["httpauth", "cookie"], action="store")

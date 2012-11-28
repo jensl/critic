@@ -218,7 +218,7 @@ deleted.
                             shutil.copyfile(source_path, target_path + ".new")
 
                     update_query = installation.utils.UpdateModifiedFile(
-                        prompt="""\
+                        message="""\
 A source file is about to be updated, but the existing source file
 appears to have been edited since it was installed.
 
@@ -226,7 +226,7 @@ appears to have been edited since it was installed.
   Current version  : %(current)s
   Updated version  : %(updated)s
 
-Not installating the updated version can cause unpredictable results.
+Not installing the updated version can cause unpredictable results.
 """,
                         versions={ "installed": target_path + ".org",
                                    "current": target_path,

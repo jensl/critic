@@ -41,9 +41,11 @@ REPOSITORY_REPLAY_PATH_FORMAT = os.path.join(configuration.paths.DATA_DIR,
                                              "%(user.name)s_%(commit.sha1)s_%(time)s")
 
 class GitError(Exception):
-    def __init__(self, message, sha1=None):
+    def __init__(self, message, sha1=None, ref=None, repository=None):
         super(GitError, self).__init__(message)
         self.sha1 = sha1
+        self.ref = ref
+        self.repository = repository
 
 class GitObject:
     def __init__(self, sha1, type, size, data):
@@ -94,6 +96,9 @@ class Repository:
             atexit.register(self.__terminate)
 
         self.__startBatch()
+
+    def __str__(self):
+        return "%s:%s" % (configuration.base.HOSTNAME, self.path)
 
     def enableBlobCache(self):
         assert self.__db
@@ -226,7 +231,7 @@ class Repository:
         line = stdout.readline()
 
         if line == ("%s missing\n" % sha1):
-            raise GitError("%s missing from %s" % (sha1[:8], self.path), sha1)
+            raise GitError("%s missing from %s" % (sha1[:8], self.path), sha1=sha1, repository=self)
 
         try: sha1, type, size = line.split()
         except: raise GitError("unexpected output from 'git cat-file --batch': %s" % line)
@@ -329,7 +334,7 @@ class Repository:
                       stdout=PIPE, stderr=PIPE, cwd=self.path)
         stdout, stderr = git.communicate()
         if git.returncode == 0: return stdout.strip()
-        else: raise Exception, "'git rev-parse' failed: %s" % stderr.strip()
+        else: raise GitError("'git rev-parse' failed: %s" % stderr.strip(), ref=name, repository=self)
 
     def revlist(self, included, excluded, *args, **kwargs):
         args = list(args)
@@ -628,7 +633,7 @@ class Commit:
         try:
             tree = Tree.fromPath(self, os.path.dirname(path))
             return tree[os.path.basename(path)].sha1
-        except:
+        except KeyError:
             return None
 
 RE_LSTREE_LINE = re.compile("^([0-9]{6}) (blob|tree|commit) ([0-9a-f]{40})  *([0-9]+|-)\t(.*)$")

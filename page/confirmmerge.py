@@ -31,8 +31,6 @@ def renderConfirmMerge(req, db, user):
 
     cursor = db.cursor()
 
-    user = dbutils.User.fromName(db, req.user)
-
     cursor.execute("SELECT review, uid, merge, confirmed, tail FROM reviewmergeconfirmations WHERE id=%s", (confirmation_id,))
 
     review_id, user_id, merge_id, confirmed, tail_id = cursor.fetchone()

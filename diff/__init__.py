@@ -27,8 +27,8 @@ re_indent_tabs_mode = re.compile(r"(?:^|[ \t;])indent-tabs-mode:\s*(t|nil)(?:$|;
 re_mode = re.compile(r"(?:^|[ \t;])mode:\s*([^;]+)(?:$|;)", re.I)
 
 # Low-level chunk of difference between two versions of a file.  One chunk
-# represents a possibly empty set of consequtive lines in the old version of the
-# file being replaced by another possibly empty set of consequtive lines in the
+# represents a possibly empty set of consecutive lines in the old version of the
+# file being replaced by another possibly empty set of consecutive lines in the
 # new version of the file.  (Both sets are never empty, of course.)
 class Chunk:
     def __init__(self, delete_offset, delete_count, insert_offset, insert_count, **kwargs):
@@ -259,6 +259,9 @@ class File:
         self.new_plain = None
         self.old_highlighted = None
         self.new_highlighted = None
+
+    def __hash__(self):
+        return hash(self.id)
 
     def __int__(self):
         return self.id

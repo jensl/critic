@@ -456,9 +456,14 @@ class JSONJobServer(PeerServer):
 
     class JobClient(PeerServer.SocketPeer):
         def handle_input(self, value):
-            self.__requests = json_decode(value)
-            self.__results = []
-            self.server.add_requests(self, self.__requests)
+            decoded = json_decode(value)
+            if isinstance(decoded, list):
+                self.__requests = decoded
+                self.__results = []
+                self.server.add_requests(self, self.__requests)
+            else:
+                assert isinstance(decoded, dict)
+                self.server.execute_command(self, decoded)
 
         def add_result(self, result):
             self.__results.append(result)
@@ -488,6 +493,10 @@ class JSONJobServer(PeerServer):
             else:
                 self.__queued_requests.setdefault(frozen, set()).add(client)
         self.__startJobs()
+
+    def execute_command(self, client, command):
+        client.write(json_encode({ "status": "error", "error": "command not supported" }))
+        client.close()
 
     def handle_peer(self, peersocket, peeraddress):
         return JSONJobServer.JobClient(self, peersocket)

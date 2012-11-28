@@ -229,7 +229,7 @@ CREATE TYPE changesettype AS ENUM
                   -- markers inserted by "git merge" are committed as-is.)
 CREATE TABLE changesets
   ( id SERIAL PRIMARY KEY,
-    parent INTEGER NOT NULL REFERENCES commits ON DELETE CASCADE,
+    parent INTEGER REFERENCES commits ON DELETE CASCADE,
     child INTEGER NOT NULL REFERENCES commits ON DELETE CASCADE,
     type changesettype NOT NULL,
 
@@ -360,7 +360,7 @@ CREATE TABLE previousreachable
 CREATE INDEX previousreachable_rebase ON previousreachable (rebase);
 
 CREATE TYPE reviewfilestate AS ENUM
-  ( 'pending',    -- No-one's said anything.
+  ( 'pending',    -- No one has said anything.
     'reviewed'    -- The file has been reviewed.
   );
 CREATE TABLE reviewfiles

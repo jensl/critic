@@ -91,7 +91,7 @@ def render(db, target, title, repository, branches, linkToBranch=linkToBranch, e
                 extraColumn.render(row.td(extraColumn.className), index)
     else:
         row = table.tr("nothing")
-        row.td("nothing", colspan=3).text("No branches")
+        row.td("nothing", colspan=3).text("No branches" if repository else "No repository selected")
 
 def renderBranches(req, db, user):
     offset = req.getParameter("offset", 0, filter=int)

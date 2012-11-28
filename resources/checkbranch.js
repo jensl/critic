@@ -131,7 +131,7 @@ function editCommit(sha1, commit_id, has_note, old_review_id)
       }
     }
 
-    var confirm = $("<div class='comment' title='Confirm Review Rebase'>The review <a href='/r/" + review_id + "'>r/" + review_id + "</a> can be rebased to contain this single commit.  If the commit is a squash of all changes in the review, this is the apprioriate thing to do.</div>");
+    var confirm = $("<div class='comment' title='Confirm Review Rebase'>The review <a href='/r/" + review_id + "'>r/" + review_id + "</a> can be rebased to contain this single commit.  If the commit is a squash of all changes in the review, this is the appropriate thing to do.</div>");
 
     confirm.dialog({ width: 400, modal: true, buttons: { "Rebase Review": function () { proceed(); }, "Don't Rebase": function () { confirm.dialog("close"); content.dialog("close"); location.reload(); } } });
   }

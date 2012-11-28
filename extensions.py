@@ -96,6 +96,9 @@ class ProcessChangesRole(Role):
                        (role_id,))
         return role_id
 
+class ManifestError(Exception):
+    pass
+
 class Manifest:
     def __init__(self, path, source=None):
         self.path = path
@@ -140,15 +143,15 @@ class Manifest:
                         if value in ("true", "yes"):
                             self.hidden = True
                         elif value not in ("false", "no"):
-                            raise Exception, "%s:%d: manifest error: valid values for 'hidden' are 'true'/'yes' and 'false'/'no'" % (path, index + 1)
+                            raise ManifestError, "%s:%d: manifest error: valid values for 'hidden' are 'true'/'yes' and 'false'/'no'" % (path, index + 1)
                         continue
                 except:
                     pass
 
                 if not self.author:
-                    raise Exception, "%s:%d: manifest error: expected extension author" % (path, index + 1)
+                    raise ManifestError, "%s:%d: manifest error: expected extension author" % (path, index + 1)
                 elif not self.description:
-                    raise Exception, "%s:%d: manifest error: expected extension description" % (path, index + 1)
+                    raise ManifestError, "%s:%d: manifest error: expected extension description" % (path, index + 1)
 
             if role:
                 try:
@@ -166,11 +169,11 @@ class Manifest:
                     pass
 
                 if not role.description:
-                    raise Exception, "%s:%d: manifest error: expected role description" % (path, index + 1)
+                    raise ManifestError, "%s:%d: manifest error: expected role description" % (path, index + 1)
                 elif not role.script:
-                    raise Exception, "%s:%d: manifest error: expected role script" % (path, index + 1)
+                    raise ManifestError, "%s:%d: manifest error: expected role script" % (path, index + 1)
                 elif not role.function:
-                    raise Exception, "%s:%d: manifest error: expected role function" % (path, index + 1)
+                    raise ManifestError, "%s:%d: manifest error: expected role function" % (path, index + 1)
                 else:
                     self.roles.append(role)
 
@@ -194,25 +197,25 @@ class Manifest:
                 role = ProcessChangesRole()
                 continue
 
-            raise Exception, "%s:%d: manifest error: unexpected line: %r" % (path, index + 1, line)
+            raise ManifestError, "%s:%d: manifest error: unexpected line: %r" % (path, index + 1, line)
 
         if not self.author:
-            raise Exception, "%s: manifest error: expected extension author" % path
+            raise ManifestError, "%s: manifest error: expected extension author" % path
         elif not self.description:
-            raise Exception, "%s: manifest error: expected extension description" % path
+            raise ManifestError, "%s: manifest error: expected extension description" % path
 
         if role:
             if not role.description:
-                raise Exception, "%s: manifest error: expected role description" % path
+                raise ManifestError, "%s: manifest error: expected role description" % path
             elif not role.script:
-                raise Exception, "%s: manifest error: expected role script" % path
+                raise ManifestError, "%s: manifest error: expected role script" % path
             elif not role.function:
-                raise Exception, "%s: manifest error: expected role function" % path
+                raise ManifestError, "%s: manifest error: expected role function" % path
             else:
                 self.roles.append(role)
 
         if not self.roles:
-            raise Exception, "%s: manifest error: no roles defined" % path
+            raise ManifestError, "%s: manifest error: no roles defined" % path
 
 class Extension:
     def __init__(self, author_name, extension_name):
@@ -952,7 +955,10 @@ def executeInject(db, paths, args, user, document, links, injected, profiler=Non
             if sha1 is None: extension_path = os.path.join(configuration.extensions.SEARCH_ROOT, author.name, "CriticExtensions", extension_name)
             else: extension_path = os.path.join(configuration.extensions.INSTALL_DIR, sha1)
 
-            manifest = loadManifest(extension_path)
+            try: manifest = loadManifest(extension_path)
+            except Exception, error:
+                document.comment("\n\nExtension error:\n%s\n\n" % str(error))
+                continue
 
             for role in manifest.roles:
                 if isinstance(role, InjectRole) and role.regexp == regexp and role.script == script and role.function == function:

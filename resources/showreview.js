@@ -436,7 +436,7 @@ function prepareRebase()
         if (single.checked)
           upstream = "0000000000000000000000000000000000000000";
         else if (tag.value != "none" && sha1.value != "")
-          alert("Ambigious input! Please leave either SHA-1 or tag empty.");
+          alert("Ambiguous input! Please leave either SHA-1 or tag empty.");
         else if (tag.value == "none" && !/^[0-9a-f]{40}$/i.test(sha1.value))
           alert("Invalid input! Please specify a full 40-character SHA-1 sum.");
         else if (sha1.value != "")

@@ -26,7 +26,7 @@ CREATE TYPE commentchainstate AS ENUM
     'open',     -- The comment chain is open.
     'addressed',-- The commented code was changed by a later commit.
     'closed',   -- The comment chain is closed.
-    'empty'     -- THe comment chain has no comments.
+    'empty'     -- The comment chain has no comments.
   );
 CREATE TYPE commentchainorigin AS ENUM
   ( 'old',  -- The user commented the old/left-hand side in a diff.

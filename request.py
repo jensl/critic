@@ -39,7 +39,7 @@ class NoDefault:
 
     pass
 
-class DisplayMessage:
+class DisplayMessage(Exception):
     """\
     Utility exception raised by pages to display a simply message.
     """
@@ -71,6 +71,16 @@ class MissingParameter(DisplayMessage):
 
     def __init__(self, name):
         DisplayMessage.__init__(self, "Missing URI Parameter!", "Expected '%s' parameter." % name)
+
+class MissingWSGIRemoteUser(Exception):
+    """\
+    Exception raised if WSGI environ "REMOTE_USER" is missing.
+
+    This error happens when Critic is running in "host" authentication mode but no
+    REMOTE_USER variable was present in the WSGI environ dict provided by the
+    web server.
+    """
+    pass
 
 class Request:
     """\
@@ -142,7 +152,10 @@ class Request:
 
     def __setUser(self, db, environ):
         if configuration.base.AUTHENTICATION_MODE == "host":
-            self.user = environ.get("REMOTE_USER")
+            try:
+                self.user = environ["REMOTE_USER"]
+            except KeyError:
+                raise MissingWSGIRemoteUser
         elif configuration.base.AUTHENTICATION_MODE == "critic":
             if configuration.base.SESSION_TYPE == "cookie":
                 header = self.getRequestHeader("Cookie")

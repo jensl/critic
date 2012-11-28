@@ -22,6 +22,8 @@ import tempfile
 import shutil
 import stat
 import os
+import time
+import errno
 
 user_created = False
 database_created = False
@@ -34,6 +36,44 @@ def psql_import(sql_file):
     os.chmod(temp_file, stat.S_IROTH)
     process.check_output(["su", "-s", "/bin/sh", "-c", "psql -f %s" % temp_file, installation.system.username])
     os.unlink(temp_file)
+
+def prepare(mode, arguments, data):
+    if mode == "upgrade":
+        if installation.migrate.will_modify_dbschema(data):
+            print """
+The database schema will be modified by the upgrade.  Creating a
+backup of the database first is strongly recommended.
+"""
+            default_backup = True
+        else:
+            default_backup = False
+
+        if installation.input.yes_or_no("Do you want to create a backup of the database?",
+                                        default=default_backup):
+            default_path = os.path.join(data["installation.paths.data_dir"],
+                                        "backups",
+                                        time.strftime("%Y%m%d_%H%M.dump", time.localtime()))
+
+            backup_path = installation.input.string("Where should the backup be stored?",
+                                                    default=default_path)
+
+            try: os.makedirs(os.path.dirname(backup_path), 0750)
+            except OSError, error:
+                if error.errno == errno.EEXIST: pass
+                else: raise
+
+            print
+            print "Dumping database ..."
+
+            with open(backup_path, "w") as output_file:
+                process.check_call(["su", "-s", "/bin/sh", "-c", "pg_dump -Fc critic", data["installation.system.username"]], stdout=output_file)
+
+            print "Compressing database dump ..."
+            print
+
+            process.check_call(["bzip2", backup_path])
+
+    return True
 
 def install(data):
     global user_created, database_created, language_created
