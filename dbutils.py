@@ -16,10 +16,7 @@
 
 import base
 import gitutils
-from htmlutils import jsify
-import configuration
 #import review.utils as review_utils
-from log.commitset import CommitSet
 import dbaccess
 
 from dbaccess import IntegrityError
@@ -262,6 +259,8 @@ class User(object):
         return gitutils.Repository.fromName(db, default_repo)
 
     def getResource(self, db, name):
+        import configuration
+
         if name in self.__resources:
             return self.__resources[name]
 
@@ -294,6 +293,7 @@ class User(object):
         return self.fullname.split(" ")[0]
 
     def getJSConstructor(self, db=None):
+        from htmlutils import jsify
         if self.isAnonymous():
             return "new User(null, null, null, null, null, { ui: {} }"
         if db:
@@ -831,7 +831,8 @@ class Review(object):
         return cursor.fetchall() or None
 
     def getFilteredTails(self):
-        commitset = CommitSet(self.branch.commits)
+        import log.commitset
+        commitset = log.commitset.CommitSet(self.branch.commits)
         return commitset.getFilteredTails(self.branch.repository)
 
     def getRelevantFiles(self, db, user):
@@ -997,6 +998,7 @@ class Branch(object):
         return cursor.fetchone() is not None
 
     def getJSConstructor(self):
+        from htmlutils import jsify
         if self.base:
             return "new Branch(%d, %s, %s)" % (self.id, jsify(self.name), self.base.getJSConstructor())
         else:
@@ -1140,6 +1142,7 @@ class Branch(object):
         else: return Branch.fromId(db, row[0])
 
 def getURLPrefix(db):
+    import configuration
     cursor = db.cursor()
     cursor.execute("SELECT url_prefix FROM systemidentities WHERE name=%s", (configuration.base.SYSTEM_IDENTITY,))
     return cursor.fetchone()[0]
