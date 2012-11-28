@@ -28,7 +28,7 @@ import os
 import os.path
 import time
 
-class Session():
+class Session(object):
     def __init__(self):
         self.__atexit = []
         self.storage = { "Repository": {}, "User": {}, "Commit": {}, "CommitUserTime": {} }
@@ -62,7 +62,7 @@ class Session():
             self.profiling[item] = count, accumulated_ms, maximum_ms, accumulated_rows, maximum_rows
 
 class Database(Session):
-    class Cursor():
+    class Cursor(object):
         def __init__(self, db, cursor, profiling):
             self.__db = db
             self.__cursor = cursor
@@ -121,7 +121,7 @@ class Database(Session):
                 self.__db.recordProfiling(query, after - before, repetitions=len(params))
 
     def __init__(self):
-        Session.__init__(self)
+        super(Database, self).__init__()
         self.__connection = dbaccess.connect()
 
     def cursor(self):
@@ -140,7 +140,7 @@ class Database(Session):
         self.recordProfiling("<rollback>", after - before, 0)
 
     def close(self):
-        Session.close(self)
+        super(Database, self).close()
         self.__connection.close()
 
 class NoSuchUser(base.Error):
@@ -148,7 +148,7 @@ class NoSuchUser(base.Error):
         super(NoSuchUser, self).__init__("No such user: %s" % name)
         self.name = name
 
-class User():
+class User(object):
     def __init__(self, user_id, name, email, fullname, status):
         self.id = user_id
         self.name = name
@@ -551,7 +551,7 @@ def countDraftItems(db, user, review):
              "resolvedIssues": closed,
              "morphedChains": morphed }
 
-class ReviewState:
+class ReviewState(object):
     def __init__(self, review, accepted, pending, reviewed, issues):
         self.review = review
         self.accepted = accepted
@@ -595,7 +595,7 @@ class ReviewState:
             if issues: return "%s and %s" % (progress, issues)
             else: return progress
 
-class Review:
+class Review(object):
     def __init__(self, review_id, owners, review_type, branch, state, serial, summary, description, applyfilters, applyparentfilters):
         self.id = review_id
         self.owners = owners
@@ -969,7 +969,7 @@ class Review:
             if not branch: return None
             return Review.fromBranch(db, branch)
 
-class Branch:
+class Branch(object):
     def __init__(self, id, repository, name, head, base, tail, branch_type, review_id):
         self.id = id
         self.repository = repository
