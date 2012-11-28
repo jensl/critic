@@ -1200,12 +1200,6 @@ function applyLengthLimit(lines)
   document.addEventListener('mousedown', handleMouseDown);
   document.addEventListener('dblclick', handleDblClick);
 
-  function calculateOffsets(cols)
-  {
-    tableCoord.left = $(cols[0]).offset().left;
-    tableCoord.width = $(cols[0]).width() + $(cols[1]).width();
-  }
-
   function handleMouseDown(e)
   {
     if (e.button != 0)
@@ -1215,7 +1209,12 @@ function applyLengthLimit(lines)
     if (el.tagName.toLowerCase() == 'td' && el.className == 'middle')
       if (currentCols = findTableCols(el))
       {
-        calculateOffsets(currentCols);
+        /* Calculate offsets from the sibling cells of the clicked one.
+           WebKit is unable to get dimensions from the col elements. */
+        var panes = el.parentNode.querySelectorAll("td.line");
+        tableCoord.left = $(panes[0]).offset().left;
+        tableCoord.width = $(panes[0]).width() + $(panes[1]).width();
+
         document.addEventListener('mousemove', handleMouseMove);
         document.addEventListener('mouseup', handleMouseUp);
         e.preventDefault();
