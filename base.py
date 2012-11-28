@@ -16,3 +16,6 @@
 
 class Error(Exception):
     pass
+
+class ImplementationError(Error):
+    pass

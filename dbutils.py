@@ -183,7 +183,7 @@ class User(object):
             else: return self.id == other.id
         elif isinstance(other, int):
             return self.id == other
-        elif isinstance(other, str):
+        elif isinstance(other, basestring):
             return self.name == other
         else:
             raise base.Error, "invalid comparison"
@@ -192,17 +192,18 @@ class User(object):
         return not (self == other)
 
     def __int__(self):
+        assert not self.isAnonymous()
         return self.id
+
+    def __str__(self):
+        assert not self.isAnonymous()
+        return self.name
 
     def __repr__(self):
         return "User(%r, %r, %r, %r)" % (self.id, self.name, self.email, self.fullname)
 
     def __hash__(self):
         return hash(self.id)
-
-    @staticmethod
-    def makeAnonymous():
-        return User(None, None, None, None, 'anonymous')
 
     def isAnonymous(self):
         return self.status == 'anonymous'
@@ -239,7 +240,7 @@ class User(object):
                                WHERE preferences.item=%s""", (self.id, item))
             row = cursor.fetchone()
 
-            if not row: raise Exception, "invalid preference: %s" % item
+            if not row: raise base.ImplementationError("invalid preference: %s" % item)
 
             preference_type, integer, string = row
 
@@ -253,8 +254,7 @@ class User(object):
         return self.preferences[item]
 
     def setPreference(self, db, item, value):
-        self.loadPreferences(db)
-        if self.preferences[item] != value:
+        if self.getPreference(db, item) != value:
             cursor = db.cursor()
             cursor.execute("DELETE FROM userpreferences WHERE uid=%s AND item=%s", [self.id, item])
             cursor.execute("SELECT type FROM preferences WHERE item=%s", [item])
@@ -265,6 +265,8 @@ class User(object):
                 cursor.execute("INSERT INTO userpreferences (uid, item, integer) VALUES (%s, %s, %s)", [self.id, item, int(value)])
             else:
                 cursor.execute("INSERT INTO userpreferences (uid, item, string) VALUES (%s, %s, %s)", [self.id, item, str(value)])
+
+            self.preferences[item] = value
 
     def getDefaultRepository(self, db):
         default_repo = self.getPreference(db, "defaultRepository")
@@ -347,6 +349,10 @@ class User(object):
         if user.name: storage["n:" + user.name] = user
         if user.email: storage["e:" + user.email] = user
         return user
+
+    @staticmethod
+    def makeAnonymous():
+        return User(None, None, None, None, 'anonymous')
 
     @staticmethod
     def fromId(db, user_id):
