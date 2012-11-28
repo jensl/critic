@@ -58,19 +58,38 @@ class Session(object):
 
             self.profiling[item] = count, accumulated_ms, maximum_ms, accumulated_rows, maximum_rows
 
+class InvalidCursorError(Exception):
+    pass
+
 class Database(Session):
     class Cursor(object):
+        class Iterator(object):
+            def __init__(self, base):
+                self.__base = base
+                self.__invalid = False
+
+            def next(self):
+                if self.__invalid:
+                    raise InvalidCursorError("cursor re-used during iteration")
+                return self.__base.next()
+
+            def invalidate(self):
+                self.__invalid = True
+
         def __init__(self, db, cursor, profiling):
             self.__db = db
             self.__cursor = cursor
             self.__profiling = self.__db.profiling is not None
             self.__rows = None
+            self.__iterators = []
 
         def __iter__(self):
             if not self.__profiling:
                 return iter(self.__cursor)
             else:
-                return iter(self.__rows)
+                iterator = Database.Cursor.Iterator(iter(self.__rows))
+                self.__iterators.append(iterator)
+                return iterator
 
         def __getitem__(self, index):
             if not self.__profiling:
@@ -98,6 +117,8 @@ class Database(Session):
             if not self.__profiling:
                 self.__cursor.execute(query, params)
             else:
+                map(Database.Cursor.Iterator.invalidate, self.__iterators)
+                self.__iterators = []
                 before = time.time()
                 self.__cursor.execute(query, params)
                 try:
