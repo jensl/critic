@@ -404,20 +404,20 @@ def find_directory(db, path):
     path = path.strip("/")
 
     cursor = db.cursor()
+    cursor.execute("SELECT finddirectory(%s)", (path,))
 
-    try:
-        cursor.execute("SELECT finddirectory(%s)", (path,))
-        directory_id = cursor.fetchone()[0]
-        if directory_id is not None: return directory_id
-    except: pass
+    row = cursor.fetchone()
+
+    if row and row[0] is not None:
+        return row[0]
 
     if "/" in path:
         directory, name = path.rsplit("/", 1)
-        directory = find_directory(db, directory)
+        directory_id = find_directory(db, directory)
     else:
-        directory, name = 0, path
+        directory_id, name = 0, path
 
-    cursor.execute("INSERT INTO directories (directory, name) VALUES (%s, %s) RETURNING id", (directory, name))
+    cursor.execute("INSERT INTO directories (directory, name) VALUES (%s, %s) RETURNING id", (directory_id, name))
     return cursor.fetchone()[0]
 
 def is_directory(db, path):
@@ -429,8 +429,12 @@ def is_directory(db, path):
     if directory_id is None: return False
 
     cursor.execute("SELECT 1 FROM files WHERE directory=%s LIMIT 1", (directory_id,))
+    if cursor.fetchone(): return True
 
-    return bool(cursor.fetchone())
+    cursor.execute("SELECT 1 FROM directories WHERE directory=%s LIMIT 1", (directory_id,))
+    if cursor.fetchone(): return True
+
+    return False
 
 def is_file(db, path):
     cursor = db.cursor()
@@ -441,27 +445,30 @@ def is_file(db, path):
     if file_id is None: return False
 
     cursor.execute("SELECT 1 FROM fileversions WHERE file=%s LIMIT 1", (file_id,))
+    if cursor.fetchone(): return True
 
-    return bool(cursor.fetchone())
+    return False
 
 def find_file(db, path):
     path = path.lstrip("/")
 
-    cursor = db.cursor()
+    assert not path.endswith("/")
 
-    try:
-        cursor.execute("SELECT findfile(%s)", (path,))
-        file_id = cursor.fetchone()[0]
-        if file_id is not None: return file_id
-    except: pass
+    cursor = db.cursor()
+    cursor.execute("SELECT findfile(%s)", (path,))
+
+    row = cursor.fetchone()
+
+    if row and row[0] is not None:
+        return row[0]
 
     if "/" in path:
         directory, name = path.rsplit("/", 1)
-        directory = find_directory(db, directory)
+        directory_id = find_directory(db, directory)
     else:
-        directory, name = 0, path
+        directory_id, name = 0, path
 
-    cursor.execute("INSERT INTO files (directory, name) VALUES (%s, %s) RETURNING id", (directory, name))
+    cursor.execute("INSERT INTO files (directory, name) VALUES (%s, %s) RETURNING id", (directory_id, name))
     return cursor.fetchone()[0]
 
 def find_files(db, files):
@@ -469,7 +476,10 @@ def find_files(db, files):
         file.id = find_file(db, path=file.path)
 
 def find_directory_file(db, path):
-    path = path.strip("/")
+    path = path.lstrip("/")
+
+    assert not path.endswith("/")
+
     file_id = find_file(db, path)
     if "/" in path:
         directory_id = find_directory(db, path.rsplit("/", 1)[0])
