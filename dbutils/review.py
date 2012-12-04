@@ -241,12 +241,14 @@ class Review(object):
         return '"%s"' % etag
 
     def getURL(self, db, user=None, indent=0):
+        import dbutils
+
         indent = " " * indent
 
         if db and user:
             url_prefixes = user.getCriticURLs(db)
         else:
-            url_prefixes = [getURLPrefix(db)]
+            url_prefixes = [dbutils.getURLPrefix(db)]
 
         return "\n".join(["%s%s/r/%d" % (indent, url_prefix, self.id) for url_prefix in url_prefixes])
 
