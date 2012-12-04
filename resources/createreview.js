@@ -310,13 +310,14 @@ $(document).ready(function ()
         return host + path;
     }
 
-    branches_remote = null;
-    branches = null;
-    branches_request = null;
-    branches_response = null;
-
-    function AutocompleteRef(prefix)
+    function AutoCompleteRef(prefix)
     {
+      var branches_remote = null;
+      var branches = null;
+      var branches_sha1 = null;
+      var branches_request = null;
+      var branches_response = null;
+
       prefix = prefix || "";
 
       function autocompleteBranch(request, response)
@@ -331,7 +332,18 @@ $(document).ready(function ()
           var matches = branches.filter(match);
 
           if (matches.length < 20)
-            branches_response(matches);
+          {
+            matches.sort();
+
+            function formatMatch(name)
+            {
+              return { label: ("<div class=sourcefont style='padding:0;margin:0;white-space:pre'>" + htmlify(name) +
+			       "<span style='float:right;font-size:smaller'>" + branches_sha1[name].substring(0, 8) + "</span></div>"),
+		       value: name };
+            }
+
+            branches_response(matches.map(formatMatch));
+          }
           else
             branches_response([{ label: matches.length + " matching branches", value: branches_request.term }]);
 
@@ -340,7 +352,20 @@ $(document).ready(function ()
 
         function handleResult(result)
         {
-          branches = result.branches.map(function (name) { return prefix + name; });
+          branches = [];
+          branches_sha1 = {};
+
+          if (result)
+          {
+            for (var name in result.branches)
+            {
+              var use_name = name.substring(prefix.length);
+
+              branches.push(use_name);
+              branches_sha1[use_name] = result.branches[name];
+            }
+          }
+
           callResponse();
         }
 
@@ -374,7 +399,7 @@ $(document).ready(function ()
 
     var input_workbranch = $("input.workbranch");
 
-    input_workbranch.autocomplete({ source: AutocompleteRef() });
+    input_workbranch.autocomplete({ source: AutoCompleteRef("refs/heads/"), html: true });
     input_workbranch.keypress(
       function (ev)
       {
@@ -384,7 +409,7 @@ $(document).ready(function ()
 
     var input_upstreamcommit = $("input.upstreamcommit");
 
-    input_upstreamcommit.autocomplete({ source: AutocompleteRef("refs/heads/") });
+    input_upstreamcommit.autocomplete({ source: AutoCompleteRef(), html: true });
 
     $("button.fetchbranch").click(
       function ()

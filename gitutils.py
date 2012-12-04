@@ -18,8 +18,8 @@ from subprocess import Popen as process, PIPE, STDOUT
 import re
 import time
 import atexit
+import os
 from traceback import print_exc, format_exc
-from os import kill, environ
 import threading
 
 import base
@@ -40,12 +40,23 @@ REPOSITORY_REPLAY_PATH_FORMAT = os.path.join(configuration.paths.DATA_DIR,
                                              "%(repository.name)s",
                                              "%(user.name)s_%(commit.sha1)s_%(time)s")
 
-class GitError(Exception):
+class GitError(base.Error):
+    """Exception raised on an invalid SHA-1s or refs."""
+
     def __init__(self, message, sha1=None, ref=None, repository=None):
         super(GitError, self).__init__(message)
         self.sha1 = sha1
         self.ref = ref
         self.repository = repository
+
+class GitCommandError(base.Error):
+    """Exception raised when a Git command fails."""
+
+    def __init__(self, cmdline, output, cwd):
+        super(GitCommandError, self).__init__("'%s' failed: %s (in %s)" % (cmdline, output, cwd))
+        self.cmdline = cmdline
+        self.output = output
+        self.cwd = cwd
 
 class GitObject:
     def __init__(self, sha1, type, size, data):
@@ -158,13 +169,13 @@ class Repository:
 
     def __terminate(self, db=None):
         if self.__batch:
-            try: kill(self.__batch.pid, 9)
+            try: os.kill(self.__batch.pid, 9)
             except: pass
             try: self.__batch.wait()
             except: pass
             self.__batch = None
         if self.__batchCheck:
-            try: kill(self.__batchCheck.pid, 9)
+            try: os.kill(self.__batchCheck.pid, 9)
             except: pass
             try: self.__batchCheck.wait()
             except: pass
@@ -275,7 +286,7 @@ class Repository:
         if stdin_data is None: stdin = None
         else: stdin = PIPE
         env = {}
-        env.update(environ)
+        env.update(os.environ)
         env.update(kwargs.get("env", {}))
         if "GIT_DIR" in env: del env["GIT_DIR"]
         git = process(argv, stdin=stdin, stdout=PIPE, stderr=PIPE, cwd=cwd, env=env)
@@ -286,7 +297,10 @@ class Repository:
                     return stdout + stderr
                 else:
                     return stdout
-            else: raise Exception, "'%s' failed: %s (in %s)" % (" ".join(argv), stderr.strip(), cwd)
+            else:
+                cmdline = " ".join(argv)
+                output = stderr.strip()
+                raise GitCommandError(cmdline, output, cwd)
         else:
             return git.returncode, stdout, stderr
 
@@ -432,7 +446,14 @@ class Repository:
 
         self.runRelay("remote", "add", remote_id, remote)
         try:
-            self.runRelay("fetch", remote_id, "%s:refs/remotes/%s/temporary" % (ref, remote_id))
+            try:
+                self.runRelay("fetch", remote_id, "%s:refs/remotes/%s/temporary" % (ref, remote_id))
+            except GitCommandError, error:
+                if error.output.startswith("fatal: Couldn't find remote ref %s" % ref):
+                    raise GitError("Couldn't find ref %s in %s." % (ref, remote), ref=ref, repository=remote)
+                else:
+                    raise
+
             self.runRelay("push", "-f", "origin", "refs/remotes/%s/temporary:refs/temporary/%s" % (remote_id, remote_id))
             return self.revparse("refs/temporary/%s" % remote_id)
         finally:
@@ -446,15 +467,20 @@ class Repository:
         else: raise Exception, "'git cat-file' failed: %s" % stderr.strip()
 
     @staticmethod
-    def lstree(remote, regexp=None):
+    def lsremote(remote, regexp=None):
         if regexp: name_check = lambda item: bool(regexp.match(item[1]))
         else: name_check = lambda item: True
 
-        git = process([configuration.executables.GIT, 'ls-remote', remote], stdout=PIPE, stderr=PIPE, cwd="/tmp")
+        git = process([configuration.executables.GIT, 'ls-remote', remote], stdout=PIPE, stderr=PIPE)
         stdout, stderr = git.communicate()
 
-        if git.returncode == 0: return filter(name_check, (line.split() for line in stdout.splitlines()))
-        else: raise Exception, "'git ls-remote' failed: %s" % stderr.strip()
+        if git.returncode == 0:
+            return filter(name_check, (line.split() for line in stdout.splitlines()))
+        else:
+            cmdline = " ".join(argv)
+            output = stderr.strip()
+            cwd = os.getcwd()
+            raise GitCommandError(cmdline, output, cwd)
 
     def findInterestingTag(self, db, sha1):
         cursor = db.cursor()

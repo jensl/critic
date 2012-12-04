@@ -140,8 +140,21 @@ class FetchRemoteBranches(Operation):
         if pattern: regexp = re.compile(pattern.replace("*", ".*"))
         else: regexp = None
 
-        branches = [ref[1][11:] for ref in gitutils.Repository.lstree(remote, regexp=regexp)]
-        return OperationResult(branches=branches)
+        try:
+            refs = gitutils.Repository.lsremote(remote, regexp=regexp)
+        except gitutils.GitCommandError, error:
+            if error.output.splitlines()[0].endswith("does not appear to be a git repository"):
+                raise OperationFailure(
+                    code="invalidremote",
+                    title="Invalid remote!",
+                    message=("<code>%s</code> does not appear to be a valid Git repository."
+                             % htmlutils.htmlify(remote)),
+                    is_html=True)
+            else:
+                raise
+        else:
+            branches = dict([(ref[1], ref[0]) for ref in refs])
+            return OperationResult(branches=branches)
 
 class FetchRemoteBranch(Operation):
     def __init__(self):
@@ -157,7 +170,25 @@ class FetchRemoteBranch(Operation):
         if not branch.startswith("refs/"):
             branch = "refs/heads/%s" % branch
 
-        head_sha1 = repository.fetchTemporaryFromRemote(remote, branch)
+        try:
+            head_sha1 = repository.fetchTemporaryFromRemote(remote, branch)
+        except gitutils.GitError:
+            raise OperationFailure(
+                code="refnotfound",
+                title="Remote ref not found!",
+                message=("Couldn't find ref <code>%s</code> in <code>%s</code>."
+                         % (htmlutils.htmlify(branch), htmlutils.htmlify(remote))),
+                is_html=True)
+        except gitutils.GitCommandError, error:
+            if error.output.splitlines()[0].endswith("does not appear to be a git repository"):
+                raise OperationFailure(
+                    code="invalidremote",
+                    title="Invalid remote!",
+                    message=("<code>%s</code> does not appear to be a valid Git repository."
+                             % htmlutils.htmlify(remote)),
+                    is_html=True)
+            else:
+                raise
 
         if upstream.startswith("refs/"):
             upstream_sha1 = repository.fetchTemporaryFromRemote(remote, upstream)
