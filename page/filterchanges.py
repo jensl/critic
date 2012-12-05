@@ -19,7 +19,7 @@ import htmlutils
 import gitutils
 
 import page.utils
-import review.utils as review_utils
+import reviewing.utils as review_utils
 import log.commitset
 
 def renderFilterChanges(req, db, user):
@@ -42,8 +42,6 @@ def renderFilterChanges(req, db, user):
         files[components[-1]] = file_id
 
     if first_sha1 and last_sha1:
-        sha1 = last_sha1
-        changesets = []
 
         cursor.execute("""SELECT commits.sha1
                             FROM commits

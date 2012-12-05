@@ -20,9 +20,9 @@ import page.utils
 import profiling
 import linkify
 
-import review.comment as review_comment
-import review.utils as review_utils
-import review.html as review_html
+import reviewing.comment as review_comment
+import reviewing.utils as review_utils
+import reviewing.html as review_html
 import changeset.utils as changeset_utils
 
 import operation.blame

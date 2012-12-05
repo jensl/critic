@@ -17,7 +17,7 @@
 import dbutils
 import gitutils
 
-import review.mail as review_mail
+import reviewing.mail as review_mail
 import mailutils
 
 from operation import Operation, OperationResult, OperationError, Optional
@@ -35,6 +35,7 @@ class CloseReview(Operation):
             raise OperationError("review is not accepted; can't close")
 
         review.close(db, user)
+        review.disableTracking(db)
 
         db.commit()
 
@@ -51,6 +52,7 @@ class DropReview(Operation):
             raise OperationError("review not open; can't drop")
 
         review.drop(db, user)
+        review.disableTracking(db)
 
         db.commit()
 

@@ -186,6 +186,8 @@ if command == "adduser":
 
     print "%%s: user added" %% name
 elif command == "deluser":
+    import review.utils
+
     command_parser = argparse.ArgumentParser(description="Critic administration interface: deluser")
     command_parser.add_argument("--name", help="user name")
 
@@ -201,7 +203,7 @@ elif command == "deluser":
         print "%%s: no such user!" %% name
         sys.exit(-1)
 
-    user.retire(db)
+    review.utils.retireUser(db)
 
     db.commit()
 

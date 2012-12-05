@@ -26,8 +26,8 @@ import gitutils
 from log.commitset import CommitSet
 
 import dbutils
-import review.utils as review_utils
-import review.mail as review_mail
+import reviewing.utils as review_utils
+import reviewing.mail as review_mail
 import configuration
 import log.commitset
 import textutils

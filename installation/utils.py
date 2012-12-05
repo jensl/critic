@@ -94,3 +94,6 @@ class UpdateModifiedFile:
         finally:
             for path in self.__generated:
                 os.unlink(path)
+
+def hash_file(git, path):
+    return installation.process.check_output([git, "hash-object", path]).strip()

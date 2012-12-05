@@ -147,23 +147,6 @@ class Filters:
     def isRelevant(self, db, user_id, file_id):
         return self.__getUserFileAssociation(db, user_id, file_id) is not None
 
-    def isReviewer(self, db, user_id, file_id):
-        user_id = int(user_id)
-        file_id = int(file_id)
-
-        data = self.files.get(file_id)
-        if data:
-            data = data.get(user_id)
-            if data: return data[0] == 'reviewer'
-
-        for directory_id in reversed([0] + dbutils.explode_path(db, file_id=file_id)):
-            data = self.directories.get(directory_id)
-            if data:
-                data = data.get(user_id)
-                if data: return data[0] == 'reviewer'
-
-        return False
-
     def listUsers(self, db, file_id):
         users = {}
 

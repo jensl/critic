@@ -23,7 +23,6 @@ class CommitSet:
         self.__children = {}
 
         parents = set()
-        tails = set()
 
         for commit in self.__commits.values():
             for parent in commit.parents:

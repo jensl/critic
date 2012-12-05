@@ -19,7 +19,6 @@ import sys
 import os
 import os.path
 import shutil
-import hashlib
 import errno
 
 BLACKLIST = set([ "install.py",
@@ -121,7 +120,7 @@ def upgrade(arguments, data):
         if not os.path.isfile(target_path): return
 
         old_file_sha1 = getFileSHA1(git, old_sha1, path)
-        current_file_sha1 = hashlib.sha1(open(target_path).read()).hexdigest()
+        current_file_sha1 = installation.utils.hash_file(git, target_path)
 
         if old_file_sha1 != current_file_sha1:
             def generateVersion(label, path):
@@ -147,10 +146,23 @@ Not removing the file can cause unpredictable results.
                 generateVersion=generateVersion)
 
             if update_query.prompt() == "r":
-                print "Removing file: %s" % path
-                if not arguments.dry_run:
-                    os.rename(target_path, backup_path)
-                    renamed.append((target_path, backup_path))
+                remove_file = True
+            else:
+                remove_file = False
+        else:
+            remove_file = True
+
+        if remove_file:
+            print "Removing file: %s" % path
+            if not arguments.dry_run:
+                os.rename(target_path, backup_path)
+                renamed.append((target_path, backup_path))
+
+                if target_path.endswith(".py"):
+                    if os.path.isfile(target_path + "c"):
+                        os.unlink(target_path + "c")
+                    if os.path.isfile(target_path + "o"):
+                        os.unlink(target_path + "o")
 
     def copy(path):
         global copied_files, modified_files
@@ -206,7 +218,7 @@ deleted.
             old_file_sha1 = getFileSHA1(git, old_sha1, path)
             new_file_sha1 = getFileSHA1(git, new_sha1, path)
 
-            current_file_sha1 = installation.process.check_output([git, "hash-object", target_path]).strip()
+            current_file_sha1 = installation.utils.hash_file(git, target_path)
 
             if current_file_sha1 != new_file_sha1:
                 if current_file_sha1 != old_file_sha1:

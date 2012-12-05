@@ -18,9 +18,9 @@ import dbutils
 import htmlutils
 import page.utils
 import log.html
-import review.utils as review_utils
-import review.html as review_html
-import review.comment as review_comment
+import reviewing.utils as review_utils
+import reviewing.html as review_html
+import reviewing.comment as review_comment
 import time
 import re
 import diff

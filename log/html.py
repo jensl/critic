@@ -263,8 +263,6 @@ def render(db, target, title, branch=None, commits=None, columns=DEFAULT_COLUMNS
         tbody = table.tbody()
         commit = head
 
-        sha1s = []
-
         last_commit = None
         skipped = True
 

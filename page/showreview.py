@@ -25,9 +25,9 @@ import gitutils
 import htmlutils
 import page.utils
 import log.html
-import review.utils as review_utils
-import review.html as review_html
-import review.comment as review_comment
+import reviewing.utils as review_utils
+import reviewing.html as review_html
+import reviewing.comment as review_comment
 import configuration
 import diff
 import profiling
@@ -873,7 +873,7 @@ def renderShowReview(req, db, user):
         else:
             div.text("Failed to read commits from the repository: %s" % error.message)
 
-    all_chains = review.getCommentChains(db, user, skip=set(['commits', 'lines']))
+    all_chains = review_comment.CommentChain.fromReview(db, review, user)
 
     profiler.check("chains (load)")
 

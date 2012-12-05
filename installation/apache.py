@@ -38,6 +38,7 @@ renamed = []
 site_enabled = False
 
 def install(data):
+    global site_enabled
     source_path = os.path.join(installation.root_dir, "installation", "templates", "site")
     target_path = os.path.join("/etc", "apache2", "sites-available", "critic-main")
 

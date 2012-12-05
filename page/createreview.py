@@ -19,7 +19,7 @@ import re
 
 import dbutils
 import gitutils
-import review.utils
+import reviewing.utils
 import log.html
 import htmlutils
 import page.utils
@@ -31,7 +31,7 @@ from textutils import json_decode, json_encode
 
 def generateReviewersAndWatchersTable(db, repository, target, all_reviewers, all_watchers, applyfilters=True, applyparentfilters=False):
     cursor = db.cursor()
-    teams = review.utils.collectReviewTeams(all_reviewers)
+    teams = reviewing.utils.collectReviewTeams(all_reviewers)
 
     reviewers = set()
     watchers = set()
@@ -288,7 +288,7 @@ def renderCreateReview(req, db, user):
             invalid_branch_name = "false"
             default_branch_name = htmlutils.htmlify(match.group(1))
 
-    all_reviewers, all_watchers = review.utils.getReviewersAndWatchers(db, repository, commits, applyparentfilters=applyparentfilters)
+    all_reviewers, all_watchers = reviewing.utils.getReviewersAndWatchers(db, repository, commits, applyparentfilters=applyparentfilters)
 
     document = htmlutils.Document(req)
     html = document.html()

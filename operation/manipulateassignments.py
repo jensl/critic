@@ -18,7 +18,7 @@ import itertools
 
 import dbutils
 import mailutils
-import review.utils
+import reviewing.utils
 
 from operation import Operation, OperationResult
 
@@ -108,7 +108,7 @@ class SetAssignedChanges(Operation):
         if delete_file_ids or new_file_ids:
             cursor.execute("UPDATE reviews SET serial=serial+1 WHERE id=%s", (review_id,))
 
-            pending_mails = review.utils.generateMailsForAssignmentsTransaction(db, transaction_id)
+            pending_mails = reviewing.utils.generateMailsForAssignmentsTransaction(db, transaction_id)
 
             db.commit()
 

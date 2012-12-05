@@ -16,8 +16,8 @@
 
 import page.utils
 import dbutils
-import review.comment as review_comment
-import review.utils as review_utils
+import reviewing.comment as review_comment
+import reviewing.utils as review_utils
 import htmlutils
 import diff
 
@@ -33,12 +33,11 @@ def renderShowBatch(req, db, user):
         return page.utils.displayMessage(db, req, user, "Missing argument: 'batch'")
 
     if batch_id:
-        cursor.execute("SELECT review, uid, comment, time FROM batches WHERE id=%s", (batch_id,))
-        review_id, author_id, chain_id, time = cursor.fetchone()
+        cursor.execute("SELECT review, uid, comment FROM batches WHERE id=%s", (batch_id,))
+        review_id, author_id, chain_id = cursor.fetchone()
         author = dbutils.User.fromId(db, author_id)
     else:
         chain_id = None
-        time = None
         author = user
 
     review = dbutils.Review.fromId(db, review_id)

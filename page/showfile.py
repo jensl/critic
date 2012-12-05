@@ -20,8 +20,8 @@ import page.utils
 import os.path
 import htmlutils
 import diff
-import review.utils as review_utils
-import review.comment as review_comment
+import reviewing.utils as review_utils
+import reviewing.comment as review_comment
 
 from syntaxhighlight.request import requestHighlights
 
@@ -123,7 +123,6 @@ def renderShowFile(req, db, user):
                           GROUP BY id""",
                        [review.id, file_id, file_sha1, user.id])
 
-        chains = []
         comment_chain_script = ""
 
         for (chain_id,) in cursor.fetchall():
@@ -152,7 +151,9 @@ def renderShowFile(req, db, user):
         document.addInternalScript("var firstSelectedLine = %d, lastSelectedLine = %d;" % (first, last))
 
     target = body.div("main")
-    target.script(type="text/javascript").text("calculateTabWidth();")
+
+    if tabify:
+        target.script(type="text/javascript").text("calculateTabWidth();")
 
     table = target.table('file show expanded paleyellow', align='center', cellspacing=0)
 

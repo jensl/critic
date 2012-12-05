@@ -236,7 +236,7 @@ def displayMessage(db, req, user, title, review=None, message=None, page_title=N
     body = html.body()
 
     if review:
-        import review.utils as review_utils
+        import reviewing.utils as review_utils
 
         def generateRight(target):
             review_utils.renderDraftItems(db, user, review, target)

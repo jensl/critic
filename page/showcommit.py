@@ -23,9 +23,9 @@ import changeset.html as changeset_html
 import changeset.load as changeset_load
 import changeset.utils as changeset_utils
 import changeset.detectmoves as changeset_detectmoves
-import review.utils as review_utils
-import review.comment as review_comment
-import review.filters as review_filters
+import reviewing.utils as review_utils
+import reviewing.comment as review_comment
+import reviewing.filters as review_filters
 import log.html as log_html
 from log.commitset import CommitSet
 import configuration
@@ -579,7 +579,8 @@ def render(db, target, user, repository, review, changesets, commits, listed_com
 
         if profiler: profiler.check("collecting relevant commits")
 
-        target.script(type="text/javascript").text("calculateTabWidth();")
+        if tabify:
+            target.script(type="text/javascript").text("calculateTabWidth();")
 
         for index, changeset in enumerate(changesets):
             parent = target.div("parent", id="p%d" % index)

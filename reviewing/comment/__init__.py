@@ -27,7 +27,7 @@ import page.utils
 
 from htmlutils import jsify
 from time import strftime
-from review.filters import Filters
+from reviewing.filters import Filters
 from operation import OperationFailure
 
 class Comment:
