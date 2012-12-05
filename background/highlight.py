@@ -35,6 +35,7 @@ if "--json-job" in sys.argv[1:]:
     sys.stdout.write(json_encode(request))
 else:
     from background.utils import JSONJobServer
+    from syntaxhighlight import isHighlighted
     from syntaxhighlight.context import importCodeContexts
 
     import configuration
@@ -51,6 +52,12 @@ else:
             if "compact_at" in service:
                 hour, minute = service["compact_at"]
                 self.register_maintenance(hour=hour, minute=minute, callback=self.__compact)
+
+        def request_result(self, request):
+            if isHighlighted(request["sha1"], request["language"]):
+                result = request.copy()
+                result["highlighted"] = True
+                return result
 
         def request_started(self, job, request):
             super(HighlightServer, self).request_started(job, request)
