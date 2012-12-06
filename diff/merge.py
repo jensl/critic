@@ -93,7 +93,14 @@ def parseMergeDifferences(db, repository, commit):
                     filtered_chunks = filterChunks(log, file_on_branch, file_in_merge, file_in_merge.path)
 
                     if filtered_chunks:
-                        result_for_parent.append(diff.File(None, file_in_merge.path, file_in_merge.old_sha1, file_in_merge.new_sha1, repository, chunks=filtered_chunks))
+                        result_for_parent.append(diff.File(id=None,
+                                                           repository=repository,
+                                                           path=file_in_merge.path,
+                                                           old_sha1=file_in_merge.old_sha1,
+                                                           new_sha1=file_in_merge.new_sha1,
+                                                           old_mode=file_in_merge.old_mode,
+                                                           new_mode=file_in_merge.new_mode,
+                                                           chunks=filtered_chunks))
 
             result[parent_sha1] = result_for_parent
 
