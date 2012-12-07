@@ -246,3 +246,7 @@ table.pageheader td.left > ul > li:before {
 table.pageheader td.left > ul > li:first-child:before {
   content: none
 }
+
+.message-dialog pre {
+    margin-left: 1em
+}

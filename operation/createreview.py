@@ -90,6 +90,19 @@ class SubmitReview(Operation):
                                    message="'%s' is not a valid review branch name; it must have a \"r/\" prefix." % branch)
 
         repository = gitutils.Repository.fromId(db, repository_id)
+
+        components = branch.split("/")
+        for index in range(1, len(components)):
+            try: repository.revparse("refs/heads/%s" % "/".join(components[:index]))
+            except gitutils.GitError: continue
+
+            message = ("Cannot create branch with name<pre>%s</pre>since there is already a branch named<pre>%s</pre>in the repository." %
+                       (htmlutils.htmlify(branch), htmlutils.htmlify("/".join(components[:index]))))
+            raise OperationFailure(code="invalidbranch",
+                                   title="Invalid review branch name",
+                                   message=message,
+                                   is_html=True)
+
         commits = [gitutils.Commit.fromId(db, repository, commit_id) for commit_id in commit_ids]
         commitset = CommitSet(commits)
 

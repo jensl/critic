@@ -49,7 +49,7 @@ function reportError(what, specifics, title, callback)
   if (!title)
     title = "Communication Error!";
 
-  var content = $("<div title='" + title + "'><h1>Failed to " + what + ".</h1><p>" + specifics + "</p></div>");
+  var content = $("<div class=error-dialog title='" + title + "'><h1>Failed to " + what + ".</h1><p>" + specifics + "</p></div>");
 
   content.dialog({ width: 800,
                    height: 400,
@@ -59,7 +59,7 @@ function reportError(what, specifics, title, callback)
 
 function showMessage(title, heading, message, callback)
 {
-  var content = $("<div title='" + title + "'><h1>" + heading + "</h1>" + (message || "") + "</div>");
+  var content = $("<div class=message-dialog title='" + title + "'><h1>" + heading + "</h1>" + (message || "") + "</div>");
 
   content.dialog({ width: 600, modal: true, buttons: { OK: function () { content.dialog("close"); if (callback) callback(); }}});
 }
