@@ -836,6 +836,15 @@ def main(environ, start_response):
                         req.setContentType("text/html")
 
                         result = pagefn(req, db, user)
+
+                        if isinstance(result, str) or isinstance(result, Document):
+                            req.start()
+                            yield str(result)
+                        else:
+                            for fragment in result:
+                                req.start()
+                                yield str(fragment)
+
                     except gitutils.NoSuchRepository, error:
                         raise page.utils.DisplayMessage("Invalid URI Parameter!", error.message)
                     except gitutils.GitError, error:
@@ -849,14 +858,6 @@ def main(environ, start_response):
                             raise
                     except dbutils.NoSuchUser, error:
                         raise page.utils.DisplayMessage("Invalid URI Parameter!", error.message)
-
-                    if isinstance(result, str) or isinstance(result, Document):
-                        req.start()
-                        yield str(result)
-                    else:
-                        for fragment in result:
-                            req.start()
-                            yield str(fragment)
 
                     yield "<!-- total request time: %.2f ms -->" % ((time.time() - request_start) * 1000)
 
