@@ -87,6 +87,14 @@ class OperationFailure(Exception):
                              "title": self.__title,
                              "message": self.__message })
 
+class OperationFailureMustLogin(OperationFailure):
+    def __init__(self):
+        super(OperationFailure, self).__init__("mustlogin",
+                                               "Login Required",
+                                               "You have to sign in to perform this operation.")
+    def __str__(self):
+        return super(OperationFailure, self).__str__()
+
 class TypeChecker:
     """\
     Interface for checking operation input type correctness.
@@ -303,9 +311,7 @@ class Operation:
 
     def __call__(self, req, db, user):
         if user.isAnonymous() and not self.__accept_anonymous_user:
-            return OperationFailure(code="mustlogin",
-                                    title="Login Required",
-                                    message="You have to sign in to perform this operation.")
+            return OperationFailureMustLogin()
 
         if req.method == "POST": data = req.read()
         else: data = req.getParameter("data")

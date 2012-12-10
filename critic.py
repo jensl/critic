@@ -90,7 +90,7 @@ except ImportError:
 if configuration.extensions.ENABLED:
     RE_EXTENSION_RESOURCE = re.compile("^extension-resource/([a-z0-9][-._a-z0-9]+(?:/[a-z0-9][-._a-z0-9]+)+)$", re.IGNORECASE)
 
-from operation import OperationResult, OperationError
+from operation import OperationResult, OperationError, OperationFailureMustLogin
 
 def download(req, db, user):
     sha1 = req.getParameter("sha1")
@@ -186,6 +186,8 @@ def setfullname(req, db, user):
     return "ok"
 
 def addfilter(req, db, user):
+    if user.isAnonymous(): return OperationFailureMustLogin()
+
     cursor = db.cursor()
 
     repository_id = req.getParameter("repository", filter=int)
@@ -225,6 +227,8 @@ def addfilter(req, db, user):
     return "ok:directory=%d,file=%d" % (directory_id, file_id)
 
 def deletefilter(req, db, user):
+    if user.isAnonymous(): return OperationFailureMustLogin()
+
     cursor = db.cursor()
 
     repository_id = req.getParameter("repository", filter=int)
@@ -238,6 +242,8 @@ def deletefilter(req, db, user):
     return "ok"
 
 def reapplyfilters(req, db, user):
+    if user.isAnonymous(): return OperationFailureMustLogin()
+
     cursor1 = db.cursor()
     cursor2 = db.cursor()
     cursor3 = db.cursor()
