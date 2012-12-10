@@ -243,11 +243,12 @@ def reapplyfilters(req, db, user):
     cursor3 = db.cursor()
 
     user = dbutils.User.fromName(db, req.getParameter("user", req.user))
-    repository = gitutils.Repository.fromParameter(db, req.getParameter("repository", ""))
+    repository_name = req.getParameter("repository", None)
 
-    if repository is None:
+    if not repository_name:
         cursor1.execute("""SELECT reviews.id, applyfilters, applyparentfilters, branches.repository FROM reviews JOIN branches ON (reviews.branch=branches.id) WHERE reviews.state!='closed'""")
     else:
+        repository = gitutils.Repository.fromParameter(db, repository_name)
         cursor1.execute("""SELECT reviews.id, applyfilters, applyparentfilters, branches.repository FROM reviews JOIN branches ON (reviews.branch=branches.id) WHERE reviews.state!='closed' AND branches.repository=%s""", (repository.id,))
 
     repositories = {}
