@@ -805,7 +805,7 @@ def main(environ, start_response):
                 try: result = operationfn(req, db, user)
                 except OperationError, error: result = error
                 except page.utils.DisplayMessage, message:
-                    result = "error:" + message.title
+                    result = "error: " + message.title
                     if message.body: result += "  " + message.body
                 except Exception: result = "error:\n" + traceback.format_exc()
 
