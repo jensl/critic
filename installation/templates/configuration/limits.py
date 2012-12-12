@@ -31,3 +31,7 @@ PUSH_COMMIT_LIMIT = 10000
 # For branches containing more commits than this, fall back to simpler
 # branch log rendering for performance reasons.
 MAXIMUM_REACHABLE_COMMITS = 4000
+
+# Maximum number of commits when /createreview is loaded with the
+# 'branch' URI parameter to create a review of all commits on a branch.
+MAXIMUM_REVIEW_COMMITS = 2000

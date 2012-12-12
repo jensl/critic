@@ -253,6 +253,17 @@ def renderCreateReview(req, db, user):
                                  AND name=%s""",
                            (repository.id, branch_name))
             commit_ids = [commit_id for (commit_id,) in cursor]
+
+            if len(commit_ids) > configuration.limits.MAXIMUM_REVIEW_COMMITS:
+                raise page.utils.DisplayMessage(
+                    "Too many commits!",
+                    (("<p>The branch <code>%s</code> contains %d commits.  Reviews can"
+                      "be created from branches that contain at most %d commits.</p>"
+                      "<p>This limit can be adjusted by modifying the system setting"
+                      "<code>configuration.limits.MAXIMUM_REVIEW_COMMITS</code>.</p>")
+                     % (htmlutils.htmlify(branch_name), len(commit_ids),
+                        configuration.limits.MAXIMUM_REVIEW_COMMITS)),
+                    html=True)
         else:
             return renderSelectSource(req, db, user)
 
