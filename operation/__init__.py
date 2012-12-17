@@ -328,6 +328,10 @@ class Operation:
             return OperationFailure(code="nosuchuser",
                                     title="Who is '%s'?" % error.name,
                                     message="There is no user in Critic's database named that.")
+        except dbutils.TransactionRollbackError:
+            return OperationFailure(code="transactionrollback",
+                                    title="Transaction rolled back",
+                                    message="Your database transaction rolled back, probably due to a deadlock.  Please try again.")
         except:
             error_message = traceback.format_exc()
 

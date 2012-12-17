@@ -22,3 +22,4 @@ def connect():
 
 IntegrityError = psycopg2.IntegrityError
 ProgrammingError = psycopg2.ProgrammingError
+TransactionRollbackError = psycopg2.extensions.TransactionRollbackError
