@@ -706,6 +706,8 @@ def main(environ, start_response):
                             raise
                     except dbutils.NoSuchUser, error:
                         raise page.utils.DisplayMessage("Invalid URI Parameter!", error.message)
+                    except dbutils.NoSuchReview, error:
+                        raise page.utils.DisplayMessage("Invalid URI Parameter!", error.message)
 
                     yield "<!-- total request time: %.2f ms -->" % ((time.time() - request_start) * 1000)
 

@@ -14,6 +14,8 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
+import base
+
 def countDraftItems(db, user, review):
     cursor = db.cursor()
 
@@ -79,6 +81,11 @@ def countDraftItems(db, user, review):
              "reopenedIssues": reopened,
              "resolvedIssues": closed,
              "morphedChains": morphed }
+
+class NoSuchReview(base.Error):
+    def __init__(self, review_id):
+        super(NoSuchReview, self).__init__("No such review: r/%d" % review_id)
+        self.id = review_id
 
 class ReviewState(object):
     def __init__(self, review, accepted, pending, reviewed, issues):
@@ -504,7 +511,7 @@ class Review(object):
         cursor = db.cursor()
         cursor.execute("SELECT type, branch, state, serial, summary, description, applyfilters, applyparentfilters FROM reviews WHERE id=%s", [review_id])
         row = cursor.fetchone()
-        if not row: return None
+        if not row: raise NoSuchReview(review_id)
 
         type, branch_id, state, serial, summary, description, applyfilters, applyparentfilters = row
 

@@ -328,6 +328,10 @@ class Operation:
             return OperationFailure(code="nosuchuser",
                                     title="Who is '%s'?" % error.name,
                                     message="There is no user in Critic's database named that.")
+        except dbutils.NoSuchReview, error:
+            return OperationFailure(code="nosuchreview",
+                                    title="Invalid review ID" % error.name,
+                                    message="The review ID r/%d is not valid." % error.id)
         except dbutils.TransactionRollbackError:
             return OperationFailure(code="transactionrollback",
                                     title="Transaction rolled back",
