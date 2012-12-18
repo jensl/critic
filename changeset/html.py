@@ -344,7 +344,10 @@ def renderFile(db, target, user, review, file, first_file=False, options={}, con
                 cell.a("showtree", href="showtree?sha1=%s&path=%s%s%s" % (commit.sha1, "/".join(components[:index + 1]), review_arg, repository_arg)).text(component)
                 cell.span("slash").text('/')
 
-            cell.a("showtree", href="showfile?sha1=%s&path=%s%s%s" % (commit.sha1, "/".join(components), review_arg, repository_arg)).text(components[-1])
+            if not file.wasRemoved():
+                cell.a("showtree", href="showfile?sha1=%s&path=%s%s%s" % (commit.sha1, "/".join(components), review_arg, repository_arg)).text(components[-1])
+            else:
+                cell.text(components[-1])
         else:
             cell.text(file.path)
 
@@ -745,7 +748,10 @@ def renderFile(db, target, user, review, file, first_file=False, options={}, con
             cell.a("showtree", href="showtree?sha1=%s&path=%s%s%s" % (commit.sha1, "/".join(components[:index + 1]), review_arg, repository_arg)).text(component)
             cell.span("slash").text('/')
 
-        cell.a("showtree", href="showfile?sha1=%s&path=%s%s%s" % (commit.sha1, "/".join(components), review_arg, repository_arg)).text(components[-1])
+        if not file.wasRemoved():
+            cell.a("showtree", href="showfile?sha1=%s&path=%s%s%s" % (commit.sha1, "/".join(components), review_arg, repository_arg)).text(components[-1])
+        else:
+            cell.text(components[-1])
     else:
         cell.text(file.path)
 
