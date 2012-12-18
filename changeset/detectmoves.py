@@ -126,6 +126,7 @@ def compareChunks(source_file, source_chunk, target_file, target_chunk, extra_ta
 def findSourceChunk(db, changeset, source_file_ids, target_file, target_chunk, extra_target_chunks):
     for source_file in changeset.files:
         if source_file_ids and not source_file.id in source_file_ids: continue
+        if source_file.chunks is None: continue
 
         for source_chunk in source_file.chunks:
             # Shouldn't compare chunk to itself, of course.
