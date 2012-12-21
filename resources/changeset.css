@@ -173,7 +173,7 @@ table.file > tbody.lines > tr > td.linenr {
 }
 
 table.file > tbody.lines > tr > td.middle {
-    cursor: w-resize;
+    cursor: col-resize;
     background-image: -webkit-radial-gradient(circle, #eee 4px, transparent 4px), -webkit-radial-gradient(circle, rgba(0, 0, 0, 0.3) 4px, transparent 4px);
     background-image: -moz-radial-gradient(circle, #eee 4px, transparent 4px), -moz-radial-gradient(circle, rgba(0, 0, 0, 0.3) 4px, transparent 4px);
     background-image: radial-gradient(circle, #eee 4px, transparent 4px), radial-gradient(circle, rgba(0, 0, 0, 0.3) 4px, transparent 4px);
