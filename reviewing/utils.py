@@ -457,7 +457,15 @@ using the command<p>
         tail_id = gitutils.Commit.fromSHA1(db, repository, commitset.getTails().pop()).getId(db)
 
     if not via_push:
-        repository.branch(branch_name, head.sha1)
+        try:
+            repository.createBranch(branch_name, head.sha1)
+        except gitutils.GitCommandError, error:
+            raise OperationFailure(code="branchfailed",
+                                   title="Failed to create review branch",
+                                   message="""\
+<p><b>Output from git:</b></p>
+<code style='padding-left: 1em'>%s</code>""" % htmlutils.htmlify(error.output),
+                                   is_html=True)
 
     try:
         cursor.execute("INSERT INTO branches (repository, name, head, tail, type) VALUES (%s, %s, %s, %s, 'review') RETURNING id", [repository.id, branch_name, head.getId(db), tail_id])

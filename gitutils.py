@@ -304,11 +304,23 @@ class Repository:
         else:
             return git.returncode, stdout, stderr
 
-    def branch(self, name, startpoint):
-        git = process([configuration.executables.GIT, 'branch', name, startpoint],
-                      stdout=PIPE, stderr=PIPE, cwd=self.path)
+    def createBranch(self, name, startpoint):
+        argv = [configuration.executables.GIT, 'branch', name, startpoint]
+        git = process(argv, stdout=PIPE, stderr=PIPE, cwd=self.path)
         stdout, stderr = git.communicate()
-        if git.returncode != 0: raise Exception, stderr
+        if git.returncode != 0:
+            cmdline = " ".join(argv)
+            output = stderr.strip()
+            raise GitCommandError(cmdline, output, self.path)
+
+    def deleteBranch(self, name):
+        argv = [configuration.executables.GIT, 'branch', '-D', name]
+        git = process(argv, stdout=PIPE, stderr=PIPE, cwd=self.path)
+        stdout, stderr = git.communicate()
+        if git.returncode != 0:
+            cmdline = " ".join(argv)
+            output = stderr.strip()
+            raise GitCommandError(cmdline, output, self.path)
 
     def mergebase(self, commit_or_commits, db=None):
         if db and isinstance(commit_or_commits, Commit):
