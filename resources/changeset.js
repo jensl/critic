@@ -491,6 +491,15 @@ function showAll(implicit)
 }
 
 var isRestoringState = false;
+var saveStateTimer = null;
+
+function queueSaveState(replace)
+{
+  if (saveStateTimer)
+    clearTimeout(saveStateTimer);
+
+  saveStateTimer = setTimeout(saveState.bind(window, replace), 1500);
+}
 
 function saveState(replace)
 {
@@ -501,34 +510,17 @@ function saveState(replace)
     if (!replace)
     {
       if (typeof history.pushState == "function")
-      {
         history.pushState(state, document.title);
-
-        var base = document.getElementsByTagName("base")[0];
-        if (base)
-        {
-          var base_href = base.href;
-          base.href = "";
-          base.href = base_href;
-        }
-      }
     }
     else
     {
       if (typeof history.replaceState == "function")
-      {
         history.replaceState(state, document.title);
-
-        var base = document.getElementsByTagName("base")[0];
-        if (base)
-        {
-          var base_href = base.href;
-          base.href = "";
-          base.href = base_href;
-        }
-      }
     }
   }
+
+  clearTimeout(saveStateTimer);
+  saveStateTimer = null;
 }
 
 function restoreState(state)
@@ -1286,5 +1278,5 @@ window.addEventListener("popstate", function (ev)
 if (typeof history.replaceState == "function")
   window.addEventListener("scroll", function (ev)
     {
-      saveState(true);
+      queueSaveState(true);
     }, false);
