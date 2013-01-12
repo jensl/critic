@@ -501,32 +501,12 @@ function saveState(replace)
     if (!replace)
     {
       if (typeof history.pushState == "function")
-      {
         history.pushState(state, document.title);
-
-        var base = document.getElementsByTagName("base")[0];
-        if (base)
-        {
-          var base_href = base.href;
-          base.href = "";
-          base.href = base_href;
-        }
-      }
     }
     else
     {
       if (typeof history.replaceState == "function")
-      {
         history.replaceState(state, document.title);
-
-        var base = document.getElementsByTagName("base")[0];
-        if (base)
-        {
-          var base_href = base.href;
-          base.href = "";
-          base.href = base_href;
-        }
-      }
     }
   }
 }
