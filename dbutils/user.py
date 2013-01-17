@@ -202,7 +202,10 @@ class User(object):
         cursor = db.cursor()
         cursor.execute("SELECT until FROM userabsence WHERE uid=%s", (self.id,))
         row = cursor.fetchone()
-        return "absent until %04d-%02d-%02d" % (row[0].year, row[0].month, row[0].day)
+        if row[0] is None:
+            return "absent"
+        else:
+            return "absent until %04d-%02d-%02d" % (row[0].year, row[0].month, row[0].day)
 
     @staticmethod
     def cache(db, user):
