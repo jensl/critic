@@ -347,11 +347,14 @@ class Repository:
 
         assert len(sha1s) >= 2
 
-        git = process([configuration.executables.GIT, 'merge-base'] + sha1s,
-                      stdout=PIPE, stderr=PIPE, cwd=self.path)
+        argv = [configuration.executables.GIT, 'merge-base'] + sha1s
+        git = process(argv, stdout=PIPE, stderr=PIPE, cwd=self.path)
         stdout, stderr = git.communicate()
         if git.returncode == 0: return stdout.strip()
-        else: raise Exception, "'git merge-base' failed: %s" % stderr.strip()
+        else:
+            cmdline = " ".join(argv)
+            output = stderr.strip()
+            raise GitCommandError(cmdline, output, self.path)
 
     def getCommonAncestor(self, commit_or_commits):
         try: sha1s = commit_or_commits.parents

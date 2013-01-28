@@ -833,7 +833,13 @@ def getCommitList(db, repository, from_commit, to_commit):
             commits.add(iter_commit)
 
             if len(iter_commit.parents) > 1:
-                if from_commit.isAncestorOf(repository.mergebase(iter_commit)):
+                try:
+                    mergebase = repository.mergebase(iter_commit)
+                    is_ancestor = from_commit.isAncestorOf(mergebase)
+                except gitutils.GitCommandError:
+                    raise NotPossible
+
+                if is_ancestor:
                     map(process, [gitutils.Commit.fromSHA1(db, repository, sha1) for sha1 in iter_commit.parents])
                     return
                 else:
@@ -851,7 +857,10 @@ def getCommitList(db, repository, from_commit, to_commit):
         return []
 
 def getApproximativeCommitList(db, repository, from_commit, to_commit, paths):
-    ancestor = repository.getCommonAncestor([from_commit, to_commit])
+    try:
+        ancestor = repository.getCommonAncestor([from_commit, to_commit])
+    except gitutils.GitCommandError:
+        return [], []
 
     return ([gitutils.Commit.fromSHA1(db, repository, sha1)
              for sha1 in repository.revlist([to_commit], [ancestor])],
