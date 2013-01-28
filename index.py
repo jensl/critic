@@ -794,6 +794,8 @@ def createTag(repository_name, name, sha1):
     sha1 = gitutils.getTaggedCommit(repository, sha1)
 
     if sha1:
+        processCommits(repository.name, sha1)
+
         cursor = db.cursor()
         cursor.execute("INSERT INTO tags (name, repository, sha1) VALUES (%s, %s, %s)",
                        (name, repository.id, sha1))
@@ -805,6 +807,8 @@ def updateTag(repository_name, name, old_sha1, new_sha1):
     cursor = db.cursor()
 
     if sha1:
+        processCommits(repository.name, sha1)
+
         cursor.execute("UPDATE tags SET sha1=%s WHERE name=%s AND repository=%s",
                        (sha1, name, repository.id))
     else:
