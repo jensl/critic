@@ -389,7 +389,7 @@ def renderShowReview(req, db, user):
             if previous:
                 target.span("lastupdate").script(type="text/javascript").text("document.write('(last fetched: ' + shortDate(new Date(%d)) + ')');" % (calendar.timegm(previous.utctimetuple()) * 1000))
 
-            if user in review.owners:
+            if user in review.owners or user.hasRole(db, "administrator"):
                 buttons = target.div("buttons")
 
                 if review.state == "open":
