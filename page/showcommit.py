@@ -222,7 +222,7 @@ def renderCommitInfo(db, target, user, repository, review, commit, conflicts=Fal
         for chain in chains:
             commit_info.addInternalScript("commentChains.push(%s);" % chain.getJSConstructor(commit.sha1))
 
-def renderCommitFiles(db, target, user, review, changeset=None, changesets=None, file_id="f%d", approve_file_id="a%d", parent_index=None, nparents=1, conflicts=False, files=None):
+def renderCommitFiles(db, target, user, repository, review, changeset=None, changesets=None, file_id="f%d", approve_file_id="a%d", parent_index=None, nparents=1, conflicts=False, files=None):
     def countChanges(file):
         delete_count = 0
         insert_count = 0
@@ -311,6 +311,16 @@ def renderCommitFiles(db, target, user, review, changeset=None, changesets=None,
                 if file:
                     if file.isBinaryChanges():
                         row.td("parent", colspan=2, critic_parent_index=index).i().text("binary")
+                    elif file.old_mode == "160000" and file.new_mode == "160000":
+                        if conflicts and index + 1 == nparents:
+                            row.td(colspan=2).text()
+                        else:
+                            module_repository = repository.getModuleRepository(db, changesets[index].child, file.path)
+                            if module_repository:
+                                url = "showcommit?repository=%d&from=%s&to=%s" % (module_repository.id, file.old_sha1, file.new_sha1)
+                                row.td("parent", critic_parent_index=index, colspan=2).i().a(href=url).text("updated submodule")
+                            else:
+                                row.td("parent", critic_parent_index=index, colspan=2).i().text("updated submodule")
                     else:
                         row.td("parent", critic_parent_index=index).text(lines[0] and "-%d" % lines[0] or "")
                         row.td("parent", critic_parent_index=index).text(lines[1] and "+%d" % lines[1] or "")
@@ -428,11 +438,11 @@ def renderCommitFiles(db, target, user, review, changeset=None, changesets=None,
                 cell.i().text("added: " if file.wasAdded() else "removed: ")
                 cell.text("%s" % file.new_mode if file.wasAdded() else file.old_mode)
         elif file.old_mode == "160000" and file.new_mode == "160000":
-            try:
-                module_repository = review.repository.getModuleRepository(db, changeset.child, file.path)
+            module_repository = repository.getModuleRepository(db, changeset.child, file.path)
+            if module_repository:
                 url = "showcommit?repository=%d&from=%s&to=%s" % (module_repository.id, file.old_sha1, file.new_sha1)
                 row.td().i().a(href=url).text("updated submodule")
-            except:
+            else:
                 row.td().i().text("updated submodule")
         elif additional:
             row.td().text()
@@ -501,7 +511,7 @@ def render(db, target, user, repository, review, changesets, commits, listed_com
 
             context_lines = 0
         else:
-            renderCommitFiles(db, target, user, review, changeset=changesets[0])
+            renderCommitFiles(db, target, user, repository, review, changeset=changesets[0])
 
         yield target
 
@@ -523,7 +533,7 @@ def render(db, target, user, repository, review, changesets, commits, listed_com
             for file in changeset.files:
                 files.setdefault(file.id, [file.id, file.path, [None] * nparents])[2][index] = file
 
-        renderCommitFiles(db, target, user, review, changesets=changesets, file_id="p%df%%d" % index, approve_file_id="p%da%%d" % index, nparents=nparents, conflicts=changesets[-1].conflicts, files=diff.File.sorted(files.values(), key=lambda x: x[1]))
+        renderCommitFiles(db, target, user, repository, review, changesets=changesets, file_id="p%df%%d" % index, approve_file_id="p%da%%d" % index, nparents=nparents, conflicts=changesets[-1].conflicts, files=diff.File.sorted(files.values(), key=lambda x: x[1]))
 
         if profiler: profiler.check("render commit files")
 
