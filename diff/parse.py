@@ -218,7 +218,7 @@ def parseDifferences(repository, commit=None, from_commit=None, to_commit=None, 
     files_by_path = {}
 
     def addFile(new_file):
-        assert new_file.path not in files_by_path
+        assert new_file.path not in files_by_path, "duplicate path: %s" % new_file.path
         files.append(new_file)
         files_by_path[new_file.path] = new_file
         included.add(new_file.path)
@@ -301,10 +301,21 @@ def parseDifferences(repository, commit=None, from_commit=None, to_commit=None, 
             if binary:
                 path = (binary.group(1) or binary.group(2)).strip()
 
-                new_file = diff.File(None, path, old_sha1, new_sha1, repository, old_mode=old_mode, new_mode=new_mode)
-                new_file.chunks = [diff.Chunk(0, 0, 0, 0)]
-
-                addFile(new_file)
+                if path in files_by_path:
+                    new_file = files_by_path[path]
+                    if old_sha1 != '0' * 40:
+                        assert new_file.old_sha1 == '0' * 40
+                        new_file.old_sha1 = old_sha1
+                        new_file.old_mode = old_mode
+                    if new_sha1 != '0' * 40:
+                        assert new_file.new_sha1 == '0' * 40
+                        new_file.new_sha1 = new_sha1
+                        new_file.new_mode = new_mode
+                    new_file.chunks = [diff.Chunk(0, 0, 0, 0)]
+                else:
+                    new_file = diff.File(None, path, old_sha1, new_sha1, repository, old_mode=old_mode, new_mode=new_mode)
+                    new_file.chunks = [diff.Chunk(0, 0, 0, 0)]
+                    addFile(new_file)
 
                 continue
 
