@@ -327,22 +327,42 @@ $(document).ready(function ()
     $("button.fetchbranch").click(
       function ()
       {
+        var branch = $("input.workbranch").val().trim();
+        var upstream = $("input.upstreamcommit").val().trim();
+
+        if (!branch)
+        {
+          showMessage("Invalid input!", "Invalid input!", "Please provide a non-empty branch name.");
+          return;
+        }
+
+        if (!upstream)
+        {
+          showMessage("Invalid input!", "Invalid input!", "Please provide a non-empty upstream commit reference.");
+          return;
+        }
+
+        function finish(result)
+        {
+          if (result)
+            location.href = ("/createreview" +
+                             "?repository=" + encodeURIComponent($("select.repository").val()) +
+                             "&commits=" + encodeURIComponent(result.commit_ids) +
+                             "&remote=" + encodeURIComponent(getCurrentRemote()) +
+                             "&branch=" + encodeURIComponent($("input.workbranch").val()) +
+                             "&upstream=" + encodeURIComponent($("input.upstreamcommit").val()) +
+                             "&reviewbranchname=" + encodeURIComponent($("input.workbranch").val()));
+        }
+
         var operation = new Operation({ action: "fetch remote branch",
                                         url: "fetchremotebranch",
                                         data: { repository_name: $("select.repository").val(),
                                                 remote: getCurrentRemote(),
                                                 branch: $("input.workbranch").val(),
                                                 upstream: $("input.upstreamcommit").val() },
-                                        wait: "Fetching branch..." });
-        var result = operation.execute();
+                                        wait: "Fetching branch...",
+                                        callback: finish });
 
-        if (result)
-          location.href = ("/createreview" +
-                           "?repository=" + encodeURIComponent($("select.repository").val()) +
-                           "&commits=" + encodeURIComponent(result.commit_ids) +
-                           "&remote=" + encodeURIComponent(getCurrentRemote()) +
-                           "&branch=" + encodeURIComponent($("input.workbranch").val()) +
-                           "&upstream=" + encodeURIComponent($("input.upstreamcommit").val()) +
-                           "&reviewbranchname=" + encodeURIComponent($("input.workbranch").val()));
+        operation.execute();
       });
   });
