@@ -245,6 +245,10 @@ Output from Critic's git hook
                     if delay: self.debug("sleeping %d seconds" % delay)
 
                 if delay:
+                    gitutils.Repository.forEach(self.db, lambda db, repository: repository.stopBatch())
+
+                    self.db.commit()
+
                     before = time.time()
                     time.sleep(delay)
                     if self.interrupted:

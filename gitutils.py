@@ -168,6 +168,19 @@ class Repository:
             if repository.iscommit(sha1): return repository
 
     def __terminate(self, db=None):
+        self.stopBatch()
+
+    def __startBatch(self):
+        if self.__batch is None:
+            self.__batch = process([configuration.executables.GIT, 'cat-file', '--batch'],
+                                   stdin=PIPE, stdout=PIPE, stderr=STDOUT, cwd=self.path)
+
+    def __startBatchCheck(self):
+        if self.__batchCheck is None:
+            self.__batchCheck = process([configuration.executables.GIT, 'cat-file', '--batch-check'],
+                                        stdin=PIPE, stdout=PIPE, stderr=STDOUT, cwd=self.path)
+
+    def stopBatch(self):
         if self.__batch:
             try: os.kill(self.__batch.pid, 9)
             except: pass
@@ -181,15 +194,11 @@ class Repository:
             except: pass
             self.__batchCheck = None
 
-    def __startBatch(self):
-        if self.__batch is None:
-            self.__batch = process([configuration.executables.GIT, 'cat-file', '--batch'],
-                                   stdin=PIPE, stdout=PIPE, stderr=STDOUT, cwd=self.path)
-
-    def __startBatchCheck(self):
-        if self.__batchCheck is None:
-            self.__batchCheck = process([configuration.executables.GIT, 'cat-file', '--batch-check'],
-                                        stdin=PIPE, stdout=PIPE, stderr=STDOUT, cwd=self.path)
+    @staticmethod
+    def forEach(db, fn):
+        for key, repository in db.storage["Repository"].items():
+            if isinstance(key, int):
+                fn(db, repository)
 
     def getJS(self):
         return "var repository = critic.repository = new Repository(%d, %s, %s);" % (self.id, htmlutils.jsify(self.name), htmlutils.jsify(self.path))
