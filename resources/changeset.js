@@ -852,11 +852,12 @@ function fetchFile(file_id, side, replace_tbody)
   {
     var line = lines[offset - 1] || "&nbsp;";
     var row_id = "f" + file_id + (deleted ? "o" + offset + "n0" : "o0n" + offset);
+    var cell_id = "f" + file_id + (deleted ? "o" + offset : "n" + offset);
 
     html += "<tr class='line single " + row_class + "' id=" + row_id + ">"
           +   "<td class=edge></td>"
           +   "<td class='linenr old'>" + offset + "</td>"
-          +   "<td class='line single " + side + "' colspan=4>" + line + "</td>"
+          +   "<td class='line single " + side + "' id=" + cell_id + " colspan=4>" + line + "</td>"
           +   "<td class='linenr new'>" + offset + "</td>"
           +   "<td class=edge></td>"
           + "</tr>";
