@@ -125,7 +125,7 @@ automatic updating.
 Output from Critic's git hook
 -----------------------------
 
-%s""" % (configuration.HOSTNAME, repository.path, remote, hook_output))
+%s""" % (configuration.base.HOSTNAME, repository.path, remote, hook_output))
                         else:
                             mailutils.sendMessage(recipients, "%s: update from %s in %s stopped!" % (local_name, remote_name, remote),
                                                   """\
