@@ -94,6 +94,11 @@ def renderShowFile(req, db, user):
     file_sha1 = commit.getFileSHA1(full_path)
     file_id = dbutils.find_file(db, path=path)
 
+    if file_sha1 is None:
+        raise page.utils.DisplayMessage("File does not exist",
+                                        body="<p>There is no file named <code>%s</code> in the commit</p>" % htmlutils.htmlify(full_path),
+                                        html=True)
+
     file = diff.File(file_id, path, None, file_sha1, repository)
 
     # A new file ID might have been added to the database, so need to commit.
