@@ -15,9 +15,10 @@
 # the License.
 
 import dbutils
+import gitutils
 
-from operation import Operation, OperationResult, OperationError, Optional
-from reviewing.comment import Comment, CommentChain
+from operation import Operation, OperationResult, OperationError, OperationFailure, Optional
+from reviewing.comment import Comment, CommentChain, propagate
 
 class SetCommentChainState(Operation):
     def __init__(self, parameters):
@@ -27,9 +28,13 @@ class SetCommentChainState(Operation):
         review = chain.review
 
         if chain.state != old_state:
-            raise OperationError, "the comment chain's state is not '%s'" % old_state
-        if new_state == "open" and review.state != "open":
-            raise OperationError, "can't reopen comment chain in %s review" % review.state
+            raise OperationFailure(code="invalidoperation",
+                                   title="Invalid operation",
+                                   message="The comment chain's state is not '%s'; can't change state to '%s'." % (old_state, new_state))
+        elif new_state == "open" and review.state != "open":
+            raise OperationFailure(code="invalidoperation",
+                                   title="Invalid operation",
+                                   message="Can't reopen comment chain in %s review!" % review.state)
 
         if chain.last_commit:
             old_last_commit = chain.last_commit.id
@@ -57,7 +62,8 @@ class SetCommentChainState(Operation):
 
         db.commit()
 
-        return OperationResult(draft_status=review.getDraftStatus(db, user))
+        return OperationResult(old_state=old_state, new_state=new_state,
+                               draft_status=review.getDraftStatus(db, user))
 
 class ReopenResolvedCommentChain(SetCommentChainState):
     def __init__(self):
@@ -78,13 +84,71 @@ class ReopenAddressedCommentChain(SetCommentChainState):
         chain = CommentChain.fromId(db, chain_id, user)
         existing = chain.lines_by_sha1.get(sha1)
 
+        if chain.state != "addressed":
+            raise OperationFailure(code="invalidoperation",
+                                   title="Invalid operation",
+                                   message="The comment chain is not marked as addressed!")
+
         if not existing:
+            assert commit_id == chain.addressed_by.getId(db)
+
+            commits = chain.review.getCommitSet(db).without(chain.addressed_by.parents)
+
+            propagation = propagate.Propagation(db)
+            propagation.setExisting(chain.review, chain.id, chain.addressed_by, chain.file_id, offset, offset + count - 1, True)
+            propagation.calculateAdditionalLines(commits)
+
+            commentchainlines_values = []
+
+            for file_sha1, (first_line, last_line) in propagation.new_lines.items():
+                commentchainlines_values.append((chain.id, user.id, file_sha1, first_line, last_line))
+
             cursor = db.cursor()
-            cursor.execute("""INSERT INTO commentchainlines (chain, uid, commit, sha1, first_line, last_line)
-                              VALUES (%s, %s, %s, %s, %s, %s)""",
-                           (chain.id, user.id, commit_id, sha1, offset, offset + count - 1))
+            cursor.executemany("""INSERT INTO commentchainlines (chain, uid, sha1, first_line, last_line)
+                                  VALUES (%s, %s, %s, %s, %s)""",
+                               commentchainlines_values)
+
+            if not propagation.active:
+                old_addressed_by_id = chain.addressed_by.getId(db)
+                new_addressed_by_id = propagation.addressed_by[0].child.getId(db)
+
+                if chain.addressed_by_is_draft:
+                    cursor.execute("""UPDATE commentchainchanges
+                                         SET to_addressed_by=%s
+                                       WHERE chain=%s
+                                         AND uid=%s
+                                         AND state='draft'
+                                         AND to_addressed_by=%s""",
+                                   (new_addressed_by_id, chain.id, user.id, old_addressed_by_id))
+                else:
+                    cursor.execute("""INSERT INTO commentchainchanges (review, uid, chain, from_addressed_by, to_addressed_by)
+                                      VALUES (%s, %s, %s, %s, %s)""",
+                                   (chain.review.id, user.id, chain.id, old_addressed_by_id, new_addressed_by_id))
+
+                old_last_commit_id = chain.last_commit.getId(db)
+                new_last_commit_id = chain.addressed_by.getId(db)
+
+                if chain.last_commit_is_draft:
+                    cursor.execute("""UPDATE commentchainchanges
+                                         SET to_last_commit=%s
+                                       WHERE chain=%s
+                                         AND uid=%s
+                                         AND state='draft'
+                                         AND to_last_commit=%s""",
+                                   (new_last_commit_id, chain.id, user.id, old_last_commit_id))
+                else:
+                    cursor.execute("""INSERT INTO commentchainchanges (review, uid, chain, from_last_commit, to_last_commit)
+                                      VALUES (%s, %s, %s, %s, %s)""",
+                                   (chain.review.id, user.id, chain.id, old_last_commit_id, new_last_commit_id))
+
+                db.commit()
+
+                return OperationResult(old_state='addressed', new_state='addressed',
+                                       draft_status=chain.review.getDraftStatus(db, user))
         elif offset != existing[0] or count != existing[1]:
-            raise OperationError, "the comment chain is already present at other lines in same file version"
+            raise OperationFailure(code="invalidoperation",
+                                   title="Invalid operation",
+                                   message="The comment chain is already present at other lines in same file version")
 
         return self.setChainState(db, user, chain, "addressed", "open", new_last_commit=commit_id)
 

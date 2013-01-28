@@ -64,35 +64,13 @@ def renderChainInMail(db, to_user, chain, focus_comment, new_state, new_type, li
     if chain.file_id:
         path = dbutils.describe_file(db, chain.file_id)
 
-        if chain.first_commit == chain.last_commit:
-            cursor.execute("""SELECT null, sha1
-                                FROM commentchainlines
-                               WHERE chain=%s
-                                 AND commit=%s""",
-                           (chain.id, chain.first_commit.getId(db)))
-        elif chain.origin == 'old':
-            cursor.execute("""SELECT old_mode, old_sha1
-                                FROM fileversions, changesets, reviewchangesets
-                               WHERE fileversions.changeset=changesets.id
-                                 AND fileversions.file=%s
-                                 AND changesets.parent=%s
-                                 AND reviewchangesets.changeset=changesets.id
-                                 AND reviewchangesets.review=%s""",
-                           [chain.file_id, chain.first_commit.getId(db), chain.review.id])
+        if chain.first_commit == chain.last_commit or chain.origin == 'old':
+            entry = chain.first_commit.getFileEntry(path)
         else:
-            cursor.execute("""SELECT new_mode, new_sha1
-                                FROM fileversions, changesets, reviewchangesets
-                               WHERE fileversions.changeset=changesets.id
-                                 AND fileversions.file=%s
-                                 AND changesets.child=%s
-                                 AND reviewchangesets.changeset=changesets.id
-                                 AND reviewchangesets.review=%s""",
-                           [chain.file_id, chain.last_commit.getId(db), chain.review.id])
+            entry = chain.last_commit.getFileEntry(path)
 
-        try: mode, sha1 = cursor.fetchone()
-        except:
-            mode = None
-            sha1 = chain.lines_by_sha1.keys()[0]
+        sha1 = entry.sha1
+        mode = entry.mode
 
         first_line, count = chain.lines_by_sha1[sha1]
 
@@ -100,12 +78,9 @@ def renderChainInMail(db, to_user, chain, focus_comment, new_state, new_type, li
         if context: result += "%s in %s, %s:\n%s\n%s\n" % (chain.type.capitalize(), path, context, url, hr)
         else: result += "%s in %s:\n%s\n%s\n" % (chain.type.capitalize(), path, url, hr)
 
-        try:
-            file = diff.File(id=chain.file_id, path=path, new_mode=mode, new_sha1=sha1, repository=chain.review.repository)
-            file.loadNewLines()
-            lines = file.newLines(False)
-        except:
-            raise Exception, repr((chain.id, file.id, mode, sha1))
+        file = diff.File(id=chain.file_id, path=path, new_mode=mode, new_sha1=sha1, repository=chain.review.repository)
+        file.loadNewLines()
+        lines = file.newLines(False)
 
         last_line = first_line + count - 1
         first_line = max(1, first_line - context_lines)

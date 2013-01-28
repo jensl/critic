@@ -174,10 +174,12 @@ have no common ancestor within this set."""
         return CommitSet(filtered)
 
     def without(self, commits):
-        """Return a copy of this commit set without 'commit' and all any ancestors of
-'commit' that don't have other descendants in the commit set."""
+        """
+        Return a copy of this commit set without 'commit' and any ancestors of
+        'commit' that don't have other descendants in the commit set.
+        """
 
-        pending = set(commits)
+        pending = set(filter(None, (self.__commits.get(str(commit)) for commit in commits)))
         commits = self.__commits.copy()
         children = self.__children.copy()
 

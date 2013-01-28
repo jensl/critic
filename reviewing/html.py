@@ -25,6 +25,7 @@ import changeset.utils as changeset_utils
 import page.utils
 import page.showcommit
 import linkify
+import traceback
 
 from time import strftime
 
@@ -108,8 +109,10 @@ def renderCodeCommentChain(db, target, user, review, chain, context_lines=3, com
     file_path = dbutils.describe_file(db, file_id)
 
     if (chain.state != "addressed" or original) and chain.first_commit == chain.last_commit:
-        cursor.execute("SELECT sha1, first_line, last_line FROM commentchainlines WHERE chain=%s AND commit=%s", (chain.id, chain.first_commit.getId(db)))
-        sha1, first_line, last_line = cursor.fetchone()
+        sha1 = chain.first_commit.getFileSHA1(file_path)
+
+        cursor.execute("SELECT first_line, last_line FROM commentchainlines WHERE chain=%s AND sha1=%s", (chain.id, sha1))
+        first_line, last_line = cursor.fetchone()
 
         file = diff.File(file_id, file_path, sha1, sha1, review.repository, chunks=[])
         file.loadNewLines(True)
@@ -365,20 +368,7 @@ def renderCommentChain(db, target, user, review, chain, context_lines=3, compact
     target = target.div("comment-chain", id="c%d" % chain.id)
 
     if chain.file_id:
-        try: renderCodeCommentChain(db, target, user, review, chain, context_lines, compact, tabify, original, changeset, linkify)
-        except:
-            cursor = db.cursor()
-            cursor.execute("SELECT first_line, last_line, commit FROM commentchainlines WHERE chain=%s ORDER BY time ASC LIMIT 1", (chain.id,))
-            path = dbutils.describe_file(db, chain.file_id)
-            first_line, last_line, commit_id = cursor.fetchone()
-            commit = gitutils.Commit.fromId(db, review.repository, commit_id)
-
-            if first_line == last_line: line = "line %d" % first_line
-            else: line = "lines %d-%d" % (first_line, last_line)
-
-            message = "<p><b>I'm terribly sorry, but this comment is broken in the database!</b></p><p>It was originally made against %s in some version of <code>%s</code>, in the commit <a href='%s/%s?review=%d&file=%d'>%s</a>.</p>" % (line, path, review.repository.name, commit.sha1, review.id, chain.file_id, commit.sha1)
-
-            renderReviewCommentChain(db, target, user, review, chain, linkify, message)
+        renderCodeCommentChain(db, target, user, review, chain, context_lines, compact, tabify, original, changeset, linkify)
     elif chain.first_commit:
         renderCommitCommentChain(db, target, user, review, chain, linkify)
     else:

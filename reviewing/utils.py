@@ -22,7 +22,7 @@ import htmlutils
 
 import mail
 import changeset.utils as changeset_utils
-import reviewing.comment as review_comment
+import reviewing.comment
 import log.commitset as log_commitset
 
 from operation import OperationError, OperationFailure
@@ -395,8 +395,7 @@ Please confirm that this is intended by loading:
 
         review.incrementSerial(db)
 
-    for changeset in changesets:
-        review_comment.updateCommentChains(db, user, review, changeset)
+        reviewing.comment.propagateCommentChains(db, user, review, new_commits)
 
     if pending_mails is None: pending_mails = []
 

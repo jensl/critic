@@ -220,7 +220,7 @@ table.file > tbody.lines > tr > td.line {
 
         for file in changeset.files:
             if file.hasChanges() and not file.wasRemoved():
-                comment_chains = review_comment.loadCommentChains(db, review, user, file, changeset, local_comments_only=local_comments_only)
+                comment_chains = review_comment.loadCommentChains(db, review, user, file=file, changeset=changeset, local_comments_only=local_comments_only)
                 if comment_chains:
                     comment_chains_per_file[file.path] = comment_chains
 

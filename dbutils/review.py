@@ -36,16 +36,19 @@ def countDraftItems(db, user, review):
     cursor.execute("SELECT count(*) FROM commentchains, comments WHERE commentchains.review=%s AND comments.chain=commentchains.id AND comments.uid=%s AND comments.state='draft'", [review.id, user.id])
     comments = cursor.fetchone()[0]
 
-    cursor.execute("""SELECT count(*) FROM commentchains, commentchainchanges
+    cursor.execute("""SELECT DISTINCT commentchains.id
+                        FROM commentchains
+                        JOIN commentchainchanges ON (commentchainchanges.chain=commentchains.id)
                        WHERE commentchains.review=%s
-                         AND commentchains.state=commentchainchanges.from_state
-                         AND commentchainchanges.chain=commentchains.id
                          AND commentchainchanges.uid=%s
                          AND commentchainchanges.state='draft'
-                         AND (commentchainchanges.from_state='addressed' OR commentchainchanges.from_state='closed')
-                         AND commentchainchanges.to_state='open'""",
+                         AND ((commentchains.state=commentchainchanges.from_state
+                           AND commentchainchanges.from_state IN ('addressed', 'closed')
+                           AND commentchainchanges.to_state='open')
+                          OR (commentchainchanges.from_addressed_by IS NOT NULL
+                           AND commentchainchanges.to_addressed_by IS NOT NULL))""",
                    [review.id, user.id])
-    reopened = cursor.fetchone()[0]
+    reopened = len(cursor.fetchall())
 
     cursor.execute("""SELECT count(*) FROM commentchains, commentchainchanges
                        WHERE commentchains.review=%s
@@ -121,6 +124,53 @@ class ReviewState(object):
             if issues: return "%s and %s" % (progress, issues)
             else: return progress
 
+class ReviewRebase(object):
+    def __init__(self, review, old_head, new_head, old_upstream, new_upstream, user):
+        self.review = review
+        self.old_head = old_head
+        self.new_head = new_head
+        self.old_upstream = old_upstream
+        self.new_upstream = new_upstream
+        self.user = user
+
+class ReviewRebases(list):
+    def __init__(self, db, review):
+        import gitutils
+        from dbutils import User
+
+        self.__old_head_map = {}
+        self.__new_head_map = {}
+
+        cursor = db.cursor()
+        cursor.execute("""SELECT old_head, new_head, old_upstream, new_upstream, uid
+                            FROM reviewrebases
+                           WHERE review=%s
+                             AND new_head IS NOT NULL""",
+                       (review.id,))
+
+        for old_head_id, new_head_id, old_upstream_id, new_upstream_id, user_id in cursor:
+            old_head = gitutils.Commit.fromId(db, review.repository, old_head_id)
+            new_head = gitutils.Commit.fromId(db, review.repository, new_head_id)
+
+            if old_upstream_id is not None and new_upstream_id is not None:
+                old_upstream = gitutils.Commit.fromId(db, review.repository, old_upstream_id)
+                new_upstream = gitutils.Commit.fromId(db, review.repository, new_upstream_id)
+            else:
+                old_upstream = new_upstream = None
+
+            user = User.fromId(db, user_id)
+            rebase = ReviewRebase(review, old_head, new_head, old_upstream, new_upstream, user)
+
+            self.append(rebase)
+            self.__old_head_map[old_head] = rebase
+            self.__new_head_map[new_head] = rebase
+
+    def fromOldHead(self, commit):
+        return self.__old_head_map.get(commit)
+
+    def fromNewHead(self, commit):
+        return self.__new_head_map.get(commit)
+
 class Review(object):
     def __init__(self, review_id, owners, review_type, branch, state, serial, summary, description, applyfilters, applyparentfilters):
         self.id = review_id
@@ -185,7 +235,29 @@ class Review(object):
 
         return ReviewState(self, self.accepted(db), pending, reviewed, issues)
 
-    def containsCommit(self, db, commit):
+    def getReviewRebases(self, db):
+        return ReviewRebases(db, self)
+
+    def getCommitSet(self, db):
+        import gitutils
+        import log.commitset
+
+        cursor = db.cursor()
+        cursor.execute("""SELECT DISTINCT commits.id, commits.sha1
+                            FROM commits
+                            JOIN changesets ON (changesets.child=commits.id)
+                            JOIN reviewchangesets ON (reviewchangesets.changeset=changesets.id)
+                           WHERE reviewchangesets.review=%s""",
+                       (self.id,))
+
+        commits = []
+
+        for commit_id, commit_sha1 in cursor:
+            commits.append(gitutils.Commit.fromSHA1(db, self.repository, commit_sha1, commit_id))
+
+        return log.commitset.CommitSet(commits)
+
+    def containsCommit(self, db, commit, include_head_and_tails=False):
         import gitutils
 
         commit_id = None
@@ -196,8 +268,10 @@ class Review(object):
             else: commit_sha1 = commit.sha1
         elif isinstance(commit, str):
             commit_sha1 = self.repository.revparse(commit)
+            commit = None
         elif isinstance(commit, int):
             commit_id = commit
+            commit = None
         else:
             raise TypeError
 
@@ -219,7 +293,26 @@ class Review(object):
                                  AND commits.sha1=%s""",
                            (self.id, commit_sha1))
 
-        return cursor.fetchone() is not None
+        if cursor.fetchone() is not None:
+            return True
+
+        if include_head_and_tails:
+            head_and_tails = set([self.branch.head])
+
+            commitset = self.getCommitSet(db)
+
+            if commitset:
+                head_and_tails |= commitset.getTails()
+
+            if commit_sha1 is None:
+                if commit is None:
+                    commit = gitutils.Commit.fromId(db, self.repository, commit_id)
+                commit_sha1 = commit.sha1
+
+            if commit_sha1 in head_and_tails:
+                return True
+
+        return False
 
     def getJS(self):
         return "var review = critic.review = { id: %d, branch: { id: %d, name: %r }, owners: [ %s ], serial: %d };" % (self.id, self.branch.id, self.branch.name, ", ".join(owner.getJSConstructor() for owner in self.owners), self.serial)

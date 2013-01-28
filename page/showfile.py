@@ -112,16 +112,16 @@ def renderShowFile(req, db, user):
         document.addExternalStylesheet("resource/review.css")
         document.addExternalScript("resource/review.js")
 
-        cursor.execute("""SELECT DISTINCT id
-                          FROM commentchains
-                            JOIN commentchainlines ON (id=chain)
-                          WHERE review=%s
-                            AND file=%s
-                            AND sha1=%s
-                            AND ((commentchains.state!='draft' OR commentchains.uid=%s)
-                                 AND commentchains.state!='empty')
-                          GROUP BY id""",
-                       [review.id, file_id, file_sha1, user.id])
+        cursor.execute("""SELECT DISTINCT commentchains.id
+                            FROM commentchains
+                            JOIN commentchainlines ON (commentchainlines.chain=commentchains.id)
+                           WHERE commentchains.review=%s
+                             AND commentchains.file=%s
+                             AND commentchainlines.sha1=%s
+                             AND ((commentchains.state!='draft' OR commentchains.uid=%s)
+                              AND commentchains.state!='empty')
+                        GROUP BY commentchains.id""",
+                       (review.id, file_id, file_sha1, user.id))
 
         comment_chain_script = ""
 

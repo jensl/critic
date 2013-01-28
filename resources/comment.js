@@ -202,10 +202,12 @@ CommentChain.create = function (type_or_markers)
         var lastLine = parseInt(m2[1]);
 
         var data = { review_id: review.id,
+                     origin: side == 'o' ? "old" : "new",
+                     parent_id: useChangeset.parent.id,
+                     child_id: useChangeset.child.id,
                      file_id: file,
-                     sha1: sha1,
                      offset: firstLine,
-                     count: lastLine + 1 - firstLine }
+                     count: lastLine + 1 - firstLine };
 
         var operation = new Operation({ action: "validate commented lines",
                                         url: "validatecommentchain",
@@ -217,7 +219,7 @@ CommentChain.create = function (type_or_markers)
           var content = $("<div title='Warning!'>"
                         +   "<p>"
                         +     "One or more of the lines you are commenting are modified by a "
-                        +       "<a href='" + result.sha1 + "?review=" + review.id + "#f" + file + "o" + result.offset + "'>later commit</a> "
+                        +       "<a href='" + result.parent_sha1 + ".." + result.child_sha1 + "?review=" + review.id + "#f" + file + "o" + result.offset + "'>later commit</a> "
                         +     "in this review."
                         +   "</p>"
                         + "</div>");
@@ -237,6 +239,24 @@ CommentChain.create = function (type_or_markers)
                   +   "in this review, without affecting the commented lines.  "
                   +   "This comment will appear against each version of the file."
                   + "</p>";
+        }
+        else if (result.verdict == "invalid")
+        {
+          var content = $("<div title='Error!'>"
+                        +   "<p>"
+                        +     "<b>It is not possible to comment these lines.</b>"
+                        +   "</p>"
+                        +   "<p>"
+                        +     "This is probably because this/these commits are not part of the review."
+                        +   "</p>"
+                        + "</div>");
+
+          content.dialog({ modal: true,
+                           buttons: { "OK": function () { content.dialog("close"); }}
+                         });
+
+          abort();
+          return;
         }
 
         markersLocation = "file";
@@ -661,7 +681,7 @@ CommentChain.prototype.reply = function (parentDialog)
     resize();
   };
 
-CommentChain.prototype.reopen = function (from_showcomment)
+CommentChain.prototype.reopen = function (from_showcomment, from_onload)
   {
     var self = this;
     var content;
@@ -709,17 +729,28 @@ CommentChain.prototype.reopen = function (from_showcomment)
 
       if (result)
       {
-        self.state = 'open';
-
-        if (markers)
+        if (result.new_state == "open")
         {
-          self.markers.setType(self.type, self.state);
+          self.state = "open";
 
-          self.lines.sha1 = sha1;
-          self.lines.firstLine = firstLine;
-          self.lines.lastLine = lastLine;
+          if (markers)
+          {
+            self.markers.setType(self.type, self.state);
 
-          self.markers.updatePosition();
+            self.lines.sha1 = sha1;
+            self.lines.firstLine = firstLine;
+            self.lines.lastLine = lastLine;
+
+            self.markers.updatePosition();
+          }
+        }
+        else
+        {
+          showMessage("Reopen Issue",
+                      "Issue still addressed!",
+                      "The issue was successfully transferred to the selected lines, " +
+                      "but those lines were in turn modified by a later commit in the " +
+                      "review, so the issue is still marked as addressed.");
         }
 
         updateDraftStatus(result.draft_status);
@@ -740,7 +771,7 @@ CommentChain.prototype.reopen = function (from_showcomment)
     {
       if (from_showcomment || changeset.child.sha1 != this.addressed_by)
       {
-        content = $("<div title='Reopen Issue'>Addressed issues can only be reopened from the regular diff view.  Would you like to go there?</div>");
+        content = $("<div title='Reopen Issue'>Addressed issues can only be reopened from a regular diff of the commit that addressed the issue.  Would you like to go there?</div>");
 
         function goThere()
         {
@@ -1224,7 +1255,7 @@ $(window).load(function ()
 
           scrollTo(0, first_line.offset().top - innerHeight / 2 + (last_line.offset().top + last_line.height() - first_line.offset().top) / 2);
 
-          setTimeout(function () { chain.reopen(false); }, 10);
+          setTimeout(function () { chain.reopen(false, true); }, 10);
         }
     }
   });

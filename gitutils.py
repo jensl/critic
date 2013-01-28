@@ -629,12 +629,16 @@ class Commit:
 
         return self.repository.mergebase([self.sha1, other_sha1]) == self.sha1
 
-    def getFileSHA1(self, path):
+    def getFileEntry(self, path):
         try:
-            tree = Tree.fromPath(self, os.path.dirname(path))
-            return tree[os.path.basename(path)].sha1
-        except KeyError:
+            tree = Tree.fromPath(self, "/" + os.path.dirname(path).lstrip("/"))
+        except GitCommandError:
             return None
+        return tree.get(os.path.basename(path))
+
+    def getFileSHA1(self, path):
+        entry = self.getFileEntry(path)
+        return entry.sha1 if entry else None
 
 RE_LSTREE_LINE = re.compile("^([0-9]{6}) (blob|tree|commit) ([0-9a-f]{40})  *([0-9]+|-)\t(.*)$")
 

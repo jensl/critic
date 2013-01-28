@@ -71,7 +71,9 @@ CREATE TABLE commentchainchanges
     from_state commentchainstate,
     to_state commentchainstate,
     from_last_commit INTEGER REFERENCES commits,
-    to_last_commit INTEGER REFERENCES commits );
+    to_last_commit INTEGER REFERENCES commits,
+    from_addressed_by INTEGER REFERENCES commits,
+    to_addressed_by INTEGER REFERENCES commits );
 CREATE INDEX commentchainchanges_review_uid_state ON commentchainchanges (review, uid, state);
 CREATE INDEX commentchainchanges_batch ON commentchainchanges(batch);
 CREATE INDEX commentchainchanges_chain ON commentchainchanges(chain);
@@ -86,7 +88,6 @@ CREATE TABLE commentchainlines
     uid INTEGER REFERENCES users,
     time TIMESTAMP NOT NULL DEFAULT now(),
     state commentchainlinesstate NOT NULL DEFAULT 'draft',
-    commit INTEGER REFERENCES commits,
     sha1 CHAR(40) NOT NULL,
     first_line INTEGER NOT NULL,
     last_line INTEGER NOT NULL,

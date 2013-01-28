@@ -213,15 +213,6 @@ class RevertRebase(Operation):
                                      AND addressed_by=%s""",
                                (review.id, old_head_id))
 
-                # Delete any mappings of issues (or notes) to lines in the merge
-                # commit.
-                cursor.execute("""DELETE FROM commentchainlines
-                                        USING commentchains
-                                        WHERE commentchains.review=%s
-                                          AND commentchains.id=commentchainlines.chain
-                                          AND commentchainlines.commit=%s""",
-                               (review.id, old_head_id))
-
                 # Delete the review changesets (and, via cascade, all related
                 # assignments.)
                 cursor.execute("""DELETE FROM reviewchangesets

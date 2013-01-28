@@ -312,6 +312,22 @@ class SubmitChanges(Operation):
 
         profiler.check("commentchainchanges reject type changes")
 
+        # Reject all draft comment chain changes where the affected comment chain
+        # addressed_by isn't what it was in when the change was drafted.
+        cursor.execute("""UPDATE commentchainchanges
+                             SET state='rejected',
+                                 time=now()
+                            FROM commentchains
+                           WHERE commentchains.review=%s
+                             AND commentchainchanges.chain=commentchains.id
+                             AND commentchainchanges.uid=%s
+                             AND commentchainchanges.state='draft'
+                             AND commentchainchanges.from_addressed_by IS NOT NULL
+                             AND commentchainchanges.from_addressed_by!=commentchains.addressed_by""",
+                       (review.id, user.id))
+
+        profiler.check("commentchainchanges reject addressed_by changes")
+
         # Then perform the remaining draft comment chain changes by updating the
         # state of the corresponding comment chain.
 
@@ -345,6 +361,19 @@ class SubmitChanges(Operation):
                        (review.id, user.id))
 
         profiler.check("commentchains reopen")
+
+        # Perform addressed->addressed changes, i.e. updating 'addressed_by'.
+        cursor.execute("""UPDATE commentchains
+                             SET addressed_by=commentchainchanges.to_addressed_by
+                            FROM commentchainchanges
+                           WHERE commentchains.review=%s
+                             AND commentchainchanges.chain=commentchains.id
+                             AND commentchainchanges.uid=%s
+                             AND commentchainchanges.state='draft'
+                             AND commentchainchanges.to_addressed_by IS NOT NULL""",
+                       (review.id, user.id))
+
+        profiler.check("commentchains reopen (partial)")
 
         # Perform type changes.
         cursor.execute("""UPDATE commentchains

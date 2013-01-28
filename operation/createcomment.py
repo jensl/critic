@@ -22,14 +22,16 @@ from reviewing.comment import CommentChain, validateCommentChain, createCommentC
 class ValidateCommentChain(Operation):
     def __init__(self):
         Operation.__init__(self, { "review_id": int,
+                                   "origin": set(["old", "new"]),
+                                   "parent_id": int,
+                                   "child_id": int,
                                    "file_id": int,
-                                   "sha1": str,
                                    "offset": int,
                                    "count": int })
 
-    def process(self, db, user, review_id, file_id, sha1, offset, count):
+    def process(self, db, user, review_id, origin, parent_id, child_id, file_id, offset, count):
         review = dbutils.Review.fromId(db, review_id)
-        verdict, data = validateCommentChain(db, review, file_id, sha1, offset, count)
+        verdict, data = validateCommentChain(db, review, origin, parent_id, child_id, file_id, offset, count)
         return OperationResult(verdict=verdict, **data)
 
 class CreateCommentChain(Operation):

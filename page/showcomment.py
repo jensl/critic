@@ -119,7 +119,7 @@ def renderShowComments(req, db, user):
                              AND usergitemails.uid=%s
                              AND commentchains.state!='empty'
                              AND (commentchains.state!='draft' OR commentchains.uid=%s)
-                        ORDER BY commentchains.file, commentchainlines.commit, commentchainlines.first_line""",
+                        ORDER BY commentchains.file, commentchainlines.first_line""",
                        (review.id, blame_user.id, user.id))
 
         include_chain_ids = set([chain_id for (chain_id,) in cursor])
@@ -129,11 +129,23 @@ def renderShowComments(req, db, user):
         include_chain_ids = None
 
     if filter == "toread":
-        query = "SELECT commentchains.id FROM commentchains JOIN comments ON (comments.chain=commentchains.id) JOIN commentstoread ON (commentstoread.comment=comments.id) LEFT OUTER JOIN commentchainlines ON (commentchainlines.chain=commentchains.id) WHERE review=%s AND commentstoread.uid=%s ORDER BY file, commit, first_line"
+        query = """SELECT commentchains.id
+                     FROM commentchains
+                     JOIN comments ON (comments.chain=commentchains.id)
+                     JOIN commentstoread ON (commentstoread.comment=comments.id)
+          LEFT OUTER JOIN commentchainlines ON (commentchainlines.chain=commentchains.id)
+                    WHERE review=%s
+                      AND commentstoread.uid=%s
+                 ORDER BY file, first_line"""
 
         cursor.execute(query, (review.id, user.id))
     else:
-        query = "SELECT id FROM commentchains LEFT OUTER JOIN commentchainlines ON (chain=id) WHERE review=%s AND commentchains.state!='empty'"
+        query = """SELECT commentchains.id
+                     FROM commentchains
+          LEFT OUTER JOIN commentchainlines ON (chain=id)
+                    WHERE review=%s
+                      AND commentchains.state!='empty'"""
+
         arguments = [review.id]
 
         if filter == "issues":
@@ -226,7 +238,8 @@ def renderShowComments(req, db, user):
 
                 if chain.file_id is not None:
                     file_ids.add(chain.file_id)
-                    changesets_files.setdefault((chain.first_commit, chain.last_commit), set()).add(chain.file_id)
+                    parent, child = review_html.getCodeCommentChainChangeset(db, chain, original)
+                    changesets_files.setdefault((parent, child), set()).add(chain.file_id)
 
         profiler.check("load chains")
 
