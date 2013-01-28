@@ -313,7 +313,9 @@ def renderDashboard(req, db, user):
             header.span("right").a(href=hidden("active")).text("[hide]")
 
             if active["both"]:
-                table.tr(id="active-changes-comments").td("h2", colspan=4).h2().text("Has Changes And Comments")
+                review_ids = ",".join(map(str, active["both"].keys()))
+                h2 = table.tr(id="active-changes-comments").td("h2", colspan=4).h2().text("Has Changes And Comments")
+                h2.a(href="javascript:void(0);", onclick="markChainsAsRead([%s]);" % review_ids).text("[mark all as read]")
                 renderReviews(table, sortedReviews(active["both"]))
 
             if active["changes"]:
@@ -321,7 +323,9 @@ def renderDashboard(req, db, user):
                 renderReviews(table, sortedReviews(active["changes"]))
 
             if active["comments"]:
-                table.tr(id="active-comments").td("h2", colspan=4).h2().text("Has Comments")
+                review_ids = ",".join(map(str, active["comments"].keys()))
+                h2 = table.tr(id="active-comments").td("h2", colspan=4).h2().text("Has Comments")
+                h2.a(href="javascript:void(0);", onclick="markChainsAsRead([%s]);" % review_ids).text("[mark all as read]")
                 renderReviews(table, sortedReviews(active["comments"]))
 
             profiler.check("generate: active")

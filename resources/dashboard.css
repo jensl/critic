@@ -18,6 +18,11 @@
 
 body { font-size: 12px; font-family: sans-serif }
 
+div.main table.reviews td.h2 a {
+    font-size: 50%;
+    margin-left: 1em
+}
+
 div.main table.reviews tr.review:hover {
     background: #eec
 }

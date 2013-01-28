@@ -16,6 +16,16 @@
 
 */
 
+function markChainsAsRead(review_ids)
+{
+  var operation = new Operation({ action: "mark comments as read",
+                                  url: "markchainsasread",
+                                  data: { review_ids: review_ids },
+                                  callback: function (result) { if (result) location.reload(); } });
+
+  operation.execute();
+}
+
 $(document).ready(function ()
   {
     $("h1[title], h2[title]").tooltip({ fade: 250 });

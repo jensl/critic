@@ -257,16 +257,28 @@ class DeleteComment(Operation):
 
 class MarkChainsAsRead(Operation):
     def __init__(self):
-        Operation.__init__(self, { "chain_ids": [int] })
+        Operation.__init__(self, { "chain_ids": Optional([int]),
+                                   "review_ids": Optional([int]) })
 
-    def process(self, db, user, chain_ids):
+    def process(self, db, user, chain_ids=None, review_ids=None):
         cursor = db.cursor()
-        cursor.execute("""DELETE FROM commentstoread
-                                USING comments
-                                WHERE commentstoread.uid=%s
-                                  AND commentstoread.comment=comments.id
-                                  AND comments.chain=ANY (%s)""",
-                       (user.id, chain_ids))
+
+        if chain_ids:
+            cursor.execute("""DELETE FROM commentstoread
+                                    USING comments
+                                    WHERE commentstoread.uid=%s
+                                      AND commentstoread.comment=comments.id
+                                      AND comments.chain=ANY (%s)""",
+                           (user.id, chain_ids))
+
+        if review_ids:
+            cursor.execute("""DELETE FROM commentstoread
+                                    USING comments, commentchains
+                                    WHERE commentstoread.uid=%s
+                                      AND commentstoread.comment=comments.id
+                                      AND comments.chain=commentchains.id
+                                      AND commentchains.review=ANY (%s)""",
+                           (user.id, review_ids))
 
         db.commit()
 
