@@ -849,21 +849,29 @@ http://code.google.com/p/modwsgi/wiki/AccessControlMechanisms#Apache_Authenticat
 
             db.rollback()
 
-            if not user or user.hasRole(db, "developer"):
-                title = "You broke the system again:"
-                body = error_message
-                body_html = "<pre>%s</pre>" % htmlify(body)
-            else:
-                prefix = dbutils.getURLPrefix(db)
+            if not user or not user.hasRole(db, "developer"):
+                import wsgiref.util
+
+                url = wsgiref.util.request_uri(environ)
 
                 x_forwarded_host = req.getRequestHeader("X-Forwarded-Host")
-                if x_forwarded_host: prefix = "https://" + x_forwarded_host
+                if x_forwarded_host:
+                    url = re.sub("^([a-z]+://)[^/]+", lambda match: match.group(1) + x_forwarded_host, url)
 
-                url = "%s/%s?%s" % (prefix, req.path, req.query)
+                mailutils.sendExceptionMessage("wsgi", ("User:   %s\nMethod: %s\nURL:    %s\n\n%s"
+                                                        % (req.user, req.method, url, error_message)))
 
-                mailutils.sendExceptionMessage("wsgi", ("User:   %s\nMethod: %s\nPath:   %s\nQuery:  %s\nURL:    %s\n\n%s"
-                                                        % (req.user, req.method, req.path, req.query, url, error_message)))
+                admin_message_sent = True
+            else:
+                admin_message_sent = False
 
+            if not user or user.hasRole(db, "developer") or configuration.base.IS_DEVELOPMENT:
+                title = "Unexpected error!"
+                body = error_message
+                if admin_message_sent:
+                    body += "\nA message has been sent to the system administrator(s) with details about the problem."
+                body_html = "<pre>%s</pre>" % htmlify(body)
+            else:
                 title = "Darn! It seems we have a problem..."
                 body = "A message has been sent to the system administrator(s) with details about the problem."
                 body_html = body

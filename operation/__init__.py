@@ -19,6 +19,7 @@ import traceback
 import mailutils
 import dbutils
 import htmlutils
+import configuration
 
 from textutils import json_encode, json_decode
 
@@ -337,15 +338,20 @@ class Operation(object):
                                     title="Transaction rolled back",
                                     message="Your database transaction rolled back, probably due to a deadlock.  Please try again.")
         except:
-            error_message = traceback.format_exc()
+            error_message = ("User: %s\nReferrer: %s\nData: %s\n\n%s"
+                             % (user.name,
+                                req.getReferrer(),
+                                json_encode(self.sanitize(value), indent=2),
+                                traceback.format_exc()))
 
             db.rollback()
 
-            if user.hasRole(db, "developer"):
+            if not user.hasRole(db, "developer"):
+                mailutils.sendExceptionMessage("wsgi[%s]" % req.path, error_message)
+
+            if configuration.base.IS_DEVELOPMENT or user.hasRole(db, "developer"):
                 return OperationError(error_message)
             else:
-                error_message = "User: %s\nReferrer: %s\nData: %s\n\n%s" % (user.name, req.getReferrer(), json_encode(self.sanitize(value), indent=2), error_message)
-                mailutils.sendExceptionMessage("wsgi[%s]" % req.path, error_message)
                 return OperationError("An unexpected error occurred.  " +
                                       "A message has been sent to the system administrator(s) " +
                                       "with details about the problem.")
