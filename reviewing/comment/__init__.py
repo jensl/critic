@@ -101,7 +101,13 @@ class CommentChain:
         return self
 
     def loadComments(self, db, user, include_draft_comments=True):
-        draft_user_id = user.id if include_draft_comments else None
+        if include_draft_comments:
+            if self.state == "draft":
+                draft_user_id = self.user.id
+            else:
+                draft_user_id = user.id
+        else:
+            draft_user_id = None
 
         cursor = db.cursor()
         cursor.execute("""SELECT comments.id,
