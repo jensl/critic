@@ -34,7 +34,12 @@ def renderShowBatch(req, db, user):
 
     if batch_id:
         cursor.execute("SELECT review, uid, comment FROM batches WHERE id=%s", (batch_id,))
-        review_id, author_id, chain_id = cursor.fetchone()
+
+        row = cursor.fetchone()
+        if not row:
+            raise page.utils.DisplayMessage("Invalid batch ID: %d" % batch_id)
+
+        review_id, author_id, chain_id = row
         author = dbutils.User.fromId(db, author_id)
     else:
         chain_id = None
