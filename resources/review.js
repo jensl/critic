@@ -495,7 +495,7 @@ function editOwners()
   }
 
   var self = this;
-  var content = $("<div class='editowner' title='Change Review Owner'><p>Please enter the user name of the new review owner:<br><input></p></div>");
+  var content = $("<div class='editowner' title='Change Review Owner'><p>Please enter the user name(s) of the new review owner(s):<br><input></p></div>");
 
   content.find("input").val(owners.map(function (user) { return user.name; }).join(", "));
 
