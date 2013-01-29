@@ -617,7 +617,7 @@ def renderFile(db, target, user, review, file, first_file=False, options={}, con
                     else:
                         linenr = line.new_offset
 
-                    row = target.tr("line " + line_class, id=lineId(file, line, 0))
+                    row = target.tr("line single " + line_class, id=lineId(file, line, 0))
                     row.td("edge").text()
                     row.td("linenr old").text(linenr)
 

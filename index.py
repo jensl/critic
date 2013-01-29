@@ -625,10 +625,7 @@ onto the %s.""" % (merged_thing, review.branch.name, old_upstream_name, old_head
 
                 pending_mails = []
 
-                cursor.execute("SELECT uid FROM reviewusers WHERE review=%s", (review.id,))
-                recipients = []
-                for (user_id,) in cursor.fetchall():
-                    recipients.append(dbutils.User.fromId(db, user_id))
+                recipients = review.getRecipients(db)
                 for to_user in recipients:
                     pending_mails.extend(review_mail.sendReviewRebased(db, user, to_user, recipients, review, new_upstream_name, rebased_commits, onto_branch))
 
@@ -671,10 +668,7 @@ the same tree as the old head of the branch."""
 
                 pending_mails = []
 
-                cursor.execute("SELECT uid FROM reviewusers WHERE review=%s", (review.id,))
-                recipients = []
-                for (user_id,) in cursor.fetchall():
-                    recipients.append(dbutils.User.fromId(db, user_id))
+                recipients = review.getRecipients(db)
                 for to_user in recipients:
                     pending_mails.extend(review_mail.sendReviewRebased(db, user, to_user, recipients, review, None, rebased_commits))
 

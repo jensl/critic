@@ -74,27 +74,54 @@ def createChangeset(db, request):
 
         return changeset_id
 
-    if changeset_type == "merge":
-        child = gitutils.Commit.fromSHA1(db, repository, request["child_sha1"])
-        changes = diff.merge.parseMergeDifferences(db, repository, child)
-    else:
-        if changeset_type == "direct":
-            child = gitutils.Commit.fromSHA1(db, repository, request["child_sha1"])
-            changes = diff.parse.parseDifferences(repository, commit=child)
-        elif changeset_type == "custom":
-            parent = gitutils.Commit.fromSHA1(db, repository, request["parent_sha1"])
-            child = gitutils.Commit.fromSHA1(db, repository, request["child_sha1"])
-            changes = diff.parse.parseDifferences(repository, from_commit=parent, to_commit=child)
-        else:
-            parent = gitutils.Commit.fromSHA1(db, repository, request["parent_sha1"])
-            child = gitutils.Commit.fromSHA1(db, repository, request["child_sha1"])
-            changes = diff.parse.parseDifferences(repository, from_commit=parent, to_commit=child)
-
     changeset_ids = request["changeset_ids"] = {}
 
-    for parent_sha1, files in changes.items():
-        if parent_sha1 is None: parent = None
-        else: parent = gitutils.Commit.fromSHA1(db, repository, parent_sha1)
-        changeset_ids[parent_sha1] = insertChangeset(db, parent, child, files)
+    child = gitutils.Commit.fromSHA1(db, repository, request["child_sha1"])
 
-    db.commit()
+    cursor = db.cursor()
+
+    if "parent_sha1" in request:
+        assert changeset_type in ("custom", "conflicts")
+
+        parent_sha1 = request["parent_sha1"]
+        parent = gitutils.Commit.fromSHA1(db, repository, parent_sha1)
+
+        cursor.execute("""SELECT id, %s
+                            FROM changesets
+                           WHERE type=%s
+                             AND parent=%s
+                             AND child=%s""",
+                       (parent_sha1, changeset_type, parent.getId(db), child.getId(db)))
+    else:
+        assert changeset_type in ("direct", "merge")
+
+        cursor.execute("""SELECT changesets.id, commits.sha1
+                            FROM changesets
+                 LEFT OUTER JOIN commits ON (commits.id=changesets.parent)
+                           WHERE type=%s
+                             AND child=%s""",
+                       (changeset_type, child.getId(db)))
+
+    rows = cursor.fetchall()
+
+    if rows:
+        # Changeset(s) already exists in database.
+
+        for changeset_id, parent_sha1 in rows:
+            changeset_ids[parent_sha1] = changeset_id
+    else:
+        # Parse diff and insert changeset(s) into the database.
+
+        if changeset_type == "merge":
+            changes = diff.merge.parseMergeDifferences(db, repository, child)
+        elif changeset_type == "direct":
+            changes = diff.parse.parseDifferences(repository, commit=child)
+        else:
+            changes = diff.parse.parseDifferences(repository, from_commit=parent, to_commit=child)
+
+        for parent_sha1, files in changes.items():
+            if parent_sha1 is None: parent = None
+            else: parent = gitutils.Commit.fromSHA1(db, repository, parent_sha1)
+            changeset_ids[parent_sha1] = insertChangeset(db, parent, child, files)
+
+        db.commit()

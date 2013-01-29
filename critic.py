@@ -90,7 +90,7 @@ except ImportError:
 if configuration.extensions.ENABLED:
     RE_EXTENSION_RESOURCE = re.compile("^extension-resource/([a-z0-9][-._a-z0-9]+(?:/[a-z0-9][-._a-z0-9]+)+)$", re.IGNORECASE)
 
-from operation import OperationResult, OperationError
+from operation import OperationResult, OperationError, OperationFailureMustLogin
 
 def download(req, db, user):
     sha1 = req.getParameter("sha1")
@@ -186,6 +186,8 @@ def setfullname(req, db, user):
     return "ok"
 
 def addfilter(req, db, user):
+    if user.isAnonymous(): return OperationFailureMustLogin()
+
     cursor = db.cursor()
 
     repository_id = req.getParameter("repository", filter=int)
@@ -225,6 +227,8 @@ def addfilter(req, db, user):
     return "ok:directory=%d,file=%d" % (directory_id, file_id)
 
 def deletefilter(req, db, user):
+    if user.isAnonymous(): return OperationFailureMustLogin()
+
     cursor = db.cursor()
 
     repository_id = req.getParameter("repository", filter=int)
@@ -238,16 +242,19 @@ def deletefilter(req, db, user):
     return "ok"
 
 def reapplyfilters(req, db, user):
+    if user.isAnonymous(): return OperationFailureMustLogin()
+
     cursor1 = db.cursor()
     cursor2 = db.cursor()
     cursor3 = db.cursor()
 
     user = dbutils.User.fromName(db, req.getParameter("user", req.user))
-    repository = gitutils.Repository.fromParameter(db, req.getParameter("repository", ""))
+    repository_name = req.getParameter("repository", None)
 
-    if repository is None:
+    if not repository_name:
         cursor1.execute("""SELECT reviews.id, applyfilters, applyparentfilters, branches.repository FROM reviews JOIN branches ON (reviews.branch=branches.id) WHERE reviews.state!='closed'""")
     else:
+        repository = gitutils.Repository.fromParameter(db, repository_name)
         cursor1.execute("""SELECT reviews.id, applyfilters, applyparentfilters, branches.repository FROM reviews JOIN branches ON (reviews.branch=branches.id) WHERE reviews.state!='closed' AND branches.repository=%s""", (repository.id,))
 
     repositories = {}
@@ -804,7 +811,7 @@ def main(environ, start_response):
                 try: result = operationfn(req, db, user)
                 except OperationError, error: result = error
                 except page.utils.DisplayMessage, message:
-                    result = "error:" + message.title
+                    result = "error: " + message.title
                     if message.body: result += "  " + message.body
                 except Exception: result = "error:\n" + traceback.format_exc()
 
@@ -836,6 +843,15 @@ def main(environ, start_response):
                         req.setContentType("text/html")
 
                         result = pagefn(req, db, user)
+
+                        if isinstance(result, str) or isinstance(result, Document):
+                            req.start()
+                            yield str(result)
+                        else:
+                            for fragment in result:
+                                req.start()
+                                yield str(fragment)
+
                     except gitutils.NoSuchRepository, error:
                         raise page.utils.DisplayMessage("Invalid URI Parameter!", error.message)
                     except gitutils.GitError, error:
@@ -849,14 +865,6 @@ def main(environ, start_response):
                             raise
                     except dbutils.NoSuchUser, error:
                         raise page.utils.DisplayMessage("Invalid URI Parameter!", error.message)
-
-                    if isinstance(result, str) or isinstance(result, Document):
-                        req.start()
-                        yield str(result)
-                    else:
-                        for fragment in result:
-                            req.start()
-                            yield str(fragment)
 
                     yield "<!-- total request time: %.2f ms -->" % ((time.time() - request_start) * 1000)
 

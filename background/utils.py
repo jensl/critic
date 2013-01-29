@@ -320,70 +320,75 @@ class PeerServer(BackgroundProcess):
             try: os.unlink(self.__address)
             except: pass
 
-    def __run(self):
+    def run(self):
         try:
-            self.startup()
-
-            while not self.terminated:
-                self.interrupted = False
-
-                if self.restart_requested:
-                    if not self.__peers: break
-                    else: self.debug("restart delayed; have %d peers" % len(self.__peers))
-
-                poll = select.poll()
-                poll.register(self.__listening_socket, select.POLLIN)
-
-                for peer in self.__peers:
-                    if peer.writing(): poll.register(peer.writing(), select.POLLOUT)
-                    if peer.reading(): poll.register(peer.reading(), select.POLLIN)
-
-                def fileno(file):
-                    if file: return file.fileno()
-                    else: return None
+            try:
+                self.startup()
 
                 while not self.terminated:
-                    timeout = self.run_maintenance()
+                    self.interrupted = False
 
-                    if not (timeout is None or self.__peers):
-                        self.debug("next maintenance task check scheduled in %d seconds" % timeout)
+                    if self.restart_requested:
+                        if not self.__peers: break
+                        else: self.debug("restart delayed; have %d peers" % len(self.__peers))
 
-                    try:
-                        events = poll.poll(timeout * 1000 if timeout else None)
-                        break
-                    except select.error, error:
-                        if error[0] == errno.EINTR: continue
-                        else: raise
+                    poll = select.poll()
+                    poll.register(self.__listening_socket, select.POLLIN)
 
-                if self.terminated: break
+                    for peer in self.__peers:
+                        if peer.writing(): poll.register(peer.writing(), select.POLLOUT)
+                        if peer.reading(): poll.register(peer.reading(), select.POLLIN)
 
-                def catch_error(fn):
-                    try: fn()
-                    except socket.error, error:
-                        if error[0] not in (errno.EAGAIN, errno.EINTR): raise
-                    except OSError, error:
-                        if error.errno not in (errno.EAGAIN, errno.EINTR): raise
+                    def fileno(file):
+                        if file: return file.fileno()
+                        else: return None
 
-                for fd, event in events:
-                    if fd == self.__listening_socket.fileno():
-                        peersocket, peeraddress = self.__listening_socket.accept()
-                        peer = self.handle_peer(peersocket, peeraddress)
-                        if peer: self.__peers.append(peer)
+                    while not self.terminated:
+                        timeout = self.run_maintenance()
+
+                        if not (timeout is None or self.__peers):
+                            self.debug("next maintenance task check scheduled in %d seconds" % timeout)
+
+                        try:
+                            events = poll.poll(timeout * 1000 if timeout else None)
+                            break
+                        except select.error, error:
+                            if error[0] == errno.EINTR: continue
+                            else: raise
+
+                    if self.terminated: break
+
+                    def catch_error(fn):
+                        try: fn()
+                        except socket.error, error:
+                            if error[0] not in (errno.EAGAIN, errno.EINTR): raise
+                        except OSError, error:
+                            if error.errno not in (errno.EAGAIN, errno.EINTR): raise
+
+                    for fd, event in events:
+                        if fd == self.__listening_socket.fileno():
+                            peersocket, peeraddress = self.__listening_socket.accept()
+                            peer = self.handle_peer(peersocket, peeraddress)
+                            if peer: self.__peers.append(peer)
+                            else:
+                                try: peersocket.close()
+                                except: pass
                         else:
-                            try: peersocket.close()
-                            except: pass
-                    else:
-                        for peer in self.__peers[:]:
-                            if fd == fileno(peer.writing()) and event != select.POLLIN:
-                                catch_error(peer.do_write)
-                            if fd == fileno(peer.reading()) and event != select.POLLOUT:
-                                catch_error(peer.do_read)
-                            if peer.is_finished():
-                                peer.destroy()
-                                self.peer_destroyed(peer)
-                                self.__peers.remove(peer)
-
-            self.info("service shutting down ...")
+                            for peer in self.__peers[:]:
+                                if fd == fileno(peer.writing()) and event != select.POLLIN:
+                                    catch_error(peer.do_write)
+                                if fd == fileno(peer.reading()) and event != select.POLLOUT:
+                                    catch_error(peer.do_read)
+                                if peer.is_finished():
+                                    peer.destroy()
+                                    self.peer_destroyed(peer)
+                                    self.__peers.remove(peer)
+            except:
+                self.exception()
+                self.error("service crashed!")
+                sys.exit(1)
+            else:
+                self.info("service shutting down ...")
         finally:
             try: self.shutdown()
             except: self.exception()
@@ -396,10 +401,6 @@ class PeerServer(BackgroundProcess):
 
     def add_peer(self, peer):
         self.__peers.append(peer)
-
-    def run(self):
-        try: self.__run()
-        except: self.exception()
 
     def handle_peer(self, peersocket, peeraddress):
         pass
@@ -438,9 +439,9 @@ class SlaveProcessServer(PeerServer):
 
 class JSONJobServer(PeerServer):
     class Job(PeerServer.ChildProcess):
-        def __init__(self, server, clients, request):
+        def __init__(self, server, client, request):
             super(JSONJobServer.Job, self).__init__(server, [sys.executable, sys.argv[0], "--json-job"], stderr=subprocess.STDOUT)
-            self.clients = clients
+            self.clients = [client]
             self.request = request
             self.write(json_encode(request))
             self.close()
@@ -459,11 +460,18 @@ class JSONJobServer(PeerServer):
             decoded = json_decode(value)
             if isinstance(decoded, list):
                 self.__requests = decoded
+                self.__pending_requests = map(freeze, decoded)
                 self.__results = []
-                self.server.add_requests(self, self.__requests)
+                self.server.add_requests(self)
             else:
                 assert isinstance(decoded, dict)
                 self.server.execute_command(self, decoded)
+
+        def has_requests(self):
+            return bool(self.__pending_requests)
+
+        def get_request(self):
+            return self.__pending_requests.pop()
 
         def add_result(self, result):
             self.__results.append(result)
@@ -473,25 +481,49 @@ class JSONJobServer(PeerServer):
 
     def __init__(self, service):
         super(JSONJobServer, self).__init__(service)
-        self.__queued_requests = {}
+        self.__clients_with_requests = []
         self.__started_requests = {}
         self.__max_jobs = service.get("max_jobs", 4)
 
     def __startJobs(self):
-        while self.__queued_requests and len(self.__started_requests) < self.__max_jobs:
-            frozen, clients = self.__queued_requests.popitem()
-            request = thaw(frozen)
-            job = JSONJobServer.Job(self, clients, request)
-            self.add_peer(job)
-            self.request_started(job, request)
+        # Repeat "start a job" while there are jobs to start and we haven't
+        # reached the limit on number of concurrent jobs to run.
+        while self.__clients_with_requests and len(self.__started_requests) < self.__max_jobs:
+            # Fetch next request from first client in list of clients with
+            # pending requests.
+            client = self.__clients_with_requests.pop(0)
+            frozen = client.get_request()
 
-    def add_requests(self, client, requests):
-        for request in requests:
-            frozen = freeze(request)
+            if client.has_requests():
+                # Client has more pending requests, so put it back at the end of
+                # the list of clients with pending requests.
+                self.__clients_with_requests.append(client)
+
             if frozen in self.__started_requests:
-                self.__started_requests[frozen].clients.add(client)
+                # Another client has requested the same thing, piggy-back on
+                # that job instead of starting another.
+                self.__started_requests[frozen].clients.append(client)
+                continue
+
+            request = thaw(frozen)
+
+            # Check if this request is already finished.  Default implementation
+            # of this callback always returns None.
+            result = self.request_result(request)
+
+            if result:
+                # Request is already finished; don't bother starting a child
+                # process, just report result directly to the client.
+                client.add_result(result)
             else:
-                self.__queued_requests.setdefault(frozen, set()).add(client)
+                # Start child process.
+                job = JSONJobServer.Job(self, client, request)
+                self.add_peer(job)
+                self.request_started(job, request)
+
+    def add_requests(self, client):
+        assert client.has_requests()
+        self.__clients_with_requests.append(client)
         self.__startJobs()
 
     def execute_command(self, client, command):
@@ -504,6 +536,8 @@ class JSONJobServer(PeerServer):
     def peer_destroyed(self, peer):
         if isinstance(peer, JSONJobServer.Job): self.__startJobs()
 
+    def request_result(self, request):
+        pass
     def request_started(self, job, request):
         self.__started_requests[freeze(request)] = job
     def request_finished(self, job, request, result):
