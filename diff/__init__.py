@@ -225,6 +225,11 @@ class File:
         self.new_mode = kwargs.get("new_mode")
         self.repository = repository
 
+        if isinstance(self.old_mode, int):
+            self.old_mode = "%o" % self.old_mode
+        if isinstance(self.new_mode, int):
+            self.new_mode = "%o" % self.new_mode
+
         # List of low-level chunks affecting the file.
         self.chunks = kwargs.get("chunks")
 
@@ -291,6 +296,7 @@ class File:
             return
         elif self.old_mode and self.old_mode == "160000":
             self.old_plain = self.old_highlighted = ["Subproject commit %s" % self.old_sha1]
+            return
 
         if highlighted:
             if self.old_highlighted and self.old_is_highlighted: return
@@ -321,6 +327,7 @@ class File:
             return
         elif self.new_mode and self.new_mode == "160000":
             self.new_plain = self.new_highlighted = ["Subproject commit %s" % self.new_sha1]
+            return
 
         if highlighted:
             if self.new_highlighted and self.new_is_highlighted: return
