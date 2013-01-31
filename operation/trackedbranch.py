@@ -18,6 +18,7 @@ from operation import Operation, OperationResult, OperationFailure, OperationErr
 
 import dbutils
 import gitutils
+import htmlutils
 import configuration
 
 import calendar
@@ -171,6 +172,22 @@ class EnableTrackedBranch(Operation):
                                    message="You need to reopen the review before new commits can be added to it.")
 
         if new_remote_name is not None:
+            cursor.execute("""SELECT remote
+                                FROM trackedbranches
+                               WHERE id=%s""",
+                           (branch_id,))
+
+            remote = cursor.fetchone()[0]
+
+            if not gitutils.Repository.lsremote(remote, pattern="refs/heads/" + new_remote_name):
+                raise OperationFailure(
+                    code="refnotfound",
+                    title="Remote ref not found!",
+                    message=("Could not find the ref <code>%s</code> in the repository <code>%s</code>."
+                             % (htmlutils.htmlify("refs/heads/" + new_remote_name),
+                                htmlutils.htmlify(remote))),
+                    is_html=True)
+
             cursor.execute("""UPDATE trackedbranches
                                  SET remote_name=%s,
                                      disabled=FALSE,

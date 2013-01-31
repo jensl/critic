@@ -189,7 +189,7 @@ class FetchRemoteBranch(Operation):
             raise OperationFailure(
                 code="refnotfound",
                 title="Remote ref not found!",
-                message=("Couldn't find ref <code>%s</code> in <code>%s</code>."
+                message=("Could not find the ref <code>%s</code> in the repository <code>%s</code>."
                          % (htmlutils.htmlify(branch), htmlutils.htmlify(remote))),
                 is_html=True)
         except gitutils.GitCommandError, error:
