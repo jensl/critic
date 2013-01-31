@@ -492,7 +492,8 @@ OPERATIONS = { "fetchlines": operation.fetchlines.FetchLines(),
                "restartservice": operation.servicemanager.RestartService(),
                "getservicelog": operation.servicemanager.GetServiceLog(),
                "checkmergestatus": operation.checkrebase.CheckMergeStatus(),
-               "checkconflictsstatus": operation.checkrebase.CheckConflictsStatus() }
+               "checkconflictsstatus": operation.checkrebase.CheckConflictsStatus(),
+               "checkhistoryrewritestatus": operation.checkrebase.CheckHistoryRewriteStatus() }
 
 PAGES = { "showreview": page.showreview.renderShowReview,
           "showcommit": page.showcommit.renderShowCommit,

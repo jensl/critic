@@ -87,3 +87,29 @@ class CheckConflictsStatus(Operation):
 
         return OperationResult(has_conflicts=has_conflicts, has_changes=has_changes,
                                merge_sha1=merge_sha1)
+
+class CheckHistoryRewriteStatus(Operation):
+    def __init__(self):
+        super(CheckHistoryRewriteStatus, self).__init__({ "review_id": int,
+                                                          "old_head_sha1": str,
+                                                          "new_head_sha1": str })
+
+    def process(self, db, user, review_id, old_head_sha1, new_head_sha1):
+        review = dbutils.Review.fromId(db, review_id)
+
+        old_head = gitutils.Commit.fromSHA1(db, review.repository, old_head_sha1)
+        new_head = gitutils.Commit.fromSHA1(db, review.repository, new_head_sha1)
+
+        mergebase = review.repository.mergebase([old_head, new_head])
+        sha1s = review.repository.revlist([new_head], [mergebase])
+
+        valid = True
+
+        for sha1 in sha1s:
+            commit = gitutils.Commit.fromSHA1(db, review.repository, sha1)
+            if commit.tree == old_head.tree:
+                break
+        else:
+            valid = False
+
+        return OperationResult(valid=valid)

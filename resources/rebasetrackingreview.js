@@ -78,12 +78,16 @@ function rebaseReview()
       location.replace("/r/" + review.id);
   }
 
+  var data = { review_id: review.id,
+	       new_head_sha1: check.new_head_sha1,
+	       new_trackedbranch: check.new_trackedbranch };
+
+  if (check.new_upstream_sha1)
+    data.new_upstream_sha1 = check.new_upstream_sha1;
+
   var operation = new Operation({ action: "rebase review",
 				  url: "rebasereview",
-				  data: { review_id: review.id,
-					  new_head_sha1: check.new_head_sha1,
-					  new_upstream_sha1: check.new_upstream_sha1,
-					  new_trackedbranch: check.new_trackedbranch },
+				  data: data,
 				  wait: "Rebasing review...",
 				  callback: finish });
 
@@ -144,18 +148,47 @@ $(function ()
       }
     }
 
-    if (check)
+    function updateHistoryRewriteStatus(result)
     {
-      var merge_status = new Operation({ action: "check merge status",
-					 url: "checkmergestatus",
-					 data: { review_id: review.id,
-						 old_head_sha1: check.old_head_sha1,
-						 new_head_sha1: check.new_head_sha1,
-						 new_upstream_sha1: check.new_upstream_sha1 },
-					 callback: updateMergeStatus });
+      if (result)
+      {
+	var status_historyrewrite = $("#status_historyrewrite");
 
-      merge_status.execute();
+	status_historyrewrite.text(result.valid ? "Clean." : "Not valid!");
 
-      $("#status_merge").text("Checking...");
+        if (result.valid)
+          $("button#rebasereview").removeAttr("disabled").button("refresh");
+      }
+    }
+
+    if (typeof check != "undefined")
+    {
+      if (check.new_upstream_sha1)
+      {
+        var merge_status = new Operation({ action: "check merge status",
+                                           url: "checkmergestatus",
+                                           data: { review_id: review.id,
+                                                   old_head_sha1: check.old_head_sha1,
+                                                   new_head_sha1: check.new_head_sha1,
+                                                   new_upstream_sha1: check.new_upstream_sha1 },
+                                           callback: updateMergeStatus });
+
+        merge_status.execute();
+
+        $("#status_merge").text("Checking...");
+      }
+      else
+      {
+        var historyrewrite_status = new Operation({ action: "check history rewrite status",
+                                                    url: "checkhistoryrewritestatus",
+                                                    data: { review_id: review.id,
+                                                            old_head_sha1: check.old_head_sha1,
+                                                            new_head_sha1: check.new_head_sha1 },
+                                                    callback: updateHistoryRewriteStatus });
+
+        historyrewrite_status.execute();
+
+        $("#status_historyrewrite").text("Checking...");
+      }
     }
   });

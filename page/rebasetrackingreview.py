@@ -40,7 +40,6 @@ class RebaseTrackingReview(page.Page):
             self.newupstream = newupstream
 
         def generateHeader(self):
-            super(RebaseTrackingReview.Handler, self).generateHeader()
             self.document.addExternalStylesheet("resource/rebasetrackingreview.css")
             self.document.addExternalScript("resource/rebasetrackingreview.js")
 
@@ -83,7 +82,16 @@ class RebaseTrackingReview(page.Page):
 
                 new_head = heads.pop()
                 new_upstream_sha1 = tails.pop()
-                new_upstream = gitutils.Commit.fromSHA1(self.db, self.review.repository, new_upstream_sha1)
+
+                commitset = log.commitset.CommitSet(self.review.branch.commits)
+                tails = commitset.getFilteredTails(self.review.repository)
+
+                if len(tails) == 1 and tails.pop() == new_upstream_sha1:
+                    # This appears to be a history rewrite.
+                    new_upstream = None
+                    new_upstream_sha1 = None
+                else:
+                    new_upstream = gitutils.Commit.fromSHA1(self.db, self.review.repository, new_upstream_sha1)
 
                 self.document.addInternalScript("var check = { old_head_sha1: %s, new_head_sha1: %s, new_upstream_sha1: %s, new_trackedbranch: %s };"
                                                 % (htmlutils.jsify(self.review.branch.head.sha1),
@@ -101,17 +109,26 @@ class RebaseTrackingReview(page.Page):
                     target.span("value").text(new_upstream.sha1[:8] + " " + new_upstream.niceSummary())
 
                 table.addItem("New branch", renderNewBranch)
-                table.addItem("New upstream", renderUpstream)
+
+                if new_upstream:
+                    table.addItem("New upstream", renderUpstream)
+
                 table.addSeparator()
 
                 def renderMergeStatus(target):
                     target.a("status", id="status_merge").text("N/A")
                 def renderConflictsStatus(target):
                     target.a("status", id="status_conflicts").text("N/A")
+                def renderHistoryRewriteStatus(target):
+                    target.a("status", id="status_historyrewrite").text("N/A")
 
                 table.addSection("Status")
-                table.addItem("Merge", renderMergeStatus)
-                table.addItem("Conflicts", renderConflictsStatus)
+
+                if new_upstream:
+                    table.addItem("Merge", renderMergeStatus)
+                    table.addItem("Conflicts", renderConflictsStatus)
+                else:
+                    table.addItem("History rewrite", renderHistoryRewriteStatus)
 
                 def renderRebaseReview(target):
                     target.button(id="rebasereview", onclick="rebaseReview();", disabled="disabled").text("Rebase Review")

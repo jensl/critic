@@ -63,9 +63,13 @@ def doPrepareRebase(db, user, review, new_upstream_arg=None, branch=None):
                            VALUES (%s, %s, NULL, %s, %s, %s, %s)""",
                    (review.id, head_id, old_upstream_id, new_upstream_id, user.id, branch))
 
+    review.incrementSerial(db)
+
     db.commit()
 
 def doCancelRebase(db, user, review):
+    review.incrementSerial(db)
+
     db.cursor().execute("DELETE FROM reviewrebases WHERE review=%s AND new_head IS NULL", (review.id,))
     db.commit()
 

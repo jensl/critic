@@ -79,24 +79,32 @@ class Page(object):
             self.head = self.html.head()
             self.body = self.html.body()
 
-            self.generateHeader()
+            self._generateHeader()
             self.generateContent()
-            self.generateFooter()
+            self._generateFooter()
 
             return self.document
 
-        def generateHeader(self):
+        def _generateHeader(self):
             page.utils.generateHeader(self.body, self.db, self.user,
                                       current_page=self.page.name,
                                       generate_right=self.getGenerateHeaderRight(),
                                       extra_links=self.getExtraLinks())
+            self.generateHeader()
+
+        def generateHeader(self):
+            pass
 
         def generateContent(self):
             self.body.div("message").h1("center").text("Not implemented!")
 
-        def generateFooter(self):
+        def _generateFooter(self):
+            self.generateFooter()
             page.utils.generateFooter(self.body, self.db, self.user,
                                       current_page=self.page.name)
+
+        def generateFooter(self):
+            pass
 
         def getGenerateHeaderRight(self):
             if self.review:
