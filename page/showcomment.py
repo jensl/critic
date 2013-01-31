@@ -239,7 +239,8 @@ def renderShowComments(req, db, user):
                 if chain.file_id is not None:
                     file_ids.add(chain.file_id)
                     parent, child = review_html.getCodeCommentChainChangeset(db, chain, original)
-                    changesets_files.setdefault((parent, child), set()).add(chain.file_id)
+                    if parent and child:
+                        changesets_files.setdefault((parent, child), set()).add(chain.file_id)
 
         profiler.check("load chains")
 
@@ -255,13 +256,24 @@ def renderShowComments(req, db, user):
 
         for chain in chains:
             if blame is not None and chain.file_id is not None:
-                changeset = changesets[(chain.first_commit, chain.last_commit)]
-                annotator = annotators[(chain.first_commit, chain.last_commit)]
-
-                offset, count = chain.lines_by_sha1[changeset.getFile(chain.file_id).new_sha1]
-
-                if not annotator.annotate(chain.file_id, offset, offset + count - 1, check_user=blame_user):
+                try:
+                    changeset = changesets[(chain.first_commit, chain.last_commit)]
+                    annotator = annotators[(chain.first_commit, chain.last_commit)]
+                except KeyError:
+                    # Most likely a comment created via /showfile.  Such a
+                    # comment could be in code that 'blame_user' modified in the
+                    # review, but for now, let's skip the comment.
                     continue
+                else:
+                    file_in_changeset = changeset.getFile(chain.file_id)
+
+                    if not file_in_changeset:
+                        continue
+
+                    offset, count = chain.lines_by_sha1[file_in_changeset.new_sha1]
+
+                    if not annotator.annotate(chain.file_id, offset, offset + count - 1, check_user=blame_user):
+                        continue
 
             profiler.check("detailed blame filtering")
 
