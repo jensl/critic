@@ -226,7 +226,11 @@ class Repository:
                 cursor = db.cursor()
                 cursor.execute("SELECT id FROM repositories WHERE path=%s", (path,))
 
-                return Repository.fromId(db, cursor.fetchone()[0])
+                row = cursor.fetchone()
+                if row:
+                    return Repository.fromId(db, row[0])
+                else:
+                    return None
         else:
             return None
 
