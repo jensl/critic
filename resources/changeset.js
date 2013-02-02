@@ -1272,7 +1272,8 @@ function applyLengthLimit(lines)
 
 window.addEventListener("popstate", function (ev)
   {
-    restoreState(ev.state);
+    if (ev.state)
+      restoreState(ev.state);
   }, false);
 
 if (typeof history.replaceState == "function")
