@@ -210,6 +210,14 @@ class FetchRemoteBranch(Operation):
 
         commit_sha1s = repository.revlist(included=[head_sha1], excluded=[upstream_sha1])
 
+        if not commit_sha1s:
+            raise OperationFailure(
+                code="emptybranch",
+                title="Branch contains no commits!",
+                message=("All commits referenced by <code>%s</code> are reachable from <code>%s</code>."
+                         % (htmlutils.htmlify(branch), htmlutils.htmlify(upstream))),
+                is_html=True)
+
         cursor = db.cursor()
         cursor.execute("SELECT id FROM commits WHERE sha1=ANY (%s)", (commit_sha1s,))
 
