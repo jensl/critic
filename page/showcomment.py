@@ -270,10 +270,14 @@ def renderShowComments(req, db, user):
                     if not file_in_changeset:
                         continue
 
-                    offset, count = chain.lines_by_sha1[file_in_changeset.new_sha1]
-
-                    if not annotator.annotate(chain.file_id, offset, offset + count - 1, check_user=blame_user):
+                    try:
+                        offset, count = chain.lines_by_sha1[file_in_changeset.new_sha1]
+                    except KeyError:
+                        # Probably a chain raised against the "old" side of the diff.
                         continue
+                    else:
+                        if not annotator.annotate(chain.file_id, offset, offset + count - 1, check_user=blame_user):
+                            continue
 
             profiler.check("detailed blame filtering")
 
