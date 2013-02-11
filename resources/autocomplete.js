@@ -50,6 +50,9 @@ function AutoCompleteUsers(users)
 
 function AutoCompletePath(paths)
 {
+  var pending_response;
+  var pending_operation;
+
   function autocomplete(request, response)
   {
     function hasPrefix(full, prefix)
@@ -61,53 +64,107 @@ function AutoCompletePath(paths)
       return Array(count + 1).join(what);
     }
 
-    var matches = [];
-
-    if (request.term)
+    function callResponse(paths, prefiltered)
     {
-      var pathnames = Object.keys(paths), previous;
+      var pathnames = Object.keys(paths), previous, matches = [], additional = 0;
 
       pathnames.sort();
 
       for (var index = 0; index < pathnames.length; ++index)
       {
-	var pathname = pathnames[index], shortened = pathname;
+        var pathname = pathnames[index], shortened = pathname;
 
-	if (hasPrefix(pathname, request.term))
-	{
-	  if (previous)
-	  {
-	    var components = pathname.split("/"), count = 0, prefix = "", checked_prefix;
+        if (prefiltered || hasPrefix(pathname, request.term))
+        {
+          if (matches.length == 20)
+          {
+            if (prefiltered)
+            {
+              additional = pathnames.length - matches.length;
+              break;
+            }
+            else
+            {
+              ++additional;
+              continue;
+            }
+          }
 
-	    while (count < components.length && hasPrefix(previous, checked_prefix = components.slice(0, count).join("/")))
-	    {
-	      ++count;
-	      prefix = checked_prefix;
-	    }
+          if (previous)
+          {
+            var components = pathname.split("/"), count = 0, prefix = "", checked_prefix;
 
-	    if (prefix.length > 3)
-	      shortened = repeat(" ", prefix.length - 3) + "..." + pathname.substring(prefix.length);
-	  }
+            while (count < components.length && hasPrefix(previous, checked_prefix = components.slice(0, count).join("/")))
+            {
+              ++count;
+              prefix = checked_prefix;
+            }
 
-	  var counts = paths[pathname];
+            if (prefix.length > 3)
+              shortened = repeat(" ", prefix.length - 3) + "..." + pathname.substring(prefix.length);
+          }
 
-	  if (counts[0] == 0)
-	    counts = "-" + counts[1] + "/+" + counts[2];
-	  else
-	    counts = "(" + counts[0] + " files) -" + counts[1] + "/+" + counts[2];
+          var counts = paths[pathname];
 
-	  matches.push({ label: ("<div class=sourcefont style='padding:0;margin:0;white-space:pre'>" + htmlify(shortened) +
-				 "<span style='float:right;font-size:smaller'>" + counts + "</span></div>"),
-			 value: pathname });
+          if ("deleted" in counts && "inserted" in counts)
+          {
+            if (counts.files == 0)
+              counts = "-" + counts.deleted + "/+" + counts.inserted;
+            else
+              counts = "(" + counts.files + " files) -" + counts.deleted + "/+" + counts.inserted;
+          }
+          else if ("files" in counts)
+            counts = "(" + counts.files + " files)"
+          else
+            counts = "";
 
-	  previous = pathname;
-	}
-	else if (matches.length)
-	  break;
+          if (counts)
+            counts = "<span style='float:right;font-size:smaller'>" + counts + "</span>";
+
+          matches.push({ label: ("<div class=sourcefont style='padding:0;margin:0;white-space:pre'>" + htmlify(shortened) +
+                                 counts + "</div>"),
+                         value: pathname });
+
+          previous = pathname;
+        }
+        else if (matches.length)
+          break;
       }
+
+      if (additional)
+        matches.push({ label: "<i>" + matches.length + " more matching paths</i>",
+                       value: request.term });
+
+      response(matches);
+
+      pending_response = null;
+      pending_operation = null;
     }
 
-    response(matches);
+    if (pending_response)
+    {
+      pending_response([]);
+      pending_response = null;
+    }
+
+    if (pending_operation)
+    {
+      pending_operation.abort();
+      pending_operation = null;
+    }
+
+    pending_response = response;
+
+    if (typeof paths == "function")
+    {
+      pending_operation = paths(request.term, callResponse);
+      if (pending_operation)
+        pending_response = response;
+      else
+        response([]);
+    }
+    else
+      callResponse(paths);
   }
 
   return autocomplete;

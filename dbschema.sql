@@ -131,43 +131,32 @@ CREATE TABLE trackedbranchlog
     successful BOOLEAN NOT NULL );
 CREATE INDEX trackedbranchlog_branch ON trackedbranchlog (branch);
 
-CREATE TABLE directories
-  ( id SERIAL PRIMARY KEY,
-    directory INTEGER NOT NULL,
-    name VARCHAR(256) NOT NULL,
-
-    UNIQUE (directory, name) );
-CREATE INDEX directories_directory_name ON directories (directory, name);
-
 CREATE TABLE files
   ( id SERIAL PRIMARY KEY,
-    directory INTEGER NOT NULL,
-    name VARCHAR(256) NOT NULL,
+    path TEXT NOT NULL );
 
-    UNIQUE (directory, name) );
-CREATE INDEX files_directory_name ON files (directory, name);
+-- Index used to enforce uniqueness, and for quick lookup of single
+-- paths (using "SELECT id FROM files WHERE MD5(path)=MD5(...)".
+CREATE UNIQUE INDEX files_path_md5 ON files (MD5(path));
+
+-- Index used for path searches, for instance when searching for
+-- reviews that touch files in a certain directory.
+CREATE INDEX files_path_gin ON files USING gin (STRING_TO_ARRAY(path, '/'));
 
 CREATE TYPE filtertype AS ENUM
   ( 'reviewer',
-    'watcher' );
+    'watcher',
+    'ignored' );
 CREATE TABLE filters
   ( id SERIAL PRIMARY KEY,
     uid INTEGER NOT NULL REFERENCES users,
     repository INTEGER NOT NULL REFERENCES repositories ON DELETE CASCADE,
-    directory INTEGER NOT NULL,
-    file INTEGER NOT NULL DEFAULT 0,
-    specificity INTEGER NOT NULL,
+    path TEXT NOT NULL,
     type filtertype NOT NULL,
-    delegate TEXT,
+    delegate TEXT );
 
-    UNIQUE (uid, directory, file) );
-
-CREATE TABLE filteredfiles
-  ( filter INTEGER NOT NULL REFERENCES filters ON DELETE CASCADE,
-    repository INTEGER NOT NULL REFERENCES repositories ON DELETE CASCADE,
-    file INTEGER NOT NULL REFERENCES files ON DELETE CASCADE );
-CREATE INDEX filteredfiles_filter ON filteredfiles(filter);
-CREATE INDEX filteredfiles_file ON filteredfiles(file);
+-- Index used to enforce uniqueness.
+CREATE UNIQUE INDEX filters_uid_repository_path_md5 ON filters (uid, repository, MD5(path));
 
 CREATE TABLE commits
   ( id SERIAL PRIMARY KEY,
@@ -307,12 +296,12 @@ CREATE TABLE reviewfilters
 
     review INTEGER NOT NULL REFERENCES reviews ON DELETE CASCADE,
     uid INTEGER NOT NULL REFERENCES users ON DELETE CASCADE,
-    directory INTEGER NOT NULL,
-    file INTEGER NOT NULL DEFAULT 0,
+    path TEXT NOT NULL,
     type filtertype NOT NULL,
-    creator INTEGER NOT NULL REFERENCES users ON DELETE CASCADE,
+    creator INTEGER NOT NULL REFERENCES users ON DELETE CASCADE );
 
-    UNIQUE (review, uid, directory, file) );
+-- Index used to enforce uniqueness.
+CREATE UNIQUE INDEX reviewfilters_review_uid_path_md5 ON reviewfilters (review, uid, MD5(path));
 
 CREATE TABLE batches
   ( id SERIAL PRIMARY KEY,
@@ -404,8 +393,7 @@ CREATE TABLE reviewfilterchanges
   ( transaction INTEGER NOT NULL REFERENCES reviewassignmentstransactions ON DELETE CASCADE,
 
     uid INTEGER NOT NULL REFERENCES users ON DELETE CASCADE,
-    directory INTEGER NOT NULL,
-    file INTEGER NOT NULL DEFAULT 0,
+    path TEXT NOT NULL,
     type filtertype NOT NULL,
     created BOOLEAN NOT NULL );
 

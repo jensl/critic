@@ -1,0 +1,100 @@
+Filters
+=======
+
+Introduction
+------------
+
+"Filters" is Critic's mechanism for automatically assigning reviewers for
+changes when reviews are created or updated, and for allowing users to be
+notified about code changes without being assigned to review them.
+
+Filter Scope
+------------
+
+There are two filter scopes: repository and review.
+
+Repository
+----------
+Repository filters are added by each user on the user's
+  <a href="/home">Home</a>
+page.  Such filters apply to all reviews created in their repository, except
+when the user who creates the review explicitly requests that no filters should
+be applied.
+
+Review
+------
+Review filters are specific to a single review, and can be added either by the
+user whom the filter applies to, the review owner, or any other user.  They can
+be added when the review is created, or can be added, or removed, at any later
+time.
+
+A review filter is always given priority over a repository filter, if the two
+conflict in any way.
+
+Filter Type
+-----------
+
+There are three types of filters:
+
+* A <b>Reviewer</b> filter automatically assigns the user as a reviewer of all
+  changes in files selected by the filter, unless the user is the author of the
+  commit that makes the changes.
+
+* A <b>Watcher</b> filter will automatically "CC" the user on any review that
+  changes any of the files selected by the filter, but without assigning the
+  user as a reviewer.
+
+* An <b>Ignored</b> filter does nothing in itself, but can be used to override a
+  Reviewer or Watcher filter for a sub-set of the selected files or in a single
+  review, and thus ignore some changes that the user is not interested in.
+
+Delegates
+---------
+A <b>Reviewer</b> filter can optionally define a list of "delegates."  The
+delegates are users who should be assigned to review changes authored by the
+user that has the Reviewer filter, in his stead.
+
+File Selection
+--------------
+
+Each filter applies to a set of files in the repository.  This set of files is
+defined by a single path.  If the path does not end with a path separator it
+names a file, and only that file is selected by the filter.  If the path ends
+with a path separator it names a directory, and selects all files in that
+directory and any sub-directory of it.  If the path is "/", all files in the
+whole repository are selected.
+
+Wildcards
+---------
+The path can optionally contain wildcards to name multiple files or directories.
+The basic functionality is the same; if a wildcard path matches the path of a
+file, that file is selected, and if it matches the path of a directory, all
+files in that directory and in any sub-directory of it are selected.
+
+Three wildcards are supported: <code>?</code>, <code>*</code> and
+<code>**</code>.  The <code>?</code> wildcard matches any character except the
+path separator, <code>/</code>.  The <code>*</code> wildcard matches zero or
+more of any character except the path separator.  The <code>**</code> wildcard
+matches zero or more complete path components, and can only occur at the
+beginning of the path or (alone) between two path separators.
+
+Filter Ordering
+---------------
+
+It's entirely possible for a user to have multiple filters that select
+overlapping sets of files.  When this happens, only one filter per user will be
+applied for each file, and that filter alone will define the type (Reviewer,
+Watcher or Ignored,) and the set of delegates.  To define which filter among a
+set of matching filters to apply for a file, the filters are ordered according
+to the following rules, in order of priority:
+
+* A review filter wins over a repository filter.
+* A filter whose path does not end with a path separator (single file) wins over
+  a filter whose path does (sub-tree).
+* A filter whose path contains more path separators wins over a filter whose
+  path contains fewer path separators (even if the latter filter contains a
+  wildcard that causes it to match a deeper path in practice.)
+* A filter whose path contains fewer wildcards wins over a filter whose path
+  contains more wildcards.
+* Finally, if all other rules fail to differentiate between two filters, they
+  are ordered lexicographically by path.

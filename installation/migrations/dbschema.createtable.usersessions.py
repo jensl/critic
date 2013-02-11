@@ -31,7 +31,9 @@ os.setuid(arguments.uid)
 
 data = json.load(sys.stdin)
 
-db = psycopg2.connect(database="critic")
+import configuration
+
+db = psycopg2.connect(**configuration.database.PARAMETERS)
 cursor = db.cursor()
 
 try:

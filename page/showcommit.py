@@ -648,6 +648,7 @@ def commitRangeFromReview(db, user, review, filter, file_ids):
                        (review.id, user.id))
     elif filter == "relevant":
         filters = review_filters.Filters()
+        filters.setFiles(db, review=review)
         filters.load(db, review=review, user=user)
 
         cursor.execute("""SELECT DISTINCT changesets.parent, changesets.child, reviewfiles.file, reviewuserfiles.uid IS NOT NULL
@@ -661,7 +662,7 @@ def commitRangeFromReview(db, user, review, filter, file_ids):
         edges = set()
 
         for parent_id, child_id, file_id, is_reviewer in cursor:
-            if is_reviewer or filters.isRelevant(db, user, file_id):
+            if is_reviewer or filters.isRelevant(user, file_id):
                 edges.add((parent_id, child_id))
     elif filter == "files":
         assert len(file_ids) != 0
@@ -1119,11 +1120,12 @@ def renderShowCommit(req, db, user):
 
             elif review_filter == "relevant":
                 filters = review_filters.Filters()
+                filters.setFiles(db, review=review)
                 filters.load(db, review=review, user=user)
 
                 def isRelevant(file):
                     if file.id in reviewable_files: return True
-                    elif filters.isRelevant(db, user, file): return True
+                    elif filters.isRelevant(user, file): return True
                     else: return False
 
                 changeset.files = filter(isRelevant, changeset.files)

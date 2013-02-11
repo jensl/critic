@@ -238,6 +238,9 @@ class Fragment(object):
         if count is None: self.__children = []
         else: del self.__children[:count]
 
+    def hasChildren(self):
+        return bool(self.__children)
+
 class Element(Fragment):
     def __init__(self, name):
         super(Element, self).__init__(True)
@@ -264,6 +267,8 @@ class Element(Fragment):
 
     def remove(self):
         self.__disabled = True
+    def removeIfEmpty(self):
+        self.__disabled = not self.hasChildren()
 
     def __str__(self):
         attributes = "".join([(" %s=%s" % (name, htmlify(value, True))) for name, value in self.__attributes.items()])
@@ -392,6 +397,11 @@ class Generator(object):
         self.__target = target
         self.__metaInformation = metaInformation
 
+    def __enter__(self):
+        return self
+    def __exit__(self, *args):
+        return False
+
     def __eq__(self, other):
         return other == self.__target
 
@@ -430,6 +440,8 @@ class Generator(object):
 
     def remove(self):
         self.__target.remove()
+    def removeIfEmpty(self):
+        self.__target.removeIfEmpty()
 
     def text(self, value=None, preformatted=False, cdata=False, linkify=False, repository=None):
         if linkify:

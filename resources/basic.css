@@ -151,8 +151,12 @@ table.paleyellow > tbody > tr > td.h2 > h2 {
     margin-bottom: 0.5em
 }
 
-table.paleyellow > tbody > tr > td.h2 > h2 > span.right {
+table.paleyellow > tbody > tr > td.h2 > h2 > span {
     font-size: 50%;
+    margin-left: 1em
+}
+
+table.paleyellow > tbody > tr > td.h2 > h2 > span.right {
     float: right
 }
 
@@ -186,6 +190,14 @@ table.paleyellow > tbody > tr.item > td.value > div.buttons button {
 table.paleyellow > tbody > tr.help > td {
     font-style: italic;
     text-align: right;
+    border-bottom: 1px solid #996
+}
+
+table.paleyellow > tbody > tr.separator > td {
+    padding: 1em 0 0.5em 0
+}
+
+table.paleyellow > tbody > tr.separator > td > div {
     border-bottom: 1px solid #996
 }
 

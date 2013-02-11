@@ -649,14 +649,12 @@ $(document).ready(function ()
     $("table.shared button.accept").click(function (ev)
       {
         var target = $(ev.currentTarget);
-        var directory_ids = JSON.parse(target.attr("critic-directory-ids"));
-        var file_ids = JSON.parse(target.attr("critic-file-ids"));
+        var paths = JSON.parse(target.attr("critic-paths"));
         var user_ids = JSON.parse(target.attr("critic-user-ids"));
 
         reviewfilters.push({ type: "watcher",
 			     user_ids: user_ids,
-			     directory_ids: directory_ids,
-			     file_ids: file_ids });
+			     paths: paths });
 
         $("table.shared td.buttons > span").css("display", "inline");
 
@@ -667,13 +665,11 @@ $(document).ready(function ()
     $("table.shared button.deny").click(function (ev)
       {
         var target = $(ev.currentTarget);
-        var directory_ids = JSON.parse(target.attr("critic-directory-ids"));
-        var file_ids = JSON.parse(target.attr("critic-file-ids"));
+        var paths = JSON.parse(target.attr("critic-paths"));
 
         reviewfilters.push({ type: "watcher",
 			     user_ids: [user.id],
-			     directory_ids: directory_ids,
-			     file_ids: file_ids });
+			     paths: paths });
 
         $("table.shared td.buttons > span").css("display", "inline");
 

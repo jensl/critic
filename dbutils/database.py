@@ -99,6 +99,9 @@ class Database(Session):
                 after = time.time()
                 self.__db.recordProfiling(query, after - before, repetitions=len(params))
 
+        def mogrify(self, *args):
+            return self.__cursor.mogrify(*args)
+
     def __init__(self):
         super(Database, self).__init__()
         self.__connection = dbaccess.connect()

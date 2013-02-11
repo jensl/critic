@@ -49,6 +49,9 @@ basic concepts, marking changes as reviewed and raising issues, and some
 other things.  Useful information both for reviewers and for those
 requesting the reviews.""")
 
+    section("filters", "Filters", """\
+Information about the Filters mechanism.""")
+
     section("viewer", "Repository Viewer", """\
 Some information about Critic's repository viewers and its peculiarities
 compared to \"normal\" git repository viewers such as gitk and cgit.""")
@@ -90,6 +93,7 @@ def renderTutorial(req, db, user):
 
     items = { "request": "requesting",
               "review": "reviewing",
+              "filters": "filters",
               "viewer": "repository",
               "rebase": "rebasing",
               "reconfigure": "reconfiguring",

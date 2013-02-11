@@ -46,10 +46,16 @@ def upgrade(arguments, data):
 
             if arguments.dry_run: continue
 
+            env = os.environ.copy()
+
+            # This is "/etc/critic/main", set by upgrade.py, or something else
+            # if the --etc-dir/--identity arguments were used.
+            env["PYTHONPATH"] = sys.path[0]
+
             installation.process.check_input([sys.executable, os.path.join("installation/migrations", script),
                                               "--uid=%s" % installation.system.uid,
                                               "--gid=%d" % installation.system.gid],
-                                             stdin=json.dumps(data))
+                                             stdin=json.dumps(data), env=env)
 
             data["migrations"].append(script)
 

@@ -133,18 +133,13 @@ to install are 'postgresql-server' and 'postgresql-client'.
         postgresql_major = postgresql_version[0]
         postgresql_minor = postgresql_version[1]
 
-        if postgresql_major < 8 or (postgresql_major == 8 and postgresql_minor < 4):
+        if postgresql_major < 9 or (postgresql_major == 9 and postgresql_minor < 1):
             blankline()
             all_ok = False
             print """\
-The installed PostgreSQL version (%s) is quite old, and has never been
-been tested with Critic.  You may encounter problems.  If possible, you should
-upgrade to at least PostgreSQL 8.4.x.
+Unsupported PostgreSQL version!  Critic requires PostgreSQL 9.1.x or later.
 """
-            abort = installation.input.yes_or_no(
-                prompt="Do you want to abort this script now and upgrade PostgreSQL?",
-                default=True)
-            if abort: sys.exit(1)
+            sys.exit(1)
 
     apache2ctl = find_executable("apache2ctl")
     if not apache2ctl:

@@ -15,6 +15,8 @@
 # the License.
 
 import dbutils
+import gitutils
+import reviewing.filters
 
 from operation import Operation, OperationResult, OperationError, Optional
 
@@ -33,11 +35,11 @@ class GetAutoCompleteData(Operation):
 
         if review_id is not None:
             if "paths" in values:
-                cursor.execute("""SELECT fullfilename(file), deleted, inserted
-                                    FROM (SELECT file, SUM(deleted) AS deleted, SUM(inserted) AS inserted
-                                            FROM reviewfiles
-                                           WHERE review=%s
-                                        GROUP BY file) AS files""",
+                cursor.execute("""SELECT files.path, SUM(reviewfiles.deleted), SUM(reviewfiles.inserted)
+                                    FROM files
+                                    JOIN reviewfiles ON (reviewfiles.file=files.id)
+                                   WHERE reviewfiles.review=%s
+                                GROUP BY files.id""",
                                (review_id,))
 
                 paths = {}
@@ -54,3 +56,59 @@ class GetAutoCompleteData(Operation):
                 data["paths"] = paths
 
         return OperationResult(**data)
+
+class GetRepositoryPaths(Operation):
+    def __init__(self):
+        Operation.__init__(self, { "prefix": str,
+                                   "repository_id": Optional(int),
+                                   "repository_name": Optional(str) })
+
+    def process(self, db, user, prefix, repository_id=None, repository_name=None):
+        if reviewing.filters.hasWildcard(prefix):
+            return OperationResult(paths={})
+
+        prefix = reviewing.filters.sanitizePath(prefix)
+
+        if repository_id is not None:
+            repository = gitutils.Repository.fromId(db, repository_id)
+        else:
+            repository = gitutils.Repository.fromName(db, repository_name)
+
+        if repository.isEmpty():
+            return OperationResult(paths={})
+
+        paths = {}
+
+        use_prefix = prefix.rpartition("/")[0]
+
+        if use_prefix:
+            names = repository.run("ls-tree", "-r", "--name-only", "HEAD", use_prefix).splitlines()
+        else:
+            names = repository.run("ls-tree", "-r", "--name-only", "HEAD").splitlines()
+
+        def add(path):
+            if path.endswith("/"):
+                if path not in paths:
+                    paths[path] = { "files": 0 }
+                paths[path]["files"] += 1
+            else:
+                paths[path] = {}
+
+        for name in names:
+            if not name.startswith(prefix):
+                continue
+
+            relname = name[len(prefix):]
+            use_prefix = prefix
+            if prefix.endswith("/"):
+                add(prefix)
+            elif relname.startswith("/"):
+                add(prefix + "/")
+                use_prefix = prefix + "/"
+                relname = relname[1:]
+
+            localname, pathsep, _ = relname.partition("/")
+
+            add(use_prefix + localname + pathsep)
+
+        return OperationResult(paths=paths)

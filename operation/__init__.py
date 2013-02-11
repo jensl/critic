@@ -20,8 +20,7 @@ import mailutils
 import dbutils
 import htmlutils
 
-try: from json import dumps as json_encode, loads as json_decode
-except: from cjson import encode as json_encode, decode as json_decode
+from textutils import json_encode, json_decode
 
 class OperationResult:
     """\

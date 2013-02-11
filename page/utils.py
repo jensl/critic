@@ -271,9 +271,11 @@ class PaleYellowTable:
         h1.text(title)
         self.titleRight = h1.span("right")
 
-    def addSection(self, title):
+    def addSection(self, title, extra=None):
         h2 = self.table.tr().td("h2", colspan=len(self.columns)).h2()
         h2.text(title)
+        if extra is not None:
+            h2.span().text(extra)
 
     def addItem(self, heading, value, description, buttons=None):
         row = self.table.tr("item")
@@ -288,8 +290,77 @@ class PaleYellowTable:
         if description is not None:
             self.table.tr("help").td(colspan=len(self.columns)).text(description)
 
-    def addCentered(self, content):
+    def addCentered(self, content=None):
         row = self.table.tr("centered")
         cell = row.td(colspan=len(self.columns))
         if callable(content): content(cell)
-        else: cell.text(str(content))
+        elif content: cell.text(str(content))
+        return cell
+
+    def addSeparator(self):
+        self.table.tr("separator").td(colspan=len(self.columns)).div()
+
+def generateRepositorySelect(db, user, target, selected=None, **attributes):
+    select = target.select(**attributes)
+
+    cursor = db.cursor()
+    cursor.execute("""SELECT id, name, path
+                        FROM repositories
+                    ORDER BY name""")
+
+    rows = cursor.fetchall()
+
+    if not rows:
+        select.option(value="-", disabled="disabled").text("No repositories")
+        return
+
+    if selected is None:
+        if len(rows) == 1:
+            selected = rows[0][0]
+        else:
+            selected = user.getPreference(db, "defaultRepository")
+            if not selected:
+                select.option(value="-", selected="selected", disabled="disabled").text("Select a repository")
+
+    highlighted_ids = set()
+
+    cursor.execute("""SELECT DISTINCT repository
+                        FROM filters
+                       WHERE uid=%s""",
+                   (user.id,))
+    highlighted_ids.update(repository_id for (repository_id,) in cursor)
+
+    cursor.execute("""SELECT DISTINCT repository
+                        FROM branches
+                        JOIN reviews ON (reviews.branch=branches.id)
+                        JOIN reviewusers ON (reviewusers.review=reviews.id)
+                       WHERE reviewusers.uid=%s""",
+                   (user.id,))
+    highlighted_ids.update(repository_id for (repository_id,) in cursor)
+
+    if not highlighted_ids or len(highlighted_ids) == len(rows):
+        # Do not group options when there will be only one group.
+        highlighted = select
+        other = select
+    else:
+        highlighted = select.optgroup(label="Highlighted")
+        other = select.optgroup(label="Other")
+
+    name_width = max(len(name) for (repository_id, name, path) in rows)
+    url_width = len(configuration.base.HOSTNAME) + 1 + max(len(path) for (repository_id, name, path) in rows)
+    label_format = "%-{0}s %{1}s".format(name_width, url_width)
+
+    for repository_id, name, path in rows:
+        if repository_id in highlighted_ids:
+            optgroup = highlighted
+        else:
+            optgroup = other
+
+        url = "%s:%s" % (configuration.base.HOSTNAME, path)
+
+        if repository_id == selected or name == selected:
+            is_selected = "selected"
+        else:
+            is_selected = None
+
+        optgroup.option(value=name, selected=is_selected).text(label_format % (name, url))

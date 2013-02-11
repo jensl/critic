@@ -15,67 +15,271 @@
 # the License.
 
 import dbutils
+import time
+import re
+
+class PatternError(Exception):
+    def __init__(self, pattern, message):
+        self.pattern = pattern
+        self.message = message
+
+    def __str__(self):
+        return "%s: %s" % (self.pattern, self.message)
+
+def sanitizePath(path):
+    return re.sub("//+", "/", path.strip())
+
+def validatePattern(pattern):
+    if re.search(r"[^/]\*\*", pattern):
+        raise PatternError(pattern, "** not at beginning of path or path component")
+    elif re.search(r"\*\*$", pattern):
+        raise PatternError(pattern, "** at end of path")
+    elif re.search(r"\*\*[^/]", pattern):
+        raise PatternError(pattern, "** not at end of path component")
+
+def validPattern(pattern):
+    try:
+        validatePattern(pattern)
+        return True
+    except PatternError:
+        return False
+
+def compilePattern(pattern):
+    wildcards = { "**/": "(?:[^/]+/)*",
+                  "**": "(?:[^/]+(?:/|$))*",
+                  "*": "[^/]*",
+                  "?": "[^/]" }
+
+    def escape(match):
+        return "\\" + match.group(0)
+
+    def replacement(match):
+        return wildcards[match.group(0)]
+
+    pattern = re.sub(r"[[{()+^$.\\|]", escape, pattern)
+
+    return re.compile("^" + re.sub("\\*\\*(?:/|$)|\\*|\\?", replacement, pattern) + "$")
+
+def hasWildcard(string):
+    return "*" in string or "?" in string
+
+class Path(object):
+    def __init__(self, path):
+        path = path.lstrip("/")
+
+        self.path = path
+
+        if hasWildcard(path):
+            validatePattern(path)
+
+        if path.endswith("/"):
+            self.regexp = compilePattern(path + "**/*")
+        else:
+            self.regexp = compilePattern(path)
+
+        if not path:
+            self.dirname, self.filename = "", None
+        elif "/" in path:
+            self.dirname, self.filename = path.rsplit("/", 1)
+            if not self.filename:
+                self.filename = None
+        else:
+            self.dirname, self.filename = "", path
+
+        if hasWildcard(self.dirname):
+            components = self.dirname.split("/")
+            for index, component in enumerate(components):
+                if hasWildcard(component):
+                    self.fixedDirname = "/".join(components[:index])
+                    self.wildDirname = "/".join(components[index:])
+                    self.wildDirnameRegExp = compilePattern(self.wildDirname)
+                    break
+        else:
+            self.fixedDirname = self.dirname
+            self.wildDirname = None
+
+        if self.filename and hasWildcard(self.filename):
+            self.filenameRegExp = compilePattern(self.filename)
+        else:
+            self.filenameRegExp = None
+
+    def __repr__(self):
+        return "Path(%r)" % self.path
+
+    def match(self, path):
+        return bool(self.regexp.match(path))
+
+    @staticmethod
+    def cmp(pathA, pathB):
+        # Filters that select individual files rank above filters that
+        # select directories (even if the actual name of the file contains
+        # wildcards.)
+        if pathA.endswith("/") and not pathB.endswith("/"):
+            return -1
+        elif not pathA.endswith("/") and pathB.endswith("/"):
+            return 1
+
+        # Filters with more slashes in them rank higher than filters with
+        # fewer slashes.
+        specificityA = pathA.count("/")
+        specificityB = pathB.count("/")
+        if specificityA < specificityB:
+            return -1
+        elif specificityA > specificityB:
+            return 1
+
+        # Filters with fewer wildcards in them rank higher than filters with
+        # more wildcards.
+        wildcardsA = len(re.findall("\\*\\*|\\*|\\?", pathA))
+        wildcardsB = len(re.findall("\\*\\*|\\*|\\?", pathB))
+        if wildcardsA < wildcardsB:
+            return 1
+        elif wildcardsA > wildcardsB:
+            return -1
+
+        # Fall back to lexicographical ordering.  The filters probably won't
+        # match the same files anyway, and if they do, well, at least this
+        # way it's stable and predictable.
+        return cmp(pathA, pathB)
 
 class Filters:
     def __init__(self):
-        self.directories = {} # dict(directory_id -> dict(user_id -> tuple(filter_type, delegate)))
-        self.files = {}       # dict(file_id      -> dict(user_id -> tuple(filter_type, delegate)))
-        self.paths = {}       # dict(directory_id -> tuple(set(directory_id), set(file_id))
+        # Pseudo-types:
+        #   data: dict(user_id -> tuple(filter_type, delegate))
+        #   file: tuple(file_id, data)
+        #   tree: tuple(dict(dirname -> tree), dict(filename -> file))
 
-    def add(self, db, directory_id, file_id, filter_type, delegate, user_id):
-        assert isinstance(directory_id, int)
-        assert isinstance(file_id, int)
-        assert isinstance(user_id, int)
+        self.files = {}       # dict(path -> file)
+        self.directories = {} # dict(dirname -> tree)
+        self.root = ({}, {})  # tree
+        self.data = {}        # dict(file_id -> data)
 
-        def addFile(file_id):
-            for parent_directory_id in [0] + dbutils.explode_path(db, file_id=file_id):
-                self.paths.setdefault(parent_directory_id, (set(), set()))[1].add(file_id)
-            data = self.files[file_id] = {}
-            return data
+        # Note: The same per-file 'data' objects are referenced by all of
+        # 'self.files', 'self.tree' and 'self.data'.
 
-        def addDirectory(directory_id):
-            for parent_directory_id in [0] + dbutils.explode_path(db, directory_id=directory_id)[:-1]:
-                self.paths.setdefault(parent_directory_id, (set(), set()))[0].add(directory_id)
-            data = self.directories[directory_id] = {}
-            return data
+        self.directories[""] = self.root
 
-        def clear(directory_id, user_id):
-            data = self.paths.get(directory_id)
-            if data:
-                directories, files = data
-                for child_directory_id in directories:
-                    try: del self.directories[child_directory_id][user_id]
-                    except: pass
-                for file_id in files:
-                    try: del self.files[file_id][user_id]
-                    except: pass
+    def setFiles(self, db, file_ids=None, review=None):
+        assert (file_ids is None) != (review is None)
 
-        if file_id:
-            data = self.files.get(file_id)
-            if data is None:
-                data = addFile(file_id)
+        cursor = db.cursor()
+
+        if file_ids is None:
+            cursor.execute("SELECT DISTINCT file FROM reviewfiles WHERE review=%s", (review.id,))
+            file_ids = [file_id for (file_id,) in cursor]
+
+        cursor.execute("SELECT id, path FROM files WHERE id=ANY (%s)", (file_ids,))
+
+        for file_id, path in cursor:
+            data = {}
+
+            self.files[path] = (file_id, data)
+            self.data[file_id] = data
+
+            if "/" in path:
+                dirname, filename = path.rsplit("/", 1)
+
+                def find_tree(dirname):
+                    tree = self.directories.get(dirname)
+                    if tree:
+                        return tree
+                    tree = self.directories[dirname] = ({}, {})
+                    if "/" in dirname:
+                        dirname, basename = dirname.rsplit("/", 1)
+                        find_tree(dirname)[0][basename] = tree
+                    else:
+                        self.root[0][dirname] = tree
+                    return tree
+
+                tree = find_tree(dirname)
+            else:
+                filename = path
+                tree = self.root
+
+            tree[1][filename] = self.files[path]
+
+    def addFilter(self, user_id, path, filter_type, delegate):
+        def files_in_tree(components, tree):
+            for dirname, child_tree in tree[0].items():
+                for f in files_in_tree(components + [dirname], child_tree):
+                    yield f
+            dirname = "/".join(components) + "/" if components else ""
+            for filename, (_, data) in tree[1].items():
+                yield dirname, filename, data
+
+        if not path:
+            dirname, filename = "", None
+            components = []
+        elif "/" in path:
+            dirname, filename = path.rsplit("/", 1)
+            if not dirname:
+                dirname = ""
+                components = []
+            else:
+                components = dirname.split("/")
+            if not filename:
+                filename = None
         else:
-            data = self.directories.get(directory_id)
-            if data is None:
-                data = addDirectory(directory_id)
-            clear(directory_id, user_id)
+            dirname, filename = "", path
+            components = []
 
-        data[user_id] = (filter_type, delegate)
+        def hasWildcard(string):
+            return "*" in string or "?" in string
 
-    def hasFilters(self):
-        return bool(self.directories) or bool(self.files)
+        if hasWildcard(path):
+            tree = self.root
+            files = []
 
-    def addFilters(self, db, filters, sort):
-        if sort:
-            sortedFilters = []
-            for item in filters:
-                specificity = len(dbutils.explode_path(db, directory_id=item[0]))
-                if item[1]: specificity += 1
-                sortedFilters.append((specificity, item))
-            sortedFilters.sort(key=lambda item: item[0])
-            filters = [item for specificity, item in sortedFilters]
-        for item in filters:
-            self.add(db, *item)
+            for index, component in enumerate(components):
+                if hasWildcard(component):
+                    wild_dirname = "/".join(components[index:]) + "/"
+                    break
+                else:
+                    tree = tree[0].get(component)
+                    if not tree:
+                        return
+            else:
+                wild_dirname = None
+
+            re_filename = compilePattern(filename or "*")
+
+            if wild_dirname:
+                re_dirname = compilePattern(wild_dirname)
+
+                for dirname, filename, data in files_in_tree([], tree):
+                    if re_dirname.match(dirname) and re_filename.match(filename):
+                        files.append(data)
+            else:
+                for filename, (_, data) in tree[1].items():
+                    if re_filename.match(filename):
+                        files.append(data)
+        else:
+            if filename:
+                if path in self.files:
+                    files = [self.files[path][1]]
+                else:
+                    return
+            else:
+                if dirname in self.directories:
+                    files = [data for _, _, data in files_in_tree([dirname], self.directories[dirname])]
+                else:
+                    return
+
+        for data in files:
+            if filter_type == "ignored":
+                if user_id in data:
+                    del data[user_id]
+            else:
+                data[user_id] = (filter_type, delegate)
+
+    def addFilters(self, filters):
+        def compareFilters(filterA, filterB):
+            return Path.cmp(filterA[1], filterB[1])
+
+        sorted_filters = sorted(filters, cmp=compareFilters)
+
+        for user_id, path, filter_type, delegate in sorted_filters:
+            self.addFilter(user_id, path, filter_type, delegate)
 
     class Review:
         def __init__(self, review_id, applyfilters, applyparentfilters, repository):
@@ -96,23 +300,24 @@ class Filters:
             if recursive and repository.parent:
                 loadGlobal(repository.parent, recursive)
 
-            cursor.execute("""SELECT filters.directory, filters.file, filters.type, filters.delegate, users.id
+            cursor.execute("""SELECT filters.uid, filters.path, filters.type, filters.delegate
                                 FROM filters
                                 JOIN users ON (users.id=filters.uid)
                                WHERE filters.repository=%%s
                                  AND users.status!='retired'
-                                     %s
-                            ORDER BY specificity ASC""" % user_filter, (repository.id,))
-            self.addFilters(db, cursor, sort=False)
+                                     %s""" % user_filter,
+                           (repository.id,))
+            self.addFilters(cursor)
 
         def loadReview(review):
-            cursor.execute("""SELECT reviewfilters.directory, reviewfilters.file, reviewfilters.type, NULL, users.id
+            cursor.execute("""SELECT reviewfilters.uid, reviewfilters.path, reviewfilters.type, NULL
                                 FROM reviewfilters
                                 JOIN users ON (users.id=reviewfilters.uid)
                                WHERE reviewfilters.review=%%s
                                  AND users.status!='retired'
-                                     %s""" % user_filter, (review.id,))
-            self.addFilters(db, cursor, sort=True)
+                                     %s""" % user_filter,
+                           (review.id,))
+            self.addFilters(cursor)
 
         if review:
             if review.applyfilters:
@@ -121,52 +326,84 @@ class Filters:
         else:
             loadGlobal(repository, recursive)
 
-    def __getUserFileAssociation(self, db, user_id, file_id):
+    def getUserFileAssociation(self, user_id, file_id):
         user_id = int(user_id)
         file_id = int(file_id)
 
-        data = self.files.get(file_id)
-        if data:
-            data = data.get(user_id)
-            if data: return data[0]
+        data = self.data.get(file_id)
+        if not data:
+            return None
 
-        for directory_id in reversed([0] + dbutils.explode_path(db, file_id=file_id)):
-            data = self.directories.get(directory_id)
-            if data:
-                data = data.get(user_id)
-                if data: return data[0]
+        data = data.get(user_id)
+        if not data:
+            return None
 
-        return None
+        return data[0]
 
-    def isReviewer(self, db, user_id, file_id):
-        return self.__getUserFileAssociation(db, user_id, file_id) == 'reviewer'
+    def isReviewer(self, user_id, file_id):
+        return self.getUserFileAssociation(user_id, file_id) == 'reviewer'
 
-    def isWatcher(self, db, user_id, file_id):
-        return self.__getUserFileAssociation(db, user_id, file_id) == 'watcher'
+    def isWatcher(self, user_id, file_id):
+        return self.getUserFileAssociation(user_id, file_id) == 'watcher'
 
-    def isRelevant(self, db, user_id, file_id):
-        return self.__getUserFileAssociation(db, user_id, file_id) is not None
+    def isRelevant(self, user_id, file_id):
+        return self.getUserFileAssociation(user_id, file_id) in ('reviewer', 'watcher')
 
-    def listUsers(self, db, file_id):
-        users = {}
+    def listUsers(self, file_id):
+        return self.data.get(file_id, {})
 
-        for directory_id in [0] + dbutils.explode_path(db, file_id=file_id):
-            data = self.directories.get(directory_id)
-            if data: users.update(data)
-
-        data = self.files.get(file_id)
-        if data: users.update(data)
-
-        return users
-
-    def getRelevantFiles(self, db, review):
-        cursor = db.cursor()
-        cursor.execute("SELECT DISTINCT file FROM reviewfiles WHERE review=%s", (review.id,))
-
+    def getRelevantFiles(self):
         relevant = {}
 
-        for (file_id,) in cursor:
-            for user_id in self.listUsers(db, file_id).keys():
-                relevant.setdefault(user_id, set()).add(file_id)
+        for file_id, data in self.data.items():
+            for user_id, (filter_type, _) in data.items():
+                if filter_type in ('reviewer', 'watcher'):
+                    relevant.setdefault(user_id, set()).add(file_id)
 
         return relevant
+
+def getMatchedFiles(repository, paths):
+    paths = [Path(path) for path in sorted(paths, cmp=Path.cmp, reverse=True)]
+
+    common_fixedDirname = None
+    for path in paths:
+        if path.fixedDirname is None:
+            common_fixedDirname = []
+            break
+        elif common_fixedDirname is None:
+            common_fixedDirname = path.fixedDirname.split("/")
+        else:
+            for index, component in enumerate(path.fixedDirname.split("/")):
+                if index == len(common_fixedDirname):
+                    break
+                elif common_fixedDirname[index] != component:
+                    del common_fixedDirname[index:]
+                    break
+    common_fixedDirname = "/".join(common_fixedDirname)
+
+    args = ["ls-tree", "-r", "--name-only", "HEAD"]
+
+    if common_fixedDirname:
+        args.append(common_fixedDirname + "/")
+
+    matched = dict((path.path, []) for path in paths)
+
+    if repository.isEmpty():
+        return matched
+
+    filenames = repository.run(*args).splitlines()
+
+    if len(paths) == 1 and not paths[0].wildDirname and not paths[0].filename:
+        return { paths[0].path: filenames }
+
+    for filename in filenames:
+        for path in paths:
+            if path.match(filename):
+                matched[path.path].append(filename)
+                break
+
+    return matched
+
+def countMatchedFiles(repository, paths):
+    matched = getMatchedFiles(repository, paths)
+    return dict((path, len(filenames)) for path, filenames in matched.items())

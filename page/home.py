@@ -19,9 +19,16 @@ import htmlutils
 import page.utils
 import gitutils
 import configuration
+import reviewing.filters
+import profiling
+
+from htmlutils import jsify
+from textutils import json_encode
 
 def renderHome(req, db, user):
     if user.isAnonymous(): raise page.utils.NeedLogin, req
+
+    profiler = profiling.Profiler()
 
     cursor = db.cursor()
 
@@ -49,6 +56,7 @@ def renderHome(req, db, user):
 
     document.addExternalStylesheet("resource/home.css")
     document.addExternalScript("resource/home.js")
+    document.addExternalScript("resource/autocomplete.js")
     if repository: document.addInternalScript(repository.getJS())
     else: document.addInternalScript("var repository = null;")
     if user.name != req.user and req.getUser(db).hasRole(db, "administrator"):
@@ -56,7 +64,7 @@ def renderHome(req, db, user):
     else:
         document.addInternalScript("var administrator = false;")
     document.addInternalScript(user.getJS())
-    document.addInternalScript("user.gitEmails = %s;" % htmlutils.jsify(gitemails))
+    document.addInternalScript("user.gitEmails = %s;" % jsify(gitemails))
     document.setTitle("%s Home" % title_fullname)
 
     target = body.div("main")
@@ -110,76 +118,126 @@ def renderHome(req, db, user):
     if configuration.base.AUTHENTICATION_MODE == "critic":
         row("Password", renderPassword)
 
-    filters = target.table('paleyellow filters', align='center')
-    row = filters.tr()
-    row.td("h1", colspan=2).h1().text("Filters")
-    repositories = row.td("repositories", colspan=2).select()
+    profiler.check("user information")
 
-    if not repository:
-        repositories.option(value="-", selected="selected", disabled="disabled").text("Select a repository")
+    filters = page.utils.PaleYellowTable(body, "Filters")
+    filters.titleRight.a("button", href="/tutorial?item=filters").text("Tutorial")
 
-    cursor.execute("SELECT id, path FROM repositories ORDER BY id")
-    for id, path in cursor:
-        repositories.option(value=id, selected="selected" if repository and id == repository.id else None).text("%s:%s" % (configuration.base.HOSTNAME, path))
+    cursor.execute("""SELECT repositories.id, repositories.name, repositories.path,
+                             filters.id, filters.type, filters.path, filters.delegate
+                        FROM repositories
+                        JOIN filters ON (filters.repository=repositories.id)
+                       WHERE filters.uid=%s
+                    ORDER BY repositories.name, filters.type, filters.path""",
+                   (user.id,))
 
-    help = filters.tr().td("help", colspan=4)
+    rows = cursor.fetchall()
 
-    help.p().text("Filters is the system's mechanism to connect reviews to users.  When a review is created or updated, a set of users to associate with the review is calculated by matching the files modified by each commit in the review to the filters set up by users.  Each filter selects one file or one directory (and affects all sub-directories and files,) and only the most specific filter per file and user is used when associating users with reviews.")
+    if rows:
+        repository = None
+        repository_filters = None
+        tbody_reviewer = None
+        tbody_watcher = None
+        tbody_ignored = None
 
-    p = help.p()
-    p.text("There are two types of filters: ")
-    p.code().text("reviewer")
-    p.text(" and ")
-    p.code().text("watcher")
-    p.text(".  All files matched by a ")
-    p.code().text("reviewer")
-    p.text(" filter for a user are added to the user's to-do list, meaning the user needs to review all changes made to that file before the review is finished.  However, if more than one user is matched as a reviewer for a file, only one of them needs to review the changes.  A user associated with a review only by ")
-    p.code().text("watcher")
-    p.text(" filters will simply receive notifications relating to the review, but isn't required to do anything.")
+        count_matched_files = {}
 
-    p = help.p()
-    p.text("For a ")
-    p.code().text("reviewer")
-    p.text(" type filter, a set of \"delegates\" can also be defined.  The delegate field should be a comma-separated list of user names.  Delegates are automatically made reviewers of changes by you in the filtered files (since you can't review them yourself) regardless of their own filters.")
+        for (repository_id, repository_name, repository_path,
+             filter_id, filter_type, filter_path, filter_delegates) in rows:
+            if not repository or repository.id != repository_id:
+                repository = gitutils.Repository.fromId(db, repository_id)
+                repository_url = str(repository)
+                filters.addSection(repository_name, repository_url)
+                repository_filters = filters.addCentered().table("filters", align="center")
+                tbody_reviewer = tbody_watcher = tbody_ignored = None
 
-    p = help.p()
-    p.strong().text("Note: A filter names a directory only if the path ends with a slash ('/').")
-    p.text("  If the path doesn't end with a slash, the filter would name a specific file even if the path is a directory in some or all versions of the actual tree.  However, you'll get a warning if you try to add a filter for a file whose path is registered as a directory in the database.")
-
-    if repository:
-        headings = filters.tr("headings")
-        headings.td("heading type").text("Type")
-        headings.td("heading path").text("Path")
-        headings.td("heading delegate").text("Delegate")
-        headings.td("heading buttons")
-
-        cursor.execute("SELECT directory, file, type, delegate FROM filters WHERE uid=%s AND repository=%s", [user.id, repository.id])
-
-        all_filters = []
-
-        for directory_id, file_id, filter_type, delegate in cursor.fetchall():
-            if file_id == 0: path = dbutils.describe_directory(db, directory_id) + "/"
-            else: path = dbutils.describe_file(db, file_id)
-            all_filters.append((path, directory_id, file_id, filter_type, delegate))
-
-        all_filters.sort()
-
-        empty = filters.tr("empty").td("empty", colspan=4).span(id="empty").text("No filters configured")
-        if filters: empty.setAttribute("style", "display: none")
-
-        for path, directory_id, file_id, filter_type, delegate in all_filters:
-            row = filters.tr("filter")
-            row.td("filter type").text(filter_type.capitalize())
-            row.td("filter path").text(path)
-            row.td("filter delegate").text(delegate)
-
-            buttons = row.td("filter buttons")
-            if readonly: buttons.text()
+            if filter_type == "reviewer":
+                if not tbody_reviewer:
+                    tbody_reviewer = repository_filters.tbody()
+                    tbody_reviewer.tr().th(colspan=4).text("Reviewer")
+                tbody = tbody_reviewer
+            elif filter_type == "watcher":
+                if not tbody_watcher:
+                    tbody_watcher = repository_filters.tbody()
+                    tbody_watcher.tr().th(colspan=4).text("Watcher")
+                tbody = tbody_watcher
             else:
-                buttons.button(onclick="editFilter(this, %d, %d, false);" % (directory_id, file_id)).text("Edit")
-                buttons.button(onclick="deleteFilter(this, %d, %d);" % (directory_id, file_id)).text("Delete")
+                if not tbody_ignored:
+                    tbody_ignored = repository_filters.tbody()
+                    tbody_ignored.tr().th(colspan=4).text("Ignored")
+                tbody = tbody_ignored
 
-        if not readonly:
-            filters.tr("buttons").td("buttons", colspan=4).button(onclick="addFilter(this);").text("Add Filter")
+            row = tbody.tr()
+            row.td("path").text(filter_path)
+
+            delegates = row.td("delegates")
+            if filter_delegates:
+                delegates.i().text("Delegates: ")
+                delegates.text(filter_delegates)
+
+            if filter_path == "/":
+                row.td("files").text("all files")
+            else:
+                href = "javascript:void(showMatchedFiles(%s, %s));" % (jsify(repository.name), jsify(filter_path))
+                row.td("files").a(href=href, id=("f%d" % filter_id)).text("? files")
+                count_matched_files.setdefault(repository_id, []).append(filter_id)
+
+            links = row.td("links")
+            arguments = (jsify(repository.name),
+                         filter_id,
+                         jsify(filter_type),
+                         jsify(filter_path),
+                         jsify(filter_delegates))
+            links.a(href="javascript:void(editFilter(%s, %d, %s, %s, %s));" % arguments).text("[edit]")
+            links.a(href="javascript:if (deleteFilterById(%d)) location.reload(); void(0);" % filter_id).text("[delete]")
+
+        document.addInternalScript("var count_matched_files = %s;" % json_encode(count_matched_files.values()))
+    else:
+        filters.addCentered().p().b().text("No filters")
+
+        # Additionally check if there are in fact no repositories.
+        cursor.execute("SELECT 1 FROM repositories")
+        if not cursor.fetchone():
+            document.addInternalScript("var no_repositories = true;")
+
+    if not readonly:
+        filters.addSeparator()
+        filters.addCentered().button(onclick="editFilter();").text("Add filter")
+
+    profiler.check("filters")
+
+    hidden = body.div("hidden", style="display: none")
+
+    with hidden.div("filterdialog") as dialog:
+        paragraph = dialog.p()
+        paragraph.b().text("Repository:")
+        paragraph.br()
+        page.utils.generateRepositorySelect(db, user, paragraph, name="repository")
+
+        paragraph = dialog.p()
+        paragraph.b().text("Filter type:")
+        paragraph.br()
+        filter_type = paragraph.select(name="type")
+        filter_type.option(value="reviewer").text("Reviewer")
+        filter_type.option(value="watcher").text("Watcher")
+        filter_type.option(value="ignored").text("Ignored")
+
+        paragraph = dialog.p()
+        paragraph.b().text("Path:")
+        paragraph.br()
+        paragraph.input(name="path", type="text")
+        paragraph.span("matchedfiles")
+
+        paragraph = dialog.p()
+        paragraph.b().text("Delegates:")
+        paragraph.br()
+        paragraph.input(name="delegates", type="text")
+
+        paragraph = dialog.p()
+        label = paragraph.label()
+        label.input(name="apply", type="checkbox", checked="checked")
+        label.b().text("Apply to existing reviews")
+
+    profiler.output(db, user, document)
 
     return document

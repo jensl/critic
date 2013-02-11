@@ -87,6 +87,11 @@ def renderSearch(req, db, user):
         conditions = []
         arguments = []
 
+        def globToSQLPattern(glob):
+            pattern = glob.replace("\\", "\\\\").replace("%", "\\%").replace("?", "_").replace("*", "%")
+            if pattern[-1] != "%": pattern = pattern + "%"
+            return pattern
+
         if summary_value:
             words = summary_value.split()
             operator = " AND " if summary_mode_value == "all" else " OR "
@@ -94,14 +99,10 @@ def renderSearch(req, db, user):
             arguments.extend([".*\\m" + word + "\\M.*" for word in words])
 
         if branch_value:
-            def globToSQLPattern(glob):
-                pattern = glob.replace("\\", "\\\\").replace("%", "\\%").replace("?", "_").replace("*", "%")
-                if pattern[0] != "%": pattern = "%" + pattern
-                if pattern[-1] != "%": pattern = pattern + "%"
-                return pattern
-
             conditions.append("branches.name LIKE %s")
-            arguments.append(globToSQLPattern(branch_value))
+            pattern = globToSQLPattern(branch_value)
+            if pattern[0] != "%": pattern = "%" + pattern
+            arguments.append(pattern)
 
         if owner_value:
             owner = dbutils.User.fromName(db, owner_value)
@@ -111,14 +112,20 @@ def renderSearch(req, db, user):
             arguments.append(owner.id)
 
         if path_value:
-            file_ids = dbutils.contained_files(db, dbutils.find_directory(db, path_value))
-
-            if path_value[-1] != '/':
-                file_ids.append(dbutils.find_file(db, path_value))
-
             tables.append("reviewfiles ON (reviewfiles.review=reviews.id)")
-            conditions.append("reviewfiles.file=ANY (%s)")
-            arguments.append(file_ids)
+            tables.append("files ON (files.id=reviewfiles.file)")
+
+            static_components = []
+            for component in path_value.split("/"):
+                if component and not ("*" in component or "?" in component):
+                    static_components.append(component)
+
+            if static_components:
+                conditions.append("%s <@ STRING_TO_ARRAY(path, '/')")
+                arguments.append(static_components)
+
+            conditions.append("files.path LIKE %s")
+            arguments.append(globToSQLPattern(path_value))
 
         query = """SELECT DISTINCT reviews.id, reviews.summary, branches.name
                      FROM %s

@@ -78,6 +78,7 @@ function Operation(data)
   this.url = data.url;
   this.data = data.data;
   this.wait = data.wait;
+  this.cancelable = data.cancelable;
   this.failure = data.failure || {};
   this.callback = data.callback;
   this.id = ++Operation.counter;
@@ -158,9 +159,13 @@ Operation.prototype.execute = function ()
 
     function success(data)
     {
+      self.ajax = null;
       result = data;
       if (data.__profiling__)
-        console.log(self.url + "\n" + Array(self.url.length + 1).join("=") + "\n" + data.__profiling__);
+        console.log(self.url + "\n" +
+                    Array(self.url.length + 1).join("=") + "\n" +
+                    "Total: " + data.__time__.toPrecision(3) + " seconds\n" +
+                    data.__profiling__);
       if (wait)
         wait.dialog("close");
       if (self.callback)
@@ -172,27 +177,34 @@ Operation.prototype.execute = function ()
 
     function error(xhr)
     {
+      self.ajax = null;
       if (wait)
         wait.dialog("close");
-      reportError(self.action, "Server reply:<pre>" + (xhr.responseText ? htmlify(xhr.responseText) : "N/A") + "</pre>", null, self.callback);
-      if (self.callback)
-        Operation.finished(self.id);
+      if (!self.aborted)
+      {
+        reportError(self.action, "Server reply:<pre>" + (xhr.responseText ? htmlify(xhr.responseText) : "N/A") + "</pre>", null, self.callback);
+        if (self.callback)
+          Operation.finished(self.id);
+      }
     }
 
     if (this.wait)
     {
       wait = $("<div title='Please Wait' style='text-align: center; padding-top: 2em'>" + this.wait + "</div>");
-      wait.dialog({ modal: true });
+      var data = { modal: true };
+      if (this.cancelable)
+        data.buttons = { "Cancel": function () { wait.dialog("close"); self.ajax.abort(); }};
+      wait.dialog(data);
     }
 
-    $.ajax({ async: !!this.callback,
-             type: "POST",
-             url: "/" + this.url,
-             contentType: "text/json",
-             data: JSON.stringify(this.data),
-             dataType: "json",
-             success: success,
-             error: error });
+    this.ajax = $.ajax({ async: !!this.callback,
+                         type: "POST",
+                         url: "/" + this.url,
+                         contentType: "text/json",
+                         data: JSON.stringify(this.data),
+                         dataType: "json",
+                         success: success,
+                         error: error });
 
     if (!this.callback)
     {
@@ -206,9 +218,17 @@ Operation.prototype.execute = function ()
     }
   };
 
+Operation.prototype.abort = function ()
+  {
+    this.aborted = true;
+    if (this.ajax)
+      this.ajax.abort();
+  };
+
 $(document).ready(function ()
   {
     $("button").button();
+    $("a.button").button();
   });
 
 var keyboardShortcutHandlers = [];

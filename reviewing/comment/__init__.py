@@ -431,9 +431,10 @@ def createCommentChain(db, user, review, chain_type, commit_id=None, origin=None
 
     if file_id is not None:
         filters = Filters()
+        filters.setFiles(db, review=review)
         filters.load(db, review=review)
 
-        for user_id in filters.listUsers(db, file_id):
+        for user_id in filters.listUsers(file_id):
             commentchainusers.add(user_id)
 
     cursor.executemany("INSERT INTO commentchainusers (chain, uid) VALUES (%s, %s)", [(chain_id, user_id) for user_id in commentchainusers])

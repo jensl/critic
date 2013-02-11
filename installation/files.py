@@ -26,7 +26,6 @@ BLACKLIST = set([ "install.py",
                   "installation",
                   "dbschema.sql",
                   "dbschema.comments.sql",
-                  "path.pgsql",
                   "comments.pgsql",
                   ".git",
                   ".gitignore" ])

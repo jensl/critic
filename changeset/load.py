@@ -47,15 +47,17 @@ def loadChangesets(db, repository, changesets, filtered_file_ids=None, load_chun
     filtered_file_ids = list(filtered_file_ids) if filtered_file_ids else None
 
     if filtered_file_ids is None:
-        cursor.execute("""SELECT changeset, file, fullfilename(file), old_sha1, new_sha1, old_mode, new_mode
+        cursor.execute("""SELECT changeset, file, path, old_sha1, new_sha1, old_mode, new_mode
                             FROM fileversions
-                            WHERE changeset=ANY (%s)""",
+                            JOIN files ON (files.id=fileversions.file)
+                           WHERE changeset=ANY (%s)""",
                        (changeset_ids,))
     else:
-        cursor.execute("""SELECT changeset, file, fullfilename(file), old_sha1, new_sha1, old_mode, new_mode
+        cursor.execute("""SELECT changeset, file, path, old_sha1, new_sha1, old_mode, new_mode
                             FROM fileversions
-                            WHERE changeset=ANY (%s)
-                              AND file=ANY (%s)""",
+                            JOIN files ON (files.id=fileversions.file)
+                           WHERE changeset=ANY (%s)
+                             AND file=ANY (%s)""",
                        (changeset_ids, filtered_file_ids))
 
     files = dict([(changeset.id, {}) for changeset in changesets])

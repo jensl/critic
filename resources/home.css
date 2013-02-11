@@ -31,6 +31,59 @@ div.main table.basic td.value button { float: right }
 div.main table.basic td.value span.status { padding-left: 1em; font-weight: bold }
 div.main table.basic td.help { font-style: italic; text-align: right; border-bottom: 1px solid #996 }
 
+table.filters {
+    width: 90%;
+    border: 2px solid #bb8;
+    background: #ffe;
+    margin-top: 1em;
+    margin-bottom: 1em;
+    padding: 0.5em
+}
+
+table.filters th {
+    border-bottom: 1px solid #996;
+    text-align: left;
+    padding-top: 1em;
+    padding-left: 1em
+}
+
+table.filters tbody:first-child th {
+    padding-top: 0
+}
+
+table.filters td.path {
+    width: 40%;
+    font-family: monospace;
+    text-align: left
+}
+table.filters td.delegates {
+    width: 30%;
+    font-family: monospace;
+    text-align: left
+}
+table.filters td.files {
+    width: 15%;
+    font-family: monospace;
+    text-align: right
+}
+table.filters td.links {
+    width: 15%;
+    font-weight: bold;
+    text-align: right
+}
+table.filters td.links a {
+    margin-left: 0.5em
+}
+
+table.filters a {
+    color: black;
+    text-decoration: none
+}
+
+table.filters a:hover {
+    text-decoration: underline
+}
+
 div.main table.filters td.help { font-style: italic; text-align: left; padding-top: 1em; border-bottom: 1px solid #996 }
 div.main table.filters td.help p { margin-left: 10%; margin-top: 0; width: 60em }
 div.main table.filters td.help p strong { font-weight: bold; font-style: normal }
@@ -55,4 +108,54 @@ div.main table.filters td.heading.buttons { text-align: right; width: 10% }
 div.password input {
     width: 100%;
     font-family: monospace
+}
+
+div.filterdialog select {
+    background-color: white;
+    font-family: monospace;
+    width: 100%
+}
+
+div.filterdialog input[type='text'] {
+    font-family: monospace;
+    width: 100%
+}
+
+div.filterdialog span.matchedfiles {
+    float: right;
+    font-style: italic
+}
+
+div.filterdialog span.matchedfiles.clickable:hover {
+    text-decoration: underline;
+    cursor: pointer
+}
+
+div.reapplyresult th {
+    text-align: left
+}
+
+div.reapplyresult td.id {
+    text-align: right;
+    padding-right: 0.5em;
+    font-family: monospace
+}
+
+div.reapplyresult td.summary {
+    text-align: left;
+    font-family: monospace;
+    background-color: #ffe;
+    padding: 3px 1em 3px 1em;
+    border-left: 1px dotted #996;
+    border-bottom: 1px dotted #996;
+    border-right: 1px dotted #996
+}
+
+div.reapplyresult tr.first td.summary {
+    border-top: 1px dotted #996
+}
+
+div.matchedfiles select {
+    font-family: monospace;
+    width: 99%
 }

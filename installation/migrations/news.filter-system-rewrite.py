@@ -1,6 +1,6 @@
 # -*- mode: python; encoding: utf-8 -*-
 #
-# Copyright 2012 Jens Lindström, Opera Software ASA
+# Copyright 2013 Jens Lindström, Opera Software ASA
 #
 # Licensed under the Apache License, Version 2.0 (the "License"); you may not
 # use this file except in compliance with the License.  You may obtain a copy of
@@ -36,10 +36,32 @@ import configuration
 db = psycopg2.connect(**configuration.database.PARAMETERS)
 cursor = db.cursor()
 
-# This command doesn't fail if the column already doesn't have a NOT
-# NULL constraint, so no reason to catch errors or try to determine
-# whether the constraint is there.
-cursor.execute("ALTER TABLE changesets ALTER parent DROP NOT NULL")
+text = """\
+Improved Filters
+================
+
+Critic's Filters mechanism has been improved, in two significant ways:
+
+* filter paths can now contain wildcards, and
+* a third filter type, <b>Ignored</b>, has been added, that can be
+  used to exclude some files or directories otherwise matched by other
+  filters.
+
+For more details, see the (new)
+  <a href='/tutorial?item=filters'>tutorial on the subject of filters</a>.
+
+The UI for managing filters on your
+  <a href='/home'>Home page</a>
+has also been significantly changed; now displaying all filter in all
+repositories instead of only filters in a selected repository."""
+
+cursor.execute("SELECT id FROM newsitems WHERE text=%s", (text,))
+
+if cursor.fetchone():
+    # Identical news item already exists.
+    sys.exit(0)
+
+cursor.execute("INSERT INTO newsitems (text) VALUES (%s)", (text,))
 
 db.commit()
 db.close()

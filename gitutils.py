@@ -472,6 +472,16 @@ class Repository:
         if tags: return tags[0]
         else: return None
 
+    def getHead(self, db):
+        return Commit.fromSHA1(db, self, self.revparse("HEAD"))
+
+    def isEmpty(self):
+        try:
+            self.revparse("HEAD")
+            return False
+        except GitError:
+            return True
+
 class CommitUserTime:
     def __init__(self, name, email, time):
         self.name = name
@@ -639,6 +649,14 @@ class Commit:
     def getFileSHA1(self, path):
         entry = self.getFileEntry(path)
         return entry.sha1 if entry else None
+
+    def isDirectory(self, path):
+        try:
+            Tree.fromPath(self, "/" + path.lstrip("/"))
+        except Exception:
+            return False
+        else:
+            return True
 
 RE_LSTREE_LINE = re.compile("^([0-9]{6}) (blob|tree|commit) ([0-9a-f]{40})  *([0-9]+|-)\t(.*)$")
 

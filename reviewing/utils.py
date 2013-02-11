@@ -23,6 +23,7 @@ import htmlutils
 import mail
 import changeset.utils as changeset_utils
 import reviewing.comment
+import reviewing.filters
 import log.commitset as log_commitset
 
 from operation import OperationError, OperationFailure
@@ -65,6 +66,12 @@ is used as a key in the dictionary instead of a real user ID."""
 
     filters = Filters()
 
+    file_ids = set()
+    for changeset in changesets:
+        for changed_file in changeset.files:
+            file_ids.add(changed_file.id)
+    filters.setFiles(db, list(file_ids))
+
     if applyfilters:
         if parentfiltersonly:
             filters.load(db, repository=repository.parent, recursive=True)
@@ -72,7 +79,7 @@ is used as a key in the dictionary instead of a real user ID."""
             filters.load(db, repository=repository, recursive=applyparentfilters)
 
     if reviewfilters:
-        filters.addFilters(db, reviewfilters, sort=True)
+        filters.addFilters(reviewfilters)
 
     reviewers = {}
     watchers = {}
@@ -85,10 +92,7 @@ is used as a key in the dictionary instead of a real user ID."""
         for (file_id,) in cursor:
             reviewers_found = False
 
-            for user_id, (filter_type, delegate) in filters.listUsers(db, file_id).items():
-                try: assert isinstance(user_id, int)
-                except: raise Exception, repr(filters.listUsers(db, file_id))
-
+            for user_id, (filter_type, delegate) in filters.listUsers(file_id).items():
                 if filter_type == 'reviewer':
                     if author_user_id != user_id:
                         reviewer_user_ids = [user_id]
@@ -470,9 +474,10 @@ using the command<p>
         cursor.execute("INSERT INTO reviewusers (review, uid, owner) VALUES (%s, %s, TRUE)", (review.id, user.id))
 
         if reviewfilters is not None:
-            cursor.executemany("INSERT INTO reviewfilters (review, uid, directory, file, type, creator) VALUES (%s, %s, %s, %s, %s, %s)",
-                               [(review.id, filter_user_id, filter_directory_id, filter_file_id, filter_type, user.id)
-                                for filter_directory_id, filter_file_id, filter_type, filter_delegate, filter_user_id in reviewfilters])
+            cursor.executemany("""INSERT INTO reviewfilters (review, uid, path, type, creator)
+                                       VALUES (%s, %s, %s, %s, %s)""",
+                               [(review.id, filter_user_id, filter_path, filter_type, user.id)
+                                for filter_user_id, filter_path, filter_type, filter_delegate in reviewfilters])
 
         if recipientfilters is not None:
             cursor.executemany("INSERT INTO reviewrecipientfilters (review, uid, include) VALUES (%s, %s, %s)",
@@ -582,21 +587,20 @@ def renderDraftItems(db, user, review, target):
     else:
         return False
 
-def addReviewFilters(db, creator, user, review, reviewer_directory_ids, reviewer_file_ids, watcher_directory_ids, watcher_file_ids):
+def addReviewFilters(db, creator, user, review, reviewer_paths, watcher_paths):
     cursor = db.cursor()
 
     cursor.execute("INSERT INTO reviewassignmentstransactions (review, assigner) VALUES (%s, %s) RETURNING id", (review.id, creator.id))
     transaction_id = cursor.fetchone()[0]
 
-    def add(filter_type, directory_ids, file_ids):
-        for directory_id, file_id in izip(directory_ids, file_ids):
+    def add(filter_type, paths):
+        for path in paths:
             cursor.execute("""SELECT id, type
                                 FROM reviewfilters
                                WHERE review=%s
                                  AND uid=%s
-                                 AND directory=%s
-                                 AND file=%s""",
-                           (review.id, user.id, directory_id, file_id))
+                                 AND path=%s""",
+                           (review.id, user.id, path))
 
             row = cursor.fetchone()
 
@@ -609,23 +613,22 @@ def addReviewFilters(db, creator, user, review, reviewer_directory_ids, reviewer
                     cursor.execute("""DELETE FROM reviewfilters
                                             WHERE id=%s""",
                                    (old_filter_id,))
-                    cursor.execute("""INSERT INTO reviewfilterchanges (transaction, uid, directory, file, type, created)
-                                           VALUES (%s, %s, %s, %s, %s, false)""",
-                                   (transaction_id, user.id, directory_id, file_id, old_filter_type))
+                    cursor.execute("""INSERT INTO reviewfilterchanges (transaction, uid, path, type, created)
+                                           VALUES (%s, %s, %s, %s, false)""",
+                                   (transaction_id, user.id, path, old_filter_type))
 
-            cursor.execute("""INSERT INTO reviewfilters (review, uid, directory, file, type, creator)
-                                   VALUES (%s, %s, %s, %s, %s, %s)""",
-                           (review.id, user.id, directory_id, file_id, filter_type, creator.id))
-            cursor.execute("""INSERT INTO reviewfilterchanges (transaction, uid, directory, file, type, created)
-                                   VALUES (%s, %s, %s, %s, %s, true)""",
-                           (transaction_id, user.id, directory_id, file_id, filter_type))
+            cursor.execute("""INSERT INTO reviewfilters (review, uid, path, type, creator)
+                                   VALUES (%s, %s, %s, %s, %s)""",
+                           (review.id, user.id, path, filter_type, creator.id))
+            cursor.execute("""INSERT INTO reviewfilterchanges (transaction, uid, path, type, created)
+                                   VALUES (%s, %s, %s, %s, true)""",
+                           (transaction_id, user.id, path, filter_type))
 
-    add("reviewer", reviewer_directory_ids, repeat(0))
-    add("reviewer", repeat(0), reviewer_file_ids)
-    add("watcher", watcher_directory_ids, repeat(0))
-    add("watcher", repeat(0), watcher_file_ids)
+    add("reviewer", reviewer_paths)
+    add("watcher", watcher_paths)
 
     filters = Filters()
+    filters.setFiles(db, review=review)
     filters.load(db, review=review, user=user)
 
     if user not in review.reviewers and user not in review.watchers and user not in review.owners:
@@ -636,7 +639,7 @@ def addReviewFilters(db, creator, user, review, reviewer_directory_ids, reviewer
     delete_files = set()
     insert_files = set()
 
-    if watcher_directory_ids or watcher_file_ids:
+    if watcher_paths:
         # Unassign changes currently assigned to the affected user.
         cursor.execute("""SELECT reviewfiles.id, reviewfiles.file
                             FROM reviewfiles
@@ -646,10 +649,10 @@ def addReviewFilters(db, creator, user, review, reviewer_directory_ids, reviewer
                        (review.id, user.id))
 
         for review_file_id, file_id in cursor:
-            if not filters.isReviewer(db, user.id, file_id):
+            if not filters.isReviewer(user.id, file_id):
                 delete_files.add(review_file_id)
 
-    if reviewer_directory_ids or reviewer_file_ids:
+    if reviewer_paths:
         # Assign changes currently not assigned to the affected user.
         cursor.execute("""SELECT reviewfiles.id, reviewfiles.file
                             FROM reviewfiles
@@ -664,7 +667,7 @@ def addReviewFilters(db, creator, user, review, reviewer_directory_ids, reviewer
                        (user.id, review.id, user.id))
 
         for review_file_id, file_id in cursor:
-            if filters.isReviewer(db, user.id, file_id):
+            if filters.isReviewer(user.id, file_id):
                 insert_files.add(review_file_id)
 
     if delete_files:
@@ -685,24 +688,19 @@ def parseReviewFilters(db, data):
     reviewfilters = []
 
     for filter_data in data:
-        filter_username = filter_data["username"]
+        filter_user = dbutils.User.fromName(db, filter_data["username"])
         filter_type = filter_data["type"]
         filter_path = filter_data["path"]
 
-        filter_user = dbutils.User.fromName(db, filter_username)
-        if not filter_user:
-            raise OperationError("no such user: '%s'" % filter_username)
+        # Make sure the path doesn't contain any invalid wild-cards.
+        try:
+            reviewing.filters.validatePattern(filter_path)
+        except reviewing.filters.PatternError, error:
+            raise OperationFailure(code="invalidpattern",
+                                   title="Invalid filter pattern",
+                                   message="Problem: %s" % error.message)
 
-        filter_directory_id = 0
-        filter_file_id = 0
-
-        if filter_path != "/":
-            if filter_path[-1] == "/" or dbutils.is_directory(filter_path):
-                filter_directory_id = dbutils.find_directory(db, path=filter_path)
-            else:
-                filter_file_id = dbutils.find_file(db, path=filter_path)
-
-        reviewfilters.append((filter_directory_id, filter_file_id, filter_type, None, filter_user.id))
+        reviewfilters.append((filter_user.id, filter_path, filter_type, None))
 
     return reviewfilters
 
@@ -804,22 +802,17 @@ def generateMailsForAssignmentsTransaction(db, transaction_id):
     review = dbutils.Review.fromId(db, review_id)
     assigner = dbutils.User.fromId(db, assigner_id)
 
-    cursor.execute("""SELECT uid, directory, file, type, created
+    cursor.execute("""SELECT uid, path, type, created
                         FROM reviewfilterchanges
                        WHERE transaction=%s""",
                    (transaction_id,))
 
     by_user = {}
 
-    for reviewer_id, directory_id, file_id, filter_type, created in cursor:
+    for reviewer_id, path, filter_type, created in cursor:
         added_filters, removed_filters, unassigned, assigned = by_user.setdefault(reviewer_id, ([], [], [], []))
-
-        if file_id: path = dbutils.describe_file(db, file_id)
-        elif directory_id: path = dbutils.describe_directory(db, directory_id)
-        else: path = "/"
-
-        if created: added_filters.append((filter_type, path))
-        else: removed_filters.append((filter_type, path))
+        if created: added_filters.append((filter_type, path or "/"))
+        else: removed_filters.append((filter_type, path or "/"))
 
     cursor.execute("""SELECT reviewassignmentchanges.uid, reviewassignmentchanges.assigned, reviewfiles.file, SUM(reviewfiles.deleted), SUM(reviewfiles.inserted)
                         FROM reviewfiles

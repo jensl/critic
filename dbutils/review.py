@@ -440,7 +440,7 @@ class Review(object):
 
     def getReviewFilters(self, db):
         cursor = db.cursor()
-        cursor.execute("SELECT directory, file, type, NULL, uid FROM reviewfilters WHERE review=%s", (self.id,))
+        cursor.execute("SELECT uid, path, type, NULL FROM reviewfilters WHERE review=%s", (self.id,))
         return cursor.fetchall() or None
 
     def getFilteredTails(self):
@@ -453,6 +453,7 @@ class Review(object):
             from reviewing.filters import Filters
 
             self.filters = Filters()
+            self.filters.setFiles(db, review=self)
             self.filters.load(db, review=self)
             self.relevant_files = self.filters.getRelevantFiles(db, self)
 

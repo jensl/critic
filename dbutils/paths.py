@@ -14,123 +14,29 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-def find_directory(db, path):
-    path = path.strip("/")
-
-    cursor = db.cursor()
-    cursor.execute("SELECT finddirectory(%s)", (path,))
-
-    row = cursor.fetchone()
-
-    if row and row[0] is not None:
-        return row[0]
-
-    if "/" in path:
-        directory, name = path.rsplit("/", 1)
-        directory_id = find_directory(db, directory)
-    else:
-        directory_id, name = 0, path
-
-    cursor.execute("INSERT INTO directories (directory, name) VALUES (%s, %s) RETURNING id", (directory_id, name))
-    return cursor.fetchone()[0]
-
-def is_directory(db, path):
-    cursor = db.cursor()
-    cursor.execute("SELECT finddirectory(%s)", (path,))
-
-    directory_id = cursor.fetchone()[0]
-
-    if directory_id is None: return False
-
-    cursor.execute("SELECT 1 FROM files WHERE directory=%s LIMIT 1", (directory_id,))
-    if cursor.fetchone(): return True
-
-    cursor.execute("SELECT 1 FROM directories WHERE directory=%s LIMIT 1", (directory_id,))
-    if cursor.fetchone(): return True
-
-    return False
-
-def is_file(db, path):
-    cursor = db.cursor()
-    cursor.execute("SELECT findfile(%s)", (path,))
-
-    file_id = cursor.fetchone()[0]
-
-    if file_id is None: return False
-
-    cursor.execute("SELECT 1 FROM fileversions WHERE file=%s LIMIT 1", (file_id,))
-    if cursor.fetchone(): return True
-
-    return False
-
 def find_file(db, path):
     path = path.lstrip("/")
 
     assert not path.endswith("/")
 
     cursor = db.cursor()
-    cursor.execute("SELECT findfile(%s)", (path,))
+    cursor.execute("SELECT id, path FROM files WHERE MD5(path)=MD5(%s)", (path,))
 
     row = cursor.fetchone()
 
-    if row and row[0] is not None:
-        return row[0]
+    if row:
+        file_id, found_path = row
+        assert path == found_path, "MD5 collision in files table: %r != %r" % (path, found_path)
+        return file_id
 
-    if "/" in path:
-        directory, name = path.rsplit("/", 1)
-        directory_id = find_directory(db, directory)
-    else:
-        directory_id, name = 0, path
-
-    cursor.execute("INSERT INTO files (directory, name) VALUES (%s, %s) RETURNING id", (directory_id, name))
+    cursor.execute("INSERT INTO files (path) VALUES (%s) RETURNING id", (path,))
     return cursor.fetchone()[0]
 
 def find_files(db, files):
     for file in files:
-        file.id = find_file(db, path=file.path)
-
-def find_directory_file(db, path):
-    path = path.lstrip("/")
-
-    assert not path.endswith("/")
-
-    file_id = find_file(db, path)
-    if "/" in path:
-        directory_id = find_directory(db, path.rsplit("/", 1)[0])
-    else:
-        directory_id = 0
-    return directory_id, file_id
-
-def describe_directory(db, directory_id):
-    cursor = db.cursor()
-    cursor.execute("SELECT fulldirectoryname(%s)", (directory_id,))
-    return cursor.fetchone()[0].rstrip("/")
+        file.id = find_file(db, file.path)
 
 def describe_file(db, file_id):
     cursor = db.cursor()
-    cursor.execute("SELECT fullfilename(%s)", (file_id,))
+    cursor.execute("SELECT path FROM files WHERE id=%s", (file_id,))
     return cursor.fetchone()[0]
-
-def explode_path(db, invalid=None, file_id=None, directory_id=None):
-    assert invalid is None
-    assert (file_id is None) != (directory_id is None)
-
-    cursor = db.cursor()
-    path = []
-
-    if file_id is not None:
-        cursor.execute("SELECT * FROM filepath(%s)", (file_id,))
-    else:
-        path.append(directory_id)
-        if not directory_id: return path
-        cursor.execute("SELECT * FROM directorypath(%s)", (directory_id,))
-
-    for (directory_id,) in cursor:
-        path.insert(0, directory_id)
-
-    return path
-
-def contained_files(db, directory_id):
-    cursor = db.cursor()
-    cursor.execute("SELECT file_out FROM containedfiles(%s)", (directory_id,))
-    return [file_id for (file_id,) in cursor]

@@ -34,6 +34,8 @@ import profiling
 import linkify
 import extensions
 
+from textutils import json_encode
+
 try:
     from customization.paths import getModuleFromFile
 except:
@@ -410,7 +412,7 @@ def renderShowReview(req, db, user):
         else:
             target.i().text("No reviewers.")
 
-        cursor.execute("""SELECT reviewfilters.id, reviewfilters.uid, reviewfilters.directory, reviewfilters.file
+        cursor.execute("""SELECT reviewfilters.id, reviewfilters.uid, reviewfilters.path
                             FROM reviewfilters
                             JOIN users ON (reviewfilters.uid=users.id)
                            WHERE reviewfilters.review=%s
@@ -430,13 +432,9 @@ def renderShowReview(req, db, user):
             filter_data = {}
             reviewfilters = {}
 
-            for filter_id, user_id, directory_id, file_id in rows:
+            for filter_id, user_id, path in rows:
                 filter_user = dbutils.User.fromId(db, user_id)
-
-                if file_id: path = dbutils.describe_file(db, file_id)
-                else: path = dbutils.describe_directory(db, directory_id) + "/"
-
-                reviewfilters.setdefault(filter_user.fullname, []).append(path)
+                reviewfilters.setdefault(filter_user.fullname, []).append(path or "/")
                 filter_data[(filter_user.fullname, path)] = (filter_id, filter_user)
 
             count = 0
@@ -499,7 +497,7 @@ def renderShowReview(req, db, user):
         else:
             target.i().text("No watchers.")
 
-        cursor.execute("""SELECT reviewfilters.id, reviewfilters.uid, reviewfilters.directory, reviewfilters.file
+        cursor.execute("""SELECT reviewfilters.id, reviewfilters.uid, reviewfilters.path
                             FROM reviewfilters
                             JOIN users ON (reviewfilters.uid=users.id)
                            WHERE reviewfilters.review=%s
@@ -519,13 +517,9 @@ def renderShowReview(req, db, user):
             filter_data = {}
             reviewfilters = {}
 
-            for filter_id, user_id, directory_id, file_id in rows:
+            for filter_id, user_id, path in rows:
                 filter_user = dbutils.User.fromId(db, user_id)
-
-                if file_id: path = dbutils.describe_file(db, file_id)
-                else: path = dbutils.describe_directory(db, directory_id) + "/"
-
-                reviewfilters.setdefault(filter_user.fullname, []).append(path)
+                reviewfilters.setdefault(filter_user.fullname, []).append(path or "/")
                 filter_data[(filter_user.fullname, path)] = (filter_id, filter_user)
 
             count = 0
@@ -1039,13 +1033,12 @@ def renderShowReview(req, db, user):
             for path in diff.File.eliminateCommonPrefixes(sorted(modules)):
                 cell.span("file").innerHTML(path).br()
 
-            directory_ids = "[ %s ]" % ", ".join([str(dbutils.find_directory(db, path=path[:-1])) for path in modules if path.endswith("/")])
-            file_ids = "[ %s ]" % ", ".join([str(dbutils.find_file(db, path=path)) for path in modules if not path.endswith("/")])
-            user_ids = "[ %s ]" % ", ".join(map(str, team))
+            paths = json_encode(list(modules))
+            user_ids = json_encode(list(team))
 
             cell = row.td("buttons")
-            cell.button("accept", critic_directory_ids=directory_ids, critic_file_ids=file_ids, critic_user_ids=user_ids).text("I will review this!")
-            cell.button("deny", critic_directory_ids=directory_ids, critic_file_ids=file_ids, critic_user_ids=user_ids).text("They will review this!")
+            cell.button("accept", critic_paths=paths, critic_user_ids=user_ids).text("I will review this!")
+            cell.button("deny", critic_paths=paths, critic_user_ids=user_ids).text("They will review this!")
 
     yield flush(target)
 

@@ -108,7 +108,6 @@ def install(data):
         process.check_output(["su", "-c", "psql -c 'GRANT ALL ON DATABASE \"critic\" TO \"%s\";'" % installation.system.username, "postgres"])
         psql_import(os.path.join(root_dir, "dbschema.sql"))
         psql_import(os.path.join(root_dir, "dbschema.comments.sql"))
-        psql_import(os.path.join(root_dir, "path.pgsql"))
         psql_import(os.path.join(root_dir, "comments.pgsql"))
         psql_import(os.path.join(root_dir, "roles.sql"))
 

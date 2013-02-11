@@ -185,164 +185,6 @@ def setfullname(req, db, user):
 
     return "ok"
 
-def addfilter(req, db, user):
-    if user.isAnonymous(): return OperationFailureMustLogin()
-
-    cursor = db.cursor()
-
-    repository_id = req.getParameter("repository", filter=int)
-    filter_type = req.getParameter("type")
-    filter_path = req.getParameter("path")
-    filter_delegate = req.getParameter("delegate", "")
-    force = req.getParameter("force", "no") == "yes"
-
-    repository = gitutils.Repository.fromId(db, repository_id)
-
-    if filter_delegate:
-        invalid_users = []
-        for delegate_name in map(str.strip, filter_delegate.split(',')):
-            if dbutils.User.fromName(db, delegate_name) is None:
-                invalid_users.append(delegate_name)
-        if invalid_users: return "error:invalid-users:%s" % ','.join(invalid_users)
-
-    if filter_path == '/':
-        directory_id, file_id = 0, 0
-    elif filter_path[-1] == '/':
-        directory_id, file_id = dbutils.find_directory(db, path=filter_path[:-1]), 0
-    else:
-        if not force and dbutils.is_directory(db, filter_path): return "error:directory"
-        else: directory_id, file_id = dbutils.find_directory_file(db, filter_path)
-
-    if directory_id:
-        specificity = len(dbutils.explode_path(db, directory_id=directory_id))
-        if file_id: specificity += 1
-    else:
-        specificity = 0
-
-    cursor.execute("INSERT INTO filters (uid, repository, directory, file, specificity, type, delegate) VALUES (%s, %s, %s, %s, %s, %s, %s)", [user.id, repository.id, directory_id, file_id, specificity, filter_type, ','.join(map(str.strip, filter_delegate.split(',')))])
-    user.setPreference(db, "email.activated", True)
-
-    db.commit()
-
-    return "ok:directory=%d,file=%d" % (directory_id, file_id)
-
-def deletefilter(req, db, user):
-    if user.isAnonymous(): return OperationFailureMustLogin()
-
-    cursor = db.cursor()
-
-    repository_id = req.getParameter("repository", filter=int)
-    directory_id = req.getParameter("directory", filter=int)
-    file_id = req.getParameter("file", filter=int)
-
-    cursor.execute("DELETE FROM filters WHERE uid=%s AND repository=%s AND directory=%s AND file=%s", (user.id, repository_id, directory_id, file_id))
-
-    db.commit()
-
-    return "ok"
-
-def reapplyfilters(req, db, user):
-    if user.isAnonymous(): return OperationFailureMustLogin()
-
-    cursor1 = db.cursor()
-    cursor2 = db.cursor()
-    cursor3 = db.cursor()
-
-    user = dbutils.User.fromName(db, req.getParameter("user", req.user))
-    repository_name = req.getParameter("repository", None)
-
-    if not repository_name:
-        cursor1.execute("""SELECT reviews.id, applyfilters, applyparentfilters, branches.repository FROM reviews JOIN branches ON (reviews.branch=branches.id) WHERE reviews.state!='closed'""")
-    else:
-        repository = gitutils.Repository.fromParameter(db, repository_name)
-        cursor1.execute("""SELECT reviews.id, applyfilters, applyparentfilters, branches.repository FROM reviews JOIN branches ON (reviews.branch=branches.id) WHERE reviews.state!='closed' AND branches.repository=%s""", (repository.id,))
-
-    repositories = {}
-
-    assign_changes = {}
-    watch_reviews = set()
-
-    own_commit = {}
-
-    for review_id, applyfilters, applyparentfilters, repository_id in cursor1:
-        if repository_id not in repositories:
-            repositories[repository_id] = gitutils.Repository.fromId(db, repository_id)
-        repository = repositories[repository_id]
-
-        filters = review_filters.Filters()
-        filters.load(db, review=review_filters.Filters.Review(review_id, applyfilters, applyparentfilters, repository), user=user)
-
-        if filters.hasFilters():
-            cursor2.execute("""SELECT changesets.child, reviewfiles.file, reviewfiles.id
-                                 FROM changesets
-                                 JOIN reviewfiles ON (reviewfiles.changeset=changesets.id)
-                      LEFT OUTER JOIN reviewuserfiles ON (reviewuserfiles.file=reviewfiles.id
-                                                      AND reviewuserfiles.uid=%s)
-                                WHERE reviewfiles.review=%s
-                                  AND reviewuserfiles.uid IS NULL""",
-                            (user.id, review_id))
-
-            for commit_id, file_id, review_file_id in cursor2:
-                users = filters.listUsers(db, file_id)
-
-                if user.id in users:
-                    if commit_id not in own_commit:
-                        cursor3.execute("""SELECT uid
-                                             FROM usergitemails
-                                             JOIN gitusers USING (email)
-                                             JOIN commits ON (commits.author_gituser=gitusers.id)
-                                            WHERE commits.id=%s""",
-                                        (commit_id,))
-                        own_commit[commit_id] = cursor3.fetchone()[0] == user.id
-
-                    if not own_commit[commit_id]:
-                        if users[user.id][0] == 'reviewer':
-                            assign_changes.setdefault(review_id, set()).add((file_id, review_file_id))
-                        else:
-                            watch_reviews.add(review_id)
-
-    new_reviews = set()
-
-    for review_id in itertools.chain(assign_changes, watch_reviews):
-        cursor1.execute("SELECT 1 FROM reviewusers WHERE review=%s AND uid=%s", (review_id, user.id))
-        if not cursor1.fetchone(): new_reviews.add(review_id)
-
-    cursor1.executemany("INSERT INTO reviewusers (review, uid) VALUES (%s, %s)", [(review_id, user.id) for review_id in new_reviews])
-
-    reviewuserfiles_values = []
-
-    for file_ids in assign_changes.values():
-        reviewuserfiles_values.extend([(review_file_id, user.id) for file_id, review_file_id in file_ids])
-
-    cursor1.executemany("INSERT INTO reviewuserfiles (file, uid) VALUES (%s, %s)", reviewuserfiles_values)
-
-    result = ""
-
-    for review_id in sorted(assign_changes.keys()):
-        review = dbutils.Review.fromId(db, review_id, load_commits=False)
-        file_ids = assign_changes[review_id]
-
-        if review.state == 'open':
-            result += "review,%s:%d:%s\n" % ("new" if review_id in new_reviews else "old", review.id, review.summary)
-
-            paths = [dbutils.describe_file(db, file_id) for file_id, review_file_id in file_ids]
-
-            for path in diff.File.eliminateCommonPrefixes(sorted(paths), text=True):
-                result += "  " + path + "\n"
-
-    for review_id in sorted(watch_reviews & new_reviews):
-        review = dbutils.Review.fromId(db, review_id, load_commits=False)
-
-        if review.state == 'open':
-            result += "watch:%d:%s\n" % (review.id, review.summary)
-
-    db.commit()
-
-    if not result:
-        result = "nothing\n"
-
-    return result
-
 def savesettings(req, db, user):
     if user.isAnonymous():
         return "ok"
@@ -387,28 +229,22 @@ def showfilters(req, db, user):
 
     path = path.rstrip("/")
 
-    if dbutils.is_directory(db, path):
-        directory_id = dbutils.find_directory(db, path=path)
+    if repository.getHead(db).isDirectory(path):
         show_path = path + "/"
-
-        cursor = db.cursor()
-        cursor.execute("SELECT name FROM files WHERE directory=%s ORDER BY id ASC LIMIT 1", (directory_id,))
-
-        row = cursor.fetchone()
-        if row: path += "/" + row[0]
-        else: path += "/dummy.txt"
+        path += "/dummy.txt"
     else:
         show_path = path
 
     file_id = dbutils.find_file(db, path=path)
 
     filters = review_filters.Filters()
+    filters.setFiles(db, [file_id])
     filters.load(db, repository=repository, recursive=True)
 
     reviewers = []
     watchers = []
 
-    for user_id, (filter_type, _delegate) in filters.listUsers(db, file_id).items():
+    for user_id, (filter_type, _delegate) in filters.listUsers(file_id).items():
         if filter_type == 'reviewer': reviewers.append(user_id)
         else: watchers.append(user_id)
 
@@ -618,9 +454,11 @@ OPERATIONS = { "fetchlines": operation.fetchlines.FetchLines(),
                "cancelrebase": operation.rebasereview.CancelRebase(),
                "rebasereview": operation.rebasereview.RebaseReview(),
                "revertrebase": operation.rebasereview.RevertRebase(),
-               "addfilter": addfilter,
-               "deletefilter": deletefilter,
-               "reapplyfilters": reapplyfilters,
+               "addfilter": operation.manipulatefilters.AddFilter(),
+               "deletefilter": operation.manipulatefilters.DeleteFilter(),
+               "reapplyfilters": operation.manipulatefilters.ReapplyFilters(),
+               "countmatchedpaths": operation.manipulatefilters.CountMatchedPaths(),
+               "getmatchedpaths": operation.manipulatefilters.GetMatchedPaths(),
                "markfiles": operation.markfiles.MarkFiles(),
                "submitchanges": operation.draftchanges.SubmitChanges(),
                "abortchanges": operation.draftchanges.AbortChanges(),
@@ -641,6 +479,7 @@ OPERATIONS = { "fetchlines": operation.fetchlines.FetchLines(),
                "addnewsitem": operation.news.AddNewsItem(),
                "editnewsitem": operation.news.EditNewsItem(),
                "getautocompletedata": operation.autocompletedata.GetAutoCompleteData(),
+               "getrepositorypaths": operation.autocompletedata.GetRepositoryPaths(),
                "addrecipientfilter": operation.recipientfilter.AddRecipientFilter(),
                "trackedbranchlog": operation.trackedbranch.TrackedBranchLog(),
                "disabletrackedbranch": operation.trackedbranch.DisableTrackedBranch(),
@@ -819,7 +658,9 @@ def main(environ, start_response):
                     req.setContentType("text/json")
 
                     if isinstance(result, OperationResult):
-                        if db.profiling: result.set("__profiling__", formatDBProfiling(db))
+                        if db.profiling:
+                            result.set("__profiling__", formatDBProfiling(db))
+                            result.set("__time__", time.time() - request_start)
                         result.addResponseHeaders(req)
                 else:
                     req.setContentType("text/plain")

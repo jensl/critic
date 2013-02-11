@@ -16,22 +16,6 @@
 
 */
 
-if (!Node.prototype.selectNodes)
-{
-  Node.prototype.selectNodes = function selectNodes(xpathExpr,resolver)
-    {
-      var arr = [], nodes = (this.ownerDocument || this).evaluate(xpathExpr, this, resolver || null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
-      for (var index = 0, node; node = nodes.snapshotItem(index); ++index)
-        arr.push(node);
-      return arr;
-    };
-
-  Node.prototype.selectSingleNode = function selectSingleNode(xpathExpr,resolver)
-    {
-      return (this.ownerDocument || this).evaluate(xpathExpr, this, resolver || null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
-    };
-}
-
 function hasClass(element, cls)
 {
   return new RegExp("(^|\\s)" + cls + "($|\\s)").test(element.className)
@@ -261,198 +245,382 @@ $(function ()
       new ModificationChecker(function () { return user.gitEmails; }, gitemails_input, gitemails_status);
   });
 
-function addFilter(button)
+function deleteFilterById(filter_id)
 {
-  var rowAnchor = button.selectSingleNode("ancestor::tr");
-  var rowFinal = rowAnchor.parentNode.insertRow(rowAnchor.rowIndex);
+  var operation = new Operation({ action: "delete filter",
+                                  url: "deletefilter",
+                                  data: { filter_id: filter_id }});
 
-  rowFinal.className = "filter";
-
-  var cellType = rowFinal.insertCell(-1);
-  var cellPath = rowFinal.insertCell(-1);
-  var cellDelegate = rowFinal.insertCell(-1);
-  var cellButtons = rowFinal.insertCell(-1);
-
-  cellType.className = "filter type";
-  cellType.textContent = "Reviewer";
-  cellPath.className = "filter path";
-  cellDelegate.className = "filter delegate";
-  cellButtons.className = "filter buttons";
-  cellButtons.innerHTML = "<input type='button' value='Edit'>";
-
-  editFilter(cellButtons.getElementsByTagName("input")[0], 0, 0, true);
+  return !!operation.execute();
 }
 
-function verifyFilterPath(path)
+function editFilter(repository_name, filter_id, filter_type, filter_path, filter_delegates)
 {
-  var message = "";
-  if (path.length > 1 && path.charAt(0) == "/")
-    message += "- Path should not start with a slash.\n";
-  if (path.indexOf("*") != -1)
-    message += "- Wildcards are currently not supported.\n";
-  if (message.length > 0)
+  function getPaths(prefix, callback)
   {
-    alert("You filter path has issues:\n\n" + message + "\nPlease correct them and try again.");
-    return false;
+    var repository_name = repository.val();
+
+    if (repository_name != "-")
+    {
+      var operation = new Operation({ action: "fetch path suggestions",
+                                      url: "getrepositorypaths",
+                                      data: { prefix: prefix,
+                                              repository_name: repository_name },
+                                      callback: function (result)
+                                                {
+                                                  if (result)
+                                                    callback(result.paths, true);
+                                                }});
+      operation.execute();
+      return operation;
+    }
+    else
+      return null;
   }
+
+  if (typeof no_repositories != "undefined")
+  {
+    /* There are no repositories. */
+
+    showMessage("Impossible!", "No repositories",
+                ("There are no repositories in this Critic system, and it is " +
+                 "consequently impossible to create filters.  You might want to " +
+                 "<a href=/newrepository>add a repository</a>."));
+    return;
+  }
+
+  var dialog = $("div.hidden > div.filterdialog").clone();
+
+  if (filter_id)
+    dialog.attr("title", "Edit Filter");
   else
-    return true;
-}
+    dialog.attr("title", "Add Filter");
 
-function editFilter(button, directory_id, file_id, added)
-{
-  var rowEdit = button.selectSingleNode("ancestor::tr");
-  var rowEmpty = rowEdit.selectSingleNode("preceding-sibling::tr[@class='empty']");
+  var repository = dialog.find("select[name='repository']");
+  var type = dialog.find("select[name='type']");
+  var path = dialog.find("input[name='path']");
+  var matchedfiles = dialog.find("span.matchedfiles");
+  var delegates = dialog.find("input[name='delegates']");
+  var apply = dialog.find("input[name='apply']");
 
-  document.getElementById("empty").style.display = "none";
+  var matchedfiles_repository = null;
+  var matchedfiles_path = null;
+  var matchedfiles_error = null;
 
-  addClass(rowEdit, "edit");
-
-  var cellType = rowEdit.cells[0];
-  var cellPath = rowEdit.cells[1];
-  var cellDelegate = rowEdit.cells[2];
-  var cellButtons = rowEdit.cells[3];
-
-  var type_value = cellType.textContent;
-  var path_value = cellPath.textContent;
-  var delegate_value = cellDelegate.textContent;
-  var old_buttons = added ? "" : cellButtons.innerHTML;
-
-  cellType.className = "filter type";
-  cellType.innerHTML = "<select><option " + (type_value == "Reviewer" ? "selected " : "") + "value='reviewer'>Reviewer</option><option " + (type_value == "Watcher" ? "selected " : "") + "value='watcher'>Watcher</option></select>";
-  cellPath.className = "filter path";
-  cellPath.innerHTML = "<input value='" + path_value + "'>";
-  cellDelegate.className = "filter delegate";
-  cellDelegate.innerHTML = "<input value='" + delegate_value + "'>";
-  cellButtons.className = "filter buttons";
-  cellButtons.innerHTML = "<button>Save</button><button>Cancel</button>";
-
-  var type = cellType.getElementsByTagName("select")[0];
-  var path = cellPath.getElementsByTagName("input")[0];
-  var delegate = cellDelegate.getElementsByTagName("input")[0];
-  var buttons = cellButtons.getElementsByTagName("button");
-
-  $(cellButtons).find("button").button();
-
-  path.onkeypress = function (ev)
+  matchedfiles.click(
+    function ()
     {
-      if (ev.keyCode == 13)
-      {
-        buttons[0].click();
-        ev.preventDefault();
-      }
-    };
+      if (matchedfiles_error)
+        showMessage("Error", "Invalid pattern!", matchedfiles_error);
+      else if (matchedfiles_repository && matchedfiles_path)
+        showMatchedFiles(matchedfiles_repository, matchedfiles_path);
+    });
 
-  buttons[0].onclick = function saveFilter()
+  function updateMatchedFiles()
+  {
+    if (repository.val() == "-")
+      return;
+
+    var repository_value = repository.val();
+    var path_value = path.val().trim();
+
+    function update(result)
     {
-      var type_value = type.value, path_value = path.value, delegate_value = delegate.value;
-
-      if (!verifyFilterPath(path_value))
-        return;
-
-      if (!added)
+      if (result)
       {
-        var xhr = new XMLHttpRequest;
-
-        xhr.open("GET", "deletefilter?repository=" + repository.id + "&directory=" + directory_id + "&file=" + file_id, false);
-        xhr.send();
-
-        if (xhr.responseText != "ok")
+        matchedfiles.text("Matches " + result.count + " file" + (result.count == 1 ? "" : "s"));
+        if (result.count != 0)
         {
-          alert(xhr.responseText);
-          return;
-        }
-      }
-
-      var xhr = new XMLHttpRequest;
-
-      xhr.open("GET", "addfilter?repository=" + repository.id + "&type=" + type_value + "&path=" + path_value + "&delegate=" + delegate_value, false);
-      xhr.send();
-
-      if (xhr.responseText == "error:directory")
-        if (confirm("The path entered seems to be a directory, not a file.  Did you mean to filter by directory?"))
-        {
-          path_value += "/";
-          xhr.open("GET", "addfilter?repository=" + repository.id + "&type=" + type_value + "&path=" + path_value + "&delegate=" + delegate_value, false);
-          xhr.send();
+          matchedfiles.addClass("clickable");
+          matchedfiles_repository = repository_value;
+          matchedfiles_path = path_value;
         }
         else
         {
-          xhr.open("GET", "addfilter?repository=" + repository.id + "&type=" + type_value + "&path=" + path_value + "&delegate=" + delegate_value + "&force=yes", false);
-          xhr.send();
+          matchedfiles.removeClass("clickable");
+          matchedfiles_repository = matchedfiles_path = null;
         }
-      else if (/error:invalid-users:.*/.test (xhr.responseText))
-      {
-        alert("These user names are not valid:\n\n  " + xhr.responseText.substring(20).split(",").join("\n  "));
-        return;
+        matchedfiles_error = null;
       }
+    }
 
-      var match = /^ok:directory=(\d+),file=(\d+)$/.exec(xhr.responseText);
-      if (match)
-      {
-        removeClass(rowEdit, "edit");
-
-        var new_directory_id = match[1];
-        var new_file_id = match[2];
-
-        cellType.textContent = type_value == "reviewer" ? "Reviewer" : "Watcher";
-        cellPath.textContent = path_value;
-        cellDelegate.textContent = delegate_value;
-        cellButtons.innerHTML = "<button onclick='editFilter(this, " + new_directory_id + ", " + new_file_id + ", false);'>Edit</button><button onclick='deleteFilter(this, " + new_directory_id + ", " + new_file_id + ");'>Delete</button>";
-        $(cellButtons).children("button").button();
-      }
-      else
-        alert(xhr.responseText);
-    };
-
-  buttons[1].onclick = function cancelFilter()
+    function invalid(result)
     {
-      if (!rowEdit.selectSingleNode("parent::node()/child::tr[@class='filter']"))
-        document.getElementById("empty").style.display = 'inline';
+      matchedfiles.text("Invalid pattern!");
+      matchedfiles.addClass("clickable");
+      matchedfiles_repository = matchedfiles_path = null;
+      matchedfiles_error = result.message;
+      return true;
+    }
 
-      if (added)
-        rowEdit.parentNode.removeChild(rowEdit);
-      else
-      {
-        removeClass(rowEdit, "edit");
+    if (path_value && path_value != "/")
+    {
+      var operation = new Operation({ action: "count matched files",
+                                      url: "countmatchedpaths",
+                                      data: { single: { repository_name: repository.val(),
+                                                        path: path_value }},
+                                      callback: update,
+                                      failure: { invalidpattern: invalid }});
 
-        cellType.textContent = type_value;
-        cellPath.textContent = path_value;
-        cellDelegate.textContent = delegate_value;
-        cellButtons.innerHTML = "<button onclick='editFilter(this, " + directory_id + ", " + file_id + ", false);'>Edit</button><button onclick='deleteFilter(this, " + directory_id + ", " + file_id + ");'>Delete</button>";
-        $(cellButtons).children("button").button();
-      }
-    };
+      operation.execute();
+    }
+    else
+    {
+      matchedfiles.text("Matches all files.");
+      matchedfiles.removeClass("clickable");
+      matchedfiles_repository = matchedfiles_path = null;
+      matchedfiles_error = null;
+    }
+  }
 
-  path.focus();
-}
-
-function deleteFilter(button, directory_id, file_id)
-{
-  var rowFilter = button.selectSingleNode("ancestor::tr");
-  var rowEmpty = rowFilter.selectSingleNode("preceding-sibling::tr[@class='empty']");
-
-  var xhr = new XMLHttpRequest;
-
-  xhr.open("GET", "deletefilter?repository=" + repository.id + "&directory=" + directory_id + "&file=" + file_id, false);
-  xhr.send();
-
-  if (xhr.responseText == "ok")
+  if (filter_id !== void 0)
   {
-    rowFilter.parentNode.removeChild(rowFilter);
+    repository.val(repository_name);
+    type.val(filter_type);
+    path.val(filter_path);
+    delegates.val(filter_delegates);
 
-    if (!rowEmpty.selectSingleNode("following-sibling::tr[@class='filter']"))
-      document.getElementById("empty").style.display = 'inline';
+    if (filter_type != "reviewer")
+      delegates.attr("disabled", "disabled");
+
+    updateMatchedFiles();
   }
   else
-    alert(xhr.responseText);
+  {
+    type.val("reviewer");
+    path.val("");
+    path.autocomplete({ source: AutoCompletePath(getPaths), html: true });
+    delegates.val("");
+    delegates.removeAttr("disabled");
+  }
+
+  function saveFilter()
+  {
+    var type_value = type.val();
+    var path_value = path.val().trim() || "/";
+    var delegates_value;
+
+    if (type_value == "reviewer")
+      delegates_value = delegates.val().trim().split(/\s*,\s*|\s+/g);
+    else
+      delegates_value = [];
+
+    if (repository.val() == "-")
+    {
+      showMessage("Invalid input", "No repository selected!", "Please select a repository.",
+                  function () { repository.focus(); });
+      return;
+    }
+
+    var data = { filter_type: type_value,
+                 path: path_value,
+                 delegates: delegates_value,
+                 repository_name: repository.val() };
+
+    if (filter_id !== void 0)
+      data.replaced_filter_id = filter_id;
+
+    var operation = new Operation({ action: "save filter",
+                                    url: "addfilter",
+                                    data: data });
+    var result = operation.execute();
+
+    if (result)
+    {
+      var do_apply = apply.is(":checked");
+      dialog.dialog("close");
+      if (do_apply)
+        reapplyFilters(result.filter_id, true);
+      else
+        location.reload();
+    }
+  }
+
+  function deleteFilter()
+  {
+    if (deleteFilterById(filter_id))
+    {
+      dialog.dialog("close");
+      location.reload();
+    }
+  }
+
+  function closeDialog()
+  {
+    dialog.dialog("close");
+  }
+
+  var buttons = {};
+
+  buttons["Save"] = saveFilter;
+
+  if (filter_id)
+  {
+    buttons["Delete"] = deleteFilter;
+    buttons["Close"] = closeDialog;
+  }
+  else
+    buttons["Cancel"] = closeDialog;
+
+  dialog.dialog({ width: 600, buttons: buttons });
+
+  if (repository.val() == "-")
+    repository.focus();
+  else
+    path.focus();
+
+  function handleKeypress(ev)
+  {
+    if (ev.keyCode == 13)
+      saveFilter();
+  }
+
+  path.keypress(handleKeypress);
+  delegates.keypress(handleKeypress);
+
+  path.change(updateMatchedFiles);
+
+  type.change(
+    function ()
+    {
+      if (type.val() == "reviewer")
+        delegates.removeAttr("disabled");
+      else
+        delegates.attr("disabled", "disabled");
+    });
 }
 
-$(document).ready(function ()
+function showMatchedFiles(repository_name, path)
+{
+  function finished(result)
   {
-    $("td.repositories select").change(function (ev)
+    if (result)
+    {
+      var options = [];
+
+      for (var index = 0; index < result.paths.length; ++index)
       {
-        if (!repository || ev.target.value != repository.id)
-          location.href = "home?repository=" + ev.target.value;
-      });
+        options.push("<option>" + htmlify(result.paths[index]) + "</option>");
+      }
+
+      var dialog = $("<div class=matchedfiles><select multiple>" + options.join("") + "</select></div>");
+
+      dialog.attr("title", options.length + " file" + (options.length != 1 ? "s" : "") + " matched by " + path);
+      dialog.find("select").attr("size", Math.min(20, options.length));
+      dialog.dialog({ width: 600, buttons: { "Close": function () { dialog.dialog("close"); }}});
+    }
+  }
+
+  var operation = new Operation({ action: "fetch matched paths",
+                                  url: "getmatchedpaths",
+                                  data: { repository_name: repository_name,
+                                          path: path },
+                                  wait: "Fetching matched paths...",
+                                  cancelable: true,
+                                  callback: finished });
+
+  operation.execute();
+}
+
+function reapplyFilters(filter_id, reload_when_finished)
+{
+  function finished(result)
+  {
+    if (result && filter_id === void 0)
+    {
+      var changes, first;
+
+      if (result.assigned_reviews.length == 0 &&
+          result.watched_reviews.length == 0)
+        changes = "<tr><th colspan=2>No changes.</th></tr>";
+      else
+      {
+        changes = "";
+
+        if (result.assigned_reviews.length > 0)
+        {
+          changes += "<tr><th colspan=2>Reviews with new changes to review:</th></tr>";
+          first = " class=first";
+
+          result.assigned_reviews.forEach(
+            function (review_id)
+            {
+              changes += "<tr" + first + "><td class=id><a href=r/" + review_id + ">r/" + review_id + "</a></td><td class=summary>" + htmlify(result.summaries[review_id]) + "</td></tr>";
+              first = "";
+            });
+        }
+
+        if (result.watched_reviews.length > 0)
+        {
+          changes += "<tr><th colspan=2>New watched reviews:</th></tr>";
+          first = " class=first";
+
+          result.watched_reviews.forEach(
+            function (review_id)
+            {
+              changes += "<tr" + first + "><td><a href=r/" + review_id + ">r/" + review_id + "</a></td><td>" + htmlify(result.summaries[review_id]) + "</td></tr>";
+              first = "";
+            });
+        }
+      }
+
+      var dialog = $("<div class=reapplyresult>"
+                   +   "<h1>Result:</h1>"
+                   +   "<table>"
+                   +     changes
+                   +   "</table>"
+                   + "</div>");
+
+      dialog.dialog({ width: 800,
+                      buttons: { Close: function () { dialog.dialog("close"); }},
+                      close: function () { if (reload_when_finished) location.reload(); }});
+    }
+    else if (reload_when_finished)
+      location.reload();
+  }
+
+  var operation = new Operation({ action: "reapply filters",
+                                  url: "reapplyfilters",
+                                  data: { filter_id: filter_id },
+                                  wait: "Please wait...",
+                                  callback: finished });
+
+  operation.execute();
+}
+
+function countMatchedFiles()
+{
+  if (count_matched_files.length == 0)
+    return;
+
+  var item = count_matched_files.shift();
+
+  function update(result)
+  {
+    if (result)
+    {
+      result.filters.forEach(
+        function (filter)
+        {
+          var link = $("#f" + filter.id);
+          if (filter.count)
+            link.text(filter.count + " file" + (filter.count == 1 ? "" : "s"));
+          else
+            link.replaceWith("no files")
+        });
+      countMatchedFiles();
+    }
+  }
+
+  var operation = new Operation({ action: "count matched files",
+                                  url: "countmatchedpaths",
+                                  data: { multiple: item },
+                                  callback: update });
+
+  operation.execute();
+}
+
+$(function ()
+  {
+    countMatchedFiles();
   });

@@ -132,9 +132,6 @@ function updateFilters(add_reviewer)
 
     name.split(/[, ]+/).forEach(function (name) { names[name] = true; });
 
-    if (!/\/$/.test(path))
-      path += "/";
-
     new_reviewfilters = [];
 
     for (var index = 0; index < reviewfilters.length; ++index)

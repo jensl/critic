@@ -21,9 +21,7 @@ from dbutils.database import Database
 from dbutils.user import NoSuchUser, User
 from dbutils.review import ReviewState, Review
 from dbutils.branch import Branch
-from dbutils.paths import is_directory, find_directory, describe_directory, \
-                          is_file, find_file, find_files, describe_file, \
-                          find_directory_file, explode_path, contained_files
+from dbutils.paths import find_file, find_files, describe_file
 
 def getURLPrefix(db):
     import configuration
