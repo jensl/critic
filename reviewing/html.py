@@ -118,7 +118,7 @@ def renderCodeCommentChain(db, target, user, review, chain, context_lines=3, com
         file.loadNewLines(True)
 
         start = max(1, first_line - context_lines)
-        end = min(file.newCount() + 1, last_line + context_lines)
+        end = min(file.newCount(), last_line + context_lines)
         count = end + 1 - start
 
         lines = file.newLines(True)
