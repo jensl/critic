@@ -37,8 +37,6 @@ def createChangeset(db, request):
                 db.commit()
                 break
             except dbutils.IntegrityError:
-                if repository_name == "chromium":
-                    raise Exception, repr((parent, child, files))
                 db.rollback()
 
         cursor = db.cursor()
