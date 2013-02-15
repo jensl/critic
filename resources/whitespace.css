@@ -16,7 +16,7 @@
 
 */
 
-tr.line td > i.tailws, tr.line.inserted td > i.tailws {
+tr.line td > i.tailws, tr.line.inserted td i.tailws {
     background: red !important
 }
 
