@@ -26,59 +26,62 @@ def unified(db, changeset, context_lines=3):
         file.loadOldLines()
         file.loadNewLines()
 
-        lines = diff.context.ContextLines(file, file.chunks)
-        file.macro_chunks = lines.getMacroChunks(context_lines, highlight=False)
+        try:
+            lines = diff.context.ContextLines(file, file.chunks)
 
-    for file in changeset.files:
-        oldPath = file.path if not file.wasRemoved() else "dev/null"
-        newPath = file.path if not file.wasAdded() else "dev/null"
+            file.macro_chunks = lines.getMacroChunks(context_lines, highlight=False)
 
-        result += "--- a/%s\n+++ b/%s\n" % (oldPath, newPath)
+            oldPath = file.path if not file.wasRemoved() else "dev/null"
+            newPath = file.path if not file.wasAdded() else "dev/null"
 
-        if file.isBinaryChanges():
-            result += "  Binary file.\n"
-            continue
+            result += "--- a/%s\n+++ b/%s\n" % (oldPath, newPath)
 
-        for chunk in file.macro_chunks:
-            deleteOffset = chunk.lines[0].old_offset
-            deleteCount = len(filter(lambda line: line.type != diff.Line.INSERTED, chunk.lines))
-            insertOffset = chunk.lines[0].new_offset
-            insertCount = len(filter(lambda line: line.type != diff.Line.DELETED, chunk.lines))
+            if file.isBinaryChanges():
+                result += "  Binary file.\n"
+                continue
 
-            chunkHeader = "@@ -%d,%d +%d,%d @@" % (deleteOffset, deleteCount, insertOffset, insertCount)
+            for chunk in file.macro_chunks:
+                deleteOffset = chunk.lines[0].old_offset
+                deleteCount = len(filter(lambda line: line.type != diff.Line.INSERTED, chunk.lines))
+                insertOffset = chunk.lines[0].new_offset
+                insertCount = len(filter(lambda line: line.type != diff.Line.DELETED, chunk.lines))
 
-            if db: codeContext = getCodeContext(db, file.new_sha1, insertOffset, minimized=True)
-            else: codeContext = None
+                chunkHeader = "@@ -%d,%d +%d,%d @@" % (deleteOffset, deleteCount, insertOffset, insertCount)
 
-            if codeContext: chunkHeader += " %s" % codeContext[:80 - len(chunkHeader)]
+                if db: codeContext = getCodeContext(db, file.new_sha1, insertOffset, minimized=True)
+                else: codeContext = None
 
-            result += chunkHeader + "\n"
+                if codeContext: chunkHeader += " %s" % codeContext[:80 - len(chunkHeader)]
 
-            lines = iter(chunk.lines)
-            line = lines.next()
+                result += chunkHeader + "\n"
 
-            try:
-                while line:
-                    while line.type == diff.Line.CONTEXT:
-                        result += "  %s\n" % line.new_value
-                        line = lines.next()
+                lines = iter(chunk.lines)
+                line = lines.next()
 
-                    deleted = []
-                    inserted = []
-
-                    try:
-                        while line.type != diff.Line.CONTEXT:
-                            if line.type != diff.Line.INSERTED: deleted.append(line)
-                            if line.type != diff.Line.DELETED: inserted.append(line)
+                try:
+                    while line:
+                        while line.type == diff.Line.CONTEXT:
+                            result += "  %s\n" % line.new_value
                             line = lines.next()
-                    except StopIteration:
-                        line = None
 
-                    for deletedLine in deleted:
-                        result += "- %s\n" % deletedLine.old_value
-                    for insertedLine in inserted:
-                        result += "+ %s\n" % insertedLine.new_value
-            except StopIteration:
-                pass
+                        deleted = []
+                        inserted = []
+
+                        try:
+                            while line.type != diff.Line.CONTEXT:
+                                if line.type != diff.Line.INSERTED: deleted.append(line)
+                                if line.type != diff.Line.DELETED: inserted.append(line)
+                                line = lines.next()
+                        except StopIteration:
+                            line = None
+
+                        for deletedLine in deleted:
+                            result += "- %s\n" % deletedLine.old_value
+                        for insertedLine in inserted:
+                            result += "+ %s\n" % insertedLine.new_value
+                except StopIteration:
+                    pass
+        finally:
+            file.clean()
 
     return result
