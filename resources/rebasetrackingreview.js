@@ -96,6 +96,9 @@ function rebaseReview()
 
 $(function ()
   {
+    $("input#newbranch").autocomplete({ source: AutoCompleteRef(trackedbranch.remote, "refs/heads/"), html: true });;
+    $("input#upstream").autocomplete({ source: AutoCompleteRef(trackedbranch.remote), html: true });;
+
     function updateConflictsStatus(result)
     {
       if (result)

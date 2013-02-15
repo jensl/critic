@@ -41,6 +41,7 @@ class RebaseTrackingReview(page.Page):
 
         def generateHeader(self):
             self.document.addExternalStylesheet("resource/rebasetrackingreview.css")
+            self.document.addExternalScript("resource/autocomplete.js")
             self.document.addExternalScript("resource/rebasetrackingreview.js")
 
         def generateContent(self):
