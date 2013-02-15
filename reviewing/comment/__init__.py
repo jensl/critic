@@ -245,7 +245,8 @@ class CommentChain:
         cursor = db.cursor()
         cursor.execute("SELECT review, batch, uid, type, state, origin, file, first_commit, last_commit, closed_by, addressed_by FROM commentchains WHERE id=%s", [id])
         row = cursor.fetchone()
-        if not row: return None
+        if not row:
+            return None
         else:
             review_id, batch_id, user_id, type, state, origin, file_id, first_commit_id, last_commit_id, closed_by_id, addressed_by_id = row
             type_is_draft = False
@@ -303,7 +304,17 @@ class CommentChain:
                                  addressed_by_is_draft=addressed_by_is_draft)
 
             if not skip or 'lines' not in skip:
-                cursor.execute("SELECT sha1, first_line, last_line FROM commentchainlines WHERE chain=%s AND (state='current' OR uid=%s)", (id, user.id))
+                if chain.state == "draft":
+                    draft_user_id = chain.user.id
+                else:
+                    draft_user_id = user.id
+
+                cursor.execute("""SELECT sha1, first_line, last_line
+                                    FROM commentchainlines
+                                   WHERE chain=%s
+                                     AND (state='current' OR uid=%s)""",
+                               (id, draft_user_id))
+
                 for sha1, first_line, last_line in cursor.fetchall():
                     chain.setLines(sha1, first_line, last_line - first_line + 1)
 
