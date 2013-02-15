@@ -160,7 +160,7 @@ function decompact(id)
       for (index = 0; index < table.tBodies.length; ++index)
       {
         var tbody = table.tBodies.item(index);
-        if (tbody.firstChild.nodeType == Node.COMMENT_NODE)
+        if (tbody.firstChild.nodeType == Node.COMMENT_NODE && !tbody.firstChild.nextSibling)
         {
           var data = JSON.parse(tbody.firstChild.nodeValue);
 
