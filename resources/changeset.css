@@ -198,6 +198,12 @@ table.file > tbody.lines > tr > td.line {
     word-wrap: break-word
 }
 
+table.file.resized.old-narrower > tbody.lines > tr > td.line.old,
+table.file.resized.new-narrower > tbody.lines > tr > td.line.new {
+    overflow-wrap: normal;
+    white-space: pre
+}
+
 table.file > tbody.lines > tr > td.comment {
     white-space: pre-wrap;
     border-left: 1px solid #888;

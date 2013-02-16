@@ -1186,6 +1186,7 @@ function applyLengthLimit(lines)
   /*Handle resizing of the left and right diff views
     by dragging divider between them. */
 
+  var currentTable = null; ///< cached reference to the table whose panes are being resized
   var currentCols = null; ///< cached reference to the col elements that are being resized
   var tableCoord = { left: 0, width: 0 }
   const HALF_DIVIDER_WIDTH = 15; ///< half of the width of the divider between diff views (somewhat arbitrary)
@@ -1198,25 +1199,40 @@ function applyLengthLimit(lines)
     if (e.button != 0)
       return;
 
-    var el = e.target;
-    if (el.tagName.toLowerCase() == 'td' && el.className == 'middle')
-      if (currentCols = findTableCols(el))
-      {
-        /* Calculate offsets from the sibling cells of the clicked one.
-           WebKit is unable to get dimensions from the col elements. */
-        var panes = el.parentNode.querySelectorAll("td.line");
-        tableCoord.left = $(panes[0]).offset().left;
-        tableCoord.width = $(panes[0]).width() + $(panes[1]).width();
+    var mid_cell = $(e.target);
+    if (!mid_cell.is('td.middle'))
+      return;
 
-        document.addEventListener('mousemove', handleMouseMove);
-        document.addEventListener('mouseup', handleMouseUp);
-        e.preventDefault();
-      }
+    var table = mid_cell.parents('table');
+    if (!table.length)
+      return;
+
+    currentTable = table;
+    currentCols = table.find('colgroup col.line');
+    if (currentCols.length != 2)
+      return;
+
+    /* Store clicked element's offset relative to the table. It can change
+       during wrapping and we want to restore previous position the element
+       had on screen. */
+    var offset_before = mid_cell.offset().top;
+    table.addClass("resized");
+    window.scrollBy(0, mid_cell.offset().top - offset_before);
+
+    /* Calculate offsets from the sibling cells of the clicked one.
+       WebKit is unable to get dimensions from the col elements. */
+    var panes = mid_cell.parent().find("td.line");
+    tableCoord.left = $(panes[0]).offset().left;
+    tableCoord.width = $(panes[0]).width() + $(panes[1]).width();
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+    e.preventDefault();
   }
 
   function handleMouseUp(e)
   {
-    currentCols = null;
+    currentTable = currentCols = null;
     document.removeEventListener('mouseup', handleMouseUp);
     document.removeEventListener('mousemove', handleMouseMove);
   }
@@ -1227,46 +1243,37 @@ function applyLengthLimit(lines)
     {
       var leftDiffPaneWidth = e.pageX - tableCoord.left - HALF_DIVIDER_WIDTH;
       leftDiffPaneWidth = Math.min(tableCoord.width, Math.max(0, leftDiffPaneWidth));
-      currentCols[0].style.width = leftDiffPaneWidth + 'px';
-      currentCols[1].style.width = (tableCoord.width - leftDiffPaneWidth) + 'px';
+      var rightDiffPaneWidth = (tableCoord.width - leftDiffPaneWidth);
+      $(currentCols[0]).css('width', leftDiffPaneWidth + 'px');
+      $(currentCols[1]).css('width', rightDiffPaneWidth + 'px');
       if (typeof CommentMarkers != "undefined")
         CommentMarkers.updateAll();
+
+      if (leftDiffPaneWidth < rightDiffPaneWidth)
+        currentTable.removeClass("new-narrower").addClass("old-narrower");
+      else if (leftDiffPaneWidth > rightDiffPaneWidth)
+        currentTable.removeClass("old-narrower").addClass("new-narrower");
+      else
+        currentTable.removeClass("old-narrower new-narrower");
     }
   }
 
-  /* Center diff division (reset to default). */
   function handleDblClick(e)
   {
-    if (e.target.className != 'middle')
+    var mid_cell = $(e.target);
+    if (!mid_cell.is('td.middle'))
       return;
 
-    var cols = findTableCols(e.target);
-    if (cols)
+    var table = mid_cell.parents('table');
+    var cols = table.find('colgroup col.line');
+    if (cols.length == 2)
     {
-      cols[0].removeAttribute('style');
-      cols[1].removeAttribute('style');
+      /* Center diff division (reset to default). */
+      table.removeClass("resized old-narrower new-narrower");
+      cols.removeAttr('style');
       if (typeof CommentMarkers != "undefined")
         CommentMarkers.updateAll();
     }
-  }
-
-  /* Iterate upwards from the tableChild element looking for
-     a parent table and its two col.line elements. */
-  function findTableCols(tableChild)
-  {
-    var table = tableChild;
-    while (table = table.parentNode)
-      if (table.tagName.toLowerCase() == 'table')
-        break;
-
-    if (table)
-    {
-      var cols = table.querySelectorAll('colgroup col.line');
-      if (cols.length == 2)
-        return cols;
-    }
-
-    return null;
   }
 })();
 
