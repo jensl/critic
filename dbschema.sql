@@ -370,6 +370,7 @@ CREATE TABLE reviewfiles
     FOREIGN KEY (changeset, file) REFERENCES fileversions ON DELETE CASCADE );
 
 CREATE INDEX reviewfiles_review_changeset ON reviewfiles (review, changeset);
+CREATE INDEX reviewfiles_review_state ON reviewfiles (review, state);
 
 CREATE TABLE reviewassignmentstransactions
   ( id SERIAL PRIMARY KEY,
@@ -435,7 +436,7 @@ CREATE TABLE reviewfilechanges
 
 CREATE INDEX reviewfilechanges_batch ON reviewfilechanges (batch);
 CREATE INDEX reviewfilechanges_file ON reviewfilechanges (file);
-CREATE INDEX reviewfilechanges_uid ON reviewfilechanges (uid);
+CREATE INDEX reviewfilechanges_uid_state ON reviewfilechanges (uid, state);
 CREATE INDEX reviewfilechanges_time ON reviewfilechanges (time);
 
 CREATE TABLE lockedreviews

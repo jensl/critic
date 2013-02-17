@@ -256,7 +256,7 @@ def renderDashboard(req, db, user):
             with_comments = {}
             with_both = {}
 
-            cursor.execute("""SELECT reviews.id, reviews.summary, reviews.branch, sum(reviewfiles.deleted), sum(reviewfiles.inserted)
+            cursor.execute("""SELECT reviews.id, reviews.summary, reviews.branch, SUM(reviewfiles.deleted), SUM(reviewfiles.inserted)
                                 FROM reviews
                                 JOIN reviewfiles ON (reviewfiles.review=reviews.id)
                                 JOIN reviewuserfiles ON (reviewuserfiles.file=reviewfiles.id
@@ -274,14 +274,15 @@ def renderDashboard(req, db, user):
 
             profiler.check("processing: active lines")
 
-            cursor.execute("""SELECT reviews.id, reviews.summary, reviews.branch, count(commentstoread.comment)
-                                FROM reviews
-                                JOIN commentchains ON (commentchains.review=reviews.id)
-                                JOIN comments ON (comments.chain=commentchains.id)
-                                JOIN commentstoread ON (commentstoread.comment=comments.id AND commentstoread.uid=%s)
-                               WHERE reviews.state='open'
-                            GROUP BY reviews.id, reviews.summary, reviews.branch""",
-                           [user.id])
+            cursor.execute("""SELECT reviews.id, reviews.summary, reviews.branch, unread.count
+                                FROM (SELECT commentchains.review AS review, COUNT(commentstoread.comment) AS count
+                                        FROM commentchains
+                                        JOIN comments ON (comments.chain=commentchains.id)
+                                        JOIN commentstoread ON (commentstoread.comment=comments.id AND commentstoread.uid=%s)
+                                    GROUP BY commentchains.review) AS unread
+                                JOIN reviews ON (reviews.id=unread.review)
+                               WHERE reviews.state='open'""",
+                           (user.id,))
 
             profiler.check("query: active comments")
 

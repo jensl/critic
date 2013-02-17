@@ -49,6 +49,7 @@ CREATE TABLE commentchains
     addressed_by INTEGER REFERENCES commits,
     first_comment INTEGER ); -- Foreign key constraint "REFERENCES comments" set up later.
 CREATE INDEX commentchains_review_file ON commentchains(review, file);
+CREATE INDEX commentchains_review_type_state ON commentchains(review, type, state);
 CREATE INDEX commentchains_batch ON commentchains(batch);
 
 ALTER TABLE batches ADD CONSTRAINT batches_comment_fkey FOREIGN KEY (comment) REFERENCES commentchains ON DELETE CASCADE;
@@ -123,6 +124,7 @@ CREATE TABLE comments
     code TEXT );
 CREATE INDEX comments_chain_uid_state ON comments (chain, uid, state);
 CREATE INDEX comments_batch ON comments(batch);
+CREATE INDEX comments_id_chain ON comments(id, chain);
 
 ALTER TABLE commentchains ADD CONSTRAINT commentchains_first_comment_fkey FOREIGN KEY (first_comment) REFERENCES comments;
 
