@@ -77,9 +77,7 @@ def renderDashboard(req, db, user):
             addLink("open", "other open")
             addLink("closed")
 
-    page.utils.generateHeader(body, db, user, current_page="dashboard", generate_right=generateRight)
-
-    profiler.check("generate: header")
+    page.utils.generateHeader(body, db, user, current_page="dashboard", generate_right=generateRight, profiler=profiler)
 
     document.addExternalStylesheet("resource/dashboard.css")
     document.addExternalScript("resource/dashboard.js")
@@ -105,11 +103,14 @@ def renderDashboard(req, db, user):
         return reviews
 
     def renderReviews(target, reviews, lines_and_comments=True, links=True):
-        for review_id, (summary, branch_id, lines, comments) in reviews:
-            cursor.execute("SELECT name FROM branches WHERE id=%s", (branch_id,))
+        cursor.execute("SELECT id, name FROM branches WHERE id=ANY (%s)",
+                       (list(branch_id for _, (_, branch_id, _, _) in reviews),))
 
+        branch_names = dict(cursor)
+
+        for review_id, (summary, branch_id, lines, comments) in reviews:
             row = target.tr("review")
-            row.td("name").text(cursor.fetchone()[0])
+            row.td("name").text(branch_names[branch_id])
             row.td("title").a(href="r/%d" % review_id).text(summary)
 
             if lines_and_comments:
@@ -201,12 +202,11 @@ def renderDashboard(req, db, user):
 
         profiler.check("processing: draft lines")
 
-        cursor.execute("""SELECT reviews.id, reviews.summary, reviews.branch, count(comments.id)
+        cursor.execute("""SELECT reviews.id, reviews.summary, reviews.branch, COUNT(comments.id)
                             FROM reviews
                             JOIN commentchains ON (commentchains.review=reviews.id)
                             JOIN comments ON (comments.chain=commentchains.id)
-                           WHERE reviews.state='open'
-                             AND comments.state='draft'
+                           WHERE comments.state='draft'
                              AND comments.uid=%s
                         GROUP BY reviews.id, reviews.summary, reviews.branch""",
                        [user.id])
@@ -258,13 +258,15 @@ def renderDashboard(req, db, user):
 
             cursor.execute("""SELECT reviews.id, reviews.summary, reviews.branch, SUM(reviewfiles.deleted), SUM(reviewfiles.inserted)
                                 FROM reviews
+                                JOIN reviewusers ON (reviewusers.review=reviews.id
+                                                 AND reviewusers.uid=%s)
                                 JOIN reviewfiles ON (reviewfiles.review=reviews.id)
                                 JOIN reviewuserfiles ON (reviewuserfiles.file=reviewfiles.id
                                                      AND reviewuserfiles.uid=%s)
                                WHERE reviews.state='open'
                                  AND reviewfiles.state='pending'
                             GROUP BY reviews.id, reviews.summary, reviews.branch""",
-                           (user.id,))
+                           (user.id, user.id))
 
             profiler.check("query: active lines")
 
@@ -278,7 +280,8 @@ def renderDashboard(req, db, user):
                                 FROM (SELECT commentchains.review AS review, COUNT(commentstoread.comment) AS count
                                         FROM commentchains
                                         JOIN comments ON (comments.chain=commentchains.id)
-                                        JOIN commentstoread ON (commentstoread.comment=comments.id AND commentstoread.uid=%s)
+                                        JOIN commentstoread ON (commentstoread.comment=comments.id
+                                                            AND commentstoread.uid=%s)
                                     GROUP BY commentchains.review) AS unread
                                 JOIN reviews ON (reviews.id=unread.review)
                                WHERE reviews.state='open'""",
