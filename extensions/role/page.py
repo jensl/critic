@@ -17,6 +17,7 @@
 import os
 import time
 import re
+import signal
 
 import configuration
 import dbutils

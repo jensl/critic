@@ -16,6 +16,7 @@
 
 import os
 import re
+import signal
 
 import configuration
 import dbutils
