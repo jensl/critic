@@ -390,8 +390,21 @@ def renderDashboard(req, db, user):
         accepted = []
         pending = []
 
+        cursor.execute("""SELECT reviews.id, COUNT(reviewfiles.id)=0 AND COUNT(commentchains.id)=0
+                            FROM reviews
+                 LEFT OUTER JOIN reviewfiles ON (reviewfiles.review=reviews.id
+                                             AND reviewfiles.state='pending')
+                 LEFT OUTER JOIN commentchains ON (commentchains.review=reviews.id
+                                               AND commentchains.type='issue'
+                                               AND commentchains.state='open')
+                           WHERE reviews.id=ANY (%s)
+                        GROUP BY reviews.id""",
+                       (watched.keys(),))
+
+        is_accepted = dict(cursor)
+
         for review_id, (summary, branch_id, lines, comments) in sortedReviews(watched):
-            if dbutils.Review.isAccepted(db, review_id):
+            if is_accepted[review_id]:
                 accepted.append((review_id, (summary, branch_id, lines, comments)))
             else:
                 pending.append((review_id, (summary, branch_id, lines, comments)))
