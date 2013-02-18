@@ -45,6 +45,8 @@ def executeProcess(manifest, role, extension_id, user_id, argv, timeout, stdin=N
                                         "python_path": "%s:%s" % (configuration.paths.CONFIG_DIR,
                                                                   configuration.paths.INSTALL_DIR),
                                         "repository_work_copy_path": os.path.join(configuration.paths.DATA_DIR, "temporary", "EXTENSIONS"),
+                                        "changeset_address": configuration.services.CHANGESET["address"],
+                                        "maildelivery_pid_path": configuration.services.MAILDELIVERY["pidfile_path"],
                                         "is_development": configuration.base.IS_DEVELOPMENT,
                                         "extension_path": manifest.path,
                                         "extension_id": extension_id,
