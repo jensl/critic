@@ -28,7 +28,7 @@ def generateMessageId(index=1):
 
     return "%s.%s.%04d" % (timestamp, timestamp_ms, index)
 
-def queueMail(from_user, to_user, recipients, subject, body, review_url=None, review_association=None, message_id=None, parent_message_id=None):
+def queueMail(from_user, to_user, recipients, subject, body, review_url=None, review_association=None, review_repository=None, message_id=None, parent_message_id=None):
     if not message_id: message_id = generateMessageId()
 
     filename = "%s/%s_%s_%s.txt.pending" % (configuration.paths.OUTBOX, from_user.name, to_user.name, message_id)
@@ -39,6 +39,8 @@ def queueMail(from_user, to_user, recipients, subject, body, review_url=None, re
         headers["OperaCritic-URL"] = review_url
     if review_association:
         headers["OperaCritic-Association"] = review_association
+    if review_repository:
+        headers["OperaCritic-Repository"] = review_repository
 
     print >> file, repr({ "message_id": message_id,
                           "parent_message_id": parent_message_id,
