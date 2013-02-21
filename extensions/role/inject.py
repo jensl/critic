@@ -26,7 +26,7 @@ from request import decodeURIComponent
 from textutils import json_decode
 
 from extensions.execute import executeProcess, ProcessTimeout, ProcessError
-from extensions.manifest import Manifest, InjectRole
+from extensions.manifest import Manifest, ManifestError, InjectRole
 
 def execute(db, paths, args, user, document, links, injected, profiler=None):
     cursor = db.cursor()
