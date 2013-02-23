@@ -27,6 +27,7 @@ from request import decodeURIComponent
 
 from extensions.execute import executeProcess, ProcessTimeout, ProcessError
 from extensions.manifest import Manifest, PageRole
+from extensions.utils import renderTutorial
 
 def execute(db, req, user):
     cursor = db.cursor()
@@ -139,6 +140,10 @@ def execute(db, req, user):
 
             for name, value in headers.items():
                 req.addResponseHeader(name, value)
+
+            if content_type == "text/tutorial":
+                req.setContentType("text/html")
+                return renderTutorial(db, user, stdout_data)
 
             if content_type.startswith("text/html"):
                 stdout_data += "\n\n<!-- extension execution time: %.2f seconds -->\n" % (after - before)
