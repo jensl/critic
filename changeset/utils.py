@@ -151,12 +151,15 @@ def createChangeset(db, user, repository, commit=None, from_commit=None, to_comm
 
     if not changesets:
         if len(parents) == 1 and from_commit and to_commit and filtered_file_ids:
-            iter_commit = to_commit
-            while iter_commit != from_commit:
-                if len(iter_commit.parents) > 1:
-                    thin_diff = True
-                    break
-                iter_commit = gitutils.Commit.fromSHA1(db, repository, iter_commit.parents[0])
+            if from_commit.isAncestorOf(to_commit):
+                iter_commit = to_commit
+                while iter_commit != from_commit:
+                    if len(iter_commit.parents) > 1:
+                        thin_diff = True
+                        break
+                    iter_commit = gitutils.Commit.fromSHA1(db, repository, iter_commit.parents[0])
+            else:
+                thin_diff = True
 
         if not thin_diff:
             if changeset_type == "direct": request = { "changeset_type": "direct",
