@@ -178,7 +178,11 @@ def renderManageExtensions(req, db, user):
 
                 for role in pages:
                     row = role_table.tr()
-                    row.td("pattern").text("%s/%s" % (dbutils.getURLPrefix(db), role.pattern))
+                    url = "%s/%s" % (dbutils.getURLPrefix(db), role.pattern)
+                    if is_installed and role.installed and "*" not in url:
+                        row.td("pattern").a(href=url).text(url)
+                    else:
+                        row.td("pattern").text(url)
                     td = row.td("description")
                     td.text(role.description)
 
