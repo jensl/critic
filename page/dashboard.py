@@ -102,6 +102,20 @@ def renderDashboard(req, db, user):
             reviews.append((review_id, data[review_id]))
         return reviews
 
+    def isAccepted(review_ids):
+        cursor.execute("""SELECT reviews.id, COUNT(reviewfiles.id)=0 AND COUNT(commentchains.id)=0
+                            FROM reviews
+                 LEFT OUTER JOIN reviewfiles ON (reviewfiles.review=reviews.id
+                                             AND reviewfiles.state='pending')
+                 LEFT OUTER JOIN commentchains ON (commentchains.review=reviews.id
+                                               AND commentchains.type='issue'
+                                               AND commentchains.state='open')
+                           WHERE reviews.id=ANY (%s)
+                        GROUP BY reviews.id""",
+                       (review_ids,))
+
+        return dict(cursor)
+
     def renderReviews(target, reviews, lines_and_comments=True, links=True):
         cursor.execute("SELECT id, name FROM branches WHERE id=ANY (%s)",
                        (list(branch_id for _, (_, branch_id, _, _) in reviews),))
@@ -146,11 +160,15 @@ def renderDashboard(req, db, user):
                         ORDER BY id DESC""",
                        (user.id,))
 
+        owned = cursor.fetchall()
+
         profiler.check("query: owned")
 
-        for review_id, summary, branch_id in cursor:
+        is_accepted = isAccepted(list(review_id for review_id, _, _ in owned))
+
+        for review_id, summary, branch_id in owned:
             if includeReview(review_id):
-                if dbutils.Review.isAccepted(db, review_id):
+                if is_accepted[review_id]:
                     owned_accepted.append((review_id, (summary, branch_id, None, None)))
                 else:
                     owned_open.append((review_id, (summary, branch_id, None, None)))
@@ -390,18 +408,7 @@ def renderDashboard(req, db, user):
         accepted = []
         pending = []
 
-        cursor.execute("""SELECT reviews.id, COUNT(reviewfiles.id)=0 AND COUNT(commentchains.id)=0
-                            FROM reviews
-                 LEFT OUTER JOIN reviewfiles ON (reviewfiles.review=reviews.id
-                                             AND reviewfiles.state='pending')
-                 LEFT OUTER JOIN commentchains ON (commentchains.review=reviews.id
-                                               AND commentchains.type='issue'
-                                               AND commentchains.state='open')
-                           WHERE reviews.id=ANY (%s)
-                        GROUP BY reviews.id""",
-                       (watched.keys(),))
-
-        is_accepted = dict(cursor)
+        is_accepted = isAccepted(watched.keys())
 
         for review_id, (summary, branch_id, lines, comments) in sortedReviews(watched):
             if is_accepted[review_id]:
