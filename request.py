@@ -311,6 +311,9 @@ class Request:
         if message is None: message = httplib.responses[code]
         self.__status = "%d %s" % (code, message)
 
+    def hasContentType(self):
+        return self.__content_type is not None
+
     def setContentType(self, content_type):
         """\
         Set the response content type (the "Content-Type" header).

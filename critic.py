@@ -653,11 +653,12 @@ def main(environ, start_response):
                         req.start()
                         return
 
-            if req.path.startswith("download/"): operationfn = download
-            else: operationfn = OPERATIONS.get(req.path)
-            if operationfn:
-                req.setContentType("text/plain")
+            if req.path.startswith("download/"):
+                operationfn = download
+            else:
+                operationfn = OPERATIONS.get(req.path)
 
+            if operationfn:
                 try: result = operationfn(req, db, user)
                 except OperationError, error: result = error
                 except page.utils.DisplayMessage, message:
@@ -673,7 +674,7 @@ def main(environ, start_response):
                             result.set("__profiling__", formatDBProfiling(db))
                             result.set("__time__", time.time() - request_start)
                         result.addResponseHeaders(req)
-                else:
+                elif not req.hasContentType():
                     req.setContentType("text/plain")
 
                 req.start()
