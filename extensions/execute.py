@@ -38,6 +38,7 @@ def executeProcess(manifest, role, extension_id, user_id, argv, timeout, stdin=N
     stdin_data = "%s\n" % json_encode({ "criticjs_path": os.path.join(library, "critic2.js"),
                                         "rlimit": { "cpu": rlimit_cpu,
                                                     "rss": rlimit_rss },
+                                        "hostname": configuration.base.HOSTNAME,
                                         "dbname": configuration.database.PARAMETERS["database"],
                                         "dbuser": configuration.database.PARAMETERS["user"],
                                         "git": configuration.executables.GIT,
