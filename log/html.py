@@ -451,6 +451,7 @@ def render(db, target, title, branch=None, commits=None, columns=DEFAULT_COLUMNS
         cell = row.td(colspan=len(columns), align='center')
         cell.text("No commits. ")
         if review:
+            review.branch.loadCommits(db)
             cell.a(href="showtree?sha1=%s&review=%d" % (review.branch.head.sha1, review.id)).text("[Browse tree]")
         return
     elif len(heads) > 1:

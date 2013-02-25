@@ -60,6 +60,14 @@ class Branch(object):
             self.commits = []
             for commit_id, sha1 in cursor:
                 self.commits.append(gitutils.Commit.fromSHA1(db, self.repository, sha1, commit_id=commit_id))
+            cursor.execute("SELECT commits.id, commits.sha1 FROM branches, commits WHERE branches.id=%s AND branches.head=commits.id", [self.id])
+            commit_id, sha1 = cursor.fetchone()
+            self.head = gitutils.Commit.fromSHA1(db, self.repository, sha1, commit_id=commit_id)
+            cursor.execute("SELECT commits.id, commits.sha1 FROM branches, commits WHERE branches.id=%s AND branches.tail=commits.id", [self.id])
+            row = cursor.fetchone()
+            if row:
+                commit_id, sha1 = row
+                self.tail = gitutils.Commit.fromSHA1(db, self.repository, sha1, commit_id=commit_id)
 
     def rebase(self, db, base):
         cursor = db.cursor()
