@@ -40,8 +40,8 @@ class AddRepository(Operation):
 
         path = path.strip("/").rsplit("/", 1)
 
-        if len(path) == 2: base, name = path
-        else: base, name = None, path[0]
+        if len(path) == 2: base, repository_name = path
+        else: base, repository_name = None, path[0]
 
         if base:
             main_base_path = os.path.join(configuration.paths.GIT_DIR, base)
@@ -50,8 +50,8 @@ class AddRepository(Operation):
             main_base_path = configuration.paths.GIT_DIR
             relay_base_path = os.path.join(configuration.paths.DATA_DIR, "relay")
 
-        main_path = os.path.join(main_base_path, name + ".git")
-        relay_path = os.path.join(relay_base_path, name)
+        main_path = os.path.join(main_base_path, repository_name + ".git")
+        relay_path = os.path.join(relay_base_path, repository_name)
 
         if not os.path.isdir(main_base_path):
             os.makedirs(main_base_path, mode=0775)
@@ -65,7 +65,7 @@ class AddRepository(Operation):
             if git.returncode != 0:
                 raise OperationError, "'%s' failed: %s" % (" ".join(argv), stderr)
 
-        git(["init", "--bare", "--shared", name + ".git"], cwd=main_base_path)
+        git(["init", "--bare", "--shared", repository_name + ".git"], cwd=main_base_path)
         git(["config", "receive.denyNonFastforwards", "false"], cwd=main_path)
         git(["config", "critic.name", name], cwd=main_path)
 
