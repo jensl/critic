@@ -27,20 +27,15 @@ import gitutils
 from log.commitset import CommitSet
 
 import dbutils
-import reviewing.utils as review_utils
-import reviewing.mail as review_mail
+import reviewing.utils
+import reviewing.mail
+import reviewing.rebase
 import configuration
 import log.commitset
 import textutils
 
 if configuration.extensions.ENABLED:
     import extensions.role.processcommits
-
-#import resource as resource_module
-
-#soft_limit, hard_limit = resource_module.getrlimit(resource_module.RLIMIT_AS)
-#if soft_limit < configuration.ADDRESS_SPACE_LIMIT:
-#    resource_module.setrlimit(resource_module.RLIMIT_AS, (configuration.ADDRESS_SPACE_LIMIT, hard_limit))
 
 def timestamp(time):
     return strftime("%Y-%m-%d %H:%M:%S", time)
@@ -51,12 +46,13 @@ def getUser(db, user_name):
 
 db = None
 
-class IndexException(Exception): pass
+class IndexException(Exception):
+    pass
 
 def processCommits(repository_name, sha1):
     repository = gitutils.Repository.fromName(db, repository_name)
 
-    if not repository: raise IndexException, "No such repository: %r" % repository_name
+    if not repository: raise IndexException("No such repository: %r" % repository_name)
 
     stack = []
     edges_values = []
@@ -81,9 +77,9 @@ def processCommits(repository_name, sha1):
         count = 0
 
     if count > configuration.limits.PUSH_COMMIT_LIMIT:
-        raise IndexException, """\
+        raise IndexException("""\
 You're trying to add %d new commits to this repository.  Are you
-perhaps pushing to the wrong repository?""" % count
+perhaps pushing to the wrong repository?""" % count)
 
     commits_values = []
     commits = set()
@@ -224,7 +220,7 @@ def createBranch(user, repository, name, head):
 
         message = ("Cannot create branch with name '%s' since there is already a branch named '%s' in the repository." %
                    (name, "/".join(components[:index])))
-        raise IndexException, textutils.reflow(message, line_length=80 - len("remote: "))
+        raise IndexException(textutils.reflow(message, line_length=80 - len("remote: ")))
 
     if name.startswith("r/"):
         try:
@@ -238,14 +234,14 @@ def createBranch(user, repository, name, head):
             if row:
                 message += "\nDid you mean to push to the branch '%s', perhaps?" % row[0]
 
-            raise IndexException, message
+            raise IndexException(message)
         except ValueError:
             pass
 
         if user.getPreference(db, "review.createViaPush"):
             the_commit = gitutils.Commit.fromSHA1(db, repository, head, commit_id(head))
             all_commits = [the_commit]
-            review = review_utils.createReview(db, user, repository, all_commits, name, the_commit.summary(), None, via_push=True)
+            review = reviewing.utils.createReview(db, user, repository, all_commits, name, the_commit.summary(), None, via_push=True)
 
             print "Submitted review: %s/r/%d" % (dbutils.getURLPrefix(db), review.id)
 
@@ -266,7 +262,7 @@ def createBranch(user, repository, name, head):
             print "Thank you!"
             return True
         else:
-            raise IndexException, "Refusing to create review; user preference 'review.createViaPush' is not enabled."
+            raise IndexException("Refusing to create review; user preference 'review.createViaPush' is not enabled.")
 
     sha1 = head
     base = None
@@ -382,7 +378,7 @@ def updateBranch(user_name, repository_name, name, old, new, multiple):
         branch = dbutils.Branch.fromName(db, repository, name)
         base_branch_id = branch.base.id if branch.base else None
     except:
-        raise IndexException, "The branch '%s' is not in the database!  (This should never happen.)" % name
+        raise IndexException("The branch '%s' is not in the database!  (This should never happen.)" % name)
 
     if branch.head.sha1 != old:
         if new == branch.head.sha1:
@@ -401,7 +397,7 @@ def updateBranch(user_name, repository_name, name, old, new, multiple):
 
 to resynchronize the Git repository with Critic's database.""" % data
 
-            raise IndexException, textutils.reflow(message, line_length=80 - len("remote: "))
+            raise IndexException(textutils.reflow(message, line_length=80 - len("remote: ")))
 
     cursor = db.cursor()
     cursor.execute("SELECT remote, remote_name, forced FROM trackedbranches WHERE repository=%s AND local_name=%s AND NOT disabled", (repository.id, name))
@@ -414,10 +410,10 @@ to resynchronize the Git repository with Critic's database.""" % data
         assert not forced or not name.startswith("r/")
 
         if user_name != configuration.base.SYSTEM_USER_NAME:
-            raise IndexException, """\
+            raise IndexException("""\
 The branch '%s' is set up to track '%s' in
   %s
-Please don't push it manually to this repository.""" % (name, remote_name, remote)
+Please don't push it manually to this repository.""" % (name, remote_name, remote))
         elif not name.startswith("r/"):
             conflicting = repository.revlist([branch.head.sha1], [new])
             added = repository.revlist([new], [branch.head.sha1])
@@ -439,11 +435,11 @@ Please don't push it manually to this repository.""" % (name, remote_name, remot
 
                         return output
                 else:
-                    raise IndexException, """\
+                    raise IndexException("""\
 Rejecting non-fast-forward update of branch.  To perform the update, you
 can delete the branch using
   git push critic :%s
-first, and then repeat this push.""" % name
+first, and then repeat this push.""" % name)
 
             cursor.executemany("""INSERT INTO reachable (branch, commit)
                                        SELECT %s, commits.id
@@ -481,9 +477,9 @@ first, and then repeat this push.""" % name
 
     if is_review:
         if multiple:
-            raise IndexException, """\
+            raise IndexException("""\
 Refusing to update review in push of multiple refs.  Please push one
-review branch at a time."""
+review branch at a time.""")
 
         review_id = row[0]
 
@@ -495,7 +491,7 @@ review branch at a time."""
 
         if row:
             if tracked_branch:
-                raise IndexException, "Refusing to perform a review rebase via an automatic update."
+                raise IndexException("Refusing to perform a review rebase via an automatic update.")
 
             rebase_id, old_head_id, old_upstream_id, new_upstream_id, rebaser_id, onto_branch = row
 
@@ -507,22 +503,22 @@ review branch at a time."""
                     if user_name == configuration.base.SYSTEM_USER_NAME:
                         user = rebaser
                     else:
-                        raise IndexException, """\
+                        raise IndexException("""\
 This review is currently being rebased by
   %s <%s>
-and can't be otherwise updated right now.""" % (rebaser.fullname, rebaser.email)
+and can't be otherwise updated right now.""" % (rebaser.fullname, rebaser.email))
             else:
-                assert user == configuration.base.SYSTEM_USER_NAME
+                assert user == configuration.base.SYSTEM_USER_NAME, "Unexpected user name: %s" % user
                 user = rebaser
 
             old_head = gitutils.Commit.fromId(db, repository, old_head_id)
             old_commitset = log.commitset.CommitSet(review.branch.commits)
 
             if old_head.sha1 != old:
-                raise IndexException, """\
+                raise IndexException("""\
 Unexpected error.  The branch appears to have been updated since your
 rebase was prepared.  You need to cancel the rebase via the review
-front-page and then try again, and/or report a bug about this error."""
+front-page and then try again, and/or report a bug about this error.""")
 
             if old_upstream_id is not None:
                 new_head = gitutils.Commit.fromSHA1(db, repository, new)
@@ -533,7 +529,7 @@ front-page and then try again, and/or report a bug about this error."""
                     new_upstream = gitutils.Commit.fromId(db, repository, new_upstream_id)
                 else:
                     if len(new_head.parents) != 1:
-                        raise IndexException, "Invalid rebase: New head can't be a merge commit."
+                        raise IndexException("Invalid rebase: New head can't be a merge commit.")
 
                     new_upstream = gitutils.Commit.fromSHA1(db, repository, new_head.parents[0])
 
@@ -609,18 +605,18 @@ the new upstream specified and then push that instead.""")
                 new_sha1s = repository.revlist([new], old_commitset.getTails(), '--topo-order')
 
                 if old_head.sha1 in new_sha1s:
-                    raise IndexException, """\
+                    raise IndexException("""\
 Invalid history rewrite: Old head of the branch reachable from the
 pushed ref; no history rewrite performed.  (Cancel the rebase via
-the review front-page if you've changed your mind.)"""
+the review front-page if you've changed your mind.)""")
 
                 for new_sha1 in new_sha1s:
                     new_head = gitutils.Commit.fromSHA1(db, repository, new_sha1)
                     if new_head.tree == old_head.tree: break
                 else:
-                    raise IndexException, """\
+                    raise IndexException("""\
 Invalid history rewrite: No commit on the rebased branch references
-the same tree as the old head of the branch."""
+the same tree as the old head of the branch.""")
 
                 cursor.execute("""UPDATE reviewrebases
                                      SET new_head=%s
@@ -640,26 +636,26 @@ the same tree as the old head of the branch."""
 
                 recipients = review.getRecipients(db)
                 for to_user in recipients:
-                    pending_mails.extend(review_mail.sendReviewRebased(db, user, to_user, recipients, review, None, rebased_commits))
+                    pending_mails.extend(reviewing.mail.sendReviewRebased(db, user, to_user, recipients, review, None, rebased_commits))
 
                 print "History rewrite performed."
 
                 if new_commits:
-                    review_utils.addCommitsToReview(db, user, review, new_commits, pending_mails=pending_mails)
+                    reviewing.utils.addCommitsToReview(db, user, review, new_commits, pending_mails=pending_mails)
                 else:
-                    review_mail.sendPendingMails(pending_mails)
+                    reviewing.mail.sendPendingMails(pending_mails)
 
                 repository.run('update-ref', 'refs/keepalive/%s' % old, old)
 
             return True
         elif old != repository.mergebase([old, new]):
-            raise IndexException, "Rejecting non-fast-forward update of review branch."
+            raise IndexException("Rejecting non-fast-forward update of review branch.")
     elif old != repository.mergebase([old, new]):
-        raise IndexException, """\
+        raise IndexException("""\
 Rejecting non-fast-forward update of branch.  To perform the update, you
 can delete the branch using
   git push critic :%s
-first, and then repeat this push.""" % name
+first, and then repeat this push.""" % name)
 
     cursor.execute("SELECT id FROM branches WHERE repository=%s AND base IS NULL ORDER BY id ASC LIMIT 1", (repository.id,))
     root_branch_id = cursor.fetchone()[0]
@@ -696,26 +692,26 @@ first, and then repeat this push.""" % name
 
     if review:
         if review.state != "open":
-            raise IndexException, """\
+            raise IndexException("""\
 The review is closed and can't be extended.  You need to reopen it at
 %s
-before you can add commits to it.""" % review.getURL(db, user, 2)
+before you can add commits to it.""" % review.getURL(db, user, 2))
 
         all_commits = [gitutils.Commit.fromSHA1(db, repository, sha1) for sha1 in reversed(commit_list)]
 
         tails = CommitSet(all_commits).getTails()
 
         if old not in tails:
-            raise IndexException, """\
+            raise IndexException("""\
 Push rejected; would break the review.
 
 It looks like some of the pushed commits are reachable from the
 repository's main branch, and thus consequently the commits currently
 included in the review are too.
 
-Perhaps you should request a new review of the follow-up commits?"""
+Perhaps you should request a new review of the follow-up commits?""")
 
-        review_utils.addCommitsToReview(db, user, review, all_commits, commitset=commits, tracked_branch=tracked_branch)
+        reviewing.utils.addCommitsToReview(db, user, review, all_commits, commitset=commits, tracked_branch=tracked_branch)
 
     reachable_values = [(branch.id, sha1) for sha1 in reversed(commit_list) if sha1 in commits]
 
@@ -739,7 +735,7 @@ def deleteBranch(repository_name, name):
         review = dbutils.Review.fromBranch(db, branch)
 
         if review:
-            raise IndexException, "This is Critic refusing to delete a branch that belongs to a review."
+            raise IndexException("This is Critic refusing to delete a branch that belongs to a review.")
 
         cursor = db.cursor()
         cursor.execute("SELECT COUNT(*) FROM reachable WHERE branch=%s", (branch.id,))
