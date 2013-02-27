@@ -71,22 +71,27 @@ def createChangeset(db, user, repository, commit=None, from_commit=None, to_comm
     cursor = db.cursor()
 
     if conflicts:
-        assert commit and len(commit.parents) > 1
+        if commit:
+            assert len(commit.parents) > 1
 
-        cursor.execute("SELECT replay FROM mergereplays WHERE original=%s", (commit.getId(db),))
-        row = cursor.fetchone()
+            cursor.execute("SELECT replay FROM mergereplays WHERE original=%s", (commit.getId(db),))
+            row = cursor.fetchone()
 
-        if row:
-            replay = gitutils.Commit.fromId(db, repository, row[0])
+            if row:
+                replay = gitutils.Commit.fromId(db, repository, row[0])
+            else:
+                replay = repository.replaymerge(db, user, commit)
+                if not replay: return None
+                cursor.execute("INSERT INTO mergereplays (original, replay) VALUES (%s, %s)", (commit.getId(db), replay.getId(db)))
+
+            from_commit = replay
+            to_commit = commit
+
+            parents = [replay]
         else:
-            replay = repository.replaymerge(db, user, commit)
-            if not replay: return None
-            cursor.execute("INSERT INTO mergereplays (original, replay) VALUES (%s, %s)", (commit.getId(db), replay.getId(db)))
+            parents = [from_commit]
+            commit = to_commit
 
-        from_commit = replay
-        to_commit = commit
-
-        parents = [replay]
         changeset_type = 'conflicts'
     elif commit:
         parents = [gitutils.Commit.fromSHA1(db, repository, sha1) for sha1 in commit.parents] or [None]
@@ -170,8 +175,8 @@ def createChangeset(db, user, repository, commit=None, from_commit=None, to_comm
             elif changeset_type == "merge": request = { "changeset_type": "merge",
                                                         "child_sha1": commit.sha1 }
             else: request = { "changeset_type": "conflicts",
-                              "parent_sha1": replay.sha1,
-                              "child_sha1": commit.sha1 }
+                              "parent_sha1": from_commit.sha1,
+                              "child_sha1": to_commit.sha1 }
 
             request["repository_name"] = repository.name
 

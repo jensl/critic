@@ -493,7 +493,11 @@ def render(db, target, user, repository, review, changesets, commits, listed_com
 
             log_html.render(db, main, "Squashed History", commits=commits, listed_commits=listed_commits, rebases=rebases, review=review, columns=columns, collapsable=True)
         elif changesets[0].parent is None or (changesets[0].parent.sha1 in changesets[0].child.parents) or conflicts:
-            renderCommitInfo(db, main, user, repository, review, changesets[0].child, conflicts)
+            if conflicts and len(changesets[0].child.parents) == 1:
+                commit = changesets[0].parent
+            else:
+                commit = changesets[0].child
+            renderCommitInfo(db, main, user, repository, review, commit, conflicts)
         else:
             main.setAttribute("style", "margin-bottom: 20px; padding-bottom: 10px")
 
@@ -1049,34 +1053,35 @@ def renderShowCommit(req, db, user):
     profiler.check("prologue")
 
     if from_commit and to_commit:
-        changesets = changeset_utils.createChangeset(db, user, repository, from_commit=from_commit, to_commit=to_commit, rescan=rescan, reanalyze=reanalyze, filtered_file_ids=file_ids)
+        changesets = changeset_utils.createChangeset(db, user, repository, from_commit=from_commit, to_commit=to_commit, conflicts=conflicts, rescan=rescan, reanalyze=reanalyze, filtered_file_ids=file_ids)
         assert len(changesets) == 1
 
-        if review and review_filter in ("reviewable", "relevant", "files"):
-            cursor.execute("""SELECT old_head, new_head, new_upstream, uid, branch
-                                FROM reviewrebases
-                               WHERE review=%s AND new_head IS NOT NULL""",
-                           (review.id,))
+        if not conflicts:
+            if review and review_filter in ("reviewable", "relevant", "files"):
+                cursor.execute("""SELECT old_head, new_head, new_upstream, uid, branch
+                                    FROM reviewrebases
+                                   WHERE review=%s AND new_head IS NOT NULL""",
+                               (review.id,))
 
-            all_rebases = [(None,
-                            gitutils.Commit.fromId(db, repository, old_head),
-                            gitutils.Commit.fromId(db, repository, new_head),
-                            dbutils.User.fromId(db, user_id),
-                            gitutils.Commit.fromId(db, repository, new_upstream) if new_upstream is not None else None,
-                            branch_name)
-                           for old_head, new_head, new_upstream, user_id, branch_name in cursor]
+                all_rebases = [(None,
+                                gitutils.Commit.fromId(db, repository, old_head),
+                                gitutils.Commit.fromId(db, repository, new_head),
+                                dbutils.User.fromId(db, user_id),
+                                gitutils.Commit.fromId(db, repository, new_upstream) if new_upstream is not None else None,
+                                branch_name)
+                               for old_head, new_head, new_upstream, user_id, branch_name in cursor]
 
-            rebases = filter(lambda item: item[1] is not None, all_rebases)
+                rebases = filter(lambda item: item[1] is not None, all_rebases)
 
-        if all_commits:
-            commits = all_commits
-        else:
-            commits = getCommitList(db, repository, from_commit, to_commit)
-            if not commits and not review:
-                paths = [changed_file.path for changed_file in changesets[0].files]
-                commits, listed_commits = getApproximativeCommitList(db, repository, from_commit, to_commit, paths)
-        if commits:
-            changesets[0].setCommits(commits)
+            if all_commits:
+                commits = all_commits
+            else:
+                commits = getCommitList(db, repository, from_commit, to_commit)
+                if not commits and not review:
+                    paths = [changed_file.path for changed_file in changesets[0].files]
+                    commits, listed_commits = getApproximativeCommitList(db, repository, from_commit, to_commit, paths)
+            if commits:
+                changesets[0].setCommits(commits)
     else:
         if len(commit.parents) > 1:
             if review:
