@@ -53,6 +53,14 @@ class AddRepository(Operation):
         main_path = os.path.join(main_base_path, repository_name + ".git")
         relay_path = os.path.join(relay_base_path, repository_name)
 
+        cursor = db.cursor()
+        cursor.execute("""SELECT name FROM repositories WHERE path=%s""", (main_path,))
+        row = cursor.fetchone()
+        if row:
+            raise OperationFailure(code="duplicaterepository",
+                                   title="Duplicate repository",
+                                   message="The specified path is already used by repository %s" % row[0])
+
         if not os.path.isdir(main_base_path):
             os.makedirs(main_base_path, mode=0775)
         if not os.path.isdir(relay_base_path):
@@ -71,7 +79,6 @@ class AddRepository(Operation):
 
         os.symlink(os.path.join(configuration.paths.INSTALL_DIR, "hooks", "pre-receive"), os.path.join(main_path, "hooks", "pre-receive"))
 
-        cursor = db.cursor()
         cursor.execute("""INSERT INTO repositories (name, path, relay)
                                VALUES (%s, %s, %s)
                             RETURNING id""",
