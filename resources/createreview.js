@@ -346,20 +346,20 @@ $(document).ready(function ()
         {
           if (result)
             location.href = ("/createreview" +
-                             "?repository=" + encodeURIComponent($("select.repository").val()) +
+                             "?repository=" + encodeURIComponent($("select.repository").val().trim()) +
                              "&commits=" + encodeURIComponent(result.commit_ids) +
                              "&remote=" + encodeURIComponent(getCurrentRemote()) +
-                             "&branch=" + encodeURIComponent($("input.workbranch").val()) +
-                             "&upstream=" + encodeURIComponent($("input.upstreamcommit").val()) +
-                             "&reviewbranchname=" + encodeURIComponent($("input.workbranch").val()));
+                             "&branch=" + encodeURIComponent(branch) +
+                             "&upstream=" + encodeURIComponent(upstream) +
+                             "&reviewbranchname=" + encodeURIComponent(branch));
         }
 
         var operation = new Operation({ action: "fetch remote branch",
                                         url: "fetchremotebranch",
-                                        data: { repository_name: $("select.repository").val(),
+                                        data: { repository_name: $("select.repository").val().trim(),
                                                 remote: getCurrentRemote(),
-                                                branch: $("input.workbranch").val(),
-                                                upstream: $("input.upstreamcommit").val() },
+                                                branch: branch,
+                                                upstream: upstream },
                                         wait: "Fetching branch...",
                                         callback: finish });
 
