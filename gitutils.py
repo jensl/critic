@@ -35,10 +35,10 @@ import stat
 re_author_committer = re.compile("(.*) <(.*)> ([0-9]+ [-+][0-9]+)")
 re_sha1 = re.compile("^[A-Za-z0-9]{40}$")
 
-REPOSITORY_REPLAY_PATH_FORMAT = os.path.join(configuration.paths.DATA_DIR,
-                                             "temporary",
-                                             "%(repository.name)s",
-                                             "%(user.name)s_%(commit.sha1)s_%(time)s")
+REPOSITORY_WORKCOPY_PATH_FORMAT = os.path.join(configuration.paths.DATA_DIR,
+                                               "temporary",
+                                               "%(repository.name)s",
+                                               "%(user.name)s_%(identifier)s_%(time)s")
 
 class GitError(base.Error):
     """Exception raised on an invalid SHA-1s or refs."""
@@ -397,18 +397,28 @@ class Repository:
     def keepalive(self, commit):
         self.run('update-ref', 'refs/keepalive/%s' % str(commit), str(commit))
 
-    def replaymerge(self, db, user, commit):
+    def workcopy(self, user, identifier):
+        class Workcopy(object):
+            def __init__(self, origin, path):
+                self.origin = origin
+                self.path = path
+            def run(self, *args, **kwargs):
+                return self.origin.runCustom(self.path, *args, **kwargs)
+            def __enter__(self):
+                return self
+            def __exit__(self, exc_type, exc_val, exc_tb):
+                shutil.rmtree(self.path)
+                return False
+
         now = time.time()
-
-        timestamp = time.strftime("%Y%m%d%H%M%S", time.gmtime(now)) + ("_%04d" % ((now * 10000) % 10000))
-
-        path = REPOSITORY_REPLAY_PATH_FORMAT % { "repository.name": self.name,
-                                                 "user.name": user.name,
-                                                 "commit.sha1": commit.sha1,
-                                                 "time": timestamp }
+        timestamp = time.strftime("%Y%m%d%H%M%S", time.gmtime(now)) + ("_%04d" % (int(now * 10000) % 10000))
+        path = REPOSITORY_WORKCOPY_PATH_FORMAT % { "repository.name": self.name,
+                                                   "user.name": user.name,
+                                                   "identifier": identifier,
+                                                   "time": timestamp }
 
         if os.path.exists(path):
-            raise Exception, "%s: path already exists!?!" % path
+            raise Exception("%s: path already exists!?!" % path)
 
         if not os.path.exists(os.path.dirname(path)):
             old_umask = os.umask(0002)
@@ -417,32 +427,41 @@ class Repository:
 
         self.runCustom(os.path.dirname(path), "clone", "--quiet", self.path, os.path.basename(path))
 
-        try:
+        return Workcopy(self, path)
+
+    def replaymerge(self, db, user, commit):
+        self.keepalive(commit)
+
+        with self.workcopy(user, commit.sha1) as workcopy:
             # Then fetch everything from the main repository into the work copy.
-            self.keepalive(commit)
-            self.runCustom(path, 'fetch', 'origin', 'refs/keepalive/%s:refs/heads/merge' % commit.sha1)
+            workcopy.run('fetch', 'origin', 'refs/keepalive/%s:refs/heads/merge' % commit.sha1)
 
             parent_sha1s = commit.parents
 
             # Create and check out a branch at first parent.
-            self.runCustom(path, 'checkout', '-b', 'replay', parent_sha1s[0])
+            workcopy.run('checkout', '-b', 'replay', parent_sha1s[0])
 
             # Then perform the merge with the other parents.
-            returncode, stdout, stderr = self.runCustom(path, "merge", *parent_sha1s[1:], **{ "check_errors": False })
+            returncode, stdout, stderr = workcopy.run("merge", *parent_sha1s[1:], check_errors=False)
 
             # If the merge produced conflicts, just stage and commit them:
             if returncode != 0:
+                # Reset any submodule gitlinks with conflicts: since we don't
+                # have the submodules checked out, "git commit --all" below
+                # may fail to index them.
+                for line in stdout.splitlines():
+                    if line.startswith("CONFLICT (submodule):"):
+                        submodule_path = line.split()[-1]
+                        workcopy.run("reset", "--", submodule_path, check_errors=False)
+
                 # Then stage and commit the result, with conflict markers and all.
-                self.runCustom(path, "commit", "--all", "--message=replay of merge that produced %s" % commit.sha1)
+                workcopy.run("commit", "--all", "--message=replay of merge that produced %s" % commit.sha1)
 
             # Then push the branch to the main repository.
-            self.runCustom(path, 'push', 'origin', 'refs/heads/replay:refs/replays/%s' % commit.sha1)
+            workcopy.run('push', 'origin', 'refs/heads/replay:refs/replays/%s' % commit.sha1)
 
             # Finally, return the resulting commit.
             return Commit.fromSHA1(db, self, self.run('rev-parse', 'refs/replays/%s' % commit.sha1).strip())
-        finally:
-            # Delete the temporary repository.
-            shutil.rmtree(path)
 
     def getDefaultRemote(self, db):
         cursor = db.cursor()
