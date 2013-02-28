@@ -38,6 +38,11 @@ class AddRepository(Operation):
                                    title="Not allowed!",
                                    message="Only users with the 'repositories' role can add new repositories.")
 
+        if remote and len(remote["url"]) > 256:
+            raise OperationFailure(code="invalidsourcerepository",
+                                   title="Invalid source repository",
+                                   message="The specified source repository URL is too long.")
+
         path = path.strip("/").rsplit("/", 1)
 
         if len(path) == 2: base, repository_name = path
