@@ -31,7 +31,7 @@ parser.add_argument("--dry-run", "-n", help="produce output but don't modify the
 
 for module in installation.modules:
     if hasattr(module, "add_arguments"):
-        module.add_arguments("install", parser)
+        module.add_arguments("upgrade", parser)
 
 arguments = parser.parse_args()
 

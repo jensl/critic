@@ -24,26 +24,27 @@ use_ssl = None
 use_starttls = None
 
 def add_arguments(mode, parser):
-    parser.add_argument("--smtp-host", help="SMTP server hostname (or IP)")
-    parser.add_argument("--smtp-port", help="SMTP server port")
-    parser.add_argument("--smtp-no-auth", action="store_true", help="no SMTP authentication required")
-    parser.add_argument("--smtp-username", help="SMTP authentication username")
-    parser.add_argument("--smtp-password", help="SMTP authentication password")
+    if mode == "install":
+        parser.add_argument("--smtp-host", help="SMTP server hostname (or IP)")
+        parser.add_argument("--smtp-port", help="SMTP server port")
+        parser.add_argument("--smtp-no-auth", action="store_true", help="no SMTP authentication required")
+        parser.add_argument("--smtp-username", help="SMTP authentication username")
+        parser.add_argument("--smtp-password", help="SMTP authentication password")
 
-    # Using smtplib.SMTP_SSL()
-    parser.add_argument("--smtp-ssl", dest="smtp_use_ssl", action="store_const", const=True,
-                        help="use SSL(/TLS) when connecting to SMTP server")
-    parser.add_argument("--smtp-no-ssl-tls", dest="smtp_use_ssl", action="store_const", const=False,
-                        help="don't use SSL(/TLS) when connecting to SMTP server")
+        # Using smtplib.SMTP_SSL()
+        parser.add_argument("--smtp-ssl", dest="smtp_use_ssl", action="store_const", const=True,
+                            help="use SSL(/TLS) when connecting to SMTP server")
+        parser.add_argument("--smtp-no-ssl-tls", dest="smtp_use_ssl", action="store_const", const=False,
+                            help="don't use SSL(/TLS) when connecting to SMTP server")
 
-    # Using smtplib.SMTP() + starttls()
-    parser.add_argument("--smtp-starttls", dest="smtp_use_starttls", action="store_const", const=True,
-                        help="use STARTTLS when connecting to SMTP server")
-    parser.add_argument("--smtp-no-starttls", dest="smtp_use_starttls", action="store_const", const=False,
-                        help="don't use STARTTLS when connecting to SMTP server")
+        # Using smtplib.SMTP() + starttls()
+        parser.add_argument("--smtp-starttls", dest="smtp_use_starttls", action="store_const", const=True,
+                            help="use STARTTLS when connecting to SMTP server")
+        parser.add_argument("--smtp-no-starttls", dest="smtp_use_starttls", action="store_const", const=False,
+                            help="don't use STARTTLS when connecting to SMTP server")
 
-    parser.add_argument("--skip-testmail", dest="skip_testmail", action="store_true",
-                        help="do not send a test e-mail to verify that given SMTP settings actually work")
+        parser.add_argument("--skip-testmail", dest="skip_testmail", action="store_true",
+                            help="do not send a test e-mail to verify that given SMTP settings actually work")
 
 def prepare(mode, arguments, data):
     global host, port, username, password, use_ssl, use_starttls

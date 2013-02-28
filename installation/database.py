@@ -37,26 +37,43 @@ def psql_import(sql_file):
     process.check_output(["su", "-s", "/bin/sh", "-c", "psql -f %s" % temp_file, installation.system.username])
     os.unlink(temp_file)
 
+def add_arguments(mode, parser):
+    if mode == "upgrade":
+        parser.add_argument("--backup-database", dest="database_backup", action="store_const", const=True,
+                            help="backup database to default location without asking")
+        parser.add_argument("--no-backup-database", dest="database_backup", action="store_const", const=False,
+                            help="do not backup database before upgrading")
+
 def prepare(mode, arguments, data):
     if mode == "upgrade":
-        if installation.migrate.will_modify_dbschema(data):
-            print """
+        default_path = os.path.join(data["installation.paths.data_dir"],
+                                    "backups",
+                                    time.strftime("%Y%m%d_%H%M.dump", time.localtime()))
+
+        if arguments.database_backup is False:
+            backup_database = False
+        elif arguments.database_backup is True:
+            backup_database = True
+            backup_path = default_path
+        else:
+            if installation.migrate.will_modify_dbschema(data):
+                print """
 The database schema will be modified by the upgrade.  Creating a
 backup of the database first is strongly recommended.
 """
-            default_backup = True
-        else:
-            default_backup = False
+                default_backup = True
+            else:
+                default_backup = False
 
-        if installation.input.yes_or_no("Do you want to create a backup of the database?",
-                                        default=default_backup):
-            default_path = os.path.join(data["installation.paths.data_dir"],
-                                        "backups",
-                                        time.strftime("%Y%m%d_%H%M.dump", time.localtime()))
+            if installation.input.yes_or_no("Do you want to create a backup of the database?",
+                                            default=default_backup):
+                backup_database = True
+                backup_path = installation.input.string("Where should the backup be stored?",
+                                                        default=default_path)
+            else:
+                backup_database = False
 
-            backup_path = installation.input.string("Where should the backup be stored?",
-                                                    default=default_path)
-
+        if backup_database:
             try: os.makedirs(os.path.dirname(backup_path), 0750)
             except OSError, error:
                 if error.errno == errno.EEXIST: pass
