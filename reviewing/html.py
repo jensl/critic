@@ -27,8 +27,6 @@ import page.showcommit
 import linkify
 import traceback
 
-from time import strftime
-
 def renderComments(db, target, user, chain, position, linkify):
     repository = chain.review.repository
 

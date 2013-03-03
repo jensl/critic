@@ -17,7 +17,6 @@
 import dbutils
 import diff
 import diff.parse
-import time
 import gitutils
 import itertools
 import changeset.load as changeset_load
