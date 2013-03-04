@@ -34,7 +34,7 @@ div.main table.basic td.help { font-style: italic; text-align: right; border-bot
 div.main table.filters td.help { font-style: italic; text-align: left; padding-top: 1em; border-bottom: 1px solid #996 }
 div.main table.filters td.help p { margin-left: 10%; margin-top: 0; width: 60em }
 div.main table.filters td.help p strong { font-weight: bold; font-style: normal }
-div.main table.filters td.help p code { font-style: normal; font-style: normal }
+div.main table.filters td.help p code { font-style: normal }
 div.main table.filters td.filter.empty { text-align: left; font-weight: bold; padding-top: 0.5em }
 div.main table.filters td.filter.type { text-align: right; width: 10%; font-weight: bold }
 div.main table.filters td.filter.type select { background-color: #ffd }

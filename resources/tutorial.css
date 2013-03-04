@@ -150,9 +150,8 @@ td.repositories {
 table.repositories {
     margin-top: 0;
     margin-bottom: 15px;
-    border: 2px solid #bb8 !important;
+    border: 2px solid #bb8;
     background-color: #ffe !important;
-    border: 1px solid black;
     padding: 5px 10px
 }
 
@@ -199,9 +198,8 @@ td.pre div {
 
 table.pre {
     margin-top: 0;
-    border: 2px solid #bb8 !important;
+    border: 2px solid #bb8;
     background-color: #ffe !important;
-    border: 1px solid black;
     padding: 5px 10px;
     font-family: monospace
 }
