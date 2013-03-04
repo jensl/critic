@@ -27,10 +27,6 @@ span.draft {
     color: #f00
 }
 
-div.comment {
-    /* outline: 2px solid red */
-}
-
 div.comment > div.warning {
     font-weight: bold;
     color: #f00

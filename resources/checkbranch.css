@@ -193,20 +193,12 @@ div.main table.data tr.help td {
     border-bottom: 1px solid #996
 }
 
-div.comment {
-    /* outline: 2px solid red */
-}
-
 div.comment > p {
     margin: 5px 0
 }
 
 div.comment > p > span.review-id {
     font-family: monospace
-}
-
-div.comment > p > span.review-id > input {
-    //font-family: monospace
 }
 
 div.comment > p > select {
