@@ -91,10 +91,11 @@ def renderNews(req, db, user):
 
         renderNewsItem(db, target, text)
 
-        cursor.execute("SELECT 1 FROM newsread WHERE item=%s AND uid=%s", (item_id, user.id))
-        if not cursor.fetchone():
-            cursor.execute("INSERT INTO newsread (item, uid) VALUES (%s, %s)", (item_id, user.id))
-            db.commit()
+        if not user.isAnonymous() and user.name == req.user:
+            cursor.execute("SELECT 1 FROM newsread WHERE item=%s AND uid=%s", (item_id, user.id))
+            if not cursor.fetchone():
+                cursor.execute("INSERT INTO newsread (item, uid) VALUES (%s, %s)", (item_id, user.id))
+                db.commit()
     else:
         renderNewsItems(db, user, target, display in ("unread", "all"), display in ("read", "all"))
 
