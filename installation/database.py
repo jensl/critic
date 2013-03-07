@@ -98,8 +98,12 @@ def install(data):
             process.check_output(["su", "-c", "createlang plpgsql critic", "postgres"], stderr=process.STDOUT)
             language_created = True
         except process.CalledProcessError, error:
-            if re.search(r"\blanguage\b.*\balready installed\b", error.output): pass
-            else: raise
+            # The 'createlang' command fails if the language is already enabled
+            # in the database, and we want to ignore such failures.  It might
+            # also fail for other reasons, that we really don't mean to ignore,
+            # but in that case importing the *.pgsql files below would fail,
+            # since they define PL/pgSQL functions.
+            pass
 
         process.check_output(["su", "-c", "psql -c 'GRANT ALL ON DATABASE \"critic\" TO \"%s\";'" % installation.system.username, "postgres"])
         psql_import(os.path.join(root_dir, "dbschema.sql"))
