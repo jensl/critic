@@ -171,11 +171,29 @@ function updateFilters(filter_type)
     return operation.execute() != null;
   }
 
-  var buttons = { Add: function () { if (finish()) { $(content).dialog("close"); location.reload(); } },
+  function checkFinished()
+  {
+    if (finish())
+    {
+      $(content).dialog("close");
+      location.reload();
+    }
+  }
+
+  function handleKeypress(ev)
+  {
+    if (ev.keyCode == 13)
+      checkFinished();
+  }
+
+  var buttons = { Add: function () { checkFinished(); },
                   Cancel: function () { $(content).dialog("close"); } };
 
   content.dialog({ width: 600, height: 250,
                    buttons: buttons });
+
+  content.find("input.name").keypress(handleKeypress);
+  content.find("input.path").keypress(handleKeypress);
 
   function enableAutoCompletion(result)
   {
