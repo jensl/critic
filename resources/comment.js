@@ -168,6 +168,9 @@ CommentChain.create = function (type_or_markers)
       available -= totalAdditionalHeight(textarea);
       available -= message.height();
 
+      // Quirk to prevent vertical scrollbar in dialog client area when resizing it in chromium.
+      available -= 3;
+
       textarea.height(available);
     }
 
