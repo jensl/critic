@@ -149,6 +149,13 @@ CommentChain.create = function (type_or_markers)
     else
       markers = type_or_markers;
 
+    function totalAdditionalHeight(element)
+    {
+      return parseInt(element.css("margin-top")) + parseInt(element.css("margin-bottom")) +
+             parseInt(element.css("border-top-width")) + parseInt(element.css("border-bottom-width")) +
+             parseInt(element.css("padding-top")) + parseInt(element.css("padding-bottom"));
+    }
+
     function resize()
     {
       var textarea = content.find("textarea");
@@ -157,10 +164,11 @@ CommentChain.create = function (type_or_markers)
       var available = content.innerHeight();
 
       available -= parseInt(content.css("padding-top")) + parseInt(content.css("padding-bottom"));
-      available -= parseInt(text.css("margin-top")) + parseInt(text.css("padding-top")) + parseInt(text.css("padding-bottom")) + parseInt(text.css("margin-bottom"));
+      available -= totalAdditionalHeight(text);
+      available -= totalAdditionalHeight(textarea);
       available -= message.height();
 
-      content.find("textarea").height(available);
+      textarea.height(available);
     }
 
     var message = "";
