@@ -1160,7 +1160,7 @@ def renderShowCommit(req, db, user):
             if user.getPreference(db, "debug.extensions.customProcessCommits"):
                 buttons.button(onclick='customProcessCommits();').text("Process Commits")
             buttons.span("buttonscope buttonscope-global")
-        page.utils.generateHeader(body, db, user, generateButtons, extra_links=[("r/%d" % review.id, "Back to Review", True)])
+        page.utils.generateHeader(body, db, user, generateButtons, extra_links=[("r/%d" % review.id, "Back to Review")])
     else:
         def generateButtons(target):
             buttons = target.div("buttons")

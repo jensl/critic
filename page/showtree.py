@@ -60,7 +60,7 @@ def renderShowTree(req, db, user):
     extra_links = []
 
     if review:
-        extra_links.append(("r/%d" % review.id, "Back to Review", True))
+        extra_links.append(("r/%d" % review.id, "Back to Review"))
 
     page.utils.generateHeader(body, db, user, extra_links=extra_links)
 

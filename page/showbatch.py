@@ -54,7 +54,7 @@ def renderShowBatch(req, db, user):
     head = html.head()
     body = html.body()
 
-    page.utils.generateHeader(body, db, user, lambda target: review_utils.renderDraftItems(db, user, review, target), extra_links=[("r/%d" % review.id, "Back to Review", True)])
+    page.utils.generateHeader(body, db, user, lambda target: review_utils.renderDraftItems(db, user, review, target), extra_links=[("r/%d" % review.id, "Back to Review")])
 
     document.addExternalStylesheet("resource/showbatch.css")
     document.addExternalStylesheet("resource/showreview.css")

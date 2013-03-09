@@ -43,7 +43,7 @@ def renderShowReviewLog(req, db, user):
 
     head.title("Review Log: %s" % review.branch.name)
 
-    page.utils.generateHeader(body, db, user, lambda target: review_utils.renderDraftItems(db, user, review, target), extra_links=[("r/%d" % review.id, "Back to Review", True)])
+    page.utils.generateHeader(body, db, user, lambda target: review_utils.renderDraftItems(db, user, review, target), extra_links=[("r/%d" % review.id, "Back to Review")])
 
     document.addExternalStylesheet("resource/showreviewlog.css")
     document.addExternalStylesheet("resource/review.css")

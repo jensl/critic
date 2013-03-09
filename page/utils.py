@@ -86,16 +86,16 @@ def generateHeader(target, db, user, generate_right=None, current_page=None, ext
     links = []
 
     if not user.isAnonymous():
-        links.append(["home", "Home", current_page != "home", None, None])
+        links.append(["home", "Home", None, None])
 
-    links.append(["dashboard", "Dashboard", current_page != "dashboard", None, None])
-    links.append(["branches", "Branches", current_page != "branches", None, None])
-    links.append(["search", "Search", current_page != "search", None, None])
+    links.append(["dashboard", "Dashboard", None, None])
+    links.append(["branches", "Branches", None, None])
+    links.append(["search", "Search", None, None])
 
     if user.hasRole(db, "administrator"):
-        links.append(["services", "Services", current_page != "services", None, None])
+        links.append(["services", "Services", None, None])
     if user.hasRole(db, "repositories"):
-        links.append(["repositories", "Repositories", current_page != "repositories", None, None])
+        links.append(["repositories", "Repositories", None, None])
 
     if configuration.extensions.ENABLED:
         import extensions
@@ -103,12 +103,12 @@ def generateHeader(target, db, user, generate_right=None, current_page=None, ext
         updated = extensions.Extension.getUpdatedExtensions(db, user)
         if updated:
             link_title = "\n".join([("%s by %s can be updated!" % (extension_name, author_fullname)) for author_fullname, extension_name in updated])
-            links.append(["manageextensions", "Extensions (%d)" % len(updated), current_page != "extensions", "color: red", link_title])
+            links.append(["manageextensions", "Extensions (%d)" % len(updated), "color: red", link_title])
         else:
-            links.append(["manageextensions", "Extensions", current_page != "extensions", None, None])
+            links.append(["manageextensions", "Extensions", None, None])
 
-    links.append(["config", "Config", current_page != "config", None, None])
-    links.append(["tutorial", "Tutorial", current_page != "tutorial", None, None])
+    links.append(["config", "Config", None, None])
+    links.append(["tutorial", "Tutorial", None, None])
 
     cursor = db.cursor()
     cursor.execute("""SELECT COUNT(*)
@@ -121,18 +121,18 @@ def generateHeader(target, db, user, generate_right=None, current_page=None, ext
     if count:
         links.append(["news", "News (%d)" % count, current_page != "news", "color: red", "There are %d unread news items!" % count])
     else:
-        links.append(["news", "News", current_page != "news", None, None])
+        links.append(["news", "News", None, None])
 
     req = target.getRequest()
 
     if configuration.base.AUTHENTICATION_MODE == "critic" and configuration.base.SESSION_TYPE == "cookie":
         if user.isAnonymous():
-            links.append(["login", "Sign in", current_page != "login", None, None])
+            links.append(["login", "Sign in", None, None])
         elif not req or req.user == user.name:
-            links.append(["javascript:signOut();", "Sign out", True, None, None])
+            links.append(["javascript:signOut();", "Sign out", None, None])
 
-    for url, label, make_link in extra_links:
-        links.append([url, label, make_link, None, None])
+    for url, label in extra_links:
+        links.append([url, label, None, None])
 
     if req and configuration.extensions.ENABLED:
         injected = {}
@@ -149,9 +149,8 @@ def generateHeader(target, db, user, generate_right=None, current_page=None, ext
 
     ul = left.ul()
 
-    for index, (url, label, make_link, style, title) in enumerate(links):
-        if make_link: ul.li().a(href=url, style=style, title=title).text(label)
-        else: ul.li().text(label)
+    for index, (url, label, style, title) in enumerate(links):
+        ul.li().a(href=url, style=style, title=title).text(label)
 
         rel = LINK_RELS.get(label)
         if rel: target.setLink(rel, url)
@@ -241,7 +240,7 @@ def displayMessage(db, req, user, title, review=None, message=None, page_title=N
         def generateRight(target):
             review_utils.renderDraftItems(db, user, review, target)
 
-        back_to_review = ("r/%d" % review.id, "Back to Review", True)
+        back_to_review = ("r/%d" % review.id, "Back to Review")
 
         generateHeader(body, db, user, generate_right=generateRight, extra_links=[back_to_review])
     else:

@@ -83,7 +83,7 @@ def renderShowFile(req, db, user):
     body = html.body()
 
     if review:
-        page.utils.generateHeader(body, db, user, lambda target: review_utils.renderDraftItems(db, user, review, target), extra_links=[("r/%d" % review.id, "Back to Review", True)])
+        page.utils.generateHeader(body, db, user, lambda target: review_utils.renderDraftItems(db, user, review, target), extra_links=[("r/%d" % review.id, "Back to Review")])
     else:
         page.utils.generateHeader(body, db, user)
 

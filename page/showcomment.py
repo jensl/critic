@@ -59,7 +59,7 @@ def renderShowComment(req, db, user):
         review_utils.renderDraftItems(db, user, review, target)
         target.div("buttons").span("buttonscope buttonscope-global")
 
-    page.utils.generateHeader(body, db, user, renderHeaderItems, extra_links=[("r/%d" % review.id, "Back to Review", True)])
+    page.utils.generateHeader(body, db, user, renderHeaderItems, extra_links=[("r/%d" % review.id, "Back to Review")])
 
     document.addExternalScript("resource/showcomment.js")
     document.addInternalScript(user.getJS(db))
@@ -203,7 +203,7 @@ def renderShowComments(req, db, user):
     document.addInternalScript(user.getJS(db))
     document.addInternalScript(review.getJS())
 
-    page.utils.generateHeader(body, db, user, lambda target: review_utils.renderDraftItems(db, user, review, target), extra_links=[("r/%d" % review.id, "Back to Review", True)])
+    page.utils.generateHeader(body, db, user, lambda target: review_utils.renderDraftItems(db, user, review, target), extra_links=[("r/%d" % review.id, "Back to Review")])
 
     profiler.check("page header")
 

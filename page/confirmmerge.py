@@ -76,7 +76,7 @@ def renderConfirmMerge(req, db, user):
             target.button("confirmNone").text("Confirm (None)")
             target.button("cancel").text("Cancel")
 
-    page.utils.generateHeader(body, db, user, renderButtons, extra_links=[("r/%d" % review.id, "Back to Review", True)])
+    page.utils.generateHeader(body, db, user, renderButtons, extra_links=[("r/%d" % review.id, "Back to Review")])
 
     document.addExternalStylesheet("resource/confirmmerge.css")
     document.addExternalScript("resource/log.js")
