@@ -130,6 +130,36 @@ else:
                     notify_tracker = False
                     wait_for_reply = False
 
+                    # Make sure the 'knownremotes' table has this remote listed
+                    # as "pushing" since it obviously is.
+
+                    cursor.execute("""SELECT pushing
+                                        FROM knownremotes
+                                       WHERE url=%s""",
+                                   (data["repository"],))
+
+                    row = cursor.fetchone()
+
+                    if not row:
+                        cursor.execute("""INSERT INTO knownremotes (url, pushing)
+                                               VALUES (%s, TRUE)""",
+                                       (data["repository"],))
+                    elif not row[0]:
+                        cursor.execute("""UPDATE knownremotes
+                                             SET pushing=TRUE
+                                           WHERE url=%s""",
+                                       (data["repository"],))
+
+                    # If we just recorded this remote as "pushing," adjust the
+                    # configured updating frequency of any existing tracked
+                    # branches from it.
+
+                    if not row or not row[0]:
+                        cursor.execute("""UPDATE trackedbranches
+                                             SET delay='1 week'
+                                           WHERE remote=%s""",
+                                       (data["repository"],))
+
                     for branch in data["branches"]:
                         cursor.execute("""SELECT id, local_name
                                             FROM trackedbranches

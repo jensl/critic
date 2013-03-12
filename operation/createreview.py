@@ -127,10 +127,22 @@ class SubmitReview(Operation):
 
         if trackedbranch:
             cursor = db.cursor()
+
+            cursor.execute("""SELECT 1
+                                FROM knownremotes
+                               WHERE url=%s
+                                 AND pushing""",
+                           (trackedbranch["remote"],))
+
+            if cursor.fetchone():
+                delay = "1 week"
+            else:
+                delay = "1 hour"
+
             cursor.execute("""INSERT INTO trackedbranches (repository, local_name, remote, remote_name, forced, delay)
-                                   VALUES (%s, %s, %s, %s, false, '1 hour')
+                                   VALUES (%s, %s, %s, %s, false, %s)
                                 RETURNING id""",
-                           (repository_id, branch, trackedbranch["remote"], trackedbranch["name"]))
+                           (repository_id, branch, trackedbranch["remote"], trackedbranch["name"], delay))
 
             trackedbranch_id = cursor.fetchone()[0]
 

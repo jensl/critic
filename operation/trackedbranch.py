@@ -270,10 +270,21 @@ class AddTrackedBranch(Operation):
         else:
             forced = False
 
+        cursor.execute("""SELECT 1
+                            FROM knownremotes
+                           WHERE url=%s
+                             AND pushing""",
+                       (source_location,))
+
+        if cursor.fetchone():
+            delay = "1 week"
+        else:
+            delay = "1 hour"
+
         cursor.execute("""INSERT INTO trackedbranches (repository, local_name, remote, remote_name, forced, delay)
-                               VALUES (%s, %s, %s, %s, %s, '1 day')
+                               VALUES (%s, %s, %s, %s, %s, %s)
                             RETURNING id""",
-                       (repository_id, target_name, source_location, source_name, forced))
+                       (repository_id, target_name, source_location, source_name, forced, delay))
 
         branch_id = cursor.fetchone()[0]
 

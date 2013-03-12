@@ -102,6 +102,13 @@ CREATE TABLE knownhosts
     name VARCHAR(256) NOT NULL UNIQUE,
     path VARCHAR(256) );
 
+CREATE TABLE knownremotes
+  ( url VARCHAR(256) PRIMARY KEY,
+    pushing BOOLEAN NOT NULL -- This remote has a post-update hook (or similar)
+                             -- that contacts the branchtrackerhook service and
+                             -- triggers immediate updates of tracked branches.
+  );
+
 CREATE TABLE trackedbranches
   ( id SERIAL PRIMARY KEY,
     repository INTEGER NOT NULL REFERENCES repositories,
