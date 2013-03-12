@@ -119,7 +119,7 @@ def generateHeader(target, db, user, generate_right=None, current_page=None, ext
     count = cursor.fetchone()[0]
 
     if count:
-        links.append(["news", "News (%d)" % count, current_page != "news", "color: red", "There are %d unread news items!" % count])
+        links.append(["news", "News (%d)" % count, "color: red", "There are %d unread news items!" % count])
     else:
         links.append(["news", "News", None, None])
 
