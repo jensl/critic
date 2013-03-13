@@ -455,7 +455,7 @@ class Review(object):
             self.filters = Filters()
             self.filters.setFiles(db, review=self)
             self.filters.load(db, review=self)
-            self.relevant_files = self.filters.getRelevantFiles(db, self)
+            self.relevant_files = self.filters.getRelevantFiles()
 
             cursor = db.cursor()
             cursor.execute("SELECT assignee, file FROM fullreviewuserfiles WHERE review=%s", (self.id,))
