@@ -82,17 +82,17 @@ def execute(db, req, user):
                 stdout_data = executeProcess(manifest, role, extension_id, user.id, argv, configuration.extensions.LONG_TIMEOUT,
                                              stdin=stdin_data, rlimit_cpu=60)
             except ProcessTimeout:
-                req.setStatus(418, "I'm a teapot")
+                req.setStatus(500, "Extension Timeout")
                 return "Extension timed out!"
             except ProcessError, error:
-                req.setStatus(418, "I'm a teapot")
+                req.setStatus(500, "Extension Failure")
                 if error.returncode < 0:
                     if -error.returncode == signal.SIGXCPU:
-                        return "Extension error: time limit (5 CPU seconds) exceeded\n"
+                        return "Extension failure: time limit (5 CPU seconds) exceeded\n"
                     else:
-                        return "Extension error: terminated by signal %d\n" % -error.returncode
+                        return "Extension failure: terminated by signal %d\n" % -error.returncode
                 else:
-                    return "Extension error: returned %d\n%s" % (error.returncode, error.stderr)
+                    return "Extension failure: returned %d\n%s" % (error.returncode, error.stderr)
 
             after = time.time()
 
@@ -105,25 +105,25 @@ def execute(db, req, user):
             while True:
                 try: line, stdout_data = stdout_data.split("\n", 1)
                 except:
-                    req.setStatus(418, "I'm a teapot")
+                    req.setStatus(500, "Extension Error")
                     return "Extension error: output format error.\n%r\n" % stdout_data
 
                 if status is None:
                     try: status = int(line.strip())
                     except:
-                        req.setStatus(418, "I'm a teapot")
+                        req.setStatus(500, "Extension Error")
                         return "Extension error: first line should contain only a numeric HTTP status code.\n%r\n" % line
                 elif not line:
                     break
                 else:
                     try: name, value = line.split(":", 1)
                     except:
-                        req.setStatus(418, "I'm a teapot")
+                        req.setStatus(500, "Extension Error")
                         return "Extension error: header line should be on 'name: value' format.\n%r\n" % line
                     headers[name.strip()] = value.strip()
 
             if status is None:
-                req.setStatus(418, "I'm a teapot")
+                req.setStatus(500, "Extension Error")
                 return "Extension error: first line should contain only a numeric HTTP status code.\n"
 
             content_type = "text/plain"
