@@ -344,7 +344,7 @@ CREATE TABLE reviewrebases
     UNIQUE (review, old_head) );
 
 CREATE TABLE previousreachable
-  ( rebase INTEGER NOT NULL REFERENCES reviewrebases,
+  ( rebase INTEGER NOT NULL REFERENCES reviewrebases ON DELETE CASCADE,
     commit INTEGER NOT NULL REFERENCES commits );
 CREATE INDEX previousreachable_rebase ON previousreachable (rebase);
 
