@@ -16,11 +16,12 @@
 
 import sys
 
-try: from json import dumps as json_encode, loads as json_decode
-except: from cjson import encode as json_encode, decode as json_decode
-
 import dbutils
-import reviewing.utils as review_utils
+import gitutils
+import reviewing.utils
+import reviewing.filters
+
+from textutils import json_encode, json_decode
 
 db = None
 
@@ -57,11 +58,26 @@ try:
                 batch_id = data["batch_id"]
                 was_accepted = data["was_accepted"]
                 is_accepted = data["is_accepted"]
-                pending_mails = review_utils.generateMailsForBatch(db, batch_id, was_accepted, is_accepted)
+                pending_mails = reviewing.utils.generateMailsForBatch(db, batch_id, was_accepted, is_accepted)
             elif command == "generate-mails-for-assignments-transaction":
                 data = json_decode(sys.stdin.readline())
                 transaction_id = data["transaction_id"]
-                pending_mails = review_utils.generateMailsForAssignmentsTransaction(db, transaction_id)
+                pending_mails = reviewing.utils.generateMailsForAssignmentsTransaction(db, transaction_id)
+            elif command == "apply-filters":
+                data = json_decode(sys.stdin.readline())
+                filters = reviewing.filters.Filters()
+                user = dbutils.User.fromId(db, data["user_id"]) if "user_id" in data else None
+                if "review_id" in data:
+                    review = dbutils.Review.fromId(db, data["review_id"], load_commits=False)
+                    filters.setFiles(db, review=review)
+                    filters.load(db, review=review, user=user,
+                                 added_review_filters=data.get("added_review_filters", []),
+                                 removed_review_filters=data.get("removed_review_filters", []))
+                else:
+                    repository = gitutils.Repository.fromId(db, data["repository_id"])
+                    filters.setFiles(db, file_ids=data["file_ids"])
+                    filters.load(db, repository=repository, recursive=data.get("recursive", False), user=user)
+                sys.stdout.write(json_encode(filters.data) + "\n")
             else:
                 print "unknown command: %s" % command
                 sys.exit(1)

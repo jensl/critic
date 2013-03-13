@@ -288,7 +288,8 @@ class Filters:
             self.applyparentfilters = applyparentfilters
             self.repository = repository
 
-    def load(self, db, repository=None, review=None, recursive=False, user=None):
+    def load(self, db, repository=None, review=None, recursive=False, user=None,
+             added_review_filters=[], removed_review_filters=[]):
         assert (repository is None) != (review is None)
 
         cursor = db.cursor()
@@ -317,7 +318,13 @@ class Filters:
                                  AND users.status!='retired'
                                      %s""" % user_filter,
                            (review.id,))
-            self.addFilters(cursor)
+            if added_review_filters or removed_review_filters:
+                review_filters = set(cursor.fetchall())
+                review_filters -= set(map(tuple, removed_review_filters))
+                review_filters |= set(map(tuple, added_review_filters))
+                self.addFilters(list(review_filters))
+            else:
+                self.addFilters(cursor)
 
         if review:
             if review.applyfilters:
