@@ -877,14 +877,14 @@ def renderShowReview(req, db, user):
         yield flush(target)
 
         profiler.check("log")
-    except gitutils.GitError, error:
+    except gitutils.GitReferenceError as error:
         div = target.div("error")
         div.h1().text("Error!")
-
-        if error.sha1:
-            div.text("The commit %s is missing from the repository." % error.sha1)
-        else:
-            div.text("Failed to read commits from the repository: %s" % error.message)
+        div.text("The commit %s is missing from the repository." % error.sha1)
+    except gitutils.GitError as error:
+        div = target.div("error")
+        div.h1().text("Error!")
+        div.text("Failed to read commits from the repository: %s" % error.message)
 
     all_chains = review_comment.CommentChain.fromReview(db, review, user)
 

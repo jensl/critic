@@ -93,8 +93,10 @@ class SubmitReview(Operation):
 
         components = branch.split("/")
         for index in range(1, len(components)):
-            try: repository.revparse("refs/heads/%s" % "/".join(components[:index]))
-            except gitutils.GitError: continue
+            try:
+                repository.revparse("refs/heads/%s" % "/".join(components[:index]))
+            except gitutils.GitReferenceError:
+                continue
 
             message = ("Cannot create branch with name<pre>%s</pre>since there is already a branch named<pre>%s</pre>in the repository." %
                        (htmlutils.htmlify(branch), htmlutils.htmlify("/".join(components[:index]))))
@@ -185,7 +187,7 @@ class FetchRemoteBranch(Operation):
 
         try:
             head_sha1 = repository.fetchTemporaryFromRemote(remote, branch)
-        except gitutils.GitError:
+        except gitutils.GitReferenceError:
             raise OperationFailure(
                 code="refnotfound",
                 title="Remote ref not found!",

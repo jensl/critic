@@ -1020,7 +1020,7 @@ def renderShowCommit(req, db, user):
     if first_sha1 is not None:
         try:
             first_commit = gitutils.Commit.fromSHA1(db, repository, first_sha1)
-        except gitutils.GitError, error:
+        except gitutils.GitReferenceError as error:
             raise page.utils.DisplayMessage("Invalid SHA-1", "%s is not a commit in %s" % (error.sha1, repository.path))
 
         if len(first_commit.parents) != 1:
@@ -1034,7 +1034,7 @@ def renderShowCommit(req, db, user):
         commit = gitutils.Commit.fromSHA1(db, repository, sha1) if sha1 else None
         from_commit = gitutils.Commit.fromSHA1(db, repository, from_sha1) if from_sha1 else None
         to_commit = gitutils.Commit.fromSHA1(db, repository, to_sha1) if to_sha1 else None
-    except gitutils.GitError, error:
+    except gitutils.GitReferenceError as error:
         raise page.utils.DisplayMessage("Invalid SHA-1", "%s is not a commit in %s" % (error.sha1, repository.path))
 
     if commit:

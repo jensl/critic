@@ -41,15 +41,18 @@ REPOSITORY_WORKCOPY_PATH_FORMAT = os.path.join(configuration.paths.DATA_DIR,
                                                "%(user.name)s_%(identifier)s_%(time)s")
 
 class GitError(base.Error):
+    pass
+
+class GitReferenceError(GitError):
     """Exception raised on an invalid SHA-1s or refs."""
 
     def __init__(self, message, sha1=None, ref=None, repository=None):
-        super(GitError, self).__init__(message)
+        super(GitReferenceError, self).__init__(message)
         self.sha1 = sha1
         self.ref = ref
         self.repository = repository
 
-class GitCommandError(base.Error):
+class GitCommandError(GitError):
     """Exception raised when a Git command fails."""
 
     def __init__(self, cmdline, output, cwd):
@@ -72,6 +75,8 @@ class GitObject:
         raise IndexError, "GitObject index out of range: %d" % index
 
 class NoSuchRepository(base.Error):
+    """Exception raised by Repository.fromName() for invalid names."""
+
     def __init__(self, value):
         super(NoSuchRepository, self).__init__("No such repository: %s" % str(value))
         self.value = value
@@ -255,7 +260,7 @@ class Repository:
         line = stdout.readline()
 
         if line == ("%s missing\n" % sha1):
-            raise GitError("%s missing from %s" % (sha1[:8], self.path), sha1=sha1, repository=self)
+            raise GitReferenceError("%s missing from %s" % (sha1[:8], self.path), sha1=sha1, repository=self)
 
         try: sha1, type, size = line.split()
         except: raise GitError("unexpected output from 'git cat-file --batch': %s" % line)
@@ -376,7 +381,7 @@ class Repository:
                       stdout=PIPE, stderr=PIPE, cwd=self.path)
         stdout, stderr = git.communicate()
         if git.returncode == 0: return stdout.strip()
-        else: raise GitError("'git rev-parse' failed: %s" % stderr.strip(), ref=name, repository=self)
+        else: raise GitReferenceError("'git rev-parse' failed: %s" % stderr.strip(), ref=name, repository=self)
 
     def revlist(self, included, excluded, *args, **kwargs):
         args = list(args)
@@ -497,7 +502,7 @@ class Repository:
                 self.runRelay("fetch", remote_id, "%s:refs/remotes/%s/temporary" % (ref, remote_id))
             except GitCommandError, error:
                 if error.output.startswith("fatal: Couldn't find remote ref %s" % ref):
-                    raise GitError("Couldn't find ref %s in %s." % (ref, remote), ref=ref, repository=remote)
+                    raise GitReferenceError("Couldn't find ref %s in %s." % (ref, remote), ref=ref, repository=remote)
                 else:
                     raise
 

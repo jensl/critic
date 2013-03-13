@@ -709,9 +709,9 @@ def main(environ, start_response):
                                 db.rollback()
                                 yield str(fragment)
 
-                    except gitutils.NoSuchRepository, error:
+                    except gitutils.NoSuchRepository as error:
                         raise page.utils.DisplayMessage("Invalid URI Parameter!", error.message)
-                    except gitutils.GitError, error:
+                    except gitutils.GitReferenceError as error:
                         if error.ref:
                             raise page.utils.DisplayMessage(title="Specified ref not found",
                                                             body="There is no ref named \"%s\" in %s." % (error.ref, error.repository))
@@ -720,9 +720,9 @@ def main(environ, start_response):
                                                             body="There is no object %s in %s." % (error.sha1, error.repository))
                         else:
                             raise
-                    except dbutils.NoSuchUser, error:
+                    except dbutils.NoSuchUser as error:
                         raise page.utils.DisplayMessage("Invalid URI Parameter!", error.message)
-                    except dbutils.NoSuchReview, error:
+                    except dbutils.NoSuchReview as error:
                         raise page.utils.DisplayMessage("Invalid URI Parameter!", error.message)
 
                     db.close()
@@ -792,7 +792,8 @@ def main(environ, start_response):
                             req.query = "repository=%d&from=%s&to=%s&%s" % (repository.id, items[0], items[1], req.query)
                             req.path = "showcommit"
                             continue
-                    except gitutils.GitError: pass
+                    except gitutils.GitReferenceError:
+                        pass
 
                 break
 
