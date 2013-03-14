@@ -386,6 +386,8 @@ def getMatchedFiles(repository, paths):
                 elif common_fixedDirname[index] != component:
                     del common_fixedDirname[index:]
                     break
+            else:
+                del common_fixedDirname[index:]
     common_fixedDirname = "/".join(common_fixedDirname)
 
     args = ["ls-tree", "-r", "--name-only", "HEAD"]
