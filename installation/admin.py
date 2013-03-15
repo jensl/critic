@@ -49,7 +49,10 @@ This user does not need to match a system user on this machine.
         if installation.config.auth_mode == "critic":
             import bcrypt
 
-            password = bcrypt.hashpw(installation.input.password("Password for '%s':" % username), bcrypt.gensalt())
+            if arguments.admin_password: plaintext = arguments.admin_password
+            else: plaintext = installation.input.password("Password for '%s':" % username)
+
+            password = bcrypt.hashpw(plaintext, bcrypt.gensalt())
     else:
         import configuration
 

@@ -60,6 +60,7 @@ parser.add_argument("--session-type", help="session type", choices=["httpauth", 
 parser.add_argument("--admin-username", help="name of Critic administrator user", action="store")
 parser.add_argument("--admin-email", help="email address to Critic administrator user", action="store")
 parser.add_argument("--admin-fullname", help="Critic administrator user's full name", action="store")
+parser.add_argument("--admin-password", help="Critic administrator user's password", action="store")
 
 for module in installation.modules:
     if hasattr(module, "add_arguments"):
