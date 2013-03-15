@@ -35,9 +35,11 @@ def prepare(mode, arguments, data):
 created_file = []
 renamed = []
 site_enabled = False
+default_site_disabled = False
 
 def install(data):
-    global site_enabled
+    global site_enabled, default_site_disabled
+
     source_path = os.path.join(installation.root_dir, "installation", "templates", "site")
     target_path = os.path.join("/etc", "apache2", "sites-available", "critic-main")
 
@@ -57,6 +59,10 @@ def install(data):
     if installation.prereqs.a2ensite:
         process.check_call([installation.prereqs.a2ensite, "critic-main"])
         site_enabled = True
+    if installation.prereqs.a2dissite:
+        output = process.check_output([installation.prereqs.a2dissite, "default"], env={ "LANG": "C" })
+        if "Site default disabled." in output:
+            default_site_disabled = True
 
     process.check_call(["service", "apache2", "restart"])
 
@@ -122,6 +128,9 @@ likely to break.
 def undo():
     if site_enabled:
         process.check_call([installation.prereqs.a2dissite, "critic-main"])
+
+        if default_site_disabled:
+            process.check_call([installation.prereqs.a2ensite, "default"])
 
         if installation.prereqs.apache2ctl:
             process.check_call([installation.prereqs.apache2ctl, "restart"])
