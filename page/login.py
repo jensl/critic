@@ -26,7 +26,7 @@ def renderLogin(req, db, user):
         raise page.utils.MovedTemporarily(target_url or "/", True)
 
     document = htmlutils.Document(req)
-    document.setTitle("Login")
+    document.setTitle("Sign in")
 
     html = document.html()
     head = html.head()
