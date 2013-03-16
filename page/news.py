@@ -27,6 +27,8 @@ def renderNewsItem(db, target, text):
     table.tr("back").td("back").div().a("back", href="news").text("Back")
 
 def renderNewsItems(db, user, target, display_unread, display_read):
+    target.setTitle("News")
+
     table = target.table("paleyellow", align="center")
     table.tr("h1").td("h1", colspan=3).h1().text("News")
 
