@@ -561,7 +561,7 @@ def render(db, target, title, branch=None, commits=None, columns=DEFAULT_COLUMNS
                     cell.text(".")
 
                 if tail in conflicts:
-                    tail = Commit.fromSHA1(db, repository, tail)
+                    tail = Commit.fromSHA1(db, repository, str(tail))
                     if not emptyCommit(tail):
                         output(table, tail, overrides={ "type": "Rebase",
                                                         "summary": "Changes introduced by rebase",
