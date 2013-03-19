@@ -227,9 +227,10 @@ elif command in ("addrole", "delrole"):
 
     if command_arguments.role:
         role = command_arguments.role
+        error = valid_role(role)
 
-        if not valid_role(role):
-            print "%%s: no such role" %% role
+        if error:
+            print "%%s: %%s" %% (role, error)
             sys.exit(-1)
     else:
         role = input_string("Role:", check=valid_role)
