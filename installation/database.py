@@ -14,13 +14,10 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-import re
-
 import installation
 from installation import process
 import tempfile
 import shutil
-import stat
 import os
 import time
 import errno
