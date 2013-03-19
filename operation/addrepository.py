@@ -63,6 +63,12 @@ class AddRepository(Operation):
             raise OperationFailure(code="duplicaterepository",
                                    title="Duplicate repository",
                                    message="The specified path is already used by repository %s" % row[0])
+        cursor.execute("""SELECT name FROM repositories WHERE name=%s""", (name,))
+        row = cursor.fetchone()
+        if row:
+            raise OperationFailure(code="duplicateshortname",
+                                   title="Duplicate short name",
+                                   message="The specified short name is already in use, please select a different short name.")
 
         if not os.path.isdir(main_base_path):
             os.makedirs(main_base_path, mode=0775)
