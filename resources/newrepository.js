@@ -65,4 +65,15 @@ $(document).ready(
         if (operation.execute())
           location.href = "/repositories#" + name;
       });
+
+    function handleKeypress(ev)
+    {
+      if (ev.keyCode == 13)
+        $("button.add").click();
+    }
+
+    $("input[name='name']").keypress(handleKeypress);
+    $("input[name='path']").keypress(handleKeypress);
+    $("input[name='remote']").keypress(handleKeypress);
+    $("input[name='branch']").keypress(handleKeypress);
   });
