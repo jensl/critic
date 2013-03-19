@@ -16,7 +16,6 @@
 
 import os
 import os.path
-import json
 
 import installation
 from installation import process
