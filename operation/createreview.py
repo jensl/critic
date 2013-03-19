@@ -206,7 +206,15 @@ class FetchRemoteBranch(Operation):
                 raise
 
         if upstream.startswith("refs/"):
-            upstream_sha1 = repository.fetchTemporaryFromRemote(remote, upstream)
+            try:
+                upstream_sha1 = repository.fetchTemporaryFromRemote(remote, upstream)
+            except gitutils.GitReferenceError:
+                raise OperationFailure(
+                    code="refnotfound",
+                    title="Remote ref not found!",
+                    message=("Could not find the ref <code>%s</code> in the repository <code>%s</code>."
+                             % (htmlutils.htmlify(upstream), htmlutils.htmlify(remote))),
+                    is_html=True)
         else:
             upstream_sha1 = repository.revparse(upstream)
 
