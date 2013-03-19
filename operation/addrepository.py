@@ -21,7 +21,8 @@ import signal
 
 import configuration
 
-from operation import Operation, OperationResult, OperationError, OperationFailure, Optional
+import gitutils
+from operation import Operation, OperationResult, OperationFailure, Optional
 
 class AddRepository(Operation):
     def __init__(self):
@@ -80,7 +81,7 @@ class AddRepository(Operation):
             git = subprocess.Popen(argv, stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=cwd)
             stdout, stderr = git.communicate()
             if git.returncode != 0:
-                raise OperationError, "'%s' failed: %s" % (" ".join(argv), stderr)
+                raise gitutils.GitError("unexpected output from '%s': %s" % (" ".join(argv), stderr))
 
         git(["init", "--bare", "--shared", repository_name + ".git"], cwd=main_base_path)
         git(["config", "receive.denyNonFastforwards", "false"], cwd=main_path)
