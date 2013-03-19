@@ -52,6 +52,9 @@ CHANGESET["max_workers"] = 4
 CHANGESET["rss_limit"] = 1024 ** 3
 CHANGESET["purge_at"] = (2, 15)
 
+# Timeout (in seconds) passed to smtplib.SMTP().
+MAILDELIVERY["timeout"] = 10
+
 WATCHDOG["rss_soft_limit"] = 1024 ** 3
 WATCHDOG["rss_hard_limit"] = 2 * WATCHDOG["rss_soft_limit"]
 

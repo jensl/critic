@@ -52,10 +52,13 @@ class MailDelivery(PeerServer):
         # and send a single administrator mail ("check the logs")
         # after having successfully delivered an email.
 
-        super(MailDelivery, self).__init__(service=configuration.services.MAILDELIVERY,
+        service = configuration.services.MAILDELIVERY
+
+        super(MailDelivery, self).__init__(service=service,
                                            send_administrator_mails=False)
 
         self.__connection = None
+        self.__connection_timeout = service.get("timeout")
         self.__has_logged_warning = 0
         self.__has_logged_error = 0
 
@@ -94,7 +97,8 @@ class MailDelivery(PeerServer):
                         to_user=to_user,
                         recipients=recipients,
                         subject="maildelivery: check the logs!",
-                        body="%s have been logged.\n\n-- critic\n" % what)
+                        body="%s have been logged.\n\n-- critic\n" % what,
+                        try_once=True)
 
         self.__has_logged_warning = 0
         self.__has_logged_error = 0
@@ -115,6 +119,11 @@ class MailDelivery(PeerServer):
 
                 if pending:
                     self.__connect()
+
+                    # We may have been terminated while attempting to connect.
+                    if self.terminated:
+                        return
+
                     sleeptime = 0
 
                     now = time.time()
@@ -135,20 +144,23 @@ class MailDelivery(PeerServer):
                         lines = open(filename).readlines()
 
                         try:
-                            self.__send(**eval(lines[0]))
+                            if self.__send(**eval(lines[0])):
+                                os.rename(filename, "%s/sent/%s.sent" % (configuration.paths.OUTBOX, os.path.basename(filename)))
 
-                            if self.__has_logged_warning or self.__has_logged_error:
-                                try: self.__sendAdministratorMessage()
-                                except:
-                                    self.exception()
-                                    self.__has_logged_error += 1
+                                if self.__has_logged_warning or self.__has_logged_error:
+                                    try: self.__sendAdministratorMessage()
+                                    except:
+                                        self.exception()
+                                        self.__has_logged_error += 1
+
+                            # We may have been terminated while attempting to send.
+                            if self.terminated:
+                                return
                         except:
                             self.exception()
                             self.__has_logged_error += 1
                             os.rename(filename, "%s/%s.invalid" % (configuration.paths.OUTBOX, os.path.basename(filename)))
                             continue
-
-                        os.rename(filename, "%s/sent/%s.sent" % (configuration.paths.OUTBOX, os.path.basename(filename)))
                 else:
                     if sleeptime > 25:
                         self.__disconnect()
@@ -171,12 +183,12 @@ class MailDelivery(PeerServer):
         if not self.__connection:
             attempts = 0
 
-            while True:
+            while not self.terminated:
                 try:
                     if configuration.smtp.USE_SSL:
-                        self.__connection = smtplib.SMTP_SSL()
+                        self.__connection = smtplib.SMTP_SSL(timeout=self.__connection_timeout)
                     else:
-                        self.__connection = smtplib.SMTP()
+                        self.__connection = smtplib.SMTP(timeout=self.__connection_timeout)
 
                     self.__connection.connect(configuration.smtp.HOST, configuration.smtp.PORT)
 
@@ -187,10 +199,11 @@ class MailDelivery(PeerServer):
                         self.__connection.login(configuration.smtp.USERNAME, configuration.smtp.PASSWORD)
 
                     self.debug("connected")
-                    break
+                    return
                 except:
                     self.error("failed to connect to SMTP server")
                     self.__has_logged_error += 1
+                    self.__connection = None
 
                 attempts += 1
                 seconds = min(60, 2 ** attempts)
@@ -235,7 +248,7 @@ class MailDelivery(PeerServer):
         recipients = filter(lambda user: bool(user.email), recipients)
 
         if not to_user.email:
-            return
+            return True
 
         if message_id:
             message_id = "<%s@%s>" % (message_id, configuration.base.HOSTNAME)
@@ -256,15 +269,24 @@ class MailDelivery(PeerServer):
 
         self.debug("%s => %s (%s)" % (from_user.email, to_user.email, message_id))
 
+        # Used from __sendAdministratorMessage(); we'll try once to send it even
+        # if self.terminated.
+        try_once = kwargs.get("try_once", False)
+
         attempts = 0
 
-        while True:
+        while try_once or not self.terminated:
+            try_once = False
+
             try:
                 self.__connection.sendmail(configuration.base.SYSTEM_USER_EMAIL, [to_user.email], message.as_string())
-                return
+                return True
             except:
                 self.exception()
                 self.__has_logged_error += 1
+
+                if self.terminated:
+                    return False
 
                 attempts += 1
                 sleeptime = min(60, 2 ** attempts)
@@ -274,6 +296,10 @@ class MailDelivery(PeerServer):
                 self.__disconnect()
                 time.sleep(sleeptime)
                 self.__connect()
+
+        # We were terminated before the mail was sent.  Return false to keep the
+        # mail in the outbox for later delivery.
+        return False
 
     def __cleanup(self):
         now = time.time()
