@@ -19,8 +19,6 @@ import os
 import os.path
 import signal
 
-import dbutils
-import gitutils
 import configuration
 
 from operation import Operation, OperationResult, OperationError, OperationFailure, Optional
