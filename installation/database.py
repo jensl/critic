@@ -31,7 +31,7 @@ def psql_import(sql_file):
     shutil.copy(sql_file, temp_file)
     # Make sure file is readable by postgres user
     os.chmod(temp_file, 0644)
-    process.check_output(["su", "-s", "/bin/sh", "-c", "psql -f %s" % temp_file, installation.system.username])
+    process.check_output(["su", "-s", "/bin/sh", "-c", "psql -v ON_ERROR_STOP=1 -f %s" % temp_file, installation.system.username])
     os.unlink(temp_file)
 
 def add_arguments(mode, parser):
