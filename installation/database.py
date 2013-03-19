@@ -111,7 +111,7 @@ def install(data):
         try:
             process.check_output(["su", "-c", "createlang plpgsql critic", "postgres"], stderr=process.STDOUT)
             language_created = True
-        except process.CalledProcessError, error:
+        except process.CalledProcessError:
             # The 'createlang' command fails if the language is already enabled
             # in the database, and we want to ignore such failures.  It might
             # also fail for other reasons, that we really don't mean to ignore,
