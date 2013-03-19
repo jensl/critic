@@ -76,4 +76,6 @@ $(document).ready(
     $("input[name='path']").keypress(handleKeypress);
     $("input[name='remote']").keypress(handleKeypress);
     $("input[name='branch']").keypress(handleKeypress);
+
+    $("input[name='name']").focus();
   });
