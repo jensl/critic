@@ -62,8 +62,7 @@ $(document).ready(
         var operation = new Operation({ action: "add repository",
                                         url: "addrepository",
                                         data: data });
-
-	if (operation.execute())
-	  location.href = "/repositories#" + name;
+        if (operation.execute())
+          location.href = "/repositories#" + name;
       });
   });
