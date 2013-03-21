@@ -20,43 +20,60 @@ import json
 
 import installation
 
-def will_modify_dbschema(data):
+def scripts_to_run(data):
+    git = data["installation.prereqs.git"]
+    old_sha1 = data["sha1"]
     performed_migrations = data.get("migrations", [])
+    scripts = []
 
     if os.path.exists("installation/migrations"):
         for script in os.listdir("installation/migrations"):
-            if script.startswith("dbschema.") \
-                    and script.endswith(".py") \
-                    and script not in performed_migrations:
-                return True
+            if not script.endswith(".py"):
+                continue
+            if script in performed_migrations:
+                continue
 
+            script_path = os.path.join("installation/migrations", script)
+
+            if installation.utils.get_file_sha1(git, old_sha1, script_path) is not None:
+                # The migration script already existed when Critic was installed
+                # and there's thus no point in running it now.
+                continue
+
+            scripts.append(script)
+
+    return scripts
+
+def will_modify_dbschema(data):
+    for script in scripts_to_run(data):
+        if script.startswith("dbschema."):
+            return True
     return False
 
 def upgrade(arguments, data):
     if "migrations" not in data:
         data["migrations"] = []
 
-    if os.path.exists("installation/migrations"):
-        for script in os.listdir("installation/migrations"):
-            if not script.endswith(".py"): continue
-            if script in data["migrations"]: continue
+    for script in scripts_to_run(data):
+        script_path = os.path.join("installation/migrations", script)
 
-            print
-            print "Running %s ..." % script
+        print
+        print "Running %s ..." % script
 
-            if arguments.dry_run: continue
+        if arguments.dry_run:
+            continue
 
-            env = os.environ.copy()
+        env = os.environ.copy()
 
-            # This is "/etc/critic/main", set by upgrade.py, or something else
-            # if the --etc-dir/--identity arguments were used.
-            env["PYTHONPATH"] = sys.path[0]
+        # This is "/etc/critic/main", set by upgrade.py, or something else
+        # if the --etc-dir/--identity arguments were used.
+        env["PYTHONPATH"] = sys.path[0]
 
-            installation.process.check_input([sys.executable, os.path.join("installation/migrations", script),
-                                              "--uid=%s" % installation.system.uid,
-                                              "--gid=%d" % installation.system.gid],
-                                             stdin=json.dumps(data), env=env)
+        installation.process.check_input([sys.executable, script_path,
+                                          "--uid=%s" % installation.system.uid,
+                                          "--gid=%d" % installation.system.gid],
+                                         stdin=json.dumps(data), env=env)
 
-            data["migrations"].append(script)
+        data["migrations"].append(script)
 
     return True

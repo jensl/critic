@@ -104,3 +104,16 @@ class UpdateModifiedFile:
 
 def hash_file(git, path):
     return installation.process.check_output([git, "hash-object", path]).strip()
+
+def get_file_sha1(git, commit_sha1, path):
+    lstree = installation.process.check_output([git, "ls-tree", commit_sha1, path]).strip()
+
+    if lstree:
+        lstree_mode, lstree_type, lstree_sha1, lstree_path = lstree.split()
+
+        assert lstree_type == "blob"
+        assert lstree_path == path
+
+        return lstree_sha1
+    else:
+        return None

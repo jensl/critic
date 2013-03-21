@@ -202,6 +202,8 @@ try:
             traceback.print_exc()
             abort()
 
+    data["sha1"] = installation.process.check_output([git, "rev-parse", "HEAD"]).strip()
+
     if not arguments.dry_run:
         with open(install_data_path, "w") as install_data:
             json.dump(data, install_data)

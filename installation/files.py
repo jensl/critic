@@ -48,19 +48,6 @@ modified_files = 0
 sources_modified = False
 resources_modified = False
 
-def getFileSHA1(git, commit_sha1, path):
-    lstree = installation.process.check_output([git, "ls-tree", commit_sha1, path]).strip()
-
-    if lstree:
-        lstree_mode, lstree_type, lstree_sha1, lstree_path = lstree.split()
-
-        assert lstree_type == "blob"
-        assert lstree_path == path
-
-        return lstree_sha1
-    else:
-        return None
-
 def install(data):
     source_dir = os.path.dirname(os.path.abspath(sys.argv[0]))
     target_dir = installation.paths.install_dir
@@ -118,7 +105,7 @@ def upgrade(arguments, data):
 
         if not os.path.isfile(target_path): return
 
-        old_file_sha1 = getFileSHA1(git, old_sha1, path)
+        old_file_sha1 = installation.utils.get_file_sha1(git, old_sha1, path)
         current_file_sha1 = installation.utils.hash_file(git, target_path)
 
         if old_file_sha1 != current_file_sha1:
@@ -215,8 +202,8 @@ deleted.
             else:
                 sources_modified = True
         else:
-            old_file_sha1 = getFileSHA1(git, old_sha1, path)
-            new_file_sha1 = getFileSHA1(git, new_sha1, path)
+            old_file_sha1 = installation.utils.get_file_sha1(git, old_sha1, path)
+            new_file_sha1 = installation.utils.get_file_sha1(git, new_sha1, path)
 
             current_file_sha1 = installation.utils.hash_file(git, target_path)
 
@@ -282,8 +269,6 @@ Not installing the updated version can cause unpredictable results.
 
     if copied_files == 0 and modified_files == 0:
         print "No new or modified source files."
-
-    data["sha1"] = new_sha1
 
     return True
 
