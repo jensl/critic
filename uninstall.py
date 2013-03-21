@@ -126,8 +126,8 @@ This step cannot be undone! To abort the uninstall script, press CTRL-C now.
         # with sudo which makes the command run with the postgres user's homedir as cwd instead.
         # This avoids a harmless but pointless error message "could not change directory to X" when the
         # /usr/bin/psql perl script tries to chdir back to the previous cwd after doing some stuff.
-        run_command(arguments, ["sudo", "-u", "postgres", "-i", "psql", "-c", "DROP DATABASE IF EXISTS %s;" % configuration.database.PARAMETERS["database"]])
-        run_command(arguments, ["sudo", "-u", "postgres", "-i", "psql", "-c", "DROP ROLE IF EXISTS %s;" % configuration.database.PARAMETERS["user"]])
+        run_command(arguments, ["sudo", "-u", "postgres", "-i", "psql", "-v", "ON_ERROR_STOP=1", "-c", "DROP DATABASE IF EXISTS %s;" % configuration.database.PARAMETERS["database"]])
+        run_command(arguments, ["sudo", "-u", "postgres", "-i", "psql", "-v", "ON_ERROR_STOP=1", "-c", "DROP ROLE IF EXISTS %s;" % configuration.database.PARAMETERS["user"]])
 
     for user in users_to_delete:
         run_command(arguments, ["deluser", "--system", user])

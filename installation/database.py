@@ -102,10 +102,10 @@ def install(data):
         # Set cwd to something that Critic system / "postgres" users has access to.
         os.chdir(tempfile.gettempdir())
 
-        process.check_output(["su", "-c", "psql -c 'CREATE USER \"%s\";'" % installation.system.username, "postgres"])
+        process.check_output(["su", "-c", "psql -v ON_ERROR_STOP=1 -c 'CREATE USER \"%s\";'" % installation.system.username, "postgres"])
         user_created = True
 
-        process.check_output(["su", "-c", "psql -c 'CREATE DATABASE \"critic\";'", "postgres"])
+        process.check_output(["su", "-c", "psql -v ON_ERROR_STOP=1 -c 'CREATE DATABASE \"critic\";'", "postgres"])
         database_created = True
 
         try:
@@ -119,7 +119,7 @@ def install(data):
             # since they define PL/pgSQL functions.
             pass
 
-        process.check_output(["su", "-c", "psql -c 'GRANT ALL ON DATABASE \"critic\" TO \"%s\";'" % installation.system.username, "postgres"])
+        process.check_output(["su", "-c", "psql -v ON_ERROR_STOP=1 -c 'GRANT ALL ON DATABASE \"critic\" TO \"%s\";'" % installation.system.username, "postgres"])
         psql_import(os.path.join(root_dir, "dbschema.sql"))
         psql_import(os.path.join(root_dir, "dbschema.comments.sql"))
         psql_import(os.path.join(root_dir, "comments.pgsql"))
@@ -129,7 +129,7 @@ def install(data):
 
         def adapt(value): return psycopg2.extensions.adapt(value).getquoted()
 
-        process.check_input(["su", "-s", "/bin/sh", "-c", "psql -q -f -", installation.system.username],
+        process.check_input(["su", "-s", "/bin/sh", "-c", "psql -q -v ON_ERROR_STOP=1 -f -", installation.system.username],
                             stdin=("""INSERT INTO systemidentities (key, name, url_prefix, description)
                                           VALUES ('main', 'main', %s, 'Main');"""
                                    % adapt("http://%s" % installation.system.hostname)))
@@ -143,6 +143,6 @@ def undo():
     if language_created:
         process.check_output(["su", "-c", "droplang plpgsql critic", "postgres"])
     if database_created:
-        process.check_output(["su", "-c", "psql -c 'DROP DATABASE \"critic\";'", "postgres"])
+        process.check_output(["su", "-c", "psql -v ON_ERROR_STOP=1 -c 'DROP DATABASE \"critic\";'", "postgres"])
     if user_created:
-        process.check_output(["su", "-c", "psql -c 'DROP USER \"%s\";'" % installation.system.username, "postgres"])
+        process.check_output(["su", "-c", "psql -v ON_ERROR_STOP=1 -c 'DROP USER \"%s\";'" % installation.system.username, "postgres"])
