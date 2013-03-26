@@ -119,10 +119,11 @@ class Path(object):
         elif not pathA.endswith("/") and pathB.endswith("/"):
             return 1
 
-        # Filters with more slashes in them rank higher than filters with
-        # fewer slashes.
-        specificityA = pathA.count("/")
-        specificityB = pathB.count("/")
+        # Filters with more slashes in them rank higher than filters with fewer
+        # slashes (but "**/" doesn't count as a slash, since it might match zero
+        # slashes in practice.)
+        specificityA = pathA.count("/") - len(re.findall(r"\*\*/", pathA))
+        specificityB = pathB.count("/") - len(re.findall(r"\*\*/", pathB))
         if specificityA < specificityB:
             return -1
         elif specificityA > specificityB:
