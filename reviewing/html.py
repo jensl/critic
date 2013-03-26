@@ -128,7 +128,7 @@ def renderCodeCommentChain(db, target, user, review, chain, context_lines=3, com
         display_type = "new"
         commit_url_component = "sha1=%s" % chain.first_commit.sha1
     else:
-        if chain.state == "addressed" and not original:
+        if chain.state == "addressed" and not original and review.containsCommit(db, chain.addressed_by):
             parent = gitutils.Commit.fromSHA1(db, review.repository, chain.addressed_by.parents[0])
             child = chain.addressed_by
             use = old

@@ -313,7 +313,8 @@ class Review(object):
                                 FROM reviewchangesets
                                 JOIN changesets ON (id=changeset)
                                WHERE reviewchangesets.review=%s
-                                 AND changesets.child=%s""",
+                                 AND changesets.child=%s
+                                 AND changesets.type!='conflicts'""",
                            (self.id, commit_id))
         else:
             cursor.execute("""SELECT 1
@@ -321,6 +322,7 @@ class Review(object):
                                 JOIN changesets ON (changesets.id=reviewchangesets.changeset)
                                 JOIN commits ON (commits.id=changesets.child)
                                WHERE reviewchangesets.review=%s
+                                 AND changesets.type!='conflicts'
                                  AND commits.sha1=%s""",
                            (self.id, commit_sha1))
 
