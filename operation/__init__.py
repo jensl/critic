@@ -88,11 +88,10 @@ class OperationFailure(Exception):
 
 class OperationFailureMustLogin(OperationFailure):
     def __init__(self):
-        super(OperationFailure, self).__init__("mustlogin",
-                                               "Login Required",
-                                               "You have to sign in to perform this operation.")
-    def __str__(self):
-        return super(OperationFailure, self).__str__()
+        super(OperationFailureMustLogin, self).__init__(
+            "mustlogin",
+            "Login Required",
+            "You have to sign in to perform this operation.")
 
 class TypeChecker:
     """\
