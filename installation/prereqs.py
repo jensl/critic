@@ -121,7 +121,7 @@ code can be downloaded here:
             print """\
 No 'psql' executable found in $PATH.  Make sure the PostgreSQL database server
 and its client utilities are installed.  In Debian/Ubuntu, the packages you need
-to install are 'postgresql-server' and 'postgresql-client'.
+to install are 'postgresql' and 'postgresql-client'.
 """
             if not aptget_approved and install("postgresql", "postgresql-client"):
                 psql = find_executable("psql")
