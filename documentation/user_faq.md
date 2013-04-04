@@ -23,3 +23,7 @@ down the mouse and release over the last commit in the range).
 ### When reviewing code, how can I select some snippet or function name etc from the code and copy it to the clipboard? (i.e. it's not possible to select text because clicking to select triggers the 'New Issue' dialog) ###
 
 Hold down the CTRL button while selecting.
+
+### Can Critic provide some statistics for how much is submitted/reviewed by whom etc? ###
+
+Yes, there is a basic statistics page available at <code>http://your.critic.domain.tld/statistics</code>
