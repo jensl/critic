@@ -27,3 +27,9 @@ Hold down the CTRL button while selecting.
 ### Can Critic provide some statistics for how much is submitted/reviewed by whom etc? ###
 
 Yes, there is a basic statistics page available at <code>http://your.critic.domain.tld/statistics</code>
+
+### How can I see a list of users that have registered as reviewers/watchers for a particular directory? ###
+
+Navigate to: <code>http://your.critic.domain.tld/showfilters?repository=INSERT_REPO_NAME&path=INSERT_PATH</code>
+
+See for example: http://critic.whyi.org/showfilters?repository=critic&path=/
