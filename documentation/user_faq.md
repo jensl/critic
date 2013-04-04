@@ -23,7 +23,3 @@ down the mouse and release over the last commit in the range).
 ### When reviewing code, how can I select some snippet or function name etc from the code and copy it to the clipboard? (i.e. it's not possible to select text because clicking to select triggers the 'New Issue' dialog) ###
 
 Hold down the CTRL button while selecting.
-
-### If I add myself as code reviewer for "src/flux/capacitor" I will get notified of all future code reviews touching that part of the code.  However, how can I also make sure that I become registered as reviewer for any currently active code reviews touching that same part of the code? ###
-
-After you've updated your filters, navigate to `https://your.critic.domain.tld/reapplyfilters`
