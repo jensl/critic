@@ -181,7 +181,7 @@ def renderShowComments(req, db, user):
         # well-defined natural order either.  Two comments that apply to the
         # same file and commit will at least be order by line number, and that's
         # better than nothing.
-        query += " ORDER BY file, commit, first_line"
+        query += " ORDER BY file, first_line"
 
         cursor.execute(query, arguments)
 
