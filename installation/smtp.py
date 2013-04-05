@@ -43,8 +43,10 @@ def add_arguments(mode, parser):
         parser.add_argument("--smtp-no-starttls", dest="smtp_use_starttls", action="store_const", const=False,
                             help="don't use STARTTLS when connecting to SMTP server")
 
-        parser.add_argument("--skip-testmail", dest="skip_testmail", action="store_true",
+        parser.add_argument("--skip-testmail", action="store_true",
                             help="do not send a test e-mail to verify that given SMTP settings actually work")
+        parser.add_argument("--skip-testmail-check", action="store_true",
+                            help="do not ask whether the test e-mail arrived correctly")
 
 def prepare(mode, arguments, data):
     global host, port, username, password, use_ssl, use_starttls
@@ -186,8 +188,9 @@ Couldn't send the test email:
 
 Please check the configuration!
 """ % failed
-                elif installation.input.yes_or_no("Did the test email arrive correctly?") \
-                        or not installation.input.yes_or_no("Do you want to modify the configuration?", default=True):
+                elif arguments.skip_testmail_check \
+                         or installation.input.yes_or_no("Did the test email arrive correctly?") \
+                         or not installation.input.yes_or_no("Do you want to modify the configuration?", default=True):
                     break
             else:
                 break
