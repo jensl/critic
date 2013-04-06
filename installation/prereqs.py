@@ -302,9 +302,12 @@ source code can be downloaded here:
 
     check_bcrypt()
     if not bcrypt_available:
-        blankline()
-        all_ok = False
-        print """\
+        if arguments.auth_mode == "critic":
+            install_bcrypt = True
+        else:
+            blankline()
+            all_ok = False
+            print """\
 Failed to import the 'bcrypt' module, which is required if you want Critic to
 handle user authentication itself.  If user authentication is to be handled by
 Apache instead there is no need to install the bcrypt module.
@@ -314,9 +317,9 @@ source code can be downloaded here:
 
   http://code.google.com/p/py-bcrypt/
 """
-        install_bcrypt = installation.input.yes_or_no(
-            "Do you want to install the 'bcrypt' module?",
-            default=False)
+            install_bcrypt = installation.input.yes_or_no(
+                "Do you want to install the 'bcrypt' module?",
+                default=False)
         if install_bcrypt:
             if install("python-bcrypt"):
                 check_bcrypt()
