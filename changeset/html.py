@@ -763,6 +763,11 @@ def addResources(db, user, review, compact, tabify, target):
     if user.getPreference(db, "commit.diff.highlightIllegalWhitespace"):
         target.addInternalStylesheet(stripStylesheet(user.getResource(db, "whitespace.css")[1], compact))
 
+    if user.getPreference(db, "commit.diff.rulerColumn") > 0:
+        target.addExternalScript("resource/ruler.js")
+    # Injected unconditionally (for tests).
+    target.addInternalScript("var rulerColumn = %d;" % user.getPreference(db, "commit.diff.rulerColumn"))
+
     if review:
         target.addExternalStylesheet("resource/comment.css")
         target.addExternalStylesheet("resource/review.css")
