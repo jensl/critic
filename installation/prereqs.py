@@ -294,9 +294,12 @@ source code can be downloaded here:
     def check_bcrypt():
         global bcrypt_available
         try:
-            import bcrypt
+            process.check_output(
+                [sys.executable, "-c", "import bcrypt"],
+                stderr=process.STDOUT)
             bcrypt_available = True
-        except ImportError: pass
+        except process.CalledProcessError:
+            pass
 
     global bcrypt_available
 

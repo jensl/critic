@@ -14,6 +14,8 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
+import sys
+
 import installation
 from installation import process
 
@@ -47,12 +49,20 @@ This user does not need to match a system user on this machine.
         else: fullname = installation.input.string(prompt="Administrator full name:")
 
         if installation.config.auth_mode == "critic":
-            import bcrypt
-
             if arguments.admin_password: plaintext = arguments.admin_password
             else: plaintext = installation.input.password("Password for '%s':" % username)
 
-            password = bcrypt.hashpw(plaintext, bcrypt.gensalt())
+            try:
+                import bcrypt
+            except ImportError:
+                # It should have been installed by now, but for some reason it
+                # doesn't always work to import it into this Python process, so
+                # we have to do it in a child process instead.
+                password = process.check_input(
+                    [sys.executable, "-c", "import sys, bcrypt; sys.stdout.write(bcrypt.hashpw(sys.stdin.read(), bcrypt.gensalt()))"],
+                    stdin=plaintext, stdout=process.PIPE)
+            else:
+                password = bcrypt.hashpw(plaintext, bcrypt.gensalt())
     else:
         import configuration
 

@@ -24,3 +24,5 @@ def check_input(args, stdin, **kwargs):
 
     if child.returncode != 0:
         raise CalledProcessError(child.returncode, args, None)
+
+    return stdout
