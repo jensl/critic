@@ -128,6 +128,7 @@ def upgrade(arguments, data):
                     with open(path, "w") as target: target.write(source)
 
             update_query = installation.utils.UpdateModifiedFile(
+                arguments,
                 message="""\
 A source file is about to be removed, but the existing source file
 appears to have been edited since it was installed.
@@ -229,6 +230,7 @@ deleted.
                             shutil.copyfile(source_path, target_path + ".new")
 
                     update_query = installation.utils.UpdateModifiedFile(
+                        arguments,
                         message="""\
 A source file is about to be updated, but the existing source file
 appears to have been edited since it was installed.

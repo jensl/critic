@@ -39,6 +39,11 @@ import installation
 
 parser = argparse.ArgumentParser(description="Critic installation script")
 
+# Uses default values for everything that has a default value (and isn't
+# overridden by other command-line arguments) and signals an error for anything
+# that doesn't have a default value and isn't set by a command-line argument.
+parser.add_argument("--headless", help=argparse.SUPPRESS, action="store_true")
+
 parser.add_argument("--etc-dir", help="directory where the Critic system configuration is stored", action="store")
 parser.add_argument("--install-dir", help="directory where the Critic source code is installed", action="store")
 parser.add_argument("--data-dir", help="directory where Critic's persistent data files are stored", action="store")
@@ -67,6 +72,9 @@ for module in installation.modules:
         module.add_arguments("install", parser)
 
 arguments = parser.parse_args()
+
+if arguments.headless:
+    installation.input.headless = True
 
 def abort():
     print

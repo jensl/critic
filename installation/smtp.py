@@ -126,7 +126,7 @@ well as to the system administrator to alert about problems.
             print
 
             if not arguments.skip_testmail and installation.input.yes_or_no("Do you want to send a test email to verify the SMTP configuration?",
-                                            default=True):
+                                            default=True if first else None):
                 import smtplib
                 import email.mime.text
                 import email.header

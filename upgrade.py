@@ -25,6 +25,11 @@ import installation
 
 parser = argparse.ArgumentParser(description="Critic upgrade script")
 
+# Uses default values for everything that has a default value (and isn't
+# overridden by other command-line arguments) and signals an error for anything
+# that doesn't have a default value and isn't set by a command-line argument.
+parser.add_argument("--headless", help=argparse.SUPPRESS, action="store_true")
+
 parser.add_argument("--etc-dir", default="/etc/critic", help="directory where the Critic system configuration is stored", action="store")
 parser.add_argument("--identity", "-i", default="main", help="system identity to upgrade", action="store")
 parser.add_argument("--dry-run", "-n", help="produce output but don't modify the system at all", action="store_true")
@@ -34,6 +39,9 @@ for module in installation.modules:
         module.add_arguments("upgrade", parser)
 
 arguments = parser.parse_args()
+
+if arguments.headless:
+    installation.input.headless = True
 
 if os.getuid() != 0:
     print """

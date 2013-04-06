@@ -22,7 +22,20 @@ except: pass
 
 __doc__ = "Helper functions for prompting for and reading input."
 
+headless = False
+
 def yes_or_no(prompt, default=None):
+    if headless:
+        if default is None:
+            print """
+ERROR: yes/no input requested in headless mode!
+  Prompt: %s
+""" % prompt
+            sys.exit(1)
+        else:
+            print "%s %s" % (prompt, "y" if default else "n")
+            return default
+
     prompt = "%s [%s/%s] " % (prompt, "Y" if default is True else "y", "N" if default is False else "n")
 
     while True:
@@ -42,6 +55,17 @@ def yes_or_no(prompt, default=None):
             return default
 
 def string(prompt, default=None, check=None):
+    if headless:
+        if default is None:
+            print """
+ERROR: string input requested in headless mode!
+  Prompt: %s
+""" % prompt
+            sys.exit(1)
+        else:
+            print "%s %s" % (prompt, default)
+            return default
+
     prompt = "%s%s " % (prompt, (" [%s]" % default) if default is not None else "")
 
     while True:
@@ -68,6 +92,17 @@ def string(prompt, default=None, check=None):
             return input
 
 def password(prompt, default=None, twice=True):
+    if headless:
+        if default is None:
+            print """
+ERROR: password input requested in headless mode!
+  Prompt: %s
+""" % prompt
+            sys.exit(1)
+        else:
+            print "%s %s" % (prompt, "****")
+            return default
+
     import termios
 
     prompt = "%s%s " % (prompt, " [****]" if default is not None else "")

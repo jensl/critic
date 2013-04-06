@@ -79,7 +79,13 @@ missing software using it.
             if not aptget_approved: aptget = None
         if aptget:
             installed_anything = False
-            for line in process.check_output([aptget, "-qq", "-y", "install"] + list(packages)).splitlines():
+            aptget_env = os.environ.copy()
+            if arguments.headless:
+                aptget_env["DEBIAN_FRONTEND"] = "noninteractive"
+            aptget_output = process.check_output(
+                [aptget, "-qq", "-y", "install"] + list(packages),
+                env=aptget_env)
+            for line in aptget_output.splitlines():
                 match = re.search(r"([^ ]+) \(.* \.\.\./([^)]+\.deb)\) \.\.\.", line)
                 if match:
                     need_blankline = True

@@ -19,18 +19,20 @@ import textwrap
 import installation
 
 class UpdateModifiedFile:
-    def __init__(self, message, versions, options, generateVersion):
+    def __init__(self, arguments, message, versions, options, generateVersion):
         """\
         Constructor.
 
         Arguments:
 
-          message   Printed once.
-          versions  Dictionary (label => path) of file versions involved.
-          options   List of options to present to the user.
-          prompt    Prompt printed when asking what to do.
+          arguments  Command-line arguments.
+          message    Printed once.
+          versions   Dictionary (label => path) of file versions involved.
+          options    List of options to present to the user.
+          prompt     Prompt printed when asking what to do.
         """
 
+        self.__arguments = arguments
         self.__message = message
         self.__versions = versions
         self.__options = options
@@ -66,6 +68,11 @@ class UpdateModifiedFile:
         print
 
     def prompt(self):
+        if self.__arguments.headless:
+            # The first choice is typically "install updated version" or "remove
+            # (obsolete) file" and is appropriate when --headless was used.
+            return self.__options[0][0]
+
         try:
             for label, path in self.__versions.items():
                 if not os.path.exists(path):

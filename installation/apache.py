@@ -83,6 +83,7 @@ def upgrade(arguments, data):
                     target.write(source.encode("utf-8"))
 
         update_query = installation.utils.UpdateModifiedFile(
+            arguments,
             message="""\
 The Apache site definition is about to be updated.  Please check that no local
 modifications are being overwritten.
