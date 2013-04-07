@@ -43,6 +43,7 @@ bcrypt_available = False
 
 aptget = None
 aptget_approved = False
+aptget_updated = False
 
 need_blankline = False
 
@@ -66,7 +67,7 @@ Critic Installation: Prerequisites
     aptget = find_executable("apt-get")
 
     def install(*packages):
-        global aptget, aptget_approved, need_blankline, all_ok
+        global aptget, aptget_approved, aptget_updated, need_blankline, all_ok
         if aptget and not aptget_approved:
             all_ok = False
             print """\
@@ -82,6 +83,11 @@ missing software using it.
             aptget_env = os.environ.copy()
             if arguments.headless:
                 aptget_env["DEBIAN_FRONTEND"] = "noninteractive"
+            if not aptget_updated:
+                process.check_output(
+                    [aptget, "-qq", "update"],
+                    env=aptget_env)
+                aptget_updated = True
             aptget_output = process.check_output(
                 [aptget, "-qq", "-y", "install"] + list(packages),
                 env=aptget_env)
