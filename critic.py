@@ -610,6 +610,7 @@ def main(environ, start_response):
                     req.setContentType("text/html")
                     req.start()
 
+                    db.close()
                     yield "<meta http-equiv='refresh' content='0; %s'>" % htmlify(target)
                     return
                 else:
@@ -621,6 +622,7 @@ def main(environ, start_response):
                 handled = extensions.executePage(db, req, user)
                 if handled:
                     req.start()
+                    db.close()
                     yield handled
                     return
 
@@ -635,6 +637,7 @@ def main(environ, start_response):
                     if resource:
                         req.setContentType(content_type)
                         req.start()
+                        db.close()
                         yield resource
                         return
                     else:
@@ -667,6 +670,8 @@ def main(environ, start_response):
 
                 req.start()
 
+                db.close()
+
                 if isinstance(result, unicode): yield result.encode("utf8")
                 else: yield str(result)
 
@@ -687,10 +692,12 @@ def main(environ, start_response):
 
                         if isinstance(result, str) or isinstance(result, Document):
                             req.start()
+                            db.rollback()
                             yield str(result)
                         else:
                             for fragment in result:
                                 req.start()
+                                db.rollback()
                                 yield str(fragment)
 
                     except gitutils.NoSuchRepository, error:
@@ -708,6 +715,8 @@ def main(environ, start_response):
                         raise page.utils.DisplayMessage("Invalid URI Parameter!", error.message)
                     except dbutils.NoSuchReview, error:
                         raise page.utils.DisplayMessage("Invalid URI Parameter!", error.message)
+
+                    db.close()
 
                     yield "<!-- total request time: %.2f ms -->" % ((time.time() - request_start) * 1000)
 
@@ -796,6 +805,7 @@ def main(environ, start_response):
         except request.MissingWSGIRemoteUser, err:
             # req object is not initialized yet.
             start_response("200 OK", [("Content-Type", "text/html")])
+            db.close()
             yield """\
 <pre>error: Critic was configured with '--auth-mode host' but there was no REMOTE_USER
 variable in the WSGI environ dict provided by the web server.
@@ -824,6 +834,7 @@ http://code.google.com/p/modwsgi/wiki/AccessControlMechanisms#Apache_Authenticat
             req.setContentType("text/html")
             req.start()
 
+            db.close()
             yield str(document)
             return
         except:
@@ -856,11 +867,12 @@ http://code.google.com/p/modwsgi/wiki/AccessControlMechanisms#Apache_Authenticat
                 req.setStatus(500)
                 req.setContentType("text/plain")
                 req.start()
+                db.close()
                 yield "%s\n%s\n\n%s" % (title, "=" * len(title), body)
             elif req.getContentType().startswith("text/html"):
                 # Close a bunch of tables, in case we're in any.  Not pretty,
                 # but probably makes the end result prettier.
+                db.close()
                 yield "</table></table></table></table></div><div class='fatal'><table align=center><tr><td><h1>%s</h1><p>%s</p>" % (title, body_html)
     finally:
-        db.rollback()
         db.close()

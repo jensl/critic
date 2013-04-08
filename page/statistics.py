@@ -32,9 +32,7 @@ def renderStatistics(req, db, user):
 
     document.addExternalStylesheet("resource/statistics.css")
 
-    yield flush(body)
-
-    table = body.div("main").table(align="center", cellspacing=0)
+    table = body.div("main").table("paleyellow", align="center", cellspacing=0)
 
     def commas(number):
         as_string = str(number)
@@ -69,8 +67,6 @@ def renderStatistics(req, db, user):
         row.td("value").text("%s lines" % commas(lines))
         row.td("right")
 
-    yield flush(table)
-
     if not self_included:
         cursor.execute("SELECT lines FROM reviewers WHERE uid=%s", (user.id,))
 
@@ -87,8 +83,6 @@ def renderStatistics(req, db, user):
             row.td("user").text(user.fullname)
             row.td("value").innerHTML("%s lines" % data[0])
             row.td("right").text("(your position: %d)" % cursor.fetchone()[0])
-
-    yield flush(table)
 
     table.tr("space").td(colspan=4)
     table.tr("space").td(colspan=4)
@@ -114,8 +108,6 @@ def renderStatistics(req, db, user):
         row.td("value").innerHTML("%s lines" % commas(lines))
         row.td("right")
 
-    yield flush(table)
-
     if not self_included:
         cursor.execute("SELECT lines FROM owners WHERE uid=%s", (user.id,))
 
@@ -132,8 +124,6 @@ def renderStatistics(req, db, user):
             row.td("user").text(user.fullname)
             row.td("value").innerHTML("%s lines" % commas(lines))
             row.td("right").text("(your position: %d)" % cursor.fetchone()[0])
-
-    yield flush(table)
 
     table.tr("space").td(colspan=4)
     table.tr("space").td(colspan=4)
@@ -174,8 +164,6 @@ def renderStatistics(req, db, user):
         if ratio != "0.00": row.td("right").text("(%s issues/kloc)" % ratio)
         else: row.td("right")
 
-    yield flush(table)
-
     if not self_included:
         cursor.execute("""SELECT COUNT(type)
                             FROM commentchains
@@ -211,8 +199,6 @@ def renderStatistics(req, db, user):
             ratio = "%.2f" % calculateRatio(user.id, issues)
             if ratio != "0.00": right.text(" (%s issues/kloc)" % ratio)
 
-    yield flush(table)
-
     table.tr("space").td(colspan=4)
     table.tr("space").td(colspan=4)
 
@@ -238,8 +224,6 @@ def renderStatistics(req, db, user):
         row.td("user").text(dbutils.User.fromId(db, user_id).fullname)
         row.td("value").innerHTML("%s comments" % commas(comments))
         row.td("right")
-
-    yield flush(table)
 
     if not self_included:
         cursor.execute("""SELECT COUNT(state)
@@ -268,8 +252,6 @@ def renderStatistics(req, db, user):
             row.td("user").text(user.fullname)
             row.td("value").innerHTML("%s comments" % commas(issues))
             row.td("right").text("(your position: %d)" % cursor.fetchone()[0])
-
-    yield flush(table)
 
     table.tr("space").td(colspan=4)
     table.tr("space").td(colspan=4)
@@ -325,6 +307,6 @@ def renderStatistics(req, db, user):
             row.td("value").innerHTML("%s characters" % commas(characters))
             row.td("right").text("(your position: %d)" % cursor.fetchone()[0])
 
-    yield flush(None)
-
     db.rollback()
+
+    return document

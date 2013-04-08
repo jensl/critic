@@ -31,6 +31,7 @@ class Session(object):
         for fn in self.__atexit:
             try: fn(self)
             except: pass
+        self.__atexit = []
 
     def disableProfiling(self):
         self.profiling = None

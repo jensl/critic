@@ -16,30 +16,8 @@
 
 */
 
-div.main {
-    text-align: center
-}
-
-div.main table {
-    background: #ffd;
-    margin-top: 1em;
-    padding: 1em;
-    border: 3px solid #996
-}
-
-div.main table td {
+tr.line td {
     padding: 3px 3px 3px 1em
-}
-
-div.main table td.h1 {
-    text-align: left;
-    border-bottom: 1px solid #996
-}
-
-div.main table td.h1 h1 {
-    text-align: left;
-    margin-top: 0;
-    margin-bottom: 0.5em
 }
 
 tr.line td.user {

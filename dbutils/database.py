@@ -123,7 +123,10 @@ class Database(Session):
 
     def close(self):
         super(Database, self).close()
-        self.__connection.close()
+        if self.__connection:
+            self.__connection.rollback()
+            self.__connection.close()
+            self.__connection = None
 
     def __enter__(self):
         return self
