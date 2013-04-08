@@ -90,13 +90,14 @@ div.main table td.text div.link {
 
 div.main table td.text a {
     text-decoration: underline;
-    color: black
+    color: black;
+    white-space: nowrap
 }
 
 div.main table td.text ol,
 div.main table td.text ul,
 div.main table td.text dl {
-    width: 80%
+    width: 90%
 }
 
 div.main table td.text ol li,
@@ -117,6 +118,7 @@ div.main table td.text dl dd {
 }
 
 div.main table td.text code {
+    font-style: normal;
     background-color: #eec;
     padding: 0 2px
 }
@@ -182,22 +184,9 @@ table.repositories td.name {
     font-weight: bold
 }
 
-td.pre {
-    margin-top: 0;
-    text-align: left
-}
-
-td.pre div {
-    margin-top: 0;
-    text-align: justify;
-    margin-left: auto;
-    margin-right: auto;
-    width: 50em;
-    line-height: 140%
-}
-
 table.pre {
-    margin-top: 0;
+    margin-top: 1em;
+    margin-bottom: 0.5em;
     border: 2px solid #bb8;
     background-color: #ffe !important;
     padding: 5px 10px;

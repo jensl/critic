@@ -101,10 +101,8 @@ def renderFormatted(db, table, lines, toc=False):
             block = block[2:]
 
         if block[0].startswith("|"):
-            pre = table.tr("pre").td("pre").div().table("pre").tr().td().preformatted()
+            pre = text.div().table("pre").tr().td().preformatted()
             pre.text("\n".join([line[2:] for line in block]))
-            text = None
-            continue
         elif block[0].startswith("* ") or block[0].startswith("1 "):
             if block[0].startswith("* "):
                 items = text.div().ul()
@@ -139,7 +137,7 @@ def renderFormatted(db, table, lines, toc=False):
                 else:
                     definition.append(line[2:])
             items.dt().text(" ".join(term))
-            items.dd().text(processText(definition))
+            items.dd().text(processText(definition), cdata=True)
         elif block[0].startswith("  "):
             text_data = translateConfigLinks("\n".join(block))
             if block[0].startswith("  <code>"):
