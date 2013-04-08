@@ -254,9 +254,13 @@ class CountMatchedPaths(Operation):
     def __init__(self):
         Operation.__init__(self, { "single": Optional({ "repository_name": str,
                                                         "path": str }),
-                                   "multiple": Optional([int]) })
+                                   "multiple": Optional([int]),
+                                   "user_id": Optional(int) })
 
-    def process(self, db, user, single=None, multiple=None):
+    def process(self, db, user, single=None, multiple=None, user_id=None):
+        if user_id is None:
+            user_id = user.id
+
         try:
             if single:
                 repository = gitutils.Repository.fromName(db, single["repository_name"])
@@ -267,7 +271,7 @@ class CountMatchedPaths(Operation):
                                     FROM filters
                                    WHERE repository=%s
                                      AND uid=%s""",
-                               (repository.id, user.id,))
+                               (repository.id, user_id,))
 
                 paths = set(filter_path for (filter_path,) in cursor)
                 paths.add(path)
@@ -304,9 +308,13 @@ class CountMatchedPaths(Operation):
 class GetMatchedPaths(Operation):
     def __init__(self):
         Operation.__init__(self, { "repository_name": str,
-                                   "path": str })
+                                   "path": str,
+                                   "user_id": Optional(int) })
 
-    def process(self, db, user, repository_name, path):
+    def process(self, db, user, repository_name, path, user_id=None):
+        if user_id is None:
+            user_id = user.id
+
         repository = gitutils.Repository.fromName(db, repository_name)
         path = reviewing.filters.sanitizePath(path)
 
@@ -315,7 +323,7 @@ class GetMatchedPaths(Operation):
                             FROM filters
                            WHERE repository=%s
                              AND uid=%s""",
-                       (repository.id, user.id,))
+                       (repository.id, user_id,))
 
         paths = set(filter_path for (filter_path,) in cursor)
         paths.add(path)

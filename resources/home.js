@@ -507,7 +507,8 @@ function showMatchedFiles(repository_name, path)
   var operation = new Operation({ action: "fetch matched paths",
                                   url: "getmatchedpaths",
                                   data: { repository_name: repository_name,
-                                          path: path },
+                                          path: path,
+                                          user_id: user.id },
                                   wait: "Fetching matched paths...",
                                   cancelable: true,
                                   callback: finished });
@@ -607,7 +608,8 @@ function countMatchedFiles()
 
   var operation = new Operation({ action: "count matched files",
                                   url: "countmatchedpaths",
-                                  data: { multiple: item },
+                                  data: { multiple: item,
+                                          user_id: user.id },
                                   callback: update });
 
   operation.execute();
