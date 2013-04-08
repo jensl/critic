@@ -172,8 +172,10 @@ class RebaseReview(Operation):
 
         try:
             review.repository.run("update-ref", "refs/commit/%s" % new_head.sha1, new_head.sha1)
-            review.repository.runRelay("fetch", "origin", "refs/commit/%s:refs/commit/%s" % (new_head.sha1, new_head.sha1))
-            review.repository.runRelay("push", "-f", "origin", "%s:refs/heads/%s" % (new_head.sha1, review.branch.name))
+
+            with review.repository.relaycopy("RebaseReview") as relay:
+                relay.run("fetch", "origin", "refs/commit/%s" % new_head.sha1)
+                relay.run("push", "-f", "origin", "%s:refs/heads/%s" % (new_head.sha1, review.branch.name))
 
             if closed_by is not None:
                 db.commit()

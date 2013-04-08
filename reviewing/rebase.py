@@ -106,7 +106,7 @@ onto the %(new_upstream_name)s.""" % { "review.branch.name": review.branch.name,
     repository.run("update-ref", "refs/commit/%s" % new_upstream.sha1, new_upstream.sha1)
     repository.run("update-ref", "refs/commit/%s" % original_sha1, original_sha1)
 
-    with repository.workcopy(user, original_sha1) as workcopy:
+    with repository.workcopy(original_sha1) as workcopy:
         workcopy.run("fetch", "--quiet", "origin",
                      "refs/commit/%s:refs/heads/temporary" % new_upstream.sha1,
                      "refs/commit/%s:refs/heads/original" % original_sha1)

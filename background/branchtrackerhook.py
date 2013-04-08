@@ -25,7 +25,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(sys.argv[0]), ".
 import dbutils
 from textutils import json_encode, json_decode
 
-if "--wait-for-update"  in sys.argv:
+if "--wait-for-update" in sys.argv:
     data = json_decode(sys.stdin.read())
 
     branch_id = data["branch_id"]

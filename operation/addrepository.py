@@ -49,13 +49,10 @@ class AddRepository(Operation):
 
         if base:
             main_base_path = os.path.join(configuration.paths.GIT_DIR, base)
-            relay_base_path = os.path.join(configuration.paths.DATA_DIR, "relay", base)
         else:
             main_base_path = configuration.paths.GIT_DIR
-            relay_base_path = os.path.join(configuration.paths.DATA_DIR, "relay")
 
         main_path = os.path.join(main_base_path, repository_name + ".git")
-        relay_path = os.path.join(relay_base_path, repository_name)
 
         cursor = db.cursor()
         cursor.execute("""SELECT name FROM repositories WHERE path=%s""", (main_path,))
@@ -73,8 +70,6 @@ class AddRepository(Operation):
 
         if not os.path.isdir(main_base_path):
             os.makedirs(main_base_path, mode=0775)
-        if not os.path.isdir(relay_base_path):
-            os.makedirs(relay_base_path, mode=0775)
 
         def git(arguments, cwd):
             argv = [configuration.executables.GIT] + arguments
@@ -89,10 +84,10 @@ class AddRepository(Operation):
 
         os.symlink(os.path.join(configuration.paths.INSTALL_DIR, "hooks", "pre-receive"), os.path.join(main_path, "hooks", "pre-receive"))
 
-        cursor.execute("""INSERT INTO repositories (name, path, relay)
-                               VALUES (%s, %s, %s)
+        cursor.execute("""INSERT INTO repositories (name, path)
+                               VALUES (%s, %s)
                             RETURNING id""",
-                       (name, main_path, relay_path))
+                       (name, main_path))
         repository_id = cursor.fetchone()[0]
 
         if remote:

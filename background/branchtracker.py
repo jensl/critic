@@ -35,32 +35,33 @@ class BranchTracker(background.utils.BackgroundProcess):
         repository = gitutils.Repository.fromId(self.db, repository_id)
 
         try:
-            remote_id = "t%d" % int((time.time() * 1e6) % 1e9)
+            with repository.relaycopy("branchtracker") as relay:
+                relay.run("remote", "add", "source", remote)
 
-            repository.runRelay("remote", "add", remote_id, remote)
-
-            try:
                 current = None
                 new = None
                 tags = []
 
                 if local_name == "*":
-                    output = repository.runRelay("fetch", remote_id, "refs/tags/*:refs/tags/*", include_stderr=True)
+                    output = relay.run("fetch", "source", "refs/tags/*:refs/tags/*", include_stderr=True)
                     for line in output.splitlines():
                         if "[new tag]" in line:
                             tags.append(line.rsplit(" ", 1)[-1])
                 else:
-                    repository.runRelay("fetch", "--quiet", "--no-tags", remote_id, "refs/heads/%s:refs/remotes/%s/%s" % (remote_name, remote_id, remote_name))
-                    try: current = repository.run("rev-parse", "refs/heads/%s" % local_name).strip()
-                    except: pass
-                    new = repository.runRelay("rev-parse", "refs/remotes/%s/%s" % (remote_id, remote_name)).strip()
+                    relay.run("fetch", "--quiet", "--no-tags", "source", "refs/heads/%s:refs/remotes/source/%s" % (remote_name, remote_name))
+                    try:
+                        current = repository.revparse("refs/heads/%s" % local_name)
+                    except gitutils.GitReferenceError:
+                        # It's okay if the local branch doesn't exist (yet).
+                        pass
+                    new = relay.run("rev-parse", "refs/remotes/source/%s" % remote_name).strip()
 
                 if current != new or tags:
                     if local_name == "*":
-                        returncode, stdout, stderr = repository.runRelay("push", "--force", "origin", *[("refs/tags/%s" % tag) for tag in tags],
+                        returncode, stdout, stderr = relay.run("push", "--force", "origin", *[("refs/tags/%s" % tag) for tag in tags],
                                                                          check_errors=False)
                     else:
-                        returncode, stdout, stderr = repository.runRelay("push", "--force", "origin", "refs/remotes/%s/%s:refs/heads/%s" % (remote_id, remote_name, local_name),
+                        returncode, stdout, stderr = relay.run("push", "--force", "origin", "refs/remotes/source/%s:refs/heads/%s" % (remote_name, local_name),
                                                                          check_errors=False)
 
                     stderr = stderr.replace("\x1b[K", "")
@@ -145,9 +146,6 @@ Output from Critic's git hook
                         return False
                 else:
                     self.debug("  fetched %s in %s; no changes" % (remote_name, remote))
-            finally:
-                try: repository.runRelay("remote", "rm", remote_id)
-                except: pass
 
             # Everything went well; keep the tracking enabled.
             return True

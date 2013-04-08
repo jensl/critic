@@ -21,6 +21,7 @@ import atexit
 import os
 from traceback import print_exc, format_exc
 import threading
+import tempfile
 
 import base
 import configuration
@@ -35,10 +36,11 @@ import stat
 re_author_committer = re.compile("(.*) <(.*)> ([0-9]+ [-+][0-9]+)")
 re_sha1 = re.compile("^[A-Za-z0-9]{40}$")
 
-REPOSITORY_WORKCOPY_PATH_FORMAT = os.path.join(configuration.paths.DATA_DIR,
-                                               "temporary",
-                                               "%(repository.name)s",
-                                               "%(user.name)s_%(identifier)s_%(time)s")
+REPOSITORY_RELAYCOPY_DIR = os.path.join(configuration.paths.DATA_DIR, "relay")
+REPOSITORY_WORKCOPY_DIR = os.path.join(configuration.paths.DATA_DIR, "temporary")
+
+def same_filesystem(pathA, pathB):
+    return os.stat(pathA).st_dev == os.stat(pathB).st_dev
 
 class GitError(base.Error):
     pass
@@ -86,13 +88,12 @@ class Repository:
         def __init__(self, db): self.db = db
         def __call__(self, value): return Repository.fromParameter(self.db, value)
 
-    def __init__(self, db=None, repository_id=None, parent=None, main_branch_id=None, name=None, path=None, relay=None):
+    def __init__(self, db=None, repository_id=None, parent=None, main_branch_id=None, name=None, path=None):
         assert path
 
         self.id = repository_id
         self.name = name
         self.path = path
-        self.relay = relay
         self.parent = parent
 
         self.__main_branch = None
@@ -139,11 +140,11 @@ class Repository:
             return db.storage["Repository"][repository_id]
         else:
             cursor = db.cursor()
-            cursor.execute("SELECT parent, branch, name, path, relay FROM repositories WHERE id=%s", (repository_id,))
+            cursor.execute("SELECT parent, branch, name, path FROM repositories WHERE id=%s", (repository_id,))
             try:
-                parent_id, main_branch_id, name, path, relay = cursor.fetchone()
+                parent_id, main_branch_id, name, path = cursor.fetchone()
                 parent = None if parent_id is None else Repository.fromId(db, parent_id)
-                return Repository(db, repository_id=repository_id, parent=parent, main_branch_id=main_branch_id, name=name, path=path, relay=relay)
+                return Repository(db, repository_id=repository_id, parent=parent, main_branch_id=main_branch_id, name=name, path=path)
             except:
                 return None
 
@@ -290,15 +291,6 @@ class Repository:
     def run(self, command, *arguments, **kwargs):
         return self.runCustom(self.path, command, *arguments, **kwargs)
 
-    def runRelay(self, command, *arguments, **kwargs):
-        if not os.path.isdir(self.relay):
-            try: os.makedirs(os.path.dirname(self.relay))
-            except: pass
-
-            self.runCustom(os.path.dirname(self.relay), "clone", "--bare", self.path, os.path.basename(self.relay))
-
-        return self.runCustom(self.relay, command, *arguments, **kwargs)
-
     def runCustom(self, cwd, command, *arguments, **kwargs):
         argv = [configuration.executables.GIT, command]
         argv.extend(arguments)
@@ -405,8 +397,8 @@ class Repository:
     def keepalive(self, commit):
         self.run('update-ref', 'refs/keepalive/%s' % str(commit), str(commit))
 
-    def workcopy(self, user, identifier):
-        class Workcopy(object):
+    def relaycopy(self, identifier):
+        class RelayCopy(object):
             def __init__(self, origin, path):
                 self.origin = origin
                 self.path = path
@@ -414,33 +406,63 @@ class Repository:
                 return self.origin.runCustom(self.path, *args, **kwargs)
             def __enter__(self):
                 return self
-            def __exit__(self, exc_type, exc_val, exc_tb):
+            def __exit__(self, *args):
                 shutil.rmtree(self.path)
                 return False
 
-        now = time.time()
-        timestamp = time.strftime("%Y%m%d%H%M%S", time.gmtime(now)) + ("_%04d" % (int(now * 10000) % 10000))
-        path = REPOSITORY_WORKCOPY_PATH_FORMAT % { "repository.name": self.name,
-                                                   "user.name": user.name,
-                                                   "identifier": identifier,
-                                                   "time": timestamp }
+        path = tempfile.mkdtemp(prefix="%s_%s_" % (self.name, identifier),
+                                dir=REPOSITORY_RELAYCOPY_DIR)
+        name = os.path.basename(self.path)
+        args = ["clone", "--quiet", "--bare"]
 
-        if os.path.exists(path):
-            raise Exception("%s: path already exists!?!" % path)
+        if not same_filesystem(self.path, path):
+            args.append("--shared")
 
-        if not os.path.exists(os.path.dirname(path)):
-            old_umask = os.umask(0002)
-            os.makedirs(os.path.dirname(path))
-            os.umask(old_umask)
+        args.extend([self.path, name])
 
-        self.runCustom(os.path.dirname(path), "clone", "--quiet", self.path, os.path.basename(path))
+        try:
+            self.runCustom(path, *args)
+        except:
+            shutil.rmtree(path)
+            raise
+        else:
+            return RelayCopy(self, os.path.join(path, name))
 
-        return Workcopy(self, path)
+    def workcopy(self, identifier):
+        class WorkCopy(object):
+            def __init__(self, origin, path):
+                self.origin = origin
+                self.path = path
+            def run(self, *args, **kwargs):
+                return self.origin.runCustom(self.path, *args, **kwargs)
+            def __enter__(self):
+                return self
+            def __exit__(self, *args):
+                shutil.rmtree(self.path)
+                return False
+
+        path = tempfile.mkdtemp(prefix="%s_%s_" % (self.name, identifier),
+                                dir=REPOSITORY_WORKCOPY_DIR)
+        name = os.path.basename(self.path)
+        args = ["clone", "--quiet"]
+
+        if not same_filesystem(self.path, path):
+            args.append("--shared")
+
+        args.extend([self.path, name])
+
+        try:
+            self.runCustom(path, *args)
+        except:
+            shutil.rmtree(path)
+            raise
+        else:
+            return WorkCopy(self, os.path.join(path, name))
 
     def replaymerge(self, db, user, commit):
         self.keepalive(commit)
 
-        with self.workcopy(user, commit.sha1) as workcopy:
+        with self.workcopy(commit.sha1) as workcopy:
             # Then fetch everything from the main repository into the work copy.
             workcopy.run('fetch', 'origin', 'refs/keepalive/%s:refs/heads/merge' % commit.sha1)
 
@@ -484,35 +506,46 @@ class Repository:
         return row[0] if row else None
 
     def updateBranchFromRemote(self, db, remote, branch_name):
-        if branch_name == self.getMainBranch(db).name:
-            raise Exception, "refusing to update main branch ('%s')" % branch_name
+        cursor = db.cursor()
+        cursor.execute("""SELECT 1
+                            FROM trackedbranches
+                           WHERE repository=%s
+                             AND local_name=%s
+                             AND NOT disabled""",
+                       (self.id, branch_name))
+        if cursor.fetchone():
+            # Don't update a branch that the branch tracker service owns;
+            # instead just assume it's already up-to-date.
+            return
 
-        remote_id = "t%d" % int((time.time() * 1e6) % 1e9)
+        if not branch_name.startswith("refs/"):
+            branch_name = "refs/heads/%s" % branch_name
 
-        self.runRelay("remote", "add", remote_id, remote)
-        try:
-            self.runRelay("fetch", remote_id, "refs/heads/%s:refs/remotes/%s/%s" % (branch_name, remote_id, branch_name))
-            self.runRelay("push", "-f", "origin", "refs/remotes/%s/%s:refs/heads/%s" % (remote_id, branch_name, branch_name))
-        finally:
-            self.runRelay("remote", "rm", remote_id)
+        with self.relaycopy("updateBranchFromRemote") as relay:
+            try:
+                relay.run("fetch", remote, branch_name)
+            except GitCommandError as error:
+                if error.output.startswith("fatal: Couldn't find remote ref "):
+                    raise GitReferenceError("Couldn't find ref %s in %s." % (branch_name, remote),
+                                            ref=branch_name, repository=remote)
+                raise
+
+            relay.run("push", "-f", "origin", "FETCH_HEAD:%s" % branch_name)
 
     def fetchTemporaryFromRemote(self, remote, ref):
-        remote_id = "t%d" % int((time.time() * 1e6) % 1e9)
-
-        self.runRelay("remote", "add", remote_id, remote)
-        try:
+        with self.relaycopy("fetchTemporaryFromRemote") as relay:
             try:
-                self.runRelay("fetch", remote_id, "%s:refs/remotes/%s/temporary" % (ref, remote_id))
-            except GitCommandError, error:
-                if error.output.startswith("fatal: Couldn't find remote ref %s" % ref):
+                relay.run("fetch", remote, ref)
+            except GitCommandError as error:
+                if error.output.startswith("fatal: Couldn't find remote ref "):
                     raise GitReferenceError("Couldn't find ref %s in %s." % (ref, remote), ref=ref, repository=remote)
-                else:
-                    raise
+                raise
 
-            self.runRelay("push", "-f", "origin", "refs/remotes/%s/temporary:refs/temporary/%s" % (remote_id, remote_id))
-            return self.revparse("refs/temporary/%s" % remote_id)
-        finally:
-            self.runRelay("remote", "rm", remote_id)
+            sha1 = relay.run("rev-parse", "--verify", "FETCH_HEAD").strip()
+
+            relay.run("push", "-f", "origin", "%s:refs/temporary/%s" % (sha1, sha1))
+
+            return sha1
 
     @staticmethod
     def readObject(repository_path, object_type, object_sha1):

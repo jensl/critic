@@ -93,8 +93,7 @@ CREATE TABLE repositories
     parent INTEGER REFERENCES repositories,
     branch INTEGER, -- Foreign key constraint "REFERENCES branches" set up later.
     name VARCHAR(64) NOT NULL UNIQUE,
-    path VARCHAR(256) NOT NULL UNIQUE,
-    relay VARCHAR(256) NOT NULL UNIQUE );
+    path VARCHAR(256) NOT NULL UNIQUE );
 
 CREATE TABLE knownhosts
   ( id SERIAL PRIMARY KEY,
