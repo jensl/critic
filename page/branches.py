@@ -21,112 +21,12 @@ import gitutils
 import log.html
 import htmlutils
 import page.utils
-import configuration
-
-def linkToBranch(target, repository, name):
-    target.a(href="log?branch=%s&repository=%d" % (name, repository.id)).text(name)
-
-class ExtraColumn:
-    def __init__(self, className, heading, render):
-        self.className = className
-        self.heading = heading
-        self.render = render
-
-def render(db, user, target, title, repository, branches, linkToBranch=linkToBranch, extraColumns=[], description=""):
-    target.addExternalStylesheet("resource/branches.css")
-
-    cursor = db.cursor()
-
-    table = target.table("paleyellow branches", align="center", cellspacing="0")
-
-    row = table.tr("title")
-    row.td("h1", colspan=1 + len(extraColumns)).h1().text(title)
-    repositories = row.td("repositories", colspan="2").select()
-
-    if not repository:
-        repositories.option(value="-", selected="selected", disabled="disabled").text("Select a repository")
-
-    cursor.execute("SELECT id, path FROM repositories ORDER BY id")
-    for id, path in cursor:
-        repositories.option(value=id, selected="selected" if repository and id == repository.id else None).text(gitutils.Repository.constructURL(db, user, path))
-
-    if branches:
-        values = []
-
-        if isinstance(branches[0], int) or isinstance(branches[0], long):
-            for branch_id in branches:
-                cursor.execute("SELECT branches.name, branches.review, bases.name, count(reachable.branch) FROM branches LEFT OUTER JOIN branches AS bases ON (branches.base=bases.id) LEFT OUTER JOIN reachable ON (branches.id=reachable.branch) WHERE branches.id=%s GROUP BY branches.name, branches.review, bases.name", [branch_id])
-                values.append(cursor.fetchone())
-        else:
-            for branch_name in branches:
-                cursor.execute("SELECT branches.name, branches.review, bases.name, count(reachable.branch) FROM branches LEFT OUTER JOIN branches AS bases ON (branches.base=bases.id), reachable WHERE branches.name=%s AND branches.id=reachable.branch GROUP BY branches.name, branches.review, bases.name", [branch_name])
-                values.append(cursor.fetchone())
-
-        row = table.tr("headings")
-        row.td("name").text("Name")
-        row.td("base").text("Base")
-        row.td("commits").text("Commits")
-
-        for extraColumn in extraColumns:
-            row.td(extraColumn.className).text(extraColumn.heading)
-
-        for index, (name, review_id, base, count) in enumerate(values):
-            row = table.tr("branch")
-            cell = row.td("name")
-            linkToBranch(cell, repository, name)
-
-            if review_id is not None:
-                span = cell.span("review").preformatted()
-                span.a(href="r/%d" % review_id).text("r/%d" % review_id)
-            elif base:
-                span = cell.span("check").preformatted()
-                span.a(href="checkbranch?repository=%d&commit=%s&upstream=%s&fetch=no" % (repository.id, name, base)).text("check")
-
-            if base: linkToBranch(row.td("base"), repository, base)
-            else: row.td("base")
-            row.td("commits").text(count)
-
-            for extraColumn in extraColumns:
-                extraColumn.render(row.td(extraColumn.className), index)
-    else:
-        row = table.tr("nothing")
-        row.td("nothing", colspan=3).text("No branches" if repository else "No repository selected")
 
 def renderBranches(req, db, user):
     offset = req.getParameter("offset", 0, filter=int)
     count = req.getParameter("count", 50, filter=int)
 
-    cursor = db.cursor()
-
-    repository = req.getParameter("repository", None, gitutils.Repository.FromParameter(db))
-
-    if not repository:
-        repository = user.getDefaultRepository(db)
-
-    all_branches = []
-    commit_times = []
-
-    if repository:
-        cursor.execute("""SELECT branches.id, branches.name, commits.commit_time
-                            FROM branches
-                            JOIN repositories ON (repositories.id=branches.repository)
-                            JOIN commits ON (commits.id=branches.head)
-                           WHERE branches.type='normal'
-                             AND branches.name NOT LIKE 'replay/%%'
-                             AND repositories.id=%s
-                        ORDER BY commits.commit_time DESC LIMIT %s""",
-                       (repository.id, count))
-
-        for branch_id, branch_name, commit_time in cursor.fetchall():
-            all_branches.append(branch_id)
-            commit_times.append(commit_time.timetuple())
-
     document = htmlutils.Document(req)
-
-    if repository:
-        document.setTitle("Branches in %s" % repository.name)
-    else:
-        document.setTitle("Branches")
 
     html = document.html()
     head = html.head()
@@ -135,12 +35,93 @@ def renderBranches(req, db, user):
     page.utils.generateHeader(body, db, user, current_page="branches")
 
     document.addExternalScript("resource/branches.js")
+    document.addExternalStylesheet("resource/branches.css")
+
+    cursor = db.cursor()
+
+    repository = req.getParameter("repository", None, gitutils.Repository.FromParameter(db))
+
+    if not repository:
+        repository = user.getDefaultRepository(db)
+
+    if repository:
+        title = "Branches in %s" % repository.name
+        selected = repository.name
+    else:
+        title = "Branches"
+        selected = None
+
+    document.setTitle(title)
+
+    table = body.div("main").table("paleyellow branches", align="center", cellspacing="0")
+
+    row = table.tr("title")
+    row.td("h1", colspan=2).h1().text(title)
+
+    page.utils.generateRepositorySelect(db, user, row.td("repositories", colspan=2), selected=selected)
 
     if repository:
         document.addInternalScript(repository.getJS())
 
-    extraColumns = [ExtraColumn("when", "When", lambda target, index: log.html.renderWhen(target, commit_times[index]))]
+        cursor.execute("""SELECT branches.id, branches.name, branches.base, branches.review,
+                                 branches.commit_time, COUNT(reachable.*)
+                            FROM (SELECT branches.id AS id, branches.name AS name, bases.name AS base,
+                                         branches.review AS review, commits.commit_time AS commit_time
+                                    FROM branches
+                                    JOIN commits ON (commits.id=branches.head)
+                         LEFT OUTER JOIN branches AS bases ON (branches.base=bases.id)
+                                   WHERE branches.type='normal'
+                                     AND branches.repository=%s
+                                ORDER BY commits.commit_time DESC
+                                   LIMIT %s
+                                   OFFSET %s) AS branches
+                 LEFT OUTER JOIN reachable ON (reachable.branch=branches.id)
+                        GROUP BY branches.id, branches.name, branches.base, branches.review,
+                                 branches.commit_time
+                        ORDER BY branches.commit_time DESC""",
+                       (repository.id, count, offset))
 
-    render(db, user, body.div("main"), "All Branches", repository, all_branches[offset:], extraColumns=extraColumns)
+        branches_found = False
+
+        for branch_id, branch_name, base_name, review_id, commit_time, count in cursor:
+            if not branches_found:
+                row = table.tr("headings")
+                row.td("name").text("Name")
+                row.td("base").text("Base")
+                row.td("commits").text("Commits")
+                row.td("when").text("When")
+                branches_found = True
+
+            row = table.tr("branch")
+
+            def link_to_branch(target, repository, name):
+                target.a(href=("log?branch=%s&repository=%d"
+                               % (name, repository.id))).text(name)
+
+            td_name = row.td("name")
+            link_to_branch(td_name, repository, branch_name)
+
+            if review_id is not None:
+                span = td_name.span("review").preformatted()
+                span.a(href="r/%d" % review_id).text("r/%d" % review_id)
+            elif base_name:
+                span = td_name.span("check").preformatted()
+                span.a(href=("checkbranch?repository=%d&commit=%s&upstream=%s&fetch=no"
+                             % (repository.id, branch_name, base_name))).text("check")
+
+            td_base = row.td("base")
+            if base_name:
+                link_to_branch(td_base, repository, base_name)
+
+            row.td("commits").text(count)
+
+            log.html.renderWhen(row.td("when"), commit_time.timetuple())
+
+        if not branches_found:
+            row = table.tr("nothing")
+            row.td("nothing", colspan=4).text("No branches")
+    else:
+        row = table.tr("nothing")
+        row.td("nothing", colspan=4).text("No repository selected")
 
     return document
