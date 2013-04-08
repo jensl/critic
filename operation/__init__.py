@@ -257,7 +257,7 @@ class BooleanChecker:
         if not type(value) is bool:
             raise OperationError, "invalid input: %s is not a boolean" % context
 
-class Operation:
+class Operation(object):
     """\
     Base class for operation implementations.
 

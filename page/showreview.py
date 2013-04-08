@@ -404,6 +404,8 @@ def renderShowReview(req, db, user):
                         buttons.button("disabletracking", onclick="triggerUpdate(%d);" % trackedbranch_id).text("Update Now")
                         buttons.button("disabletracking", onclick="disableTracking(%d);" % trackedbranch_id).text("Disable Tracking")
 
+                    buttons.button("rebasereview", onclick="location.assign('/rebasetrackingreview?review=%d');" % review.id).text("Rebase Review")
+
     def renderReviewers(target):
         if review.reviewers:
             for index, reviewer in enumerate(review.reviewers):

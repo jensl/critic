@@ -53,6 +53,7 @@ import operation.autocompletedata
 import operation.servicemanager
 import operation.addrepository
 import operation.news
+import operation.checkrebase
 
 import page.utils
 import page.createreview
@@ -80,6 +81,7 @@ import page.checkbranch
 import page.search
 import page.repositories
 import page.services
+import page.rebasetrackingreview
 
 try:
     from customization.email import getUserEmailAddress
@@ -488,7 +490,9 @@ OPERATIONS = { "fetchlines": operation.fetchlines.FetchLines(),
                "deletetrackedbranch": operation.trackedbranch.DeleteTrackedBranch(),
                "addtrackedbranch": operation.trackedbranch.AddTrackedBranch(),
                "restartservice": operation.servicemanager.RestartService(),
-               "getservicelog": operation.servicemanager.GetServiceLog() }
+               "getservicelog": operation.servicemanager.GetServiceLog(),
+               "checkmergestatus": operation.checkrebase.CheckMergeStatus(),
+               "checkconflictsstatus": operation.checkrebase.CheckConflictsStatus() }
 
 PAGES = { "showreview": page.showreview.renderShowReview,
           "showcommit": page.showcommit.renderShowCommit,
@@ -516,7 +520,8 @@ PAGES = { "showreview": page.showreview.renderShowReview,
           "editresource": page.editresource.renderEditResource,
           "search": page.search.renderSearch,
           "repositories": page.repositories.renderRepositories,
-          "services": page.services.renderServices }
+          "services": page.services.renderServices,
+          "rebasetrackingreview": page.rebasetrackingreview.RebaseTrackingReview() }
 
 if configuration.extensions.ENABLED:
     import extensions

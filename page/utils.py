@@ -180,8 +180,10 @@ def getParameter(req, name, default=NoDefault(), filter=lambda value: value):
     else: return default
 
 def renderShortcuts(target, page, **kwargs):
-    shortcuts = target.div("shortcuts", style="margin-top: 10px; border-top: 3px solid black; text-align: right; padding-top: 10px; padding-right: 1em")
-    shortcuts.text("Shortcuts: ")
+    shortcuts = []
+
+    def addShortcut(keyCode, keyName, description):
+        shortcuts.append((keyCode, keyName, description))
 
     if page == "showcommit":
         what = "files"
@@ -189,38 +191,49 @@ def renderShortcuts(target, page, **kwargs):
         merge_parents = kwargs.get("merge_parents")
         if merge_parents > 1:
             for index in range(min(9, merge_parents)):
-                shortcuts.b().text("(%d)" % (index + 1))
-                shortcuts.text(" changes relative to %s parent, " % ("first", "second", "third", "fourth", "fifth", "seventh", "eight", "ninth")[index])
+                order = ("first", "second", "third", "fourth", "fifth", "seventh", "eight", "ninth")[index]
+                addShortcut(ord('1') + index, "%d" % (index + 1), " changes relative to %s parent" % order)
     elif page == "showcomments":
         what = "comments"
 
-    def renderShortcut(keyCode, ch, text, is_last=False):
-        a = shortcuts.a("shortcut", href="javascript:void(handleKeyboardShortcut(%d));" % keyCode)
-        a.b().text("(%s)" % ch)
-        a.text(" %s" % text)
-        if not is_last:
-            shortcuts.text(", ")
-
     if page == "showcommit" or page == "showcomments":
-        renderShortcut(ord("e"), "e", "expand all %s" % what)
-        renderShortcut(ord("c"), "c", "collapse all %s" % what)
-        renderShortcut(ord("s"), "s", "show all %s" % what)
-        renderShortcut(ord("h"), "h", "hide all %s" % what, page == "showcomments")
+        addShortcut(ord("e"), "e", "expand all %s" % what)
+        addShortcut(ord("c"), "c", "collapse all %s" % what)
+        addShortcut(ord("s"), "s", "show all %s" % what)
+        addShortcut(ord("h"), "h", "hide all %s" % what)
 
         if page == "showcommit":
-            renderShortcut(ord("m"), "m", "detect moved code")
+            addShortcut(ord("m"), "m", "detect moved code")
 
             if kwargs.get("squashed_diff"):
-                renderShortcut(ord("b"), "b", "blame")
+                addShortcut(ord("b"), "b", "blame")
 
-            renderShortcut(32, "SPACE", "scroll or show/expand next file", True)
+            addShortcut(32, "SPACE", "scroll or show/expand next file")
 
     if page == "showcomment":
-        renderShortcut(ord("m"), "m", "show more context")
-        renderShortcut(ord("l"), "l", "show less context", True)
+        addShortcut(ord("m"), "m", "show more context")
+        addShortcut(ord("l"), "l", "show less context")
 
     if page == "filterchanges":
-        renderShortcut(ord("g"), "g", "go / display diff", True)
+        addShortcut(ord("g"), "g", "go / display diff")
+
+    container = target.div("shortcuts")
+
+    if shortcuts:
+        container.text("Shortcuts: ")
+
+        def renderShortcut(keyCode, ch, text, is_last=False):
+            a = container.a("shortcut", href="javascript:void(handleKeyboardShortcut(%d));" % keyCode)
+            a.b().text("(%s)" % ch)
+            a.text(" %s" % text)
+            if not is_last:
+                container.text(", ")
+
+        for index, (keyCode, keyName, description) in enumerate(shortcuts):
+            renderShortcut(keyCode, keyName, description, index == len(shortcuts) - 1)
+
+def generateFooter(target, db, user, current_page):
+    renderShortcuts(target, current_page)
 
 def displayMessage(db, req, user, title, review=None, message=None, page_title=None, is_html=False):
     document = htmlutils.Document(req)
@@ -271,13 +284,15 @@ class PaleYellowTable:
         h1.text(title)
         self.titleRight = h1.span("right")
 
+        self.table.tr("spacer").td(colspan=len(self.columns))
+
     def addSection(self, title, extra=None):
         h2 = self.table.tr().td("h2", colspan=len(self.columns)).h2()
         h2.text(title)
         if extra is not None:
             h2.span().text(extra)
 
-    def addItem(self, heading, value, description, buttons=None):
+    def addItem(self, heading, value, description=None, buttons=None):
         row = self.table.tr("item")
         row.td("name").innerHTML(htmlutils.htmlify(heading).replace(" ", "&nbsp;") + ":")
         cell = row.td("value", colspan=2).preformatted()

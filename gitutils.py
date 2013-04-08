@@ -479,11 +479,20 @@ class Repository:
         else: raise Exception, "'git cat-file' failed: %s" % stderr.strip()
 
     @staticmethod
-    def lsremote(remote, regexp=None):
+    def lsremote(remote, include_heads=False, include_tags=False, pattern=None, regexp=None):
         if regexp: name_check = lambda item: bool(regexp.match(item[1]))
         else: name_check = lambda item: True
 
-        git = process([configuration.executables.GIT, 'ls-remote', remote], stdout=PIPE, stderr=PIPE)
+        argv = [configuration.executables.GIT, 'ls-remote']
+
+        if include_heads: argv.append("--heads")
+        if include_tags: argv.append("--tags")
+
+        argv.append(remote)
+
+        if pattern: argv.append(pattern)
+
+        git = process(argv, stdout=PIPE, stderr=PIPE)
         stdout, stderr = git.communicate()
 
         if git.returncode == 0:

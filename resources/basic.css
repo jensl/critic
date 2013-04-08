@@ -25,6 +25,14 @@ div.main > table {
     width: 95%
 }
 
+div.shortcuts {
+    margin-top: 10px;
+    border-top: 3px solid black;
+    text-align: right;
+    padding-top: 10px;
+    padding-right: 1em
+}
+
 div.shortcuts a.shortcut {
     text-decoration: none;
     color: black
@@ -191,6 +199,10 @@ table.paleyellow > tbody > tr.help > td {
     font-style: italic;
     text-align: right;
     border-bottom: 1px solid #996
+}
+
+table.paleyellow > tbody > tr.spacer > td {
+    padding-top: 0.3em;
 }
 
 table.paleyellow > tbody > tr.separator > td {

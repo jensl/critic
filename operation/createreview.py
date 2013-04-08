@@ -213,4 +213,5 @@ class FetchRemoteBranch(Operation):
         cursor = db.cursor()
         cursor.execute("SELECT id FROM commits WHERE sha1=ANY (%s)", (commit_sha1s,))
 
-        return OperationResult(commit_ids=[commit_id for (commit_id,) in cursor])
+        return OperationResult(commit_ids=[commit_id for (commit_id,) in cursor],
+                               head_sha1=head_sha1, upstream_sha1=upstream_sha1)

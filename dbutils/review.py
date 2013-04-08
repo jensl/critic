@@ -178,6 +178,14 @@ class ReviewRebases(list):
     def fromNewHead(self, commit):
         return self.__new_head_map.get(commit)
 
+class ReviewTrackedBranch(object):
+    def __init__(self, review, trackedbranch_id, remote, name, disabled):
+        self.id = trackedbranch_id
+        self.review = review
+        self.remote = remote
+        self.name = name
+        self.disabled = disabled
+
 class Review(object):
     def __init__(self, review_id, owners, review_type, branch, state, serial, summary, description, applyfilters, applyparentfilters):
         self.id = review_id
@@ -244,6 +252,19 @@ class Review(object):
 
     def getReviewRebases(self, db):
         return ReviewRebases(db, self)
+
+    def getTrackedBranch(self, db):
+        cursor = db.cursor()
+        cursor.execute("""SELECT trackedbranches.id, remote, remote_name, disabled
+                            FROM trackedbranches
+                            JOIN branches ON (trackedbranches.repository=branches.repository
+                                          AND trackedbranches.local_name=branches.name)
+                            JOIN reviews ON (branches.id=reviews.branch)
+                           WHERE reviews.id=%s""",
+                       (self.id,))
+
+        for trackedbranch_id, remote, name, disabled in cursor:
+            return ReviewTrackedBranch(self, trackedbranch_id, remote, name, disabled)
 
     def getCommitSet(self, db):
         import gitutils

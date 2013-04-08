@@ -20,7 +20,7 @@ import log.commitset
 
 from operation import Operation, OperationResult, OperationError, Optional
 
-def doPrepareRebase(db, user, review, new_upstream=None, branch=None):
+def doPrepareRebase(db, user, review, new_upstream_arg=None, branch=None):
     commitset = log.commitset.CommitSet(review.branch.commits)
     tails = commitset.getFilteredTails(review.branch.repository)
 
@@ -35,23 +35,23 @@ def doPrepareRebase(db, user, review, new_upstream=None, branch=None):
     head = commitset.getHeads().pop()
     head_id = head.getId(db)
 
-    if new_upstream is not None:
+    if new_upstream_arg is not None:
         if len(tails) > 1:
             raise OperationError("Rebase to new upstream commit not supported.")
 
         tail = gitutils.Commit.fromSHA1(db, review.branch.repository, tails.pop())
 
         old_upstream_id = tail.getId(db)
-        if new_upstream == "0" * 40:
+        if new_upstream_arg == "0" * 40:
             new_upstream_id = None
         else:
-            if not gitutils.re_sha1.match(new_upstream):
-                cursor.execute("SELECT sha1 FROM tags WHERE repository=%s AND name=%s", (review.branch.repository.id, new_upstream))
+            if not gitutils.re_sha1.match(new_upstream_arg):
+                cursor.execute("SELECT sha1 FROM tags WHERE repository=%s AND name=%s", (review.branch.repository.id, new_upstream_arg))
                 row = cursor.fetchone()
-                if row: new_upstream = row[0]
+                if row: new_upstream_arg = row[0]
                 else: raise OperationError("Specified new upstream is invalid.")
 
-            try: new_upstream = gitutils.Commit.fromSHA1(db, review.branch.repository, new_upstream)
+            try: new_upstream = gitutils.Commit.fromSHA1(db, review.branch.repository, new_upstream_arg)
             except: raise OperationError("The specified new upstream commit does not exist in Critic's repository.")
 
             new_upstream_id = new_upstream.getId(db)
@@ -133,12 +133,14 @@ class CancelRebase(Operation):
 class RebaseReview(Operation):
     def __init__(self):
         Operation.__init__(self, { "review_id": int,
-                                   "sha1": str,
-                                   "branch": str })
+                                   "new_head_sha1": str,
+                                   "new_upstream_sha1": Optional(str),
+                                   "branch": Optional(str),
+                                   "new_trackedbranch": Optional(str) })
 
-    def process(self, db, user, review_id, sha1, branch):
+    def process(self, db, user, review_id, new_head_sha1, new_upstream_sha1=None, branch=None, new_trackedbranch=None):
         review = dbutils.Review.fromId(db, review_id)
-        commit = gitutils.Commit.fromSHA1(db, review.repository, sha1)
+        new_head = gitutils.Commit.fromSHA1(db, review.repository, new_head_sha1)
 
         cursor = db.cursor()
 
@@ -151,12 +153,23 @@ class RebaseReview(Operation):
         else:
             closed_by = None
 
-        doPrepareRebase(db, user, review, "0" * 40, branch)
+        trackedbranch = review.getTrackedBranch(db)
+        if trackedbranch and not trackedbranch.disabled:
+            cursor.execute("UPDATE trackedbranches SET disabled=TRUE WHERE id=%s", (trackedbranch.id,))
+
+        commitset = log.commitset.CommitSet(review.branch.commits)
+        tails = commitset.getFilteredTails(review.branch.repository)
+
+        if len(tails) == 1 and tails.pop() == new_upstream_sha1:
+            # This appears to be a history rewrite.
+            new_upstream_sha1 = None
+
+        doPrepareRebase(db, user, review, new_upstream_sha1, branch)
 
         try:
-            review.repository.run("update-ref", "refs/commit/%s" % commit.sha1, commit.sha1)
-            review.repository.runRelay("fetch", "origin", "refs/commit/%s:refs/commit/%s" % (commit.sha1, commit.sha1))
-            review.repository.runRelay("push", "-f", "origin", "%s:refs/heads/%s" % (commit.sha1, review.branch.name))
+            review.repository.run("update-ref", "refs/commit/%s" % new_head.sha1, new_head.sha1)
+            review.repository.runRelay("fetch", "origin", "refs/commit/%s:refs/commit/%s" % (new_head.sha1, new_head.sha1))
+            review.repository.runRelay("push", "-f", "origin", "%s:refs/heads/%s" % (new_head.sha1, review.branch.name))
 
             if closed_by is not None:
                 db.commit()
@@ -164,6 +177,13 @@ class RebaseReview(Operation):
                 if state.accepted:
                     review.serial += 1
                     cursor.execute("UPDATE reviews SET state='closed', serial=%s, closed_by=%s WHERE id=%s", (review.serial, closed_by, review.id))
+
+            if trackedbranch and not trackedbranch.disabled:
+                cursor.execute("UPDATE trackedbranches SET disabled=FALSE WHERE id=%s", (trackedbranch.id,))
+            if new_trackedbranch:
+                cursor.execute("UPDATE trackedbranches SET remote_name=%s WHERE id=%s", (new_trackedbranch, trackedbranch.id))
+
+            db.commit()
         except:
             doCancelRebase(db, user, review)
             raise
