@@ -388,9 +388,9 @@ def loadmanifest(req, _db, _user):
     name = req.getParameter("name")
 
     try:
-        extensions.loadManifest(extensions.getExtensionPath(author, name))
+        extensions.manifest.Manifest.load(extensions.getExtensionPath(author, name))
         return "That's a valid manifest, friend."
-    except extensions.ManifestError, error:
+    except extensions.manifest.ManifestError, error:
         return str(error)
 
 def processcommits(req, db, user):
@@ -414,7 +414,7 @@ def processcommits(req, db, user):
 
     output = cStringIO.StringIO()
 
-    extensions.executeProcessCommits(db, user, review, all_commits, old_head, new_head, output)
+    extensions.role.processcommits.execute(db, user, review, all_commits, old_head, new_head, output)
 
     return output.getvalue()
 
@@ -526,6 +526,8 @@ PAGES = { "showreview": page.showreview.renderShowReview,
 
 if configuration.extensions.ENABLED:
     import extensions
+    import extensions.role.page
+    import extensions.role.processcommits
     import operation.extensioninstallation
     import page.manageextensions
 
@@ -625,7 +627,7 @@ def main(environ, start_response):
             if req.path.startswith("!/"):
                 req.path = req.path[2:]
             elif configuration.extensions.ENABLED:
-                handled = extensions.executePage(db, req, user)
+                handled = extensions.role.page.execute(db, req, user)
                 if handled:
                     req.start()
                     db.close()
@@ -639,7 +641,7 @@ def main(environ, start_response):
             if configuration.extensions.ENABLED:
                 match = RE_EXTENSION_RESOURCE.match(req.path)
                 if match:
-                    content_type, resource = extensions.getExtensionResource(req, db, user, match.group(1))
+                    content_type, resource = extensions.resource.get(req, db, user, match.group(1))
                     if resource:
                         req.setContentType(content_type)
                         req.start()

@@ -31,7 +31,6 @@ import configuration
 import diff
 import profiling
 import linkify
-import extensions
 
 from textutils import json_encode
 
@@ -309,7 +308,7 @@ def renderShowReview(req, db, user):
 
     profiler.check("prologue")
 
-    page.utils.generateHeader(body, db, user, renderHeaderItems)
+    page.utils.generateHeader(body, db, user, renderHeaderItems, profiler=profiler)
 
     cursor.execute("SELECT 1 FROM fullreviewuserfiles WHERE review=%s AND state='pending' AND assignee=%s", (review.id, user.id))
     hasPendingChanges = bool(cursor.fetchone())

@@ -14,9 +14,10 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
+import sys
+
 from subprocess import Popen as process, PIPE
 from re import compile, split
-from sys import argv, stdout
 from time import gmtime, strftime
 from pwd import getpwuid
 from os import getuid
@@ -33,7 +34,7 @@ import log.commitset
 import textutils
 
 if configuration.extensions.ENABLED:
-    import extensions
+    import extensions.role.processcommits
 
 #import resource as resource_module
 
@@ -84,8 +85,6 @@ def processCommits(repository_name, sha1):
 You're trying to add %d new commits to this repository.  Are you
 perhaps pushing to the wrong repository?""" % count
 
-    commit_count = 0
-
     commits_values = []
     commits = set()
 
@@ -106,7 +105,6 @@ perhaps pushing to the wrong repository?""" % count
                 new_commit = False
 
             if not row:
-                commit_count += 1
                 commits_values.append((commit.sha1, author_id, committer_id, timestamp(commit.author.time), timestamp(commit.committer.time)))
                 new_commit = True
 
@@ -119,10 +117,6 @@ perhaps pushing to the wrong repository?""" % count
         if not stack: break
 
         sha1 = stack.pop(0)
-
-    if commit_count % 10000 > 1000:
-        stdout.write("\n")
-        stdout.flush()
 
     cursor.executemany("""INSERT INTO commits (sha1, author_gituser, commit_gituser, author_time, commit_time)
                                VALUES (%s, %s, %s, %s, %s)""",
@@ -266,7 +260,7 @@ def createBranch(user, repository, name, head):
                     print "    %s <%s>" % (watcher.fullname, watcher.email)
 
             if configuration.extensions.ENABLED:
-                if extensions.executeProcessCommits(db, user, review, all_commits, None, the_commit, stdout):
+                if extensions.role.processcommits.execute(db, user, review, all_commits, None, the_commit, sys.stdout):
                     print
 
             print "Thank you!"
@@ -352,10 +346,6 @@ def createBranch(user, repository, name, head):
 
             if stack: sha1 = stack.pop(0)
             else: break
-
-        if len(commit_list) % 10000 > 1000:
-            stdout.write("\n")
-            stdout.flush()
 
     if not base:
         cursor.execute("INSERT INTO branches (repository, name, head) VALUES (%s, %s, %s) RETURNING id", (repository.id, name, commit_id(head)))
@@ -706,17 +696,9 @@ first, and then repeat this push.""" % name
     commits = set()
     commit_list = []
     processed = set()
-    count = 0
 
     while stack:
         sha1 = stack.pop()
-
-        count += 1
-        if (count % 1000) == 0:
-            stdout.write(".")
-            if (count % 10000) == 0:
-                stdout.write("\n")
-            stdout.flush()
 
         if sha1 not in commits and not isreachable(sha1):
             commits.add(sha1)
@@ -763,7 +745,10 @@ Perhaps you should request a new review of the follow-up commits?"""
     db.commit()
 
     if configuration.extensions.ENABLED and review:
-        extensions.executeProcessCommits(db, user, review, all_commits, gitutils.Commit.fromSHA1(db, repository, old), gitutils.Commit.fromSHA1(db, repository, new), stdout)
+        extensions.role.processcommits.execute(db, user, review, all_commits,
+                                               gitutils.Commit.fromSHA1(db, repository, old),
+                                               gitutils.Commit.fromSHA1(db, repository, new),
+                                               sys.stdout)
 
 def deleteBranch(repository_name, name):
     repository = gitutils.Repository.fromName(db, repository_name)

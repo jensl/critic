@@ -14,11 +14,13 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-import extensions
 import page.utils
 import htmlutils
 import dbutils
 import configuration
+
+from extensions.extension import Extension
+from extensions.manifest import ManifestError, PageRole, InjectRole, ProcessChangesRole, ProcessCommitsRole, ScheduledRole
 
 def renderManageExtensions(req, db, user):
     cursor = db.cursor()
@@ -30,7 +32,7 @@ def renderManageExtensions(req, db, user):
     if what == "available":
         title = "Available Extensions"
         other = ("installed extensions", "/manageextensions?what=installed" + ("&user=" + user.name if user.name != req.user else ""))
-        listed_extensions = extensions.findExtensions()
+        listed_extensions = Extension.find()
     elif what == "installed":
         title = "Installed Extensions"
         other = ("available extensions", "/manageextensions?what=available" + ("&user=" + user.name if user.name != req.user else ""))
@@ -43,7 +45,7 @@ def renderManageExtensions(req, db, user):
                            WHERE extensionroles_page.uid IS NOT NULL
                               OR extensionroles_processcommits.uid IS NOT NULL""",
                        (user.id, user.id))
-        listed_extensions = [extensions.Extension(*row) for row in cursor]
+        listed_extensions = [Extension(*row) for row in cursor]
 
     req.content_type = "text/html; charset=utf-8"
 
@@ -90,7 +92,7 @@ def renderManageExtensions(req, db, user):
                 manifest = extension.readManifest()
             else:
                 manifest = extension.getInstallationStatus(db, user, selected_version)
-        except Exception, e:
+        except ManifestError, error:
             manifest = None
 
         if installed_sha1:
@@ -141,7 +143,7 @@ def renderManageExtensions(req, db, user):
                 if is_installed:
                     target.span("installed").text(" [installed]")
 
-                target.div("description").preformatted().text(manifest.description)
+                target.div("description").preformatted().text(manifest.description, linkify=True)
             else:
                 is_installed = False
 
@@ -154,13 +156,20 @@ def renderManageExtensions(req, db, user):
             injects = []
             processcommits = []
             processchanges = []
+            scheduled = []
 
             if manifest:
                 for role in manifest.roles:
-                    if isinstance(role, extensions.PageRole): pages.append(role)
-                    elif isinstance(role, extensions.InjectRole): injects.append(role)
-                    elif isinstance(role, extensions.ProcessCommitsRole): processcommits.append(role)
-                    elif isinstance(role, extensions.ProcessChangesRole): processchanges.append(role)
+                    if isinstance(role, PageRole):
+                        pages.append(role)
+                    elif isinstance(role, InjectRole):
+                        injects.append(role)
+                    elif isinstance(role, ProcessCommitsRole):
+                        processcommits.append(role)
+                    elif isinstance(role, ProcessChangesRole):
+                        processchanges.append(role)
+                    elif isinstance(role, ScheduledRole):
+                        scheduled.append(role)
 
             role_table = target.table("roles")
 
@@ -213,6 +222,19 @@ def renderManageExtensions(req, db, user):
                     if is_installed and not role.installed:
                         li.text(" ")
                         li.span("inactive").text("[Not active!]")
+
+            if scheduled:
+                role_table.tr().th(colspan=2).text("Scheduled hooks")
+
+                for role in scheduled:
+                    row = role_table.tr()
+                    row.td("pattern").text("%s @ %s" % (role.frequency, role.at))
+                    td = row.td("description")
+                    td.text(role.description)
+
+                    if is_installed and not role.installed:
+                        td.text(" ")
+                        td.span("inactive").text("[Not active!]")
 
         cursor.execute("""SELECT DISTINCT uid
                             FROM extensionroles

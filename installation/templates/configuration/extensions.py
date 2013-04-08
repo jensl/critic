@@ -24,8 +24,21 @@ ENABLED = False
 # Where to search for extensions.
 SEARCH_ROOT = "/home"
 
+FLAVORS = {
+    "js/v8":
+        { "executable": "/usr/bin/critic-v8-jsshell",
+          "library": os.path.join(configuration.paths.INSTALL_DIR, "library", "js", "v8") }
+    }
+
+DEFAULT_FLAVOR = "js/v8"
+
 # Directory where the Javascript extension library is installed.
 JS_LIBRARY_DIR = os.path.join(configuration.paths.INSTALL_DIR, "library", "js")
 
 # Directory into which extension version snapshots are installed.
 INSTALL_DIR = os.path.join(configuration.paths.DATA_DIR, "extensions")
+
+# Long timeout, in seconds.  Used for extension "Page" roles.
+LONG_TIMEOUT = 300
+# Short timeout, in seconds.  Used for all other roles.
+SHORT_TIMEOUT = 5

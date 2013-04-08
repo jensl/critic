@@ -29,7 +29,7 @@ from page.createreview import generateReviewersAndWatchersTable
 from log.commitset import CommitSet
 
 if configuration.extensions.ENABLED:
-    from extensions import executeProcessCommits
+    import extensions.role.processcommits
 
 from cStringIO import StringIO
 
@@ -120,7 +120,7 @@ class SubmitReview(Operation):
         kwargs = {}
 
         if configuration.extensions.ENABLED:
-            if executeProcessCommits(db, user, review, commits, None, commitset.getHeads().pop(), extensions_output):
+            if extensions.role.processcommits.execute(db, user, review, commits, None, commitset.getHeads().pop(), extensions_output):
                 kwargs["extensions_output"] = extensions_output.getvalue().lstrip()
 
         if trackedbranch:

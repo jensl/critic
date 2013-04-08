@@ -15,7 +15,7 @@
 # the License.
 
 from operation import Operation, OperationResult, OperationError, Optional
-from extensions import installExtension, uninstallExtension, reinstallExtension
+from extensions.installation import installExtension, uninstallExtension, reinstallExtension
 
 class ExtensionOperation(Operation):
     def __init__(self, perform):

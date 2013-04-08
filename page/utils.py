@@ -57,7 +57,7 @@ def YesOrNo(value):
 def generateEmpty(target):
     pass
 
-def generateHeader(target, db, user, generate_right=None, current_page=None, extra_links=[]):
+def generateHeader(target, db, user, generate_right=None, current_page=None, extra_links=[], profiler=None):
     target.addExternalStylesheet("resource/jquery-ui.css")
     target.addExternalStylesheet("resource/jquery-tooltip.css")
     target.addExternalStylesheet("resource/basic.css")
@@ -97,15 +97,22 @@ def generateHeader(target, db, user, generate_right=None, current_page=None, ext
     if user.hasRole(db, "repositories"):
         links.append(["repositories", "Repositories", None, None])
 
-    if configuration.extensions.ENABLED:
-        import extensions
+    if profiler:
+        profiler.check("generateHeader (basic)")
 
-        updated = extensions.Extension.getUpdatedExtensions(db, user)
+    if configuration.extensions.ENABLED:
+        from extensions.extension import Extension
+
+        updated = Extension.getUpdatedExtensions(db, user)
+
         if updated:
             link_title = "\n".join([("%s by %s can be updated!" % (extension_name, author_fullname)) for author_fullname, extension_name in updated])
             links.append(["manageextensions", "Extensions (%d)" % len(updated), "color: red", link_title])
         else:
             links.append(["manageextensions", "Extensions", None, None])
+
+        if profiler:
+            profiler.check("generateHeader (updated extensions)")
 
     links.append(["config", "Config", None, None])
     links.append(["tutorial", "Tutorial", None, None])
@@ -123,6 +130,9 @@ def generateHeader(target, db, user, generate_right=None, current_page=None, ext
     else:
         links.append(["news", "News", None, None])
 
+    if profiler:
+        profiler.check("generateHeader (news)")
+
     req = target.getRequest()
 
     if configuration.base.AUTHENTICATION_MODE == "critic" and configuration.base.SESSION_TYPE == "cookie":
@@ -135,9 +145,11 @@ def generateHeader(target, db, user, generate_right=None, current_page=None, ext
         links.append([url, label, None, None])
 
     if req and configuration.extensions.ENABLED:
+        import extensions.role.inject
+
         injected = {}
 
-        extensions.executeInject(db, getPath(req, db, user), req.query, user, target, links, injected)
+        extensions.role.inject.execute(db, getPath(req, db, user), req.query, user, target, links, injected, profiler=profiler)
 
         for url in injected.get("stylesheets", []):
             target.addExternalStylesheet(url, use_static=False, order=1)
@@ -160,6 +172,9 @@ def generateHeader(target, db, user, generate_right=None, current_page=None, ext
         generate_right(right)
     else:
         right.div("buttons").span("buttonscope buttonscope-global")
+
+    if profiler:
+        profiler.check("generateHeader (finish)")
 
     return injected
 
