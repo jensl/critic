@@ -297,7 +297,7 @@ CREATE TABLE reviews
     description TEXT );
 CREATE INDEX reviews_branch ON reviews (branch);
 
-ALTER TABLE branches ADD CONSTRAINT branches_review_fkey FOREIGN KEY (review) REFERENCES reviews;
+ALTER TABLE branches ADD CONSTRAINT branches_review_fkey FOREIGN KEY (review) REFERENCES reviews ON DELETE SET NULL;
 
 CREATE TABLE reviewfilters
   ( id SERIAL NOT NULL PRIMARY KEY,
@@ -462,6 +462,8 @@ CREATE TABLE reviewmessageids
 
     PRIMARY KEY (uid, review) );
 
+CREATE INDEX reviewmessageids_review ON reviewmessageids (review);
+
 CREATE TABLE userresources
   ( uid INTEGER NOT NULL REFERENCES users ON DELETE CASCADE,
     name VARCHAR(32) NOT NULL,
@@ -500,7 +502,7 @@ CREATE TABLE checkbranchnotes
     upstream VARCHAR(256) NOT NULL,
     sha1 CHAR(40) NOT NULL,
     uid INTEGER NOT NULL REFERENCES users,
-    review INTEGER REFERENCES reviews,
+    review INTEGER REFERENCES reviews ON DELETE SET NULL,
     text TEXT,
 
     PRIMARY KEY (repository, branch, upstream, sha1) );
