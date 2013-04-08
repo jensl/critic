@@ -51,21 +51,21 @@ function fetchBranch()
   {
     if (result)
       location.href = ("/rebasetrackingreview" +
-		       "?review=" + encodeURIComponent(review.id) +
-		       "&newbranch=" + encodeURIComponent(newbranch) +
-		       "&upstream=" + encodeURIComponent(upstream) +
-		       "&newhead=" + encodeURIComponent(result.head_sha1) +
-		       "&newupstream=" + encodeURIComponent(result.upstream_sha1));
+                       "?review=" + encodeURIComponent(review.id) +
+                       "&newbranch=" + encodeURIComponent(newbranch) +
+                       "&upstream=" + encodeURIComponent(upstream) +
+                       "&newhead=" + encodeURIComponent(result.head_sha1) +
+                       "&newupstream=" + encodeURIComponent(result.upstream_sha1));
   }
 
   var operation = new Operation({ action: "fetch remote branch",
-				  url: "fetchremotebranch",
-				  data: { repository_name: repository.name,
-					  remote: trackedbranch.remote,
-					  branch: newbranch,
-					  upstream: upstream },
-				  wait: "Fetching branch...",
-				  callback: finish });
+                                  url: "fetchremotebranch",
+                                  data: { repository_name: repository.name,
+                                          remote: trackedbranch.remote,
+                                          branch: newbranch,
+                                          upstream: upstream },
+                                  wait: "Fetching branch...",
+                                  callback: finish });
 
   operation.execute();
 }
@@ -79,17 +79,17 @@ function rebaseReview()
   }
 
   var data = { review_id: review.id,
-	       new_head_sha1: check.new_head_sha1,
-	       new_trackedbranch: check.new_trackedbranch };
+               new_head_sha1: check.new_head_sha1,
+               new_trackedbranch: check.new_trackedbranch };
 
   if (check.new_upstream_sha1)
     data.new_upstream_sha1 = check.new_upstream_sha1;
 
   var operation = new Operation({ action: "rebase review",
-				  url: "rebasereview",
-				  data: data,
-				  wait: "Rebasing review...",
-				  callback: finish });
+                                  url: "rebasereview",
+                                  data: data,
+                                  wait: "Rebasing review...",
+                                  callback: finish });
 
   operation.execute();
 }
@@ -103,23 +103,23 @@ $(function ()
     {
       if (result)
       {
-	var message;
+        var message;
 
-	if (result.has_conflicts && result.has_changes)
-	  message = "Has conflicts and other changes.";
-	else if (result.has_conflicts)
-	  message = "Has conflicts.";
-	else if (result.has_conflicts)
-	  message = "Has unexpected changes!";
+        if (result.has_conflicts && result.has_changes)
+          message = "Has conflicts and other changes.";
+        else if (result.has_conflicts)
+          message = "Has conflicts.";
+        else if (result.has_conflicts)
+          message = "Has unexpected changes!";
 
-	var status_conflicts = $("#status_conflicts");
+        var status_conflicts = $("#status_conflicts");
 
-	status_conflicts.text(message || "Clean.");
+        status_conflicts.text(message || "Clean.");
 
-	if (message)
-	  status_conflicts.attr("href", result.url);
+        if (message)
+          status_conflicts.attr("href", result.url);
 
-	$("button#rebasereview").removeAttr("disabled").button("refresh");
+        $("button#rebasereview").removeAttr("disabled").button("refresh");
       }
     }
 
@@ -127,27 +127,27 @@ $(function ()
     {
       if (result)
       {
-	var message;
+        var message;
 
-	if (result.has_conflicts)
-	  message = "Will need review.";
+        if (result.has_conflicts)
+          message = "Will need review.";
 
-	var status_merge = $("#status_merge");
+        var status_merge = $("#status_merge");
 
-	status_merge.text(message || "Clean.");
+        status_merge.text(message || "Clean.");
 
-	if (message)
-	  status_merge.attr("href", "/showcommit?repository=" + repository.id + "&sha1=" + result.merge_sha1);
+        if (message)
+          status_merge.attr("href", "/showcommit?repository=" + repository.id + "&sha1=" + result.merge_sha1);
 
-	var conflicts_status = new Operation({ action: "check conflicts status",
-					       url: "checkconflictsstatus",
-					       data: { review_id: review.id,
-						       merge_sha1: result.merge_sha1 },
-					       callback: updateConflictsStatus });
+        var conflicts_status = new Operation({ action: "check conflicts status",
+                                               url: "checkconflictsstatus",
+                                               data: { review_id: review.id,
+                                                       merge_sha1: result.merge_sha1 },
+                                               callback: updateConflictsStatus });
 
-	conflicts_status.execute();
+        conflicts_status.execute();
 
-	$("#status_conflicts").text("Checking...");
+        $("#status_conflicts").text("Checking...");
       }
     }
 
@@ -155,9 +155,9 @@ $(function ()
     {
       if (result)
       {
-	var status_historyrewrite = $("#status_historyrewrite");
+        var status_historyrewrite = $("#status_historyrewrite");
 
-	status_historyrewrite.text(result.valid ? "Clean." : "Not valid!");
+        status_historyrewrite.text(result.valid ? "Clean." : "Not valid!");
 
         if (result.valid)
           $("button#rebasereview").removeAttr("disabled").button("refresh");
@@ -193,16 +193,16 @@ $(function ()
       }
       else
       {
-	var conflicts_status = new Operation({ action: "check conflicts status",
-					       url: "checkconflictsstatus",
-					       data: { review_id: review.id,
-						       new_head_sha1: check.new_head_sha1,
+        var conflicts_status = new Operation({ action: "check conflicts status",
+                                               url: "checkconflictsstatus",
+                                               data: { review_id: review.id,
+                                                       new_head_sha1: check.new_head_sha1,
                                                        new_upstream_sha1: check.new_upstream_sha1 },
-					       callback: updateConflictsStatus });
+                                               callback: updateConflictsStatus });
 
-	conflicts_status.execute();
+        conflicts_status.execute();
 
-	$("#status_conflicts").text("Checking...");
+        $("#status_conflicts").text("Checking...");
       }
     }
   });

@@ -45,9 +45,9 @@ function saveFullname()
   else
   {
     var operation = new Operation({ action: "save changes",
-				    url: "setfullname",
-				    data: { user_id: user.id,
-					    value: value }});
+                                    url: "setfullname",
+                                    data: { user_id: user.id,
+                                            value: value }});
 
     if (operation.execute())
     {
@@ -80,9 +80,9 @@ function saveEmail()
   else
   {
     var operation = new Operation({ action: "save changes",
-				    url: "setemail",
-				    data: { user_id: user.id,
-					    value: value }});
+                                    url: "setemail",
+                                    data: { user_id: user.id,
+                                            value: value }});
 
     if (operation.execute())
     {
@@ -115,9 +115,9 @@ function saveGitEmails()
   else
   {
     var operation = new Operation({ action: "save changes",
-				    url: "setgitemails",
-				    data: { user_id: user.id,
-					    value: value.split(/,\s*|\s+/g) }});
+                                    url: "setgitemails",
+                                    data: { user_id: user.id,
+                                            value: value.split(/,\s*|\s+/g) }});
 
     if (operation.execute())
     {
@@ -214,12 +214,12 @@ function ModificationChecker(current, input, status)
 
       if (is_modified_last != is_modified_now)
       {
-	status.text(is_modified_now ? "Modified" : "");
+        status.text(is_modified_now ? "Modified" : "");
 
-	if (is_modified_now)
-	  input.nextAll("button").removeAttr("disabled");
-	else
-	  input.nextAll("button").attr("disabled", "disabled");
+        if (is_modified_now)
+          input.nextAll("button").removeAttr("disabled");
+        else
+          input.nextAll("button").attr("disabled", "disabled");
       }
     }, 100);
 }

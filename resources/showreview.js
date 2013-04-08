@@ -27,17 +27,17 @@ function shortDate(date)
   }
 
   return (pad(date.getFullYear(), 4) +
-	  "-" + pad(date.getMonth() + 1, 2) +
-	  "-" + pad(date.getDate(), 2) +
-	  " " + pad(date.getHours(), 2) +
-	  ":" + pad(date.getMinutes(), 2));
+          "-" + pad(date.getMonth() + 1, 2) +
+          "-" + pad(date.getDate(), 2) +
+          " " + pad(date.getHours(), 2) +
+          ":" + pad(date.getMinutes(), 2));
 }
 
 function triggerUpdate(branch_id)
 {
   var operation = new Operation({ action: "trigger update",
-				  url: "triggertrackedbranchupdate",
-				  data: { branch_id: branch_id }});
+                                  url: "triggertrackedbranchupdate",
+                                  data: { branch_id: branch_id }});
 
   if (operation.execute())
   {
@@ -51,8 +51,8 @@ function enableTracking(branch_id, remote, current_remote_name)
   function finish()
   {
     var operation = new Operation({ action: "enable tracking",
-				    url: "enabletrackedbranch",
-				    data: { branch_id: branch_id,
+                                    url: "enabletrackedbranch",
+                                    data: { branch_id: branch_id,
                                             new_remote_name: remote_name.val() }});
 
     return Boolean(operation.execute());
@@ -78,8 +78,8 @@ function enableTracking(branch_id, remote, current_remote_name)
 function disableTracking(branch_id)
 {
   var operation = new Operation({ action: "disable tracking",
-				  url: "disabletrackedbranch",
-				  data: { branch_id: branch_id }});
+                                  url: "disabletrackedbranch",
+                                  data: { branch_id: branch_id }});
 
   if (operation.execute())
     location.reload();
@@ -172,20 +172,20 @@ function updateFilters(filter_type)
         var error = $("<div class='error' title='Invalid Path'><p>The entered path is not valid.  No wild-cards are allowed; the path must be a single directory or file.</p><p>If you believe your path actually adheres to these rules, and this error is incorrect, you can use the <b>Override</b> button below to override the error.</p></div>");
 
         error.dialog({ width: 400,
-		       buttons: { "Try Again": function () { error.dialog("close"); content.find("input.path").focus(); },
-				  "Override": function () { error.dialog("close"); finish(type, true); } },
-		       modal: true });
+                       buttons: { "Try Again": function () { error.dialog("close"); content.find("input.path").focus(); },
+                                  "Override": function () { error.dialog("close"); finish(type, true); } },
+                       modal: true });
 
         return false;
       }
     }
 
     var operation = new Operation({ action: "update review filters",
-				    url: "addreviewfilters",
-				    data: { review_id: review.id,
-					    filters: [{ type: filter_type,
-							user_names: name.split(/[, ]+/),
-							paths: [path] }] }});
+                                    url: "addreviewfilters",
+                                    data: { review_id: review.id,
+                                            filters: [{ type: filter_type,
+                                                        user_names: name.split(/[, ]+/),
+                                                        paths: [path] }] }});
 
     return operation.execute() != null;
   }
@@ -221,10 +221,10 @@ function updateFilters(filter_type)
   }
 
   var operation = new Operation({ action: "get auto-complete data",
-				  url: "getautocompletedata",
-				  data: { values: ["users", "paths"],
-					  review_id: review.id },
-				  callback: enableAutoCompletion })
+                                  url: "getautocompletedata",
+                                  data: { values: ["users", "paths"],
+                                          review_id: review.id },
+                                  callback: enableAutoCompletion })
 
   operation.execute();
 }
@@ -244,8 +244,8 @@ function removeReviewFilter(filter_id, filter_user, filter_type, filter_path, co
   function finish()
   {
     var operation = new Operation({ action: "remove review filter",
-				    url: "removereviewfilter",
-				    data: { filter_id: filter_id }});
+                                    url: "removereviewfilter",
+                                    data: { filter_id: filter_id }});
 
     if (operation.execute())
     {
@@ -261,9 +261,9 @@ function removeReviewFilter(filter_id, filter_user, filter_type, filter_path, co
     var content = $("<div class='removefilter' title='Confirm'><p>Please confirm that you mean to remove the filter that makes</p><div class=user>" + htmlify(filter_user) + "</div><p>a " + filter_type + " of</p><div class=path>" + filter_path + "</div><p>An email will be sent the user about the change and its effect on assignments.</p></div>");
 
     content.dialog({ width: 400,
-		     buttons: { "Remove the filter": function () { if (finish()) content.dialog("close"); },
-				"Do nothing": function () { content.dialog("close"); } },
-		     modal: true });
+                     buttons: { "Remove the filter": function () { if (finish()) content.dialog("close"); },
+                                "Do nothing": function () { content.dialog("close"); } },
+                     modal: true });
   }
   else
     finish();
@@ -372,32 +372,32 @@ function prepareRebase()
     if (inplace)
     {
       var operation = new Operation({ action: "prepare rebase",
-				      url: "preparerebase",
-				      data: { review_id: review.id }});
+                                      url: "preparerebase",
+                                      data: { review_id: review.id }});
 
       if (operation.execute())
       {
         rebase_type_dialog.dialog("close");
 
-	var finished =
-	  $("<div title='Rebase Prepared!'>"
-	  +   "<p>"
-	  +     "You may now push the rebased branch, using \"git push -f\".  "
-	  +     "Any attempt to push changes to this review by other users will "
-	  +     "be rejected until you've completed the rebase, or aborted it."
-	  +   "</p>"
-	  +   "<p>"
-	  +     "<b>Note:</b> Remember that one commit on the rebased branch must "
-	  +     "reference a tree that is identical to the one referenced by the "
-	  +     "current head of the review branch.  If this is not the case, your "
-	  +     "push will be rejected."
-	  +   "</p>"
-	  + "</div>");
+        var finished =
+          $("<div title='Rebase Prepared!'>"
+          +   "<p>"
+          +     "You may now push the rebased branch, using \"git push -f\".  "
+          +     "Any attempt to push changes to this review by other users will "
+          +     "be rejected until you've completed the rebase, or aborted it."
+          +   "</p>"
+          +   "<p>"
+          +     "<b>Note:</b> Remember that one commit on the rebased branch must "
+          +     "reference a tree that is identical to the one referenced by the "
+          +     "current head of the review branch.  If this is not the case, your "
+          +     "push will be rejected."
+          +   "</p>"
+          + "</div>");
 
-	finished.dialog({ width: 400,
-			  modal: true,
-			  buttons: { Close: function () { finished.dialog("close"); location.reload(); }}
-			});
+        finished.dialog({ width: 400,
+                          modal: true,
+                          buttons: { Close: function () { finished.dialog("close"); location.reload(); }}
+                        });
       }
     }
     else
@@ -429,10 +429,10 @@ function prepareRebase()
 
       function populateSuggestedUpstreams(result)
       {
-	if (result)
-	{
+        if (result)
+        {
           var upstreams = result.upstreams.map(
-	    function (tag)
+            function (tag)
             {
               return "<option value='" + htmlify(tag) + "'>" + htmlify(tag) + "</option>";
             });
@@ -446,13 +446,13 @@ function prepareRebase()
           }
           else
             select.innerHTML = "<option value='none'>(No likely upstreams found.)</option>";
-	}
+        }
       }
 
       var fetch_upstreams = new Operation({ action: "fetch suggested upstream commits",
-					    url: "suggestupstreams",
-					    data: { review_id: review.id },
-					    callback: populateSuggestedUpstreams });
+                                            url: "suggestupstreams",
+                                            data: { review_id: review.id },
+                                            callback: populateSuggestedUpstreams });
 
       fetch_upstreams.execute();
 
@@ -482,36 +482,36 @@ function prepareRebase()
           upstream = tag.value;
 
         if (typeof upstream == "string")
-	{
-	  var operation = new Operation({ action: "prepare rebase",
-					  url: "preparerebase",
-					  data: { review_id: review.id,
-						  new_upstream: upstream }});
+        {
+          var operation = new Operation({ action: "prepare rebase",
+                                          url: "preparerebase",
+                                          data: { review_id: review.id,
+                                                  new_upstream: upstream }});
 
-	  if (operation.execute())
-	  {
-	    select_upstream_dialog.dialog("close");
+          if (operation.execute())
+          {
+            select_upstream_dialog.dialog("close");
 
-	    var finished =
-	      $("<div title='Rebase Prepared!'>"
-	      +   "<p>"
-	      +     "You may now push the rebased branch, using \"git push -f\".  "
-	      +     "Any attempt to push changes to this review by other users will "
-	      +     "be rejected until you've completed the rebase, or aborted it."
-	      +   "</p>"
-	      +   "<p>"
-	      +     "<b>Important:</b> Remember not to push any new changes to the "
-	      +     "review with this push; such changes will be very difficult to "
-	      +     "see or review."
-	      +   "</p>"
-	      + "</div>");
+            var finished =
+              $("<div title='Rebase Prepared!'>"
+              +   "<p>"
+              +     "You may now push the rebased branch, using \"git push -f\".  "
+              +     "Any attempt to push changes to this review by other users will "
+              +     "be rejected until you've completed the rebase, or aborted it."
+              +   "</p>"
+              +   "<p>"
+              +     "<b>Important:</b> Remember not to push any new changes to the "
+              +     "review with this push; such changes will be very difficult to "
+              +     "see or review."
+              +   "</p>"
+              + "</div>");
 
-	    finished.dialog({ width: 400,
-			      modal: true,
-			      buttons: { Close: function () { finished.dialog("close"); location.reload(); }}
-			    });
-	  }
-	}
+            finished.dialog({ width: 400,
+                              modal: true,
+                              buttons: { Close: function () { finished.dialog("close"); location.reload(); }}
+                            });
+          }
+        }
       }
 
       select_upstream_dialog.dialog({ width: 400,
@@ -546,8 +546,8 @@ function prepareRebase()
   }
 
   var operation = new Operation({ action: "check rebase possibility",
-				  url: "checkrebase",
-				  data: { review_id: review.id }});
+                                  url: "checkrebase",
+                                  data: { review_id: review.id }});
 
   var result = operation.execute();
 
@@ -558,8 +558,8 @@ function prepareRebase()
 function cancelRebase()
 {
   var operation = new Operation({ action: "cancel rebase",
-				  url: "cancelrebase",
-				  data: { review_id: review.id }});
+                                  url: "cancelrebase",
+                                  data: { review_id: review.id }});
 
   if (operation.execute())
     location.reload();
@@ -572,9 +572,9 @@ function revertRebase(rebase_id)
   function finish()
   {
     var operation = new Operation({ action: "revert rebase",
-				    url: "revertrebase",
-				    data: { review_id: review.id,
-					    rebase_id: rebase_id }});
+                                    url: "revertrebase",
+                                    data: { review_id: review.id,
+                                            rebase_id: rebase_id }});
 
     if (operation.execute())
     {
@@ -593,10 +593,10 @@ function revertRebase(rebase_id)
 function excludeRecipient(user_id)
 {
   var operation = new Operation({ action: "exclude recipient",
-				  url: "addrecipientfilter",
-				  data: { review_id: review.id,
-					  user_id: user_id,
-					  include: false }});
+                                  url: "addrecipientfilter",
+                                  data: { review_id: review.id,
+                                          user_id: user_id,
+                                          include: false }});
 
   if (operation.execute())
     location.reload();
@@ -605,10 +605,10 @@ function excludeRecipient(user_id)
 function includeRecipient(user_id)
 {
   var operation = new Operation({ action: "include recipient",
-				  url: "addrecipientfilter",
-				  data: { review_id: review.id,
-					  user_id: user_id,
-					  include: true }});
+                                  url: "addrecipientfilter",
+                                  data: { review_id: review.id,
+                                          user_id: user_id,
+                                          include: true }});
 
   if (operation.execute())
     location.reload();
@@ -630,18 +630,18 @@ $(document).ready(function ()
                 var html = "<div class='summary-tooltip'><div class='header'>Needs review from</div>";
 
                 for (var index = 0; index < users.length; ++index)
-		{
-		  var match = /([^:]+):(current|absent|retired)/.exec(users[index]);
-		  var fullname = match[1];
-		  var status = match[2];
-		  if (status != "retired")
-		  {
+                {
+                  var match = /([^:]+):(current|absent|retired)/.exec(users[index]);
+                  var fullname = match[1];
+                  var status = match[2];
+                  if (status != "retired")
+                  {
                     html += "<div class='reviewer'>" + htmlify(fullname);
-		    if (status == "absent")
-		      html += "<span class='absent'> (absent)</span>";
-		    html += "</div>";
-		  }
-		}
+                    if (status == "absent")
+                      html += "<span class='absent'> (absent)</span>";
+                    html += "</div>";
+                  }
+                }
 
                 return $(html + "</div>");
               },
@@ -672,8 +672,8 @@ $(document).ready(function ()
         var user_ids = JSON.parse(target.attr("critic-user-ids"));
 
         reviewfilters.push({ type: "watcher",
-			     user_ids: user_ids,
-			     paths: paths });
+                             user_ids: user_ids,
+                             paths: paths });
 
         $("table.shared td.buttons > span").css("display", "inline");
 
@@ -687,8 +687,8 @@ $(document).ready(function ()
         var paths = JSON.parse(target.attr("critic-paths"));
 
         reviewfilters.push({ type: "watcher",
-			     user_ids: [user.id],
-			     paths: paths });
+                             user_ids: [user.id],
+                             paths: paths });
 
         $("table.shared td.buttons > span").css("display", "inline");
 
@@ -703,17 +703,17 @@ $(document).ready(function ()
 
     $("table.shared button.confirm").click(function (ev)
       {
-	var operation = new Operation({ action: "add review filters",
-					url: "addreviewfilters",
-					data: { review_id: review.id,
-						filters: reviewfilters }});
+        var operation = new Operation({ action: "add review filters",
+                                        url: "addreviewfilters",
+                                        data: { review_id: review.id,
+                                                filters: reviewfilters }});
 
-	if (operation.execute())
-	{
-	  $("table.shared td.buttons > span").css("display", "none");
-	  reviewfilters = [];
-	  location.reload();
-	}
+        if (operation.execute())
+        {
+          $("table.shared td.buttons > span").css("display", "none");
+          reviewfilters = [];
+          location.reload();
+        }
       });
 
     $("button.preparerebase").click(prepareRebase);

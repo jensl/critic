@@ -21,10 +21,10 @@ function saveResource()
   var source = $("textarea").first().val();
 
   var operation = new Operation({ action: "save resource",
-				  url: "storeresource",
-				  data: { name: resource_name,
-					  source: source },
-				  wait: "Saving changes..." });
+                                  url: "storeresource",
+                                  data: { name: resource_name,
+                                          source: source },
+                                  wait: "Saving changes..." });
 
   if (operation.execute())
     original_source = source;
@@ -35,8 +35,8 @@ function resetResource()
   function proceed()
   {
     var operation = new Operation({ action: "reset resource",
-				    url: "resetresource",
-				    data: { name: resource_name }});
+                                    url: "resetresource",
+                                    data: { name: resource_name }});
 
     return operation.execute() != null;
   }
@@ -52,8 +52,8 @@ function resetResource()
 function restoreResource()
 {
   var operation = new Operation({ action: "restore resource",
-				  url: "restoreresource",
-				  data: { name: resource_name }});
+                                  url: "restoreresource",
+                                  data: { name: resource_name }});
 
   if (operation.execute())
     location.reload();

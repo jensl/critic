@@ -118,11 +118,11 @@ function editCommit(sha1, commit_id, has_note, old_review_id)
     function proceed()
     {
       var operation = new Operation({ action: "rebase review",
-				      url: "rebasereview",
-				      data: { review_id: review_id,
-					      sha1: sha1,
-					      branch: branch },
-				      wait: "Rebasing review..." });
+                                      url: "rebasereview",
+                                      data: { review_id: review_id,
+                                              sha1: sha1,
+                                              branch: branch },
+                                      wait: "Rebasing review..." });
 
       if (operation.execute())
       {

@@ -40,10 +40,10 @@ function selectReviewer(reset)
   $("tr.reviewer span.message").text("");
 
   var operation = new Operation({ action: "fetch assigned changes",
-				  url: "getassignedchanges",
-				  data: { review_id: review.id,
-					  user_name: reviewer },
-				  failure: { nosuchuser: handleNoSuchUser }});
+                                  url: "getassignedchanges",
+                                  data: { review_id: review.id,
+                                          user_name: reviewer },
+                                  failure: { nosuchuser: handleNoSuchUser }});
   var result = operation.execute();
 
   if (result)
@@ -58,7 +58,7 @@ function selectReviewer(reset)
     $("tr.file").each(
       function ()
       {
-	$(this).find("input").get(0).checked = $(this).attr("critic-file-id") in files;
+        $(this).find("input").get(0).checked = $(this).attr("critic-file-id") in files;
       });
 
     checkDirectories();
@@ -178,7 +178,7 @@ $(document).ready(function ()
       });
     $("input.reviewer").blur(function (ev)
       {
-	setTimeout(function () { selectReviewer(true); }, 100);
+        setTimeout(function () { selectReviewer(true); }, 100);
       });
 
     $("button.save").click(function ()
@@ -187,18 +187,18 @@ $(document).ready(function ()
 
         $("tr.file").each(function ()
           {
-	    var row = $(this);
+            var row = $(this);
             if (row.find("input").get(0).checked)
               files.push(parseInt(row.attr("critic-file-id")));
           });
 
-	var operation = new Operation({ action: "assign changes",
-					url: "setassignedchanges",
-					data: { review_id: review.id,
-						user_name: reviewer,
-						files: files }});
+        var operation = new Operation({ action: "assign changes",
+                                        url: "setassignedchanges",
+                                        data: { review_id: review.id,
+                                                user_name: reviewer,
+                                                files: files }});
 
-	if (operation.execute())
+        if (operation.execute())
           $("tr.reviewer span.message").text("Assignments saved.");
       });
 

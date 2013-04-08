@@ -21,9 +21,9 @@
 function restartService(service_name)
 {
   var operation = new Operation({ action: "restart service",
-				  url: "restartservice",
-				  data: { service_name: service_name },
-				  wait: "Restarting service..." });
+                                  url: "restartservice",
+                                  data: { service_name: service_name },
+                                  wait: "Restarting service..." });
 
   if (operation.execute())
     location.reload();
@@ -46,9 +46,9 @@ function getServiceLog(service_name)
   }
 
   var operation = new Operation({ action: "fetch service log",
-				  url: "getservicelog",
-				  data: { service_name: service_name },
-				  wait: "Fetching service log..." });
+                                  url: "getservicelog",
+                                  data: { service_name: service_name },
+                                  wait: "Fetching service log..." });
   var result = operation.execute();
 
   if (result)
@@ -56,8 +56,8 @@ function getServiceLog(service_name)
     content = $("<div class='servicelog' title='Service Log'><pre>" + htmlify(result.lines.join("\n")) + "</pre></div>");
 
     content.dialog({ width: Math.min($(document).width() - 100, 1024),
-		     buttons: { Close: function () { content.dialog("close"); }},
-		     resize: resize });
+                     buttons: { Close: function () { content.dialog("close"); }},
+                     resize: resize });
 
     resize();
   }

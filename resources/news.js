@@ -37,13 +37,13 @@ function addOrEditNewsItem(edit_item_id, edit_text)
 
     if (edit_item_id)
       operation = new Operation({ action: "edit news item",
-				  url: "editnewsitem",
-				  data: { item_id: edit_item_id,
-					  text: text }});
+                                  url: "editnewsitem",
+                                  data: { item_id: edit_item_id,
+                                          text: text }});
     else
       operation = new Operation({ action: "add news item",
-				  url: "addnewsitem",
-				  data: { text: text }});
+                                  url: "addnewsitem",
+                                  data: { text: text }});
 
     return !!operation.execute();
   }

@@ -23,11 +23,11 @@ function calculateTabWidth()
   if (!tabify_style_added)
   {
     $("head").append('<style>' +
-		     '  div.playground { white-space: pre }' +
-		     '  b.t:before { content: "\\2192" }' +
-		     '  b.t { color: #ccc }' +
-		     '  b.t.ill { color: red; font-weight: bold }' +
-		     '</style>');
+                     '  div.playground { white-space: pre }' +
+                     '  b.t:before { content: "\\2192" }' +
+                     '  b.t { color: #ccc }' +
+                     '  b.t.ill { color: red; font-weight: bold }' +
+                     '</style>');
 
     tabify_style_added = true;
   }
@@ -45,11 +45,11 @@ function calculateTabWidth()
 
       for (var tabwidth = 2; tabwidth <= 8; ++tabwidth)
       {
-	var tab_width_extra = (tabwidth - 1) * space_width; // NOTE: I don't know why " + 1" is necessary.
-	var tab_margin_before = (tab_width_extra / 2) << 0;
-	var tab_margin_after = tab_width_extra - tab_margin_before;
+        var tab_width_extra = (tabwidth - 1) * space_width; // NOTE: I don't know why " + 1" is necessary.
+        var tab_margin_before = (tab_width_extra / 2) << 0;
+        var tab_margin_after = tab_width_extra - tab_margin_before;
 
-	stylesheet += "b.w" + tabwidth + " { padding-left: " + tab_margin_before + "px; padding-right: " + tab_margin_after + "px }\n";
+        stylesheet += "b.w" + tabwidth + " { padding-left: " + tab_margin_before + "px; padding-right: " + tab_margin_after + "px }\n";
       }
 
       $("head").append("<style>" + stylesheet + "</style>");

@@ -29,7 +29,7 @@ $(document).ready(function ()
       {
         var tail = "";
         if (typeof tail_sha1 == "string")
-	  tail = "&tail=" + tail_sha1;
+          tail = "&tail=" + tail_sha1;
         location.href = "confirmmerge?id=" + confirmation_id + "&confirm=yes" + tail;
       });
 
