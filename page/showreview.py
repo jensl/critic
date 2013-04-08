@@ -471,8 +471,11 @@ def renderShowReview(req, db, user):
         if reviewer_filters_hidden:
             buttons.button("showfilters", onclick="toggleReviewFilters('reviewers', $(this));").text("%s Custom Filters" % ("Show" if reviewer_filters_hidden[0] else "Hide"))
 
+        if not review.applyfilters:
+            buttons.button("applyfilters", onclick="applyFilters('global');").text("Apply Global Filters")
+
         if review.applyfilters and review.repository.parent and not review.applyparentfilters:
-            buttons.button("applyparentfilters", onclick="applyParentFilters();").text("Apply Upstream Filters")
+            buttons.button("applyparentfilters", onclick="applyFilters('upstream');").text("Apply Upstream Filters")
 
         buttons.button("addreviewer", onclick="addReviewer();").text("Add Reviewer")
         buttons.button("manage", onclick="location.href='managereviewers?review=%d';" % review.id).text("Manage Assignments")

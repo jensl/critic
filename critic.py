@@ -28,7 +28,6 @@ from textutils import json_encode, reflow
 
 import request
 import dbutils
-import reviewing.utils as review_utils
 import reviewing.filters as review_filters
 import log.commitset as log_commitset
 import diff
@@ -55,6 +54,7 @@ import operation.servicemanager
 import operation.addrepository
 import operation.news
 import operation.checkrebase
+import operation.applyfilters
 
 import page.utils
 import page.createreview
@@ -167,22 +167,6 @@ def unwatchreview(req, db, user):
 
     cursor.execute("DELETE FROM reviewusers WHERE review=%s AND uid=%s", (review_id, user.id))
     db.commit()
-
-    return "ok"
-
-def queryparentfilters(req, db, user):
-    review_id = req.getParameter("review", filter=int)
-    review = dbutils.Review.fromId(db, review_id)
-
-    new_reviewers, new_watchers = review_utils.queryParentFilters(db, user, review)
-
-    return "ok\n[ %s ]\n[ %s ]" % (", ".join([dbutils.User.fromId(db, user_id).getJSConstructor() for user_id in new_reviewers]),
-                                   ", ".join([dbutils.User.fromId(db, user_id).getJSConstructor() for user_id in new_watchers]))
-
-def applyparentfilters(req, db, user):
-    review_id = req.getParameter("review", filter=int)
-    review = dbutils.Review.fromId(db, review_id)
-    review_utils.applyParentFilters(db, user, review)
 
     return "ok"
 
@@ -462,8 +446,10 @@ OPERATIONS = { "fetchlines": operation.fetchlines.FetchLines(),
                "unwatchreview": unwatchreview,
                "addreviewfilters": operation.manipulatefilters.AddReviewFilters(),
                "removereviewfilter": operation.manipulatefilters.RemoveReviewFilter(),
-               "queryparentfilters": queryparentfilters,
-               "applyparentfilters": applyparentfilters,
+               "queryglobalfilters": operation.applyfilters.QueryGlobalFilters(),
+               "applyglobalfilters": operation.applyfilters.ApplyGlobalFilters(),
+               "queryparentfilters": operation.applyfilters.QueryParentFilters(),
+               "applyparentfilters": operation.applyfilters.ApplyParentFilters(),
                "suggestupstreams": operation.rebasereview.SuggestUpstreams(),
                "checkrebase": operation.rebasereview.CheckRebase(),
                "preparerebase": operation.rebasereview.PrepareRebase(),

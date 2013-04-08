@@ -254,76 +254,107 @@ function removeReviewFilter(filter_id, filter_user, filter_type, filter_path, co
     finish();
 }
 
-function applyParentFilters()
+function applyFilters(what)
 {
-  var new_reviewers, new_watchers;
+  var query_url, apply_url;
 
-  $.ajax({ async: false,
-           url: "queryparentfilters?review=" + review.id,
-           dataType: "text",
-           success: function (data)
-             {
-               if (/^ok$/m.test(data))
-               {
-                 var lines = data.split("\n");
-
-                 new_reviewers = eval(lines[1]);
-                 new_watchers = eval(lines[2]);
-               }
-               else
-                 reportError("update review filters", "Server reply: <i style='white-space: pre'>" + htmlify(data) + "</i>");
-             },
-           error: function ()
-             {
-               reportError("update review filters", "Request failed.");
-             }
-         });
-
-  if (new_reviewers instanceof Array && new_watchers instanceof Array)
+  if (what == "global")
   {
-    var content = "<div title='Apply Upstream Filters'><p>By applying upstream filters to this review, the following new reviewers and watchers would be added:</p>";
+    query_url = "queryglobalfilters";
+    apply_url = "applyglobalfilters";
+  }
+  else
+  {
+    query_url = "queryparentfilters";
+    apply_url = "applyparentfilters";
+  }
 
-    if (new_reviewers.length)
-    {
-      content += "<p>New reviewers:</p><ul>";
-      new_reviewers.forEach(function (user) { content += "<li>" + htmlify(user.displayName + " <" + user.email + ">") + "</li>"; });
-      content += "</ul>";
-    }
-
-    if (new_watchers.length)
-    {
-      content += "<p>New watchers:</p><ul>";
-      new_watchers.forEach(function (user) { content += "<li>" + htmlify(user.displayName + " <" + user.email + ">") + "</li>"; });
-      content += "</ul>";
-    }
-
-    content = $(content);
+  function openDialog(result)
+  {
+    if (!result)
+      return;
 
     function proceed()
     {
-      var success = false;
+      function finish(result)
+      {
+        if (result)
+        {
+          dialog.dialog("close");
+          location.reload();
+        }
+      }
 
-      $.ajax({ async: false,
-               url: "applyparentfilters?review=" + review.id,
-               dataType: "text",
-               success: function (data)
-                 {
-                   if (data == "ok")
-                     success = true;
-                   else
-                     reportError("apply upstream filters", "Server reply: <i style='white-space: pre'>" + htmlify(data) + "</i>");
-                 },
-               error: function ()
-                 {
-                   reportError("apply upstream filters", "Request failed.");
-                 }
-             });
+      var operation = new Operation({ action: "update review filters",
+                                      url: apply_url,
+                                      data: { review_id: review.id },
+                                      wait: "Applying filters ...",
+                                      callback: finish });
 
-      return success;
+      operation.execute();
     }
 
-    content.dialog({ width: 400, modal: true, buttons: { "Apply Upstream Filters": function () { if (proceed()) { content.dialog("close"); location.reload(); } }, "Do Nothing": function () { content.dialog("close"); }}});
+    function cancel()
+    {
+      dialog.dialog("close");
+    }
+
+    var html = "<div title='Apply " + what + " filters'>";
+    var buttons = {};
+
+    if (result.reviewers.length || result.watchers.length)
+    {
+      html += ("<p>By applying " + what + " filters to this review, the " +
+               "following new reviewers and watchers would be added:</p>");
+
+      if (result.reviewers.length)
+      {
+        html += "<p>New reviewers:</p><ul>";
+        result.reviewers.forEach(
+          function (user)
+          {
+            html += "<li>" + htmlify(user.displayName + " <" + user.email + ">") + "</li>";
+          });
+        html += "</ul>";
+      }
+
+      if (result.watchers.length)
+      {
+        html += "<p>New watchers:</p><ul>";
+        result.watchers.forEach(
+          function (user)
+          {
+            html += "<li>" + htmlify(user.displayName + " <" + user.email + ">") + "</li>";
+          });
+        html += "</ul>";
+      }
+
+      buttons["Apply Filters"] = proceed;
+    }
+    else
+    {
+      html += ("<p>Applying " + what + " filters to this review would " +
+               "not cause any immediate changes.  It may however affect " +
+               "what happens when adding additional changes to the review " +
+               "in the future.</p>");
+    }
+
+    buttons["Cancel"] = cancel;
+
+    html += "</div>";
+
+    var dialog = $(html);
+
+    dialog.dialog({ width: 400, modal: true, buttons: buttons });
   }
+
+  var operation = new Operation({ action: "query review filters",
+                                  url: query_url,
+                                  data: { review_id: review.id },
+                                  wait: "Listing new reviewers and watchers ...",
+                                  callback: openDialog });
+
+  operation.execute();
 }
 
 function toggleReviewFilters(type, button)

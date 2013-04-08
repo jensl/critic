@@ -21,7 +21,9 @@ from itertools import izip, repeat, chain
 import htmlutils
 
 import mail
+import diff
 import changeset.utils as changeset_utils
+import changeset.load as changeset_load
 import reviewing.comment
 import reviewing.filters
 import log.commitset as log_commitset
@@ -29,7 +31,8 @@ import log.commitset as log_commitset
 from operation import OperationError, OperationFailure
 from filters import Filters
 
-def getReviewersAndWatchers(db, repository, commits=None, changesets=None, reviewfilters=None, applyfilters=True, applyparentfilters=False, parentfiltersonly=False):
+def getReviewersAndWatchers(db, repository, commits=None, changesets=None, reviewfilters=None,
+                            applyfilters=True, applyparentfilters=False):
     """getReviewersAndWatchers(db, commits=None, changesets=None) -> tuple
 
 Returns a tuple containing two dictionaries, each mapping file IDs to
@@ -55,10 +58,7 @@ is used as a key in the dictionary instead of a real user ID."""
     filters.setFiles(db, list(file_ids))
 
     if applyfilters:
-        if parentfiltersonly:
-            filters.load(db, repository=repository.parent, recursive=True)
-        else:
-            filters.load(db, repository=repository, recursive=applyparentfilters)
+        filters.load(db, repository=repository, recursive=applyparentfilters)
 
     if reviewfilters:
         filters.addFilters(reviewfilters)
@@ -162,7 +162,7 @@ mapped to have changes in them with no assigned reviewers."""
 
     return teams
 
-def assignChanges(db, user, review, commits=None, changesets=None, update=False, parentfiltersonly=False):
+def assignChanges(db, user, review, commits=None, changesets=None, update=False):
     cursor = db.cursor()
 
     if changesets is None:
@@ -176,11 +176,8 @@ def assignChanges(db, user, review, commits=None, changesets=None, update=False,
     applyfilters = review.applyfilters
     applyparentfilters = review.applyparentfilters
 
-    # Doesn't make sense to apply only parent filters if they're not supposed to
-    # be applied in the first place.
-    assert not parentfiltersonly or applyparentfilters
-
-    reviewers, watchers = getReviewersAndWatchers(db, review.repository, changesets=changesets, reviewfilters=review.getReviewFilters(db), applyfilters=applyfilters, applyparentfilters=applyparentfilters, parentfiltersonly=parentfiltersonly)
+    reviewers, watchers = getReviewersAndWatchers(db, review.repository, changesets=changesets, reviewfilters=review.getReviewFilters(db),
+                                                  applyfilters=applyfilters, applyparentfilters=applyparentfilters)
 
     cursor.execute("SELECT uid FROM reviewusers WHERE review=%s", (review.id,))
 
@@ -755,33 +752,34 @@ def parseRecipientFilters(db, data):
 
     return recipientfilters
 
-def queryParentFilters(db, user, review):
-    assert review.applyfilters
-    assert not review.applyparentfilters
-
+def queryFilters(db, user, review, globalfilters=False, parentfilters=False):
     cursor = db.cursor()
 
-    cursor.execute("UPDATE reviews SET applyparentfilters=TRUE WHERE id=%s", (review.id,))
-    review.applyparentfilters = True
+    if globalfilters:
+        cursor.execute("UPDATE reviews SET applyfilters=TRUE WHERE id=%s", (review.id,))
+        review.applyfilters = True
+    if parentfilters:
+        cursor.execute("UPDATE reviews SET applyparentfilters=TRUE WHERE id=%s", (review.id,))
+        review.applyparentfilters = True
 
-    review.branch.loadCommits(db)
+    cursor.execute("""SELECT changeset
+                        FROM reviewchangesets
+                       WHERE review=%s""",
+                   (review.id,))
 
-    return assignChanges(db, user, review, commits=review.branch.commits, update=True, parentfiltersonly=True)
+    # TODO: This two-phase creation of Changeset objects is a bit silly.
+    changesets = [diff.Changeset.fromId(db, review.repository, changeset_id)
+                  for (changeset_id,) in cursor]
+    changeset_load.loadChangesets(
+        db, review.repository, changesets, load_chunks=False)
 
-def applyParentFilters(db, user, review):
-    assert review.applyfilters
-    assert not review.applyparentfilters
+    return assignChanges(db, user, review, changesets=changesets, update=True)
 
-    cursor = db.cursor()
-
-    cursor.execute("UPDATE reviews SET applyparentfilters=TRUE WHERE id=%s", (review.id,))
-    review.applyparentfilters = True
-
-    review.branch.loadCommits(db)
-
-    new_reviewers, new_watchers = assignChanges(db, user, review, commits=review.branch.commits, update=True, parentfiltersonly=True)
+def applyFilters(db, user, review, globalfilters=False, parentfilters=False):
+    new_reviewers, new_watchers = queryFilters(db, user, review, globalfilters, parentfilters)
 
     pending_mails = []
+    cursor = db.cursor()
 
     for user_id in new_reviewers:
         new_reviewer = dbutils.User.fromId(db, user_id)
@@ -794,11 +792,15 @@ def applyParentFilters(db, user, review):
                         GROUP BY reviewfiles.file""",
                        (review.id, user_id))
 
-        pending_mails.extend(mail.sendParentFiltersApplied(db, user, new_reviewer, review, cursor.fetchall()))
+        pending_mails.extend(mail.sendFiltersApplied(
+                db, user, new_reviewer, review, globalfilters, parentfilters, cursor.fetchall()))
 
     for user_id in new_watchers:
         new_watcher = dbutils.User.fromId(db, user_id)
-        pending_mails.extend(mail.sendParentFiltersApplied(db, user, new_watcher, review, None))
+        pending_mails.extend(mail.sendFiltersApplied(
+                db, user, new_watcher, review, globalfilters, parentfilters, None))
+
+    review.incrementSerial(db)
 
     db.commit()
 

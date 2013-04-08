@@ -198,6 +198,12 @@ class User(object):
     def getJS(self, db=None, name="user"):
         return "var %s = %s;" % (name, self.getJSConstructor(db))
 
+    def getJSON(self):
+        return { "id": self.id,
+                 "name": self.name,
+                 "email": self.email,
+                 "displayName": self.fullname }
+
     def getAbsence(self, db):
         cursor = db.cursor()
         cursor.execute("SELECT until FROM userabsence WHERE uid=%s", (self.id,))
