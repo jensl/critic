@@ -310,96 +310,9 @@ $(document).ready(function ()
         return host + path;
     }
 
-    function AutoCompleteRef(prefix)
-    {
-      var branches_remote = null;
-      var branches = null;
-      var branches_sha1 = null;
-      var branches_request = null;
-      var branches_response = null;
-
-      prefix = prefix || "";
-
-      function autocompleteBranch(request, response)
-      {
-        function callResponse()
-        {
-          function match(name)
-          {
-            return name.substring(0, branches_request.term.length) == branches_request.term;
-          }
-
-          var matches = branches.filter(match);
-
-          if (matches.length < 20)
-          {
-            matches.sort();
-
-            function formatMatch(name)
-            {
-              return { label: ("<div class=sourcefont style='padding:0;margin:0;white-space:pre'>" + htmlify(name) +
-			       "<span style='float:right;font-size:smaller'>" + branches_sha1[name].substring(0, 8) + "</span></div>"),
-		       value: name };
-            }
-
-            branches_response(matches.map(formatMatch));
-          }
-          else
-            branches_response([{ label: matches.length + " matching branches", value: branches_request.term }]);
-
-          branches_request = branches_response = null;
-        }
-
-        function handleResult(result)
-        {
-          branches = [];
-          branches_sha1 = {};
-
-          if (result)
-          {
-            for (var name in result.branches)
-            {
-              var use_name = name.substring(prefix.length);
-
-              branches.push(use_name);
-              branches_sha1[use_name] = result.branches[name];
-            }
-          }
-
-          callResponse();
-        }
-
-        if (branches_response)
-          branches_response([]);
-
-        branches_request = request;
-        branches_response = response;
-
-        var current_remote = getCurrentRemote();
-
-        if (branches_remote != current_remote)
-        {
-          branches_remote = current_remote;
-          branches = null;
-
-          var operation = new Operation({ action: "fetch remote branches",
-                                          url: "fetchremotebranches",
-                                          data: { remote: branches_remote,
-                                                  pattern: "refs/heads/*" },
-                                          callback: handleResult });
-
-          operation.execute();
-        }
-        else if (branches)
-          return callResponse();
-      }
-
-      return autocompleteBranch;
-    }
-
     var input_workbranch = $("input.workbranch");
 
-    input_workbranch.autocomplete({ source: AutoCompleteRef("refs/heads/"), html: true });
+    input_workbranch.autocomplete({ source: AutoCompleteRef(getCurrentRemote, "refs/heads/"), html: true });
     input_workbranch.keypress(
       function (ev)
       {

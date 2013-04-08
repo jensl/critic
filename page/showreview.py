@@ -393,11 +393,17 @@ def renderShowReview(req, db, user):
             if user in review.owners:
                 buttons = target.div("buttons")
 
-                if disabled:
-                    buttons.button("enabletracking", onclick="enableTracking(%d);" % trackedbranch_id).text("Enable Tracking")
-                else:
-                    buttons.button("disabletracking", onclick="triggerUpdate(%d);" % trackedbranch_id).text("Update Now")
-                    buttons.button("disabletracking", onclick="disableTracking(%d);" % trackedbranch_id).text("Disable Tracking")
+                if review.state == "open":
+                    if disabled:
+                        button = buttons.button("enabletracking",
+                                                onclick=("enableTracking(%d, %s, %s);"
+                                                         % (trackedbranch_id,
+                                                            htmlutils.jsify(remote),
+                                                            htmlutils.jsify(remote_name))))
+                        button.text("Enable Tracking")
+                    else:
+                        buttons.button("disabletracking", onclick="triggerUpdate(%d);" % trackedbranch_id).text("Update Now")
+                        buttons.button("disabletracking", onclick="disableTracking(%d);" % trackedbranch_id).text("Disable Tracking")
 
     def renderReviewers(target):
         if review.reviewers:

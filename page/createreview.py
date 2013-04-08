@@ -121,6 +121,7 @@ def renderSelectSource(req, db, user):
 
     document.addExternalStylesheet("resource/createreview.css")
     document.addExternalScript("resource/createreview.js")
+    document.addExternalScript("resource/autocomplete.js")
 
     document.addInternalScript(user.getJS(db))
     document.setTitle("Create Review")
@@ -195,6 +196,7 @@ def renderSelectSource(req, db, user):
         path.input("remotepath", value=default_remote[1] if default_remote else None)
 
     def renderWorkBranch(target):
+        target.text("refs/heads/")
         target.input("workbranch")
 
     def renderUpstreamCommit(target):

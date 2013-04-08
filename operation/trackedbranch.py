@@ -14,7 +14,7 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-from operation import Operation, OperationResult, OperationFailure, OperationError
+from operation import Operation, OperationResult, OperationFailure, OperationError, Optional
 
 import dbutils
 import gitutils
@@ -23,6 +23,19 @@ import configuration
 import calendar
 import os
 import signal
+
+def getTrackedBranchReviewState(db, branch_id):
+    cursor = db.cursor()
+    cursor.execute("""SELECT reviews.state
+                        FROM reviews
+                        JOIN branches ON (branches.id=reviews.branch)
+                        JOIN trackedbranches ON (trackedbranches.repository=branches.repository
+                                             AND trackedbranches.local_name=branches.name)
+                       WHERE trackedbranches.id=%s""",
+                   (branch_id,))
+
+    row = cursor.fetchone()
+    return row[0] if row else None
 
 class TrackedBranchLog(Operation):
     def __init__(self):
@@ -113,6 +126,12 @@ class TriggerTrackedBranchUpdate(Operation):
                                        title="Not allowed!",
                                        message="Operation not permitted.")
 
+        review_state = getTrackedBranchReviewState(db, branch_id)
+        if review_state is not None and review_state != "open":
+            raise OperationFailure(code="reviewnotopen",
+                                   title="The review is not open!",
+                                   message="You need to reopen the review before new commits can be added to it.")
+
         cursor.execute("""UPDATE trackedbranches
                              SET next=NULL
                            WHERE id=%s""",
@@ -127,9 +146,10 @@ class TriggerTrackedBranchUpdate(Operation):
 
 class EnableTrackedBranch(Operation):
     def __init__(self):
-        Operation.__init__(self, { "branch_id": int })
+        Operation.__init__(self, { "branch_id": int,
+                                   "new_remote_name": Optional(str) })
 
-    def process(self, db, user, branch_id):
+    def process(self, db, user, branch_id, new_remote_name=None):
         cursor = db.cursor()
 
         if not user.hasRole(db, "administrator"):
@@ -144,11 +164,25 @@ class EnableTrackedBranch(Operation):
                                        title="Not allowed!",
                                        message="Operation not permitted.")
 
-        cursor.execute("""UPDATE trackedbranches
-                             SET disabled=FALSE,
-                                 next=NULL
-                           WHERE id=%s""",
-                       (branch_id,))
+        review_state = getTrackedBranchReviewState(db, branch_id)
+        if review_state is not None and review_state != "open":
+            raise OperationFailure(code="reviewnotopen",
+                                   title="The review is not open!",
+                                   message="You need to reopen the review before new commits can be added to it.")
+
+        if new_remote_name is not None:
+            cursor.execute("""UPDATE trackedbranches
+                                 SET remote_name=%s,
+                                     disabled=FALSE,
+                                     next=NULL
+                               WHERE id=%s""",
+                           (new_remote_name, branch_id))
+        else:
+            cursor.execute("""UPDATE trackedbranches
+                                 SET disabled=FALSE,
+                                     next=NULL
+                               WHERE id=%s""",
+                           (branch_id,))
 
         db.commit()
 

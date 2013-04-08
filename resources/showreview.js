@@ -27,8 +27,8 @@ function shortDate(date)
   }
 
   return (pad(date.getFullYear(), 4) +
-	  "-" + pad(date.getMonth(), 2) +
-	  "-" + pad(date.getDay(), 2) +
+	  "-" + pad(date.getMonth() + 1, 2) +
+	  "-" + pad(date.getDate(), 2) +
 	  " " + pad(date.getHours(), 2) +
 	  ":" + pad(date.getMinutes(), 2));
 }
@@ -46,14 +46,33 @@ function triggerUpdate(branch_id)
   }
 }
 
-function enableTracking(branch_id)
+function enableTracking(branch_id, remote, current_remote_name)
 {
-  var operation = new Operation({ action: "enable tracking",
-				  url: "enabletrackedbranch",
-				  data: { branch_id: branch_id }});
+  function finish()
+  {
+    var operation = new Operation({ action: "enable tracking",
+				    url: "enabletrackedbranch",
+				    data: { branch_id: branch_id,
+                                            new_remote_name: remote_name.val() }});
 
-  if (operation.execute())
-    location.reload();
+    return Boolean(operation.execute());
+  }
+
+  var self = this;
+  var content = $("<div class='enabletracking' title='Enable Tracking'><p><b>Remote branch name:</b><br><input></p></div>");
+  var remote_name = content.find("input");
+
+  remote_name
+    .val(current_remote_name)
+    .autocomplete({ source: AutoCompleteRef(remote, "refs/heads/"), html: true });
+
+  var buttons = {
+    "Enable Tracking": function () { if (finish()) { content.dialog("close"); location.reload(); } },
+    "Cancel": function () { content.dialog("close"); }
+  };
+
+  content.dialog({ width: 400,
+                   buttons: buttons });
 }
 
 function disableTracking(branch_id)

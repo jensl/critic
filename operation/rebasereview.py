@@ -104,7 +104,9 @@ class SuggestUpstreams(Operation):
 
         for tag in tags:
             cursor.execute("SELECT sha1 FROM tags WHERE repository=%s AND name=%s", (review.branch.repository.id, tag))
-            if cursor.fetchone()[0] != tail: upstreams.append(tag)
+            row = cursor.fetchone()
+            if row and row[0] != tail:
+                upstreams.append(tag)
 
         return OperationResult(upstreams=upstreams)
 

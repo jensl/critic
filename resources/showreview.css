@@ -457,3 +457,9 @@ span.lastupdate {
     font-style: italic;
     padding-left: 1em
 }
+
+div.enabletracking input {
+    font-family: monospace;
+    margin-top: 0.5em;
+    width: 100%
+}
