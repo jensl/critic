@@ -20,7 +20,7 @@ import configuration
 import dbutils
 import gitutils
 
-def renderFormatted(db, user, table, lines, toc=False):
+def renderFormatted(db, user, table, lines, toc=False, title_right=None):
     re_h1 = re.compile("^=+$")
     re_h2 = re.compile("^-+$")
     data = { "configuration.URL": dbutils.getURLPrefix(db),
@@ -53,7 +53,14 @@ def renderFormatted(db, user, table, lines, toc=False):
         if len(block) == 2:
             if re_h1.match(block[1]):
                 table.setTitle(block[0])
-                table.tr("h1").td("h1").h1(id=textToId(block[0])).text(block[0])
+                h1 = table.tr("h1").td("h1").h1(id=textToId(block[0]))
+                h1.text(block[0])
+                if title_right:
+                    span_right = h1.span("right")
+                    if callable(title_right):
+                        title_right(span_right)
+                    else:
+                        span_right.text(title_right)
                 text = None
                 if toc:
                     toc = table.tr("toc").td("toc").div().table("toc")

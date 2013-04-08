@@ -21,9 +21,10 @@ import htmlutils
 import configuration
 import re
 
-def renderNewsItem(db, user, target, text):
+def renderNewsItem(db, user, target, text, timestamp):
     table = target.table("paleyellow", align="center")
-    textformatting.renderFormatted(db, user, table, text.splitlines(), toc=False)
+    textformatting.renderFormatted(db, user, table, text.splitlines(), toc=False,
+                                   title_right=timestamp)
     table.tr("back").td("back").div().a("back", href="news").text("Back")
 
 def renderNewsItems(db, user, target, display_unread, display_read):
@@ -84,14 +85,14 @@ def renderNews(req, db, user):
     target = body.div("main")
 
     if item_id:
-        cursor.execute("SELECT text FROM newsitems WHERE id=%s", (item_id,))
+        cursor.execute("SELECT text, date FROM newsitems WHERE id=%s", (item_id,))
 
-        text = cursor.fetchone()[0]
+        text, date = cursor.fetchone()
 
         document.addInternalScript("var news_item_id = %d;" % item_id)
         document.addInternalScript("var news_text = %s;" % htmlutils.jsify(text))
 
-        renderNewsItem(db, user, target, text)
+        renderNewsItem(db, user, target, text, date.isoformat())
 
         if not user.isAnonymous() and user.name == req.user:
             cursor.execute("SELECT 1 FROM newsread WHERE item=%s AND uid=%s", (item_id, user.id))
