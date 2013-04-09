@@ -354,7 +354,8 @@ table.commit-msg tr.line.highlight td.line {
 }
 
 .blame-tooltip {
-    opacity: 1 !important
+    opacity: 1 !important;
+    max-width: none !important
 }
 
 .blame-tooltip pre {

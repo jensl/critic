@@ -59,13 +59,12 @@ def generateEmpty(target):
 
 def generateHeader(target, db, user, generate_right=None, current_page=None, extra_links=[], profiler=None):
     target.addExternalStylesheet("resource/jquery-ui.css")
-    target.addExternalStylesheet("resource/jquery-tooltip.css")
+    target.addExternalStylesheet("resource/jquery-ui-overrides.css")
     target.addExternalStylesheet("resource/basic.css")
     target.addInternalStylesheet(".defaultfont, body { %s }" % user.getPreference(db, "style.defaultFont"))
     target.addInternalStylesheet(".sourcefont { %s }" % user.getPreference(db, "style.sourceFont"))
     target.addExternalScript("resource/jquery.js")
     target.addExternalScript("resource/jquery-ui.js")
-    target.addExternalScript("resource/jquery-tooltip.js")
     target.addExternalScript("resource/jquery-ui-autocomplete-html.js")
     target.addExternalScript("resource/basic.js")
 

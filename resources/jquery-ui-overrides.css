@@ -1,0 +1,8 @@
+.ui-widget,
+.ui-widget input,
+.ui-widget select,
+.ui-widget textarea,
+.ui-widget button
+{
+    font-family: Verdana, Helvetica, Arial, sans-serif
+}

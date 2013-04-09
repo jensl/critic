@@ -10,21 +10,11 @@ The jQuery library is licensed under the MIT License, available in the file
 MIT-LICENSE.txt.  These files distributed with Critic are part of jQuery:
 
   MIT-LICENSE.txt
-  resources/jquery-1.7.1.min.js
-  resources/jquery-ui-1.8.17.custom.css
-  resources/jquery-ui-1.8.17.custom.min.js
+  resources/jquery-2.0.0.min.js
+  resources/jquery-ui-1.10.2.custom.css
+  resources/jquery-ui-1.10.2.custom.min.js
+  resources/images/ui-*.png
 
 For more information, see:
 
   http://jquery.org/
-
-
-The jQuery tooltip plugin is licensed under the MIT License.  These files
-distributed with Critic are part of the jQuery tooltip plugin:
-
-  resources/jquery-tooltip.css
-  resources/jquery-tooltip.js
-
-For more information, see:
-
-  http://bassistance.de/jquery-plugins/jquery-plugin-tooltip/

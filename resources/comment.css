@@ -67,12 +67,20 @@ div.comments > div.resolution {
     padding-top: 10px
 }
 
-div.tooltip > div.header {
+.comment-tooltip {
+    max-width: 40em
+}
+
+.comment-tooltip div.tooltip > div.header {
     font-weight: bold
 }
 
-div.tooltip > div.leader {
-    font-style: italic
+.comment-tooltip div.tooltip > div.text {
+    padding: 5px;
+    background-color: white;
+    border: 1px solid #bbb;
+    margin-top: 3px;
+    white-space: pre-wrap
 }
 
 div.marker {

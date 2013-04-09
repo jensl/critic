@@ -28,7 +28,9 @@ function markChainsAsRead(review_ids)
 
 $(document).ready(function ()
   {
-    $("h1[title], h2[title]").tooltip({ fade: 250 });
+    $("h1[title], h2[title]").tooltip({
+      items: "h1[title], h2[title]"
+    });
 
     $("div.main").sortable({
         handle: "td.h1",

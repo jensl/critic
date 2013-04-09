@@ -958,6 +958,14 @@ function fetchBlame()
         if (commit.current)
           BLAME.current = commit;
       }
+
+      BLAME.file_by_id = {};
+
+      for (var index = 0; index < BLAME.files.length; ++index)
+      {
+        var file = BLAME.files[index];
+        BLAME.file_by_id[file.id] = file;
+      }
     }
   }
 }
@@ -987,11 +995,12 @@ function updateBlame(file_id)
     case 5: pattern = "llhhhh"; break;
     }
 
-    var color = pattern.replace(/hh/g, cv1).replace(/ll/g, cv2);
+    return pattern.replace(/hh/g, cv1).replace(/ll/g, cv2);
+  }
 
-    console.log(color);
-
-    return color;
+  function generateTooltip()
+  {
+    return $(this).attr("critic-blame-tooltip");
   }
 
   if (BLAME)
@@ -1014,17 +1023,10 @@ function updateBlame(file_id)
 
             function addTooltip(element, commit)
             {
-              element.tooltip({
-                track: true,
-                fade: 250,
-                bodyHandler: function ()
-                  {
-                    return $("<div class='blame-tooltip'><b><u>" + htmlify(commit.author_name) + " &lt;" + htmlify(commit.author_email) + "></u></b>" +
-                             "<pre>" + htmlify(commit.message) + "</pre></div>");
-                  },
-                showURL: false,
-                extraClass: "blame-tooltip"
-              });
+              element.addClass("with-blame-tooltip");
+              element.attr("critic-blame-tooltip",
+                           ("<div><b><u>" + htmlify(commit.author_name) + " &lt;" + htmlify(commit.author_email) + "></u></b>" +
+                            "<pre>" + htmlify(commit.message) + "</pre></div>"));
             }
 
             if (commit.original)
@@ -1048,6 +1050,40 @@ function updateBlame(file_id)
         }
       }
     }
+
+    /* This is a workaround for an issue where a tooltip isn't always removed
+       when the mouse pointer is moved to a different element, leading to
+       multiple tooltips on-top of each other. */
+    var current_tooltip = null;
+    function tooltipOpened(event, ui)
+    {
+      if (current_tooltip !== null)
+        $(current_tooltip.tooltip).remove();
+      current_tooltip = ui;
+    }
+    function tooltipClosed(event, ui)
+    {
+      current_tooltip = null;
+    }
+    $(document).mouseover(
+      function (ev)
+      {
+        if (current_tooltip &&
+            !$(ev.target).closest("td.with-blame-tooltip").size() &&
+            !$(ev.target).is("td.with-blame-tooltip"))
+          $("td.with-blame-tooltip").tooltip("close");
+      });
+    /* End of workaround. */
+
+    $("td.with-blame-tooltip").tooltip({
+      content: generateTooltip,
+      items: "td.with-blame-tooltip",
+      tooltipClass: "blame-tooltip",
+      track: true,
+      hide: false,
+      open: tooltipOpened,
+      close: tooltipClosed
+    });
   }
 }
 

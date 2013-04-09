@@ -1000,9 +1000,9 @@ CommentChain.prototype.toolTip = function ()
   {
     var html = "<div class='tooltip'>";
     html += "<div class='header'>" + (this.type == "issue" ? "Issue raised" : "Note")+ " by " + this.comments[0].author.displayName + "</div>";
-    html += "<div class='leader'>" + this.comments[0].getLeader() + "</div>";
+    html += "<div class='text sourcefont'>" + this.comments[0].text + "</div>";
     html += "</div>";
-    return $(html);
+    return html;
   };
 
 CommentChain.removeAll = function ()
@@ -1039,8 +1039,13 @@ function CommentMarkers(commentChain)
   else
     this.setType("new");
 
-  this.leftMarker.tooltip({ fade: 250, bodyHandler: function () { if (self.commentChain) return self.commentChain.toolTip(); }, showURL: false });
-  this.rightMarker.tooltip({ fade: 250, bodyHandler: function () { if (self.commentChain) return self.commentChain.toolTip(); }, showURL: false });
+  this.bothMarkers.tooltip({
+    content: function () { if (self.commentChain) return commentChain.toolTip() },
+    items: "div.marker",
+    tooltipClass: "comment-tooltip",
+    track: true,
+    hide: false
+  });
 
   this.leftMarker.click(function () { if (self.commentChain) self.commentChain.display(); });
   this.rightMarker.click(function () { if (self.commentChain) self.commentChain.display(); });

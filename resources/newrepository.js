@@ -22,9 +22,9 @@ $(document).ready(
     function updateBranchDisabled()
     {
       if ($("input[name='remote']").val().trim())
-        $("input[name='branch']").removeAttr("disabled");
+        $("input[name='branch']").prop("disabled", false);
       else
-        $("input[name='branch']").attr("disabled", "disabled");
+        $("input[name='branch']").prop("disabled", true);
     }
 
     $("input[name='remote']")

@@ -207,11 +207,7 @@ function ModificationChecker(current, input, status)
       if (is_modified_last != is_modified_now)
       {
         status.text(is_modified_now ? "Modified" : "");
-
-        if (is_modified_now)
-          input.nextAll("button").removeAttr("disabled");
-        else
-          input.nextAll("button").attr("disabled", "disabled");
+        input.nextAll("button").prop("disabled", !is_modified_now);
       }
     }, 100);
 }
@@ -282,6 +278,8 @@ function editFilter(repository_name, filter_id, filter_type, filter_path, filter
   }
 
   var dialog = $("div.hidden > div.filterdialog").clone();
+
+  dialog.addClass("active");
 
   if (filter_id)
     dialog.attr("title", "Edit Filter");
@@ -373,7 +371,7 @@ function editFilter(repository_name, filter_id, filter_type, filter_path, filter
     delegates.val(filter_delegates);
 
     if (filter_type != "reviewer")
-      delegates.attr("disabled", "disabled");
+      delegates.prop("disabled", true);
 
     updateMatchedFiles();
   }
@@ -381,9 +379,8 @@ function editFilter(repository_name, filter_id, filter_type, filter_path, filter
   {
     type.val("reviewer");
     path.val("");
-    path.autocomplete({ source: AutoCompletePath(getPaths), html: true });
     delegates.val("");
-    delegates.removeAttr("disabled");
+    delegates.prop("disabled", false);
   }
 
   function saveFilter()
@@ -475,11 +472,11 @@ function editFilter(repository_name, filter_id, filter_type, filter_path, filter
   type.change(
     function ()
     {
-      if (type.val() == "reviewer")
-        delegates.removeAttr("disabled");
-      else
-        delegates.attr("disabled", "disabled");
+      delegates.prop("disabled", type.val() != "reviewer");
     });
+
+  path.autocomplete({ source: AutoCompletePath(getPaths),
+                      html: true });
 }
 
 function showMatchedFiles(repository_name, path)
