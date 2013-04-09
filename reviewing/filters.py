@@ -27,7 +27,7 @@ class PatternError(Exception):
         return "%s: %s" % (self.pattern, self.message)
 
 def sanitizePath(path):
-    return re.sub("//+", "/", path.strip())
+    return re.sub("//+", "/", path.strip().lstrip("/")) or "/"
 
 def validatePattern(pattern):
     if re.search(r"[^/]\*\*", pattern):

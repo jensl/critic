@@ -718,7 +718,7 @@ def parseReviewFilters(db, data):
     for filter_data in data:
         filter_user = dbutils.User.fromName(db, filter_data["username"])
         filter_type = filter_data["type"]
-        filter_path = filter_data["path"]
+        filter_path = reviewing.filters.sanitizePath(filter_data["path"])
 
         # Make sure the path doesn't contain any invalid wild-cards.
         try:

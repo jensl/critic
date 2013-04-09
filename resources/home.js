@@ -388,7 +388,7 @@ function editFilter(repository_name, filter_id, filter_type, filter_path, filter
   function saveFilter()
   {
     var type_value = type.val();
-    var path_value = path.val().trim() || "/";
+    var path_value = path.val().trim();
     var delegates_value;
 
     if (type_value == "reviewer")

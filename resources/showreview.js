@@ -158,27 +158,11 @@ function updateFilters(filter_type)
   else
     content = $("<div class='comment' title='Add Watcher'><p>Make specified users watchers of given path during this review.  If a user would normally be a reviewer of the path, he/she is reduced to just a watcher.</p><p><b>User name(s):</b><br><input class='name sourcefont' style='width: 100%'><br><b>Directory:</b><br><input class='path sourcefont' style='width:100%'></p></div>");
 
-  function finish(type, force)
+  function finish()
   {
-    var name = content.find("input.name").val();
-    var path = content.find("input.path").val();
-
+    var name = content.find("input.name").val().trim();
+    var path = content.find("input.path").val().trim();
     var names = name.split(/[, ]+/);
-
-    if (!force)
-    {
-      if (/[?*]/.test(path))
-      {
-        var error = $("<div class='error' title='Invalid Path'><p>The entered path is not valid.  No wild-cards are allowed; the path must be a single directory or file.</p><p>If you believe your path actually adheres to these rules, and this error is incorrect, you can use the <b>Override</b> button below to override the error.</p></div>");
-
-        error.dialog({ width: 400,
-                       buttons: { "Try Again": function () { error.dialog("close"); content.find("input.path").focus(); },
-                                  "Override": function () { error.dialog("close"); finish(type, true); } },
-                       modal: true });
-
-        return false;
-      }
-    }
 
     var operation = new Operation({ action: "update review filters",
                                     url: "addreviewfilters",

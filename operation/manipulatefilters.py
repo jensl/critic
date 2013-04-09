@@ -346,7 +346,16 @@ class AddReviewFilters(Operation):
                     user_ids.add(dbutils.User.fromName(db, user_name).id)
 
             if "paths" in filter:
-                paths = set(filter["paths"])
+                paths = set(reviewing.filters.sanitizePath(path) for path in filter["paths"])
+
+                for path in paths:
+                    try:
+                        reviewing.filters.validatePattern(path)
+                    except reviewing.filters.PatternError, error:
+                        raise OperationFailure(
+                            code="invalidpattern",
+                            title="Invalid path pattern",
+                            message="There are invalid wild-cards in the path: %s" % error.message)
             else:
                 paths = set()
 
