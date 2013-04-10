@@ -58,11 +58,15 @@ class BranchTracker(background.utils.BackgroundProcess):
 
                 if current != new or tags:
                     if local_name == "*":
-                        returncode, stdout, stderr = relay.run("push", "--force", "origin", *[("refs/tags/%s" % tag) for tag in tags],
-                                                                         check_errors=False)
+                        refspecs = [("refs/tags/%s" % tag) for tag in tags]
                     else:
-                        returncode, stdout, stderr = relay.run("push", "--force", "origin", "refs/remotes/source/%s:refs/heads/%s" % (remote_name, local_name),
-                                                                         check_errors=False)
+                        refspecs = ["refs/remotes/source/%s:refs/heads/%s"
+                                    % (remote_name, local_name)]
+
+                    returncode, stdout, stderr = relay.run(
+                        "push", "--force", "origin", *refspecs,
+                        env={ "CRITIC_FLAGS": "trackedbranch_id=%d" % trackedbranch_id },
+                        check_errors=False)
 
                     stderr = stderr.replace("\x1b[K", "")
 

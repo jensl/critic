@@ -163,7 +163,7 @@ def abort():
         db.close()
         db = None
 
-def createBranches(user_name, repository_name, branches):
+def createBranches(user_name, repository_name, branches, flags):
     user = getUser(db, user_name)
     repository = gitutils.Repository.fromName(db, repository_name)
 
@@ -217,9 +217,9 @@ def createBranches(user_name, repository_name, branches):
 
         branches.sort(cmp=compareBranches)
 
-    for name, head in branches: createBranch(user, repository, name, head)
+    for name, head in branches: createBranch(user, repository, name, head, flags)
 
-def createBranch(user, repository, name, head):
+def createBranch(user, repository, name, head, flags):
     processCommits(repository.name, head)
 
     cursor = db.cursor()
@@ -384,7 +384,7 @@ def createBranch(user, repository, name, head):
     if not repository.hasMainBranch() and user_name == configuration.base.SYSTEM_USER_NAME:
         cursor.execute("UPDATE repositories SET branch=%s WHERE id=%s", (branch_id, repository.id))
 
-def updateBranch(user_name, repository_name, name, old, new, multiple):
+def updateBranch(user_name, repository_name, name, old, new, multiple, flags):
     repository = gitutils.Repository.fromName(db, repository_name)
 
     processCommits(repository_name, new)
@@ -415,21 +415,30 @@ to resynchronize the Git repository with Critic's database.""" % data
             raise IndexException(textutils.reflow(message, line_length=80 - len("remote: ")))
 
     cursor = db.cursor()
-    cursor.execute("SELECT remote, remote_name, forced FROM trackedbranches WHERE repository=%s AND local_name=%s AND NOT disabled", (repository.id, name))
+    cursor.execute("""SELECT id, remote, remote_name, forced, updating
+                        FROM trackedbranches
+                       WHERE repository=%s
+                         AND local_name=%s
+                         AND NOT disabled""",
+                   (repository.id, name))
     row = cursor.fetchone()
 
     if row:
-        remote, remote_name, forced = row
+        trackedbranch_id, remote, remote_name, forced, updating = row
         tracked_branch = "%s in %s" % (remote_name, remote)
 
         assert not forced or not name.startswith("r/")
 
-        if user_name != configuration.base.SYSTEM_USER_NAME:
+        if user_name != configuration.base.SYSTEM_USER_NAME \
+                or flags.get("trackedbranch_id") != str(trackedbranch_id):
             raise IndexException("""\
 The branch '%s' is set up to track '%s' in
   %s
 Please don't push it manually to this repository.""" % (name, remote_name, remote))
-        elif not name.startswith("r/"):
+
+        assert updating
+
+        if not name.startswith("r/"):
             conflicting = repository.revlist([branch.head.sha1], [new])
             added = repository.revlist([new], [branch.head.sha1])
 
@@ -446,7 +455,7 @@ Please don't push it manually to this repository.""" % (name, remote_name, remot
                         output = "Non-fast-forward update detected; deleting and recreating branch."
 
                         deleteBranch(repository.name, branch.name)
-                        createBranch(None, repository, branch.name, new)
+                        createBranch(None, repository, branch.name, new, flags)
 
                         return output
                 else:

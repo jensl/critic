@@ -20,6 +20,8 @@ import os.path
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(sys.argv[0]), "..")))
 
+import configuration
+
 from textutils import json_decode, json_encode
 
 sys_stdout = sys.stdout
@@ -30,9 +32,6 @@ if "--slave" in sys.argv[1:]:
 
     import index
 
-    data = sys.stdin.read()
-    request = json_decode(data)
-
     def reject(message):
         sys_stdout.write(json_encode({ "status": "reject", "message": message }))
         sys.exit(0)
@@ -41,100 +40,107 @@ if "--slave" in sys.argv[1:]:
         sys_stdout.write(json_encode({ "status": "error", "error": message }))
         sys.exit(0)
 
-    create_branches = []
-    delete_branches = []
-    update_branches = []
-
-    create_tags = []
-    delete_tags = []
-    update_tags = []
-
-    user_name = request["user_name"]
-    repository_name = request["repository_name"]
-
-    sys.stdout = StringIO.StringIO()
-
-    index.init()
-
     try:
-        try:
-            for ref in request["refs"]:
-                name = ref["name"]
-                old_sha1 = ref["old_sha1"]
-                new_sha1 = ref["new_sha1"]
+        data = sys.stdin.read()
+        request = json_decode(data)
 
-                if "//" in name: reject("invalid ref name: '%s'" % name)
-                if not name.startswith("refs/"): reject("unexpected ref name: '%s'" % name)
+        create_branches = []
+        delete_branches = []
+        update_branches = []
 
-                name = name[len("refs/"):]
+        create_tags = []
+        delete_tags = []
+        update_tags = []
 
-                if name.startswith("heads/"):
-                    name = name[len("heads/"):]
-                    if new_sha1 == '0000000000000000000000000000000000000000':
-                        delete_branches.append(name)
-                    elif old_sha1 == '0000000000000000000000000000000000000000':
-                        create_branches.append((name, new_sha1))
-                    else:
-                        update_branches.append((name, old_sha1, new_sha1))
-                elif name.startswith("tags/"):
-                    name = name[len("tags/"):]
-                    if old_sha1 == '0000000000000000000000000000000000000000':
-                        create_tags.append((name, new_sha1))
-                    elif new_sha1 == '0000000000000000000000000000000000000000':
-                        delete_tags.append(name)
-                    else:
-                        update_tags.append((name, old_sha1, new_sha1))
-                elif name.startswith("replays/"):
-                    index.processCommits(repository_name, new_sha1)
-                elif name.startswith("keepalive/"):
-                    name = name[len("keepalive/"):]
-                    if name != new_sha1: reject("invalid update of '%s'; value is not %s" % (ref["name"], name))
-                    index.processCommits(repository_name, new_sha1)
-                elif name.startswith("temporary/"):
-                    name = name[len("temporary/"):]
-                    if new_sha1 != '0000000000000000000000000000000000000000':
-                        index.processCommits(repository_name, new_sha1)
+        user_name = request["user_name"]
+        repository_name = request["repository_name"]
+
+        if request["flags"] and user_name == configuration.base.SYSTEM_USER_NAME:
+            flags = dict(flag.split("=", 1) for flag in request["flags"].split(","))
+        else:
+            flags = {}
+
+        sys.stdout = StringIO.StringIO()
+
+        index.init()
+
+        for ref in request["refs"]:
+            name = ref["name"]
+            old_sha1 = ref["old_sha1"]
+            new_sha1 = ref["new_sha1"]
+
+            if "//" in name: reject("invalid ref name: '%s'" % name)
+            if not name.startswith("refs/"): reject("unexpected ref name: '%s'" % name)
+
+            name = name[len("refs/"):]
+
+            if name.startswith("heads/"):
+                name = name[len("heads/"):]
+                if new_sha1 == '0000000000000000000000000000000000000000':
+                    delete_branches.append(name)
+                elif old_sha1 == '0000000000000000000000000000000000000000':
+                    create_branches.append((name, new_sha1))
                 else:
-                    reject("unexpected ref name: '%s'" % ref["name"])
+                    update_branches.append((name, old_sha1, new_sha1))
+            elif name.startswith("tags/"):
+                name = name[len("tags/"):]
+                if old_sha1 == '0000000000000000000000000000000000000000':
+                    create_tags.append((name, new_sha1))
+                elif new_sha1 == '0000000000000000000000000000000000000000':
+                    delete_tags.append(name)
+                else:
+                    update_tags.append((name, old_sha1, new_sha1))
+            elif name.startswith("replays/"):
+                index.processCommits(repository_name, new_sha1)
+            elif name.startswith("keepalive/"):
+                name = name[len("keepalive/"):]
+                if name != new_sha1: reject("invalid update of '%s'; value is not %s" % (ref["name"], name))
+                index.processCommits(repository_name, new_sha1)
+            elif name.startswith("temporary/"):
+                name = name[len("temporary/"):]
+                if new_sha1 != '0000000000000000000000000000000000000000':
+                    index.processCommits(repository_name, new_sha1)
+            else:
+                reject("unexpected ref name: '%s'" % ref["name"])
 
-            multiple = (len(delete_branches) + len(update_branches) + len(create_branches) + len(delete_tags) + len(update_tags) + len(create_tags)) > 1
-            info = []
+        multiple = (len(delete_branches) + len(update_branches) + len(create_branches) + len(delete_tags) + len(update_tags) + len(create_tags)) > 1
+        info = []
 
-            for name in delete_branches:
-                index.deleteBranch(repository_name, name)
-                info.append("branch deleted: %s" % name)
+        for name in delete_branches:
+            index.deleteBranch(repository_name, name)
+            info.append("branch deleted: %s" % name)
 
-            for name, old, new in update_branches:
-                index.updateBranch(user_name, repository_name, name, old, new, multiple)
-                info.append("branch updated: %s (%s..%s)" % (name, old[:8], new[:8]))
+        for name, old, new in update_branches:
+            index.updateBranch(user_name, repository_name, name, old, new, multiple, flags)
+            info.append("branch updated: %s (%s..%s)" % (name, old[:8], new[:8]))
 
-            index.createBranches(user_name, repository_name, create_branches)
+        index.createBranches(user_name, repository_name, create_branches, flags)
 
-            for name, new in create_branches:
-                info.append("branch created: %s (%s)" % (name, new[:8]))
+        for name, new in create_branches:
+            info.append("branch created: %s (%s)" % (name, new[:8]))
 
-            for name in delete_tags:
-                index.deleteTag(repository_name, name)
-                info.append("tag deleted: %s" % name)
+        for name in delete_tags:
+            index.deleteTag(repository_name, name)
+            info.append("tag deleted: %s" % name)
 
-            for name, old, new in update_tags:
-                index.updateTag(repository_name, name, old, new)
-                info.append("tag updated: %s (%s..%s)" % (name, old[:8], new[:8]))
+        for name, old, new in update_tags:
+            index.updateTag(repository_name, name, old, new)
+            info.append("tag updated: %s (%s..%s)" % (name, old[:8], new[:8]))
 
-            for name, new in create_tags:
-                index.createTag(repository_name, name, new)
-                info.append("tag created: %s (%s)" % (name, new[:8]))
+        for name, new in create_tags:
+            index.createTag(repository_name, name, new)
+            info.append("tag created: %s (%s)" % (name, new[:8]))
 
-            sys_stdout.write(json_encode({ "status": "ok", "accept": True, "output": sys.stdout.getvalue(), "info": info }))
+        sys_stdout.write(json_encode({ "status": "ok", "accept": True, "output": sys.stdout.getvalue(), "info": info }))
 
-            index.finish()
-        except index.IndexException, exception:
-            sys_stdout.write(json_encode({ "status": "ok", "accept": False, "output": exception.message, "info": info }))
-        except SystemExit:
-            raise
-        except:
-            exception = traceback.format_exc()
-            message = """\
+        index.finish()
+    except index.IndexException, exception:
+        sys_stdout.write(json_encode({ "status": "ok", "accept": False, "output": exception.message, "info": info }))
+    except SystemExit:
+        raise
+    except:
+        exception = traceback.format_exc()
+        message = """\
 %s
 
 Request:
@@ -142,12 +148,10 @@ Request:
 
 %s""" % (exception.splitlines()[-1], json_encode(request, indent=2), traceback.format_exc())
 
-            sys_stdout.write(json_encode({ "status": "error", "error": message }))
+        sys_stdout.write(json_encode({ "status": "error", "error": message }))
     finally:
         index.abort()
 else:
-    import configuration
-
     from background.utils import PeerServer, indent
 
     class GitHookServer(PeerServer):
@@ -195,11 +199,12 @@ been sent to the system administrator(s).
 
                 self.__request = { "user_name": user_name,
                                    "repository_name": lines[2],
+                                   "flags": lines[3],
                                    "refs": [{ "name": name,
                                               "old_sha1": old_sha1,
                                               "new_sha1": new_sha1 }
                                             for old_sha1, new_sha1, name
-                                            in map(str.split, lines[3:])] }
+                                            in map(str.split, lines[4:])] }
 
                 self.server.info("session started: %s / %s" % (self.__request["user_name"], self.__request["repository_name"]))
 

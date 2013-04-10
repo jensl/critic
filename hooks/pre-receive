@@ -58,7 +58,10 @@ data += environ.get("REMOTE_USER", "") + "\n"
 # Line 3: repository name.
 data += repository_name + "\n"
 
-# Line 4-N: input to the git hook.
+# Line 4: flags from $CRITIC_FLAGS or empty string if undefined.
+data += environ.get("CRITIC_FLAGS", "") + "\n"
+
+# Line 5-N: input to the git hook.
 data += stdin.read()
 
 try:
