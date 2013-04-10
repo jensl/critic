@@ -354,7 +354,8 @@ def generateRepositorySelect(db, user, target, selected=None, **attributes):
                         FROM branches
                         JOIN reviews ON (reviews.branch=branches.id)
                         JOIN reviewusers ON (reviewusers.review=reviews.id)
-                       WHERE reviewusers.uid=%s""",
+                       WHERE reviewusers.uid=%s
+                         AND reviewusers.owner""",
                    (user.id,))
     highlighted_ids.update(repository_id for (repository_id,) in cursor)
 
