@@ -116,6 +116,7 @@ class Propagation:
     def __init__(self, db):
         self.db = db
         self.review = None
+        self.head = None
         self.rebases = None
         self.initial_commit = None
         self.file_path = None
@@ -208,10 +209,13 @@ class Propagation:
         Returns the value of the 'active' attribute.
         """
 
+        self.review.branch.loadCommits(self.db)
+        self.head = self.review.branch.head
+
         self.__propagate(self.review.getCommitSet(self.db))
         return self.active
 
-    def calculateAdditionalLines(self, commits):
+    def calculateAdditionalLines(self, commits, head):
         """
         Calculate additional set of line mappings when adding new commits.
 
@@ -221,6 +225,8 @@ class Propagation:
 
         Returns the value of the 'active' attribute.
         """
+
+        self.head = head
 
         self.__propagate(commits)
         return self.active
@@ -260,6 +266,9 @@ class Propagation:
                 propagateBackward(parent, parent_location, processed)
 
         def propagateForward(commit, location, processed):
+            if commit == self.head:
+                self.active = True
+
             children = commits.getChildren(commit)
             recurse = []
 
@@ -270,7 +279,6 @@ class Propagation:
 
             if not children:
                 assert not commits or commit in commits.getHeads() or self.rebases.fromNewHead(commit)
-                self.active = True
 
             for child in children - processed:
                 changes = self.__getChanges(commit, child)

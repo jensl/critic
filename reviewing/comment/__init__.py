@@ -539,9 +539,11 @@ def propagateCommentChains(db, user, review, commits):
                        (chains.keys(), file_sha1))
 
         for chain_id, first_line, last_line in cursor:
+            assert len(commits.getHeads()) == 1
+
             propagation = reviewing.comment.propagate.Propagation(db)
             propagation.setExisting(review, chain_id, review.branch.head, file_id, first_line, last_line)
-            propagation.calculateAdditionalLines(commits)
+            propagation.calculateAdditionalLines(commits, commits.getHeads().pop())
 
             chain_user_id, chain_type, chain_state = chains[chain_id]
             lines_state = "draft" if chain_state == "draft" else "current"
