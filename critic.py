@@ -796,15 +796,7 @@ def main(environ, start_response):
                 operationfn = OPERATIONS.get(req.path)
 
             if operationfn:
-                try:
-                    result = operationfn(req, db, user)
-                except OperationError, error:
-                    result = error
-                except page.utils.DisplayMessage, message:
-                    result = "error: " + message.title
-                    if message.body: result += "  " + message.body
-                except Exception:
-                    result = "error:\n" + traceback.format_exc()
+                result = operationfn(req, db, user)
 
                 if isinstance(result, (OperationResult, OperationError)):
                     req.setContentType("text/json")

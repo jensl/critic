@@ -58,7 +58,7 @@ class NeedLogin(MovedTemporarily):
             location += "&optional=yes"
         super(NeedLogin, self).__init__(location, no_cache=True)
 
-class DisplayMessage(Exception):
+class DisplayMessage(base.Error):
     """\
     Utility exception raised by pages to display a simply message.
     """
@@ -275,7 +275,6 @@ class Request:
         match = re.search("(?:^|&)" + name + "=([^&]*)", str(self.query))
         if match:
             try: return filter(decodeURIComponent(match.group(1)))
-            except DisplayMessage: raise
             except base.Error: raise
             except:
                 if filter is int: expected = "expected integer"
