@@ -79,7 +79,7 @@ SHA-1 sum or by selecting a tag that references a suitable commit.  Abbreviated
 SHA-1 sums or branch names are not accepted since it is possible that the commit
 you intend to rebase onto doesn't exist in Critic's repository yet, or that your
 local branch (even 'master') doesn't reference the same commit as Critic's
-branch with the same names.  (It could be said that the same problem might exist
+branch with the same name.  (It could be said that the same problem might exist
 with tags, but it's much less likely.)
 
 It's very important that you specify the correct upstream commit, or, if you
