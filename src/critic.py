@@ -804,7 +804,7 @@ def process_request(environ, start_response):
                 req.path = req.path[2:]
             elif configuration.extensions.ENABLED:
                 handled = extensions.role.page.execute(db, req, user)
-                if handled:
+                if isinstance(handled, basestring):
                     req.start()
                     return [handled]
 
