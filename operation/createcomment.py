@@ -16,7 +16,7 @@
 
 import dbutils
 
-from operation import Operation, OperationResult, Optional
+from operation import Operation, OperationResult, OperationFailure, Optional
 from reviewing.comment import CommentChain, validateCommentChain, createCommentChain, createComment
 
 class ValidateCommentChain(Operation):
@@ -33,6 +33,12 @@ class ValidateCommentChain(Operation):
         review = dbutils.Review.fromId(db, review_id)
         verdict, data = validateCommentChain(db, review, origin, parent_id, child_id, file_id, offset, count)
         return OperationResult(verdict=verdict, **data)
+
+def checkComment(text):
+    if not text.strip():
+        raise OperationFailure(code="emptycomment",
+                               title="Empty comment!",
+                               message="Creating empty (or white-space only) comments is not allowed.")
 
 class CreateCommentChain(Operation):
     def __init__(self):
@@ -52,6 +58,8 @@ class CreateCommentChain(Operation):
                                    "text": str })
 
     def process(self, db, user, review_id, chain_type, text, commit_context=None, file_context=None):
+        checkComment(text)
+
         review = dbutils.Review.fromId(db, review_id)
 
         if commit_context:
@@ -73,6 +81,8 @@ class CreateComment(Operation):
                                    "text": str })
 
     def process(self, db, user, chain_id, text):
+        checkComment(text)
+
         chain = CommentChain.fromId(db, chain_id, user)
         comment_id = createComment(db, user, chain_id, text)
 

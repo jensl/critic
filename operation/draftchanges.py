@@ -140,7 +140,7 @@ class SubmitChanges(Operation):
 
         profiler.check("accepted before")
 
-        if remark:
+        if remark and remark.strip():
             chain_id = createCommentChain(db, user, review, 'note')
             createComment(db, user, chain_id, remark, first=True)
         else:
