@@ -186,7 +186,15 @@ Operation.prototype.execute = function ()
         wait.dialog("close");
       if (!self.aborted)
       {
-        reportError(self.action, "Server reply:<pre>" + (xhr.responseText ? htmlify(xhr.responseText) : "N/A") + "</pre>", null, self.callback);
+        if (xhr.status == 404)
+          reportError(self.action,
+                      "<p>The operation <code>" + self.url + "</code> is not supported by the server.<p>" +
+                      "<p>Simply reloading the page and then trying again might help.  " +
+                      "If that doesn't help, and you think an extension might be " +
+                      "involved, try reinstalling (or uninstalling) it.</p>",
+                      null, self.callback);
+        else
+          reportError(self.action, "Server reply:<pre>" + (xhr.responseText ? htmlify(xhr.responseText) : "N/A") + "</pre>", null, self.callback);
         if (self.callback)
           Operation.finished(self.id);
       }

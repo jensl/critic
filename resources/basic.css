@@ -263,7 +263,7 @@ table.pageheader td.left > ul > li:first-child:before {
     margin-left: 1em
 }
 
-.message-dialog code {
+.error-dialog code, .message-dialog code {
     display: inline-block;
     border: 1px solid #996;
     background-color: #fff;
