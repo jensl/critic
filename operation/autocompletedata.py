@@ -23,37 +23,47 @@ from operation import Operation, OperationResult, OperationError, Optional
 class GetAutoCompleteData(Operation):
     def __init__(self):
         Operation.__init__(self, { "values": [set(["users", "paths"])],
-                                   "review_id": Optional(int) })
+                                   "review_id": Optional(int),
+                                   "changeset_ids": Optional([int]) })
 
-    def process(self, db, user, values, review_id=None):
+    def process(self, db, user, values, review_id=None, changeset_ids=None):
         cursor = db.cursor()
         data = {}
 
         if "users" in values:
-            cursor.execute("SELECT name, fullname FROM users WHERE status!='retired' ORDER BY name")
+            cursor.execute("SELECT name, fullname FROM users WHERE status!='retired'")
             data["users"] = dict(cursor)
 
-        if review_id is not None:
-            if "paths" in values:
+        if "paths" in values:
+            if review_id is not None:
                 cursor.execute("""SELECT files.path, SUM(reviewfiles.deleted), SUM(reviewfiles.inserted)
                                     FROM files
                                     JOIN reviewfiles ON (reviewfiles.file=files.id)
                                    WHERE reviewfiles.review=%s
                                 GROUP BY files.id""",
                                (review_id,))
+            elif changeset_ids is not None:
+                cursor.execute("""SELECT files.path, SUM(chunks.deleteCount), SUM(chunks.insertCount)
+                                    FROM files
+                                    JOIN chunks ON (chunks.file=files.id)
+                                   WHERE chunks.changeset=ANY (%s)
+                                GROUP BY files.id""",
+                               (changeset_ids,))
+            else:
+                raise OperationError("paths requested, but neither review_id nor changeset_ids given")
 
-                paths = {}
+            paths = {}
 
-                for filename, deleted, inserted in cursor:
-                    paths[filename] = (0, deleted, inserted)
+            for filename, deleted, inserted in cursor:
+                paths[filename] = (0, deleted, inserted)
 
-                    components = filename.split("/")
-                    for index in range(len(components) - 1, 0, -1):
-                        directory = "/".join(components[:index]) + "/"
-                        nfiles, current_deleted, current_inserted = paths.get(directory, (0, 0, 0))
-                        paths[directory] = nfiles + 1, current_deleted + deleted, current_inserted + inserted
+                components = filename.split("/")
+                for index in range(len(components) - 1, 0, -1):
+                    directory = "/".join(components[:index]) + "/"
+                    nfiles, current_deleted, current_inserted = paths.get(directory, (0, 0, 0))
+                    paths[directory] = nfiles + 1, current_deleted + deleted, current_inserted + inserted
 
-                data["paths"] = paths
+            data["paths"] = paths
 
         return OperationResult(**data)
 

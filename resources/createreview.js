@@ -117,11 +117,29 @@ function updateReviewersAndWatchers(new_reviewfilters)
 
 function updateFilters(add_reviewer)
 {
-  var content;
+  var title, message;
   if (add_reviewer)
-    content = $("<div class='comment' title='Add Reviewer'><p>Make specified users reviewers of given path during this review.</p><p><b>User name(s):</b><br><input class='name' style='width: 100%'><br><b>Directory:</b><input class='path' style='width: 100%'></p></div>");
+  {
+    title = "Add Reviewer";
+    message = "<p>Make specified users reviewers of given path during this review.</p>";
+  }
   else
-    content = $("<div class='comment' title='Add Watcher'><p>Make specified users watchers of given path during this review.  If a user would normally be a reviewer of the path, he/she is reduced to just a watcher.</p><p><b>User name(s):</b><br><input class='name' style='width: 100%'><br><b>Directory:</b><br><input class='path' style='width: 100%'></p></div>");
+  {
+    title = "Add Watcher";
+    message = "<p>Make specified users watchers of given path during this review.  "
+            +    "If a user would normally be a reviewer of the path, he/she is "
+            +    "reduced to just a watcher.</p>";
+  }
+
+  var content = $("<div class='comment' title='" + title + "'>"
+                +   message
+                +   "<p>"
+                +     "<b>User name(s):</b><br>"
+                +     "<input class='name' style='width: 100%'><br>"
+                +     "<b>Directory:</b><br>"
+                +     "<input class='path' style='width: 100%'>"
+                +   "</p>"
+                + "</div>");
 
   function finish(type)
   {
@@ -151,6 +169,23 @@ function updateFilters(add_reviewer)
 
   content.dialog({ width: 600, height: 250,
                    buttons: buttons });
+
+  function enableAutoCompletion(result)
+  {
+    content.find("input.name").autocomplete(
+      { source: AutoCompleteUsers(result.users) });
+    content.find("input.path").autocomplete(
+      { source: AutoCompletePath(result.paths),
+        html: true });
+  }
+
+  var operation = new Operation({ action: "get auto-complete data",
+                                  url: "getautocompletedata",
+                                  data: { values: ["users", "paths"],
+                                          changeset_ids: review.changeset_ids },
+                                  callback: enableAutoCompletion });
+
+  operation.execute();
 }
 
 function addReviewer()
@@ -258,7 +293,18 @@ function editRecipientList()
                                  modal: true,
                                  buttons: { Save: save, Cancel: cancel }});
 
-  recipient_list_dialog.find("#users").autocomplete({ source: AutoCompleteUsers(users) });
+  function enableAutoCompletion(result)
+  {
+    recipient_list_dialog.find("#users").autocomplete(
+      { source: AutoCompleteUsers(result.users) });
+  }
+
+  var operation = new Operation({ action: "get auto-complete data",
+                                  url: "getautocompletedata",
+                                  data: { values: ["users"] },
+                                  callback: enableAutoCompletion });
+
+  operation.execute();
 }
 
 function connectApplyFilters()

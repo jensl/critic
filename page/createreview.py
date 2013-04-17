@@ -26,6 +26,7 @@ import page.utils
 import diff
 import configuration
 import linkify
+import changeset.utils as changeset_utils
 
 from textutils import json_decode, json_encode
 
@@ -301,7 +302,14 @@ def renderCreateReview(req, db, user):
             invalid_branch_name = "false"
             default_branch_name = htmlutils.htmlify(match.group(1))
 
-    all_reviewers, all_watchers = reviewing.utils.getReviewersAndWatchers(db, repository, commits, applyparentfilters=applyparentfilters)
+    changesets = []
+    changeset_utils.createChangesets(db, repository, commits)
+    for commit in commits:
+        changesets.extend(changeset_utils.createChangeset(db, None, repository, commit, do_highlight=False))
+    changeset_ids = [changeset.id for changeset in changesets]
+
+    all_reviewers, all_watchers = reviewing.utils.getReviewersAndWatchers(
+        db, repository, changesets=changesets, applyparentfilters=applyparentfilters)
 
     document = htmlutils.Document(req)
     html = document.html()
@@ -315,13 +323,6 @@ def renderCreateReview(req, db, user):
     if remote:
         document.addInternalScript("var trackedbranch = { remote: %s, name: %s };" % (htmlutils.jsify(remote), htmlutils.jsify(branch_name)))
 
-    cursor.execute("SELECT name, fullname FROM users WHERE name IS NOT NULL AND status!='retired'")
-
-    users = []
-
-    for name, fullname in cursor:
-        users.append("%s:%s" % (htmlutils.jsify(name), htmlutils.jsify(fullname)))
-
     head.title().text("Create Review")
 
     body = html.body(onload="document.getElementById('branch_name').focus()")
@@ -332,11 +333,11 @@ def renderCreateReview(req, db, user):
     document.addExternalScript("resource/createreview.js")
     document.addExternalScript("resource/autocomplete.js")
 
-    document.addInternalScript("var users = {%s};" % ",".join(users))
     document.addInternalScript("""
 var invalid_branch_name = %s;
 var review = { commit_ids: %r,
-               commit_sha1s: %r };""" % (invalid_branch_name, commit_ids, commit_sha1s))
+               commit_sha1s: %r,
+               changeset_ids: %r };""" % (invalid_branch_name, commit_ids, commit_sha1s, changeset_ids))
     document.addInternalScript(repository.getJS())
 
     main = body.div("main")
