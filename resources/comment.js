@@ -1189,7 +1189,7 @@ function startCommentMarking(ev)
   {
     if (CommentChain.reopening && CommentChain.reopening.lines.file != $(ev.currentTarget).parents("table.file").first().attr("critic-file-id"))
     {
-      alert(CommentChain.reopening.lines.file + " != " + $(ev.currentTarget).parents("table.file").first().attr("critic-file-id"))
+      showMessage("Not supported", "Not supported", "Reopening an issue against lines in a different file is not supported.");
       return;
     }
 
