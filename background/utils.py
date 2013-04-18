@@ -158,6 +158,19 @@ class BackgroundProcess(object):
 
             return timeout
 
+    def run(self):
+        while not self.terminated:
+            timeout = self.run_maintenance()
+
+            if timeout is None:
+                # No configured maintenance hooks; nothing to do.  Returning will
+                # probably cause service to terminate, and we just started, so the
+                # service manager will leave the service not running.
+                return
+
+            self.debug("sleeping %d seconds" % timeout)
+            time.sleep(timeout)
+
     def requestRestart(self):
         self.restart_requested = True
 

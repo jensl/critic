@@ -39,6 +39,7 @@ BRANCHTRACKER     = service(name="branchtracker",     address=None)
 BRANCHTRACKERHOOK = service(name="branchtrackerhook", address=(configuration.base.HOSTNAME, 9999))
 MAILDELIVERY      = service(name="maildelivery",      address=None)
 WATCHDOG          = service(name="watchdog",          address=None)
+MAINTENANCE       = service(name="maintenance",       address=None)
 SERVICEMANAGER    = service(name="servicemanager")
 
 HIGHLIGHT["cache_dir"] = os.path.join(configuration.paths.CACHE_DIR, "highlight")
@@ -54,10 +55,13 @@ CHANGESET["purge_at"] = (2, 15)
 WATCHDOG["rss_soft_limit"] = 1024 ** 3
 WATCHDOG["rss_hard_limit"] = 2 * WATCHDOG["rss_soft_limit"]
 
+MAINTENANCE["maintenance_at"] = (4, 0)
+
 SERVICEMANAGER["services"] = [HIGHLIGHT,
                               CHANGESET,
                               GITHOOK,
                               BRANCHTRACKER,
                               BRANCHTRACKERHOOK,
                               MAILDELIVERY,
-                              WATCHDOG]
+                              WATCHDOG,
+                              MAINTENANCE]
