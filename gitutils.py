@@ -900,7 +900,15 @@ class Commit:
         else:
             other_sha1 = str(other)
 
-        return self.repository.mergebase([self.sha1, other_sha1]) == self.sha1
+        try:
+            mergebase_sha1 = self.repository.mergebase([self.sha1, other_sha1])
+        except GitCommandError:
+            # Merge-base fails if there is no common ancestor.  And if two
+            # commits have no common ancestor, neither can be an ancestor of the
+            # other, obviously.
+            return False
+        else:
+            return mergebase_sha1 == self.sha1
 
     def getFileEntry(self, path):
         try:
