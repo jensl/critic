@@ -251,9 +251,34 @@ class FetchRemoteBranch(Operation):
                              % (htmlutils.htmlify(upstream), htmlutils.htmlify(remote))),
                     is_html=True)
         else:
-            upstream_sha1 = repository.revparse(upstream)
+            try:
+                upstream_sha1 = repository.revparse(upstream)
+            except gitutils.GitReferenceError:
+                raise OperationFailure(
+                    code="refnotfound",
+                    title="Local ref not found!",
+                    message=("Could not find the ref <code>%s</code> in the repository <code>%s</code>."
+                             % (htmlutils.htmlify(upstream), htmlutils.htmlify(str(repository)))),
+                    is_html=True)
 
-        commit_sha1s = repository.revlist(included=[head_sha1], excluded=[upstream_sha1])
+        try:
+            resolved_upstream_sha1 = gitutils.getTaggedCommit(repository, upstream_sha1)
+        except gitutils.GitReferenceError:
+            resolved_upstream_sha1 = None
+
+        if not resolved_upstream_sha1:
+            raise OperationFailure(
+                code="missingcommit",
+                title="Upstream commit is missing!",
+                message=("<p>Could not find the commit <code>%s</code> in the "
+                         "repository <code>%s</code>.</p>"
+                         "<p>Since it would have been fetched along with the "
+                         "branch if it actually was a valid upstream commit, "
+                         "this means it's not valid.</p>"
+                         % (htmlutils.htmlify(upstream_sha1), htmlutils.htmlify(str(repository)))),
+                is_html=True)
+
+        commit_sha1s = repository.revlist(included=[head_sha1], excluded=[resolved_upstream_sha1])
 
         if not commit_sha1s:
             raise OperationFailure(
@@ -266,4 +291,4 @@ class FetchRemoteBranch(Operation):
         cursor.execute("SELECT id FROM commits WHERE sha1=ANY (%s)", (commit_sha1s,))
 
         return OperationResult(commit_ids=[commit_id for (commit_id,) in cursor],
-                               head_sha1=head_sha1, upstream_sha1=upstream_sha1)
+                               head_sha1=head_sha1, upstream_sha1=resolved_upstream_sha1)
