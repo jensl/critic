@@ -40,18 +40,6 @@ $(document).ready(
         var remote = $("input[name='remote']").val();
         var branch = $("input[name='branch']").val();
 
-        if (!/^[.a-z_0-9-]+$/.test(name))
-        {
-          alert("Invalid 'Short name'; please use only lower-case letters, digits or the characters '.', '_' and '-'.");
-          return;
-        }
-
-        if (!/^(?:[.a-z_0-9-]+\/)*[.a-z_0-9-]+$/.test(path))
-        {
-          alert("Invalid 'path'; please use only lower-case letters, digits or the characters '.', '_' or '-'.");
-          return;
-        }
-
         var data = { name: name,
                      path: path };
 
