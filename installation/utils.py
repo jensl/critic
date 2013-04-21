@@ -117,3 +117,22 @@ def get_file_sha1(git, commit_sha1, path):
         return lstree_sha1
     else:
         return None
+
+def as_critic_system_user():
+    class Context:
+        def __init__(self):
+            self.__uid = os.getuid()
+            self.__gid = os.getgid()
+        def __enter__(self):
+            return self
+        def __exit__(self, *args):
+            os.seteuid(self.__uid)
+            os.seteuid(self.__gid)
+            return False
+
+    context = Context()
+
+    os.setegid(installation.system.gid)
+    os.seteuid(installation.system.uid)
+
+    return context

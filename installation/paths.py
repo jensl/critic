@@ -14,7 +14,9 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-import os.path
+import os
+import shutil
+
 import installation
 
 etc_dir = "/etc/critic"
@@ -191,4 +193,4 @@ def install(data):
     return True
 
 def undo():
-    map(os.rmdir, reversed(created))
+    map(shutil.rmtree, reversed(created))

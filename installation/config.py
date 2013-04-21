@@ -14,12 +14,15 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-import installation
+import sys
 import os
 import os.path
 import json
 import pwd
 import grp
+import shutil
+
+import installation
 
 auth_mode = "host"
 session_type = None
@@ -148,6 +151,10 @@ def install(data):
                 with open(source_path, "r") as source:
                     target.write((source.read().decode("utf-8") % data).encode("utf-8"))
 
+    # Make the newly written 'configuration' module available to the rest of the
+    # installation script(s).
+    sys.path.insert(0, os.path.join(installation.paths.etc_dir, "main"))
+
     return True
 
 def upgrade(arguments, data):
@@ -232,8 +239,7 @@ configuration options to the existing version.
     return True
 
 def undo():
-    map(os.unlink, created_file)
-    map(os.rmdir, created_dir)
+    map(shutil.rmtree, created_dir)
 
     for target, backup in renamed: os.rename(backup, target)
 
