@@ -479,10 +479,16 @@ using the command<p>
                                [(review.id, filter_user_id, filter_path, filter_type, user.id)
                                 for filter_user_id, filter_path, filter_type, filter_delegate in reviewfilters])
 
+        is_opt_in = False
+
         if recipientfilters is not None:
             cursor.executemany("INSERT INTO reviewrecipientfilters (review, uid, include) VALUES (%s, %s, %s)",
                                [(review.id, filter_user_id, filter_include)
                                 for filter_user_id, filter_include in recipientfilters])
+
+            for filter_user_id, filter_include in recipientfilters:
+                if filter_user_id == 0 and not filter_include:
+                    is_opt_in = True
 
         addCommitsToReview(db, user, review, commits, new_review=True)
 
@@ -496,6 +502,10 @@ using the command<p>
         recipients = review.getRecipients(db)
         for to_user in recipients:
             pending_mails.extend(mail.sendReviewCreated(db, user, to_user, recipients, review))
+
+            if not is_opt_in and to_user.getPreference(db, "review.defaultOptOut"):
+                cursor.execute("INSERT INTO reviewrecipientfilters (review, uid, include) VALUES (%s, %s, FALSE)",
+                               (review.id, to_user.id))
 
         db.commit()
 

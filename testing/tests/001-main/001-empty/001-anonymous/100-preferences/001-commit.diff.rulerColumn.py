@@ -1,6 +1,6 @@
-# Check existance of preference commit.diff.rulerColumn, added by
+# Check existence of preference commit.diff.rulerColumn, added by
 #
-#   http://critic.whyi.org/r/57
+#   http://critic-review.org/r/57
 
 def check_heading(document):
     headings = document.findAll("td", attrs={ "class": "heading" })
@@ -23,7 +23,6 @@ def check_input(document):
     testing.expect.check("0", input["value"])
     testing.expect.check("0", input["critic-default"])
 
-with frontend.signin():
-    frontend.page("config",
-                  expect={ "preference_heading": check_heading,
-                           "preference_input": check_input })
+frontend.page("config",
+              expect={ "preference_heading": check_heading,
+                       "preference_input": check_input })

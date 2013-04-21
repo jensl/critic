@@ -249,6 +249,11 @@
     "default": false,
     "description": "If enabled, reviews can be requested by pushing a new branch whose name starts with \"r/\" to the repository."
   },
+  "review.defaultOptOut": {
+    "type": "boolean",
+    "default": false,
+    "description": "Opt out of receiving review emails (except for \"New review\" emails) by default."
+  },
   "review.dropAnyReview": {
     "type": "boolean",
     "default": false,
