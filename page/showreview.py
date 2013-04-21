@@ -61,12 +61,12 @@ class SummaryColumn(log.html.SummaryColumn):
         for user_id, commit_id in cursor:
             self.__cache.setdefault(commit_id, set()).add(user_id)
 
-    def render(self, db, commit, target):
+    def render(self, db, commit, target, overrides={}):
         user_ids = self.__cache.get(commit.getId(db))
         if user_ids:
             users = ["%s:%s" % (user.fullname, user.status) for user in dbutils.User.fromIds(db, [user_id for user_id in user_ids])]
             target.setAttribute("critic-reviewers", ",".join(sorted(users)))
-        log.html.SummaryColumn.render(self, db, commit, target)
+        log.html.SummaryColumn.render(self, db, commit, target, overrides=overrides)
 
 class ApprovalColumn:
     APPROVED = 1
@@ -156,7 +156,7 @@ class ApprovalColumn:
         else:
             target.text("Total")
 
-    def render(self, db, commit, target):
+    def render(self, db, commit, target, overrides={}):
         (total_nfiles, total_deleted, total_inserted,
          approved_nfiles, approved_deleted, approved_inserted,
          user_total_nfiles, user_total_deleted, user_total_inserted,
@@ -227,7 +227,7 @@ def renderShowReview(req, db, user):
 
     prefetch_commits = {}
 
-    cursor.execute("""SELECT sha1, child
+    cursor.execute("""SELECT DISTINCT sha1, child
                         FROM changesets
                         JOIN reviewchangesets ON (reviewchangesets.changeset=changesets.id)
                         JOIN commits ON (commits.id=changesets.child)
@@ -756,8 +756,11 @@ def renderShowReview(req, db, user):
 
     check = profiler.start("ApprovalColumn.fillCache")
 
-    def linkToCommit(commit):
-        return "%s?review=%d" % (commit.sha1[:8], review.id)
+    def linkToCommit(commit, overrides={}):
+        if "rebase_conflicts" in overrides:
+            return "%s..%s?review=%d&conflicts=yes" % (overrides["rebase_conflicts"].sha1[:8], commit.sha1[:8], review.id)
+        else:
+            return "%s?review=%d" % (commit.sha1[:8], review.id)
 
     approval_cache = {}
 
@@ -808,14 +811,24 @@ def renderShowReview(req, db, user):
 
         profiler.check("FetchCommits.getCommits()")
 
-        cursor.execute("""SELECT child
+        cursor.execute("""SELECT DISTINCT type, parent, child
                             FROM changesets
                             JOIN reviewchangesets ON (reviewchangesets.changeset=changesets.id)
                             JOIN commits ON (commits.id=changesets.child)
                            WHERE review=%s""",
                        (review.id,))
 
-        commits = [gitutils.Commit.fromId(db, repository, commit_id) for (commit_id,) in cursor]
+        commits = set()
+        conflicts = {}
+
+        for changeset_type, parent_id, child_id in cursor:
+            child = gitutils.Commit.fromId(db, repository, child_id)
+            if changeset_type == "conflicts":
+                conflicts[child] = gitutils.Commit.fromId(db, repository, parent_id)
+            else:
+                commits.add(child)
+
+        commits = list(commits)
 
         cursor.execute("""SELECT id, old_head, new_head, new_upstream, uid, branch
                             FROM reviewrebases
@@ -859,7 +872,7 @@ def renderShowReview(req, db, user):
         else:
             actual_commits = []
 
-        log.html.render(db, target, "Commits (%d)", commits=commits, columns=columns, title_right=renderReviewPending, rebases=finished_rebases, branch_name=review.branch.name, bottom_right=bottom_right, review=review, highlight=highlight, profiler=profiler, user=user, extra_commits=actual_commits)
+        log.html.render(db, target, "Commits (%d)", commits=commits, columns=columns, title_right=renderReviewPending, rebases=finished_rebases, branch_name=review.branch.name, bottom_right=bottom_right, review=review, highlight=highlight, profiler=profiler, user=user, extra_commits=actual_commits, conflicts=conflicts)
 
         yield flush(target)
 

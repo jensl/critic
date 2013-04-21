@@ -14,6 +14,7 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
+import re
 import pygments.lexers
 import pygments.token
 
@@ -66,23 +67,39 @@ class HighlightGeneric:
             self.output.write(htmlutils.htmlify(value))
 
     def __call__(self, source, output_file, contexts_path):
+        try: source = source.decode("utf-8")
+        except: source = source.decode("latin-1")
+
         self.output = output_file
-        leading = 0
-        while leading < len(source) and source[leading] == '\n': leading += 1
-        trailing = 0
-        if leading < len(source):
-            while source[-(trailing + 1)] == '\n': trailing += 1
-            if trailing != 0: trailing -= 1
-        source = source[leading:len(source) - trailing]
-        self.output.write("\n" * leading)
-        for token, value in self.lexer.get_tokens(source):
-            self.highlightToken(token, value)
-        self.output.write("\n" * trailing)
+
+        blocks = re.split("^((?:<<<<<<<|>>>>>>>)[^\n]*\n)", source, flags=re.MULTILINE)
+
+        in_conflict = False
+
+        for index, block in enumerate(blocks):
+            if (index & 1) == 0:
+                if in_conflict:
+                    blocks = re.split("^(=======[^\n]*\n)", block, flags=re.MULTILINE)
+                else:
+                    blocks = [block]
+
+                for index, block in enumerate(blocks):
+                    if (index & 1) == 0:
+                        if block:
+                            for token, value in self.lexer.get_tokens(block):
+                                self.highlightToken(token, value)
+                    else:
+                        assert block[0] == "="
+                        self.output.write(htmlutils.htmlify(block))
+            else:
+                assert block[0] == "<" or block[0] == ">"
+                self.output.write(htmlutils.htmlify(block))
+                in_conflict = block[0] == "<"
 
     @staticmethod
     def create(language):
         lexer = LANGUAGES.get(language)
-        if lexer: return HighlightGeneric(lexer())
+        if lexer: return HighlightGeneric(lexer(stripnl=False))
         else: return None
 
 import syntaxhighlight

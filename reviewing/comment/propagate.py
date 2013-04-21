@@ -233,10 +233,14 @@ class Propagation:
             recurse = []
 
             if not parents:
-                for parent_sha1 in commit.parents:
-                    rebase = self.rebases.fromNewHead(parent_sha1)
-                    if rebase:
-                        parents.add(rebase.old_head)
+                rebase = self.rebases.fromNewHead(commit)
+                if rebase:
+                    parents.add(rebase.old_head)
+                else:
+                    for parent_sha1 in commit.parents:
+                        rebase = self.rebases.fromNewHead(parent_sha1)
+                        if rebase:
+                            parents.add(rebase.old_head)
 
             for parent in parents - processed:
                 changes = self.__getChanges(parent, commit)
@@ -262,7 +266,7 @@ class Propagation:
             if not children:
                 rebase = self.rebases.fromOldHead(commit)
                 if rebase:
-                    children.update(commits.getChildren(rebase.new_head))
+                    children.update([rebase.new_head])
 
             if not children:
                 assert not commits or commit in commits.getHeads() or self.rebases.fromNewHead(commit)

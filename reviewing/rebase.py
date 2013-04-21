@@ -72,3 +72,64 @@ onto the %(merged_thing)s.""" % { "merged_thing": merged_thing,
     db.commit()
 
     return merge
+
+def replayRebase(db, review, user, old_head, old_upstream, new_head, new_upstream, onto_branch=None):
+    repository = review.repository
+
+    old_upstream_name = repository.findInterestingTag(db, old_upstream.sha1) or old_upstream.sha1
+
+    if onto_branch:
+        new_upstream_name = "branch '%s'" % onto_branch
+    else:
+        new_upstream_name = "commit '%s'" % (repository.findInterestingTag(db, new_upstream.sha1) or new_upstream.sha1)
+
+    commit_message = """\
+Rebased %(review.branch.name)s onto %(new_upstream_name)s
+
+This commit was generated automatically by Critic to "replay" the
+rebase of the commits
+
+  %(old_upstream_name)s..%(old_head.sha1)s
+
+onto the %(new_upstream_name)s.""" % { "review.branch.name": review.branch.name,
+                                       "old_head.sha1": old_head.sha1,
+                                       "old_upstream_name": old_upstream_name,
+                                       "new_upstream_name": new_upstream_name }
+
+    original_sha1 = repository.run('commit-tree', old_head.tree, '-p', old_upstream.sha1,
+                                   input=commit_message,
+                                   env={ 'GIT_AUTHOR_NAME': user.fullname,
+                                         'GIT_AUTHOR_EMAIL': user.email,
+                                         'GIT_COMMITTER_NAME': user.fullname,
+                                         'GIT_COMMITTER_EMAIL': user.email }).strip()
+
+    repository.run("update-ref", "refs/commit/%s" % new_upstream.sha1, new_upstream.sha1)
+    repository.run("update-ref", "refs/commit/%s" % original_sha1, original_sha1)
+
+    with repository.workcopy(user, original_sha1) as workcopy:
+        workcopy.run("fetch", "--quiet", "origin",
+                     "refs/commit/%s:refs/heads/temporary" % new_upstream.sha1,
+                     "refs/commit/%s:refs/heads/original" % original_sha1)
+
+        workcopy.run("checkout", "temporary")
+
+        returncode, stdout, stderr = workcopy.run("cherry-pick", "refs/heads/original", check_errors=False)
+
+        # If the rebase produced conflicts, just stage and commit them:
+        if returncode != 0:
+            # Reset any submodule gitlinks with conflicts: since we don't
+            # have the submodules checked out, "git commit --all" below
+            # may fail to index them.
+            for line in stdout.splitlines():
+                if line.startswith("CONFLICT (submodule):"):
+                    submodule_path = line.split()[-1]
+                    workcopy.run("reset", "--", submodule_path, check_errors=False)
+
+            # Then stage and commit the result, with conflict markers and all.
+            workcopy.run("commit", "--all", "--reuse-message=%s" % original_sha1)
+
+        rebased_sha1 = workcopy.run("rev-parse", "HEAD").strip()
+
+        workcopy.run("push", "origin", "HEAD:refs/keepalive/%s" % rebased_sha1)
+
+    return gitutils.Commit.fromSHA1(db, repository, rebased_sha1)

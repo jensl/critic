@@ -36,7 +36,7 @@ def formatWhen(when):
 def renderWhen(target, when):
     target.innerHTML(formatWhen(when))
 
-def linkToCommit(commit):
+def linkToCommit(commit, overrides={}):
     return "%s/%s" % (commit.repository.name, commit.sha1)
 
 re_remote_into_local = re.compile("^Merge (?:branch|commit) '([^']+)' of [^ ]+ into \\1$")
@@ -48,7 +48,7 @@ class WhenColumn:
         return "when"
     def heading(self, target):
         target.text("When")
-    def render(self, db, commit, target):
+    def render(self, db, commit, target, overrides={}):
         renderWhen(target, commit.committer.time)
 
 class TypeColumn:
@@ -56,7 +56,8 @@ class TypeColumn:
         return "type"
     def heading(self, target):
         target.text()
-    def render(self, db, commit, target):
+    def render(self, db, commit, target, overrides={}):
+        if "type" in overrides: target.text(overrides["type"])
         if len(commit.parents) > 1: target.text("Merge")
         else: target.text()
 
@@ -68,9 +69,9 @@ class SummaryColumn:
         return "summary"
     def heading(self, target):
         target.text("Summary")
-    def render(self, db, commit, target):
-        summary = commit.summary()
-        classname = "commit"
+    def render(self, db, commit, target, overrides={}):
+        summary = overrides.get("summary", commit.summary())
+        classnames = ["commit"] + overrides.get("summary_classnames", [])
 
         if self.isFixupOrSquash is not None:
             data = self.isFixupOrSquash(commit)
@@ -83,13 +84,13 @@ class SummaryColumn:
                 if lines: summary = lines[0]
                 else: summary = None
                 if not summary:
-                    classname += " nocomment"
+                    classnames.append("nocomment")
                     summary = "(no comment)"
 
-        url = self.linkToCommit(commit)
+        url = self.linkToCommit(commit, overrides)
 
         if summary:
-            target.a(classname, href=url).text(summary)
+            target.a(" ".join(classnames), href=url).text(summary)
 
         target.setAttribute("onclick", "location.href=%s; return false;" % jsify(url))
 
@@ -100,7 +101,7 @@ class AuthorColumn:
         return "author"
     def heading(self, target):
         target.text("Author")
-    def render(self, db, commit, target):
+    def render(self, db, commit, target, overrides={}):
         email = commit.author.email
         user = self.cache.get(email)
         if not user:
@@ -117,7 +118,7 @@ DEFAULT_COLUMNS = [(10, WhenColumn()),
                    (65, SummaryColumn()),
                    (20, AuthorColumn())]
 
-def render(db, target, title, branch=None, commits=None, columns=DEFAULT_COLUMNS, title_right=None, listed_commits=None, rebases=None, branch_name=None, bottom_right=None, review=None, highlight=None, profiler=None, collapsable=False, user=None, extra_commits=None):
+def render(db, target, title, branch=None, commits=None, columns=DEFAULT_COLUMNS, title_right=None, listed_commits=None, rebases=None, branch_name=None, bottom_right=None, review=None, highlight=None, profiler=None, collapsable=False, user=None, extra_commits=None, conflicts=set()):
     addResources(target)
 
     if not profiler: profiler = Profiler()
@@ -205,7 +206,7 @@ def render(db, target, title, branch=None, commits=None, columns=DEFAULT_COLUMNS
             column.isFixupOrSquash = isFixupOrSquash
             break
 
-    def output(table, commit):
+    def output(table, commit, overrides={}):
         if commit not in processed:
             classes = ["commit"]
             row_id = None
@@ -220,7 +221,7 @@ def render(db, target, title, branch=None, commits=None, columns=DEFAULT_COLUMNS
             row = table.tr(" ".join(classes), id=row_id)
             profiler.check("log: rendering: row")
             for index, (width, column) in enumerate(columns):
-                column.render(db, commit, row.td(column.className(db, commit)))
+                column.render(db, commit, row.td(column.className(db, commit)), overrides=overrides)
                 profiler.check("log: rendering: column %d" % (index + 1))
             processed.add(commit)
 
@@ -230,7 +231,17 @@ def render(db, target, title, branch=None, commits=None, columns=DEFAULT_COLUMNS
 
     cursor = db.cursor()
 
-    def inner(target, head, tails, align='right', title=None, table=None, silent_merges=set(), upstream=None):
+    def emptyCommit(commit):
+        cursor.execute("""SELECT 1
+                            FROM fileversions
+                            JOIN changesets ON (changesets.id=fileversions.changeset)
+                            JOIN reviewchangesets ON (reviewchangesets.changeset=changesets.id)
+                           WHERE changesets.child=%s
+                             AND reviewchangesets.review=%s""",
+                       (commit.getId(db), review.id))
+        return not cursor.fetchone()
+
+    def inner(target, head, tails, align='right', title=None, table=None, silent_if_empty=set(), upstream=None):
         if not table:
             table = target.table('log', align=align, cellspacing=0)
 
@@ -271,17 +282,9 @@ def render(db, target, title, branch=None, commits=None, columns=DEFAULT_COLUMNS
             optional_merge = False
             listed = listed_commits is None or commit.getId(db) in listed_commits
 
-            if len(commit.parents) > 1 and commit in silent_merges:
-                cursor.execute("""SELECT 1
-                                    FROM fileversions
-                                    JOIN changesets ON (changesets.id=fileversions.changeset)
-                                    JOIN reviewchangesets ON (reviewchangesets.changeset=changesets.id)
-                                   WHERE changesets.child=%s
-                                     AND reviewchangesets.review=%s""",
-                               (commit.getId(db), review.id))
-                if not cursor.fetchone():
-                    # This is a clean automatically generated merge commit; pretend it isn't here at all.
-                    suppress = True
+            if commit in silent_if_empty and emptyCommit(commit):
+                # This is a clean automatically generated merge commit; pretend it isn't here at all.
+                suppress = True
 
             if not suppress and not listed:
                 suppress = len(commit.parents) == 1
@@ -421,7 +424,7 @@ def render(db, target, title, branch=None, commits=None, columns=DEFAULT_COLUMNS
                     if parent1: upstream_sha1 = parent2_sha1
                     else: upstream_sha1 = parent1_sha1
 
-                    if not commit in silent_merges:
+                    if not commit in silent_if_empty:
                         # Merge with the base branch.
                         inner(tbody.tr('sublog').td(colspan=len(columns)), None, None, upstream=Commit.fromSHA1(db, repository, upstream_sha1))
 
@@ -473,7 +476,7 @@ def render(db, target, title, branch=None, commits=None, columns=DEFAULT_COLUMNS
         column.heading(row.td(column.className(db, None)))
 
     first_rebase = True
-    silent_merges = set()
+    silent_if_empty = set()
 
     if frebases:
         rebase_head = head
@@ -500,7 +503,7 @@ def render(db, target, title, branch=None, commits=None, columns=DEFAULT_COLUMNS
                     tag = new_upstream.findInterestingTag(db)
                     if tag: cell.text(tag)
                     else: cell.a(href="/%s/%s" % (repository.name, new_upstream.sha1)).text(new_upstream.sha1[:8])
-                silent_merges.add(rebase_head)
+                silent_if_empty.add(rebase_head)
 
             cell.text(" by %s" % rebase[2].fullname)
 
@@ -516,8 +519,14 @@ def render(db, target, title, branch=None, commits=None, columns=DEFAULT_COLUMNS
             else:
                 cell.text(".")
 
+            if rebase[1] in conflicts and not emptyCommit(rebase[1]):
+                output(table, rebase[1], overrides={ "type": "Rebase",
+                                                     "summary": "Changes introduced by rebase",
+                                                     "summary_classnames": ["rebase"],
+                                                     "rebase_conflicts": conflicts[rebase[1]] })
+
     while True:
-        last_commit, table, tail, skipped = inner(target, head, tails, 'center', title, table, silent_merges)
+        last_commit, table, tail, skipped = inner(target, head, tails, 'center', title, table, silent_if_empty)
 
         if rrebases and last_commit:
             try: rebase = rrebases.pop(tail)
@@ -540,7 +549,7 @@ def render(db, target, title, branch=None, commits=None, columns=DEFAULT_COLUMNS
                         tag = new_upstream.findInterestingTag(db)
                         if tag: cell.text(tag)
                         else: cell.a(href="/%s/%s" % (repository.name, new_upstream.sha1)).text(new_upstream.sha1[:8])
-                    silent_merges.add(head)
+                    silent_if_empty.add(head)
 
                 cell.text(" by %s" % rebase[2].fullname)
 
@@ -550,6 +559,14 @@ def render(db, target, title, branch=None, commits=None, columns=DEFAULT_COLUMNS
                     first_rebase = False
                 else:
                     cell.text(".")
+
+                if tail in conflicts:
+                    tail = Commit.fromSHA1(db, repository, tail)
+                    if not emptyCommit(tail):
+                        output(table, tail, overrides={ "type": "Rebase",
+                                                        "summary": "Changes introduced by rebase",
+                                                        "summary_classnames": ["rebase"],
+                                                        "rebase_conflicts": conflicts[tail] })
 
                 if head in rrebases:
                     rebase = rrebases.pop(head)

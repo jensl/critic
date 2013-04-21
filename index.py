@@ -543,87 +543,67 @@ front-page and then try again, and/or report a bug about this error."""
                 old_upstream = None
 
             if old_upstream:
-                if old_upstream.sha1 != repository.mergebase([old_upstream.sha1, new_upstream.sha1]):
-                    raise IndexException, """\
-Invalid rebase: The new upstream commit is not a descendant of the old
-upstream commit.  You may want to cancel the rebase via the review
-front-page, and prepare another one specifying the correct new
-upstream commit; or rebase the branch onto the new upstream specified
-and then push that instead."""
-                if new_upstream.sha1 != repository.mergebase([new_upstream.sha1, new]):
-                    raise IndexException, """\
+                unrelated_move = False
+
+                if not new_upstream.isAncestorOf(new):
+                    raise IndexException("""\
 Invalid rebase: The new upstream commit you specified when the rebase
 was prepared is not an ancestor of the commit now pushed.  You may want
 to cancel the rebase via the review front-page, and prepare another one
 specifying the correct new upstream commit; or rebase the branch onto
-the new upstream specified and then push that instead."""
+the new upstream specified and then push that instead.""")
 
-                old_upstream_name = repository.findInterestingTag(db, old_upstream.sha1) or old_upstream.sha1
-                new_upstream_name = repository.findInterestingTag(db, new_upstream.sha1) or new_upstream.sha1
+                if not old_upstream.isAncestorOf(new_upstream):
+                    unrelated_move = True
 
-                if onto_branch:
-                    merged_thing = "branch '%s'" % onto_branch
+                if unrelated_move:
+                    replayed_rebase = reviewing.rebase.replayRebase(db, review, user, old_head, old_upstream, new_head, new_upstream, onto_branch)
                 else:
-                    merged_thing = "commit '%s'" % new_upstream_name
+                    merge = reviewing.rebase.createEquivalentMergeCommit(db, review, user, old_head, old_upstream, new_head, new_upstream, onto_branch)
 
-                merge_sha1 = repository.run('commit-tree', new_head.tree, '-p', old_head.sha1, '-p', new_upstream.sha1,
-                                            input="""\
-Merge %s into %s
-
-This commit was generated automatically by Critic as an equivalent merge
-to the rebase of the commits
-
-  %s..%s
-
-onto the %s.""" % (merged_thing, review.branch.name, old_upstream_name, old_head.sha1, merged_thing),
-                                            env={ 'GIT_AUTHOR_NAME': user.fullname,
-                                                  'GIT_AUTHOR_EMAIL': user.email,
-                                                  'GIT_COMMITTER_NAME': user.fullname,
-                                                  'GIT_COMMITTER_EMAIL': user.email }).strip()
-                merge = gitutils.Commit.fromSHA1(db, repository, merge_sha1)
-
-                gituser_id = merge.author.getGitUserId(db)
-
-                cursor.execute("""INSERT INTO commits (sha1, author_gituser, commit_gituser, author_time, commit_time)
-                                       VALUES (%s, %s, %s, %s, %s)
-                                    RETURNING id""",
-                               (merge_sha1, gituser_id, gituser_id, timestamp(merge.author.time), timestamp(merge.committer.time)))
-                merge.id = cursor.fetchone()[0]
-
-                cursor.executemany("INSERT INTO edges (parent, child) VALUES (%s, %s)",
-                                   [(old_head.getId(db), merge.id),
-                                    (new_upstream.getId(db), merge.id)])
-
-                # Have to commit to make the new commit available to other DB
-                # sessions right away, specifically so that the changeset
-                # creation server can see it.
-                db.commit()
+                    cursor.execute("""UPDATE reviewrebases
+                                         SET old_head=%s
+                                       WHERE review=%s AND new_head IS NULL""",
+                                   (merge.id, review.id))
 
                 cursor.execute("""UPDATE reviewrebases
-                                     SET old_head=%s, new_head=%s, new_upstream=%s
+                                     SET new_head=%s, new_upstream=%s
                                    WHERE review=%s AND new_head IS NULL""",
-                               (merge.id, new_head.getId(db), new_upstream.getId(db), review.id))
+                               (new_head.getId(db), new_upstream.getId(db), review.id))
 
-                new_sha1s = repository.revlist([new], [new_upstream.sha1], '--topo-order')
+                new_sha1s = repository.revlist([new_head.sha1], [new_upstream.sha1], '--topo-order')
                 rebased_commits = [gitutils.Commit.fromSHA1(db, repository, sha1) for sha1 in new_sha1s]
                 reachable_values = [(review.branch.id, sha1) for sha1 in new_sha1s]
+                new_upstream_name = repository.findInterestingTag(db, new_upstream.sha1) or new_upstream.sha1
 
                 cursor.execute("INSERT INTO previousreachable (rebase, commit) SELECT %s, commit FROM reachable WHERE branch=%s", (rebase_id, review.branch.id))
                 cursor.execute("DELETE FROM reachable WHERE branch=%s", (review.branch.id,))
                 cursor.executemany("INSERT INTO reachable (branch, commit) SELECT %s, commits.id FROM commits WHERE commits.sha1=%s", reachable_values)
-                cursor.execute("UPDATE branches SET head=%s WHERE id=%s", (gitutils.Commit.fromSHA1(db, repository, new).getId(db), review.branch.id))
+                cursor.execute("UPDATE branches SET head=%s WHERE id=%s", (new_head.getId(db), review.branch.id))
 
                 pending_mails = []
 
                 recipients = review.getRecipients(db)
                 for to_user in recipients:
-                    pending_mails.extend(review_mail.sendReviewRebased(db, user, to_user, recipients, review, new_upstream_name, rebased_commits, onto_branch))
+                    pending_mails.extend(reviewing.mail.sendReviewRebased(db, user, to_user, recipients, review, new_upstream_name, rebased_commits, onto_branch))
 
                 print "Rebase performed."
 
-                review_utils.addCommitsToReview(db, user, review, [merge], pending_mails=pending_mails, silent_if_empty=set([merge]), full_merges=set([merge]))
+                if unrelated_move:
+                    reviewing.utils.addCommitsToReview(
+                        db, user, review, [replayed_rebase],
+                        pending_mails=pending_mails,
+                        silent_if_empty=set([replayed_rebase]),
+                        replayed_rebases={ replayed_rebase: new_head })
 
-                repository.keepalive(merge)
+                    repository.keepalive(old_head)
+                    repository.keepalive(replayed_rebase)
+                else:
+                    reviewing.utils.addCommitsToReview(db, user, review, [merge],
+                                                       pending_mails=pending_mails,
+                                                       silent_if_empty=set([merge]),
+                                                       full_merges=set([merge]))
+                    repository.keepalive(merge)
             else:
                 old_commitset = log.commitset.CommitSet(review.branch.commits)
                 new_sha1s = repository.revlist([new], old_commitset.getTails(), '--topo-order')

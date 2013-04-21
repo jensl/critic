@@ -68,7 +68,12 @@ table.log tr.commit td.summary.selected { background-color: #eed }
 table.log tr.commit:first-child td.summary { border-top: 1px dotted #996 }
 table.log tr.commit td.author { text-align: right; font-weight: bold }
 table.log tr.commit.selected { background: #ddb }
-table.log tr.commit td.summary .nocomment { font-style: italic; text-decoration: none }
+table.log tr.commit td.summary .nocomment,
+table.log tr.commit td.summary .rebase
+{
+    font-style: italic;
+    text-decoration: none
+}
 
 table.log > thead > tr.basemerge > td,
 table.log > thead > tr.rebase > td { padding-top: 0.5em; padding-bottom: 0.5em; font-weight: bold }

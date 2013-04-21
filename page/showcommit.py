@@ -482,7 +482,7 @@ def render(db, target, user, repository, review, changesets, commits, listed_com
 
     if len(changesets) == 1:
         if commits and len(commits) > 1:
-            def linkToCommit(commit):
+            def linkToCommit(commit, overrides={}):
                 if review: return "%s/%s?review=%d" % (repository.name, commit.sha1, review.id)
                 else: return "%s/%s" % (repository.name, commit.sha1)
 
@@ -620,7 +620,7 @@ def render(db, target, user, repository, review, changesets, commits, listed_com
             def renderRelevantCommits(db, target, file):
                 commits = relevant_commits_per_file.get(file.id)
                 if commits:
-                    def linkToCommit(commit):
+                    def linkToCommit(commit, overrides={}):
                         return "%s/%s?file=%d" % (commit.repository.name, commit.sha1, file.id)
 
                     columns = [(70, log_html.SummaryColumn(linkToCommit=linkToCommit)),

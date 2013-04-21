@@ -14,26 +14,29 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-from operation import Operation, OperationResult
+from operation import Operation, OperationResult, Optional
 
 import dbutils
 import gitutils
 import reviewing.rebase
 import changeset.utils as changeset_utils
+import log.commitset
 
 class CheckMergeStatus(Operation):
     def __init__(self):
         super(CheckMergeStatus, self).__init__({ "review_id": int,
-                                                 "old_head_sha1": str,
                                                  "new_head_sha1": str,
                                                  "new_upstream_sha1": str })
 
-    def process(self, db, user, review_id, old_head_sha1, new_head_sha1, new_upstream_sha1):
+    def process(self, db, user, review_id, new_head_sha1, new_upstream_sha1):
         review = dbutils.Review.fromId(db, review_id)
-        old_upstream_sha1 = review.getCommitSet(db).getFilteredTails(review.repository).pop()
+        upstreams = log.commitset.CommitSet(review.branch.commits).getFilteredTails(review.repository)
 
-        old_head = gitutils.Commit.fromSHA1(db, review.repository, old_head_sha1)
-        old_upstream = gitutils.Commit.fromSHA1(db, review.repository, old_upstream_sha1)
+        if len(upstreams) > 1:
+            return OperationResult(rebase_supported=False)
+
+        old_head = review.branch.head
+        old_upstream = gitutils.Commit.fromSHA1(db, review.repository, upstreams.pop())
         new_head = gitutils.Commit.fromSHA1(db, review.repository, new_head_sha1)
         new_upstream = gitutils.Commit.fromSHA1(db, review.repository, new_upstream_sha1)
 
@@ -50,20 +53,44 @@ class CheckMergeStatus(Operation):
         else:
             has_conflicts = False
 
-        return OperationResult(has_conflicts=has_conflicts,
+        return OperationResult(rebase_supported=True,
+                               has_conflicts=has_conflicts,
                                merge_sha1=equivalent_merge.sha1)
 
 class CheckConflictsStatus(Operation):
     def __init__(self):
         super(CheckConflictsStatus, self).__init__({ "review_id": int,
-                                                     "merge_sha1": str })
+                                                     "merge_sha1": Optional(str),
+                                                     "new_head_sha1": Optional(str),
+                                                     "new_upstream_sha1": Optional(str) })
 
-    def process(self, db, user, review_id, merge_sha1):
+    def process(self, db, user, review_id, merge_sha1=None, new_head_sha1=None, new_upstream_sha1=None):
         review = dbutils.Review.fromId(db, review_id)
-        merge = gitutils.Commit.fromSHA1(db, review.repository, merge_sha1)
 
-        changesets = changeset_utils.createChangeset(
-            db, user, review.repository, merge, conflicts=True, do_highlight=False)
+        if merge_sha1 is not None:
+            merge = gitutils.Commit.fromSHA1(db, review.repository, merge_sha1)
+
+            changesets = changeset_utils.createChangeset(
+                db, user, review.repository, merge, conflicts=True, do_highlight=False)
+
+            url = "/showcommit?repository=%d&sha1=%s&conflicts=yes" % (review.repository.id, merge.sha1)
+        else:
+            upstreams = review.getCommitSet(db).getFilteredTails(review.repository)
+
+            if len(upstreams) > 1:
+                return OperationResult(rebase_supported=False)
+
+            old_head = review.branch.head
+            old_upstream = gitutils.Commit.fromSHA1(db, review.repository, upstreams.pop())
+            new_head = gitutils.Commit.fromSHA1(db, review.repository, new_head_sha1)
+            new_upstream = gitutils.Commit.fromSHA1(db, review.repository, new_upstream_sha1)
+
+            replay = reviewing.rebase.replayRebase(db, review, user, old_head, old_upstream, new_head, new_upstream)
+
+            changesets = changeset_utils.createChangeset(
+                db, user, review.repository, from_commit=replay, to_commit=new_head, conflicts=True, do_highlight=False)
+
+            url = "/showcommit?repository=%d&from=%s&to=%s&conflicts=yes" % (review.repository.id, replay.sha1, new_head.sha1)
 
         has_changes = False
         has_conflicts = False
@@ -85,19 +112,17 @@ class CheckConflictsStatus(Operation):
             if not file_has_conflicts:
                 has_changes = True
 
-        return OperationResult(has_conflicts=has_conflicts, has_changes=has_changes,
-                               merge_sha1=merge_sha1)
+        return OperationResult(has_conflicts=has_conflicts, has_changes=has_changes, url=url)
 
 class CheckHistoryRewriteStatus(Operation):
     def __init__(self):
         super(CheckHistoryRewriteStatus, self).__init__({ "review_id": int,
-                                                          "old_head_sha1": str,
                                                           "new_head_sha1": str })
 
-    def process(self, db, user, review_id, old_head_sha1, new_head_sha1):
+    def process(self, db, user, review_id, new_head_sha1):
         review = dbutils.Review.fromId(db, review_id)
 
-        old_head = gitutils.Commit.fromSHA1(db, review.repository, old_head_sha1)
+        old_head = review.branch.head
         new_head = gitutils.Commit.fromSHA1(db, review.repository, new_head_sha1)
 
         mergebase = review.repository.mergebase([old_head, new_head])

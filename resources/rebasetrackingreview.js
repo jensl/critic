@@ -117,7 +117,7 @@ $(function ()
 	status_conflicts.text(message || "Clean.");
 
 	if (message)
-	  status_conflicts.attr("href", "/showcommit?repository=" + repository.id + "&sha1=" + result.merge_sha1 + "&conflicts=yes");
+	  status_conflicts.attr("href", result.url);
 
 	$("button#rebasereview").removeAttr("disabled").button("refresh");
       }
@@ -166,12 +166,23 @@ $(function ()
 
     if (typeof check != "undefined")
     {
-      if (check.new_upstream_sha1)
+      if (check.rebase_type == "history")
+      {
+        var historyrewrite_status = new Operation({ action: "check history rewrite status",
+                                                    url: "checkhistoryrewritestatus",
+                                                    data: { review_id: review.id,
+                                                            new_head_sha1: check.new_head_sha1 },
+                                                    callback: updateHistoryRewriteStatus });
+
+        historyrewrite_status.execute();
+
+        $("#status_historyrewrite").text("Checking...");
+      }
+      else if (check.rebase_type == "move:ff")
       {
         var merge_status = new Operation({ action: "check merge status",
                                            url: "checkmergestatus",
                                            data: { review_id: review.id,
-                                                   old_head_sha1: check.old_head_sha1,
                                                    new_head_sha1: check.new_head_sha1,
                                                    new_upstream_sha1: check.new_upstream_sha1 },
                                            callback: updateMergeStatus });
@@ -182,16 +193,16 @@ $(function ()
       }
       else
       {
-        var historyrewrite_status = new Operation({ action: "check history rewrite status",
-                                                    url: "checkhistoryrewritestatus",
-                                                    data: { review_id: review.id,
-                                                            old_head_sha1: check.old_head_sha1,
-                                                            new_head_sha1: check.new_head_sha1 },
-                                                    callback: updateHistoryRewriteStatus });
+	var conflicts_status = new Operation({ action: "check conflicts status",
+					       url: "checkconflictsstatus",
+					       data: { review_id: review.id,
+						       new_head_sha1: check.new_head_sha1,
+                                                       new_upstream_sha1: check.new_upstream_sha1 },
+					       callback: updateConflictsStatus });
 
-        historyrewrite_status.execute();
+	conflicts_status.execute();
 
-        $("#status_historyrewrite").text("Checking...");
+	$("#status_conflicts").text("Checking...");
       }
     }
   });

@@ -254,7 +254,7 @@ def assignChanges(db, user, review, commits=None, changesets=None, update=False,
 
     return new_reviewers, new_watchers
 
-def addCommitsToReview(db, user, review, commits, new_review=False, commitset=None, pending_mails=None, silent_if_empty=set(), full_merges=set(), tracked_branch=False):
+def addCommitsToReview(db, user, review, commits, new_review=False, commitset=None, pending_mails=None, silent_if_empty=set(), full_merges=set(), replayed_rebases={}, tracked_branch=False):
     cursor = db.cursor()
 
     if not new_review:
@@ -337,24 +337,35 @@ Please confirm that this is intended by loading:
             commits = [commit for commit in commits if commit in commitset]
 
     changesets = []
+    silent_commits = set()
     silent_changesets = set()
 
     simple_commits = []
     for commit in commits:
-        if commit not in full_merges:
+        if commit not in full_merges and commit not in replayed_rebases:
             simple_commits.append(commit)
     if simple_commits:
         changeset_utils.createChangesets(db, review.repository, simple_commits)
 
     for commit in commits:
-        if commit in full_merges: commit_changesets = changeset_utils.createFullMergeChangeset(db, user, review.repository, commit)
-        else: commit_changesets = changeset_utils.createChangeset(db, user, review.repository, commit)
+        if commit in full_merges:
+            commit_changesets = changeset_utils.createFullMergeChangeset(
+                db, user, review.repository, commit)
+        elif commit in replayed_rebases:
+            commit_changesets = changeset_utils.createChangeset(
+                db, user, review.repository,
+                from_commit=commit, to_commit=replayed_rebases[commit],
+                conflicts=True)
+        else:
+            commit_changesets = changeset_utils.createChangeset(
+                db, user, review.repository, commit)
 
         if commit in silent_if_empty:
             for commit_changeset in commit_changesets:
                 if commit_changeset.files:
                     break
             else:
+                silent_commits.add(commit)
                 silent_changesets.update(commit_changesets)
 
         changesets.extend(commit_changesets)
@@ -366,7 +377,8 @@ Please confirm that this is intended by loading:
 
     cursor.executemany("""INSERT INTO reviewchangesets (review, changeset) VALUES (%s, %s)""", reviewchangesets_values)
     cursor.executemany("""INSERT INTO reviewfiles (review, changeset, file, deleted, inserted)
-                               SELECT reviewchangesets.review, reviewchangesets.changeset, fileversions.file, COALESCE(SUM(chunks.deleteCount), 0), COALESCE(SUM(chunks.insertCount), 0)
+                               SELECT reviewchangesets.review, reviewchangesets.changeset, fileversions.file,
+                                      COALESCE(SUM(chunks.deleteCount), 0), COALESCE(SUM(chunks.insertCount), 0)
                                  FROM reviewchangesets
                                  JOIN fileversions USING (changeset)
                       LEFT OUTER JOIN chunks USING (changeset, file)
@@ -403,12 +415,15 @@ Please confirm that this is intended by loading:
 
     if pending_mails is None: pending_mails = []
 
+    notify_commits = filter(lambda commit: commit not in silent_commits, commits)
     notify_changesets = filter(lambda changeset: changeset not in silent_changesets, changesets)
 
     if not new_review and notify_changesets:
         recipients = review.getRecipients(db)
         for to_user in recipients:
-            pending_mails.extend(mail.sendReviewAddedCommits(db, user, to_user, recipients, review, notify_changesets, tracked_branch=tracked_branch))
+            pending_mails.extend(mail.sendReviewAddedCommits(
+                    db, user, to_user, recipients, review, notify_commits,
+                    notify_changesets, tracked_branch=tracked_branch))
 
     mail.sendPendingMails(pending_mails)
 

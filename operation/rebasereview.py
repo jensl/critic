@@ -248,8 +248,18 @@ class RevertRebase(Operation):
                                           AND changesets.child=%s""",
                                (review.id, old_head_id))
 
-            old_head = gitutils.Commit.fromSHA1(db, review.repository, old_head.parents[0])
-            old_head_id = old_head.getId(db)
+                old_head = gitutils.Commit.fromSHA1(db, review.repository, old_head.parents[0])
+                old_head_id = old_head.getId(db)
+            else:
+                # Delete the review changesets (and, via cascade, all related
+                # assignments.)
+                cursor.execute("""DELETE FROM reviewchangesets
+                                        USING changesets
+                                        WHERE reviewchangesets.review=%s
+                                          AND reviewchangesets.changeset=changesets.id
+                                          AND changesets.child=%s
+                                          AND changesets.type='conflicts'""",
+                               (review.id, new_head_id))
 
         cursor.execute("UPDATE branches SET head=%s WHERE id=%s", (old_head_id, review.branch.id))
         cursor.execute("DELETE FROM reviewrebases WHERE id=%s", (rebase_id,))

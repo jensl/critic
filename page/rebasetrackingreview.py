@@ -72,30 +72,41 @@ class RebaseTrackingReview(page.Page):
                 import log.commitset
 
                 sha1s = self.review.repository.revlist(included=[self.newhead], excluded=[self.newupstream])
-                commits = log.commitset.CommitSet(gitutils.Commit.fromSHA1(self.db, self.review.repository, sha1) for sha1 in sha1s)
+                new_commits = log.commitset.CommitSet(gitutils.Commit.fromSHA1(self.db, self.review.repository, sha1) for sha1 in sha1s)
 
-                heads = commits.getHeads()
-                if len(heads) != 1:
+                new_heads = new_commits.getHeads()
+                if len(new_heads) != 1:
                     raise page.utils.DisplayMessage("Invalid commit-set!", "Multiple heads.  (This ought to be impossible...)")
-                tails = commits.getFilteredTails(self.review.repository)
-                if len(tails) != 1:
-                    raise page.utils.DisplayMessage("Invalid commit-set!", "Multiple tails.  (This ought to be impossible...)")
+                new_upstreams = new_commits.getFilteredTails(self.review.repository)
+                if len(new_upstreams) != 1:
+                    raise page.utils.DisplayMessage("Invalid commit-set!", "Multiple upstreams.  (This ought to be impossible...)")
 
-                new_head = heads.pop()
-                new_upstream_sha1 = tails.pop()
+                new_head = new_heads.pop()
+                new_upstream_sha1 = new_upstreams.pop()
 
-                commitset = log.commitset.CommitSet(self.review.branch.commits)
-                tails = commitset.getFilteredTails(self.review.repository)
+                old_commits = log.commitset.CommitSet(self.review.branch.commits)
+                old_upstreams = old_commits.getFilteredTails(self.review.repository)
 
-                if len(tails) == 1 and tails.pop() == new_upstream_sha1:
+                if len(old_upstreams) != 1:
+                    raise page.utils.DisplayMessage("Rebase not supported!", "The review has mulitple upstreams and can't be rebased.")
+
+                if len(old_upstreams) == 1 and new_upstream_sha1 in old_upstreams:
                     # This appears to be a history rewrite.
                     new_upstream = None
                     new_upstream_sha1 = None
+                    rebase_type = "history"
                 else:
+                    old_upstream = gitutils.Commit.fromSHA1(self.db, self.review.repository, old_upstreams.pop())
                     new_upstream = gitutils.Commit.fromSHA1(self.db, self.review.repository, new_upstream_sha1)
 
-                self.document.addInternalScript("var check = { old_head_sha1: %s, new_head_sha1: %s, new_upstream_sha1: %s, new_trackedbranch: %s };"
-                                                % (htmlutils.jsify(self.review.branch.head.sha1),
+                    if old_upstream.isAncestorOf(new_upstream):
+                        rebase_type = "move:ff"
+                    else:
+                        rebase_type = "move"
+
+                self.document.addInternalScript("var check = { rebase_type: %s, old_head_sha1: %s, new_head_sha1: %s, new_upstream_sha1: %s, new_trackedbranch: %s };"
+                                                % (htmlutils.jsify(rebase_type),
+                                                   htmlutils.jsify(self.review.branch.head.sha1),
                                                    htmlutils.jsify(new_head.sha1),
                                                    htmlutils.jsify(new_upstream_sha1),
                                                    htmlutils.jsify(self.newbranch[len("refs/heads/"):])))
@@ -125,11 +136,12 @@ class RebaseTrackingReview(page.Page):
 
                 table.addSection("Status")
 
-                if new_upstream:
-                    table.addItem("Merge", renderMergeStatus)
-                    table.addItem("Conflicts", renderConflictsStatus)
-                else:
+                if rebase_type == "history":
                     table.addItem("History rewrite", renderHistoryRewriteStatus)
+                else:
+                    if rebase_type == "move:ff":
+                        table.addItem("Merge", renderMergeStatus)
+                    table.addItem("Conflicts", renderConflictsStatus)
 
                 def renderRebaseReview(target):
                     target.button(id="rebasereview", onclick="rebaseReview();", disabled="disabled").text("Rebase Review")
@@ -137,7 +149,7 @@ class RebaseTrackingReview(page.Page):
                 table.addSeparator()
                 table.addCentered(renderRebaseReview)
 
-                log.html.render(self.db, self.body, "Rebased commits", commits=list(commits))
+                log.html.render(self.db, self.body, "Rebased commits", commits=list(new_commits))
             else:
                 try:
                     from customization.branches import getRebasedBranchPattern
