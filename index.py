@@ -553,35 +553,26 @@ the new upstream specified and then push that instead.""")
                     unrelated_move = True
 
                 if unrelated_move:
-                    replayed_rebase = reviewing.rebase.replayRebase(db, review, user, old_head, old_upstream, new_head, new_upstream, onto_branch)
+                    replayed_rebase = reviewing.rebase.replayRebase(
+                        db, review, user, old_head, old_upstream, new_head,
+                        new_upstream, onto_branch)
                 else:
-                    merge = reviewing.rebase.createEquivalentMergeCommit(db, review, user, old_head, old_upstream, new_head, new_upstream, onto_branch)
-
-                    cursor.execute("""UPDATE reviewrebases
-                                         SET old_head=%s
-                                       WHERE review=%s AND new_head IS NULL""",
-                                   (merge.id, review.id))
-
-                cursor.execute("""UPDATE reviewrebases
-                                     SET new_head=%s, new_upstream=%s
-                                   WHERE review=%s AND new_head IS NULL""",
-                               (new_head.getId(db), new_upstream.getId(db), review.id))
+                    merge = reviewing.rebase.createEquivalentMergeCommit(
+                        db, review, user, old_head, old_upstream, new_head,
+                        new_upstream, onto_branch)
 
                 new_sha1s = repository.revlist([new_head.sha1], [new_upstream.sha1], '--topo-order')
                 rebased_commits = [gitutils.Commit.fromSHA1(db, repository, sha1) for sha1 in new_sha1s]
                 reachable_values = [(review.branch.id, sha1) for sha1 in new_sha1s]
                 new_upstream_name = repository.findInterestingTag(db, new_upstream.sha1) or new_upstream.sha1
 
-                cursor.execute("INSERT INTO previousreachable (rebase, commit) SELECT %s, commit FROM reachable WHERE branch=%s", (rebase_id, review.branch.id))
-                cursor.execute("DELETE FROM reachable WHERE branch=%s", (review.branch.id,))
-                cursor.executemany("INSERT INTO reachable (branch, commit) SELECT %s, commits.id FROM commits WHERE commits.sha1=%s", reachable_values)
-                cursor.execute("UPDATE branches SET head=%s WHERE id=%s", (new_head.getId(db), review.branch.id))
-
                 pending_mails = []
 
                 recipients = review.getRecipients(db)
                 for to_user in recipients:
-                    pending_mails.extend(reviewing.mail.sendReviewRebased(db, user, to_user, recipients, review, new_upstream_name, rebased_commits, onto_branch))
+                    pending_mails.extend(reviewing.mail.sendReviewRebased(
+                            db, user, to_user, recipients, review,
+                            new_upstream_name, rebased_commits, onto_branch))
 
                 print "Rebase performed."
 
@@ -595,11 +586,37 @@ the new upstream specified and then push that instead.""")
                     repository.keepalive(old_head)
                     repository.keepalive(replayed_rebase)
                 else:
-                    reviewing.utils.addCommitsToReview(db, user, review, [merge],
-                                                       pending_mails=pending_mails,
-                                                       silent_if_empty=set([merge]),
-                                                       full_merges=set([merge]))
+                    reviewing.utils.addCommitsToReview(
+                        db, user, review, [merge], pending_mails=pending_mails,
+                        silent_if_empty=set([merge]), full_merges=set([merge]))
+
                     repository.keepalive(merge)
+
+                if not unrelated_move:
+                    cursor.execute("""UPDATE reviewrebases
+                                         SET old_head=%s
+                                       WHERE review=%s AND new_head IS NULL""",
+                                   (merge.id, review.id))
+
+                cursor.execute("""UPDATE reviewrebases
+                                     SET new_head=%s, new_upstream=%s
+                                   WHERE review=%s AND new_head IS NULL""",
+                               (new_head.getId(db), new_upstream.getId(db), review.id))
+
+                cursor.execute("""INSERT INTO previousreachable (rebase, commit)
+                                       SELECT %s, commit
+                                         FROM reachable
+                                        WHERE branch=%s""",
+                               (rebase_id, review.branch.id))
+                cursor.execute("DELETE FROM reachable WHERE branch=%s",
+                               (review.branch.id,))
+                cursor.executemany("""INSERT INTO reachable (branch, commit)
+                                           SELECT %s, commits.id
+                                             FROM commits
+                                            WHERE commits.sha1=%s""",
+                                   reachable_values)
+                cursor.execute("UPDATE branches SET head=%s WHERE id=%s",
+                               (new_head.getId(db), review.branch.id))
             else:
                 old_commitset = log.commitset.CommitSet(review.branch.commits)
                 new_sha1s = repository.revlist([new], old_commitset.getTails(), '--topo-order')
@@ -618,19 +635,9 @@ the review front-page if you've changed your mind.)""")
 Invalid history rewrite: No commit on the rebased branch references
 the same tree as the old head of the branch.""")
 
-                cursor.execute("""UPDATE reviewrebases
-                                     SET new_head=%s
-                                   WHERE review=%s AND new_head IS NULL""",
-                               (new_head.getId(db), review.id))
-
                 rebased_commits = [gitutils.Commit.fromSHA1(db, repository, sha1) for sha1 in repository.revlist([new_head], old_commitset.getTails(), '--topo-order')]
                 new_commits = [gitutils.Commit.fromSHA1(db, repository, sha1) for sha1 in repository.revlist([new], [new_head], '--topo-order')]
                 reachable_values = [(review.branch.id, sha1) for sha1 in new_sha1s]
-
-                cursor.execute("INSERT INTO previousreachable (rebase, commit) SELECT %s, commit FROM reachable WHERE branch=%s", (rebase_id, review.branch.id))
-                cursor.execute("DELETE FROM reachable WHERE branch=%s", (review.branch.id,))
-                cursor.executemany("INSERT INTO reachable (branch, commit) SELECT %s, commits.id FROM commits WHERE commits.sha1=%s", reachable_values)
-                cursor.execute("UPDATE branches SET head=%s WHERE id=%s", (gitutils.Commit.fromSHA1(db, repository, new).getId(db), review.branch.id))
 
                 pending_mails = []
 
@@ -644,6 +651,27 @@ the same tree as the old head of the branch.""")
                     reviewing.utils.addCommitsToReview(db, user, review, new_commits, pending_mails=pending_mails)
                 else:
                     reviewing.mail.sendPendingMails(pending_mails)
+
+                cursor.execute("""UPDATE reviewrebases
+                                     SET new_head=%s
+                                   WHERE review=%s AND new_head IS NULL""",
+                               (new_head.getId(db), review.id))
+
+                cursor.execute("""INSERT INTO previousreachable (rebase, commit)
+                                       SELECT %s, commit
+                                         FROM reachable
+                                        WHERE branch=%s""",
+                               (rebase_id, review.branch.id))
+                cursor.execute("DELETE FROM reachable WHERE branch=%s",
+                               (review.branch.id,))
+                cursor.executemany("""INSERT INTO reachable (branch, commit)
+                                           SELECT %s, commits.id
+                                             FROM commits
+                                            WHERE commits.sha1=%s""",
+                                   reachable_values)
+                cursor.execute("UPDATE branches SET head=%s WHERE id=%s",
+                               (gitutils.Commit.fromSHA1(db, repository, new).getId(db),
+                                review.branch.id))
 
                 repository.run('update-ref', 'refs/keepalive/%s' % old, old)
 
