@@ -277,19 +277,53 @@ class File:
     def hasChanges(self):
         return self.old_sha1 is not None and self.new_sha1 is not None
 
+    def isEmptyChanges(self):
+        """Return true if empty diff information is recorded."""
+        return self.hasChanges() \
+            and len(self.chunks) == 1 \
+            and self.chunks[0].delete_count == 0 \
+            and self.chunks[0].insert_count == 0
+
+    def isEmptyFile(self):
+        """Return true if this is an added or deleted empty (zero-length) file."""
+        if self.isEmptyChanges():
+            if self.wasAdded() and self.newSize() == 0:
+                return True
+            elif self.wasRemoved() and self.oldSize() == 0:
+                return True
+        return False
+
     def isBinaryChanges(self):
-        return self.hasChanges() and len(self.chunks) == 1 and self.chunks[0].delete_count == 0 and self.chunks[0].insert_count == 0
+        """Return true if this is a binary file."""
+        return self.isEmptyChanges() and not self.isEmptyFile()
 
     def wasAdded(self):
+        """Return true if this file was added."""
         return self.old_sha1 == '0' * 40
 
     def wasRemoved(self):
+        """Return true if this file was deleted."""
         return self.new_sha1 == '0' * 40
 
+    def oldSize(self):
+        """Return size of old version of file, or None if file was deleted."""
+        if self.old_sha1 != '0' * 40:
+            return self.repository.fetch(self.old_sha1, fetchData=False).size
+        else:
+            return None
+
+    def newSize(self):
+        """Return size of new version of file, or None if file was deleted."""
+        if self.new_sha1 != '0' * 40:
+            return self.repository.fetch(self.new_sha1, fetchData=False).size
+        else:
+            return None
+
     def loadOldLines(self, highlighted=False, request_highlight=False):
+        """Load the lines of the old version of the file, optionally highlighted."""
+
         from diff.parse import splitlines
 
-        """Load the lines of the old version of the file, optionally highlighted."""
         if self.old_sha1 is None or self.old_sha1 == '0' * 40:
             self.old_plain = []
             self.old_highlighted = []
@@ -318,9 +352,10 @@ class File:
                 self.old_eof_eol = data and data[-1] in "\n\r"
 
     def loadNewLines(self, highlighted=False, request_highlight=False):
+        """Load the lines of the new version of the file, optionally highlighted."""
+
         from diff.parse import splitlines
 
-        """Load the lines of the new version of the file, optionally highlighted."""
         if self.new_sha1 is None or self.new_sha1 == '0' * 40:
             self.new_plain = []
             self.new_highlighted = []

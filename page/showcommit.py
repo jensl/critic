@@ -311,6 +311,8 @@ def renderCommitFiles(db, target, user, repository, review, changeset=None, chan
                 if file:
                     if file.isBinaryChanges():
                         row.td("parent", colspan=2, critic_parent_index=index).i().text("binary")
+                    elif file.isEmptyFile():
+                        row.td("parent", colspan=2, critic_parent_index=index).i().text("empty")
                     elif file.old_mode == "160000" and file.new_mode == "160000":
                         if conflicts and index + 1 == nparents:
                             row.td(colspan=2).text()
@@ -420,6 +422,8 @@ def renderCommitFiles(db, target, user, repository, review, changeset=None, chan
         if file.hasChanges():
             if file.isBinaryChanges():
                 row.td(colspan=2).i().text("binary")
+            elif file.isEmptyFile():
+                row.td(colspan=2).i().text("empty")
             else:
                 row.td().text(lines[0] and "-%d" % lines[0] or "")
                 row.td().text(lines[1] and "+%d" % lines[1] or "")
