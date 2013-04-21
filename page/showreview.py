@@ -14,7 +14,6 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-import time
 import re
 import datetime
 import calendar
@@ -1072,7 +1071,7 @@ def renderShowReview(req, db, user):
                             title = chain.leader()
                             break
             row.td("title").a(href="showbatch?batch=%d" % batch_id).innerHTML(title)
-            row.td("when").text(time.strftime("%Y-%m-%d %H:%M", when.timetuple()))
+            row.td("when").text(user.formatTimestamp(db, when))
 
     profiler.check("batches")
     profiler.output(db, user, target)

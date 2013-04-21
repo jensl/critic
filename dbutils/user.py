@@ -160,6 +160,14 @@ class User(object):
         resource = self.__resources[name] = ("\"critic.mtime.%d\"" % mtime, open(path).read())
         return resource
 
+    def adjustTimestamp(self, db, timestamp):
+        import dbutils.timezones
+        return dbutils.timezones.adjustTimestamp(db, timestamp, self.getPreference(db, "timezone"))
+
+    def formatTimestamp(self, db, timestamp):
+        import dbutils.timezones
+        return dbutils.timezones.formatTimestamp(db, timestamp, self.getPreference(db, "timezone"))
+
     def getCriticURLs(self, db):
         url_types = self.getPreference(db, 'email.urlType').split(",")
 

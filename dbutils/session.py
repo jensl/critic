@@ -20,7 +20,8 @@ class Session(object):
         self.storage = { "Repository": {},
                          "User": {},
                          "Commit": {},
-                         "CommitUserTime": {} }
+                         "CommitUserTime": {},
+                         "Timezones": {} }
         self.profiling = {}
 
     def atexit(self, fn):

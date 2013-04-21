@@ -41,7 +41,9 @@ def getRSS(pid):
 
 class Watchdog(BackgroundProcess):
     def __init__(self):
-        super(Watchdog, self).__init__(service=configuration.services.WATCHDOG)
+        service = configuration.services.WATCHDOG
+
+        super(Watchdog, self).__init__(service=service)
 
     def run(self):
         soft_restart_attempted = set()

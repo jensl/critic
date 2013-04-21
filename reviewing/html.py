@@ -40,7 +40,7 @@ def renderComments(db, target, user, chain, position, linkify):
         div_header = div_comment.div("header")
         div_header.span("author").text("%s <%s>" % (comment.user.fullname, comment.user.email))
         div_header.text(" posted ")
-        div_header.span("time").text(strftime("%Y-%m-%d %H:%M", comment.time.timetuple()))
+        div_header.span("time").text(comment.when)
 
         div_text = div_comment.div("text", id="c%dtext" % comment.id).preformatted()
         div_text.text(comment.comment, linkify=linkify, repository=repository)

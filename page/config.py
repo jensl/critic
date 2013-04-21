@@ -91,8 +91,9 @@ def renderConfig(req, db, user):
         value.preformatted()
 
         options = None
+        optgroup = None
         def addOption(value, name, selected=lambda value: string==value):
-            options.option(value=value, selected="selected" if selected(value) else None).text(name)
+            (optgroup or options).option(value=value, selected="selected" if selected(value) else None).text(name)
 
         if type == "boolean":
             value.input("setting", id=input_id, type="checkbox", name=item, checked=integer and "checked" or None, critic_default=default_integer)
@@ -131,6 +132,15 @@ def renderConfig(req, db, user):
             addOption("first", "First")
             addOption("last", "Last")
             addOption("firstlast", "First & Last")
+        elif item == "timezone":
+            options = value.select("setting", id=input_id, name=item, critic_default=default_string)
+
+            for group, zones in dbutils.timezones.sortedTimezones(db):
+                optgroup = options.optgroup(label=group)
+                for name, abbrev, utc_offset in zones:
+                    seconds = utc_offset.total_seconds()
+                    offset = "%s%02d:%02d" % ("-" if seconds < 0 else "+", abs(seconds) / 3600, (abs(seconds) % 3600) / 60)
+                    addOption("%s/%s" % (group, name), "%s (%s / UTC%s)" % (name, abbrev, offset))
         else:
             value.input("setting", id=input_id, type="text", size=80, name=item, value=string, critic_default=default_string)
 

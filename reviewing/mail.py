@@ -108,7 +108,7 @@ def renderChainInMail(db, to_user, chain, focus_comment, new_state, new_type, li
     mode = to_user.getPreference(db, "email.updatedReview.quotedComments")
 
     def formatComment(comment):
-        return "%s at %s:\n%s\n" % (comment.user.fullname, comment.when(), textutils.reflow(comment.comment, line_length, indent=2))
+        return "%s at %s:\n%s\n" % (comment.user.fullname, comment.when, textutils.reflow(comment.comment, line_length, indent=2))
 
     assert not focus_comment or focus_comment == chain.comments[-1], "focus comment (#%d) is not last in chain (#%d) as expected" % (focus_comment.id, chain.id)
 

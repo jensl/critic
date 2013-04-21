@@ -124,3 +124,10 @@ class Database(Session):
     def close(self):
         super(Database, self).close()
         self.__connection.close()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        self.close()
+        return False

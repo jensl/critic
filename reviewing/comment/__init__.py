@@ -31,22 +31,20 @@ from reviewing.filters import Filters
 from operation import OperationFailure
 
 class Comment:
-    def __init__(self, chain, batch_id, id, state, user, time, comment, code, unread):
+    def __init__(self, chain, batch_id, id, state, user, time, when, comment, code, unread):
         self.chain = chain
         self.batch_id = batch_id
         self.id = id
         self.state = state
         self.user = user
         self.time = time
+        self.when = when
         self.comment = comment
         self.code = code
         self.unread = unread
 
     def __repr__(self):
         return "Comment(%r)" % self.comment
-
-    def when(self):
-        return time.strftime("%Y-%m-%d %H:%M", self.time.timetuple())
 
     def getJSConstructor(self):
         return "new Comment(%d, %s, %s, %s, %s)" % (self.id, self.user.getJSConstructor(), jsify(strftime("%Y-%m-%d %H:%M", self.time.timetuple())), jsify(self.state), jsify(self.comment))
@@ -58,9 +56,12 @@ class Comment:
         row = cursor.fetchone()
         if not row: return None
         else:
-            chain_id, batch_id, user_id, time, state, comment, code = row
+            chain_id, batch_id, author_id, time, state, comment, code = row
+            author = dbutils.User.fromId(db, author_id)
+            adjusted_time = user.adjustTimestamp(db, time)
+            when = user.formatTimestamp(db, time)
             cursor.execute("SELECT 1 FROM commentstoread WHERE uid=%s AND comment=%s", (user.id, id))
-            return Comment(CommentChain.fromId(db, chain_id, user), batch_id, id, state,  dbutils.User.fromId(db, user_id), time, comment, code, cursor.fetchone() is not None)
+            return Comment(CommentChain.fromId(db, chain_id, user), batch_id, id, state, author, adjusted_time, when, comment, code, cursor.fetchone() is not None)
 
 class CommentChain:
     def __init__(self, id, user, review, batch_id, type, state, origin=None, file_id=None, first_commit=None, last_commit=None, closed_by=None, addressed_by=None, type_is_draft=False, state_is_draft=False, last_commit_is_draft=False, addressed_by_is_draft=False, leader=None, count=None, unread=None):
@@ -118,14 +119,18 @@ class CommentChain:
                         ORDER BY time""",
                        (user.id, self.id, draft_user_id))
         last = None
-        for comment_id, batch_id, comment_state, user_id, time, comment, code, unread in cursor.fetchall():
-            comment = Comment(self, batch_id, comment_id, comment_state, dbutils.User.fromId(db, user_id), time, comment, code, unread)
+        for comment_id, batch_id, comment_state, author_id, time, comment, code, unread in cursor.fetchall():
+            author = dbutils.User.fromId(db, author_id)
+            adjusted_time = user.adjustTimestamp(db, time)
+            when = user.formatTimestamp(db, time)
+            comment = Comment(self, batch_id, comment_id, comment_state, author,
+                              adjusted_time, when, comment, code, unread)
             if comment_state == 'draft': last = comment
             else: self.comments.append(comment)
         if last: self.comments.append(last)
 
     def when(self):
-        return time.strftime("%Y-%m-%d %H:%M", self.comments[0].time.timetuple())
+        return self.comments[0].when
 
     def countComments(self):
         if self.__count is None:

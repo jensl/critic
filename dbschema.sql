@@ -514,3 +514,11 @@ CREATE TABLE reviewrecipientfilters
     include BOOLEAN NOT NULL,
 
     PRIMARY KEY (review, uid) );
+
+CREATE TABLE timezones
+  ( name VARCHAR(256) PRIMARY KEY,
+    abbrev VARCHAR(16) NOT NULL,
+    utc_offset INTERVAL NOT NULL );
+
+INSERT INTO timezones (name, abbrev, utc_offset)
+     VALUES ('Universal/UTC', 'UTC', INTERVAL '0');

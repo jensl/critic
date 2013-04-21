@@ -289,6 +289,11 @@
     "default": "font-size: 11pt; font-family: serif",
     "description": "Font setting applied to tutorial text."
   },
+  "timezone": {
+    "type": "string",
+    "default": "Universal/UTC",
+    "description": "Timezone to present (most) dates in."
+  },
   "ui.asynchronousReviewMarking": {
     "type": "boolean",
     "default": false,
