@@ -260,6 +260,9 @@ class File:
     def clean(self):
         self.chunks = None
         self.macro_chunks = None
+        self.cleanLines()
+
+    def cleanLines(self):
         self.old_plain = None
         self.new_plain = None
         self.old_highlighted = None

@@ -82,6 +82,6 @@ def unified(db, changeset, context_lines=3):
                 except StopIteration:
                     pass
         finally:
-            file.clean()
+            file.cleanLines()
 
     return result
