@@ -175,7 +175,7 @@ class Instance(object):
         guest_argv = list(argv)
         if cwd is not None:
             guest_argv[:0] = ["cd", cwd, "&&"]
-        host_argv = ["ssh", "-p", str(self.ssh_port)]
+        host_argv = ["ssh", "-n", "-p", str(self.ssh_port)]
         if timeout is not None:
             host_argv.extend(["-o", "ConnectTimeout=%d" % timeout])
         host_argv.append(self.hostname)
@@ -185,6 +185,28 @@ class Instance(object):
                                            stderr=subprocess.STDOUT)
         except subprocess.CalledProcessError as error:
             raise GuestCommandError(" ".join(argv), error.output)
+
+    def adduser(self, name, email=None, fullname=None, password=None):
+        if email is None:
+            email = "%s@example.org" % name
+        if fullname is None:
+            fullname = "%s von Testing" % name.capitalize()
+        if password is None:
+            password = "testing"
+
+        # Running all commands with a single self.execute() call is just an
+        # optimization; SSH sessions are fairly expensive to start.
+        self.execute([
+            "sudo", "criticctl", "adduser", "--name", name, "--email", email,
+            "--fullname", "'%s'" % fullname, "--password", password,
+            "&&",
+            "sudo", "adduser", "--ingroup", "critic", "--disabled-password", name,
+            "&&",
+            "sudo", "mkdir", "/home/%s/.ssh" % name,
+            "&&",
+            "sudo", "cp", "$HOME/.ssh/authorized_keys", "/home/%s/.ssh" % name,
+            "&&",
+            "sudo", "chown", "-R", name, "/home/%s/.ssh" % name])
 
     def install(self, override_arguments={}):
         logger.debug("Installing Critic ...")
@@ -229,8 +251,9 @@ class Instance(object):
             logger.info("Installed Git: %s" % self.execute(["git", "--version"]).strip())
 
         self.execute(["git", "clone", "git://host/critic.git", "critic"])
-        self.execute(["git", "fetch"], cwd="critic")
-        self.execute(["git", "checkout", self.install_commit], cwd="critic")
+        self.execute(["git", "fetch", "&&",
+                      "git", "checkout", self.install_commit],
+                     cwd="critic")
 
         install_output = self.execute(
             ["sudo", "python", "-u", "install.py"] + arguments, cwd="critic")
@@ -238,7 +261,13 @@ class Instance(object):
         logger.debug("Output from install.py:\n" + install_output)
 
         # Add "developer" role to get stacktraces in error messages.
-        self.execute(["sudo", "criticctl", "addrole", "--name", "admin", "--role", "developer"])
+        self.execute(["sudo", "criticctl", "addrole",
+                      "--name", "admin",
+                      "--role", "developer"])
+
+        # Add some regular users.
+        for name in ("alice", "bob", "dave", "erin"):
+            self.adduser(name)
 
         try:
             self.frontend.run_basic_tests()

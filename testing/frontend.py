@@ -201,7 +201,7 @@ class Frontend(object):
         # Then check any other expected keys.
         for key, expected in expect.items():
             if key != "status":
-                actual = result.get("status")
+                actual = result.get(key)
                 if callable(expected):
                     checked = expected(actual)
                     if checked:
@@ -221,8 +221,8 @@ class Frontend(object):
         return result
 
     def signin(self, username="admin", password="testing"):
-        self.operation("validatelogin", data={ "username": "admin",
-                                               "password": "testing" })
+        self.operation("validatelogin", data={ "username": username,
+                                               "password": password })
         return Context(self.signout)
 
     def signout(self):

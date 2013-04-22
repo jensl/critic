@@ -19,6 +19,9 @@ import threading
 import time
 import re
 import base64
+import logging
+
+logger = logging.getLogger("critic")
 
 class User(object):
     def __init__(self, name, address):
@@ -38,10 +41,20 @@ class Mail(object):
         else:
             return default
 
+    def all_headers(self):
+        for header_name in sorted(self.headers.keys()):
+            for header in self.headers[header_name]:
+                yield (header["name"], header["value"])
+
     def decode(self):
         if self.header("Content-Transfer-Encoding") == "base64":
             decoded = base64.b64decode("".join(self.lines))
             self.lines = decoded.splitlines()
+
+    def __str__(self):
+        return "%s\n\n%s" % ("\n".join(("%s: %s" % header)
+                                       for header in self.all_headers()),
+                             "\n".join(self.lines))
 
 class EOF(Exception):
     pass
@@ -219,6 +232,14 @@ class Mailbox(object):
     def stop(self):
         self.listener.stop()
 
+    def check_empty(self):
+        while True:
+            unexpected = self.pop(timeout=1)
+            if unexpected is None:
+                return
+            logger.error("Unexpected mail to <%s>:\n%s"
+                         % (unexpected.recipient, unexpected))
+
     @property
     def port(self):
         return self.listener.socket.getsockname()[1]
@@ -234,4 +255,9 @@ def with_subject(value):
     regexp = re.compile(value)
     def accept(mail):
         return regexp.match(mail.header("Subject")) is not None
+    return accept
+
+def to_recipient(address):
+    def accept(mail):
+        return mail.recipient == address
     return accept

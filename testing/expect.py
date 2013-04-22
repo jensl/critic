@@ -15,13 +15,18 @@
 # the License.
 
 import re
+import traceback
+
 import testing
 
 class FailedCheck(testing.TestFailure):
-    def __init__(self, expected, actual, message=None):
+    def __init__(self, expected, actual, location=None, message=None):
         if message is None:
             message = "check failed"
-        super(FailedCheck, self).__init__("%s: expected=%r, actual=%r" % (message, expected, actual))
+        if location is not None:
+            message += ":\n At %s:%d" % location
+        super(FailedCheck, self).__init__("%s:\n  Expected: %r,\n  Actual:   %r"
+                                          % (message, expected, actual))
         self.expected = expected
         self.actual = actual
 
@@ -30,7 +35,13 @@ def simple_equal(expected, actual):
 
 def check(expected, actual, equal=simple_equal, message=None):
     if not equal(expected, actual):
-        raise FailedCheck(expected, actual, message=message)
+        for filename, linenr, _, _ in traceback.extract_stack():
+            if filename.startswith("testing/tests/"):
+                location = (filename[len("testing/tests/"):], linenr)
+                break
+        else:
+            location = None
+        raise FailedCheck(expected, actual, location=location, message=message)
 
 def find_paleyellow(document, index):
     """Find index:th <table class="paleyellow"> in the document."""

@@ -211,38 +211,51 @@ def main():
                             logger.info("Skipping: %s/ (failed dependency)" % path)
                         else:
                             run_tests(path)
-                    elif re.search("\\.py$", name):
-                        enabled = file_enabled(path)
-                        if not enabled:
-                            logger.debug("Skipping: %s" % path)
+                        continue
+                    elif not re.search("\\.py$", name):
+                        continue
+
+                    enabled = file_enabled(path)
+                    if not enabled:
+                        logger.debug("Skipping: %s" % path)
+                        continue
+
+                    if path in pause_before:
+                        pause()
+                    if enabled is True:
+                        mode = ""
+                    else:
+                        mode = " (%s)" % enabled
+                    logger.info("Running: %s%s" % (path, mode))
+                    try:
+                        execfile(os.path.join("testing/tests", path),
+                                 { "testing": testing,
+                                   "logger": logger,
+                                   "instance": instance,
+                                   "frontend": frontend,
+                                   "repository": repository,
+                                   "mailbox": mailbox })
+                    except testing.TestFailure as failure:
+                        if failure.message:
+                            logger.error(failure.message)
+                        while True:
+                            mail = mailbox.pop(
+                                accept=testing.mailbox.to_recipient("admin@example.org"),
+                                timeout=1)
+                            if not mail:
+                                break
+                            logger.error("Administrator message: %s\n  %s"
+                                         % (mail.header("Subject"),
+                                            "\n  ".join(mail.lines)))
+                        if arguments.pause_on_failure:
+                            pause()
+                        if "/" in directory:
+                            has_failed = True
                         else:
-                            if path in pause_before:
-                                pause()
-                            if enabled is True:
-                                mode = ""
-                            else:
-                                mode = " (%s)" % enabled
-                            logger.info("Running: %s%s" % (path, mode))
-                            try:
-                                execfile(os.path.join("testing/tests", path),
-                                         { "testing": testing,
-                                           "logger": logger,
-                                           "instance": instance,
-                                           "frontend": frontend,
-                                           "repository": repository,
-                                           "mailbox": mailbox })
-                            except testing.TestFailure as failure:
-                                if failure.message:
-                                    logger.error(failure.message)
-                                if arguments.pause_on_failure:
-                                    pause()
-                                if "/" in directory:
-                                    has_failed = True
-                                else:
-                                    return
-                            else:
-                                if path in pause_after:
-                                    pause()
+                            return
+                    else:
+                        if path in pause_after:
+                            pause()
 
             run_tests(group_name)
         except KeyboardInterrupt:
@@ -250,8 +263,12 @@ def main():
         except testing.Error as error:
             if error.message:
                 logger.exception(error.message)
+            if arguments.pause_on_failure:
+                pause()
         except Exception:
             logger.exception("Unexpected exception!")
+            if arguments.pause_on_failure:
+                pause()
 
     for group_name in sorted(os.listdir("testing/tests")):
         if not re.match("\d{3}-", group_name):
@@ -261,7 +278,9 @@ def main():
             logger.debug("Skipping: %s/" % group_name)
             continue
 
-        repository = testing.repository.Repository(tested_commit)
+        repository = testing.repository.Repository(
+            tested_commit,
+            arguments.vm_hostname)
         mailbox = testing.mailbox.Mailbox()
 
         with repository:

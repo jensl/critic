@@ -21,26 +21,39 @@ import shutil
 import logging
 import subprocess
 
+import testing
+
 logger = logging.getLogger("critic")
 
+class GitCommandError(testing.TestFailure):
+    def __init__(self, command, output):
+        super(GitCommandError, self).__init__(
+            "GitCommandError: %s\nOutput:\n  %s"
+            % (command, "\n  ".join(output.strip().splitlines())))
+        self.command = command
+        self.output = output
+
+def _git(args, **kwargs):
+    argv = ["git"] + args
+    try:
+        return subprocess.check_output(
+            argv, stderr=subprocess.STDOUT, **kwargs)
+    except subprocess.CalledProcessError as error:
+        raise GitCommandError(" ".join(argv), error.output)
+
 class Repository(object):
-    def __init__(self, tested_commit):
+    def __init__(self, tested_commit, vm_hostname):
         self.base_path = tempfile.mkdtemp()
         self.path = os.path.join(self.base_path, "critic.git")
-        self.name = "t%d" % (int(time.time() * 1000) % 1000000)
+        self.work = os.path.join(self.base_path, "work")
 
         logger.debug("Creating temporary repository: %s" % self.path)
 
-        subprocess.check_output(
-            ["git", "clone", "--bare", os.getcwd()],
-            cwd=self.base_path)
+        _git(["clone", "--bare", os.getcwd(), "critic.git"],
+             cwd=self.base_path)
 
-        subprocess.check_output(
-            ["git", "remote", "add", self.name, self.path])
-
-        subprocess.check_output(
-            ["git", "push", "--quiet", self.name,
-             "%s:refs/heads/tested" % tested_commit])
+        _git(["push", "--quiet", self.path,
+              "%s:refs/heads/tested" % tested_commit])
 
     def export(self):
         self.daemon = subprocess.Popen(
@@ -58,6 +71,31 @@ class Repository(object):
         logger.info("Exported repository: %s" % self.path)
         return True
 
+    def run(self, args):
+        return _git(args, cwd=self.path)
+
+    def workcopy(self, name="work"):
+        class Workcopy(object):
+            def __init__(self, path):
+                self.path = path
+            def __enter__(self):
+                return self
+            def __exit__(self, *args):
+                shutil.rmtree(self.path)
+                return False
+            def run(self, args):
+                return _git(args, cwd=self.path)
+
+        path = os.path.join(self.base_path, name)
+
+        if os.path.exists(path):
+            raise testing.InstanceError(
+                "Can't create work copy; path already exists!")
+
+        _git(["clone", os.getcwd(), name], cwd=self.base_path)
+
+        return Workcopy(path)
+
     def __enter__(self):
         return self
 
@@ -66,12 +104,6 @@ class Repository(object):
             if self.daemon:
                 self.daemon.terminate()
                 self.daemon.wait()
-        except:
-            logger.exception("Repository clean-up failed!")
-
-        try:
-            subprocess.check_output(
-                ["git", "remote", "rm", self.name])
         except:
             logger.exception("Repository clean-up failed!")
 

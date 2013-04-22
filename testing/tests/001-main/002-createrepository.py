@@ -8,7 +8,7 @@ with frontend.signin():
 
     frontend.operation("addrepository",
                        data={ "name": "critic",
-                              "path": "critic.git",
+                              "path": "critic",
                               "remote": { "url": "git://host/critic.git",
                                           "branch": "tested" }})
 
