@@ -34,6 +34,7 @@ def main():
     parser.add_argument("--vm-snapshot", help="VirtualBox snapshot (name or UUID) to restore", default="clean")
     parser.add_argument("--vm-ssh-port", help="VirtualBox instance SSH port [default=22]", type=int, default=22)
     parser.add_argument("--vm-http-port", help="VirtualBox instance HTTP port [default=80]", type=int, default=80)
+    parser.add_argument("--git-daemon-port", help="Port to tell 'git daemon' to bind to", type=int)
     parser.add_argument("--pause-before", help="Pause testing before specified test(s)", action="append")
     parser.add_argument("--pause-after", help="Pause testing before specified test(s)", action="append")
     parser.add_argument("--pause-on-failure", help="Pause testing after each failed test", action="store_true")
@@ -279,6 +280,7 @@ def main():
             continue
 
         repository = testing.repository.Repository(
+            arguments.git_daemon_port,
             tested_commit,
             arguments.vm_hostname)
         mailbox = testing.mailbox.Mailbox()

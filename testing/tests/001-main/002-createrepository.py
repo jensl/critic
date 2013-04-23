@@ -9,7 +9,7 @@ with frontend.signin():
     frontend.operation("addrepository",
                        data={ "name": "critic",
                               "path": "critic",
-                              "remote": { "url": "git://host/critic.git",
+                              "remote": { "url": repository.url,
                                           "branch": "tested" }})
 
     # If it hasn't happened after 30 seconds, something must be wrong.

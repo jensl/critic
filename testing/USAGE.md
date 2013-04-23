@@ -23,9 +23,10 @@ Required software:
 
 The host system is assumed to have a clone of the Critic repository, in which
 the testing framework is executed.  A temporary bare clone of this repository
-will be created and exported using "git daemon" as part of testing, meaning no
-other "git daemon" can be running on the host system.  Or, more specifically,
-no process on the host system can be listening on TCP port 9418.
+will be created and exported using "git daemon" as part of testing.  By default,
+this "git daemon" process listens on TCP port 9418, which will fail if another
+"git daemon" process already runs on the host system.  If this is a problem, a
+custom port can be specified using the --git-daemon-port command-line argument.
 
 The user that runs the testing framework must have passwordless SSH access to
 the guest system, and if a different user (name) should be used on the guest
@@ -129,6 +130,14 @@ The arguments
 
 can be used to tweak how the VirtualBox instance's SSH and HTTP services are
 reached from the host system.
+
+The argument
+
+    --git-daemon-port=PORT
+
+can be used to have the "git daemon" process that is automatically started to
+export the Critic repository listen on a different port (by default it listens
+on port 9418.)
 
 The arguments
 

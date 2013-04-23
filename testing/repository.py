@@ -42,10 +42,16 @@ def _git(args, **kwargs):
         raise GitCommandError(" ".join(argv), error.output)
 
 class Repository(object):
-    def __init__(self, tested_commit, vm_hostname):
+    def __init__(self, port, tested_commit, vm_hostname):
+        self.port = port
         self.base_path = tempfile.mkdtemp()
         self.path = os.path.join(self.base_path, "critic.git")
         self.work = os.path.join(self.base_path, "work")
+
+        if port:
+            self.url = "git://host:%d/critic.git" % port
+        else:
+            self.url = "git://host/critic.git"
 
         logger.debug("Creating temporary repository: %s" % self.path)
 
@@ -56,9 +62,13 @@ class Repository(object):
               "%s:refs/heads/tested" % tested_commit])
 
     def export(self):
-        self.daemon = subprocess.Popen(
-            ["git", "daemon", "--reuseaddr", "--export-all",
-             "--base-path=%s" % self.base_path, self.path])
+        argv = ["git", "daemon", "--reuseaddr", "--export-all",
+                "--base-path=%s" % self.base_path]
+        if self.port:
+            argv.append("--port=%d" % self.port)
+        argv.append(self.path)
+
+        self.daemon = subprocess.Popen(argv)
 
         time.sleep(1)
 

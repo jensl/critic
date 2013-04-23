@@ -208,7 +208,7 @@ class Instance(object):
             "&&",
             "sudo", "chown", "-R", name, "/home/%s/.ssh" % name])
 
-    def install(self, override_arguments={}):
+    def install(self, repository, override_arguments={}):
         logger.debug("Installing Critic ...")
 
         use_arguments = { "--headless": True,
@@ -250,7 +250,7 @@ class Instance(object):
 
             logger.info("Installed Git: %s" % self.execute(["git", "--version"]).strip())
 
-        self.execute(["git", "clone", "git://host/critic.git", "critic"])
+        self.execute(["git", "clone", repository.url, "critic"])
         self.execute(["git", "fetch", "&&",
                       "git", "checkout", self.install_commit],
                      cwd="critic")
