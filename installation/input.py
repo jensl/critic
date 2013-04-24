@@ -15,12 +15,8 @@
 # the License.
 
 import sys
-import os
 
-try: import readline
-except: pass
-
-__doc__ = "Helper functions for prompting for and reading input."
+import inpututils
 
 headless = False
 
@@ -36,23 +32,7 @@ ERROR: yes/no input requested in headless mode!
             print "%s %s" % (prompt, "y" if default else "n")
             return default
 
-    prompt = "%s [%s/%s] " % (prompt, "Y" if default is True else "y", "N" if default is False else "n")
-
-    while True:
-        try: input = raw_input(prompt)
-        except KeyboardInterrupt:
-            print
-            raise
-
-        if input.lower() in ("y", "yes"):
-            return True
-        elif input.lower() in ("n", "no"):
-            return False
-        elif input or default is None:
-            print "Please answer 'y'/'yes' or 'n'/'no'."
-            print
-        else:
-            return default
+    return inpututils.yes_or_no(prompt, default)
 
 def string(prompt, default=None, check=None):
     if headless:
@@ -66,30 +46,7 @@ ERROR: string input requested in headless mode!
             print "%s %s" % (prompt, default)
             return default
 
-    prompt = "%s%s " % (prompt, (" [%s]" % default) if default is not None else "")
-
-    while True:
-        try: input = raw_input(prompt)
-        except KeyboardInterrupt:
-            print
-            raise
-
-        if default and not input:
-            return default
-        elif check:
-            result = check(input)
-            if result is None:
-                return input
-            elif result is True:
-                print "Invalid input."
-                print
-            else:
-                print "Invalid input: %s." % result
-                print
-        elif not input:
-            print "Invalid input: empty."
-        else:
-            return input
+    return inpututils.string(prompt, default, check)
 
 def password(prompt, default=None, twice=True):
     if headless:
@@ -103,40 +60,4 @@ ERROR: password input requested in headless mode!
             print "%s %s" % (prompt, "****")
             return default
 
-    import termios
-
-    prompt = "%s%s " % (prompt, " [****]" if default is not None else "")
-
-    def internal(prompt):
-        if os.isatty(sys.stdin.fileno()):
-            old = termios.tcgetattr(sys.stdin)
-            new = old[:]
-            new[3] = new[3] & ~termios.ECHO
-            try:
-                termios.tcsetattr(sys.stdin, termios.TCSADRAIN, new)
-                try: password = raw_input(prompt)
-                except KeyboardInterrupt:
-                    print
-                    raise
-            finally:
-                termios.tcsetattr(sys.stdin, termios.TCSADRAIN, old)
-        else:
-            password = sys.stdin.readline().rstrip("\n")
-        print
-        if default and not password: return default
-        else: return password
-
-    while True:
-        password = internal(prompt)
-
-        if twice:
-            andagain = internal("And again: ")
-
-            if password == andagain:
-                return password
-            else:
-                print
-                print "Passwords differ.  Please try again."
-                print
-        else:
-            return password
+    return inpututils.password(prompt, default, twice)

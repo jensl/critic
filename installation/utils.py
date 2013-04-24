@@ -16,6 +16,8 @@
 
 import os
 import textwrap
+import subprocess
+
 import installation
 
 class UpdateModifiedFile:
@@ -102,6 +104,85 @@ class UpdateModifiedFile:
             for path in self.__generated:
                 os.unlink(path)
 
+def update_from_template(arguments, data, template_path, target_path, message):
+    git = data["installation.prereqs.git"]
+
+    old_commit_sha1 = data["sha1"]
+    new_commit_sha1 = subprocess.check_output([git, "rev-parse", "HEAD"]).strip()
+
+    old_template = read_file(git, old_commit_sha1, template_path)
+    new_template = read_file(git, new_commit_sha1, template_path)
+
+    old_source = old_template.decode("utf-8") % data
+    new_source = new_template.decode("utf-8") % data
+
+    with open(target_path) as target_file:
+        current_source = target_file.read().decode("utf-8")
+
+    if old_source == current_source:
+        # The current version is what we installed (or would have installed with
+        # the old template and current settings.)  Update the target file
+        # without asking.
+        write_target = True
+    elif current_source == new_source:
+        # The current version is what we would install now.  Nothing to do.
+        return
+    else:
+        def generate_version(label, path):
+            if label == "installed":
+                source = old_source
+            elif label == "updated":
+                source = new_source
+            else:
+                return
+            write_file(path, source.encode("utf-8"))
+
+        versions = """\
+  Installed version: %(installed)s
+  Current version:   %(current)s
+  Updated version:   %(updated)s"""
+
+        update_query = UpdateModifiedFile(
+            arguments,
+            message=message % { "versions": versions },
+            versions={ "installed": target_path + ".org",
+                       "current": target_path,
+                       "updated": target_path + ".new" },
+            options=[ ("i", "install the updated version"),
+                      ("k", "keep the current version"),
+                      ("do", ("installed", "current")),
+                      ("dn", ("current", "updated")) ],
+            generateVersion=generate_version)
+
+        write_target = update_query.prompt() == "i"
+
+    if write_target:
+        print "Updated file: %s" % target_path
+
+    if not arguments.dry_run:
+        backup_path = os.path.join(os.path.dirname(target_path),
+                                   ".%s.org" % os.path.basename(target_path))
+        copy_file(target_path, backup_path)
+        with open(target_path, "w") as target_file:
+            target_file.write(new_source.encode("utf-8"))
+        return backup_path
+
+def write_file(path, source):
+    # Use os.open() with O_EXCL to avoid trampling some existing file.
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL)
+    with os.fdopen(fd, "w") as target:
+        target.write(source)
+
+def copy_file(source_path, target_path):
+    with open(source_path) as source:
+        stat = os.fstat(source.fileno())
+        # Use os.open() with O_EXCL to avoid trampling some existing file.
+        fd = os.open(target_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL)
+        with os.fdopen(fd, "w") as target:
+            target.write(source.read())
+            os.fchmod(target.fileno(), stat.st_mode)
+            os.fchown(target.fileno(), stat.st_uid, stat.st_gid)
+
 def hash_file(git, path):
     return installation.process.check_output([git, "hash-object", path]).strip()
 
@@ -117,6 +198,13 @@ def get_file_sha1(git, commit_sha1, path):
         return lstree_sha1
     else:
         return None
+
+def read_file(git, commit_sha1, path):
+    file_sha1 = get_file_sha1(git, commit_sha1, path)
+    if file_sha1 is None:
+        return None
+    return installation.process.check_output(
+        [git, "cat-file", "blob", file_sha1])
 
 def as_critic_system_user():
     class Context:

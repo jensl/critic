@@ -20,6 +20,7 @@ import os.path
 import json
 
 created_file = []
+renamed = []
 
 def install(data):
     source_path = os.path.join(installation.root_dir, "installation", "templates", "criticctl")
@@ -29,12 +30,40 @@ def install(data):
         created_file.append(target_path)
 
         os.chmod(target_path, 0755)
-        os.chown(target_path, installation.system.uid, installation.system.gid)
 
         with open(source_path, "r") as source:
             target.write((source.read().decode("utf-8") % data).encode("utf-8"))
 
     return True
 
+def upgrade(arguments, data):
+    target_path = "/usr/bin/criticctl"
+    backup_path = installation.utils.update_from_template(
+        arguments, data,
+        template_path="installation/templates/criticctl",
+        target_path=target_path,
+        message="""\
+The criticctl utility is about to be updated.  Please check that no local
+modifications are being overwritten.
+
+%(versions)s
+
+Please note that if the modifications are not installed, the criticctl utility
+is likely to stop working.
+""")
+
+    if backup_path:
+        created_file.append(target_path)
+        renamed.append((target_path, backup_path))
+
+    return True
+
 def undo():
     map(os.unlink, created_file)
+
+    for target, backup in renamed:
+        os.rename(backup, target)
+
+def finish():
+    for target, backup in renamed:
+        os.unlink(backup)
