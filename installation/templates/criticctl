@@ -5,13 +5,16 @@ import sys
 import argparse
 import os
 import pwd
+import grp
 
 system_user_uid = pwd.getpwnam("%(installation.system.username)s").pw_uid
+system_user_gid = grp.getgrnam("%(installation.system.groupname)s").gr_gid
 
 if os.getuid() != 0:
     print "ERROR: This command must be run by as root."
     sys.exit(1)
 
+os.setgid(system_user_gid)
 os.setuid(system_user_uid)
 
 argv = sys.argv[1:]
