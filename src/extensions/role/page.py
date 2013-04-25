@@ -22,10 +22,13 @@ import signal
 import configuration
 import dbutils
 
+from communicate import ProcessTimeout, ProcessError
 from htmlutils import jsify
 from request import decodeURIComponent
 
-from extensions.execute import executeProcess, ProcessTimeout, ProcessError
+from extensions import getExtensionInstallPath
+from extensions.extension import Extension
+from extensions.execute import executeProcess
 from extensions.manifest import Manifest, PageRole
 from extensions.utils import renderTutorial
 

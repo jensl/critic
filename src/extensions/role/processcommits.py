@@ -24,8 +24,10 @@ import gitutils
 import log.commitset
 import changeset.utils
 
+from communicate import ProcessTimeout, ProcessError
+
 from extensions import getExtensionPath, getExtensionInstallPath
-from extensions.execute import executeProcess, ProcessTimeout, ProcessError
+from extensions.execute import executeProcess
 from extensions.manifest import Manifest, ManifestError, ProcessCommitsRole
 
 def execute(db, user, review, all_commits, old_head, new_head, output):

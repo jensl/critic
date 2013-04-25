@@ -19,8 +19,10 @@ import signal
 import configuration
 import dbutils
 
+from communicate import ProcessTimeout, ProcessError
+
 from extensions import getExtensionPath, getExtensionInstallPath
-from extensions.execute import executeProcess, ProcessTimeout, ProcessError
+from extensions.execute import executeProcess
 from extensions.manifest import Manifest, ManifestError, ProcessChangesRole
 
 def execute(db, user_id, batch_id, output):

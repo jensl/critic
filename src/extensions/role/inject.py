@@ -21,11 +21,14 @@ import signal
 import configuration
 import dbutils
 
+from communicate import ProcessTimeout, ProcessError
 from htmlutils import jsify
 from request import decodeURIComponent
 from textutils import json_decode
 
-from extensions.execute import executeProcess, ProcessTimeout, ProcessError
+from extensions import getExtensionInstallPath
+from extensions.extension import Extension
+from extensions.execute import executeProcess
 from extensions.manifest import Manifest, ManifestError, InjectRole
 
 def execute(db, paths, args, user, document, links, injected, profiler=None):
