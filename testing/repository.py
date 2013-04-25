@@ -32,7 +32,11 @@ class GitCommandError(testing.TestFailure):
 
 def _git(args, **kwargs):
     argv = ["git"] + args
-    testing.logger.debug("Running: %s" % " ".join(argv))
+    if "cwd" in kwargs:
+        cwd = " (in %s)" % kwargs["cwd"]
+    else:
+        cwd = ""
+    testing.logger.debug("Running: %s%s" % (" ".join(argv), cwd))
     try:
         return subprocess.check_output(
             argv, stdin=open("/dev/null"), stderr=subprocess.STDOUT, **kwargs)
@@ -52,7 +56,7 @@ class Repository(object):
         else:
             self.url = "git://%s/critic.git" % host
 
-        testing.logger.debug("Creating temporary repository: %s" % self.path)
+        testing.logger.debug("Creating temporary repositories in: %s" % self.base_path)
 
         _git(["clone", "--bare", os.getcwd(), "critic.git"],
              cwd=self.base_path)
@@ -64,6 +68,55 @@ class Repository(object):
 
         self.push(tested_commit)
 
+        def submodule_sha1(repository_path, parent_sha1, submodule_path):
+            try:
+                lstree = _git(["ls-tree", parent_sha1, submodule_path],
+                              cwd=repository_path)
+            except GitCommandError:
+                # Sub-module doesn't exist?  Will probably fail later, but
+                # doesn't need to fail here.
+                return None
+            mode, object_type, sha1, path = lstree.strip().split(None, 3)
+            if object_type != "commit":
+                # Odd.  The repository doesn't look at all like we expect.
+                return None
+            return sha1
+
+        if os.path.exists("installation/externals/v8-jsshell/.git"):
+            v8_jsshell_path = os.path.join(os.getcwd(), "installation/externals/v8-jsshell")
+            _git(["clone", "--bare", v8_jsshell_path, "v8-jsshell.git"],
+                 cwd=self.base_path)
+            self.v8_jsshell_path = os.path.join(self.base_path, "v8-jsshell.git")
+            v8_jsshell_sha1 = submodule_sha1(os.getcwd(), tested_commit,
+                                             "installation/externals/v8-jsshell")
+            if v8_jsshell_sha1:
+                _git(["push", "--quiet", "--force", self.v8_jsshell_path,
+                      v8_jsshell_sha1 + ":refs/heads/master"],
+                     cwd=v8_jsshell_path)
+        else:
+            self.v8_jsshell_path = None
+            v8_jsshell_sha1 = None
+
+        if os.path.exists("installation/externals/v8-jsshell/v8/.git"):
+            v8_path = os.path.join(os.getcwd(), "installation/externals/v8-jsshell/v8")
+            _git(["clone", "--bare", v8_path, "v8/v8.git"],
+                 cwd=self.base_path)
+            self.v8_path = os.path.join(self.base_path, "v8/v8.git")
+            if port:
+                self.v8_url = "git://%s:%d/v8/v8.git" % (host, port)
+            else:
+                self.v8_url = "git://%s/v8/v8.git" % host
+            if v8_jsshell_sha1:
+                v8_sha1 = submodule_sha1("installation/externals/v8-jsshell",
+                                         v8_jsshell_sha1, "v8")
+                if v8_sha1:
+                    _git(["push", "--quiet", "--force", self.v8_path,
+                          v8_sha1 + ":refs/heads/master"],
+                         cwd=v8_path)
+        else:
+            self.v8_path = None
+            self.v8_url = None
+
     def push(self, commit):
         _git(["push", "--quiet", "--force", self.path,
               "%s:refs/heads/master" % commit])
@@ -74,6 +127,10 @@ class Repository(object):
         if self.port:
             argv.append("--port=%d" % self.port)
         argv.append(self.path)
+        if self.v8_jsshell_path:
+            argv.append(self.v8_jsshell_path)
+        if self.v8_path:
+            argv.append(self.v8_path)
 
         self.daemon = subprocess.Popen(argv)
 
@@ -85,7 +142,11 @@ class Repository(object):
             testing.logger.error("Failed to export repository!")
             return False
 
-        testing.logger.info("Exported repository: %s" % self.path)
+        testing.logger.debug("Exported repository: %s" % self.path)
+        if self.v8_jsshell_path:
+            testing.logger.debug("Exported repository: %s" % self.v8_jsshell_path)
+        if self.v8_path:
+            testing.logger.debug("Exported repository: %s" % self.v8_path)
         return True
 
     def run(self, args):

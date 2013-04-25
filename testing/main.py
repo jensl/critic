@@ -28,26 +28,56 @@ import testing
 
 def main():
     parser = argparse.ArgumentParser(description="Critic testing framework")
-    parser.add_argument("--debug", help="Enable DEBUG level logging", action="store_true")
-    parser.add_argument("--debug-mails", help="Log every mail sent by the tested system", action="store_true")
-    parser.add_argument("--quiet", help="Disable INFO level logging", action="store_true")
-    parser.add_argument("--coverage", help="Enable coverage measurement mode", action="store_true")
-    parser.add_argument("--commit", help="Commit (symbolic ref or SHA-1) to test [default=HEAD]", default="HEAD")
-    parser.add_argument("--upgrade-from", help="Commit (symbolic ref or SHA-1) to install first and upgrade from")
-    parser.add_argument("--strict-fs-permissions", help="Set strict file-system permissions in guest OS", action="store_true")
-    parser.add_argument("--vbox-host", help="Host that's running VirtualBox [default=host]", default="host")
-    parser.add_argument("--vm-identifier", help="VirtualBox instance name or UUID", required=True)
-    parser.add_argument("--vm-hostname", help="VirtualBox instance hostname [default=VM_IDENTIFIER]")
-    parser.add_argument("--vm-snapshot", help="VirtualBox snapshot (name or UUID) to restore [default=clean]", default="clean")
-    parser.add_argument("--vm-ssh-port", help="VirtualBox instance SSH port [default=22]", type=int, default=22)
-    parser.add_argument("--vm-http-port", help="VirtualBox instance HTTP port [default=80]", type=int, default=80)
-    parser.add_argument("--git-daemon-port", help="Port to tell 'git daemon' to bind to", type=int)
-    parser.add_argument("--pause-before", help="Pause testing before specified test(s)", action="append")
-    parser.add_argument("--pause-after", help="Pause testing before specified test(s)", action="append")
-    parser.add_argument("--pause-on-failure", help="Pause testing after each failed test", action="store_true")
-    parser.add_argument("--pause-upgrade-loop", help="Support upgrading the tested system while paused", action="store_true")
-    parser.add_argument("--pause-upgrade-hook", help="Command to run (locally) before upgrading", action="append")
-    parser.add_argument("test", help="Specific tests to run [default=all]", nargs="*")
+
+    parser.add_argument("--debug", action="store_true",
+                        help="Enable DEBUG level logging")
+    parser.add_argument("--debug-mails", action="store_true",
+                        help="Log every mail sent by the tested system")
+    parser.add_argument("--quiet", action="store_true",
+                        help="Disable INFO level logging")
+
+    parser.add_argument("--coverage", action="store_true",
+                        help="Enable coverage measurement mode")
+    parser.add_argument("--commit", default="HEAD",
+                        help="Commit (symbolic ref or SHA-1) to test [default=HEAD]")
+    parser.add_argument("--upgrade-from",
+                        help="Commit (symbolic ref or SHA-1) to install first and upgrade from")
+    parser.add_argument("--strict-fs-permissions", action="store_true",
+                        help="Set strict file-system permissions in guest OS")
+    parser.add_argument("--test-extensions", action="store_true",
+                        help="Test extensions")
+
+    parser.add_argument("--vbox-host", default="host",
+                        help="Host that's running VirtualBox [default=host]")
+    parser.add_argument("--vm-identifier", required=True,
+                        help="VirtualBox instance name or UUID")
+    parser.add_argument("--vm-hostname",
+                        help="VirtualBox instance hostname [default=VM_IDENTIFIER")
+    parser.add_argument("--vm-snapshot", default="clean",
+                        help="VirtualBox snapshot (name or UUID) to restore [default=clean]")
+    parser.add_argument("--vm-ssh-port", type=int, default=22,
+                        help="VirtualBox instance SSH port [default=22]")
+    parser.add_argument("--vm-http-port", type=int, default=80,
+                        help="VirtualBox instance HTTP port [default=80]")
+
+    parser.add_argument("--git-daemon-port", type=int,
+                        help="Port to tell 'git daemon' to bind to")
+    parser.add_argument("--cache-dir", default="testing/cache",
+                        help="Directory where cache files are stored")
+
+    parser.add_argument("--pause-before", action="append",
+                        help="Pause testing before specified test(s)")
+    parser.add_argument("--pause-after", action="append",
+                        help="Pause testing before specified test(s)")
+    parser.add_argument("--pause-on-failure", action="store_true",
+                        help="Pause testing after each failed test")
+    parser.add_argument("--pause-upgrade-loop", action="store_true",
+                        help="Support upgrading the tested system while paused")
+    parser.add_argument("--pause-upgrade-hook", action="append",
+                        help="Command to run (locally) before upgrading")
+
+    parser.add_argument("test", nargs="*",
+                        help="Specific tests to run [default=all]")
 
     arguments = parser.parse_args()
 
@@ -118,6 +148,18 @@ def main():
         logger.error("Required software missing; see testing/USAGE.md for details.")
         return
 
+    if arguments.test_extensions:
+        # Check that the v8-jsshell submodule is checked out if extension
+        # testing was requested.
+        output = subprocess.check_output(["git", "submodule", "status",
+                                          "installation/externals/v8-jsshell"])
+        if output.startswith("-"):
+            logger.error("""\
+The v8-jsshell submodule must be checked for extension testing.  Please run
+  git submodule update --init installation/externals/v8-jsshell
+first or run this script without --test-extensions.""")
+            return
+
     # Note: we are not ignoring typical temporary editor files such as the
     # ".#<name>" files created by Emacs when a buffer has unsaved changes.  This
     # is because unsaved changes in an editor is probably also something you
@@ -180,16 +222,10 @@ def main():
             http_port=arguments.vm_http_port)
 
         instance = testing.virtualbox.Instance(
-            vboxhost=arguments.vbox_host,
-            identifier=arguments.vm_identifier,
-            snapshot=arguments.vm_snapshot,
-            hostname=arguments.vm_hostname,
-            ssh_port=arguments.vm_ssh_port,
+            arguments,
             install_commit=(install_commit, install_commit_description),
             upgrade_commit=(upgrade_commit, upgrade_commit_description),
-            frontend=frontend,
-            strict_fs_permissions=arguments.strict_fs_permissions,
-            coverage=arguments.coverage)
+            frontend=frontend)
     except testing.Error as error:
         logger.error(error.message)
         return
@@ -331,6 +367,12 @@ def main():
                                             "\n  ".join(mail.lines)))
                         if arguments.pause_on_failure:
                             pause()
+                        if "/" in directory:
+                            has_failed = True
+                        else:
+                            return
+                    except testing.NotSupported as not_supported:
+                        logger.info("Test not supported: %s" % not_supported.message)
                         if "/" in directory:
                             has_failed = True
                         else:

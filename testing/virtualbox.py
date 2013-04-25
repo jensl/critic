@@ -68,21 +68,21 @@ class GuestCommandError(testing.InstanceError):
         self.stderr = stderr
 
 class Instance(object):
-    def __init__(self, vboxhost, identifier, snapshot, hostname, ssh_port,
-                 install_commit=None, upgrade_commit=None, frontend=None,
-                 strict_fs_permissions=False, coverage=False):
-        self.vboxhost = vboxhost
-        self.identifier = identifier
-        self.snapshot = snapshot
-        self.hostname = hostname or identifier
-        self.ssh_port = ssh_port
+    def __init__(self, arguments, install_commit=None, upgrade_commit=None,
+                 frontend=None):
+        self.arguments = arguments
+        self.vboxhost = getattr(arguments, "vbox_host", "host")
+        self.identifier = arguments.vm_identifier
+        self.snapshot = arguments.vm_snapshot
+        self.hostname = arguments.vm_hostname or self.identifier
+        self.ssh_port = arguments.vm_ssh_port
         if install_commit:
             self.install_commit, self.install_commit_description = install_commit
         if upgrade_commit:
             self.upgrade_commit, self.upgrade_commit_description = upgrade_commit
         self.frontend = frontend
-        self.strict_fs_permissions = strict_fs_permissions
-        self.coverage = coverage
+        self.strict_fs_permissions = getattr(arguments, "strict_fs_permissions", False)
+        self.coverage = getattr(arguments, "coverage", False)
         self.mailbox = None
         self.__started = False
 
@@ -91,15 +91,17 @@ class Instance(object):
             ["VBoxManage", "list", "vms"],
             stderr=subprocess.STDOUT)
         if not self.__isincluded(output):
-            raise testing.Error("Invalid VM identifier: %s" % identifier)
+            raise testing.Error("Invalid VM identifier: %s" % self.identifier)
 
         # Check that the identified snapshot actually exists (and that there
         # aren't multiple snapshots with the same name):
-        count = self.count_snapshots(snapshot)
+        count = self.count_snapshots(self.snapshot)
         if count == 0:
-            raise testing.Error("Invalid VM snapshot: %s (not found)" % snapshot)
+            raise testing.Error("Invalid VM snapshot: %s (not found)"
+                                % self.snapshot)
         elif count > 1:
-            raise testing.Error("Invalid VM snapshot: %s (matches multiple snapshots)" % snapshot)
+            raise testing.Error("Invalid VM snapshot: %s (matches multiple snapshots)"
+                                % self.snapshot)
 
         self.__users = ["admin"]
         self.__user_ids = { "admin": 1 }
@@ -218,7 +220,8 @@ class Instance(object):
         self.__vmcommand("snapshot", "delete", name)
         self.__vmcommand("snapshot", "edit", temporary_name, "--name", name)
 
-    def execute(self, argv, cwd=None, timeout=None, interactive=False):
+    def execute(self, argv, cwd=None, timeout=None, interactive=False,
+                as_user=None):
         guest_argv = list(argv)
         if cwd is not None:
             guest_argv[:0] = ["cd", cwd, "&&"]
@@ -229,6 +232,8 @@ class Instance(object):
             host_argv.extend(["-o", "ConnectTimeout=%d" % timeout])
         if not interactive:
             host_argv.append("-n")
+        if as_user is not None:
+            host_argv.extend(["-l", as_user])
         host_argv.append(self.hostname)
 
         testing.logger.debug("Running: " + " ".join(host_argv + guest_argv))
@@ -315,6 +320,28 @@ class Instance(object):
             raise GuestCommandError(" ".join(argv), stdout_data, stderr_data)
 
         return stdout_data
+
+    def copyto(self, source, target, as_user=None):
+        target = "%s:%s" % (self.hostname, target)
+        if as_user:
+            target = "%s@%s" % (as_user, target)
+        argv = ["scp", "-q", "-P", str(self.ssh_port), source, target]
+        try:
+            testing.logger.debug("Running: " + " ".join(argv))
+            return subprocess.check_output(argv, stderr=subprocess.STDOUT)
+        except subprocess.CalledProcessError as error:
+            raise GuestCommandError(" ".join(argv), error.output)
+
+    def copyfrom(self, source, target, as_user=None):
+        source = "%s:%s" % (self.hostname, source)
+        if as_user:
+            source = "%s@%s" % (as_user, source)
+        argv = ["scp", "-q", "-P", str(self.ssh_port), source, target]
+        try:
+            testing.logger.debug("Running: " + " ".join(argv))
+            return subprocess.check_output(argv, stderr=subprocess.STDOUT)
+        except subprocess.CalledProcessError as error:
+            raise GuestCommandError(" ".join(argv), error.output)
 
     def adduser(self, name, email=None, fullname=None, password=None):
         if email is None:
@@ -557,6 +584,73 @@ class Instance(object):
 
             testing.logger.info("Upgraded Critic: %s" % self.upgrade_commit_description)
 
+    def extend(self, repository):
+        if not self.arguments.test_extensions:
+            raise testing.NotSupported("--test-extensions argument not given")
+        if not repository.v8_jsshell_path:
+            raise testing.NotSupported("v8-jsshell sub-module not initialized")
+
+        testing.logger.debug("Extending Critic ...")
+
+        def internal(action, extra_argv=None):
+            argv = ["sudo", "python", "-u", "extend.py", "--headless",
+                    "--%s" % action]
+
+            if extra_argv:
+                argv.extend(extra_argv)
+
+            self.execute(argv, cwd="critic")
+
+        internal("prereqs")
+
+        v8_jsshell_sha1 = subprocess.check_output(
+            ["git", "ls-tree", "HEAD:installation/externals", "v8-jsshell"]).split()[2]
+        cached_executable = os.path.join(self.arguments.cache_dir,
+                                         self.identifier, "v8-jsshell",
+                                         v8_jsshell_sha1)
+
+        if os.path.isfile(cached_executable):
+            self.execute(["mkdir", "installation/externals/v8-jsshell/out"], cwd="critic")
+            self.copyto(cached_executable,
+                        "critic/installation/externals/v8-jsshell/out/jsshell")
+            testing.logger.debug("Copied cached v8-jsshell executable to instance")
+        else:
+            if repository.v8_url:
+                extra_argv = ["--with-v8=%s" % repository.v8_url]
+            else:
+                extra_argv = None
+
+            internal("fetch", extra_argv)
+
+            v8_sha1 = subprocess.check_output(
+                ["git", "ls-tree", "HEAD", "v8"],
+                cwd="installation/externals/v8-jsshell").split()[2]
+            cached_v8deps = os.path.join(self.arguments.cache_dir,
+                                         "v8-dependencies",
+                                         "%s.tar.bz2" % v8_sha1)
+            if os.path.isfile(cached_v8deps):
+                self.copyto(cached_v8deps, "v8deps.tar.bz2")
+                internal("import-v8-dependencies=~/v8deps.tar.bz2")
+            else:
+                internal("export-v8-dependencies=~/v8deps.tar.bz2")
+                if not os.path.isdir(os.path.dirname(cached_v8deps)):
+                    os.makedirs(os.path.dirname(cached_v8deps))
+                self.copyfrom("v8deps.tar.bz2", cached_v8deps)
+
+            internal("build")
+            if not os.path.isdir(os.path.dirname(cached_executable)):
+                os.makedirs(os.path.dirname(cached_executable))
+            self.copyfrom("critic/installation/externals/v8-jsshell/out/jsshell",
+                          cached_executable)
+            testing.logger.debug("Copied built v8-jsshell executable from instance")
+
+        internal("install")
+        internal("enable")
+
+        self.frontend.run_basic_tests()
+
+        testing.logger.info("Extensions enabled")
+
     def restart(self):
         self.execute(["sudo", "service", "apache2", "restart"])
         self.execute(["sudo", "service", "critic-main", "restart"])
@@ -583,3 +677,8 @@ class Instance(object):
                  "--critic-dir", "/etc/critic/main",
                  "--critic-dir", "/usr/share/critic"],
                 cwd="/usr/share/critic"))
+
+        # Check that we didn't leave any files owned by root anywhere in the
+        # directory we installed from.
+        self.execute(["chmod", "-R", "a+r", "critic"])
+        self.execute(["rm", "-r", "critic"])

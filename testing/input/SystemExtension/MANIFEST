@@ -1,0 +1,7 @@
+Author = "Jens Lindstr\u00f6m"
+Description = "Extension used to test system extension support."
+
+[Page check]
+Description = "Simple page to check that the extension is installed and working."
+Script = check.js
+Function = check

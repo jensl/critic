@@ -25,6 +25,10 @@ class TestFailure(Error):
     """Error raised for "expected" test failures."""
     pass
 
+class NotSupported(Error):
+    """Error raised when a test (and its dependencies) are unsupported."""
+    pass
+
 import virtualbox
 import frontend
 import expect

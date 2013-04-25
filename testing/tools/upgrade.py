@@ -42,11 +42,7 @@ def main():
     logger = testing.configureLogging(arguments)
     logger.info("Critic Testing Framework: Instance Upgrade")
 
-    instance = testing.virtualbox.Instance(
-        identifier=arguments.vm_identifier,
-        snapshot=arguments.vm_snapshot,
-        hostname=arguments.vm_hostname,
-        ssh_port=arguments.vm_ssh_port)
+    instance = testing.virtualbox.Instance(arguments)
 
     with instance:
         instance.start()
