@@ -76,6 +76,9 @@ Description of the script API available to Critic Extensions.""")
         section("administration", "System Administration", """\
 Information about various Critic system administration tasks.""")
 
+        section("customization", "System Customization", """\
+Information about Critic system customization hooks.""")
+
 def renderTutorial(req, db, user):
     item = req.getParameter("item", None)
 
@@ -102,7 +105,8 @@ def renderTutorial(req, db, user):
               "rebase": "rebasing",
               "reconfigure": "reconfiguring",
               "checkbranch": "checkbranch",
-              "administration": "administration" }
+              "administration": "administration",
+              "customization": "customization" }
 
     if configuration.extensions.ENABLED:
         items.update({ "extensions": "extensions",

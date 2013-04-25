@@ -62,6 +62,14 @@ with frontend.signin():
                                                                                "administrator"),
                            "script_user": testing.expect.script_no_user() })
 
+    frontend.page("tutorial",
+                  params={ "item": "customization" },
+                  expect={ "document_title": testing.expect.document_title(u"System Customization"),
+                           "content_title": testing.expect.paleyellow_title(0, u"System Customization"),
+                           "pageheader_links": testing.expect.pageheader_links("authenticated",
+                                                                               "administrator"),
+                           "script_user": testing.expect.script_no_user() })
+
     # Unknown items are ignored and the main Tutorials page is returned instead.
     frontend.page("tutorial",
                   params={ "item": "nonexisting" },
