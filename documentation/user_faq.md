@@ -32,4 +32,4 @@ Yes, there is a basic statistics page available at <code>http://your.critic.doma
 
 Navigate to: <code>http://your.critic.domain.tld/showfilters?repository=INSERT_REPO_NAME&path=INSERT_PATH</code>
 
-See for example: http://critic.whyi.org/showfilters?repository=critic&path=/
+See for example: http://critic-review.org/showfilters?repository=critic&path=/
