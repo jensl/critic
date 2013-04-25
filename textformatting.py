@@ -21,7 +21,11 @@ import re
 def renderFormatted(db, table, lines, toc=False):
     re_h1 = re.compile("^=+$")
     re_h2 = re.compile("^-+$")
-    data = { "configuration.URL": dbutils.getURLPrefix(db) }
+    data = { "configuration.URL": dbutils.getURLPrefix(db),
+             "configuration.base.SYSTEM_USER_NAME": configuration.base.SYSTEM_USER_NAME,
+             "configuration.base.SYSTEM_GROUP_NAME": configuration.base.SYSTEM_GROUP_NAME,
+             "configuration.paths.CONFIG_DIR": configuration.paths.CONFIG_DIR,
+             "configuration.paths.INSTALL_DIR": configuration.paths.INSTALL_DIR }
 
     blocks = []
     block = []

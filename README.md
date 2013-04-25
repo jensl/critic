@@ -92,4 +92,8 @@ See also
 The [Critic user FAQ][faq] answers some common questions and gives some useful
 tips on how to use Critic efficiently.
 
+There is a tutorial on basic system administration tasks available in the
+installed Critic system; click the 'Tutorial' top level menu item and select
+'Administration'.
+
 [faq]: https://github.com/jensl/critic/blob/master/documentation/user_faq.md

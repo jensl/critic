@@ -28,7 +28,7 @@ def renderFromFile(db, target, name):
     textformatting.renderFormatted(db, table, lines, toc=True)
     table.tr("back").td("back").div().a(href="tutorial").text("Back")
 
-def renderSections(target):
+def renderSections(db, user, target):
     table = target.table("paleyellow", align="center")
     table.tr("h1").td("h1").h1().text("Tutorials")
 
@@ -72,6 +72,10 @@ Description of the Critic Extensions mechanism.""")
         section("extensions-api", "Critic Extensions API", """\
 Description of the script API available to Critic Extensions.""")
 
+    if user.hasRole(db, "administrator"):
+        section("administration", "System Administration", """\
+Information about various Critic system administration tasks.""")
+
 def renderTutorial(req, db, user):
     item = req.getParameter("item", None)
 
@@ -83,7 +87,7 @@ def renderTutorial(req, db, user):
     head = html.head()
     body = html.body()
 
-    page.utils.generateHeader(body, db, user, current_page="tutorial")
+    page.utils.generateHeader(body, db, user, current_page=None if item else "tutorial")
 
     document.addExternalStylesheet("resource/tutorial.css")
     document.addExternalScript("resource/tutorial.js")
@@ -97,7 +101,8 @@ def renderTutorial(req, db, user):
               "viewer": "repository",
               "rebase": "rebasing",
               "reconfigure": "reconfiguring",
-              "checkbranch": "checkbranch" }
+              "checkbranch": "checkbranch",
+              "administration": "administration" }
 
     if configuration.extensions.ENABLED:
         items.update({ "extensions": "extensions",
@@ -106,6 +111,6 @@ def renderTutorial(req, db, user):
     if item in items:
         renderFromFile(db, target, items[item])
     else:
-        renderSections(target)
+        renderSections(db, user, target)
 
     return document

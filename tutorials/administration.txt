@@ -1,0 +1,210 @@
+System Administration
+=====================
+
+Upgrading Critic
+----------------
+
+To install a newer version of Critic, simply check out a newer commit in the
+<code>critic.git</code> repository clone from which Critic was installed, and
+then run the command
+
+| python upgrade.py
+
+as root.  If the repository clone from which Critic was installed has been
+deleted, upgrading Critic from a newly cloned repository will usually work as
+well.  The only case in which this does not work is if the commit that was
+installed (or last upgraded to) is not available in the newly cloned repository.
+
+Upgrading Actions
+-----------------
+The actions taken by the <code>upgrade.py</code> are roughly these, in this
+order:
+
+1 Offer to create a backup copy (dump) of Critic's database,
+2 install additional prerequisite software the the new version depends on,
+3 ask questions for new configuration settings in the new version,
+4 copy updated source files (to
+    <code>%(configuration.paths.INSTALL_DIR)s/</code>),
+5 write updated configuration files (to
+    <code>%(configuration.paths.CONFIG_DIR)s/configuration/</code>)
+  and other system files (e.g. Apache site definition file, SysV init script,
+  <code>/usr/bin/criticctl</code>),
+6 restart Apache and Critic background services, and
+7 run migration scripts to update the database schema or perform other one-time
+  system updating tasks.
+
+Each of these steps could be empty, and thus skipped, depending on the changes
+between the currently installed version of Critic and the new version.
+
+Locally Modified Files
+----------------------
+If the upgrade process wants to write an updated version of an installed file,
+it will first check if the currently installed file has been modified since it
+was installed.  No local modification are reverted without asking first.  Note
+though that modified configuration files can be modified without asking if this
+can be done in a way that does not conflict with, and that preserves, the local
+modifications.
+
+Migration Scripts
+-----------------
+Some changes to the system requires custom modifications during an upgrade to
+adjust the installed system to match how the new version of Critic would have
+set the system up if it had been installed from scratch.  The most common such
+change is changes to the database schema, such as adding new tables or new
+columns to existing tables.
+
+This type of custom modifications are performed by running small one-time
+scripts called migration scripts.  When upgrading to a new version of Critic,
+all migration scripts that exist in the new version that didn't exist in the
+previously installed version are executed as the final step of the upgrade.
+
+If the upgrade process would run any migration script that modifies the database
+schema, the offer to create a backup copy of Critic's database at the beginning
+of the upgrade process has "yes" as its default choice instead of "no" as it
+otherwise has.  It is strongly recommended that the offer is accepted, since the
+changes made by such a migration script are generally not reversible in any
+other than to restore an earlier backup copy of the database.
+
+Users
+-----
+
+Critic has a user database containing records of the users of the system.  The
+record for each user contains the (typically short) user name, the user's full
+name (which is what is normally displayed) and the user's email address, which
+is used when the system sends notifications to the user.
+
+The user database is populated in different ways depending on how Critic was
+configured to identify and authenticate users.  If Critic was configured to
+authenticate users itself, then users must be added to the database manually by
+a system administrator.  This can be done using the
+  <code>criticctl</code>
+utility (installed as
+  <code>/usr/bin/criticctl</code>
+by Critic's installation script):
+
+| criticctl adduser --name=USERNAME --email=EMAIL --fullname=FULLNAME
+
+  Note: The program will prompt for the user's password.  If any of the options
+  are omitted, it will also prompt for that information.
+
+If Critic was configured to let the Web server authenticate users, it instead
+assumes that the
+  <code>REMOTE_USER</code>
+WSGI environment variable is set to the name of the accessing user, and
+automatically creates a user record in its database if one doesn't already
+exist.  In this scenario, there's typically no reason for the system
+administrator to manually add users to Critic's database (but it's still
+possible to do so.)  See
+  <a href="/tutorial?item=customization#automatic_user_creation">the customization tutorial</a>
+for details on this automatic user creation, and how it can be tweaked.
+
+System Users
+------------
+Critic's user database doesn't necessarily have to match the system's user
+database.  However, if access to the Git repositories is provided over SSH,
+then, for the purpose of SSH authentication, there needs to be system users.
+And in this case, for each system user who can push changes to the Git
+repositories over SSH there must be a matching user in Critic's user database
+with the same username.
+
+Also note that system users that should be allowed to access the Git
+repositories must be members of the
+  <code>%(configuration.base.SYSTEM_GROUP_NAME)s</code>
+system group.
+
+Git Authors and Committers
+--------------------------
+Critic's user database doesn't necessarily contain records for every user
+occurring as the author or committer of commits in the Git repositories, but
+commits can be mapped to Critic users by matching the email addresses in the Git
+commit meta-data.  Each Critic user can register any number of email addresses
+that he or she uses or has used when creating Git commits.  By default, the
+user's primary email address is used to map commits to the user, but the user is
+in no way forced to use this particular email address in Git commits.
+
+Currently, the only effect of mapping a commit's user references to a Critic
+user is that a Critic user is never automatically assigned to review commits
+that he/she is the author of.
+
+Deleting Users
+--------------
+It is also possible to "delete" a user using <code>criticctl</code>:
+
+| criticctl deluser --name=USERNAME
+
+This doesn't actually delete the user record from the database, since that is
+likely to be referenced from many places, depending on what the user has done in
+the system.  Instead, what deleting a user does is
+
+1 Marks the user as "retired", which prevents the system from acting as if the
+  user is expected to be reviewing any changes in the future, and
+2 deletes the user's password so that he or she can no longer sign in.
+
+<strong>Important note:</strong> Deleting a user's password only prevents access
+to the system if Critic handles user authentication.  If the Web server handles
+it, the user must primarily be disabled in whatever mechanism the Web server
+uses to authenticate users.  Critic will <b>not</b> disallow access in this
+case.  What's more, in this case, if a deleted/retired user signs in, the user's
+"retired" status is automatically reverted, thus completely undoing the effects
+of "deleting" the user in the first place.
+
+Roles
+-----
+
+User roles is a very basic access rights scheme, limiting which Critic users can
+do a small number of things, including adding new repositories, modifying other
+users' information, and adding news items.  Other than that, all users can
+access all information in the system, modify all reviews and so on.
+
+The available roles are:
+
+? administrator
+= A user with the <code>administrator</code> role can restart system background
+  services via the
+    <code><a href="/services">%(configuration.URL)s/services</a></code>
+  page, edit other users' information via
+    <code style='white-space: nowrap'>%(configuration.URL)s/home?user=&lt;name&gt;</code>
+  and also enable/disable any tracked branch via
+    <code><a href="/repositories">%(configuration.URL)s/repositories</a></code>.
+  More exceptions are likely to be added in the future.
+
+? repositories
+= A user with the <code>repositories</code> role can add new repositories to the
+  system via the
+    <code><a href="/newrepository">%(configuration.URL)s/newrepository</a></code>
+  page.
+
+? newswriter
+= A user with the <code>newswriter</code> role can write news items items that
+  appear on the
+    <code><a href="/news">%(configuration.URL)s/news</a></code>
+  page.  The user can also edit existing items.  It is likely that news items
+  will be also be added automatically when upgrading the system, to inform about
+  significant changes.
+
+? developer
+= The <code>developer</code> role doesn't really give access to restricted
+  functionality.  Instead it affects how unexpected errors -- such as uncaught
+  Python exceptions -- are handled.  Normally, unexpected errors are presented
+  to the user as just that, an "unexpected error," with a note that a message
+  has been sent to the system administrator, and an email is sent to the system
+  administrator with as much details as possible about the error.  But if the
+  user triggering the error has the <code>developer</code> role, no email is
+  sent to the system administrator (who is likely to be the same person in
+  practice) and instead the error details -- typically a Python stack-trace --
+  is displayed directly to the user.
+
+Assigning Roles
+---------------
+To assign a role to a user, use the
+  <code>criticctl</code>
+utility:
+
+| criticctl addrole --name=USERNAME --role=ROLE
+
+and to unassign a role:
+
+| criticctl delrole --name=USERNAME --role=ROLE
+
+  Note: If the options are not provided, <code>criticctl</code> will instead
+  prompt for the missing information.
