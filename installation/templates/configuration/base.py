@@ -56,3 +56,6 @@ SESSION_MAX_AGE = 0
 # Allow (restricted) anonymous access to the system.  Only supported if
 # AUTHENTICATION_MODE="critic" and SESSION_TYPE="cookie".
 ALLOW_ANONYMOUS_USER = %(installation.config.allow_anonymous_user)r
+
+# Access scheme: "http", "https" or "both".
+ACCESS_SCHEME = "%(installation.config.access_scheme)s"

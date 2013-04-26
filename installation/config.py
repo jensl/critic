@@ -26,21 +26,40 @@ import installation
 
 auth_mode = "host"
 session_type = None
-allow_anonymous_user = False
+allow_anonymous_user = None
+access_scheme = None
+
+def add_arguments(mode, parser):
+    if mode == "install":
+        parser.add_argument(
+            "--auth-mode", choices=["host", "critic"],
+            help="user authentication mode")
+        parser.add_argument(
+            "--session-type", choices=["httpauth", "cookie"],
+            help="session type")
+        parser.add_argument(
+            "--allow-anonymous-user", dest="anonymous", action="store_const",
+            const=True, help="allow limited unauthenticated access")
+        parser.add_argument(
+            "--no-allow-anonymous-user", dest="anonymous", action="store_const",
+            const=False, help="do not allow unauthenticated access")
+        parser.add_argument(
+            "--access-scheme", choices=["http", "https", "both"],
+            help="scheme used to access Critic")
 
 def prepare(mode, arguments, data):
-    global auth_mode, session_type, allow_anonymous_user
+    global auth_mode, session_type, allow_anonymous_user, access_scheme
 
     header_printed = False
 
     if mode == "install":
         if installation.prereqs.bcrypt_available:
-            def check(value):
+            def check_auth_mode(value):
                 if value.strip() not in ("host", "critic"):
                     return "must be one of 'host' and 'critic'"
 
             if arguments.auth_mode:
-                error = check(arguments.auth_mode)
+                error = check_auth_mode(arguments.auth_mode)
                 if error:
                     print "Invalid --auth-mode argument: %s." % arguments.auth_mode
                     return False
@@ -63,8 +82,9 @@ the Web front-end.  This can be handled in two different ways:
           stored (encrypted) in its database.
 """
 
-                auth_mode = installation.input.string("Which authentication mode should be used?",
-                                                      default="critic", check=check)
+                auth_mode = installation.input.string(
+                    "Which authentication mode should be used?",
+                    default="critic", check=check_auth_mode)
     else:
         import configuration
 
@@ -73,14 +93,20 @@ the Web front-end.  This can be handled in two different ways:
         try: session_type = configuration.base.SESSION_TYPE
         except AttributeError: pass
 
+        try: allow_anonymous_user = configuration.ALLOW_ANONYMOUS_USER
+        except AttributeError: pass
+
+        try: access_scheme = configuration.ACCESS_SCHEME
+        except AttributeError: pass
+
     if auth_mode == "critic":
         if session_type is None:
-            def check(value):
+            def check_session_type(value):
                 if value.strip() not in ("httpauth", "cookie"):
                     return "must be one of 'http' and 'cookie'"
 
             if mode == "install" and arguments.session_type:
-                error = check(arguments.session_type)
+                error = check_session_type(arguments.session_type)
                 if error:
                     print "Invalid --session_type argument: %s." % arguments.session_type
                     return False
@@ -103,16 +129,81 @@ other type of authentication supports limited anonymous access.
   cookie    Use session cookie based authentication.
 """
 
-                session_type = installation.input.string("Which session type should be used?",
-                                                         default="cookie", check=check)
+                session_type = installation.input.string(
+                    "Which session type should be used?",
+                    default="cookie", check=check_session_type)
+
+        if allow_anonymous_user is None:
+            if session_type == "httpauth":
+                allow_anonymous_user = False
+            elif mode == "install" and arguments.anonymous is not None:
+                allow_anonymous_user = arguments.anonymous
+            else:
+                if not header_printed:
+                    header_printed = True
+                    print """
+Critic Installation: Authentication
+==================================="""
+
+                print """
+With cookie based authentication, Critic can support anonymous access.
+Users still have to sign in in order to make any changes (such as
+write comments in reviews) but will be able to view most information
+in the system without signin in.
+"""
+
+                allow_anonymous_user = installation.input.yes_or_no(
+                    "Do you want to allow anonymous access?", default=True)
+
     else:
         session_type = "cookie"
 
-    allow_anonymous_user = auth_mode == "critic" and session_type == "cookie"
+    if access_scheme is None:
+        if mode == "install" and arguments.access_scheme:
+            access_scheme = arguments.access_scheme
+        else:
+            print """
+Critic Installation: Scheme
+===========================
+
+Critic can be set up to be accessed over HTTP, HTTPS, or both.  This
+installation script will not do the actual configuration of the host
+web server (Apache) necessary for it to support the desired schemes
+(in particular HTTPS, which is non-trivial,) but can at least set up
+Critic's Apache site declaration appropriately.
+
+You have three choices:
+
+  http   Critic will be accessible only over HTTP.
+
+  https  Critic will be accessible only over HTTPS.
+
+  both   Critic will be accessible over both HTTP and HTTPS.
+
+If you choose "both", Critic will redirect all authenticated accesses
+to HTTPS, to avoid sending credentials over plain text connections."""
+
+            if allow_anonymous_user:
+                print """\
+Anonymous users will be allowed to access the site over HTTP, though.
+If this is not desirable, you should select "https" and configure the
+web server to redirect all HTTP accesses to HTTPS.
+"""
+            else:
+                print
+
+            def check_access_scheme(value):
+                if value not in ("http", "https", "both"):
+                    return "must be one of 'http', 'https' and 'both'"
+
+            access_scheme = installation.input.string(
+                "How will Critic be accessed?", default="http",
+                check=check_access_scheme)
 
     data["installation.config.auth_mode"] = auth_mode
     data["installation.config.session_type"] = session_type
     data["installation.config.allow_anonymous_user"] = allow_anonymous_user
+    data["installation.config.access_scheme"] = access_scheme
 
     return True
 

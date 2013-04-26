@@ -15,10 +15,9 @@
 # the License.
 
 import os
-import os.path
+import subprocess
 
 import installation
-from installation import process
 
 pass_auth = "Off"
 
@@ -40,7 +39,9 @@ default_site_disabled = False
 def install(data):
     global site_enabled, default_site_disabled
 
-    source_path = os.path.join(installation.root_dir, "installation", "templates", "site")
+    site = "site.%s" % installation.config.access_scheme
+
+    source_path = os.path.join(installation.root_dir, "installation", "templates", site)
     target_path = os.path.join("/etc", "apache2", "sites-available", "critic-main")
 
     with open(target_path, "w") as target:
@@ -52,24 +53,27 @@ def install(data):
             target.write((source.read().decode("utf-8") % data).encode("utf-8"))
 
     if installation.prereqs.a2enmod:
-        process.check_call([installation.prereqs.a2enmod, "expires"])
-        process.check_call([installation.prereqs.a2enmod, "rewrite"])
-        process.check_call([installation.prereqs.a2enmod, "wsgi"])
+        subprocess.check_call([installation.prereqs.a2enmod, "expires"])
+        subprocess.check_call([installation.prereqs.a2enmod, "rewrite"])
+        subprocess.check_call([installation.prereqs.a2enmod, "wsgi"])
 
     if installation.prereqs.a2ensite:
-        process.check_call([installation.prereqs.a2ensite, "critic-main"])
+        subprocess.check_call([installation.prereqs.a2ensite, "critic-main"])
         site_enabled = True
     if installation.prereqs.a2dissite:
-        output = process.check_output([installation.prereqs.a2dissite, "default"], env={ "LANG": "C" })
+        output = subprocess.check_output([installation.prereqs.a2dissite, "default"],
+                                         env={ "LANG": "C" })
         if "Site default disabled." in output:
             default_site_disabled = True
 
-    process.check_call(["service", "apache2", "restart"])
+    subprocess.check_call(["service", "apache2", "restart"])
 
     return True
 
 def upgrade(arguments, data):
-    source_path = os.path.join(installation.root_dir, "installation", "templates", "site")
+    site = "site.%s" % installation.config.access_scheme
+
+    source_path = os.path.join(installation.root_dir, "installation", "templates", site)
     target_path = os.path.join("/etc", "apache2", "sites-available", "critic-main")
     backup_path = os.path.join(os.path.dirname(target_path), "_" + os.path.basename(target_path))
 
@@ -122,19 +126,19 @@ likely to break.
         print "Restarting Apache ..."
 
         if not arguments.dry_run:
-            process.check_call(["service", "apache2", "restart"])
+            subprocess.check_call(["service", "apache2", "restart"])
 
     return True
 
 def undo():
     if site_enabled:
-        process.check_call([installation.prereqs.a2dissite, "critic-main"])
+        subprocess.check_call([installation.prereqs.a2dissite, "critic-main"])
 
         if default_site_disabled:
-            process.check_call([installation.prereqs.a2ensite, "default"])
+            subprocess.check_call([installation.prereqs.a2ensite, "default"])
 
         if installation.prereqs.apache2ctl:
-            process.check_call([installation.prereqs.apache2ctl, "restart"])
+            subprocess.check_call([installation.prereqs.apache2ctl, "restart"])
 
     map(os.unlink, created_file)
 

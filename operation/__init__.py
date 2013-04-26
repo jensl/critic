@@ -46,15 +46,20 @@ class OperationResult:
         return json_encode(self.__value)
     def set(self, key, value):
         self.__value[key] = value
-    def setCookie(self, name, value=None):
-        self.__cookies[name] = value
+    def setCookie(self, name, value=None, secure=False):
+        self.__cookies[name] = (value, secure)
         return self
     def addResponseHeaders(self, req):
-        for name, value in self.__cookies.items():
+        for name, (value, secure) in self.__cookies.items():
             if value:
-                req.addResponseHeader("Set-Cookie", "%s=%s; HttpOnly" % (name, value))
+                if secure and configuration.base.ACCESS_SCHEME != "http":
+                    modifier = "Secure"
+                else:
+                    modifier = "HttpOnly"
+                cookie = "%s=%s; %s" % (name, value, modifier)
             else:
-                req.addResponseHeader("Set-Cookie", "%s=invalid; Expires=Thursday 01-Jan-1970 00:00:00 GMT" % name)
+                cookie = "%s=invalid; Expires=Thursday 01-Jan-1970 00:00:00 GMT" % name
+            req.addResponseHeader("Set-Cookie", cookie)
 
 class OperationError(Exception):
     """\

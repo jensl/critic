@@ -20,7 +20,8 @@ import htmlutils
 import configuration
 from cStringIO import StringIO
 import traceback
-from request import NoDefault, DisplayMessage, InvalidParameterValue, decodeURIComponent, Request
+from request import NoDefault, MovedTemporarily, DisplayMessage, \
+                    InvalidParameterValue, decodeURIComponent, Request
 import urllib
 
 from textutils import json_encode, json_decode
@@ -33,11 +34,6 @@ LINK_RELS = { "Home": "home",
 
 class NotModified:
     pass
-
-class MovedTemporarily(Exception):
-    def __init__(self, location, no_cache=False):
-        self.location = location
-        self.no_cache = no_cache
 
 class NeedLogin(MovedTemporarily):
     def __init__(self, source):

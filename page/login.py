@@ -25,6 +25,8 @@ def renderLogin(req, db, user):
     if not user.isAnonymous():
         raise page.utils.MovedTemporarily(target_url or "/", True)
 
+    req.ensureSecure()
+
     document = htmlutils.Document(req)
     document.setTitle("Sign in")
 

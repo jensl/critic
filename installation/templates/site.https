@@ -1,14 +1,20 @@
-# To enable (and enforce) HTTPS, uncomment this VirtualHost definition
-# and change the other VirtualHost definitions port to 443.
-#
-# <VirtualHost *:80>
-#	RewriteEngine on
-#	RewriteRule ^(.*) https://%(installation.system.hostname)s$1 [L,R,NE]
-# </VirtualHost>
-
 <VirtualHost *:80>
 	ServerAdmin %(installation.admin.email)s
 	ServerName %(installation.system.hostname)s
+
+	RewriteEngine on
+	RewriteCond %%{HTTP_HOST} (.*)
+	RewriteRule ^(.*) https://%%1$1 [L,R,NE]
+</VirtualHost>
+
+<VirtualHost *:443>
+	ServerAdmin %(installation.admin.email)s
+	ServerName %(installation.system.hostname)s
+
+	# Uncomment these lines, and create a suitable ssl.conf file, to
+	# actually enable SSL support.
+	#SSLEngine on
+	#Include /etc/apache2/ssl/ssl.conf
 
 	WSGIApplicationGroup %%{GLOBAL}
 	WSGIProcessGroup critic-main

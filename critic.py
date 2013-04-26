@@ -576,15 +576,19 @@ def main(environ, start_response):
                         req.addResponseHeader("WWW-Authenticate", "Basic realm=\"Critic\"")
                         req.start()
                         return
-                    elif configuration.base.ALLOW_ANONYMOUS_USER or req.path in ("login", "validatelogin"):
-                        user = dbutils.User.makeAnonymous()
-                    elif req.method == "GET":
-                        raise page.utils.NeedLogin, req
-                    else:
-                        # Don't try to redirect POST requests to the login page.
-                        req.setStatus(403)
-                        req.start()
-                        return
+                    elif configuration.base.SESSION_TYPE == "cookie":
+                        if req.cookies.get("has_sid") == "1":
+                            req.ensureSecure()
+                        if configuration.base.ALLOW_ANONYMOUS_USER \
+                                or req.path in ("login", "validatelogin"):
+                            user = dbutils.User.makeAnonymous()
+                        elif req.method == "GET":
+                            raise page.utils.NeedLogin(req)
+                        else:
+                            # Don't try to redirect POST requests to the login page.
+                            req.setStatus(403)
+                            req.start()
+                            return
             else:
                 try:
                     user = dbutils.User.fromName(db, req.user)
@@ -631,7 +635,7 @@ def main(environ, start_response):
                     yield "<meta http-equiv='refresh' content='0; %s'>" % htmlify(target)
                     return
                 else:
-                    raise page.utils.MovedTemporarily, target
+                    raise request.MovedTemporarily, target
 
             if req.path.startswith("!/"):
                 req.path = req.path[2:]
@@ -814,7 +818,7 @@ def main(environ, start_response):
             req.setStatus(304)
             req.start()
             return
-        except page.utils.MovedTemporarily, redirect:
+        except request.MovedTemporarily, redirect:
             req.setStatus(307)
             req.addResponseHeader("Location", redirect.location)
             if redirect.no_cache:

@@ -51,7 +51,19 @@ class ValidateLogin(Operation):
 
         db.commit()
 
-        return OperationResult().setCookie("sid", sid)
+        # Set 'sid' and 'has_sid' cookies.
+        #
+        # The 'has_sid' cookie is significant if the system is accessible over
+        # both HTTP and HTTPS.  In that case, the 'sid' cookie is set with the
+        # "secure" flag, so is only sent over HTTPS.  The 'has_sid' cookie is
+        # then used to detect that an HTTP client would have sent a 'sid' cookie
+        # if the request instead had been made over HTTPS, in which case we
+        # redirect the client to HTTPS automatically.
+
+        result = OperationResult()
+        result.setCookie("sid", sid, secure=True)
+        result.setCookie("has_sid", "1")
+        return result
 
     def sanitize(self, value):
         sanitized = value.copy()
@@ -69,4 +81,4 @@ class EndSession(Operation):
 
             db.commit()
 
-            return OperationResult().setCookie("sid")
+            return OperationResult().setCookie("sid").setCookie("has_sid")

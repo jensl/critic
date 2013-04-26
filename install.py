@@ -68,9 +68,6 @@ parser.add_argument("--system-email", help="address used as sender of emails", a
 parser.add_argument("--system-groupname", help="name of system group to run as", action="store")
 parser.add_argument("--force-create-system-group", help="don't prompt for permission to create a new system group if it doesn't exist", action="store_true")
 
-parser.add_argument("--auth-mode", help="user authentication mode", choices=["host", "critic"], action="store")
-parser.add_argument("--session-type", help="session type", choices=["httpauth", "cookie"], action="store")
-
 parser.add_argument("--admin-username", help="name of Critic administrator user", action="store")
 parser.add_argument("--admin-email", help="email address to Critic administrator user", action="store")
 parser.add_argument("--admin-fullname", help="Critic administrator user's full name", action="store")

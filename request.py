@@ -16,6 +16,7 @@
 
 import re
 import httplib
+import wsgiref.util
 
 import base
 import utf8utils
@@ -38,6 +39,11 @@ class NoDefault:
     """
 
     pass
+
+class MovedTemporarily(Exception):
+    def __init__(self, location, no_cache=False):
+        self.location = location
+        self.no_cache = no_cache
 
 class DisplayMessage(Exception):
     """\
@@ -147,6 +153,14 @@ class Request:
         self.original_path = self.path
         self.query = environ.get("QUERY_STRING", "")
         self.user = None
+        self.cookies = {}
+
+        header = self.getRequestHeader("Cookie")
+        if header:
+            for cookie in map(str.strip, header.split(";")):
+                name, _, value = cookie.partition("=")
+                if name and value:
+                    self.cookies[name] = value
 
         self.__setUser(db, environ)
 
@@ -158,37 +172,32 @@ class Request:
                 raise MissingWSGIRemoteUser
         elif configuration.base.AUTHENTICATION_MODE == "critic":
             if configuration.base.SESSION_TYPE == "cookie":
-                header = self.getRequestHeader("Cookie")
-                if header:
-                    cookies = map(str.strip, header.split(";"))
-                    key = None
+                sid = self.cookies.get("sid")
 
-                    for cookie in cookies:
-                        name, value = cookie.split("=", 1)
-                        if name == "sid":
-                            key = value
-                            break
+                if not sid:
+                    return
 
-                    if key:
-                        cursor = db.cursor()
-                        cursor.execute("""SELECT name, EXTRACT('epoch' FROM NOW() - atime) AS age
-                                            FROM usersessions
-                                            JOIN users ON (id=uid)
-                                           WHERE key=%s""",
-                                       (key,))
+                cursor = db.cursor()
+                cursor.execute("""SELECT name, EXTRACT('epoch' FROM NOW() - atime) AS age
+                                    FROM usersessions
+                                    JOIN users ON (id=uid)
+                                   WHERE key=%s""",
+                               (sid,))
 
-                        try: user, session_age = cursor.fetchone()
-                        except: return
+                try:
+                    user, session_age = cursor.fetchone()
+                except:
+                    return
 
-                        if configuration.base.SESSION_MAX_AGE == 0 \
-                                or session_age < configuration.base.SESSION_MAX_AGE:
-                            self.user = user
+                if configuration.base.SESSION_MAX_AGE == 0 \
+                        or session_age < configuration.base.SESSION_MAX_AGE:
+                    self.user = user
 
-                            cursor.execute("""UPDATE usersessions
-                                                 SET atime=NOW()
-                                               WHERE key=%s""",
-                                           (key,))
-                            db.commit()
+                    cursor.execute("""UPDATE usersessions
+                                         SET atime=NOW()
+                                       WHERE key=%s""",
+                                   (sid,))
+                    db.commit()
             else:
                 import auth
                 import base64
@@ -212,6 +221,9 @@ class Request:
                         self.user = username
                         return
                     except auth.CheckFailed: pass
+
+    def getRequestURI(self):
+        return wsgiref.util.request_uri(self.__environ)
 
     def getUser(self, db):
         import dbutils
@@ -388,3 +400,11 @@ class Request:
         """
 
         return self.__content_type
+
+    def ensureSecure(self):
+        if configuration.base.ACCESS_SCHEME != "http":
+            current_url = self.getRequestURI()
+            secure_url = re.sub("^http:", "https:", current_url)
+
+            if current_url != secure_url:
+                raise MovedTemporarily(secure_url, True)
