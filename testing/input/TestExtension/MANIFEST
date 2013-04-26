@@ -1,0 +1,72 @@
+Author = "Jens Lindstr\u00f6m"
+Description = "Extension used to test extension support."
+
+[Page echo]
+Description = "Echoes function argument list in JSON form."
+Script = echo.js
+Function = echo
+
+[Page evaluate]
+Description = "Evaluates expression and returns result."
+Script = evaluate.js
+Function = evaluate
+
+[Page nothandled]
+Description = "Page that is not handled."
+Script = nothandled.js
+Function = nothandled
+
+[Page empty]
+Description = "Empty page."
+Script = empty.js
+Function = empty
+
+[Page version]
+Description = "Outputs extension version."
+Script = version.js
+Function = version
+
+[Page restrictions]
+Description = "Checks various restrictions."
+Script = restrictions.js
+Function = restrictions
+
+[Page error.compilation]
+Description = "A script that doesn't compile."
+Script = error.compilation.js
+Function = irrelevant
+
+[Page error.runtime]
+Description = "A function that throws an exception."
+Script = error.runtime.js
+Function = test
+
+[Page Review.list]
+Description = "Testing critic.Review.list()."
+Script = Review.list.js
+Function = test
+
+[Page MailTransaction]
+Description = "Testing MailTransaction."
+Script = MailTransaction.js
+Function = test
+
+[Inject home]
+Description = "Basic injection testing."
+Script = inject.js
+Function = inject
+
+[Inject critic/*]
+Description = "Inject path handling test."
+Script = inject.js
+Function = showcommitShort
+
+[Inject showcommit]
+Description = "Inject path handling test."
+Script = inject.js
+Function = showcommitLong
+
+[ProcessCommits]
+Description = "Basic commits processing testing."
+Script = processcommits.js
+Function = processcommits

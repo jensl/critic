@@ -17,8 +17,6 @@
 import json
 import contextlib
 
-import testing
-
 try:
     import requests
     import BeautifulSoup
@@ -26,6 +24,8 @@ except ImportError:
     # testing/main.py detects and abort if either of these are missing, so just
     # ignore errors here.
     pass
+
+import testing
 
 class Error(testing.TestFailure):
     def __init__(self, url, message):

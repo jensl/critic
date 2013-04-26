@@ -35,6 +35,12 @@ def extract_text(source):
             result += "[%r]" % source
     return result
 
+def deunicode(v):
+    if type(v) == unicode: return v.encode("utf-8")
+    elif type(v) == list: return map(deunicode, v)
+    elif type(v) == dict: return dict([(deunicode(a), deunicode(b)) for a, b in v.items()])
+    else: return v
+
 class FailedCheck(testing.TestFailure):
     def __init__(self, expected, actual, location=None, message=None):
         if message is None:
@@ -43,8 +49,9 @@ class FailedCheck(testing.TestFailure):
             message += ":\n At %s:%d" % location[0]
             for filename, linenr in location[1:]:
                 message += ",\n   called from %s:%d" % (filename, linenr)
-        super(FailedCheck, self).__init__("%s:\n  Expected: %r,\n  Actual:   %r"
-                                          % (message, expected, actual))
+        super(FailedCheck, self).__init__(
+            "%s:\n  Expected: %r,\n  Actual:   %r"
+            % (message, expected, deunicode(actual)))
         self.expected = expected
         self.actual = actual
 
