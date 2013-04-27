@@ -293,5 +293,7 @@ def main():
                 with instance:
                     run_group(group_name)
 
+                mailbox.check_empty()
+
 if __name__ == "__main__":
     main()
