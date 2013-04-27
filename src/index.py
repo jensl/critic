@@ -598,7 +598,6 @@ the new upstream specified and then push that instead.""")
                 new_sha1s = repository.revlist([new_head.sha1], [new_upstream.sha1], '--topo-order')
                 rebased_commits = [gitutils.Commit.fromSHA1(db, repository, sha1) for sha1 in new_sha1s]
                 reachable_values = [(review.branch.id, sha1) for sha1 in new_sha1s]
-                new_upstream_name = repository.findInterestingTag(db, new_upstream.sha1) or new_upstream.sha1
 
                 pending_mails = []
 
@@ -606,7 +605,7 @@ the new upstream specified and then push that instead.""")
                 for to_user in recipients:
                     pending_mails.extend(reviewing.mail.sendReviewRebased(
                             db, user, to_user, recipients, review,
-                            new_upstream_name, rebased_commits, onto_branch))
+                            new_upstream, rebased_commits, onto_branch))
 
                 print "Rebase performed."
 

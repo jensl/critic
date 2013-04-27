@@ -930,6 +930,24 @@ class Commit:
             if tag: return tag
         return self.sha1[:8]
 
+    def oneline(self, db, decorate=False):
+        line = "%s %s" % (self.sha1[:8], self.niceSummary())
+        if decorate:
+            decorations = []
+            if self == self.repository.getHead(db):
+                decorations.append("HEAD")
+            cursor = db.cursor()
+            cursor.execute("""SELECT branches.name
+                                FROM branches
+                                JOIN reachable ON (reachable.branch=branches.id)
+                                JOIN commits ON (commits.id=reachable.commit)
+                               WHERE commits.sha1=%s""",
+                           (self.sha1,))
+            decorations.extend(branch for (branch,) in cursor)
+            if decorations:
+                line += " (%s)" % ", ".join(decorations)
+        return line
+
     def isAncestorOf(self, other):
         if isinstance(other, Commit):
             if self.repository != other.repository: return False
