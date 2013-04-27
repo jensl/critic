@@ -18,8 +18,8 @@ import socket
 import threading
 import time
 import re
-import base64
 import logging
+import email
 
 logger = logging.getLogger("critic")
 
@@ -45,11 +45,6 @@ class Mail(object):
         for header_name in sorted(self.headers.keys()):
             for header in self.headers[header_name]:
                 yield (header["name"], header["value"])
-
-    def decode(self):
-        if self.header("Content-Transfer-Encoding") == "base64":
-            decoded = base64.b64decode("".join(self.lines))
-            self.lines = decoded.splitlines()
 
     def __str__(self):
         return "%s\n\n%s" % ("\n".join(("%s: %s" % header)
@@ -129,28 +124,25 @@ class Client(threading.Thread):
         self.expectline("data")
         self.sendline("354 Right")
 
-        headers = True
-        header = None
+        message_source = ""
 
         while True:
             line = self.recvline()
             if line == ".":
                 break
-            if headers:
-                if not line:
-                    headers = False
-                else:
-                    if header and re.match(r"^\s+", line):
-                        header["value"] = "%s %s" % (header["value"], line.strip())
-                    else:
-                        name, value = re.match(r"([^:]+):(.*)$", line).groups()
-                        header = { "name": name.strip(),
-                                   "value": value.strip() }
-                        mail.headers.setdefault(name.strip().lower(), []).append(header)
-            else:
-                mail.lines.append(line)
+            message_source += line + "\r\n"
 
-        mail.decode()
+        message = email.message_from_string(message_source)
+
+        for name in message.keys():
+            headers = mail.headers.setdefault(name.lower(), [])
+            for value in message.get_all(name):
+                headers.append({ "name": name, "value": value })
+
+        mail.lines = message.get_payload(decode=True).splitlines()
+
+        logger.debug("Received mail to: <%s> \"%s\""
+                     % (mail.recipient, mail.header("Subject")))
 
         self.mailbox.add(mail)
         self.sendline("250 OK")
