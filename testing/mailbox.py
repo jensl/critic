@@ -107,6 +107,7 @@ class Client(threading.Thread):
             (return_path,) = self.expectline(r"mail\s+from:<([^>]+)>(?:\s+size=\d+)?$")
         except ParseError as error:
             if error.line.lower() == "quit":
+                self.sendline("221 critic.example.org Bye, bye")
                 raise Quit
             raise
 
@@ -119,6 +120,8 @@ class Client(threading.Thread):
         # mails to multiple recipients, but on the SMTP level, they are multiple
         # single-recipient mails.)
         (mail.recipient,) = self.expectline(r"rcpt\s+to:<([^>]+)>$")
+
+        logger.debug("Mailbox: Mail to <%s>." % mail.recipient)
 
         self.sendline("250 OK")
         self.expectline("data")
@@ -149,13 +152,25 @@ class Client(threading.Thread):
 
     def run(self):
         try:
+            logger.debug("Mailbox: Client connected.")
             self.handshake()
+            logger.debug("Mailbox: Client ready.")
             while True:
                 self.receive()
         except Error as error:
-            self.mailbox.add_error(error)
+            logger.error("Mailbox: Client error: %s" % error.message)
+        except Quit:
+            logger.debug("Mailbox: Client quit.")
+        except EOF:
+            logger.debug("Mailbox: Client disconnected prematurely.")
+        except Exception:
+            logger.exception("Mailbox: Client error!")
+        self.close()
+
+    def close(self):
+        try:
             self.client.close()
-        except (EOF, Quit):
+        except socket.error:
             pass
 
 class Listener(threading.Thread):
@@ -212,10 +227,6 @@ class Mailbox(object):
     def reset(self):
         with self.condition:
             self.queued = []
-
-    def add_error(self, error):
-        with self.condition:
-            self.errors.append(error)
 
     def pop_error(self):
         with self.condition:

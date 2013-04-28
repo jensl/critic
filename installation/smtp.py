@@ -173,6 +173,12 @@ well as to the system administrator to alert about problems.
                         failed = "Failed to send the email."
                         raise
 
+                    try:
+                        connection.quit()
+                    except:
+                        failed = "Failed to close connection."
+                        raise
+
                     print
                     print "Test email sent to %s." % recipient
                     print
