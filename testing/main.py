@@ -305,7 +305,6 @@ first or run this script without --test-extensions.""")
 
     def run_group(group_name):
         try:
-            instance.start()
             instance.mailbox = mailbox
 
             def run_tests(directory):

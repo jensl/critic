@@ -730,9 +730,103 @@ CriticReview.find = function (data)
                             data.repositoryURL);
     }
 
-    return result.apply(
-      function (review_id)
+    return scoped(
+      result,
+      function ()
       {
-        return new CriticReview(review_id);
+        return this.apply(
+          function (review_id)
+          {
+            return new CriticReview(review_id);
+          });
+      });
+  };
+
+CriticReview.list = function (data)
+  {
+    data = data || {};
+
+    var tables = ["reviews"];
+    var conditions = ["TRUE"];
+    var argv = [];
+
+    if (data.repository)
+    {
+      var repository_id, repository_name;
+
+      if (data.repository instanceof CriticRepository)
+        repository_id = data.repository.id;
+      else if (parseInt(data.repository) === data.repository)
+        repository_id = data.repository;
+      else
+        repository_name = String(data.repository);
+
+      tables.push("branches ON (branches.id=reviews.branch)");
+
+      if (repository_id !== void 0)
+      {
+        conditions.push("branches.repository=%d");
+        argv.push(repository_id);
+      }
+      else
+      {
+        tables.push("repositories ON (repositories.id=branches.repository)");
+        conditions.push("repositories.name=%s");
+        argv.push(repository_name);
+      }
+    }
+
+    if (data.state)
+    {
+      var valid_states = { open: true, closed: true, dropped: true };
+
+      if (!(data.state in valid_states))
+        throw CriticError(format("invalid argument: data.state=%r not valid", String(data.state)));
+
+      conditions.push("reviews.state=%s");
+      argv.push(data.state);
+    }
+
+    if (data.owner)
+    {
+      var owner_id, owner_name;
+
+      if (data.owner instanceof CriticUser)
+        owner_id = data.owner.id;
+      else if (parseInt(data.owner) === data.owner)
+        owner_id = data.owner;
+      else
+        owner_name = String(data.owner);
+
+      tables.push("reviewusers ON (reviewusers.review=reviews.id)");
+      conditions.push("reviewusers.owner");
+
+      if (owner_id !== void 0)
+      {
+        conditions.push("reviewusers.uid=%d");
+        argv.push(owner_id);
+      }
+      else
+      {
+        tables.push("users ON (users.id=reviewusers.uid)");
+        conditions.push("users.name=%s");
+        argv.push(owner_name);
+      }
+    }
+
+    var query = format(
+      "SELECT reviews.id FROM %(tables)s WHERE %(conditions)s ORDER BY reviews.id",
+      { tables: tables.join(" JOIN "),
+        conditions: conditions.join(" AND ") });
+
+    return scoped(
+      db.execute.bind(db, query).apply(null, argv),
+      function ()
+      {
+        return this.apply(
+          function (review_id)
+          {
+            return new CriticReview(review_id);
+          });
       });
   };

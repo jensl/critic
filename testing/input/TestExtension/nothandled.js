@@ -2,6 +2,5 @@
 
 "use strict";
 
-function nothandled()
-{
+function nothandled() {
 }

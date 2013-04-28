@@ -2,8 +2,7 @@
 
 "use strict";
 
-function empty()
-{
+function empty() {
   writeln(200);
   writeln("Content-Type: text/plain");
   writeln();

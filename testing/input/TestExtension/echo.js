@@ -2,8 +2,7 @@
 
 "use strict";
 
-function echo()
-{
+function echo() {
   writeln(200);
   writeln("Content-Type: text/json");
   writeln();
