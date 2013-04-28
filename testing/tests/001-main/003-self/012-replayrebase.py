@@ -3,10 +3,10 @@ import re
 import shutil
 
 def to(name):
-    return testing.mailbox.to_recipient("%s@example.org" % name)
+    return testing.mailbox.ToRecipient("%s@example.org" % name)
 
 def about(subject):
-    return testing.mailbox.with_subject(subject)
+    return testing.mailbox.WithSubject(subject)
 
 # The commit we'll be "reviewing."
 COMMIT_SHA1 = "aca57d0899e5193232dbbea726d94a838a4274ed"
@@ -51,12 +51,9 @@ with frontend.signin("alice"):
             testing.expect.check("<review URL in git hook output>",
                                  "<expected content not found>")
 
-        to_alice = mailbox.pop(accept=[to("alice"),
-                                       about("New Review: %s" % SUMMARY)],
-                               timeout=30)
-        if not to_alice:
-            testing.expect.check("<mail to alice>",
-                                 "<expected mail not received>")
+        mailbox.pop(accept=[to("alice"),
+                            about("New Review: %s" % SUMMARY)],
+                    timeout=30)
 
         frontend.operation(
             "preparerebase",
@@ -87,16 +84,10 @@ with frontend.signin("alice"):
 
         work.run(["push", "--force", "critic", "HEAD"])
 
-        to_alice = mailbox.pop(accept=[to("alice"),
-                                       about("Updated Review: %s" % SUMMARY)],
-                               timeout=30)
-        if not to_alice:
-            testing.expect.check("<mail to alice>",
-                                 "<expected mail not received>")
+        mailbox.pop(accept=[to("alice"),
+                            about("Updated Review: %s" % SUMMARY)],
+                    timeout=30)
 
-        to_alice = mailbox.pop(accept=[to("alice"),
-                                       about("Rebased Review: %s" % SUMMARY)],
-                               timeout=30)
-        if not to_alice:
-            testing.expect.check("<mail to alice>",
-                                 "<expected mail not received>")
+        mailbox.pop(accept=[to("alice"),
+                            about("Rebased Review: %s" % SUMMARY)],
+                    timeout=30)

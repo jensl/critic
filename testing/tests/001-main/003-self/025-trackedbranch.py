@@ -74,14 +74,14 @@ with repository.workcopy() as work, frontend.signin():
         "triggertrackedbranchupdate",
         data={ "branch_id": branch_id })
 
-    to_admin = testing.mailbox.to_recipient("admin@example.org")
-    admin_subject = testing.mailbox.with_subject(
+    to_admin = testing.mailbox.ToRecipient("admin@example.org")
+    admin_subject = testing.mailbox.WithSubject(
         "branchtracker.log: update of branch %s from %s in %s failed"
         % (BRANCH_NAME, BRANCH_NAME, repository.url))
     mailbox.pop(accept=[to_admin, admin_subject], timeout=5)
 
-    to_alice = testing.mailbox.to_recipient("alice@example.org")
-    alice_subject = testing.mailbox.with_subject(
+    to_alice = testing.mailbox.ToRecipient("alice@example.org")
+    alice_subject = testing.mailbox.WithSubject(
         "%s: update from %s in %s" % (BRANCH_NAME, BRANCH_NAME, repository.url))
     mailbox.pop(accept=[to_alice, alice_subject], timeout=5)
 

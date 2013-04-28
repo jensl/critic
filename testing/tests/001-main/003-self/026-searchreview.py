@@ -39,10 +39,10 @@ packages in the instance and retake the snapshot afterwards.""",
 FAILED = False
 
 def to(name):
-    return testing.mailbox.to_recipient("%s@example.org" % name)
+    return testing.mailbox.ToRecipient("%s@example.org" % name)
 
 def about(subject):
-    return testing.mailbox.with_subject(subject)
+    return testing.mailbox.WithSubject(subject)
 
 with repository.workcopy() as work:
     work.run(["remote", "add", "critic",

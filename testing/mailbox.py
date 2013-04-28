@@ -23,6 +23,13 @@ import base64
 
 import testing
 
+class MissingMail(testing.TestFailure):
+    def __init__(self, criteria, timeout):
+        super(MissingMail, self).__init__(
+            "No mail matching [%s] received in %d seconds" % (criteria, timeout))
+        self.criteria = criteria
+        self.timeout = timeout
+
 class User(object):
     def __init__(self, name, address):
         self.name = name
@@ -265,7 +272,7 @@ class Mailbox(object):
             self.queued.append(mail)
             self.condition.notify()
 
-    def pop(self, accept=None, timeout=0):
+    def pop(self, accept=None, timeout=5):
         def is_accepted(mail):
             if accept is None:
                 return True
@@ -288,7 +295,7 @@ class Mailbox(object):
                     self.condition.wait(use_timeout)
                 else:
                     break
-        return None
+        raise MissingMail(accept, timeout)
 
     def reset(self):
         with self.condition:
@@ -303,11 +310,13 @@ class Mailbox(object):
 
     def check_empty(self):
         while True:
-            unexpected = self.pop(timeout=1)
-            if unexpected is None:
-                return
-            testing.logger.error("Unexpected mail to <%s>:\n%s"
-                                 % (unexpected.recipient, unexpected))
+            try:
+                unexpected = self.pop(timeout=0)
+            except MissingMail:
+                break
+            else:
+                testing.logger.error("Unexpected mail to <%s>:\n%s"
+                                     % (unexpected.recipient, unexpected))
 
     @property
     def port(self):
@@ -320,13 +329,18 @@ class Mailbox(object):
         self.stop()
         return False
 
-def with_subject(value):
-    regexp = re.compile(value)
-    def accept(mail):
-        return regexp.match(mail.header("Subject")) is not None
-    return accept
+class WithSubject(object):
+    def __init__(self, value):
+        self.regexp = re.compile(value)
+    def __call__(self, mail):
+        return self.regexp.match(mail.header("Subject")) is not None
+    def __str__(self):
+        return "subject=%r" % self.regexp.pattern
 
-def to_recipient(address):
-    def accept(mail):
-        return mail.recipient == address
-    return accept
+class ToRecipient(object):
+    def __init__(self, address):
+        self.address = address
+    def __call__(self, mail):
+        return mail.recipient == self.address
+    def __str__(self):
+        return "recipient=<%s>" % self.address

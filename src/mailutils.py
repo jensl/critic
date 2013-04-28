@@ -28,32 +28,33 @@ def generateMessageId(index=1):
 
     return "%s.%s.%04d" % (timestamp, timestamp_ms, index)
 
-def queueMail(from_user, to_user, recipients, subject, body, review_url=None, review_association=None, review_repository=None, message_id=None, parent_message_id=None):
-    if not message_id: message_id = generateMessageId()
+def queueMail(from_user, to_user, recipients, subject, body, message_id=None,
+              parent_message_id=None, headers=None):
+    if not message_id:
+        message_id = generateMessageId()
 
-    filename = "%s/%s_%s_%s.txt.pending" % (configuration.paths.OUTBOX, from_user.name, to_user.name, message_id)
-    file = open(filename, "w")
+    if headers is None:
+        headers = {}
+    else:
+        headers = headers.copy()
 
-    headers = {}
-    if review_url:
-        headers["OperaCritic-URL"] = review_url
-    if review_association:
-        headers["OperaCritic-Association"] = review_association
-    if review_repository:
-        headers["OperaCritic-Repository"] = review_repository
     if parent_message_id:
         parent_message_id = "<%s@%s>" % (parent_message_id, configuration.base.HOSTNAME)
 
-    print >> file, repr({ "message_id": message_id,
-                          "parent_message_id": parent_message_id,
-                          "headers": headers,
-                          "from_user": from_user,
-                          "to_user": to_user,
-                          "recipients": recipients,
-                          "subject": subject,
-                          "body": body })
+    filename = "%s/%s_%s_%s.txt.pending" % (configuration.paths.OUTBOX,
+                                            from_user.name, to_user.name,
+                                            message_id)
 
-    file.close()
+    with open(filename, "w") as file:
+        print >> file, repr({ "message_id": message_id,
+                              "parent_message_id": parent_message_id,
+                              "headers": headers,
+                              "from_user": from_user,
+                              "to_user": to_user,
+                              "recipients": recipients,
+                              "subject": subject,
+                              "body": body })
+
     return filename
 
 class User:

@@ -89,18 +89,22 @@ function CriticTrackedBranch(review, remote, name, disabled)
 
 function CriticReview(arg)
 {
-  var review_id, created;
+  var review_id, created = false;
 
-  if (arg && typeof arg == "object" && arg instanceof CriticReviewCreated)
+  if (arg && typeof arg == "object")
   {
-    review_id = arg.id;
-    created = true;
+    if (arg instanceof CriticReview)
+      return arg;
+    else if (arg instanceof CriticReviewCreated)
+    {
+      review_id = arg.id;
+      created = true;
+    }
+    else
+      review_id = ~~arg;
   }
   else
-  {
     review_id = ~~arg;
-    created = false;
-  }
 
   var result = db.execute("SELECT branch, state, closed_by, dropped_by, summary, description FROM reviews WHERE id=%d", review_id)[0];
 

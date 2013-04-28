@@ -45,14 +45,8 @@ with frontend.signin("alice"):
                                      "included": ["bob"] }})
 
     def to(name):
-        return testing.mailbox.to_recipient("%s@example.org" % name)
+        return testing.mailbox.ToRecipient("%s@example.org" % name)
 
-    if not mailbox.pop(accept=to("alice"), timeout=30):
-        testing.expect.check("<mail to alice>",
-                             "<expected mail not received>")
-
-    if not mailbox.pop(accept=to("bob"), timeout=30):
-        testing.expect.check("<mail to bob>",
-                             "<expected mail not received>")
-
+    mailbox.pop(accept=to("alice"), timeout=30)
+    mailbox.pop(accept=to("bob"), timeout=30)
     mailbox.check_empty()

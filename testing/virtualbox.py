@@ -488,7 +488,7 @@ class Instance(object):
         if not quick:
             try:
                 testmail = self.mailbox.pop(
-                    testing.mailbox.with_subject("Test email from Critic"),
+                    testing.mailbox.WithSubject("Test email from Critic"),
                     timeout=3)
 
                 if not testmail:

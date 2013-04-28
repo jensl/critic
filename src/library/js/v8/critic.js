@@ -169,6 +169,7 @@ Module.assign("CommitSet", CriticCommitSet);
 Module.assign("Filters", CriticFilters);
 Module.assign("Statistics", CriticStatistics);
 Module.assign("Storage", CriticStorage);
+Module.assign("MailTransaction", CriticMailTransaction);
 Module.assign("Log", CriticLog);
 Module.assign("html", CriticHtml);
 Module.assign("text", Object.freeze({ reflow: reflow }));

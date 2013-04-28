@@ -16,10 +16,10 @@ def lines(*args):
                      for index, line in enumerate(NONSENSE.splitlines()))
 
 def to(name):
-    return testing.mailbox.to_recipient("%s@example.org" % name)
+    return testing.mailbox.ToRecipient("%s@example.org" % name)
 
 def about(subject):
-    return testing.mailbox.with_subject(subject)
+    return testing.mailbox.WithSubject(subject)
 
 work = repository.workcopy()
 signin = frontend.signin("alice")
@@ -58,13 +58,9 @@ with work, signin:
 
     def expectmail(title):
         review = reviews[-1]
-        mail = mailbox.pop(
-            accept=[to("alice"),
-                    about("%s: %s" % (title, review["summary"]))],
-            timeout=30)
-        if not mail:
-            testing.expect.check("<expected '%s' mail>" % title,
-                                 "<no mail received>")
+        mailbox.pop(accept=[to("alice"),
+                            about("%s: %s" % (title, review["summary"]))],
+                    timeout=30)
 
     def expecthead(expected):
         """Check that the review branch in Critic's repository is where we want

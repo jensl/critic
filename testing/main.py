@@ -356,14 +356,16 @@ first or run this script without --test-extensions.""")
                         if failure.message:
                             logger.error(failure.message)
                         while True:
-                            mail = mailbox.pop(
-                                accept=testing.mailbox.to_recipient("admin@example.org"),
-                                timeout=1)
-                            if not mail:
+                            try:
+                                mail = mailbox.pop(
+                                    accept=testing.mailbox.ToRecipient("admin@example.org"),
+                                    timeout=1)
+                            except testing.mailbox.MissingMail:
                                 break
-                            logger.error("Administrator message: %s\n  %s"
-                                         % (mail.header("Subject"),
-                                            "\n  ".join(mail.lines)))
+                            else:
+                                logger.error("Administrator message: %s\n  %s"
+                                             % (mail.header("Subject"),
+                                                "\n  ".join(mail.lines)))
                         if arguments.pause_on_failure:
                             pause()
                         if "/" in directory:

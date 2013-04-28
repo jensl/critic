@@ -66,14 +66,8 @@ with frontend.signin("alice"):
     subject = r"\[Critic\] Please verify your email: " + RE_ALICE_AT_WONDERLAND
 
     verification_mail = mailbox.pop(
-        accept=[testing.mailbox.to_recipient(ALICE_AT_WONDERLAND),
-                testing.mailbox.with_subject(subject)],
-        timeout=5)
-
-    if not verification_mail:
-        testing.expect.check(
-            "<verification mail to %s>" % ALICE_AT_WONDERLAND,
-            "<no mail received>")
+        accept=[testing.mailbox.ToRecipient(ALICE_AT_WONDERLAND),
+                testing.mailbox.WithSubject(subject)])
 
     # Extract the verification link from the verification mail.
 
@@ -95,15 +89,8 @@ with frontend.signin("alice"):
         "requestverificationemail",
         data={ "email_id": alice_at_wonderland_id })
 
-    verification_mail = mailbox.pop(
-        accept=[testing.mailbox.to_recipient(ALICE_AT_WONDERLAND),
-                testing.mailbox.with_subject(subject)],
-        timeout=5)
-
-    if not verification_mail:
-        testing.expect.check(
-            "<verification mail to %s>" % ALICE_AT_WONDERLAND,
-            "<no mail received>")
+    mailbox.pop(accept=[testing.mailbox.ToRecipient(ALICE_AT_WONDERLAND),
+                        testing.mailbox.WithSubject(subject)])
 
     # Verify the new email address.
 

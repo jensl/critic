@@ -71,7 +71,7 @@ with frontend.signin("alice"):
         expect={ "review_id": 1 })
 
     def to(name):
-        return testing.mailbox.to_recipient("%s@example.org" % name)
+        return testing.mailbox.ToRecipient("%s@example.org" % name)
 
     def check_initial(mail):
         testing.expect.check("New Review: %s" % COMMIT_SUMMARY,
@@ -81,32 +81,20 @@ with frontend.signin("alice"):
             testing.expect.check("<%r line>" % line,
                                  "<expected content not found>")
 
-    to_alice = mailbox.pop(accept=to("alice"), timeout=30)
-    if to_alice:
-        check_initial(to_alice)
-        testing.expect.check("owner",
-                             to_alice.header("OperaCritic-Association"))
-    else:
-        testing.expect.check("<mail to alice>",
-                             "<expected mail not received>")
+    to_alice = mailbox.pop(accept=to("alice"))
+    check_initial(to_alice)
+    testing.expect.check("owner",
+                         to_alice.header("OperaCritic-Association"))
 
-    to_bob = mailbox.pop(accept=to("bob"), timeout=30)
-    if to_bob:
-        check_initial(to_bob)
-        testing.expect.check("reviewer",
-                             to_bob.header("OperaCritic-Association"))
-    else:
-        testing.expect.check("<mail to bob>",
-                             "<expected mail not received>")
+    to_bob = mailbox.pop(accept=to("bob"))
+    check_initial(to_bob)
+    testing.expect.check("reviewer",
+                         to_bob.header("OperaCritic-Association"))
 
-    to_dave = mailbox.pop(accept=to("dave"), timeout=30)
-    if to_dave:
-        check_initial(to_dave)
-        testing.expect.check("watcher",
-                             to_dave.header("OperaCritic-Association"))
-    else:
-        testing.expect.check("<mail to dave>",
-                             "<expected mail not received>")
+    to_dave = mailbox.pop(accept=to("dave"))
+    check_initial(to_dave)
+    testing.expect.check("watcher",
+                         to_dave.header("OperaCritic-Association"))
 
     mailbox.check_empty()
 
@@ -128,25 +116,13 @@ with frontend.signin("alice"):
             testing.expect.check("<%r line>" % line,
                                  "<expected content not found>")
 
-    to_alice = mailbox.pop(accept=to("alice"), timeout=30)
-    if to_alice:
-        check_followup(to_alice)
-    else:
-        testing.expect.check("<mail to alice>",
-                             "<expected mail not received>")
+    to_alice = mailbox.pop(accept=to("alice"))
+    check_followup(to_alice)
 
-    to_bob = mailbox.pop(accept=to("bob"), timeout=30)
-    if to_bob:
-        check_followup(to_bob)
-    else:
-        testing.expect.check("<mail to bob>",
-                             "<expected mail not received>")
+    to_bob = mailbox.pop(accept=to("bob"))
+    check_followup(to_bob)
 
-    to_dave = mailbox.pop(accept=to("dave"), timeout=30)
-    if to_dave:
-        check_followup(to_dave)
-    else:
-        testing.expect.check("<mail to dave>",
-                             "<expected mail not received>")
+    to_dave = mailbox.pop(accept=to("dave"))
+    check_followup(to_dave)
 
     mailbox.check_empty()

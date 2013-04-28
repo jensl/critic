@@ -13,12 +13,7 @@ def issuffix(expected, actual):
     return actual.endswith(expected)
 
 def expect_admin_mail(subject):
-    admin_mail = mailbox.pop(
-        testing.mailbox.to_recipient("admin@example.org"), timeout=5)
-
-    if not admin_mail:
-        testing.expect.check("<admin mail>", "<no admin mail received>")
-
+    admin_mail = mailbox.pop(testing.mailbox.ToRecipient("admin@example.org"))
     testing.expect.check(subject, admin_mail.headers["subject"][0]["value"])
 
 def start_externalauth(name):
@@ -297,12 +292,5 @@ with frontend.signin(username=None):
 
     subject = r"\[Critic\] Please verify your email: gina@example\.org"
 
-    verification_mail = mailbox.pop(
-        accept=[testing.mailbox.to_recipient("gina@example.org"),
-                testing.mailbox.with_subject(subject)],
-        timeout=5)
-
-    if not verification_mail:
-        testing.expect.check(
-            "<verification mail to gina@example.org>",
-            "<no mail received>")
+    mailbox.pop(accept=[testing.mailbox.ToRecipient("gina@example.org"),
+                        testing.mailbox.WithSubject(subject)])

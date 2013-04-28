@@ -48,7 +48,9 @@ function CriticUser(data)
 {
   var user_id;
 
-  if (typeof data == "number")
+  if (data && typeof data == "object" && data instanceof CriticUser)
+    return data;
+  else if (typeof data == "number")
     user_id = data;
   else if (data.id)
     user_id = data.id;

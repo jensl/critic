@@ -2,10 +2,10 @@ import os
 import re
 
 def to(name):
-    return testing.mailbox.to_recipient("%s@example.org" % name)
+    return testing.mailbox.ToRecipient("%s@example.org" % name)
 
 def about(subject):
-    return testing.mailbox.with_subject(subject)
+    return testing.mailbox.WithSubject(subject)
 
 FILENAME = "008-root-commit-pending.txt"
 SUMMARY = "Added %s" % FILENAME
@@ -54,10 +54,6 @@ with frontend.signin("alice"):
         push()
 
         to_alice = mailbox.pop(accept=to("alice"), timeout=30)
-        if not to_alice:
-            testing.expect.check("<mail to alice>",
-                                 "<expected mail not received>")
-
         testing.expect.check("New Review: %s" % SUMMARY,
                              to_alice.header("Subject"))
 
@@ -84,10 +80,6 @@ with frontend.signin("alice"):
         push()
 
         to_alice = mailbox.pop(accept=to("alice"), timeout=30)
-        if not to_alice:
-            testing.expect.check("<mail to alice>",
-                                 "<expected mail not received>")
-
         testing.expect.check("Updated Review: %s" % SUMMARY,
                              to_alice.header("Subject"))
 
@@ -98,19 +90,12 @@ with frontend.signin("alice"):
                              "user_names": ["bob"],
                              "paths": ["/"] }] })
 
-    to_bob = mailbox.pop(
+    mailbox.pop(
         accept=(to("bob"), about(r"New\(ish\) Review: %s" % SUMMARY)),
         timeout=30)
-    if not to_bob:
-        testing.expect.check("<mail to bob>",
-                             "<expected mail not received>")
-
-    to_bob = mailbox.pop(
+    mailbox.pop(
         accept=(to("bob"), about("Updated Review: %s" % SUMMARY)),
         timeout=30)
-    if not to_bob:
-        testing.expect.check("<mail to bob>",
-                             "<expected mail not received>")
 
 def check_squashed_history(sha1s):
     def check(document):

@@ -20,8 +20,8 @@ import re
 
 REMOTE_URL = "alice@%s:/var/git/critic.git" % instance.hostname
 
-to_recipient = testing.mailbox.to_recipient
-with_subject = testing.mailbox.with_subject
+to_recipient = testing.mailbox.ToRecipient
+with_subject = testing.mailbox.WithSubject
 
 with repository.workcopy() as workcopy:
     def commit(filename, author):
@@ -41,10 +41,6 @@ with repository.workcopy() as workcopy:
             accept=[to_recipient(recipient + "@example.org"),
                     with_subject("(New|Updated) Review: Edited cat.txt")],
             timeout=5)
-
-        if not mail:
-            testing.expect.check("<mail to %s>" % recipient,
-                                 "<no matching mail received>")
 
         assigned_files = []
 

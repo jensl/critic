@@ -31,13 +31,21 @@ import utils as review_utils
 
 import time
 
-def sendMail(db, review, message_id, from_user, to_user, recipients, subject, body, parent_message_id=None):
+def sendMail(db, review, message_id, from_user, to_user, recipients, subject, body,
+             parent_message_id=None, headers=None):
+    if headers is None:
+        headers = {}
+    else:
+        headers = headers.copy()
+
+    headers["OperaCritic-URL"] = review.getURL(db, to_user, separator=", ")
+    headers["OperaCritic-Association"] = review.getUserAssociation(db, to_user)
+    headers["OperaCritic-Repository"] = review.repository.getURL(db, to_user)
+
     return queueMail(from_user, to_user, recipients, subject, body,
-                     review_url=review.getURL(db, to_user, separator=", "),
-                     review_association=review.getUserAssociation(db, to_user),
-                     review_repository=review.repository.getURL(db, to_user),
                      message_id=message_id,
-                     parent_message_id=parent_message_id)
+                     parent_message_id=parent_message_id,
+                     headers=headers)
 
 def generateSubjectLine(db, user, review, item):
     format = user.getPreference(db, "email.subjectLine.%s" % item)

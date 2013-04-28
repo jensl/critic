@@ -2,10 +2,10 @@ import os
 import re
 
 def to(name):
-    return testing.mailbox.to_recipient("%s@example.org" % name)
+    return testing.mailbox.ToRecipient("%s@example.org" % name)
 
 def about(subject):
-    return testing.mailbox.with_subject(subject)
+    return testing.mailbox.WithSubject(subject)
 
 FILENAME = "008-processcommits.txt"
 SUMMARY = "Added %s" % FILENAME
@@ -73,12 +73,9 @@ with frontend.signin("alice"):
                               "%s" % first_commit[:8]],
                              extension_lines)
 
-        to_alice = mailbox.pop(accept=[to("alice"),
-                                       about("New Review: %s" % SUMMARY)],
-                               timeout=30)
-        if not to_alice:
-            testing.expect.check("<mail to alice>",
-                                 "<expected mail not received>")
+        mailbox.pop(accept=[to("alice"),
+                            about("New Review: %s" % SUMMARY)],
+                    timeout=30)
 
         with open(os.path.join(work.path, FILENAME), "a") as text_file:
             print >>text_file, "Second line."
@@ -103,9 +100,6 @@ with frontend.signin("alice"):
                                             second_commit[:8])],
                              extension_lines)
 
-        to_alice = mailbox.pop(accept=[to("alice"),
-                                       about("Updated Review: %s" % SUMMARY)],
-                               timeout=30)
-        if not to_alice:
-            testing.expect.check("<mail to alice>",
-                                 "<expected mail not received>")
+        mailbox.pop(accept=[to("alice"),
+                            about("Updated Review: %s" % SUMMARY)],
+                    timeout=30)

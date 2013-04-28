@@ -52,22 +52,11 @@ with frontend.signin("alice"):
                                      "excluded": ["erin"] }})
 
     def to(name):
-        return testing.mailbox.to_recipient("%s@example.org" % name)
+        return testing.mailbox.ToRecipient("%s@example.org" % name)
 
-    to_alice = mailbox.pop(accept=to("alice"), timeout=30)
-    if not to_alice:
-        testing.expect.check("<mail to alice>",
-                             "<expected mail not received>")
-
-    to_bob = mailbox.pop(accept=to("bob"), timeout=30)
-    if not to_bob:
-        testing.expect.check("<mail to bob>",
-                             "<expected mail not received>")
-
-    to_dave = mailbox.pop(accept=to("dave"), timeout=30)
-    if not to_dave:
-        testing.expect.check("<mail to dave>",
-                             "<expected mail not received>")
+    mailbox.pop(accept=to("alice"), timeout=30)
+    mailbox.pop(accept=to("bob"), timeout=30)
+    mailbox.pop(accept=to("dave"), timeout=30)
 
     mailbox.check_empty()
 

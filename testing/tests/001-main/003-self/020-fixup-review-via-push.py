@@ -1,10 +1,10 @@
 import os
 
 def to(name):
-    return testing.mailbox.to_recipient("%s@example.org" % name)
+    return testing.mailbox.ToRecipient("%s@example.org" % name)
 
 def about(subject):
-    return testing.mailbox.with_subject(subject)
+    return testing.mailbox.WithSubject(subject)
 
 FILENAME = "020-fixup-review-via-push.txt"
 
@@ -34,10 +34,6 @@ Relevant summary
         work.run(["push", "-q", "critic",
                   "HEAD:refs/heads/r/020-fixup-review-via-push"])
 
-        to_alice = mailbox.pop(
+        mailbox.pop(
             accept=[to("alice"), about("New Review: Relevant summary")],
             timeout=30)
-
-        if not to_alice:
-            testing.expect.check("<'New Review' mail to alice>",
-                                 "<expected mail not received>")

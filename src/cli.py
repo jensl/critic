@@ -15,11 +15,14 @@
 # the License.
 
 import sys
+import traceback
 
 import dbutils
 import gitutils
+import mailutils
 import reviewing.utils
 import reviewing.filters
+import reviewing.mail
 
 from textutils import json_encode, json_decode
 
@@ -45,6 +48,39 @@ def abort():
         db.rollback()
         db.close()
         db = None
+
+def sendCustomMail(from_user, recipients, subject, headers, body, review):
+    assert recipients is not None or review is not None
+
+    if review:
+        if recipients is None:
+            recipients = review.getRecipients(db)
+
+    files = []
+
+    for to_user in recipients:
+        if not to_user.getPreference(db, "email.activated") \
+               or to_user.status == "retired":
+            continue
+
+        if review:
+            parent_message_id = reviewing.mail.getReviewMessageId(
+                db, to_user, review, files)
+
+        message_id = mailutils.generateMessageId(len(files) + 1)
+
+        if review:
+            filename = reviewing.mail.sendMail(
+                db, review, message_id, from_user, to_user, recipients, subject,
+                body, parent_message_id, headers)
+        else:
+            filename = mailutils.queueMail(
+                from_user, to_user, recipients, subject, body,
+                message_id=message_id, headers=headers)
+
+        files.append(filename)
+
+    return files
 
 try:
     if len(sys.argv) > 1:
@@ -78,13 +114,33 @@ try:
                     filters.setFiles(db, file_ids=data["file_ids"])
                     filters.load(db, repository=repository, recursive=data.get("recursive", False), user=user)
                 sys.stdout.write(json_encode(filters.data) + "\n")
+            elif command == "generate-custom-mails":
+                pending_mails = []
+                for data in json_decode(sys.stdin.readline()):
+                    from_user = dbutils.User.fromId(db, data["sender"])
+                    if data.get("recipients"):
+                        recipients = [dbutils.User.fromId(db, user_id)
+                                      for user_id in data["recipients"]]
+                    else:
+                        recipients = None
+                    subject = data["subject"]
+                    headers = data.get("headers")
+                    body = data["body"]
+                    if "review_id" in data:
+                        review = dbutils.Review.fromId(db, data["review_id"])
+                    else:
+                        review = None
+                    pending_mails.extend(sendCustomMail(
+                        from_user, recipients, subject, headers, body, review))
             else:
-                print "unknown command: %s" % command
-                sys.exit(1)
+                sys.stdout.write(json_encode("unknown command: %s" % command) + "\n")
+                sys.exit(0)
 
             if pending_mails is not None:
                 sys.stdout.write(json_encode(pending_mails) + "\n")
 
         finish()
+except Exception:
+    sys.stdout.write(json_encode(traceback.format_exc()) + "\n")
 finally:
     abort()

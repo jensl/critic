@@ -65,12 +65,13 @@ with frontend.signin():
         # 404, and a BeautifulSoup object if it was 200.
         if frontend.page("critic/master", expected_http_status=[200, 404]) is None:
             time.sleep(0.5)
-            while True:
-                mail = mailbox.pop(accept=testing.mailbox.with_subject("^branchtracker.log: "))
-                if not mail:
-                    break
-                logger.error("Administrator message: %s\n > %s"
-                             % (mail.header("Subject"), "\n > ".join(mail.lines)))
+            try:
+                mailbox.pop(
+                    accept=testing.mailbox.WithSubject("^branchtracker.log: "),
+                    timeout=0)
+            except testing.mailbox.MissingMail:
+                pass
+            else:
                 raise testing.TestFailure
         else:
             finished = True
