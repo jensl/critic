@@ -41,6 +41,8 @@ def queueMail(from_user, to_user, recipients, subject, body, review_url=None, re
         headers["OperaCritic-Association"] = review_association
     if review_repository:
         headers["OperaCritic-Repository"] = review_repository
+    if parent_message_id:
+        parent_message_id = "<%s@%s>" % (parent_message_id, configuration.base.HOSTNAME)
 
     print >> file, repr({ "message_id": message_id,
                           "parent_message_id": parent_message_id,
