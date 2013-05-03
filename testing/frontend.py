@@ -123,6 +123,13 @@ class Frontend(object):
         logger.debug("Fetched page: %s" % full_url)
         logger.debug("Checking page: %s ..." % full_url)
 
+        div_fatal = document.find("div", attrs={ "class": "fatal" })
+        if div_fatal:
+            message = div_fatal.find("pre")
+            logger.error("Page '%s': crash during incremental page generation:\n%s"
+                         % (url, message.string if message else "<no message found>"))
+            raise testing.TestFailure
+
         failed_checks = False
 
         for key, check in expect.items():
