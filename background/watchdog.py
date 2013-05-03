@@ -20,6 +20,7 @@ import os.path
 import time
 import signal
 import errno
+import multiprocessing
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(sys.argv[0]), "..")))
 
@@ -45,12 +46,73 @@ class Watchdog(BackgroundProcess):
 
         super(Watchdog, self).__init__(service=service)
 
+        cpu_count = multiprocessing.cpu_count()
+
+        self.load1_limit = service.get("load1_limit", 0) * cpu_count
+        self.load5_limit = service.get("load5_limit", 0) * cpu_count
+        self.load15_limit = service.get("load15_limit", 0) * cpu_count
+
     def run(self):
         soft_restart_attempted = set()
         previous = {}
 
+        getloadavg_failed = False
+        load1_has_warned = 0
+        load1_last_time = 0
+        load5_has_warned = 0
+        load5_last_time = 0
+        load15_has_warned = 0
+        load15_last_time = 0
+
         while not self.terminated:
             self.interrupted = False
+
+            def sendLoadAverageWarning(interval, limit, load):
+                cpu_count = multiprocessing.cpu_count()
+                sendAdministratorMessage("watchdog", "%d-minute load average" % interval,
+                                         ("The current %d-minute load average is %.2f!\n" % (interval, load)) +
+                                         ("The configured limit is %.2f (%.2f x %d CPUs).\n" % (limit, limit / cpu_count, cpu_count)) +
+                                         "\n" +
+                                         "-- critic\n")
+
+            try:
+                load1, load5, load15 = os.getloadavg()
+                self.debug("load average: %r, %r, %r" % (load1, load5, load15))
+            except OSError:
+                load1, load5, load15 = 0, 0, 0
+
+                if not getloadavg_failed:
+                    self.exception("failed to detect system load average")
+                    getloadavg_failed = True
+
+            now = time.time()
+
+            if self.load1_limit and load1 > self.load1_limit:
+                if load1 > load1_has_warned * 1.2 or now - load1_last_time > 60:
+                    sendLoadAverageWarning(1, self.load1_limit, load1)
+                    load1_has_warned = load1
+                    load1_last_time = now
+            else:
+                load1_has_warned = 0
+                load1_last_time = 0
+
+                if self.load5_limit and load5 > self.load5_limit:
+                    if load5 > load5_has_warned * 1.2 or now - load5_last_time > 5 * 60:
+                        sendLoadAverageWarning(5, self.load5_limit, load5)
+                        load5_has_warned = load5
+                        load5_last_time = now
+                else:
+                    load5_has_warned = 0
+                    load5_last_time = 0
+
+                    if self.load15_limit and load15 > self.load15_limit:
+                        if load15 > load15_has_warned * 1.2 or now - load15_last_time > 15 * 60:
+                            sendLoadAverageWarning(15, self.load15_limit, load15)
+                            load15_has_warned = load15
+                            load15_last_time = now
+                    else:
+                        load15_has_warned = 0
+                        load15_last_time = 0
 
             pidfile_dir = configuration.paths.WSGI_PIDFILE_DIR
 
