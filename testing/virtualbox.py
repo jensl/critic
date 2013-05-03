@@ -66,7 +66,7 @@ class Instance(object):
         self.vboxhost = vboxhost
         self.identifier = identifier
         self.snapshot = snapshot
-        self.hostname = hostname
+        self.hostname = hostname or identifier
         self.ssh_port = ssh_port
         if install_commit:
             self.install_commit, self.install_commit_description = install_commit

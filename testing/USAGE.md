@@ -98,15 +98,19 @@ root of that repository, run
 
     $ python -m testing.main ARGS
 
-Two arguments are required,
+One argument is required,
 
     --vm-identifier=NAME|UUID
 
-which specifies which VirtualBox instance to run the tests in, and
+which specifies which VirtualBox instance to run the tests in.
+
+Unless its hostname is the same as the VM instance name specified by the
+--vm-identifier argument, the argument
 
     --vm-hostname=HOSTNAME
 
-which specifies how to address the VirtualBox instance from the host system.
+must be used to specify how to address the VirtualBox instance from the host
+system.
 
 Note: this hostname only needs to work on the host system, and need not be the
 hostname that the guest OS has been configured with.

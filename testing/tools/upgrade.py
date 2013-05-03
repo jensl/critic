@@ -24,7 +24,7 @@ def main():
     parser.add_argument("--debug", help="Enable DEBUG level logging", action="store_true")
     parser.add_argument("--quiet", help="Disable INFO level logging", action="store_true")
     parser.add_argument("--vm-identifier", help="VirtualBox instance name or UUID", required=True)
-    parser.add_argument("--vm-hostname", help="VirtualBox instance hostname", required=True)
+    parser.add_argument("--vm-hostname", help="VirtualBox instance hostname [default=VM_IDENTIFIER]")
     parser.add_argument("--vm-snapshot", help="VirtualBox snapshot (name or UUID) to upgrade", default="clean")
     parser.add_argument("--vm-ssh-port", help="VirtualBox instance SSH port [default=22]", type=int, default=22)
     parser.add_argument("--pause-before-upgrade", help="Pause before upgrading", action="store_true")

@@ -32,8 +32,8 @@ def main():
     parser.add_argument("--strict-fs-permissions", help="Set strict file-system permissions in guest OS", action="store_true")
     parser.add_argument("--vbox-host", help="Host that's running VirtualBox [default=host]", default="host")
     parser.add_argument("--vm-identifier", help="VirtualBox instance name or UUID", required=True)
-    parser.add_argument("--vm-hostname", help="VirtualBox instance hostname", required=True)
-    parser.add_argument("--vm-snapshot", help="VirtualBox snapshot (name or UUID) to restore", default="clean")
+    parser.add_argument("--vm-hostname", help="VirtualBox instance hostname [default=VM_IDENTIFIER]")
+    parser.add_argument("--vm-snapshot", help="VirtualBox snapshot (name or UUID) to restore [default=clean]", default="clean")
     parser.add_argument("--vm-ssh-port", help="VirtualBox instance SSH port [default=22]", type=int, default=22)
     parser.add_argument("--vm-http-port", help="VirtualBox instance HTTP port [default=80]", type=int, default=80)
     parser.add_argument("--git-daemon-port", help="Port to tell 'git daemon' to bind to", type=int)
@@ -113,7 +113,7 @@ def main():
 
     try:
         frontend = testing.frontend.Frontend(
-            hostname=arguments.vm_hostname,
+            hostname=arguments.vm_hostname or arguments.vm_identifier,
             http_port=arguments.vm_http_port)
 
         instance = testing.virtualbox.Instance(
