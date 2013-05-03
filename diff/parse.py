@@ -267,7 +267,7 @@ def parseDifferences(repository, commit=None, from_commit=None, to_commit=None, 
 
             try: line = lines.next()
             except:
-                if new_mode is not None:
+                if old_mode is not None or new_mode is not None:
                     assert names[0] == names[1]
 
                     addFile(diff.File(None, names[0], old_sha1, new_sha1, repository,
