@@ -256,8 +256,13 @@ table.file > tbody.lines > tr > td.line {
                 file.loadOldLines(True, request_highlight=True)
                 file.loadNewLines(True, request_highlight=True)
 
-                lines = diff.context.ContextLines(file, file.chunks, comment_chains_per_file.get(file.path, []), merge=options.get("merge", False), conflicts=changeset.conflicts)
-                file.macro_chunks = lines.getMacroChunks(context_lines, highlight=True)
+                if not file.isEmptyChanges():
+                    lines = diff.context.ContextLines(
+                        file, file.chunks, comment_chains_per_file.get(file.path, []),
+                        merge=options.get("merge", False), conflicts=changeset.conflicts)
+                    file.macro_chunks = lines.getMacroChunks(context_lines, highlight=True)
+                else:
+                    file.macro_chunks = []
             else:
                 file.macro_chunks = []
 
@@ -366,7 +371,7 @@ def renderFile(db, target, user, review, file, first_file=False, options={}, con
     deleted_file = False
     added_file = False
 
-    if not file.isBinaryChanges():
+    if not file.isBinaryChanges() and not file.isEmptyChanges():
         if file.old_sha1 == 40 * '0':
             display_type = "new"
 
@@ -457,59 +462,68 @@ def renderFile(db, target, user, review, file, first_file=False, options={}, con
         row.td(colspan=4).h2().text("File was %s." % verb)
         row.td(colspan=2).text()
 
-        row = tbody.tr('deleted')
-        row.td(colspan=2).text()
-        row.td(colspan=4).button(onclick="fetchFile(%d, '%s', event.currentTarget.parentNode.parentNode.parentNode);" % (file.id, side)).text("Fetch %d %s Lines" % (count, verb.capitalize()))
-        row.td(colspan=2).text()
+        if not file.isEmptyChanges():
+            row = tbody.tr('deleted')
+            row.td(colspan=2).text()
+            row.td(colspan=4).button(onclick="fetchFile(%d, '%s', event.currentTarget.parentNode.parentNode.parentNode);" % (file.id, side)).text("Fetch %d %s Lines" % (count, verb.capitalize()))
+            row.td(colspan=2).text()
 
         table.tbody('spacer').tr('spacer').td(colspan=8).text()
-    elif file.isBinaryChanges():
+    elif file.isBinaryChanges() or file.isEmptyChanges():
         table.tbody('spacer').tr('spacer').td(colspan=8).text()
 
-        binary = table.tbody('binary')
+        if file.isBinaryChanges():
+            title = "Binary"
+            class_name = "binary"
+        else:
+            title = "Empty"
+            class_name = "empty"
+
+        tbody = table.tbody(class_name)
 
         if file.wasAdded():
-            title = "Binary file added."
+            title += " file added."
         elif file.wasRemoved():
-            title = "Binary file removed."
+            title += " file removed."
         else:
-            title = "Binary file modified."
+            title += " file modified."
 
-        row = binary.tr('binary')
+        row = tbody.tr(class_name)
         row.td(colspan=2).text()
         row.td(colspan=4).h2().text(title)
         row.td(colspan=2).text()
 
-        row = binary.tr('download')
-        row.td(colspan=2).text()
-        cell = row.td(colspan=4)
+        if file.isBinaryChanges():
+            row = tbody.tr('download')
+            row.td(colspan=2).text()
+            cell = row.td(colspan=4)
 
-        def linkToFile(target, file, sha1):
-            is_image = False
+            def linkToFile(target, file, sha1):
+                is_image = False
 
-            try:
-                base, extension = file.path.rsplit(".")
-                if configuration.mimetypes.MIMETYPES.get(extension, "").startswith("image/"):
-                    is_image = True
-            except:
-                pass
+                try:
+                    base, extension = file.path.rsplit(".")
+                    if configuration.mimetypes.MIMETYPES.get(extension, "").startswith("image/"):
+                        is_image = True
+                except:
+                    pass
 
-            url = "download/%s?sha1=%s&repository=%d" % (file.path, sha1, file.repository.id)
-            link = target.a(href=url)
+                url = "download/%s?sha1=%s&repository=%d" % (file.path, sha1, file.repository.id)
+                link = target.a(href=url)
 
-            if is_image: link.img(src=url)
-            else: link.text(sha1)
+                if is_image: link.img(src=url)
+                else: link.text(sha1)
 
-        if file.wasAdded():
-            linkToFile(cell, file, file.new_sha1)
-        elif file.wasRemoved():
-            linkToFile(cell, file, file.old_sha1)
-        else:
-            linkToFile(cell, file, file.old_sha1)
-            cell.innerHTML(" &#8594; ")
-            linkToFile(cell, file, file.new_sha1)
+            if file.wasAdded():
+                linkToFile(cell, file, file.new_sha1)
+            elif file.wasRemoved():
+                linkToFile(cell, file, file.old_sha1)
+            else:
+                linkToFile(cell, file, file.old_sha1)
+                cell.innerHTML(" &#8594; ")
+                linkToFile(cell, file, file.new_sha1)
 
-        row.td(colspan=2).text()
+            row.td(colspan=2).text()
 
         table.tbody('spacer').tr('spacer').td(colspan=8).text()
     else:
