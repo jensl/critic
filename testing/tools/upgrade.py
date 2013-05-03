@@ -29,6 +29,7 @@ def main():
     parser.add_argument("--vm-ssh-port", help="VirtualBox instance SSH port [default=22]", type=int, default=22)
     parser.add_argument("--pause-before-upgrade", help="Pause before upgrading", action="store_true")
     parser.add_argument("--pause-after-upgrade", help="Pause after upgrading", action="store_true")
+    parser.add_argument("--install", action="append", help="Install named package")
 
     arguments = parser.parse_args()
 
@@ -58,7 +59,22 @@ def main():
 
         logger.debug("Output from 'apt-get -q -y upgrade':\n" + upgrade_output)
 
+        retake_snapshot = False
+
         if "The following packages will be upgraded:" in upgrade_output.splitlines():
+            retake_snapshot = True
+
+        if arguments.install:
+            install_output = instance.execute(
+                ["sudo", "DEBIAN_FRONTEND=noninteractive",
+                 "apt-get", "-q", "-y", "install"] + arguments.install)
+
+            logger.debug("Output from 'apt-get -q -y install':\n" +
+                         install_output)
+
+            retake_snapshot = True
+
+        if retake_snapshot:
             logger.info("Upgraded guest OS")
             logger.debug("Retaking snapshot ...")
 
