@@ -14,9 +14,13 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
+import os
 import subprocess
 import time
 import logging
+import fcntl
+import select
+import errno
 
 import testing
 
@@ -37,6 +41,9 @@ def flag_minimum_password_hash_time(commit_sha1):
     else:
         return True
 
+def setnonblocking(fd):
+    fcntl.fcntl(fd, fcntl.F_SETFL, fcntl.fcntl(fd, fcntl.F_GETFL) | os.O_NONBLOCK)
+
 class HostCommandError(testing.InstanceError):
     def __init__(self, command, output):
         super(HostCommandError, self).__init__(
@@ -45,11 +52,12 @@ class HostCommandError(testing.InstanceError):
         self.output = output
 
 class GuestCommandError(testing.InstanceError):
-    def __init__(self, command, output):
+    def __init__(self, command, stdout, stderr=None):
         super(GuestCommandError, self).__init__(
-            "GuestCommandError: %s\nOutput:\n%s" % (command, output))
+            "GuestCommandError: %s\nOutput:\n%s" % (command, stderr or stdout))
         self.command = command
-        self.output = output
+        self.stdout = stdout
+        self.stderr = stderr
 
 class Instance(object):
     def __init__(self, vboxhost, identifier, snapshot, hostname, ssh_port,
@@ -197,12 +205,62 @@ class Instance(object):
         if timeout is not None:
             host_argv.extend(["-o", "ConnectTimeout=%d" % timeout])
         host_argv.append(self.hostname)
-        try:
-            logger.debug("Running: " + " ".join(host_argv + guest_argv))
-            return subprocess.check_output(host_argv + guest_argv,
-                                           stderr=subprocess.STDOUT)
-        except subprocess.CalledProcessError as error:
-            raise GuestCommandError(" ".join(argv), error.output)
+
+        logger.debug("Running: " + " ".join(host_argv + guest_argv))
+
+        process = subprocess.Popen(host_argv + guest_argv,
+                                   stdout=subprocess.PIPE,
+                                   stderr=subprocess.PIPE)
+
+        setnonblocking(process.stdout)
+        setnonblocking(process.stderr)
+
+        poll = select.poll()
+        poll.register(process.stdout)
+        poll.register(process.stderr)
+
+        stdout_done = False
+        stdout_data = ""
+        stderr_done = False
+        stderr_data = ""
+
+        while not (stdout_done and stderr_done):
+            poll.poll()
+
+            while not stdout_done:
+                try:
+                    line = process.stdout.readline()
+                    if not line:
+                        poll.unregister(process.stdout)
+                        stdout_done = True
+                        break
+                    stdout_data += line
+                    logger.log(testing.STDOUT, "%s" % line.rstrip("\n"))
+                except IOError as error:
+                    if error.errno == errno.EAGAIN:
+                        break
+                    raise
+
+            while not stderr_done:
+                try:
+                    line = process.stderr.readline()
+                    if not line:
+                        poll.unregister(process.stderr)
+                        stderr_done = True
+                        break
+                    stderr_data += line
+                    logger.log(testing.STDERR, "%s" % line.rstrip("\n"))
+                except IOError as error:
+                    if error.errno == errno.EAGAIN:
+                        break
+                    raise
+
+        process.wait()
+
+        if process.returncode != 0:
+            raise GuestCommandError(" ".join(argv), stdout_data, stderr_data)
+
+        return stdout_data
 
     def adduser(self, name, email=None, fullname=None, password=None):
         if email is None:
@@ -298,8 +356,8 @@ class Instance(object):
             logger.info("Installed Git: %s" % self.execute(["git", "--version"]).strip())
 
         self.execute(["git", "clone", repository.url, "critic"])
-        self.execute(["git", "fetch", "&&",
-                      "git", "checkout", self.install_commit],
+        self.execute(["git", "fetch", "--quiet", "&&",
+                      "git", "checkout", "--quiet", self.install_commit],
                      cwd="critic")
 
         if self.upgrade_commit:
@@ -322,23 +380,10 @@ class Instance(object):
             install_py = "install.py"
             cwd = "critic"
 
-        install_output = self.execute(
-            ["sudo", "python", "-u", install_py] + arguments, cwd=cwd)
-
-        logger.debug("Output from install.py:\n" + install_output)
-
-        # Add "developer" role to get stacktraces in error messages.
-        self.execute(["sudo", "criticctl", "addrole",
-                      "--name", "admin",
-                      "--role", "developer"])
-
-        # Add some regular users.
-        for name in ("alice", "bob", "dave", "erin"):
-            self.adduser(name)
+        self.execute(["sudo", "python", "-u", install_py] + arguments,
+                     cwd=cwd)
 
         try:
-            self.frontend.run_basic_tests()
-
             testmail = self.mailbox.pop(
                 testing.mailbox.with_subject("Test email from Critic"),
                 timeout=3)
@@ -351,11 +396,26 @@ class Instance(object):
                 testing.expect.check("This is the configuration test email from Critic.",
                                      "\n".join(testmail.lines))
 
-            othermail = self.mailbox.pop()
+            self.mailbox.check_empty()
+        except testing.TestFailure as error:
+            if error.message:
+                logger.error("Basic test: %s" % error.message)
 
-            if othermail:
-                testing.expect.check("<no other email>",
-                                     "<email with subject: %s>" % othermail.header("Subject"))
+            # If basic tests fail, there's no reason to further test this
+            # instance; it seems to be properly broken.
+            raise testing.InstanceError
+
+        # Add "developer" role to get stacktraces in error messages.
+        self.execute(["sudo", "criticctl", "addrole",
+                      "--name", "admin",
+                      "--role", "developer"])
+
+        # Add some regular users.
+        for name in ("alice", "bob", "dave", "erin"):
+            self.adduser(name)
+
+        try:
+            self.frontend.run_basic_tests()
         except testing.TestFailure as error:
             if error.message:
                 logger.error("Basic test: %s" % error.message)
@@ -400,10 +460,8 @@ class Instance(object):
                 upgrade_py = "upgrade.py"
                 cwd = "critic"
 
-            upgrade_output = self.execute(
-                ["sudo", "python", "-u", upgrade_py] + arguments, cwd=cwd)
-
-            logger.debug("Output from upgrade.py:\n" + upgrade_output)
+            self.execute(["sudo", "python", "-u", upgrade_py] + arguments,
+                         cwd=cwd)
 
             self.frontend.run_basic_tests()
 

@@ -12,7 +12,7 @@ try:
                      % (expected_output, output))
 except testing.virtualbox.GuestCommandError as error:
     logger.error("correct criticctl usage failed:\n%s"
-                 % error.output)
+                 % error.stdout)
 
 # Scenario: Try to delete a role 'alice' doesn't have.
 try:
@@ -26,7 +26,7 @@ try:
                      % (expected_output, output))
 except testing.virtualbox.GuestCommandError as error:
     logger.error("correct criticctl usage failed:\n%s"
-                 % error.output)
+                 % error.stdout)
 
 # Scenario: Try to add a role to a non-existing user.
 try:
@@ -35,9 +35,9 @@ try:
          "--name", "nosuchuser",
          "--role", "administrator"])
 except testing.virtualbox.GuestCommandError as error:
-    if "nosuchuser: no such user" not in error.output.splitlines():
+    if "nosuchuser: no such user" not in error.stdout.splitlines():
         logger.error("criticctl failed with unexpected error message:\n%s"
-                     % error.output)
+                     % error.stdout)
 else:
     logger.error("incorrect criticctl usage did not fail: "
                  "addrole, non-existing user")
@@ -49,9 +49,9 @@ try:
          "--name", "nosuchuser",
          "--role", "administrator"])
 except testing.virtualbox.GuestCommandError as error:
-    if "nosuchuser: no such user" not in error.output.splitlines():
+    if "nosuchuser: no such user" not in error.stdout.splitlines():
         logger.error("criticctl failed with unexpected error message:\n%s"
-                     % error.output)
+                     % error.stdout)
 else:
     logger.error("incorrect criticctl usage did not fail: "
                  "delrole, non-existing user")
@@ -63,9 +63,9 @@ try:
          "--name", "alice",
          "--role", "joker"])
 except testing.virtualbox.GuestCommandError as error:
-    if "invalid choice: 'joker'" not in error.output:
+    if "invalid choice: 'joker'" not in error.stderr:
         logger.error("criticctl failed with unexpected error message:\n%s"
-                     % error.output)
+                     % error.stderr)
 else:
     logger.error("incorrect criticctl usage did not fail: "
                  "addrole, invalid role")
@@ -77,9 +77,9 @@ try:
          "--name", "alice",
          "--role", "joker"])
 except testing.virtualbox.GuestCommandError as error:
-    if "invalid choice: 'joker'" not in error.output:
+    if "invalid choice: 'joker'" not in error.stderr:
         logger.error("criticctl failed with unexpected error message:\n%s"
-                     % error.output)
+                     % error.stderr)
 else:
     logger.error("incorrect criticctl usage did not fail: "
                  "delrole, invalid role")
@@ -93,7 +93,7 @@ def test_role(role):
              "--role", role])
     except testing.virtualbox.GuestCommandError as error:
         logger.error("correct criticctl usage failed:\n%s"
-                     % error.output)
+                     % error.stdout)
     else:
         try:
             instance.execute(
@@ -102,6 +102,6 @@ def test_role(role):
                  "--role", role])
         except testing.virtualbox.GuestCommandError as error:
             logger.error("correct criticctl usage failed:\n%s"
-                         % error.output)
+                         % error.stdout)
 for role in ROLES:
     test_role(role)

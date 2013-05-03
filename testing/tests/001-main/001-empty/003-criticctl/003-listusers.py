@@ -3,9 +3,9 @@ try:
     instance.execute(
         ["sudo", "criticctl", "listusers", "--format", "oranges"])
 except testing.virtualbox.GuestCommandError as error:
-    if "invalid choice: 'oranges'" not in error.output:
+    if "invalid choice: 'oranges'" not in error.stderr:
         logger.error("criticctl failed with unexpected error message:\n%s"
-                     % error.output)
+                     % error.stderr)
 else:
     logger.error("incorrect criticctl usage did not fail")
 
@@ -26,7 +26,7 @@ try:
     output = instance.execute(["sudo", "criticctl", "listusers"])
 except testing.virtualbox.GuestCommandError as error:
     logger.error("correct criticctl usage failed:\n%s"
-                 % error.output)
+                 % error.stdout)
 else:
     testing.expect.check(expected, output)
 
@@ -35,7 +35,7 @@ try:
                                "-f", "table"])
 except testing.virtualbox.GuestCommandError as error:
     logger.error("correct criticctl usage failed:\n%s"
-                 % error.output)
+                 % error.stdout)
 else:
     testing.expect.check(expected, output)
 
@@ -44,7 +44,7 @@ try:
                                "--format", "table"])
 except testing.virtualbox.GuestCommandError as error:
     logger.error("correct criticctl usage failed:\n%s"
-                 % error.output)
+                 % error.stdout)
 else:
     testing.expect.check(expected, output)
 
@@ -66,7 +66,7 @@ try:
                                "-f", "tuples"])
 except testing.virtualbox.GuestCommandError as error:
     logger.error("correct criticctl usage failed:\n%s"
-                 % error.output)
+                 % error.stdout)
 else:
     testing.expect.check(expected, output)
 
@@ -75,7 +75,7 @@ try:
                                "--format", "tuples"])
 except testing.virtualbox.GuestCommandError as error:
     logger.error("correct criticctl usage failed:\n%s"
-                 % error.output)
+                 % error.stdout)
 else:
     testing.expect.check(expected, output)
 
@@ -96,7 +96,7 @@ try:
                                "-f", "dicts"])
 except testing.virtualbox.GuestCommandError as error:
     logger.error("correct criticctl usage failed:\n%s"
-                 % error.output)
+                 % error.stdout)
 else:
     testing.expect.check(expected, output)
 
@@ -105,6 +105,6 @@ try:
                                "--format", "dicts"])
 except testing.virtualbox.GuestCommandError as error:
     logger.error("correct criticctl usage failed:\n%s"
-                 % error.output)
+                 % error.stdout)
 else:
     testing.expect.check(expected, output)

@@ -7,9 +7,9 @@ try:
          "--fullname", "'Alice von Testing'",
          "--password", "testing"])
 except testing.virtualbox.GuestCommandError as error:
-    if "alice: user exists" not in error.output.splitlines():
+    if "alice: user exists" not in error.stdout.splitlines():
         logger.error("criticctl failed with unexpected error message:\n%s"
-                     % error.output)
+                     % error.stdout)
 else:
     logger.error("incorrect criticctl usage did not fail")
 
@@ -19,9 +19,9 @@ try:
         ["sudo", "criticctl", "deluser",
          "--name", "nosuchuser"])
 except testing.virtualbox.GuestCommandError as error:
-    if "nosuchuser: no such user" not in error.output.splitlines():
+    if "nosuchuser: no such user" not in error.stdout.splitlines():
         logger.error("criticctl failed with unexpected error message:\n%s"
-                     % error.output)
+                     % error.stdout)
 else:
     logger.error("incorrect criticctl usage did not fail")
 
@@ -35,7 +35,7 @@ try:
          "--password", "testing"])
 except testing.virtualbox.GuestCommandError as error:
     logger.error("correct criticctl usage failed:\n%s"
-                 % error.output)
+                 % error.stdout)
 else:
     try:
         instance.execute(
@@ -43,4 +43,4 @@ else:
              "--name", "extra"])
     except testing.virtualbox.GuestCommandError as error:
         logger.error("correct criticctl usage failed:\n%s"
-                     % error.output)
+                     % error.stdout)

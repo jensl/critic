@@ -33,11 +33,20 @@ import mailbox
 
 _logging_configured = False
 
+STDOUT = None
+STDERR = None
+
 def configureLogging(arguments=None):
     import logging
     import sys
-    global _logging_configured
+    global _logging_configured, STDOUT, STDERR
     if not _logging_configured:
+        # Essentially same as DEBUG, used when logging the output from commands
+        # run in the guest system.
+        STDOUT = logging.DEBUG + 1
+        STDERR = logging.DEBUG + 2
+        logging.addLevelName(STDOUT, "STDOUT")
+        logging.addLevelName(STDERR, "STDERR")
         logging.basicConfig(
             format="%(asctime)-15s | %(levelname)-7s | %(message)s",
             stream=sys.stdout)
