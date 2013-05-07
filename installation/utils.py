@@ -119,14 +119,14 @@ def update_from_template(arguments, data, template_path, target_path, message):
     with open(target_path) as target_file:
         current_source = target_file.read().decode("utf-8")
 
-    if old_source == current_source:
+    if current_source == new_source:
+        # The current version is what we would install now.  Nothing to do.
+        return
+    elif old_source == current_source:
         # The current version is what we installed (or would have installed with
         # the old template and current settings.)  Update the target file
         # without asking.
         write_target = True
-    elif current_source == new_source:
-        # The current version is what we would install now.  Nothing to do.
-        return
     else:
         def generate_version(label, path):
             if label == "installed":
