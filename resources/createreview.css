@@ -34,7 +34,7 @@ div.main > table td { vertical-align: top }
 div.main table.basic tr.line td { padding-top: 0.5em }
 div.main table.basic td.heading { font-family: serif; font-weight: bold; text-align: right; width: 20% }
 div.main table.basic td.value { font-family: monospace; text-align: left }
-div.main table.basic td.value input.value { font-family: monospace }
+div.main table.basic td.value input.value { font-family: monospace; font-size: 10pt }
 div.main table.basic td.value span.mode { font-style: italic }
 div.main table.basic td.value div.buttons { float: right }
 div.main table.basic td.status { text-align: right; width: 20%; font-weight: bold }
