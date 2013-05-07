@@ -671,27 +671,22 @@ keyboardShortcutHandlers.push(function (key)
 $(document).ready(function ()
   {
     if (typeof keyboardShortcuts == "undefined" || keyboardShortcuts)
-      document.addEventListener("keypress", function (ev)
+      $(document).keypress(function (ev)
         {
           if (ev.ctrlKey || ev.shiftKey || ev.altKey || ev.metaKey)
             return;
 
           if (/^(?:input|textarea)$/i.test(ev.target.nodeName))
-            if (ev.keyCode == 32 || /textarea/i.test(ev.target.nodeName) || !/^(?:checkbox|radio)$/i.test(ev.target.type))
+            if (ev.which == 32 || /textarea/i.test(ev.target.nodeName) || !/^(?:checkbox|radio)$/i.test(ev.target.type))
               return;
 
           /* Handling non-printable keys. */
-          if (ev.keyCode == 32)
+          if (ev.which)
           {
-            if (handleKeyboardShortcut(ev.keyCode))
+            if (handleKeyboardShortcut(ev.which))
               ev.preventDefault();
           }
-          else if (!ev.which)
-            return;
-          /* Handling printable keys */
-          else if (handleKeyboardShortcut(ev.keyCode))
-            ev.preventDefault();
-        }, false);
+        });
   });
 
 function setSpacerContext(spacer, context)
