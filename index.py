@@ -689,8 +689,6 @@ first, and then repeat this push.""" % name)
     root_branch_id = cursor.fetchone()[0]
 
     def isreachable(sha1):
-        #if rescan: return False
-        #if is_review: cursor.execute("SELECT 1 FROM commits, reachable, branches WHERE commits.sha1=%s AND commits.id=reachable.commit AND reachable.branch=branches.id AND branches.repository=%s", [sha1, repository.id])
         if is_review and sha1 == branch.tail: return True
         if base_branch_id: cursor.execute("SELECT 1 FROM commits, reachable WHERE commits.sha1=%s AND commits.id=reachable.commit AND reachable.branch IN (%s, %s, %s)", [sha1, branch.id, base_branch_id, root_branch_id])
         else: cursor.execute("SELECT 1 FROM commits, reachable WHERE commits.sha1=%s AND commits.id=reachable.commit AND reachable.branch IN (%s, %s)", [sha1, branch.id, root_branch_id])
@@ -708,9 +706,6 @@ first, and then repeat this push.""" % name)
             commits.add(sha1)
             commit_list.append(sha1)
 
-            #if is_review:
-            #    stack.append(gitutils.Commit.fromSHA1(repository, sha1).parents[0])
-            #else:
             stack.extend([parent_sha1 for parent_sha1 in gitutils.Commit.fromSHA1(db, repository, sha1).parents if parent_sha1 not in processed])
 
         processed.add(sha1)

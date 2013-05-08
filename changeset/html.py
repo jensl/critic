@@ -233,8 +233,6 @@ table.file > tbody.lines > tr > td.line {
         if comment_chain_script:
             target.script(type='text/javascript').text(comment_chain_script, cdata=True)
 
-    #if review: head.comment(repr(comment_chains))
-
     def join(a, b):
         if a and b: return itertools.chain(a, b)
         elif a: return a

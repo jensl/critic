@@ -116,7 +116,6 @@ def mergeChunks(file):
             assert previous.delete_count != 0 or previous.insert_count != 0
 
             offset = previous.delete_offset + previous.delete_count
-            #force_merge = chunk.delete_offset - offset <= 2
 
             while offset < chunk.delete_offset:
                 if not analyze.re_ignore.match(old_lines[offset - 1]):

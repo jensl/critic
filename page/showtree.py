@@ -65,7 +65,6 @@ def renderShowTree(req, db, user):
     page.utils.generateHeader(body, db, user, extra_links=extra_links)
 
     document.addExternalStylesheet("resource/showtree.css")
-    #document.addExternalScript("resource/showtree.js")
 
     target = body.div("main")
 

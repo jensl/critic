@@ -349,8 +349,6 @@ def render(db, target, title, branch=None, commits=None, columns=DEFAULT_COLUMNS
                                 if optional_merge and commit_tr: commit_tr.remove()
                         return (commit, table, parent2_sha1, False)
 
-                #raise Exception, repr([parent1_sha1, parent1, parent2_sha1, parent2])
-
                 if parent1 and parent2:
                     common_ancestors = commit_set.getCommonAncestors(commit)
 

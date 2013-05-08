@@ -212,8 +212,6 @@ def renderShowComments(req, db, user):
     if chain_ids and not user.isAnonymous() and user.name == req.user:
         document.addInternalScript("$(function () { markChainsAsRead([%s]); });" % ", ".join(map(str, chain_ids)))
 
-    #yield document.render(stop=target, pretty=not compact)
-
     if chain_ids:
         processed = set()
 
