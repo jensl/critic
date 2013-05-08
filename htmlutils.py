@@ -118,7 +118,7 @@ def getStaticResourceURI(name):
 
 class MetaInformation(object):
     def __init__(self):
-        self.__orderIndeces = set()
+        self.__orderIndices = set()
         self.__externalStylesheetList = []
         self.__externalStylesheetSet = set()
         self.__internalStylesheetList = []
@@ -136,13 +136,13 @@ class MetaInformation(object):
         if use_static:
             uri = getStaticResourceURI(uri.split("/", 1)[1])
         if uri not in self.__externalStylesheetSet:
-            self.__orderIndeces.add(order)
+            self.__orderIndices.add(order)
             self.__externalStylesheetList.append((order, uri))
             self.__externalStylesheetSet.add(uri)
 
     def addInternalStylesheet(self, text, order=0):
         if text not in self.__internalStylesheetSet:
-            self.__orderIndeces.add(order)
+            self.__orderIndices.add(order)
             self.__internalStylesheetList.append((order, text))
             self.__internalStylesheetSet.add(text)
 
@@ -150,12 +150,12 @@ class MetaInformation(object):
         if use_static:
             uri = getStaticResourceURI(uri.split("/", 1)[1])
         if uri not in self.__externalScriptSet:
-            self.__orderIndeces.add(order)
+            self.__orderIndices.add(order)
             self.__externalScriptList.append((order, uri))
             self.__externalScriptSet.add(uri)
 
     def addInternalScript(self, text, order=0):
-        self.__orderIndeces.add(order)
+        self.__orderIndices.add(order)
         self.__internalScriptList.append((order, text))
 
     def setTitle(self, title):
@@ -182,7 +182,7 @@ class MetaInformation(object):
             for rel, href in self.__links.items():
                 target.link(rel=rel, href=href)
 
-            for index in sorted(self.__orderIndeces):
+            for index in sorted(self.__orderIndices):
                 def filtered(items): return [data for order, data in items if order==index]
 
                 for uri in filtered(self.__externalStylesheetList):
