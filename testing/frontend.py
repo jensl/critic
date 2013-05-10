@@ -207,9 +207,15 @@ class Frontend(object):
             expected = expect.get("status", "ok")
             actual = result.get("status")
             if actual != expected:
+                if actual == "error":
+                    extra = "\nError:\n  %s" % "\n  ".join(result.get("error").splitlines())
+                elif actual == "failure":
+                    extra = " (code=%r)" % result.get("code")
+                else:
+                    extra = ""
                 logger.error("Operation '%s', key 'status': check failed: "
-                             "expected=%r, actual=%r"
-                             % (url, expected, actual))
+                             "expected=%r, actual=%r%s"
+                             % (url, expected, actual, extra))
                 raise testing.TestFailure
 
             failed_checks = False
