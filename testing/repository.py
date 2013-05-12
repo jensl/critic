@@ -35,9 +35,10 @@ class GitCommandError(testing.TestFailure):
 
 def _git(args, **kwargs):
     argv = ["git"] + args
+    logger.debug("Running: %s" % " ".join(argv))
     try:
         return subprocess.check_output(
-            argv, stderr=subprocess.STDOUT, **kwargs)
+            argv, stdin=open("/dev/null"), stderr=subprocess.STDOUT, **kwargs)
     except subprocess.CalledProcessError as error:
         raise GitCommandError(" ".join(argv), error.output)
 
@@ -85,7 +86,7 @@ class Repository(object):
     def run(self, args):
         return _git(args, cwd=self.path)
 
-    def workcopy(self, name="work", empty=False):
+    def workcopy(self, name="critic", empty=False):
         class Workcopy(object):
             def __init__(self, path):
                 self.path = path
@@ -102,14 +103,17 @@ class Repository(object):
                         del kwargs[name]
                 return _git(args, cwd=self.path, env=env, **kwargs)
 
-        path = os.path.join(self.base_path, name)
+        if not os.path.isdir(self.work):
+            os.mkdir(self.work)
+
+        path = os.path.join(self.work, name)
 
         if os.path.exists(path):
             raise testing.InstanceError(
                 "Can't create work copy; path already exists!")
 
         if not empty:
-            _git(["clone", os.getcwd(), name], cwd=self.base_path)
+            _git(["clone", self.path, name], cwd=self.work)
         else:
             os.mkdir(path)
             _git(["init"], cwd=path)
