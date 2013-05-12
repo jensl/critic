@@ -14,24 +14,21 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-from subprocess import Popen as process, PIPE, STDOUT
+import subprocess
 import re
 import time
 import atexit
 import os
-from traceback import print_exc, format_exc
+import traceback
 import threading
 import tempfile
+import shutil
+import stat
 
 import base
 import configuration
 from utf8utils import convertUTF8
 import htmlutils
-import os.path
-import shutil
-import os
-import atexit
-import stat
 
 re_author_committer = re.compile("(.*) <(.*)> ([0-9]+ [-+][0-9]+)")
 re_sha1 = re.compile("^[A-Za-z0-9]{40}$")
@@ -178,13 +175,17 @@ class Repository:
 
     def __startBatch(self):
         if self.__batch is None:
-            self.__batch = process([configuration.executables.GIT, 'cat-file', '--batch'],
-                                   stdin=PIPE, stdout=PIPE, stderr=STDOUT, cwd=self.path)
+            self.__batch = subprocess.Popen(
+                [configuration.executables.GIT, 'cat-file', '--batch'],
+                stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT, cwd=self.path)
 
     def __startBatchCheck(self):
         if self.__batchCheck is None:
-            self.__batchCheck = process([configuration.executables.GIT, 'cat-file', '--batch-check'],
-                                        stdin=PIPE, stdout=PIPE, stderr=STDOUT, cwd=self.path)
+            self.__batchCheck = subprocess.Popen(
+                [configuration.executables.GIT, 'cat-file', '--batch-check'],
+                stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT, cwd=self.path)
 
     def stopBatch(self):
         if self.__batch:
@@ -296,13 +297,14 @@ class Repository:
         argv.extend(arguments)
         stdin_data = kwargs.get("input")
         if stdin_data is None: stdin = None
-        else: stdin = PIPE
+        else: stdin = subprocess.PIPE
         env = {}
         env.update(os.environ)
         env.update(configuration.executables.GIT_ENV)
         env.update(kwargs.get("env", {}))
         if "GIT_DIR" in env: del env["GIT_DIR"]
-        git = process(argv, stdin=stdin, stdout=PIPE, stderr=PIPE, cwd=cwd, env=env)
+        git = subprocess.Popen(argv, stdin=stdin, stdout=subprocess.PIPE,
+                               stderr=subprocess.PIPE, cwd=cwd, env=env)
         stdout, stderr = git.communicate(stdin_data)
         if kwargs.get("check_errors", True):
             if git.returncode == 0:
@@ -319,7 +321,8 @@ class Repository:
 
     def createBranch(self, name, startpoint):
         argv = [configuration.executables.GIT, 'branch', name, startpoint]
-        git = process(argv, stdout=PIPE, stderr=PIPE, cwd=self.path)
+        git = subprocess.Popen(argv, stdout=subprocess.PIPE,
+                               stderr=subprocess.PIPE, cwd=self.path)
         stdout, stderr = git.communicate()
         if git.returncode != 0:
             cmdline = " ".join(argv)
@@ -328,7 +331,8 @@ class Repository:
 
     def deleteBranch(self, name):
         argv = [configuration.executables.GIT, 'branch', '-D', name]
-        git = process(argv, stdout=PIPE, stderr=PIPE, cwd=self.path)
+        git = subprocess.Popen(argv, stdout=subprocess.PIPE,
+                               stderr=subprocess.PIPE, cwd=self.path)
         stdout, stderr = git.communicate()
         if git.returncode != 0:
             cmdline = " ".join(argv)
@@ -352,7 +356,8 @@ class Repository:
         assert len(sha1s) >= 2
 
         argv = [configuration.executables.GIT, 'merge-base'] + sha1s
-        git = process(argv, stdout=PIPE, stderr=PIPE, cwd=self.path)
+        git = subprocess.Popen(argv, stdout=subprocess.PIPE,
+                               stderr=subprocess.PIPE, cwd=self.path)
         stdout, stderr = git.communicate()
         if git.returncode == 0: return stdout.strip()
         else:
@@ -372,8 +377,9 @@ class Repository:
         else: return self.getCommonAncestor(mergebases)
 
     def revparse(self, name):
-        git = process([configuration.executables.GIT, 'rev-parse', '--verify', '--quiet', name],
-                      stdout=PIPE, stderr=PIPE, cwd=self.path)
+        git = subprocess.Popen(
+            [configuration.executables.GIT, 'rev-parse', '--verify', '--quiet', name],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=self.path)
         stdout, stderr = git.communicate()
         if git.returncode == 0: return stdout.strip()
         else: raise GitReferenceError("'git rev-parse' failed: %s" % stderr.strip(), ref=name, repository=self)
@@ -388,8 +394,9 @@ class Repository:
         return self.run('rev-list', *args).splitlines()
 
     def iscommit(self, name):
-        git = process([configuration.executables.GIT, 'cat-file', '-t', name],
-                      stdout=PIPE, stderr=PIPE, cwd=self.path)
+        git = subprocess.Popen(
+            [configuration.executables.GIT, 'cat-file', '-t', name],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=self.path)
         stdout, stderr = git.communicate()
         if git.returncode == 0: return stdout.strip() == "commit"
         else: return False
@@ -550,7 +557,8 @@ class Repository:
     @staticmethod
     def readObject(repository_path, object_type, object_sha1):
         argv = [configuration.executables.GIT, 'cat-file', object_type, object_sha1]
-        git = process(argv, stdout=PIPE, stderr=PIPE, cwd=repository_path)
+        git = subprocess.Popen(argv, stdout=subprocess.PIPE,
+                               stderr=subprocess.PIPE, cwd=repository_path)
         stdout, stderr = git.communicate()
         if git.returncode != 0:
             raise GitCommandError(" ".join(argv), stderr.strip(), repository_path)
@@ -570,7 +578,8 @@ class Repository:
 
         if pattern: argv.append(pattern)
 
-        git = process(argv, stdout=PIPE, stderr=PIPE)
+        git = subprocess.Popen(argv, stdout=subprocess.PIPE,
+                               stderr=subprocess.PIPE)
         stdout, stderr = git.communicate()
 
         if git.returncode == 0:
@@ -971,7 +980,10 @@ class FetchCommits(threading.Thread):
 
     def run(self):
         try:
-            batch = process([configuration.executables.GIT, 'cat-file', '--batch'], stdin=PIPE, stdout=PIPE, stderr=STDOUT, cwd=self.repository.path)
+            batch = subprocess.Popen(
+                [configuration.executables.GIT, 'cat-file', '--batch'],
+                stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT, cwd=self.repository.path)
 
             stdout, stderr = batch.communicate("\n".join(self.sha1s.keys()) + "\n")
 
@@ -997,7 +1009,7 @@ class FetchCommits(threading.Thread):
 
             self.gitobjects = gitobjects
         except Exception:
-            self.error = format_exc()
+            self.error = traceback.format_exc()
 
     def getCommits(self, db):
         self.join()
