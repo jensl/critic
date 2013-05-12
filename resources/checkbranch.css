@@ -155,42 +155,17 @@ div.main table.branchstatus tbody tr td.edit a.edit:hover {
     text-decoration: underline
 }
 
-div.main table.data tr td {
-    padding-top: 0.5em
-}
-
-div.main table.data td.heading {
-    font-family: serif;
-    font-weight: bold;
-    text-align: right;
-    width: 20%
-}
-
-div.main table.data td.value {
+div.main table td.value input {
     font-family: monospace;
-    text-align: left;
-    padding-left: 5px
+    width: 40em
 }
 
-div.main table.data td.value input {
-    font-family: monospace;
-    width: 100%
-}
-
-div.main table.data td.value input[name="fetch"] {
+div.main table td.value input[name="fetch"] {
     width: auto
 }
 
-div.main table.data td.value select {
-    font-family: monospace;
-    background-color: #ffd;
-    width: 100%
-}
-
-div.main table.data tr.help td {
-    font-style: italic;
-    text-align: right;
-    border-bottom: 1px solid #996
+div.main table td.value select {
+    width: 40em
 }
 
 div.comment > p {

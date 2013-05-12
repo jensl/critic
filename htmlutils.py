@@ -158,6 +158,9 @@ class MetaInformation(object):
         self.__orderIndices.add(order)
         self.__internalScriptList.append((order, text))
 
+    def hasTitle(self):
+        return self.__title is not None
+
     def setTitle(self, title):
         self.__title = title
 
@@ -508,6 +511,9 @@ class Generator(object):
             self.script(type="text/javascript").text(text.strip().replace("</", "<\/"), cdata=True)
         else:
             self.__metaInformation.addInternalScript(text, order=order)
+
+    def hasTitle(self):
+        return self.__metaInformation.hasTitle()
 
     def setTitle(self, title):
         self.__metaInformation.setTitle(title)

@@ -269,3 +269,8 @@ table.pageheader td.left > ul > li:first-child:before {
     background-color: #fff;
     padding: 2px 4px
 }
+
+select.repository {
+    font-family: monospace;
+    background-color: white
+}

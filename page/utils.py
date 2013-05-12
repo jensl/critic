@@ -289,6 +289,9 @@ def displayMessage(db, req, user, title, review=None, message=None, page_title=N
 
 class PaleYellowTable:
     def __init__(self, target, title, columns=[10, 60, 30]):
+        if not target.hasTitle():
+            target.setTitle(title)
+
         self.table = target.div("main").table("paleyellow", align="center").tbody()
         self.columns = columns
 
@@ -331,7 +334,7 @@ class PaleYellowTable:
         self.table.tr("separator").td(colspan=len(self.columns)).div()
 
 def generateRepositorySelect(db, user, target, selected=None, **attributes):
-    select = target.select(**attributes)
+    select = target.select("repository", **attributes)
 
     cursor = db.cursor()
     cursor.execute("""SELECT id, name, path

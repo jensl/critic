@@ -19,7 +19,6 @@ import htmlutils
 import page.utils
 import gitutils
 import dbutils
-import configuration
 import re
 import log.commitset
 
@@ -124,6 +123,8 @@ def renderCheckBranch(req, db, user):
 
         try: gitutils.Commit.fromSHA1(db, repository, commit)
         except: raise page.utils.DisplayMessage, "'%s' doesn't exist in the repository." % commit
+
+        document.setTitle("Branch review status: %s" % branch_arg)
 
         commits = repository.revlist([commit], [upstream], "--topo-order")
 
@@ -359,48 +360,37 @@ def renderCheckBranch(req, db, user):
             legend.span("yellow").text("Status set manually")
             legend.text(" ")
             legend.span("green").text("Verified by Critic")
+
+            return document
+        else:
+            return result
     else:
-        table = target.table('data', align='center')
-        table.col(width='20%')
-        table.col(width='80%')
-        h1 = table.tr().td('h1', colspan=4).h1().text("Check branch review status")
+        header_right[0].a("button", href="tutorial?item=checkbranch").text("Help")
 
-        row = table.tr("repository")
-        row.td("heading").text("Repository:")
-        repositories = row.td("value").select(name="repository")
+        table = page.utils.PaleYellowTable(target, "Check branch review status")
 
-        default_repository = user.getPreference(db, "defaultRepository")
+        def renderRepository(target):
+            page.utils.generateRepositorySelect(db, user, target, name="repository")
+        def renderBranchName(target):
+            target.input(name="commit")
+        def renderFetch(target):
+            target.input(name="fetch", type="checkbox", value="yes")
+        def renderUpstream(target):
+            target.input(name="upstream", value="master")
 
-        cursor.execute("SELECT name, path FROM repositories ORDER BY id")
-        for name, path in cursor:
-            repositories.option(value=name, selected="selected" if name == default_repository else None).text("%s:%s" % (configuration.base.HOSTNAME, path))
+        table.addItem("Repository", renderRepository, description="Repository.")
+        table.addItem("Branch name", renderBranchName,
+                      description="Branch name, or other reference to a commit.")
+        table.addItem("Fetch branch from remote", renderFetch,
+                      description=("Fetch named branch from selected repository's "
+                                   "primary remote (from whence its 'master' branch "
+                                   "is auto-updated.)"))
+        table.addItem("Upstream", renderUpstream,
+                      description="Name of upstream branch.")
 
-        row = table.tr("help")
-        row.td(colspan=2).text("Repository.")
+        def renderCheck(target):
+            target.button("check").text("Check branch")
 
-        row = table.tr("commit")
-        row.td("heading").text("Branch name:")
-        row.td("value").input(name="commit")
+        table.addCentered(renderCheck)
 
-        row = table.tr("help")
-        row.td(colspan=2).text("Branch name, or other reference to commit.")
-
-        row = table.tr("fetch")
-        row.td("heading").text("Fetch branch from remote:")
-        row.td("value").input(type="checkbox", name="fetch", value="yes")
-
-        row = table.tr("help")
-        row.td(colspan=2).text("Fetch named branch from selected repository's remote (from where its 'master' branch is auto-updated.)")
-
-        row = table.tr("upstream")
-        row.td("heading").text("Upstream:")
-        row.td("value").input(name="upstream", value="master")
-
-        row = table.tr("help")
-        row.td(colspan=2).text("Name of upstream branch.")
-
-        row = table.tr("buttons")
-        row.td(colspan=2).button("check").text("Check")
-
-    if mode == "html": return document
-    else: return result
+        return document
