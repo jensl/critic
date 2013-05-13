@@ -150,13 +150,7 @@ class Instance(object):
                     count += 1
             return count
 
-    def start(self):
-        logger.debug("Starting VM: %s ..." % self.identifier)
-
-        self.__vmcommand("snapshot", "restore", self.snapshot)
-        self.__vmcommand("startvm", "--type", "headless")
-        self.__started = True
-
+    def wait(self):
         logger.debug("Waiting for VM to come online ...")
 
         while True:
@@ -166,6 +160,15 @@ class Instance(object):
                 time.sleep(0.5)
             else:
                 break
+
+    def start(self):
+        logger.debug("Starting VM: %s ..." % self.identifier)
+
+        self.__vmcommand("snapshot", "restore", self.snapshot)
+        self.__vmcommand("startvm", "--type", "headless")
+        self.__started = True
+
+        self.wait()
 
         logger.info("Started VM: %s" % self.identifier)
 

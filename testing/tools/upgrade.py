@@ -15,6 +15,7 @@
 # the License.
 
 import argparse
+import time
 
 import testing
 
@@ -29,7 +30,12 @@ def main():
     parser.add_argument("--vm-ssh-port", help="VirtualBox instance SSH port [default=22]", type=int, default=22)
     parser.add_argument("--pause-before-upgrade", help="Pause before upgrading", action="store_true")
     parser.add_argument("--pause-after-upgrade", help="Pause after upgrading", action="store_true")
+    parser.add_argument("--no-upgrade", action="store_true", help="Do not upgrade installed packages")
     parser.add_argument("--install", action="append", help="Install named package")
+    parser.add_argument("--custom", action="store_true",
+                        help="Stop for custom maintenance, and always retake snapshot")
+    parser.add_argument("--reboot", action="store_true",
+                        help="Reboot VM before retaking snapshot")
 
     arguments = parser.parse_args()
 
@@ -45,24 +51,25 @@ def main():
     with instance:
         instance.start()
 
-        logger.debug("Upgrading guest OS ...")
+        if not arguments.no_upgrade:
+            logger.debug("Upgrading guest OS ...")
 
-        update_output = instance.execute(
-            ["sudo", "DEBIAN_FRONTEND=noninteractive",
-             "apt-get", "-q", "-y", "update"])
+            update_output = instance.execute(
+                ["sudo", "DEBIAN_FRONTEND=noninteractive",
+                 "apt-get", "-q", "-y", "update"])
 
-        logger.debug("Output from 'apt-get -q -y update':\n" + update_output)
+            logger.debug("Output from 'apt-get -q -y update':\n" + update_output)
 
-        upgrade_output = instance.execute(
-            ["sudo", "DEBIAN_FRONTEND=noninteractive",
-             "apt-get", "-q", "-y", "upgrade"])
+            upgrade_output = instance.execute(
+                ["sudo", "DEBIAN_FRONTEND=noninteractive",
+                 "apt-get", "-q", "-y", "upgrade"])
 
-        logger.debug("Output from 'apt-get -q -y upgrade':\n" + upgrade_output)
+            logger.debug("Output from 'apt-get -q -y upgrade':\n" + upgrade_output)
 
-        retake_snapshot = False
+            retake_snapshot = False
 
-        if "The following packages will be upgraded:" in upgrade_output.splitlines():
-            retake_snapshot = True
+            if "The following packages will be upgraded:" in upgrade_output.splitlines():
+                retake_snapshot = True
 
         if arguments.install:
             install_output = instance.execute(
@@ -74,7 +81,24 @@ def main():
 
             retake_snapshot = True
 
+        if arguments.custom:
+            testing.pause()
+            retake_snapshot = True
+
         if retake_snapshot:
+            if arguments.reboot:
+                instance.execute(["sudo", "reboot"])
+
+                logger.debug("Sleeping 10 seconds ...")
+                time.sleep(10)
+
+                instance.wait()
+
+                logger.debug("Sleeping 10 seconds ...")
+                time.sleep(10)
+
+                logger.info("Rebooted VM: %s" % arguments.vm_identifier)
+
             logger.info("Upgraded guest OS")
             logger.debug("Retaking snapshot ...")
 
