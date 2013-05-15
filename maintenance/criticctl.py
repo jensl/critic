@@ -108,10 +108,10 @@ def adduser(argv):
     fullname = use_argument_or_ask(arguments.fullname, "Full name:")
     email = use_argument_or_ask(arguments.email, "Email address:")
 
-    if arguments.password:
-        password = arguments.password
-    else:
+    if arguments.password is None:
         password = inpututils.password("Password:")
+    else:
+        password = arguments.password
 
     password = bcrypt.hashpw(password, bcrypt.gensalt())
 
