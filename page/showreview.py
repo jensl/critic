@@ -440,7 +440,8 @@ def renderShowReview(req, db, user):
 
             for filter_id, user_id, path in rows:
                 filter_user = dbutils.User.fromId(db, user_id)
-                reviewfilters.setdefault(filter_user.fullname, []).append(path or "/")
+                path = path or '/'
+                reviewfilters.setdefault(filter_user.fullname, []).append(path)
                 filter_data[(filter_user.fullname, path)] = (filter_id, filter_user)
 
             count = 0
