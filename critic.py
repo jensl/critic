@@ -653,6 +653,33 @@ class WrappedResult(object):
             else:
                 raise StopIteration
 
+def handleRepositoryPath(db, req, user, suffix):
+    components = req.path.split("/")
+
+    for index in range(1, len(components) + 1):
+        repository_path = "/".join(components[:index])
+        additional_path = "/".join(components[index:])
+
+        if suffix is not None:
+            if not repository_path.endswith(suffix):
+                continue
+
+        try:
+            repository = gitutils.Repository.fromPath(db, repository_path)
+        except gitutils.NoSuchRepository:
+            continue
+        else:
+            db.close()
+
+            try:
+                repository.invokeGitHttpBackend(req, user, additional_path)
+            except gitutils.GitHttpBackendNeedsUser:
+                req.requestHTTPAuthentication()
+
+            return True
+
+    return False
+
 def main(environ, start_response):
     request_start = time.time()
 
@@ -667,9 +694,7 @@ def main(environ, start_response):
             if req.user is None:
                 if configuration.base.AUTHENTICATION_MODE == "critic":
                     if configuration.base.SESSION_TYPE == "httpauth":
-                        req.setStatus(401)
-                        req.addResponseHeader("WWW-Authenticate", "Basic realm=\"Critic\"")
-                        req.start()
+                        req.requestHTTPAuthentication()
                         return []
                     elif configuration.base.SESSION_TYPE == "cookie":
                         if req.cookies.get("has_sid") == "1":
@@ -729,6 +754,27 @@ def main(environ, start_response):
                     return ["<meta http-equiv='refresh' content='0; %s'>" % htmlify(target)]
                 else:
                     raise request.MovedTemporarily, target
+
+            # Require a .git suffix on HTTP(S) repository URLs unless the user-
+            # agent starts with "git/" (as Git's normally does.)
+            #
+            # Our objectives are:
+            #
+            # 1) Not to require Git's user-agent to be its default value, since
+            #    the user might have to override it to get through firewalls.
+            # 2) Never to send regular user requests to 'git http-backend' by
+            #    mistake.
+            #
+            # This is a compromise.
+
+            if req.getRequestHeader("User-Agent", "").startswith("git/"):
+                suffix = None
+            else:
+                suffix = ".git"
+
+            if handleRepositoryPath(db, req, user, suffix):
+                db = None
+                return []
 
             if req.path.startswith("!/"):
                 req.path = req.path[2:]

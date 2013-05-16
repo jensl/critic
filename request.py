@@ -285,16 +285,17 @@ class Request:
         elif isinstance(default, NoDefault): raise MissingParameter, name
         else: return default
 
-    def getRequestHeader(self, name):
+    def getRequestHeader(self, name, default=None):
         """\
         Get HTTP request header by name.
 
         The name is case-insensitive.  If the request header was not present in
-        the request, None is returned, otherwise the header's value is returned
+        the request, the default value is returned (or None if no default value
+        is provided.)  If the request header was present, its value is returned
         as a string.
         """
 
-        return self.__environ.get("HTTP_" + name.upper().replace("-", "_"))
+        return self.__environ.get("HTTP_" + name.upper().replace("-", "_"), default)
 
     def getRequestHeaders(self):
         """\
@@ -444,3 +445,8 @@ class Request:
 
             if current_url != secure_url:
                 raise MovedTemporarily(secure_url, True)
+
+    def requestHTTPAuthentication(self, realm="Critic"):
+        self.setStatus(401)
+        self.addResponseHeader("WWW-Authenticate", "Basic realm=\"%s\"" % realm)
+        self.start()

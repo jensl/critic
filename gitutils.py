@@ -29,6 +29,7 @@ import base
 import configuration
 from utf8utils import convertUTF8
 import htmlutils
+import communicate
 
 re_author_committer = re.compile("(.*) <(.*)> ([0-9]+ [-+][0-9]+)")
 re_sha1 = re.compile("^[A-Za-z0-9]{40}$")
@@ -72,6 +73,22 @@ class GitObject:
         elif index == 1: return self.size
         elif index == 2: return self.data
         raise IndexError, "GitObject index out of range: %d" % index
+
+class GitHttpBackendError(GitError):
+    def __init__(self, returncode, stderr):
+        message = "Git failed!"
+        if returncode < 0:
+            message = "Git terminated by signal %d!" % -returncode
+        elif returncode > 0:
+            message = "Git exited with status %d!" % returncode
+        if stderr.strip():
+            message += "\n" + stderr
+        super(GitHttpBackendError, self).__init__(message)
+        self.returncode = returncode
+        self.stderr = stderr
+
+class GitHttpBackendNeedsUser(GitError):
+    pass
 
 class NoSuchRepository(base.Error):
     """Exception raised by Repository.fromName() for invalid names."""
@@ -169,6 +186,18 @@ class Repository:
         for (repository_id,) in cursor:
             repository = Repository.fromId(db, repository_id)
             if repository.iscommit(sha1): return repository
+
+    @staticmethod
+    def fromPath(db, path):
+        if not path.startswith(configuration.paths.GIT_DIR):
+            path = os.path.join(configuration.paths.GIT_DIR, path)
+        if not path.endswith(".git"):
+            path += ".git"
+        cursor = db.cursor()
+        cursor.execute("SELECT id FROM repositories WHERE path=%s", (path,))
+        for (repository_id,) in cursor:
+            return Repository.fromId(db, repository_id)
+        raise NoSuchRepository(path)
 
     def __terminate(self, db=None):
         self.stopBatch()
@@ -615,6 +644,73 @@ class Repository:
             return False
         except GitError:
             return True
+
+    def invokeGitHttpBackend(self, req, user, path):
+        request_environ = req.getEnvironment()
+
+        environ = { "GIT_HTTP_EXPORT_ALL": "true",
+                    "REMOTE_ADDR": request_environ.get("REMOTE_ADDR", "unknown"),
+                    "PATH_TRANSLATED": os.path.join(self.path, path),
+                    "REQUEST_METHOD": req.method,
+                    "QUERY_STRING": req.query }
+
+        if "CONTENT_TYPE" in request_environ:
+            environ["CONTENT_TYPE"] = request_environ["CONTENT_TYPE"]
+
+        for name, value in req.getEnvironment().items():
+            if name.startswith("HTTP_"):
+                environ[name] = value
+
+        if not user.isAnonymous():
+            environ["REMOTE_USER"] = user.name
+        elif not configuration.base.ALLOW_ANONYMOUS_USER \
+                or path == "git-receive-pack" \
+                or req.getParameter("service", None) == "git-receive-pack":
+            # The git-receive-pack service fails without a user, so request
+            # authorization.
+            raise GitHttpBackendNeedsUser
+
+        git_http_backend = communicate.Communicate(subprocess.Popen(
+            [configuration.executables.GIT, "http-backend"],
+            stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE, env=environ))
+
+        def produceInput():
+            data = req.read(65536)
+            if not data:
+                return None
+            return data
+
+        def handleHeaderLine(line):
+            line = line.strip()
+
+            if not line:
+                req.start()
+                git_http_backend.setCallbacks(stdout=handleOutput)
+                return
+
+            name, _, value = line.partition(":")
+            name = name.strip()
+            value = value.strip()
+
+            if name.lower() == "status":
+                status_code, _, status_text = value.partition(" ")
+                req.setStatus(int(status_code), status_text.strip())
+            elif name.lower() == "content-type":
+                req.setContentType(value)
+            else:
+                req.addResponseHeader(name, value)
+
+        def handleOutput(data):
+            req.write(data)
+
+        git_http_backend.setInput(produceInput)
+        git_http_backend.setCallbacks(stdout_line=handleHeaderLine)
+
+        try:
+            _, stderr = git_http_backend.run()
+        except communicate.ProcessError as error:
+            raise GitHttpBackendError(error.process.returncode, error.stderr)
 
 class CommitUserTime:
     def __init__(self, name, email, time):
