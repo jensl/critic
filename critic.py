@@ -20,10 +20,11 @@ import re
 import itertools
 import traceback
 import cStringIO
+import wsgiref.util
 
 from htmlutils import htmlify, Document
 from profiling import formatDBProfiling
-from textutils import json_encode
+from textutils import json_encode, reflow
 
 import request
 import dbutils
@@ -559,6 +560,99 @@ if configuration.base.AUTHENTICATION_MODE == "critic" and configuration.base.SES
     OPERATIONS["endsession"] = operation.usersession.EndSession()
     PAGES["login"] = page.login.renderLogin
 
+def handleException(db, req, user):
+    error_message = traceback.format_exc()
+    environ = req.getEnvironment()
+
+    environ["wsgi.errors"].write(error_message)
+
+    if not user or not user.hasRole(db, "developer"):
+        url = wsgiref.util.request_uri(environ)
+
+        x_forwarded_host = req.getRequestHeader("X-Forwarded-Host")
+        if x_forwarded_host:
+            original_host = x_forwarded_host.split(",")[0].strip()
+            def replace_host(match):
+                return match.group(1) + original_host
+            url = re.sub("^([a-z]+://)[^/]+", replace_host, url)
+
+        mailutils.sendExceptionMessage(
+            "wsgi", "\n".join(["User:   %s" % (req.user or "<anonymous>"),
+                               "Method: %s" % req.method,
+                               "URL:    %s" % url,
+                               "",
+                               error_message]))
+
+        admin_message_sent = True
+    else:
+        admin_message_sent = False
+
+    if not user or user.hasRole(db, "developer") or configuration.base.IS_DEVELOPMENT:
+        error_title = "Unexpected error!"
+        error_body = [error_message.strip()]
+        if admin_message_sent:
+            error_body.append("A message has been sent to the system "
+                              "administrator(s) with details about the problem.")
+    else:
+        error_title = "Request failed!"
+        error_body = ["An unexpected error occurred while handling the request.  "
+                      "A message has been sent to the system administrator(s) "
+                      "with details about the problem.  Please contact them for "
+                      "further information and/or assistance."]
+
+    return error_title, error_body
+
+class WrappedResult(object):
+    def __init__(self, db, req, user, result):
+        self.db = db
+        self.req = req
+        self.user = user
+        self.result = iter(result)
+        # Fetch the first block "prematurely," so that errors from it are raised
+        # early, and handled by the normal error handling code in main().
+        self.first = self.result.next()
+        self.failed = False
+
+    def __iter__(self):
+        return self
+
+    def next(self):
+        if self.failed:
+            raise StopIteration
+
+        try:
+            if self.first:
+                value = self.first
+                self.first = None
+            else:
+                value = self.result.next()
+
+            self.db.rollback()
+            return value
+        except StopIteration:
+            self.db.close()
+            raise
+        except Exception:
+            error_title, error_body = handleException(
+                self.db, self.req, self.user)
+
+            self.db.close()
+
+            if self.req.getContentType().startswith("text/html"):
+                self.failed = True
+
+                error_body = "".join("<p>%s</p>" % htmlify(part)
+                                     for part in error_body)
+
+                # Close a bunch of tables, in case we're in any.  Not
+                # pretty, but probably makes the end result prettier.
+                return ("</table></table></table></table></div>"
+                        "<div class='fatal'><table align=center><tr>"
+                        "<td><h1>%s</h1>%s</td></tr></table></div>"
+                        % (error_title, error_body))
+            else:
+                raise StopIteration
+
 def main(environ, start_response):
     request_start = time.time()
 
@@ -576,7 +670,7 @@ def main(environ, start_response):
                         req.setStatus(401)
                         req.addResponseHeader("WWW-Authenticate", "Basic realm=\"Critic\"")
                         req.start()
-                        return
+                        return []
                     elif configuration.base.SESSION_TYPE == "cookie":
                         if req.cookies.get("has_sid") == "1":
                             req.ensureSecure()
@@ -589,7 +683,7 @@ def main(environ, start_response):
                             # Don't try to redirect POST requests to the login page.
                             req.setStatus(403)
                             req.start()
-                            return
+                            return []
             else:
                 try:
                     user = dbutils.User.fromName(db, req.user)
@@ -621,7 +715,7 @@ def main(environ, start_response):
                 req.setStatus(307)
                 req.addResponseHeader("Location", location)
                 req.start()
-                return
+                return []
 
             if req.path == "redirect":
                 target = req.getParameter("target", "/")
@@ -632,9 +726,7 @@ def main(environ, start_response):
                     req.setContentType("text/html")
                     req.start()
 
-                    db.close()
-                    yield "<meta http-equiv='refresh' content='0; %s'>" % htmlify(target)
-                    return
+                    return ["<meta http-equiv='refresh' content='0; %s'>" % htmlify(target)]
                 else:
                     raise request.MovedTemporarily, target
 
@@ -644,9 +736,7 @@ def main(environ, start_response):
                 handled = extensions.role.page.execute(db, req, user)
                 if handled:
                     req.start()
-                    db.close()
-                    yield handled
-                    return
+                    return [handled]
 
             if req.path.startswith("r/"):
                 req.query = "id=" + req.path[2:] + ("&" + req.query if req.query else "")
@@ -659,13 +749,11 @@ def main(environ, start_response):
                     if resource:
                         req.setContentType(content_type)
                         req.start()
-                        db.close()
-                        yield resource
-                        return
+                        return [resource]
                     else:
                         req.setStatus(404)
                         req.start()
-                        return
+                        return []
 
             if req.path.startswith("download/"):
                 operationfn = download
@@ -673,12 +761,15 @@ def main(environ, start_response):
                 operationfn = OPERATIONS.get(req.path)
 
             if operationfn:
-                try: result = operationfn(req, db, user)
-                except OperationError, error: result = error
+                try:
+                    result = operationfn(req, db, user)
+                except OperationError, error:
+                    result = error
                 except page.utils.DisplayMessage, message:
                     result = "error: " + message.title
                     if message.body: result += "  " + message.body
-                except Exception: result = "error:\n" + traceback.format_exc()
+                except Exception:
+                    result = "error:\n" + traceback.format_exc()
 
                 if isinstance(result, (OperationResult, OperationError)):
                     req.setContentType("text/json")
@@ -693,12 +784,10 @@ def main(environ, start_response):
 
                 req.start()
 
-                db.close()
-
-                if isinstance(result, unicode): yield result.encode("utf8")
-                else: yield str(result)
-
-                return
+                if isinstance(result, unicode):
+                    return [result.encode("utf8")]
+                else:
+                    return [str(result)]
 
             override_user = req.getParameter("user", None)
 
@@ -715,38 +804,47 @@ def main(environ, start_response):
 
                         if isinstance(result, str) or isinstance(result, Document):
                             req.start()
-                            db.rollback()
-                            yield str(result)
+                            result = str(result)
+                            result += ("<!-- total request time: %.2f ms -->"
+                                       % ((time.time() - request_start) * 1000))
+                            if db.profiling:
+                                result += ("<!--\n\n%s\n\n -->"
+                                           % formatDBProfiling(db))
+                            return [result]
                         else:
-                            for fragment in result:
-                                req.start()
-                                db.rollback()
-                                yield str(fragment)
+                            result = WrappedResult(db, req, user, result)
+                            req.start()
 
+                            # Prevent the finally clause below from closing the
+                            # connection.  WrappedResult does it instead.
+                            db = None
+
+                            return result
                     except gitutils.NoSuchRepository as error:
-                        raise page.utils.DisplayMessage("Invalid URI Parameter!", error.message)
+                        raise page.utils.DisplayMessage(
+                            title="Invalid URI Parameter!",
+                            body=error.message)
                     except gitutils.GitReferenceError as error:
                         if error.ref:
-                            raise page.utils.DisplayMessage(title="Specified ref not found",
-                                                            body="There is no ref named \"%s\" in %s." % (error.ref, error.repository))
+                            raise page.utils.DisplayMessage(
+                                title="Specified ref not found",
+                                body=("There is no ref named \"%s\" in %s."
+                                      % (error.ref, error.repository)))
                         elif error.sha1:
-                            raise page.utils.DisplayMessage(title="SHA-1 not found",
-                                                            body="There is no object %s in %s." % (error.sha1, error.repository))
+                            raise page.utils.DisplayMessage(
+                                title="SHA-1 not found",
+                                body=("There is no object %s in %s."
+                                      % (error.sha1, error.repository)))
                         else:
                             raise
                     except dbutils.NoSuchUser as error:
-                        raise page.utils.DisplayMessage("Invalid URI Parameter!", error.message)
+                        raise page.utils.DisplayMessage(
+                            title="Invalid URI Parameter!",
+                            body=error.message)
                     except dbutils.NoSuchReview as error:
-                        raise page.utils.DisplayMessage("Invalid URI Parameter!", error.message)
-
-                    db.close()
-
-                    yield "<!-- total request time: %.2f ms -->" % ((time.time() - request_start) * 1000)
-
-                    if db.profiling:
-                        yield "<!--\n\n%s\n\n -->" % formatDBProfiling(db)
-
-                    return
+                        raise page.utils.DisplayMessage(
+                            title="Invalid URI Parameter!",
+                            body=error.message)
 
                 path = req.path
 
@@ -766,7 +864,11 @@ def main(environ, start_response):
 
                     if review_id:
                         cursor = db.cursor()
-                        cursor.execute("SELECT repository FROM branches JOIN reviews ON (reviews.branch=branches.id) WHERE reviews.id=%s", (review_id,))
+                        cursor.execute("""SELECT repository
+                                            FROM branches
+                                            JOIN reviews ON (reviews.branch=branches.id)
+                                           WHERE reviews.id=%s""",
+                                       (review_id,))
                         row = cursor.fetchone()
                         if row:
                             repository = gitutils.Repository.fromId(db, row[0])
@@ -785,7 +887,8 @@ def main(environ, start_response):
                             revparse = revparseWithReview
 
                 if repository is None:
-                    repository = gitutils.Repository.fromName(db, user.getPreference(db, "defaultRepository"))
+                    repository = gitutils.Repository.fromName(
+                        db, user.getPreference(db, "defaultRepository"))
 
                     if gitutils.re_sha1.match(path):
                         if repository and not repository.iscommit(path):
@@ -799,11 +902,13 @@ def main(environ, start_response):
                         items = filter(None, map(revparse, path.split("..")))
 
                         if len(items) == 1:
-                            req.query = "repository=%d&sha1=%s&%s" % (repository.id, items[0], req.query)
+                            req.query = ("repository=%d&sha1=%s&%s"
+                                         % (repository.id, items[0], req.query))
                             req.path = "showcommit"
                             continue
                         elif len(items) == 2:
-                            req.query = "repository=%d&from=%s&to=%s&%s" % (repository.id, items[0], items[1], req.query)
+                            req.query = ("repository=%d&from=%s&to=%s&%s"
+                                         % (repository.id, items[0], items[1], req.query))
                             req.path = "showcommit"
                             continue
                     except gitutils.GitReferenceError:
@@ -812,31 +917,34 @@ def main(environ, start_response):
                 break
 
             req.setStatus(404)
-            raise page.utils.DisplayMessage, ("Not found!", "Page not handled: /%s" % path)
+            raise page.utils.DisplayMessage(
+                title="Not found!",
+                body="Page not handled: /%s" % path)
         except GeneratorExit:
             raise
         except page.utils.NotModified:
             req.setStatus(304)
             req.start()
-            return
-        except request.MovedTemporarily, redirect:
+            return []
+        except request.MovedTemporarily as redirect:
             req.setStatus(307)
             req.addResponseHeader("Location", redirect.location)
             if redirect.no_cache:
                 req.addResponseHeader("Cache-Control", "no-cache")
             req.start()
-            return
-        except request.MissingWSGIRemoteUser, err:
+            return []
+        except request.MissingWSGIRemoteUser as error:
             # req object is not initialized yet.
             start_response("200 OK", [("Content-Type", "text/html")])
-            db.close()
-            yield """\
-<pre>error: Critic was configured with '--auth-mode host' but there was no REMOTE_USER
-variable in the WSGI environ dict provided by the web server.
+            return ["""\
+<pre>error: Critic was configured with '--auth-mode host' but there was no
+REMOTE_USER variable in the WSGI environ dict provided by the web server.
 
-To fix this you can either reinstall Critic using '--auth-mode critic' (to let Critic handle user authentication
-automatically), or you can configure user authentication properly in the web server.  For apache2, the latter can be done
-by adding the something like the following to the apache site configuration for Critic:
+To fix this you can either reinstall Critic using '--auth-mode critic' (to let
+Critic handle user authentication automatically), or you can configure user
+authentication properly in the web server.  For apache2, the latter can be done
+by adding the something like the following to the apache site configuration for
+Critic:
 
         &lt;Location /&gt;
                 AuthType Basic
@@ -845,66 +953,38 @@ by adding the something like the following to the apache site configuration for 
                 Require valid-user
         &lt;/Location&gt;
 
-If you need more dynamic http authentication you can instead setup mod_wsgi with a custom WSGIAuthUserScript
-directive.  This will cause the provided credentials to be passed to a Python function called check_password()
-that you can implement yourself.  This way you can validate the user/pass via any existing database or for
-example an LDAP server.  For more information on setting up such authentication in apache2, see:
-<a href="http://code.google.com/p/modwsgi/wiki/AccessControlMechanisms#Apache_Authentication_Provider">
-http://code.google.com/p/modwsgi/wiki/AccessControlMechanisms#Apache_Authentication_Provider</a></pre>"""
-            return
-        except page.utils.DisplayMessage, message:
-            document = page.utils.displayMessage(db, req, user, title=message.title, message=message.body, review=message.review, is_html=message.html)
+If you need more dynamic http authentication you can instead setup mod_wsgi with
+a custom WSGIAuthUserScript directive.  This will cause the provided credentials
+to be passed to a Python function called check_password() that you can implement
+yourself.  This way you can validate the user/pass via any existing database or
+for example an LDAP server.  For more information on setting up such
+authentication in apache2, see:
+
+  <a href="%(url)s">%(url)s</a></pre>""" % { "url": "http://code.google.com/p/modwsgi/wiki/AccessControlMechanisms#Apache_Authentication_Provider" }]
+        except page.utils.DisplayMessage as message:
+            document = page.utils.displayMessage(
+                db, req, user, title=message.title, message=message.body,
+                review=message.review, is_html=message.html)
 
             req.setContentType("text/html")
             req.start()
 
-            db.close()
-            yield str(document)
-            return
+            return [str(document)]
         except:
-            error_message = traceback.format_exc()
+            error_title, error_body = handleException(db, req, user)
+            error_body = reflow("\n\n".join(error_body))
+            error_message = "\n".join([error_title,
+                                       "=" * len(error_title),
+                                       "",
+                                       error_body])
 
-            environ["wsgi.errors"].write(error_message)
+            assert not req.isStarted()
 
-            db.rollback()
+            req.setStatus(500)
+            req.setContentType("text/plain")
+            req.start()
 
-            if not user or not user.hasRole(db, "developer"):
-                import wsgiref.util
-
-                url = wsgiref.util.request_uri(environ)
-
-                x_forwarded_host = req.getRequestHeader("X-Forwarded-Host")
-                if x_forwarded_host:
-                    url = re.sub("^([a-z]+://)[^/]+", lambda match: match.group(1) + x_forwarded_host, url)
-
-                mailutils.sendExceptionMessage("wsgi", ("User:   %s\nMethod: %s\nURL:    %s\n\n%s"
-                                                        % (req.user, req.method, url, error_message)))
-
-                admin_message_sent = True
-            else:
-                admin_message_sent = False
-
-            if not user or user.hasRole(db, "developer") or configuration.base.IS_DEVELOPMENT:
-                title = "Unexpected error!"
-                body = error_message
-                if admin_message_sent:
-                    body += "\nA message has been sent to the system administrator(s) with details about the problem."
-                body_html = "<pre>%s</pre>" % htmlify(body)
-            else:
-                title = "Darn! It seems we have a problem..."
-                body = "A message has been sent to the system administrator(s) with details about the problem."
-                body_html = body
-
-            if not req.isStarted():
-                req.setStatus(500)
-                req.setContentType("text/plain")
-                req.start()
-                db.close()
-                yield "%s\n%s\n\n%s" % (title, "=" * len(title), body)
-            elif req.getContentType().startswith("text/html"):
-                # Close a bunch of tables, in case we're in any.  Not pretty,
-                # but probably makes the end result prettier.
-                db.close()
-                yield "</table></table></table></table></div><div class='fatal'><table align=center><tr><td><h1>%s</h1><p>%s</p>" % (title, body_html)
+            return [error_message]
     finally:
-        db.close()
+        if db:
+            db.close()
