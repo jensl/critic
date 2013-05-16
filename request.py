@@ -183,7 +183,14 @@ class Request:
             except KeyError:
                 raise MissingWSGIRemoteUser
         elif configuration.base.AUTHENTICATION_MODE == "critic":
-            if configuration.base.SESSION_TYPE == "cookie":
+            session_type = configuration.base.SESSION_TYPE
+
+            authorization_header = self.getRequestHeader("Authorization")
+
+            if authorization_header is not None and not self.cookies:
+                session_type = "httpauth"
+
+            if session_type == "cookie":
                 sid = self.cookies.get("sid")
 
                 if not sid:
@@ -221,10 +228,9 @@ class Request:
 
                 self.user = None
 
-                authorization = self.getRequestHeader("Authorization")
-                if not authorization: return
+                if not authorization_header: return
 
-                authtype, base64_credentials = authorization.split()
+                authtype, base64_credentials = authorization_header.split()
                 if authtype != "Basic": return
 
                 credentials = base64.b64decode(base64_credentials).split(":")
