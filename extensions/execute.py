@@ -19,7 +19,7 @@ import subprocess
 
 import configuration
 from textutils import json_encode
-from extensions.communicate import communicate
+from communicate import Communicate
 
 def executeProcess(manifest, role, extension_id, user_id, argv, timeout, stdin=None, rlimit_cpu=5, rlimit_rss=256):
     flavor = manifest.flavor
@@ -62,4 +62,8 @@ def executeProcess(manifest, role, extension_id, user_id, argv, timeout, stdin=N
 
     process = subprocess.Popen(process_argv, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=manifest.path)
 
-    return communicate(process, stdin_data, timeout)[0]
+    communicate = Communicate(process)
+    communicate.setInput(stdin_data)
+    communicate.setTimout(timeout)
+
+    return communicate.run()[0]
