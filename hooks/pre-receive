@@ -16,7 +16,7 @@
 # the License.
 
 from sys import stdin, stdout, path, exit
-from os import getcwd, getuid
+from os import getcwd, getuid, environ
 from pwd import getpwuid
 from socket import socket, AF_UNIX, SOCK_STREAM, SHUT_WR
 from subprocess import Popen, PIPE
@@ -51,10 +51,14 @@ except:
 # Line 1: user name.
 data = getpwuid(getuid()).pw_name + "\n"
 
-# Line 2: repository name.
+# Line 2: $REMOTE_USER or empty string if undefined.  This will only be used
+#         if the actual user (line 1) is the Critic system user.
+data += environ.get("REMOTE_USER", "") + "\n"
+
+# Line 3: repository name.
 data += repository_name + "\n"
 
-# Line 3-N: input to the git hook.
+# Line 4-N: input to the git hook.
 data += stdin.read()
 
 try:

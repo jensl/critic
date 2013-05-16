@@ -181,10 +181,25 @@ been sent to the system administrator(s).
             def handle_input(self, data):
                 lines = data.splitlines()
 
-                self.__request = { "user_name": lines[0],
-                                   "repository_name": lines[1],
-                                   "refs": [{ "name": name, "old_sha1": old_sha1, "new_sha1": new_sha1 }
-                                            for old_sha1, new_sha1, name in map(str.split, lines[2:])] }
+                user_name = lines[0]
+
+                # The second line is the value of the REMOTE_USER environment
+                # variable (from the environment with which the git hook ran.)
+                #
+                # We use it as the actual user only if the actual user was the
+                # Critic system user, meaning the push was performed by the
+                # branch tracker service, the web front-end (for instance via
+                # 'git http-backend') or an extension.
+                if user_name == configuration.base.SYSTEM_USER_NAME and lines[1]:
+                    user_name = lines[1]
+
+                self.__request = { "user_name": user_name,
+                                   "repository_name": lines[2],
+                                   "refs": [{ "name": name,
+                                              "old_sha1": old_sha1,
+                                              "new_sha1": new_sha1 }
+                                            for old_sha1, new_sha1, name
+                                            in map(str.split, lines[3:])] }
 
                 self.server.info("session started: %s / %s" % (self.__request["user_name"], self.__request["repository_name"]))
 
