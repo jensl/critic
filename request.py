@@ -248,6 +248,9 @@ class Request:
     def getRequestURI(self):
         return wsgiref.util.request_uri(self.__environ)
 
+    def getEnvironment(self):
+        return self.__environ
+
     def getUser(self, db):
         import dbutils
         return dbutils.User.fromName(db, self.user)
@@ -318,13 +321,20 @@ class Request:
         try: return self.getRequestHeader("Referer")
         except: return "N/A"
 
-    def read(self):
+    def read(self, *args):
         """\
         Return the HTTP request body, or an empty string if there is none.
         """
 
         if "wsgi.input" not in self.__environ: return ""
-        return self.__environ["wsgi.input"].read()
+        return self.__environ["wsgi.input"].read(*args)
+
+    def write(self, data):
+        """
+        Write HTTP response body chunk.
+        """
+
+        self.__write(data)
 
     def setStatus(self, code, message=None):
         """\
@@ -403,7 +413,10 @@ class Request:
             if self.__content_type is None:
                 self.setContentType("text/plain")
 
-            self.__start_response(self.__status, [("Content-Type", self.__content_type)] + self.__response_headers)
+            headers = [("Content-Type", self.__content_type)]
+            headers.extend(self.__response_headers)
+
+            self.__write = self.__start_response(self.__status, headers)
             self.__started = True
 
     def isStarted(self):
