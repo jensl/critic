@@ -73,6 +73,16 @@ for module in installation.modules:
 
 arguments = parser.parse_args()
 
+if os.path.exists(os.path.join(installation.root_dir, ".install.data")):
+    print """
+ERROR: Found an .install.data file in the directory you're installing from.
+
+This typically means that Critic is already installed on this system, and if so
+then the upgrade.py script should be used to upgrade the installation rather than
+re-running install.py.
+"""
+    sys.exit(1)
+
 if arguments.headless:
     installation.input.headless = True
 
