@@ -29,24 +29,6 @@ import log.commitset as log_commitset
 from operation import OperationError, OperationFailure
 from filters import Filters
 
-def checkCommitChain(commits):
-    """checkCommitChain(commits)
-
-Verifies that the list of commits is suitable for a review, meaning that
-no commits is a merge and that each commit is the parent of the following
-commit.  If not, throws an exception describing the issue."""
-
-    if len(commits) > 1:
-        for commit in commits:
-            if len(commit.parents) > 1:
-                raise Exception, "%s is a merge commit" % commit.sha1
-            elif len(commit.parents) == 0:
-                raise Exception, "%s is a root commit" % commit.sha1
-
-        for parent, child in zip(commits, commits[1:]):
-            if parent.sha1 not in child.parents:
-                raise Exception, "%s is not a parent of %s" % (parent.sha1, child.sha1)
-
 def getReviewersAndWatchers(db, repository, commits=None, changesets=None, reviewfilters=None, applyfilters=True, applyparentfilters=False, parentfiltersonly=False):
     """getReviewersAndWatchers(db, commits=None, changesets=None) -> tuple
 
