@@ -47,7 +47,11 @@ Critic Installation: Paths
         def is_new_dir(path):
             error = is_good_dir(path)
             if error: return error
-            if os.path.exists(path): return "already exists"
+            if os.path.exists(path):
+                return "directory already exists (NOTE: if Critic is already " \
+                       "installed and you want to upgrade to the latest " \
+                       "version of Critic, then run upgrade.py rather than " \
+                       "re-running install.py)"
 
         if arguments.etc_dir:
             error = is_new_dir(arguments.etc_dir)
