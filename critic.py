@@ -568,6 +568,7 @@ def main(environ, start_response):
     try:
         try:
             req = request.Request(db, environ, start_response)
+            req.setUser(db)
 
             if req.user is None:
                 if configuration.base.AUTHENTICATION_MODE == "critic":
@@ -583,7 +584,7 @@ def main(environ, start_response):
                                 or req.path in ("login", "validatelogin"):
                             user = dbutils.User.makeAnonymous()
                         elif req.method == "GET":
-                            raise page.utils.NeedLogin(req)
+                            raise request.NeedLogin(req)
                         else:
                             # Don't try to redirect POST requests to the login page.
                             req.setStatus(403)

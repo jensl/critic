@@ -15,6 +15,7 @@
 # the License.
 
 import re
+import urllib
 import httplib
 import wsgiref.util
 
@@ -44,6 +45,19 @@ class MovedTemporarily(Exception):
     def __init__(self, location, no_cache=False):
         self.location = location
         self.no_cache = no_cache
+
+class NeedLogin(MovedTemporarily):
+    def __init__(self, source, optional=False):
+        if isinstance(source, Request):
+            target = "/" + source.path
+            if source.query:
+                target += "?" + source.query
+        else:
+            target = str(source)
+        location = "/login?target=%s" % urllib.quote(target)
+        if optional:
+            location += "&optional=yes"
+        super(NeedLogin, self).__init__(location, no_cache=True)
 
 class DisplayMessage(Exception):
     """\
@@ -162,12 +176,10 @@ class Request:
                 if name and value:
                     self.cookies[name] = value
 
-        self.__setUser(db, environ)
-
-    def __setUser(self, db, environ):
+    def setUser(self, db):
         if configuration.base.AUTHENTICATION_MODE == "host":
             try:
-                self.user = environ["REMOTE_USER"]
+                self.user = self.__environ["REMOTE_USER"]
             except KeyError:
                 raise MissingWSGIRemoteUser
         elif configuration.base.AUTHENTICATION_MODE == "critic":
@@ -187,7 +199,12 @@ class Request:
                 try:
                     user, session_age = cursor.fetchone()
                 except:
-                    return
+                    if self.path != "validatelogin":
+                        cookie = "sid=invalid; Expires=Thursday 01-Jan-1970 00:00:00 GMT"
+                        self.addResponseHeader("Set-Cookie", cookie)
+                    if self.path in ("login", "validatelogin"):
+                        return
+                    raise NeedLogin(self, optional=True)
 
                 if configuration.base.SESSION_MAX_AGE == 0 \
                         or session_age < configuration.base.SESSION_MAX_AGE:

@@ -21,6 +21,7 @@ import page.utils
 
 def renderLogin(req, db, user):
     target_url = req.getParameter("target", "/")
+    optional = req.getParameter("optional", "no") == "yes"
 
     if not user.isAnonymous():
         raise page.utils.MovedTemporarily(target_url or "/", True)
@@ -56,6 +57,14 @@ def renderLogin(req, db, user):
 
         row = table.tr("login")
         row.td(colspan=2).input("login", type="submit", value="Sign in")
+
+        if optional:
+            table.tr("separator1").td(colspan=2)
+            table.tr("separator2").td(colspan=2)
+
+            row = table.tr("continue")
+            row.td(colspan=2).a(href=target_url).innerHTML(
+                "&#8230; or, continue anonymously")
 
     paleyellow = page.utils.PaleYellowTable(body, "Sign in")
     paleyellow.addCentered(render)

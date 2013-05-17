@@ -21,8 +21,8 @@ import configuration
 from cStringIO import StringIO
 import traceback
 from request import NoDefault, MovedTemporarily, DisplayMessage, \
-                    InvalidParameterValue, decodeURIComponent, Request
-import urllib
+                    InvalidParameterValue, decodeURIComponent, Request, \
+                    NeedLogin
 
 from textutils import json_encode, json_decode
 
@@ -34,16 +34,6 @@ LINK_RELS = { "Home": "home",
 
 class NotModified:
     pass
-
-class NeedLogin(MovedTemporarily):
-    def __init__(self, source):
-        if isinstance(source, Request):
-            target = "/" + source.path
-            if source.query:
-                target += "?" + source.query
-        else:
-            target = str(source)
-        super(NeedLogin, self).__init__("/login?target=%s" % urllib.quote(target), no_cache=True)
 
 def YesOrNo(value):
     if value == "yes": return True

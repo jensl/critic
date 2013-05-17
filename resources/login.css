@@ -23,6 +23,15 @@ table.login {
     background-color: #ffe
 }
 
+table.login tr.separator1 td {
+    border-bottom: 1px solid #996;
+    padding-top: 1em
+}
+
+table.login tr.separator2 td {
+    padding-top: 1em
+}
+
 table.login tr.status td {
     color: red;
     font-weight: bold;
@@ -54,4 +63,13 @@ table.login td.value input {
 table.login tr.login td {
     text-align: center;
     padding-top: 1em
+}
+
+table.login tr.continue td {
+    text-align: right;
+    font-weight: bold
+}
+
+table.login tr.continue a, table.login tr.continue a:visited {
+    color: black
 }
