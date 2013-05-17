@@ -25,6 +25,19 @@ except: pass
 
 __doc__ = "Helper functions for prompting for and reading input."
 
+def apply_check(check, input):
+    result = check(input)
+    if result is None:
+        return True
+    elif result is True:
+        print "Invalid input."
+        print
+    else:
+        print "Invalid input: %s." % result
+        print
+    return False
+
+
 def yes_or_no(prompt, default=None):
     prompt = "%s [%s/%s] " % (prompt, "Y" if default is True else "y", "N" if default is False else "n")
 
@@ -54,17 +67,11 @@ def string(prompt, default=None, check=None):
             raise
 
         if default and not input:
-            return default
-        elif check:
-            result = check(input)
-            if result is None:
+            input = default
+
+        if check:
+            if apply_check(check, input):
                 return input
-            elif result is True:
-                print "Invalid input."
-                print
-            else:
-                print "Invalid input: %s." % result
-                print
         elif not input:
             print "Invalid input: empty."
         else:

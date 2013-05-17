@@ -44,7 +44,10 @@ ERROR: string input requested in headless mode!
             sys.exit(1)
         else:
             print "%s %s" % (prompt, default)
-            return default
+            if not check or inpututils.apply_check(check, default):
+                return default
+            else:
+                sys.exit(1)
 
     return inpututils.string(prompt, default, check)
 
