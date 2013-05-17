@@ -41,21 +41,18 @@ def joinTags(tags):
 
 def insertTag(tags, offset, newTag):
     newTag = Tag(newTag)
-    try:
-        index = 0
-        while index < len(tags):
-            tag = tags[index]
-            if tag:
-                if len(tag) < offset: offset -= len(tag)
-                else:
-                    if len(tag) == offset: tags.insert(index + 1, newTag)
-                    elif not offset: tags.insert(index, newTag)
-                    else: tags[index:index+1] = tag[:offset], newTag, tag[offset:]
-                    return
-            index += 1
-        tags.append(newTag)
-    except:
-        raise Exception, repr(tags) + repr(offset) + repr(newTag)
+    index = 0
+    while index < len(tags):
+        tag = tags[index]
+        if tag:
+            if len(tag) < offset: offset -= len(tag)
+            else:
+                if len(tag) == offset: tags.insert(index + 1, newTag)
+                elif not offset: tags.insert(index, newTag)
+                else: tags[index:index+1] = tag[:offset], newTag, tag[offset:]
+                return
+        index += 1
+    tags.append(newTag)
 
 def lineDiffHTML(ops, old, new):
     old = splitTags(old)

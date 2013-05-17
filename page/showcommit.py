@@ -14,6 +14,7 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
+import base
 import htmlutils
 import page.utils
 import dbutils
@@ -644,10 +645,10 @@ def render(db, target, user, repository, review, changesets, commits, listed_com
     if user.getPreference(db, "ui.keyboardShortcuts"):
         page.utils.renderShortcuts(target, "showcommit", merge_parents=len(changesets), squashed_diff=commits and len(commits) > 1)
 
-def commitRangeFromReview(db, user, review, filter, file_ids):
+def commitRangeFromReview(db, user, review, filter_value, file_ids):
     edges = cursor = db.cursor()
 
-    if filter == "pending":
+    if filter_value == "pending":
         cursor.execute("""SELECT DISTINCT changesets.parent, changesets.child
                             FROM changesets
                             JOIN reviewfiles ON (reviewfiles.changeset=changesets.id)
@@ -656,7 +657,7 @@ def commitRangeFromReview(db, user, review, filter, file_ids):
                              AND reviewuserfiles.uid=%s
                              AND reviewfiles.state='pending'""",
                        (review.id, user.id))
-    elif filter == "reviewable":
+    elif filter_value == "reviewable":
         cursor.execute("""SELECT DISTINCT changesets.parent, changesets.child
                             FROM changesets
                             JOIN reviewfiles ON (reviewfiles.changeset=changesets.id)
@@ -664,7 +665,7 @@ def commitRangeFromReview(db, user, review, filter, file_ids):
                            WHERE reviewfiles.review=%s
                              AND reviewuserfiles.uid=%s""",
                        (review.id, user.id))
-    elif filter == "relevant":
+    elif filter_value == "relevant":
         filters = review_filters.Filters()
         filters.setFiles(db, review=review)
         filters.load(db, review=review, user=user)
@@ -682,7 +683,7 @@ def commitRangeFromReview(db, user, review, filter, file_ids):
         for parent_id, child_id, file_id, is_reviewer in cursor:
             if is_reviewer or filters.isRelevant(user, file_id):
                 edges.add((parent_id, child_id))
-    elif filter == "files":
+    elif filter_value == "files":
         assert len(file_ids) != 0
 
         cursor.execute("""SELECT DISTINCT changesets.parent, changesets.child
@@ -693,7 +694,10 @@ def commitRangeFromReview(db, user, review, filter, file_ids):
                              AND fileversions.file=ANY (%s)""",
                        (review.id, list(file_ids)))
     else:
-        raise Exception, "invalid filter: %s" % filter
+        raise page.utils.InvalidParameterValue(
+            name="filter",
+            value=filter_value,
+            expected="one of 'pending', 'reviewable', 'relevant' and 'files'")
 
     listed_commits = set()
     with_pending = set()
@@ -712,7 +716,13 @@ def commitRangeFromReview(db, user, review, filter, file_ids):
         commitset = CommitSet(review.branch.commits)
         tails = commitset.getFilteredTails(review.repository)
 
-        if len(commitset) == 0: raise Exception, "empty commit-set"
+        if len(commitset) == 0:
+            raise page.utils.DisplayMessage(
+                title="Empty review",
+                body=("This review contains no commits.  It is thus not "
+                      "meaningful to display a filtered view of the changes "
+                      "in it."),
+                review=review)
         elif len(tails) > 1:
             ancestor = review.repository.getCommonAncestor(tails)
             paths = []
@@ -770,8 +780,9 @@ including the unrelated changes.</p>
                 candidates.sort(cmp=lambda a, b: cmp(len(b[1]), len(a[1])))
 
                 return candidates[0][0], review.branch.head.sha1, all_commits, listed_commits
-
-        elif len(tails) == 0: raise Exception, "impossible commit-set (%r)" % commitset
+        elif not tails:
+            raise base.ImplementationError(
+                "impossible commit-set (%r)" % commitset)
 
         return tails.pop(), review.branch.head.sha1, all_commits, listed_commits
 

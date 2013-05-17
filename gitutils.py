@@ -513,10 +513,12 @@ class Repository:
 
     @staticmethod
     def readObject(repository_path, object_type, object_sha1):
-        git = process([configuration.executables.GIT, 'cat-file', object_type, object_sha1], stdout=PIPE, stderr=PIPE, cwd=repository_path)
+        argv = [configuration.executables.GIT, 'cat-file', object_type, object_sha1]
+        git = process(argv, stdout=PIPE, stderr=PIPE, cwd=repository_path)
         stdout, stderr = git.communicate()
-        if git.returncode == 0: return stdout
-        else: raise Exception, "'git cat-file' failed: %s" % stderr.strip()
+        if git.returncode != 0:
+            raise GitCommandError(" ".join(argv), stderr.strip(), repository_path)
+        return stdout
 
     @staticmethod
     def lsremote(remote, include_heads=False, include_tags=False, pattern=None, regexp=None):
@@ -942,8 +944,10 @@ class FetchCommits(threading.Thread):
             for sha1, commit_id in self.sha1s.items():
                 line, stdout = stdout.split("\n", 1)
 
-                try: object_sha1, object_type, object_size = line.split(" ")
-                except: raise Exception, "unexpected header line: %r" % line
+                try:
+                    object_sha1, object_type, object_size = line.split(" ")
+                except ValueError:
+                    raise SyntaxError("unexpected line: %r" % line)
 
                 assert object_sha1 == sha1, "%s != %s" % (object_sha1, sha1)
                 assert object_type == "commit"
@@ -956,7 +960,7 @@ class FetchCommits(threading.Thread):
                 gitobjects.append((GitObject(object_sha1, object_type, object_size, object_data), commit_id))
 
             self.gitobjects = gitobjects
-        except:
+        except Exception:
             self.error = format_exc()
 
     def getCommits(self, db):

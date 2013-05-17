@@ -67,8 +67,9 @@ well as to the system administrator to alert about problems.
 
         def valid_port(value):
             try:
-                if not (0 < int(value) < 65536): raise Exception
-            except:
+                if not (0 < int(value) < 65536):
+                    raise ValueError
+            except ValueError:
                 return "must be a valid TCP port number"
 
         first = True

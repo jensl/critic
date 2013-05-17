@@ -17,6 +17,7 @@
 import os
 import subprocess
 
+import base
 import configuration
 import dbutils
 
@@ -124,7 +125,8 @@ class Extension:
         versions = set(cursor)
 
         if len(versions) > 1:
-            raise Exception("Error, error!  Multiple versions installed.  This should not happen.")
+            raise base.ImplementationError(
+                "multiple extension versions installed (should not happen)")
 
         if versions:
             return versions.pop()

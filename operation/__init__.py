@@ -16,6 +16,8 @@
 
 import sys
 import traceback
+
+import base
 import mailutils
 import dbutils
 import htmlutils
@@ -136,7 +138,7 @@ class TypeChecker:
         elif source is str: return StringChecker()
         elif source is int: return IntegerChecker()
         elif source is bool: return BooleanChecker()
-        else: raise Exception, "invalid source type"
+        else: raise base.ImplementationError("invalid source type")
 
 class Optional:
     """\
@@ -196,7 +198,8 @@ class ArrayChecker:
 
     """
     def __init__(self, source):
-        if len(source) != 1: raise Exception, "invalid source type"
+        if len(source) != 1:
+            raise base.ImplementationError("invalid source type")
         self.__checker = TypeChecker.make(source[0])
 
     def __call__(self, value, context):
@@ -217,7 +220,7 @@ class EnumerationChecker:
         self.__checker = TypeChecker.make(str)
         for item in source:
             if not type(item) is str:
-                raise Exception, "invalid source type"
+                raise base.ImplementationError("invalid source type")
         self.__enumeration = source
 
     def __call__(self, value, context):
@@ -304,7 +307,7 @@ class Operation(object):
 
         """
         if not type(parameter_types) is dict:
-            raise Exception, "invalid source type"
+            raise base.ImplementationError("invalid source type")
         self.__checker = TypeChecker.make(parameter_types)
         self.__accept_anonymous_user = accept_anonymous_user
 

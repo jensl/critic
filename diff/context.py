@@ -16,8 +16,6 @@
 
 import diff
 import diff.html
-import sys
-import traceback
 
 class ContextLines:
     def __init__(self, file, chunks, chains=None, merge=False, conflicts=False):
@@ -266,8 +264,7 @@ class ContextLines:
                                 line = diff.Line(diff.Line.CONTEXT,
                                                  old_offset, old_lines[old_offset - 1],
                                                  new_offset, new_lines[new_offset - 1])
-                            except:
-                                #raise Exception, repr((count, old_offset, len(old_lines), new_offset, len(new_lines), chain.id, self.file.old_sha1, self.file.new_sha1))
+                            except IndexError:
                                 break
                             if not lineFilter or lineFilter(line):
                                 if not first_line: first_line = line
@@ -300,96 +297,93 @@ class ContextLines:
 
         macro_chunks = []
 
-        try:
-            def lineOrNone(lines, index):
-                try: return lines[index]
-                except IndexError: return None
+        def lineOrNone(lines, index):
+            try: return lines[index]
+            except IndexError: return None
+
+        while all_lines:
+            old_offset, new_offset, first_line = all_lines.pop()
+
+            count = min(context_lines, max(old_offset - 1, new_offset - 1))
+            old_offset = max(1, old_offset - count)
+            new_offset = max(1, new_offset - count)
+            lines = []
+
+            while count:
+                if old_offset <= len(old_lines) and new_offset <= len(new_lines):
+                    addLine(diff.Line(diff.Line.CONTEXT,
+                                      old_offset, old_lines[old_offset - 1],
+                                      new_offset, new_lines[new_offset - 1]))
+                    old_offset += 1
+                    new_offset += 1
+                elif old_offset <= len(old_lines):
+                    old_offset += 1
+                else:
+                    new_offset += 1
+                count -= 1
+
+            lines.append(first_line)
+            if first_line.type != diff.Line.INSERTED: old_offset += 1
+            if first_line.type != diff.Line.DELETED: new_offset += 1
 
             while all_lines:
-                old_offset, new_offset, first_line = all_lines.pop()
+                while all_lines and (old_offset == all_lines[0][0] or new_offset == all_lines[0][1]):
+                    line = all_lines.pop()[2]
+                    lines.append(line)
+                    if line.type != diff.Line.INSERTED: old_offset += 1
+                    if line.type != diff.Line.DELETED: new_offset += 1
 
-                count = min(context_lines, max(old_offset - 1, new_offset - 1))
-                old_offset = max(1, old_offset - count)
-                new_offset = max(1, new_offset - count)
-                lines = []
+                if all_lines and all_lines[0][1] - new_offset <= 2 * context_lines + minimum_gap:
+                    while old_offset != all_lines[0][0] and new_offset != all_lines[0][1]:
+                        line = diff.Line(diff.Line.CONTEXT,
+                                         old_offset, lineOrNone(old_lines, old_offset - 1),
+                                         new_offset, lineOrNone(new_lines, new_offset - 1))
+                        addLine(line)
+                        if line.old_value is not None: old_offset += 1
+                        if line.new_value is not None: new_offset += 1
+                else: break
 
-                while count:
-                    if old_offset <= len(old_lines) and new_offset <= len(new_lines):
-                        addLine(diff.Line(diff.Line.CONTEXT,
-                                          old_offset, old_lines[old_offset - 1],
-                                          new_offset, new_lines[new_offset - 1]))
-                        old_offset += 1
-                        new_offset += 1
-                    elif old_offset <= len(old_lines):
-                        old_offset += 1
+            count = context_lines
+
+            while count:
+                if old_offset <= len(old_lines) and new_offset <= len(new_lines):
+                    addLine(diff.Line(diff.Line.CONTEXT,
+                                      old_offset, old_lines[old_offset - 1],
+                                      new_offset, new_lines[new_offset - 1]))
+                    old_offset += 1
+                    new_offset += 1
+                elif old_offset <= len(old_lines):
+                    old_offset += 1
+                else:
+                    new_offset += 1
+                count -= 1
+
+            chunks = []
+
+            while all_chunks and (all_chunks[0].delete_offset < old_offset or all_chunks[0].insert_offset < new_offset):
+                chunks.append(all_chunks.pop(0))
+
+            chains = []
+
+            if all_chains:
+                index = 0
+                while index < len(all_chains):
+                    chain = all_chains[index]
+
+                    if self.file.new_sha1 in chain.lines_by_sha1:
+                        chain_offset, chain_count = chain.lines_by_sha1[self.file.new_sha1]
+                        compare_offset = new_offset
                     else:
-                        new_offset += 1
-                    count -= 1
+                        chain_offset, chain_count = chain.lines_by_sha1[self.file.old_sha1]
+                        compare_offset = old_offset
 
-                lines.append(first_line)
-                if first_line.type != diff.Line.INSERTED: old_offset += 1
-                if first_line.type != diff.Line.DELETED: new_offset += 1
-
-                while all_lines:
-                    while all_lines and (old_offset == all_lines[0][0] or new_offset == all_lines[0][1]):
-                        line = all_lines.pop()[2]
-                        lines.append(line)
-                        if line.type != diff.Line.INSERTED: old_offset += 1
-                        if line.type != diff.Line.DELETED: new_offset += 1
-
-                    if all_lines and all_lines[0][1] - new_offset <= 2 * context_lines + minimum_gap:
-                        while old_offset != all_lines[0][0] and new_offset != all_lines[0][1]:
-                            line = diff.Line(diff.Line.CONTEXT,
-                                             old_offset, lineOrNone(old_lines, old_offset - 1),
-                                             new_offset, lineOrNone(new_lines, new_offset - 1))
-                            addLine(line)
-                            if line.old_value is not None: old_offset += 1
-                            if line.new_value is not None: new_offset += 1
-                    else: break
-
-                count = context_lines
-
-                while count:
-                    if old_offset <= len(old_lines) and new_offset <= len(new_lines):
-                        addLine(diff.Line(diff.Line.CONTEXT,
-                                          old_offset, old_lines[old_offset - 1],
-                                          new_offset, new_lines[new_offset - 1]))
-                        old_offset += 1
-                        new_offset += 1
-                    elif old_offset <= len(old_lines):
-                        old_offset += 1
+                    if chain_offset < compare_offset:
+                        chains.append(chain)
+                        del all_chains[index]
                     else:
-                        new_offset += 1
-                    count -= 1
+                        index += 1
 
-                chunks = []
-
-                while all_chunks and (all_chunks[0].delete_offset < old_offset or all_chunks[0].insert_offset < new_offset):
-                    chunks.append(all_chunks.pop(0))
-
-                chains = []
-
-                if all_chains:
-                    index = 0
-                    while index < len(all_chains):
-                        chain = all_chains[index]
-
-                        if self.file.new_sha1 in chain.lines_by_sha1:
-                            chain_offset, chain_count = chain.lines_by_sha1[self.file.new_sha1]
-                            compare_offset = new_offset
-                        else:
-                            chain_offset, chain_count = chain.lines_by_sha1[self.file.old_sha1]
-                            compare_offset = old_offset
-
-                        if chain_offset < compare_offset:
-                            chains.append(chain)
-                            del all_chains[index]
-                        else:
-                            index += 1
-
-                macro_chunks.append(diff.MacroChunk(chunks, lines))
-        except IndexError:
-            raise Exception, "\nold_offset=%d/%d\nnew_offset=%d/%d\nlines=%r\nall_lines=%r\n\n%s" % (old_offset, len(old_lines), new_offset, len(new_lines), lines, all_lines, "".join(traceback.format_exception(*sys.exc_info())))
+            macro_chunks.append(diff.MacroChunk(chunks, lines))
 
         if not lineFilter:
             return filter(lambda macro_chunk: bool(macro_chunk.chunks), macro_chunks)

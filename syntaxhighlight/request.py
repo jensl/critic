@@ -14,12 +14,18 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-import configuration
-import syntaxhighlight
 import socket
 
-try: from json import dumps as json_encode, loads as json_decode
-except: from cjson import encode as json_encode, decode as json_decode
+import base
+import configuration
+import syntaxhighlight
+
+from textutils import json_encode, json_decode
+
+class HighlightBackgroundServiceError(base.ImplementationError):
+    def __init__(self, message):
+        super(HighlightBackgroundServiceError).__init__(
+            "Highlight background service failed: %s" % message)
 
 def requestHighlights(repository, sha1s):
     requests = [{ "repository_path": repository.path, "sha1": sha1, "path": path, "language": language }
@@ -43,14 +49,17 @@ def requestHighlights(repository, sha1s):
 
         connection.close()
     except socket.error, error:
-        raise Exception, "Syntax highlighting background service failed: %s" % error[1]
+        raise HighlightBackgroundServiceError(error[1])
 
     try:
         results = json_decode(data)
-    except:
-        raise Exception, "Syntax highlighting background service failed: returned an invalid response (%r)" % data
+    except ValueError:
+        raise HighlightBackgroundServiceError(
+            "returned an invalid response (%r)" % data)
 
     if type(results) != list:
-        raise Exception, "Syntax highlighting background service failed: %s" % str(results)
+        # If not a list, the result is probably an error message.
+        raise HighlightBackgroundServiceError(str(results))
 
-    assert len(results) == len(requests)
+    if len(results) != len(requests):
+        raise HighlightBackgroundServiceError("didn't process all requests")

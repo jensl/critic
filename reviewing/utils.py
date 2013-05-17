@@ -82,8 +82,7 @@ is used as a key in the dictionary instead of a real user ID."""
                         reviewer_user_ids = []
                         for delegate_user_name in delegate.split(","):
                             delegate_user = dbutils.User.fromName(db, delegate_user_name)
-                            if delegate_user: reviewer_user_ids.append(delegate_user.id)
-                            else: raise Exception, repr((user_id, delegate_user_name, file_id))
+                            reviewer_user_ids.append(delegate_user.id)
                     else:
                         reviewer_user_ids = []
 
@@ -425,9 +424,10 @@ def createReview(db, user, repository, commits, branch_name, summary, descriptio
     branch = dbutils.Branch.fromName(db, repository, branch_name)
 
     if branch is not None:
-        raise OperationFailure(code="branchexists",
-                               title="Invalid review branch name",
-                               message="""\
+        raise OperationFailure(
+            code="branchexists",
+            title="Invalid review branch name",
+            message="""\
 <p>There is already a branch named <code>%s</code> in the repository.  You have
 to select a different name.</p>
 
@@ -438,15 +438,27 @@ using the command<p>
 <pre>  git push &lt;remote&gt; :%s</pre>
 
 <p>and then press the "Submit Review" button on this page again."""
-                               % (htmlutils.htmlify(branch_name), htmlutils.htmlify(branch_name)),
-                               is_html=True)
+            % (htmlutils.htmlify(branch_name), htmlutils.htmlify(branch_name)),
+            is_html=True)
+
+    if not commits:
+        raise OperationFailure(
+            code="nocommits",
+            title="No commits specified",
+            message="You need at least one commit to create a review.")
 
     commitset = log_commitset.CommitSet(commits)
+    heads = commitset.getHeads()
 
-    if len(commitset.getHeads()) != 1:
-        raise Exception, "invalid commit-set; multiple heads"
+    if len(heads) != 1:
+        # There is really no plausible way for this error to occur.
+        raise OperationFailure(
+            code="disconnectedtree",
+            title="Disconnected tree",
+            message=("The specified commits do do not form a single connected "
+                     "tree.  Creating a review of them is not supported."))
 
-    head = commitset.getHeads().pop()
+    head = heads.pop()
 
     if len(commitset.getTails()) != 1:
         tail_id = None
@@ -456,13 +468,14 @@ using the command<p>
     if not via_push:
         try:
             repository.createBranch(branch_name, head.sha1)
-        except gitutils.GitCommandError, error:
-            raise OperationFailure(code="branchfailed",
-                                   title="Failed to create review branch",
-                                   message="""\
-<p><b>Output from git:</b></p>
-<code style='padding-left: 1em'>%s</code>""" % htmlutils.htmlify(error.output),
-                                   is_html=True)
+        except gitutils.GitCommandError as error:
+            raise OperationFailure(
+                code="branchfailed",
+                title="Failed to create review branch",
+                message=("<p><b>Output from git:</b></p>"
+                         "<code style='padding-left: 1em'>%s</code>"
+                         % htmlutils.htmlify(error.output)),
+                is_html=True)
 
     try:
         cursor.execute("INSERT INTO branches (repository, name, head, tail, type) VALUES (%s, %s, %s, %s, 'review') RETURNING id", [repository.id, branch_name, head.getId(db), tail_id])

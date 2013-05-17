@@ -14,9 +14,16 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-import configuration
 import socket
+
+import base
+import configuration
 from textutils import json_encode, json_decode, indent
+
+class ChangesetBackgroundServiceError(base.ImplementationError):
+    def __init__(self, message):
+        super(ChangesetBackgroundServiceError).__init__(
+            "Changeset background service failed: %s" % message)
 
 def requestChangesets(requests):
     try:
@@ -33,19 +40,21 @@ def requestChangesets(requests):
             data += received
 
         connection.close()
-    except socket.error, error:
-        raise Exception, "Changeset background service failed: %s" % error[1]
+    except socket.error as error:
+        raise ChangesetBackgroundServiceError(error[1])
 
     try:
         results = json_decode(data)
-    except:
-        raise Exception, "Changeset background service failed: returned an invalid response (%r)" % data
+    except ValueError:
+        raise ChangesetBackgroundServiceError(
+            "returned an invalid response: %r" % data)
 
     if type(results) != list:
-        raise Exception, "Changeset background service failed: %s" % str(results)
+        # If not a list, the result is probably an error message.
+        raise ChangesetBackgroundServiceError(str(results))
 
     if len(results) != len(requests):
-        raise Exception, "Changeset background service failed: didn't process all requested changesets"
+        raise ChangesetBackgroundServiceError("didn't process all requests")
 
     errors = []
 
@@ -54,4 +63,5 @@ def requestChangesets(requests):
             errors.append(result["error"])
 
     if errors:
-        raise Exception, "Changeset background service failed: one or more requests failed\n%s" % "\n".join(map(indent, errors))
+        raise ChangesetBackgroundServiceError(
+            "one or more requests failed:\n%s" % "\n".join(map(indent, errors)))

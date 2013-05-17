@@ -104,12 +104,15 @@ the latest one."""
         return result
 
     def getTailsFrom(self, commit):
-        """Return a set containing the each tail commit of the set of commits that are
-ancestors of 'commit' and that are members of this commit set.  A tail commit of
-a set is a commit that is not a member of the set but that is a parent of a
-commit that is a member of the set."""
+        """
+        Return a set containing the each tail commit of the set of commits that
+        are ancestors of 'commit' and that are members of this commit set.
 
-        if commit not in self.__commits: raise Exception, "invalid use"
+        A tail commit of a set is a commit that is not a member of the set but
+        that is a parent of a commit that is a member of the set.
+        """
+
+        assert commit in self.__commits
 
         stack = set([commit.sha1])
         processed = set()
