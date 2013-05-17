@@ -829,10 +829,14 @@ including the unrelated changes.</p>
     head = gitutils.Commit.fromId(db, review.repository, heads.pop())
     tail = gitutils.Commit.fromId(db, review.repository, tails.pop())
 
-    if len(tail.parents) != 1:
+    # the tail.parents could be zero, that means the tail is the first commit
+    if 0 < len(tail.parents) != 1:
         raise page.utils.DisplayMessage, "Filtered view not possible since it includes a merge commit."
 
-    tail = gitutils.Commit.fromSHA1(db, review.repository, tail.parents[0])
+    if len(tail.parents) == 0:
+        tail = gitutils.Commit.fromSHA1(db, review.repository, tail.sha1)
+    else:
+        tail = gitutils.Commit.fromSHA1(db, review.repository, tail.parents[0])
 
     commits = getCommitList(db, review.repository, tail, head)
 
