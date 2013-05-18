@@ -55,6 +55,41 @@ def use_argument_or_ask(argument, prompt, check=None):
     else:
         return inpututils.string(prompt, check=check)
 
+def listusers(argv):
+    formats = {
+        "tuples": {
+            "pre": "# id, name, email, fullname, status\n[",
+            "row": " (%r, %r, %r, %r, %r),",
+            "post": "]",
+        },
+        "dicts":  {
+            "pre": "[",
+            "row": " {'id': %r, 'name': %r, 'email': %r, 'fullname': %r, 'status': %r},",
+            "post": "]",
+        },
+        "table": {
+            "pre": "  id |    name    |              email             |            fullname            | status\n" \
+                   "-----+------------+--------------------------------+--------------------------------+--------",
+            "row": "%4u | %10s | %30s | %-30s | %s",
+            "post": "",
+        },
+    }
+
+    parser = argparse.ArgumentParser(
+        description="Critic administration interface: listusers",
+        prog="criticctl [options] listusers")
+
+    parser.add_argument("--format", "-f", choices=formats.keys(), default="table",
+                        help='output format (defaults to "table")')
+
+    arguments = parser.parse_args(argv)
+
+    cursor.execute("""SELECT id, name, email, fullname, status FROM users ORDER BY id""")
+    print formats[arguments.format]["pre"]
+    for row in cursor:
+        print formats[arguments.format]["row"] % row
+    print formats[arguments.format]["post"]
+
 def adduser(argv):
     import bcrypt
 
@@ -73,10 +108,10 @@ def adduser(argv):
     fullname = use_argument_or_ask(arguments.fullname, "Full name:")
     email = use_argument_or_ask(arguments.email, "Email address:")
 
-    if arguments.password:
-        password = arguments.password
-    else:
+    if arguments.password is None:
         password = inpututils.password("Password:")
+    else:
+        password = arguments.password
 
     password = bcrypt.hashpw(password, bcrypt.gensalt())
 
@@ -166,7 +201,10 @@ def main(parser, show_help, command, argv):
     if show_help or command is None:
         parser.print_help()
     else:
-        if command == "adduser":
+        if command == "listusers":
+            listusers(argv)
+            return
+        elif command == "adduser":
             adduser(argv)
             return
         elif command == "deluser":
@@ -182,9 +220,10 @@ def main(parser, show_help, command, argv):
     print """
 Available commands are:
 
-  adduser  Add a user.
-  deluser  Retire a user.
-  addrole  Add a role to a user.
-  delrole  Remove a role from a user."""
+  listusers List all users.
+  adduser   Add a user.
+  deluser   Retire a user.
+  addrole   Add a role to a user.
+  delrole   Remove a role from a user."""
 
     return returncode
