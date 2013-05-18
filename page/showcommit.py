@@ -829,12 +829,12 @@ including the unrelated changes.</p>
     head = gitutils.Commit.fromId(db, review.repository, heads.pop())
     tail = gitutils.Commit.fromId(db, review.repository, tails.pop())
 
-    # the tail.parents could be zero, that means the tail is the first commit
-    if 0 < len(tail.parents) != 1:
+    # if tail.parents greater than 1, it means it's a merge commit
+    if len(tail.parents) > 1:
         raise page.utils.DisplayMessage, "Filtered view not possible since it includes a merge commit."
 
     if len(tail.parents) == 0:
-        tail = gitutils.Commit.fromSHA1(db, review.repository, tail.sha1)
+        tail = None
     else:
         tail = gitutils.Commit.fromSHA1(db, review.repository, tail.parents[0])
 
@@ -843,7 +843,8 @@ including the unrelated changes.</p>
     if not commits:
         raise page.utils.DisplayMessage, "Filtered view not possible since it includes a merge commit."
 
-    return tail.sha1, head.sha1, commits, listed_commits
+    tail_to_return = tail.sha1 if tail is not None else None
+    return tail_to_return, head.sha1, commits, listed_commits
 
 def getCommitList(db, repository, from_commit, to_commit):
     commits = set()
@@ -867,6 +868,9 @@ def getCommitList(db, repository, from_commit, to_commit):
                 else:
                     raise NotPossible
             else:
+                if from_commit is None and len(iter_commit.parents)==0:
+                    return
+
                 iter_commit = gitutils.Commit.fromSHA1(db, repository, iter_commit.parents[0])
 
     if from_commit == to_commit:
