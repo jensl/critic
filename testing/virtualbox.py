@@ -14,6 +14,7 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
+import sys
 import os
 import subprocess
 import time
@@ -39,6 +40,9 @@ def flag_minimum_password_hash_time(commit_sha1):
     else:
         return True
 
+# Directory (on guest system) to store coverage data in.
+COVERAGE_DIR = "/var/tmp/critic/coverage"
+
 def setnonblocking(fd):
     fcntl.fcntl(fd, fcntl.F_SETFL, fcntl.fcntl(fd, fcntl.F_GETFL) | os.O_NONBLOCK)
 
@@ -60,7 +64,7 @@ class GuestCommandError(testing.InstanceError):
 class Instance(object):
     def __init__(self, vboxhost, identifier, snapshot, hostname, ssh_port,
                  install_commit=None, upgrade_commit=None, frontend=None,
-                 strict_fs_permissions=False):
+                 strict_fs_permissions=False, coverage=False):
         self.vboxhost = vboxhost
         self.identifier = identifier
         self.snapshot = snapshot
@@ -72,6 +76,7 @@ class Instance(object):
             self.upgrade_commit, self.upgrade_commit_description = upgrade_commit
         self.frontend = frontend
         self.strict_fs_permissions = strict_fs_permissions
+        self.coverage = coverage
         self.mailbox = None
         self.__started = False
 
@@ -369,6 +374,9 @@ class Instance(object):
             if self.mailbox.credentials:
                 use_arguments["--smtp-username"] = self.mailbox.credentials["username"]
                 use_arguments["--smtp-password"] = self.mailbox.credentials["password"]
+
+            if self.coverage:
+                use_arguments["--coverage-dir"] = COVERAGE_DIR
         else:
             use_arguments = { "--admin-password": "testing" }
 
@@ -543,3 +551,11 @@ class Instance(object):
     def finish(self):
         self.execute(["sudo", "service", "critic-main", "stop"])
         self.execute(["sudo", "service", "apache2", "stop"])
+
+        if self.coverage:
+            sys.stdout.write(self.execute(
+                ["sudo", "python", "coverage.py",
+                 "--coverage-dir", COVERAGE_DIR,
+                 "--critic-dir", "/etc/critic/main",
+                 "--critic-dir", "/usr/share/critic"],
+                cwd="/usr/share/critic"))

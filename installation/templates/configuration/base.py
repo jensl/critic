@@ -17,10 +17,6 @@
 # The name of the system identity which this configuration applies to.
 SYSTEM_IDENTITY = "main"
 
-# True if this is a development installation of the system; False if
-# it is a production installation.  (Cosmetic effects only.)
-IS_DEVELOPMENT = %(installation.system.is_development)r
-
 # The name of the system user that Critic runs as.
 SYSTEM_USER_NAME = "%(installation.system.username)s"
 

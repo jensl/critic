@@ -28,6 +28,7 @@ def main():
     parser = argparse.ArgumentParser(description="Critic testing framework")
     parser.add_argument("--debug", help="Enable DEBUG level logging", action="store_true")
     parser.add_argument("--quiet", help="Disable INFO level logging", action="store_true")
+    parser.add_argument("--coverage", help="Enable coverage measurement mode", action="store_true")
     parser.add_argument("--commit", help="Commit (symbolic ref or SHA-1) to test [default=HEAD]", default="HEAD")
     parser.add_argument("--upgrade-from", help="Commit (symbolic ref or SHA-1) to install first and upgrade from")
     parser.add_argument("--strict-fs-permissions", help="Set strict file-system permissions in guest OS", action="store_true")
@@ -169,7 +170,8 @@ def main():
             install_commit=(install_commit, install_commit_description),
             upgrade_commit=(upgrade_commit, upgrade_commit_description),
             frontend=frontend,
-            strict_fs_permissions=arguments.strict_fs_permissions)
+            strict_fs_permissions=arguments.strict_fs_permissions,
+            coverage=arguments.coverage)
     except testing.Error as error:
         logger.error(error.message)
         return

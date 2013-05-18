@@ -52,9 +52,6 @@ parser = argparse.ArgumentParser(description="Critic installation script")
 # that doesn't have a default value and isn't set by a command-line argument.
 parser.add_argument("--headless", help=argparse.SUPPRESS, action="store_true")
 
-# Sets configuration.base.IS_DEVELOPMENT to True.
-parser.add_argument("--is-development", help=argparse.SUPPRESS, action="store_true")
-
 parser.add_argument("--etc-dir", help="directory where the Critic system configuration is stored", action="store")
 parser.add_argument("--install-dir", help="directory where the Critic source code is installed", action="store")
 parser.add_argument("--data-dir", help="directory where Critic's persistent data files are stored", action="store")

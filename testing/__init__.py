@@ -33,13 +33,14 @@ import mailbox
 
 logger = None
 
+STREAM = None
 STDOUT = None
 STDERR = None
 
 def configureLogging(arguments=None, wrap=None):
     import logging
     import sys
-    global logger, STDOUT, STDERR
+    global logger, STREAM, STDOUT, STDERR
     if not logger:
         # Essentially same as DEBUG, used when logging the output from commands
         # run in the guest system.
@@ -47,9 +48,13 @@ def configureLogging(arguments=None, wrap=None):
         STDERR = logging.DEBUG + 2
         logging.addLevelName(STDOUT, "STDOUT")
         logging.addLevelName(STDERR, "STDERR")
+        if arguments and arguments.coverage:
+            STREAM = sys.stderr
+        else:
+            STREAM = sys.stdout
         logging.basicConfig(
             format="%(asctime)-15s | %(levelname)-7s | %(message)s",
-            stream=sys.stdout)
+            stream=STREAM)
         logger = logging.getLogger("critic")
         level = logging.INFO
         if arguments:
@@ -63,11 +68,12 @@ def configureLogging(arguments=None, wrap=None):
     return logger
 
 def pause(prompt="Press ENTER to continue: "):
-    print
+    print >>STREAM
     try:
-        raw_input(prompt)
+        print >>STREAM, prompt,
+        raw_input()
     except KeyboardInterrupt:
-        print
-        print
+        print >>STREAM
+        print >>STREAM
         raise
-    print
+    print >>STREAM

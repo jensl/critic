@@ -21,26 +21,30 @@ from subprocess import Popen as process
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(sys.argv[0]), "..")))
 
-from background.utils import json_decode, json_encode
+import background.utils
+from textutils import json_decode, json_encode
 
 if "--json-job" in sys.argv[1:]:
-    from syntaxhighlight.generate import generateHighlight
+    def perform_job():
+        import syntaxhighlight.generate
 
-    request = json_decode(sys.stdin.read())
-    request["highlighted"] = generateHighlight(repository_path=request["repository_path"],
-                                               sha1=request["sha1"],
-                                               language=request["language"])
+        request = json_decode(sys.stdin.read())
+        request["highlighted"] = syntaxhighlight.generate.generateHighlight(
+            repository_path=request["repository_path"],
+            sha1=request["sha1"],
+            language=request["language"])
+        sys.stdout.write(json_encode(request))
 
-    sys.stdout.write(json_encode(request))
+    background.utils.call("highlight_job", perform_job)
 else:
-    from background.utils import JSONJobServer
+    import background.utils
     from syntaxhighlight import isHighlighted
     from syntaxhighlight.context import importCodeContexts
 
     import configuration
     import dbutils
 
-    class HighlightServer(JSONJobServer):
+    class HighlightServer(background.utils.JSONJobServer):
         def __init__(self):
             service = configuration.services.HIGHLIGHT
 
@@ -160,5 +164,8 @@ else:
 
             return uncompressed_count, compressed_count, len(purged_paths), purged_contexts
 
-    server = HighlightServer()
-    server.run()
+    def start_service():
+        server = HighlightServer()
+        server.run()
+
+    background.utils.call("highlight", start_service)

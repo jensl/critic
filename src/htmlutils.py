@@ -198,7 +198,7 @@ class MetaInformation(object):
                 for text in filtered(self.__internalScriptList):
                     target.script(type="text/javascript").text(text.strip(), cdata=True)
 
-            if configuration.base.IS_DEVELOPMENT:
+            if configuration.debug.IS_DEVELOPMENT:
                 favicon = "/static-resource/favicon-dev.png"
             else:
                 favicon = "/static-resource/favicon.png"

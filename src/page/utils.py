@@ -62,7 +62,7 @@ def generateHeader(target, db, user, generate_right=None, current_page=None, ext
 
     opera_class = "opera"
 
-    if configuration.base.IS_DEVELOPMENT:
+    if configuration.debug.IS_DEVELOPMENT:
         opera_class += " development"
 
     b.b(opera_class, onclick="location.href='/';").text("Opera")

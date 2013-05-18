@@ -382,7 +382,7 @@ class Operation(object):
             if not user.hasRole(db, "developer"):
                 mailutils.sendExceptionMessage(db, "wsgi[%s]" % req.path, error_message)
 
-            if configuration.base.IS_DEVELOPMENT or user.hasRole(db, "developer"):
+            if configuration.debug.IS_DEVELOPMENT or user.hasRole(db, "developer"):
                 return OperationError(error_message)
             else:
                 return OperationError("An unexpected error occurred.  " +

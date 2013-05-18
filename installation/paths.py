@@ -192,6 +192,9 @@ def mkdirs():
     mkdir(os.path.join(run_dir, "main", "sockets"))
     mkdir(os.path.join(run_dir, "main", "wsgi"))
 
+    if installation.config.coverage_dir:
+        mkdir(installation.config.coverage_dir)
+
     os.chmod(git_dir, 0770 | stat.S_ISUID | stat.S_ISGID)
 
 def install(data):

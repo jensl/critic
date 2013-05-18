@@ -258,5 +258,8 @@ Output from Critic's git hook
 
             self.db.commit()
 
-tracker = BranchTracker()
-tracker.run()
+def start_service():
+    tracker = BranchTracker()
+    tracker.run()
+
+background.utils.call("branchtracker", start_service)

@@ -181,6 +181,35 @@ Finally, to run only selected tests, or groups of tests, the paths of these can
 be provided as additional command-line arguments.  These paths should be
 relative the testing/tests/ directory.
 
+Code Coverage Measurement
+-------------------------
+
+The testing framework also has support for measuring code coverage during
+testing.  To enable this mode, the testing framework needs to be started with
+the argument
+
+    --coverage
+
+in addition to any other arguments needed, as described above.  This argument
+causes the testing framework's normal output to go the stderr stream instead of
+the stdout stream, and code coverage data to be written to the stdout stream
+when testing has finished.
+
+The code coverage data is output in the form of a JSON object structure:
+
+    { "contexts": [ <context1>, <context2>, ... ],
+      <module path>: { <context1>: [ <line1>, <line2>, ... ],
+                       <context2>: [ <line1>, <line2>, ... ],
+                       ... },
+      ... }
+
+The <contextN> values are strings identifying the context in which the covered
+code was called, such as "wsgi" for code called via the web-frontend and
+"changeset", "highlight", et c. for code called via background services.  For
+each (covered) source code file, coverage is then reported as an array of
+covered lines per context.  The line numbers in the array are zero-based.
+
+
 Test Structure
 --------------
 

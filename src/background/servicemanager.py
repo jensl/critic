@@ -156,8 +156,11 @@ if "--slave" in sys.argv:
             for service in self.services:
                 service.stop()
 
-    manager = ServiceManager()
-    manager.run()
+    def start_service():
+        manager = ServiceManager()
+        manager.run()
+
+    background.utils.call("servicemanager", start_service)
 else:
     import errno
     import pwd

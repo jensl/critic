@@ -20,37 +20,41 @@ import os.path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(sys.argv[0]), "..")))
 
 import configuration
+import dbutils
+import background.utils
 
-from dbutils import Database
 from textutils import json_decode, json_encode
 
 if "--json-job" in sys.argv[1:]:
     from resource import getrlimit, setrlimit, RLIMIT_RSS
     from traceback import print_exc
 
-    soft_limit, hard_limit = getrlimit(RLIMIT_RSS)
-    rss_limit = configuration.services.CHANGESET["rss_limit"]
-    if soft_limit < rss_limit:
-        setrlimit(RLIMIT_RSS, (rss_limit, hard_limit))
+    def perform_job():
+        soft_limit, hard_limit = getrlimit(RLIMIT_RSS)
+        rss_limit = configuration.services.CHANGESET["rss_limit"]
+        if soft_limit < rss_limit:
+            setrlimit(RLIMIT_RSS, (rss_limit, hard_limit))
 
-    from changeset.create import createChangeset
+        from changeset.create import createChangeset
 
-    request = json_decode(sys.stdin.read())
+        request = json_decode(sys.stdin.read())
 
-    try:
-        db = Database()
+        try:
+            db = dbutils.Database()
 
-        createChangeset(db, request)
+            createChangeset(db, request)
 
-        db.close()
+            db.close()
 
-        sys.stdout.write(json_encode(request))
-    except:
-        print "Request:"
-        print json_encode(request, indent=2)
-        print
+            sys.stdout.write(json_encode(request))
+        except:
+            print "Request:"
+            print json_encode(request, indent=2)
+            print
 
-        print_exc(file=sys.stdout)
+            print_exc(file=sys.stdout)
+
+    background.utils.call("changeset_job", perform_job)
 else:
     from background.utils import JSONJobServer
 
@@ -96,7 +100,7 @@ else:
                                  request["repository_name"], job.pid))
 
         def __purge(self):
-            db = Database()
+            db = dbutils.Database()
             cursor = db.cursor()
 
             cursor.execute("""SELECT COUNT(*)
@@ -115,5 +119,8 @@ else:
 
             return npurged
 
-    server = ChangesetServer()
-    server.run()
+    def start_service():
+        server = ChangesetServer()
+        server.run()
+
+    background.utils.call("changeset", start_service)

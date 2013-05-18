@@ -529,7 +529,7 @@ def handleException(db, req, user):
     else:
         admin_message_sent = False
 
-    if not user or user.hasRole(db, "developer") or configuration.base.IS_DEVELOPMENT:
+    if not user or user.hasRole(db, "developer") or configuration.debug.IS_DEVELOPMENT:
         error_title = "Unexpected error!"
         error_body = [error_message.strip()]
         if admin_message_sent:
@@ -625,7 +625,7 @@ def handleRepositoryPath(db, req, user, suffix):
 
     return False
 
-def main(environ, start_response):
+def process_request(environ, start_response):
     request_start = time.time()
 
     db = dbutils.Database()
@@ -973,3 +973,18 @@ authentication in apache2, see:
     finally:
         if db:
             db.close()
+
+if configuration.debug.COVERAGE_DIR:
+    def main(environ, start_response):
+        import coverage
+
+        def do_process_request(environ, start_response):
+            # Apply list() to force the request to be fully performed by this
+            # call.  It might return an iterator whose .next() does all the
+            # work, and if we just return that from here, the actual work is not
+            # subject to coverage measurement.
+            return list(process_request(environ, start_response))
+
+        return coverage.call("wsgi", do_process_request, environ, start_response)
+else:
+    main = process_request

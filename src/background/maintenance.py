@@ -22,10 +22,9 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(sys.argv[0]), ".
 import configuration
 import dbutils
 import gitutils
+import background.utils
 
-from background.utils import BackgroundProcess
-
-class Maintenance(BackgroundProcess):
+class Maintenance(background.utils.BackgroundProcess):
     def __init__(self):
         service = configuration.services.MAINTENANCE
 
@@ -77,5 +76,8 @@ class Maintenance(BackgroundProcess):
                 if self.terminated:
                     return
 
-maintenance = Maintenance()
-maintenance.run()
+def start_service():
+    maintenance = Maintenance()
+    maintenance.run()
+
+background.utils.call("maintenance", start_service)

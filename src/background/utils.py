@@ -28,6 +28,7 @@ import signal
 import fcntl
 import time
 
+import configuration
 from textutils import json_encode, json_decode, indent
 
 def freeze(d):
@@ -567,3 +568,10 @@ class JSONJobServer(PeerServer):
         self.__started_requests[freeze(request)] = job
     def request_finished(self, job, request, result):
         del self.__started_requests[freeze(request)]
+
+if configuration.debug.COVERAGE_DIR:
+    import coverage
+    call = coverage.call
+else:
+    def call(context, fn, *args, **kwargs):
+        return fn(*args, **kwargs)

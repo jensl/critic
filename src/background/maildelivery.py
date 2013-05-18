@@ -25,8 +25,7 @@ import email.header
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(sys.argv[0]), "..")))
 
 import configuration
-
-from background.utils import PeerServer
+import background.utils
 
 class User():
     def __init__(self, id, name, email, fullname):
@@ -35,7 +34,7 @@ class User():
         self.email = email
         self.fullname = fullname
 
-class MailDelivery(PeerServer):
+class MailDelivery(background.utils.PeerServer):
     def __init__(self):
         # We disable the automatic administrator mails (using the
         # 'send_administrator_mails' argument) since
@@ -317,7 +316,12 @@ class MailDelivery(PeerServer):
                     os.unlink(filename)
                     deleted += 1
 
-        if deleted: self.info("deleted %d files from %s" % (deleted, os.path.join(configuration.paths.OUTBOX, "sent")))
+        if deleted:
+            self.info("deleted %d files from %s"
+                      % (deleted, os.path.join(configuration.paths.OUTBOX, "sent")))
 
-maildelivery = MailDelivery()
-maildelivery.run()
+def start_service():
+    maildelivery = MailDelivery()
+    maildelivery.run()
+
+background.utils.call("maildelivery", start_service)

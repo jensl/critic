@@ -21,6 +21,7 @@ import json
 import pwd
 import grp
 import py_compile
+import argparse
 
 import installation
 
@@ -34,6 +35,9 @@ password_hash_schemes = ["pbkdf2_sha256", "bcrypt"]
 default_password_hash_scheme = "pbkdf2_sha256"
 minimum_password_hash_time = 0.25
 minimum_rounds = {}
+
+is_development = False
+coverage_dir = None
 
 def calibrate_minimum_rounds():
     import time
@@ -96,6 +100,13 @@ def add_arguments(mode, parser):
         "--minimum-password-hash-time",
         help="approximate minimum time to spend hashing a single password")
 
+    # Using argparse.SUPPRESS to not include these in --help output; they are
+    # not something a typical installer ought to want to use.
+    parser.add_argument(
+        "--is-development", action="store_true", help=argparse.SUPPRESS)
+    parser.add_argument(
+        "--coverage-dir", help=argparse.SUPPRESS)
+
 default_encodings = ["utf-8", "latin-1"]
 
 def prepare(mode, arguments, data):
@@ -103,6 +114,7 @@ def prepare(mode, arguments, data):
     global repository_url_types, default_encodings
     global password_hash_schemes, default_password_hash_scheme
     global minimum_password_hash_time, minimum_rounds
+    global is_development, coverage_dir
 
     header_printed = False
 
@@ -164,6 +176,9 @@ the Web front-end.  This can be handled in two different ways:
                 auth_mode = installation.input.string(
                     "Which authentication mode should be used?",
                     default="critic", check=check_auth_mode)
+
+        is_development = arguments.is_development
+        coverage_dir = arguments.coverage_dir
     else:
         import configuration
 
@@ -191,6 +206,15 @@ the Web front-end.  This can be handled in two different ways:
             minimum_rounds = configuration.auth.MINIMUM_ROUNDS
         except AttributeError:
             pass
+
+        try: is_development = configuration.debug.IS_DEVELOPMENT
+        except AttributeError:
+            # Was moved from configuration.base to configuration.debug.
+            try: is_development = configuration.base.IS_DEVELOPMENT
+            except AttributeError: pass
+
+        try: coverage_dir = configuration.debug.COVERAGE_DIR
+        except AttributeError: pass
 
     if auth_mode == "critic":
         if session_type is None:
@@ -306,6 +330,9 @@ web server to redirect all HTTP accesses to HTTPS.
     data["installation.config.default_password_hash_scheme"] = default_password_hash_scheme
     data["installation.config.minimum_password_hash_time"] = minimum_password_hash_time
     data["installation.config.minimum_rounds"] = minimum_rounds
+
+    data["installation.config.is_development"] = is_development
+    data["installation.config.coverage_dir"] = coverage_dir
 
     return True
 

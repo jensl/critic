@@ -362,7 +362,7 @@ class Review(object):
         cursor = db.cursor()
         etag = ""
 
-        if configuration.base.IS_DEVELOPMENT:
+        if configuration.debug.IS_DEVELOPMENT:
             cursor.execute("SELECT installed_at FROM systemidentities WHERE name=%s", (configuration.base.SYSTEM_IDENTITY,))
             installed_at = cursor.fetchone()[0]
             etag += "install%s." % time.mktime(installed_at.timetuple())
