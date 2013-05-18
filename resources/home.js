@@ -173,15 +173,7 @@ function changePassword()
 
     if (!administrator)
     {
-      var current = dialog.find("input.current").val();
-
-      if (!current)
-      {
-        showMessage("Invalid input", "Current password empty!", "The current password must be input.");
-        return;
-      }
-
-      data.current_pw = current;
+      data.current_pw = dialog.find("input.current").val();
     }
 
     var operation = new Operation({ action: "change password",
