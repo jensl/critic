@@ -240,6 +240,9 @@ def main():
             def run_tests(directory):
                 has_failed = False
 
+                if directory in pause_before:
+                    pause()
+
                 for name in sorted(os.listdir(os.path.join("testing/tests", directory))):
                     if not re.match("\d{3}-", name):
                         continue
@@ -300,6 +303,9 @@ def main():
                     else:
                         if path in pause_after:
                             pause()
+
+                if directory in pause_after:
+                    pause()
 
             run_tests(group_name)
         except KeyboardInterrupt:
