@@ -41,6 +41,9 @@ with frontend.signin("alice"):
                "applyparentfilters": True,
                "reviewfilters": [{ "username": "bob",
                                    "type": "reviewer",
+                                   "path": "" },
+                                 { "username": "dave",
+                                   "type": "watcher",
                                    "path": "" }],
                "recipientfilters": { "mode": "opt-out" }})
 
@@ -55,6 +58,11 @@ with frontend.signin("alice"):
     to_bob = mailbox.pop(accept=to("bob"), timeout=30)
     if not to_bob:
         testing.expect.check("<mail to bob>",
+                             "<expected mail not received>")
+
+    to_dave = mailbox.pop(accept=to("dave"), timeout=30)
+    if not to_dave:
+        testing.expect.check("<mail to dave>",
                              "<expected mail not received>")
 
     mailbox.check_empty()
