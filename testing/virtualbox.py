@@ -540,4 +540,6 @@ class Instance(object):
         for name in ("alice", "bob", "dave", "erin"):
             self.execute(["sudo", "deluser", "--remove-home", name])
 
-
+    def finish(self):
+        self.execute(["sudo", "service", "critic-main", "stop"])
+        self.execute(["sudo", "service", "apache2", "stop"])

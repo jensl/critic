@@ -304,15 +304,20 @@ def main():
             run_tests(group_name)
         except KeyboardInterrupt:
             logger.error("Testing aborted.")
+            return False
         except testing.Error as error:
             if error.message:
                 logger.exception(error.message)
             if arguments.pause_on_failure:
                 pause()
+            return False
         except Exception:
             logger.exception("Unexpected exception!")
             if arguments.pause_on_failure:
                 pause()
+            return False
+        else:
+            return True
 
     for group_name in sorted(os.listdir("testing/tests")):
         if not re.match("\d{3}-", group_name):
@@ -336,7 +341,8 @@ def main():
                     return
 
                 with instance:
-                    run_group(group_name)
+                    if run_group(group_name):
+                        instance.finish()
 
                 mailbox.check_empty()
 
