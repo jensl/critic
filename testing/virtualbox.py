@@ -217,8 +217,38 @@ class Instance(object):
             stdout=subprocess.PIPE if not interactive else None,
             stderr=subprocess.PIPE if not interactive else None)
 
+        class BufferedLineReader(object):
+            def __init__(self, source):
+                self.source = source
+                self.buffer = ""
+
+            def readline(self):
+                try:
+                    while self.source is not None:
+                        try:
+                            line, self.buffer = self.buffer.split("\n", 1)
+                        except ValueError:
+                            pass
+                        else:
+                            return line + "\n"
+                        data = self.source.read(1024)
+                        if not data:
+                            self.source = None
+                            break
+                        self.buffer += data
+                    line = self.buffer
+                    self.buffer = ""
+                    return line
+                except IOError as error:
+                    if error.errno == errno.EAGAIN:
+                        return None
+                    raise
+
         stdout_data = ""
+        stdout_reader = BufferedLineReader(process.stdout)
+
         stderr_data = ""
+        stderr_reader = BufferedLineReader(process.stderr)
 
         if not interactive:
             setnonblocking(process.stdout)
@@ -235,32 +265,28 @@ class Instance(object):
                 poll.poll()
 
                 while not stdout_done:
-                    try:
-                        line = process.stdout.readline()
-                        if not line:
-                            poll.unregister(process.stdout)
-                            stdout_done = True
-                            break
+                    line = stdout_reader.readline()
+                    if line is None:
+                        break
+                    elif not line:
+                        poll.unregister(process.stdout)
+                        stdout_done = True
+                        break
+                    else:
                         stdout_data += line
-                        testing.logger.log(testing.STDOUT, "%s" % line.rstrip("\n"))
-                    except IOError as error:
-                        if error.errno == errno.EAGAIN:
-                            break
-                        raise
+                        testing.logger.log(testing.STDOUT, line.rstrip("\n"))
 
                 while not stderr_done:
-                    try:
-                        line = process.stderr.readline()
-                        if not line:
-                            poll.unregister(process.stderr)
-                            stderr_done = True
-                            break
+                    line = stderr_reader.readline()
+                    if line is None:
+                        break
+                    elif not line:
+                        poll.unregister(process.stderr)
+                        stderr_done = True
+                        break
+                    else:
                         stderr_data += line
-                        testing.logger.log(testing.STDERR, "%s" % line.rstrip("\n"))
-                    except IOError as error:
-                        if error.errno == errno.EAGAIN:
-                            break
-                        raise
+                        testing.logger.log(testing.STDERR, line.rstrip("\n"))
 
         process.wait()
 
