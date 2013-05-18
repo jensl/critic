@@ -20,6 +20,7 @@ import time
 import fcntl
 import select
 import errno
+import datetime
 
 import testing
 
@@ -166,6 +167,12 @@ class Instance(object):
         self.__started = True
 
         self.wait()
+
+        # Set the guest system's clock to match the host system's.  Since we're
+        # restoring the same snapshot over and over, the guest system's clock is
+        # probably quite far from the truth.
+        now = datetime.datetime.utcnow().strftime("%m%d%H%M%Y.%S")
+        self.execute(["sudo", "date", "--utc", now])
 
         testing.logger.info("Started VM: %s" % self.identifier)
 
