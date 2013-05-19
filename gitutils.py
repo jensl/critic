@@ -256,7 +256,9 @@ class Repository:
             self.__startBatchCheck()
             stdin, stdout = self.__batchCheck.stdin, self.__batchCheck.stdout
 
-        stdin.write(sha1 + '\n')
+        try: stdin.write(sha1 + '\n')
+        except: raise GitError("failed when writing to 'git cat-file' stdin: %s" % stdout.read())
+
         line = stdout.readline()
 
         if line == ("%s missing\n" % sha1):
