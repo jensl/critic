@@ -65,14 +65,24 @@ def main():
         logger.error("Required software missing; see testing/USAGE.md for details.")
         return
 
-    locally_modified_paths = subprocess.check_output(
-        ["git", "diff", "--name-only"])
+    # Note: we are not ignoring typical temporary editor files such as the
+    # ".#<name>" files created by Emacs when a buffer has unsaved changes.  This
+    # is because unsaved changes in an editor is probably also something you
+    # don't want to test with.
+
+    locally_modified_paths = []
+
+    status_output = subprocess.check_output(
+        ["git", "status", "--porcelain"])
+
+    for line in status_output.splitlines():
+        locally_modified_paths.extend(line[3:].split(" -> "))
 
     tests_modified = []
     input_modified = []
     other_modified = []
 
-    for path in locally_modified_paths.splitlines():
+    for path in locally_modified_paths:
         if path.startswith("testing/input/"):
             input_modified.append(path)
         elif path.startswith("testing/"):
