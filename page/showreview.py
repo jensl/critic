@@ -185,9 +185,6 @@ def notModified(req, db, user, review):
     value = req.getRequestHeader("If-None-Match")
     return review.getETag(db, user) == value
 
-def usesExperimentalFeature(req, db, review):
-    return False
-
 def renderShowReview(req, db, user):
     profiler = profiling.Profiler()
 
@@ -211,18 +208,6 @@ def renderShowReview(req, db, user):
         raise page.utils.NotModified
 
     profiler.check("ETag")
-
-    # if usesExperimentalFeature(req, db, review):
-    #     def renderMessage(target):
-    #         url = "%s/r/%d" % (configuration.URL_PER_TYPE['development'], review.id)
-
-    #         p = target.p(style="padding-top: 1em")
-    #         p.text("Sorry, this review uses experimental features currently only available in the development version of Critic.  Because of that, it can only be displayed there.")
-    #         p = target.p(style="padding-top: 1em")
-    #         p.b().a(href=url).text(url)
-
-    #         yield page.utils.displayMessage(db, req, user, "Experimental Feature Alert!", message=renderMessage)
-    #         return
 
     repository = review.repository
 
