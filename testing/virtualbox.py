@@ -38,7 +38,8 @@ class GuestCommandError(testing.InstanceError):
 
 class Instance(object):
     def __init__(self, vboxhost, identifier, snapshot, hostname, ssh_port,
-                 install_commit=None, upgrade_commit=None, frontend=None):
+                 install_commit=None, upgrade_commit=None, frontend=None,
+                 strict_fs_permissions=False):
         self.vboxhost = vboxhost
         self.identifier = identifier
         self.snapshot = snapshot
@@ -49,6 +50,7 @@ class Instance(object):
         if upgrade_commit:
             self.upgrade_commit, self.upgrade_commit_description = upgrade_commit
         self.frontend = frontend
+        self.strict_fs_permissions = strict_fs_permissions
         self.mailbox = None
         self.__started = False
 
@@ -218,6 +220,21 @@ class Instance(object):
             email],
                      cwd="/home/%s" % name)
 
+    def restrict_access(self):
+        if not self.strict_fs_permissions:
+            return
+
+        # Set restrictive access bits on home directory of the installing user
+        # and of root, to make sure that no part of Critic's installation
+        # process, or the background processes started by it, depend on being
+        # able to access them as the Critic system user.
+        self.execute(["sudo", "chmod", "-R", "go-rwx", "$HOME", "/root"])
+
+        # Running install.py may have left files owned by root in $HOME.  The
+        # command above will have made them inaccessible for sure, so change
+        # the ownership back to us.
+        self.execute(["sudo", "chown", "-R", "$LOGNAME", "$HOME"])
+
     def install(self, repository, override_arguments={}):
         logger.debug("Installing Critic ...")
 
@@ -266,6 +283,19 @@ class Instance(object):
                       "git", "checkout", self.install_commit],
                      cwd="critic")
 
+        if self.upgrade_commit:
+            output = subprocess.check_output(
+                ["git", "log", "--oneline", self.install_commit, "--",
+                 "background/servicemanager.py"])
+
+            for line in output.splitlines():
+                sha1, subject = line.split(" ", 1)
+                if subject == "Make sure background services run with correct $HOME":
+                    self.restrict_access()
+                    break
+        else:
+            self.restrict_access()
+
         install_output = self.execute(
             ["sudo", "python", "-u", "install.py"] + arguments, cwd="critic")
 
@@ -313,6 +343,8 @@ class Instance(object):
     def upgrade(self, override_arguments={}):
         if self.upgrade_commit:
             logger.debug("Upgrading Critic ...")
+
+            self.restrict_access()
 
             use_arguments = { "--headless": True }
 
