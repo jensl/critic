@@ -195,19 +195,28 @@ class Instance(object):
         if password is None:
             password = "testing"
 
-        # Running all commands with a single self.execute() call is just an
-        # optimization; SSH sessions are fairly expensive to start.
         self.execute([
             "sudo", "criticctl", "adduser", "--name", name, "--email", email,
             "--fullname", "'%s'" % fullname, "--password", password,
             "&&",
-            "sudo", "adduser", "--ingroup", "critic", "--disabled-password", name,
+            "sudo", "adduser", "--ingroup", "critic", "--disabled-password",
+            name])
+
+        # Running all commands with a single self.execute() call is just an
+        # optimization; SSH sessions are fairly expensive to start.
+        self.execute([
+            "sudo", "mkdir", ".ssh",
             "&&",
-            "sudo", "mkdir", "/home/%s/.ssh" % name,
+            "sudo", "cp", "$HOME/.ssh/authorized_keys", ".ssh/",
             "&&",
-            "sudo", "cp", "$HOME/.ssh/authorized_keys", "/home/%s/.ssh" % name,
+            "sudo", "chown", "-R", name, ".ssh/",
             "&&",
-            "sudo", "chown", "-R", name, "/home/%s/.ssh" % name])
+            "sudo", "-H", "-u", name, "git", "config", "--global", "user.name",
+            "'%s'" % fullname,
+            "&&",
+            "sudo", "-H", "-u", name, "git", "config", "--global", "user.email",
+            email],
+                     cwd="/home/%s" % name)
 
     def install(self, repository, override_arguments={}):
         logger.debug("Installing Critic ...")
