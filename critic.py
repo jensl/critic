@@ -225,9 +225,14 @@ def savesettings(req, db, user):
     return "ok"
 
 def showfilters(req, db, user):
-    user = dbutils.User.fromName(db, req.getParameter("user", req.user))
-    path = req.getParameter("path")
-    repository = gitutils.Repository.fromParameter(db, req.getParameter("repository", user.getPreference(db, "defaultRepository")))
+    path = req.getParameter("path", "/")
+    repo_name = req.getParameter("repository", None)
+    if not repo_name:
+        user = req.getParameter("user", req.user)
+        if not user:
+            raise page.utils.DisplayMessage("The URL must contain either a repository or a user parameter or both.")
+        repo_name = dbutils.User.fromName(db, user).getPreference(db, "defaultRepository")
+    repository = gitutils.Repository.fromParameter(db, repo_name)
 
     path = path.rstrip("/")
 
