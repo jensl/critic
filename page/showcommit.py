@@ -709,7 +709,7 @@ def commitRangeFromReview(db, user, review, filter_value, file_ids):
     if len(listed_commits) == 1:
         return None, gitutils.Commit.fromId(db, review.repository, child_id).sha1, list(listed_commits), listed_commits
 
-    if filter in ("reviewable", "relevant", "files"):
+    if filter_value in ("reviewable", "relevant", "files"):
         cursor.execute("SELECT child FROM changesets JOIN reviewchangesets ON (changeset=id) WHERE review=%s", (review.id,))
         all_commits = [gitutils.Commit.fromId(db, review.repository, commit_id) for (commit_id,) in cursor]
 
@@ -730,7 +730,7 @@ def commitRangeFromReview(db, user, review, filter_value, file_ids):
             cursor.execute("SELECT DISTINCT file FROM reviewfiles WHERE review=%s", (review.id,))
             files_in_review = set(file_id for (file_id,) in cursor)
 
-            if filter == "files":
+            if filter_value == "files":
                 files_in_review &= file_ids
 
             paths_in_review = set(dbutils.describe_file(db, file_id) for file_id in files_in_review)
@@ -787,11 +787,11 @@ including the unrelated changes.</p>
         return tails.pop(), review.branch.head.sha1, all_commits, listed_commits
 
     if not with_pending:
-        if filter == "pending":
+        if filter_value == "pending":
             raise page.utils.DisplayMessage, ("Your work here is done!", None, review)
         else:
-            assert filter != "files"
-            raise page.utils.DisplayMessage, ("No %s changes found." % filter, None, review)
+            assert filter_value != "files"
+            raise page.utils.DisplayMessage, ("No %s changes found." % filter_value, None, review)
 
     cursor.execute("""SELECT parent, child
                         FROM changesets
