@@ -224,6 +224,8 @@ Available commands are:
   adduser   Add a user.
   deluser   Retire a user.
   addrole   Add a role to a user.
-  delrole   Remove a role from a user."""
+  delrole   Remove a role from a user.
+
+Use 'criticctl COMMAND --help' to see per command options."""
 
     return returncode
