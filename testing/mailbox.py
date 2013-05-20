@@ -141,6 +141,7 @@ class Client(threading.Thread):
         for name in message.keys():
             headers = mail.headers.setdefault(name.lower(), [])
             for value in message.get_all(name):
+                value = re.sub("\r\n[ \t]+", " ", value)
                 headers.append({ "name": name, "value": value })
 
         mail.lines = message.get_payload(decode=True).splitlines()
