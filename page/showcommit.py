@@ -868,7 +868,7 @@ def getCommitList(db, repository, from_commit, to_commit):
                 else:
                     raise NotPossible
             else:
-                if from_commit is None and len(iter_commit.parents)==0:
+                if from_commit is None and len(iter_commit.parents) == 0:
                     return
 
                 iter_commit = gitutils.Commit.fromSHA1(db, repository, iter_commit.parents[0])
