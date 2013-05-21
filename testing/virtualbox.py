@@ -37,8 +37,9 @@ class GuestCommandError(testing.InstanceError):
         self.output = output
 
 class Instance(object):
-    def __init__(self, identifier, snapshot, hostname, ssh_port,
+    def __init__(self, vboxhost, identifier, snapshot, hostname, ssh_port,
                  install_commit=None, upgrade_commit=None, frontend=None):
+        self.vboxhost = vboxhost
         self.identifier = identifier
         self.snapshot = snapshot
         self.hostname = hostname
@@ -218,9 +219,10 @@ class Instance(object):
                           "--admin-email": "admin@example.org",
                           "--admin-fullname": "'Testing Administrator'",
                           "--admin-password": "testing",
-                          "--smtp-host": "host",
+                          "--smtp-host": self.vboxhost,
                           "--smtp-port": str(self.mailbox.port),
-                          "--skip-testmail-check": True }
+                          "--smtp-no-ssl-tls": True,
+                          "--skip-testmail-check": True, }
 
         for name, value in override_arguments.items():
             if value is None:
