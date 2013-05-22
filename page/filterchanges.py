@@ -125,7 +125,7 @@ def renderFilterChanges(req, db, user):
             row.td("select").input(type="checkbox")
             row.td("path").preformatted().text("[SELECT ALL]")
             row.td().text()
-            level = 0
+            level = -1
 
         for directory_name in sorted(directories.keys()):
             outputDirectory(base + name + "/" if name else "", directory_name, directories[directory_name][0], directories[directory_name][1])
@@ -133,7 +133,10 @@ def renderFilterChanges(req, db, user):
         for file_name in sorted(files.keys()):
             row = basic.tr("file", critic_file_id=files[file_name], critic_level=level + 1)
             row.td("select").input(type="checkbox")
-            row.td("path").preformatted().innerHTML((" " * (len(base + name) - 1)) + "&#8230;/" + htmlutils.htmlify(file_name))
+            if level > -1:
+                row.td("path").preformatted().innerHTML((" " * (len(base + name) - 1)) + "&#8230;/" + htmlutils.htmlify(file_name))
+            else:
+                row.td("path").preformatted().innerHTML(htmlutils.htmlify(file_name))
             row.td().text()
 
     outputDirectory("", "", root_directories, root_files)
