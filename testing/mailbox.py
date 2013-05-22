@@ -70,6 +70,7 @@ class Client(threading.Thread):
         super(Client, self).__init__()
         self.mailbox = mailbox
         self.client = client
+        self.client.settimeout(None)
         self.buffered = ""
         self.start()
 
@@ -179,7 +180,7 @@ class Listener(threading.Thread):
         self.daemon = True
         self.mailbox = mailbox
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.socket.settimeout(None)
+        self.socket.settimeout(0.1)
         self.socket.bind(("", 0))
         self.socket.listen(1)
         self.stopped = False
