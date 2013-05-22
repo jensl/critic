@@ -211,11 +211,21 @@ class Mailbox(object):
             self.condition.notify()
 
     def pop(self, accept=None, timeout=0):
+        def is_accepted(mail):
+            if accept is None:
+                return True
+            if callable(accept):
+                return accept(mail)
+            for fn in accept:
+                if not fn(mail):
+                    return False
+            return True
+
         deadline = time.time() + timeout
         with self.condition:
             while True:
                 for mail in self.queued:
-                    if not accept or accept(mail):
+                    if is_accepted(mail):
                         self.queued.remove(mail)
                         return mail
                 use_timeout = deadline - time.time()
