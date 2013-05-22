@@ -307,6 +307,7 @@ class Repository:
         else: stdin = PIPE
         env = {}
         env.update(os.environ)
+        env.update(configuration.executables.GIT_ENV)
         env.update(kwargs.get("env", {}))
         if "GIT_DIR" in env: del env["GIT_DIR"]
         git = process(argv, stdin=stdin, stdout=PIPE, stderr=PIPE, cwd=cwd, env=env)

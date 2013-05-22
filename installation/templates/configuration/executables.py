@@ -20,6 +20,9 @@ PYTHON = "%(installation.prereqs.python)s"
 # Git executable.
 GIT = "%(installation.prereqs.git)s"
 
+# Add these to the environment when running Git commands
+GIT_ENV = { }
+
 # Tar executable.
 TAR = "%(installation.prereqs.tar)s"
 
