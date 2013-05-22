@@ -45,6 +45,8 @@ def check(expected, actual, equal=simple_equal, message=None):
 
 def with_class(*names):
     def check(value):
+        if value is None:
+            return False
         tokens = set(value.split())
         for name in names:
             if name not in tokens:
