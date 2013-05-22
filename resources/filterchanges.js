@@ -141,6 +141,11 @@ keyboardShortcutHandlers.push(function (key)
       $("button.display").click();
       return true;
     }
+    else if (key == "a".charCodeAt(0))
+    {
+      $("tr.directory[critic-level=-1]").click();
+      return true;
+    }
   });
 
 $(document).keypress(function (ev)
