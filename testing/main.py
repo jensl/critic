@@ -29,7 +29,7 @@ def main():
     parser.add_argument("--quiet", help="Disable INFO level logging", action="store_true")
     parser.add_argument("--commit", help="Commit (symbolic ref or SHA-1) to test [default=HEAD]", default="HEAD")
     parser.add_argument("--upgrade-from", help="Commit (symbolic ref or SHA-1) to install first and upgrade from")
-    parser.add_argument("--vbox-host", help="Host that's runing VirtualBox", required=True)
+    parser.add_argument("--vbox-host", help="Host that's running VirtualBox [default=host]", default="host")
     parser.add_argument("--vm-identifier", help="VirtualBox instance name or UUID", required=True)
     parser.add_argument("--vm-hostname", help="VirtualBox instance hostname", required=True)
     parser.add_argument("--vm-snapshot", help="VirtualBox snapshot (name or UUID) to restore", default="clean")

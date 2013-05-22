@@ -20,7 +20,6 @@ import time
 import re
 import logging
 import email
-import errno
 
 logger = logging.getLogger("critic")
 
@@ -79,17 +78,10 @@ class Client(threading.Thread):
 
     def recvline(self):
         while "\r\n" not in self.buffered:
-            try:
-                data = self.client.recv(4096)
-                if not data:
-                    raise EOF
-                self.buffered += data
-            except socket.error, e:
-                if e.errno == errno.EAGAIN:
-                    time.sleep(0.1)
-                else:
-                    raise
-
+            data = self.client.recv(4096)
+            if not data:
+                raise EOF
+            self.buffered += data
         line, self.buffered = self.buffered.split("\r\n", 1)
         return line
 
@@ -187,7 +179,7 @@ class Listener(threading.Thread):
         self.daemon = True
         self.mailbox = mailbox
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.socket.settimeout(0.1)
+        self.socket.settimeout(None)
         self.socket.bind(("", 0))
         self.socket.listen(1)
         self.stopped = False
