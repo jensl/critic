@@ -70,6 +70,7 @@ class Client(threading.Thread):
         super(Client, self).__init__()
         self.mailbox = mailbox
         self.client = client
+        self.client.settimeout(None)
         self.buffered = ""
         self.start()
 
