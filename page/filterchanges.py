@@ -121,6 +121,10 @@ def renderFilterChanges(req, db, user):
                 row.td("path").preformatted().innerHTML(base + name + "/")
             row.td().text()
         else:
+            row = basic.tr("directory", critic_level=-1)
+            row.td("select").input(type="checkbox")
+            row.td("path").preformatted().text("[SELECT ALL]")
+            row.td().text()
             level = 0
 
         for directory_name in sorted(directories.keys()):
