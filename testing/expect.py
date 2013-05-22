@@ -43,10 +43,19 @@ def check(expected, actual, equal=simple_equal, message=None):
             location = None
         raise FailedCheck(expected, actual, location=location, message=message)
 
+def with_class(*names):
+    def check(value):
+        tokens = set(value.split())
+        for name in names:
+            if name not in tokens:
+                return False
+        return True
+    return { "class": check }
+
 def find_paleyellow(document, index):
     """Find index:th <table class="paleyellow"> in the document."""
     tables = document.findAll(
-        "table", attrs={ "class": lambda value: "paleyellow" in value.split() })
+        "table", attrs=with_class("paleyellow"))
     if index >= len(tables):
         raise FailedCheck("<table: index=%d>" % index,
                           "<no table: count=%d>" % len(tables))
