@@ -91,7 +91,7 @@ def listusers(argv):
     print formats[arguments.format]["post"]
 
 def adduser(argv):
-    import bcrypt
+    import auth
 
     parser = argparse.ArgumentParser(
         description="Critic administration interface: adduser",
@@ -113,20 +113,7 @@ def adduser(argv):
     else:
         password = arguments.password
 
-    password = bcrypt.hashpw(password, bcrypt.gensalt())
-
-    cursor.execute("""SELECT id
-                        FROM users
-                       WHERE name=%s""",
-                   (name,))
-
-    if cursor.fetchone():
-        print "%s: user already exists!" % name
-        sys.exit(-1)
-
-    cursor.execute("""INSERT INTO users (name, email, fullname, password, status)
-                           VALUES (%s, %s, %s, %s, 'current')""",
-                   (name, email, fullname, password))
+    dbutils.User.create(db, name, fullname, email, auth.hashPassword(password))
 
     db.commit()
 

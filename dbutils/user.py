@@ -268,3 +268,17 @@ class User(object):
             if not row: raise NoSuchUser, name
             user_id, email, fullname, status = row
             return User.cache(db, User(user_id, name, email, fullname, status))
+
+    @staticmethod
+    def create(db, name, fullname, email, password=None, status="current"):
+        cursor = db.cursor()
+        cursor.execute("""INSERT INTO users (name, fullname, email, password, status)
+                               VALUES (%s, %s, %s, %s, %s)
+                            RETURNING id""",
+                       (name, fullname, email, password, status))
+        user = User.fromId(db, cursor.fetchone()[0])
+        if email:
+            cursor.execute("""INSERT INTO usergitemails (email, uid)
+                                   VALUES (%s, %s)""",
+                           (email, user.id))
+        return user

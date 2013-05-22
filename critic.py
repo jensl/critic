@@ -581,12 +581,8 @@ def main(environ, start_response):
                 try:
                     user = dbutils.User.fromName(db, req.user)
                 except dbutils.NoSuchUser:
-                    cursor = db.cursor()
-                    cursor.execute("""INSERT INTO users (name, email, fullname)
-                                           VALUES (%s, %s, %s)
-                                        RETURNING id""",
-                                   (req.user, getUserEmailAddress(req.user), req.user))
-                    user = dbutils.User.fromId(db, cursor.fetchone()[0])
+                    user = dbutils.User.create(db, req.user, req.user,
+                                               getUserEmailAddress(req.user))
                     db.commit()
 
             user.loadPreferences(db)
