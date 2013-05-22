@@ -159,15 +159,21 @@ class Frontend(object):
         if self.session_id:
             headers["Cookie"] = "sid=%s" % self.session_id
 
+        if not isinstance(data, basestring):
+            data = json.dumps(data)
+            headers["Content-Type"] = "text/json"
+
         response = requests.post(full_url,
-                                 data=json.dumps(data),
+                                 data=data,
                                  headers=headers)
 
         try:
             if response.status_code != 200:
                 raise HTTPError(url, 200, response.status_code)
 
-            if hasattr(response, "json"):
+            if expect is None:
+                result = response.content
+            elif hasattr(response, "json"):
                 if callable(response.json):
                     try:
                         result = response.json()
@@ -191,39 +197,43 @@ class Frontend(object):
             self.session_id = response.cookies["sid"]
 
         logger.debug("Executed operation: %s" % full_url)
-        logger.debug("Checking operation: %s" % full_url)
 
-        # Check result["status"] first; if it doesn't have the expected value,
-        # it's likely all other expected keys are simply missing from the
-        # result, and thus produce rather meaningless errors.
-        expected = expect.get("status", "ok")
-        actual = result.get("status")
-        if actual != expected:
-            logger.error("Operation '%s', key 'status': check failed: expected=%r, actual=%r"
-                         % (url, expected, actual))
-            raise testing.TestFailure
+        if expect is not None:
+            logger.debug("Checking operation: %s" % full_url)
 
-        failed_checks = False
+            # Check result["status"] first; if it doesn't have the expected value,
+            # it's likely all other expected keys are simply missing from the
+            # result, and thus produce rather meaningless errors.
+            expected = expect.get("status", "ok")
+            actual = result.get("status")
+            if actual != expected:
+                logger.error("Operation '%s', key 'status': check failed: "
+                             "expected=%r, actual=%r"
+                             % (url, expected, actual))
+                raise testing.TestFailure
 
-        # Then check any other expected keys.
-        for key, expected in expect.items():
-            if key != "status":
-                actual = result.get(key)
-                if callable(expected):
-                    checked = expected(actual)
-                    if checked:
-                        expected, actual = checked
-                    else:
-                        continue
-                if expected != actual:
-                    logger.error("Operation '%s', key '%s': check failed: expected=%r, actual=%r"
-                                 % (url, key, expected, actual))
-                    failed_checks = True
+            failed_checks = False
 
-        if failed_checks:
-            raise testing.TestFailure
+            # Then check any other expected keys.
+            for key, expected in expect.items():
+                if key != "status":
+                    actual = result.get(key)
+                    if callable(expected):
+                        checked = expected(actual)
+                        if checked:
+                            expected, actual = checked
+                        else:
+                            continue
+                    if expected != actual:
+                        logger.error("Operation '%s', key '%s': check failed: "
+                                     "expected=%r, actual=%r"
+                                     % (url, key, expected, actual))
+                        failed_checks = True
 
-        logger.debug("Checked operation: %s" % full_url)
+            if failed_checks:
+                raise testing.TestFailure
+
+            logger.debug("Checked operation: %s" % full_url)
 
         return result
 
