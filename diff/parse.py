@@ -22,6 +22,8 @@ import re
 import itertools
 import analyze
 
+GIT_EMPTY_TREE = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
+
 def splitlines(source):
     if not source: return source
     elif source[-1] == "\n": return source[:-1].split("\n")
@@ -56,8 +58,6 @@ ws = re.compile("\\s+")
 
 def isWhitespaceChange(deleted_line, inserted_line):
     return ws.sub(" ", deleted_line.strip()) == ws.sub(" ", inserted_line.strip())
-
-COUNT = 0
 
 def createChunks(delete_offset, deleted_lines, insert_offset, inserted_lines):
     ws_before = None
@@ -156,24 +156,27 @@ def parseDifferences(repository, commit=None, from_commit=None, to_commit=None, 
 
     options = []
 
-    if from_commit and to_commit:
+    if to_commit:
         command = 'diff'
-        what = from_commit.sha1 + ".." + to_commit.sha1
+        if from_commit:
+            what = [from_commit.sha1 + ".." + to_commit.sha1]
+        else:
+            what = [GIT_EMPTY_TREE, to_commit.sha1]
     elif not commit.parents:
         # Root commit.
 
         command = "show"
-        what = commit.sha1
+        what = [commit.sha1]
 
         options.append("--pretty=format:")
     else:
         assert len(commit.parents) == 1
 
         command = 'diff'
-        what = commit.parents[0] + '..' + commit.sha1
+        what = [commit.parents[0] + '..' + commit.sha1]
 
     if filter_paths is None and selected_path is None and not simple:
-        names = repository.run(command, *(options + ["--name-only", what]))
+        names = repository.run(command, *(options + ["--name-only"] + what))
         paths = set(filter(None, map(str.strip, names.splitlines())))
     else:
         paths = set()
@@ -181,7 +184,7 @@ def parseDifferences(repository, commit=None, from_commit=None, to_commit=None, 
     if not simple:
         options.append('--ignore-space-change')
 
-    options.append(what)
+    options.extend(what)
 
     if filter_paths is not None:
         options.append('--')
@@ -476,7 +479,7 @@ def parseDifferences(repository, commit=None, from_commit=None, to_commit=None, 
             addFile(diff.File(None, names[0], None, None, repository, old_mode=old_mode, new_mode=new_mode, chunks=[]))
 
     for path in (paths - included):
-        lines = isplitlines(repository.run(command, '--full-index', '--unified=1', what, '--', path))
+        lines = isplitlines(repository.run(command, '--full-index', '--unified=1', *(what + ['--', path])))
 
         try:
             line = lines.next()
@@ -514,11 +517,13 @@ def parseDifferences(repository, commit=None, from_commit=None, to_commit=None, 
         for file in files:
             mergeChunks(file)
 
-    if from_commit and to_commit:
+    if to_commit:
         if selected_path is not None:
             return selected_file
-        else:
+        elif from_commit:
             return { from_commit.sha1: files }
+        else:
+            return { None: files }
     elif not commit.parents:
         return { None: files }
     else:

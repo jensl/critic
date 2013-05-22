@@ -167,16 +167,20 @@ def createChangeset(db, user, repository, commit=None, from_commit=None, to_comm
                 thin_diff = True
 
         if not thin_diff:
-            if changeset_type == "direct": request = { "changeset_type": "direct",
-                                                       "child_sha1": commit.sha1 }
-            elif changeset_type == "custom": request = { "changeset_type": "custom",
-                                                         "parent_sha1": from_commit.sha1,
-                                                         "child_sha1": to_commit.sha1 }
-            elif changeset_type == "merge": request = { "changeset_type": "merge",
-                                                        "child_sha1": commit.sha1 }
-            else: request = { "changeset_type": "conflicts",
-                              "parent_sha1": from_commit.sha1,
-                              "child_sha1": to_commit.sha1 }
+            if changeset_type == "direct":
+                request = { "changeset_type": "direct",
+                            "child_sha1": commit.sha1 }
+            elif changeset_type == "custom":
+                request = { "changeset_type": "custom",
+                            "parent_sha1": from_commit.sha1 if from_commit else "0" * 40,
+                            "child_sha1": to_commit.sha1 }
+            elif changeset_type == "merge":
+                request = { "changeset_type": "merge",
+                            "child_sha1": commit.sha1 }
+            else:
+                request = { "changeset_type": "conflicts",
+                            "parent_sha1": from_commit.sha1,
+                            "child_sha1": to_commit.sha1 }
 
             request["repository_name"] = repository.name
 

@@ -220,7 +220,7 @@ have no common ancestor within this set."""
 
     @staticmethod
     def fromRange(db, from_commit, to_commit, commits=None):
-        repository = from_commit.repository
+        repository = to_commit.repository
         commits = set()
 
         class NotPossible(Exception): pass
@@ -248,8 +248,10 @@ have no common ancestor within this set."""
                         return
                     else:
                         raise NotPossible
-                else:
+                elif iter_commit.parents:
                     iter_commit = getCommit(iter_commit.parents[0])
+                else:
+                    return
 
         if from_commit == to_commit:
             return CommitSet([to_commit])

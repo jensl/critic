@@ -82,14 +82,19 @@ def createChangeset(db, request):
         assert changeset_type in ("custom", "conflicts")
 
         parent_sha1 = request["parent_sha1"]
-        parent = gitutils.Commit.fromSHA1(db, repository, parent_sha1)
+
+        if parent_sha1 == "0" * 40:
+            parent = parent_id = None
+        else:
+            parent = gitutils.Commit.fromSHA1(db, repository, parent_sha1)
+            parent_id = parent.getId(db)
 
         cursor.execute("""SELECT id, %s
                             FROM changesets
                            WHERE type=%s
                              AND parent=%s
                              AND child=%s""",
-                       (parent_sha1, changeset_type, parent.getId(db), child.getId(db)))
+                       (parent_sha1, changeset_type, parent_id, child.getId(db)))
     else:
         assert changeset_type in ("direct", "merge")
 
@@ -118,8 +123,10 @@ def createChangeset(db, request):
             changes = diff.parse.parseDifferences(repository, from_commit=parent, to_commit=child)
 
         for parent_sha1, files in changes.items():
-            if parent_sha1 is None: parent = None
-            else: parent = gitutils.Commit.fromSHA1(db, repository, parent_sha1)
+            if parent_sha1 is None:
+                parent = None
+            else:
+                parent = gitutils.Commit.fromSHA1(db, repository, parent_sha1)
             changeset_ids[parent_sha1] = insertChangeset(db, parent, child, files)
 
         db.commit()

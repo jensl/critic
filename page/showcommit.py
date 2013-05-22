@@ -14,7 +14,6 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-import base
 import htmlutils
 import page.utils
 import dbutils
@@ -707,7 +706,8 @@ def commitRangeFromReview(db, user, review, filter_value, file_ids):
         with_pending.add((parent_id, child_id))
 
     if len(listed_commits) == 1:
-        return None, gitutils.Commit.fromId(db, review.repository, child_id).sha1, list(listed_commits), listed_commits
+        commit = gitutils.Commit.fromId(db, review.repository, child_id)
+        return commit.sha1, commit.sha1, list(listed_commits), listed_commits
 
     if filter_value in ("reviewable", "relevant", "files"):
         cursor.execute("SELECT child FROM changesets JOIN reviewchangesets ON (changeset=id) WHERE review=%s", (review.id,))
@@ -780,11 +780,14 @@ including the unrelated changes.</p>
                 candidates.sort(cmp=lambda a, b: cmp(len(b[1]), len(a[1])))
 
                 return candidates[0][0], review.branch.head.sha1, all_commits, listed_commits
-        elif not tails:
-            raise base.ImplementationError(
-                "impossible commit-set (%r)" % commitset)
 
-        return tails.pop(), review.branch.head.sha1, all_commits, listed_commits
+        if tails:
+            from_sha1 = tails.pop()
+        else:
+            # Review starts with the initial commit.
+            from_sha1 = None
+
+        return from_sha1, review.branch.head.sha1, all_commits, listed_commits
 
     if not with_pending:
         if filter_value == "pending":
@@ -1011,7 +1014,7 @@ def renderShowCommit(req, db, user):
             if first_sha1 is None:
                 if review_id and review_filter:
                     from_sha1, to_sha1, all_commits, listed_commits = commitRangeFromReview(db, user, review, review_filter, file_ids)
-                    if from_sha1 is None:
+                    if from_sha1 == to_sha1:
                         sha1 = to_sha1
                         to_sha1 = None
                 else:
@@ -1046,11 +1049,11 @@ def renderShowCommit(req, db, user):
         except gitutils.GitReferenceError as error:
             raise page.utils.DisplayMessage("Invalid SHA-1", "%s is not a commit in %s" % (error.sha1, repository.path))
 
-        if len(first_commit.parents) != 1:
-            yield page.utils.displayMessage(db, req, user, "Invalid parameters; 'first' must be a commit with a single parent.", review=review)
+        if len(first_commit.parents) > 1:
+            yield page.utils.displayMessage(db, req, user, "Invalid parameters; 'first' can not be a merge commit.", review=review)
             return
 
-        from_sha1 = first_commit.parents[0]
+        from_sha1 = first_commit.parents[0] if first_commit.parents else None
         to_sha1 = last_sha1
 
     try:
@@ -1062,8 +1065,10 @@ def renderShowCommit(req, db, user):
 
     if commit:
         title += "%s (%s)" % (commit.niceSummary(), commit.describe(db))
-    else:
+    elif from_commit:
         title += "%s..%s" % (from_commit.describe(db), to_commit.describe(db))
+    else:
+        title += "..%s" % to_commit.describe(db)
 
     document.setTitle(title)
 
@@ -1075,7 +1080,7 @@ def renderShowCommit(req, db, user):
 
     profiler.check("prologue")
 
-    if from_commit and to_commit:
+    if to_commit:
         changesets = changeset_utils.createChangeset(db, user, repository, from_commit=from_commit, to_commit=to_commit, conflicts=conflicts, rescan=rescan, reanalyze=reanalyze, filtered_file_ids=file_ids)
         assert len(changesets) == 1
 

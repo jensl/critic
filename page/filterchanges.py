@@ -42,7 +42,6 @@ def renderFilterChanges(req, db, user):
         files[components[-1]] = file_id
 
     if first_sha1 and last_sha1:
-
         cursor.execute("""SELECT commits.sha1
                             FROM commits
                             JOIN changesets ON (changesets.child=commits.id)
@@ -53,16 +52,28 @@ def renderFilterChanges(req, db, user):
         first_commit = gitutils.Commit.fromSHA1(db, review.repository, first_sha1)
         last_commit = gitutils.Commit.fromSHA1(db, review.repository, last_sha1)
 
-        if len(first_commit.parents) != 1:
-            raise page.utils.DisplayMessage("Filtering failed!", "First selected commit is a merge commit.  Please go back and select a different range of commits.", review=review)
+        if len(first_commit.parents) > 1:
+            raise page.utils.DisplayMessage(
+                title="Filtering failed!",
+                body=("First selected commit is a merge commit.  Please go back "
+                      "and select a different range of commits."),
+                review=review)
 
-        from_commit = gitutils.Commit.fromSHA1(db, review.repository, first_commit.parents[0])
+        if first_commit.parents:
+            from_commit = gitutils.Commit.fromSHA1(db, review.repository, first_commit.parents[0])
+        else:
+            from_commit = None
+
         to_commit = last_commit
-
         commits = log.commitset.CommitSet.fromRange(db, from_commit, to_commit)
 
         if not commits:
-            raise page.utils.DisplayMessage("Filtering failed!", "The range of commits selected includes merges with ancestors not included in the range.  Please go back and select a different range of commits.", review=review)
+            raise page.utils.DisplayMessage(
+                title="Filtering failed!",
+                body=("The range of commits selected includes merges with "
+                      "ancestors not included in the range.  Please go back "
+                      "and select a different range of commits."),
+                review=review)
 
         cursor.execute("""SELECT DISTINCT reviewfiles.file
                             FROM reviewfiles
