@@ -37,12 +37,27 @@ import textutils
 if configuration.extensions.ENABLED:
     import extensions.role.processcommits
 
+try:
+    from customization.email import getUserEmailAddress
+except ImportError:
+    def getUserEmailAddress(_username):
+        return None
+
 def timestamp(time):
     return strftime("%Y-%m-%d %H:%M:%S", time)
 
 def getUser(db, user_name):
-    try: return dbutils.User.fromName(db, user_name)
-    except dbutils.NoSuchUser: return user_name
+    if user_name == configuration.base.SYSTEM_USER_NAME:
+        return user_name
+    try:
+        return dbutils.User.fromName(db, user_name)
+    except dbutils.NoSuchUser:
+        if configuration.base.AUTHENTICATION_MODE == "host":
+            user = dbutils.User.create(db, user_name, user_name,
+                                       getUserEmailAddress(user_name))
+            db.commit()
+            return user
+        raise
 
 db = None
 
