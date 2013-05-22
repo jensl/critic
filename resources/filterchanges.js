@@ -16,11 +16,6 @@
 
 */
 
-function displayDiff()
-{
-  alert("Not yet!  :-)");
-}
-
 function checkDirectory(line)
 {
   var level = parseInt(line.getAttribute("critic-level"));
