@@ -85,7 +85,7 @@ class Repository(object):
     def run(self, args):
         return _git(args, cwd=self.path)
 
-    def workcopy(self, name="work"):
+    def workcopy(self, name="work", empty=False):
         class Workcopy(object):
             def __init__(self, path):
                 self.path = path
@@ -94,8 +94,13 @@ class Repository(object):
             def __exit__(self, *args):
                 shutil.rmtree(self.path)
                 return False
-            def run(self, args):
-                return _git(args, cwd=self.path)
+            def run(self, args, **kwargs):
+                env = os.environ.copy()
+                for name in kwargs.keys():
+                    if name.lower() != name == name.upper():
+                        env[name] = kwargs[name]
+                        del kwargs[name]
+                return _git(args, cwd=self.path, env=env, **kwargs)
 
         path = os.path.join(self.base_path, name)
 
@@ -103,7 +108,11 @@ class Repository(object):
             raise testing.InstanceError(
                 "Can't create work copy; path already exists!")
 
-        _git(["clone", os.getcwd(), name], cwd=self.base_path)
+        if not empty:
+            _git(["clone", os.getcwd(), name], cwd=self.base_path)
+        else:
+            os.mkdir(path)
+            _git(["init"], cwd=path)
 
         return Workcopy(path)
 
