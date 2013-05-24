@@ -81,6 +81,7 @@ def install(data):
                 process(name)
 
     process()
+    sys.path.insert(0, installation.paths.install_dir)
 
     print "Copied %d files into %s ..." % (copied_files, target_dir)
 
