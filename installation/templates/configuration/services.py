@@ -18,16 +18,16 @@ import configuration
 import os.path
 import socket
 
-def service(name, address=0, script=0, pidfile_path=0, logfile_path=0, loglevel=0):
+def service(name, address=0, module=0, pidfile_path=0, logfile_path=0, loglevel=0):
     if address      == 0: address      = os.path.join(configuration.paths.SOCKETS_DIR, name + ".unix")
-    if script       == 0: script       = os.path.join("background", name + ".py")
+    if module       == 0: module       = "background." + name
     if pidfile_path == 0: pidfile_path = os.path.join(configuration.paths.RUN_DIR, name + ".pid")
     if logfile_path == 0: logfile_path = os.path.join(configuration.paths.LOG_DIR, name + ".log")
     if loglevel     == 0: loglevel     = "info"
 
     return { "name": name,
              "address": address,
-             "script": script,
+             "module": module,
              "pidfile_path": pidfile_path,
              "logfile_path": logfile_path,
              "loglevel": loglevel }

@@ -29,8 +29,10 @@ if "--slave" in sys.argv:
     class ServiceManager(background.utils.PeerServer):
         class Service(object):
             class Process(background.utils.PeerServer.ChildProcess):
-                def __init__(self, service, path):
-                    super(ServiceManager.Service.Process, self).__init__(service.manager, [sys.executable, path], stderr=subprocess.STDOUT)
+                def __init__(self, service):
+                    super(ServiceManager.Service.Process, self).__init__(
+                        service.manager, [sys.executable, "-m", service.module],
+                        stderr=subprocess.STDOUT)
                     self.__service = service
                     self.__output = None
                     self.close()
@@ -45,12 +47,12 @@ if "--slave" in sys.argv:
             def __init__(self, manager, service_data):
                 self.manager = manager
                 self.name = service_data["name"]
-                self.path = service_data["script"]
+                self.module = service_data["module"]
                 self.started = None
                 self.process = None
 
             def start(self):
-                self.process = ServiceManager.Service.Process(self, self.path)
+                self.process = ServiceManager.Service.Process(self)
                 self.started = time.time()
                 self.manager.add_peer(self.process)
                 self.manager.info("%s: started (pid=%d)" % (self.name, self.process.pid))
@@ -94,14 +96,14 @@ if "--slave" in sys.argv:
                     return result({ "status": "error", "error": "invalid input: expected object" })
 
                 if request.get("query") == "status":
-                    services = { "manager": { "path": "background/servicemanager.py",
+                    services = { "manager": { "module": "background.servicemanager",
                                               "uptime": time.time() - self.__manager.started,
                                               "pid": os.getpid() }}
 
                     for service in self.__manager.services:
                         uptime = time.time() - service.started if service.started else -1
                         pid = service.process.pid if service.process else -1
-                        services[service.name] = { "path": service.path,
+                        services[service.name] = { "module": service.module,
                                                    "uptime": uptime,
                                                    "pid": pid }
 
@@ -157,8 +159,19 @@ if "--slave" in sys.argv:
     manager = ServiceManager()
     manager.run()
 else:
-    import daemon
     import errno
+    import pwd
+    import grp
+    import stat
+
+    pwentry = pwd.getpwnam(configuration.base.SYSTEM_USER_NAME)
+    grentry = grp.getgrnam(configuration.base.SYSTEM_USER_NAME)
+
+    uid = pwentry.pw_uid
+    gid = grentry.gr_gid
+    home = pwentry.pw_dir
+
+    import daemon
 
     pidfile_path = configuration.services.SERVICEMANAGER["pidfile_path"]
 
@@ -166,16 +179,25 @@ else:
         print >>sys.stderr, "%s: file exists; daemon already running?" % pidfile_path
         sys.exit(1)
 
-    try: os.makedirs(os.path.dirname(pidfile_path))
+    try:
+        os.makedirs(os.path.dirname(pidfile_path))
     except OSError, error:
-        if error.errno == errno.EEXIST: pass
-        else: raise
+        if error.errno != errno.EEXIST:
+            raise
+    else:
+        os.chown(pidfile_path, uid, gid)
+        os.chmod(pidfile_path, 0750 | stat.S_ISUID | stat.S_ISGID)
+
+    os.environ["HOME"] = home
+    os.chdir(home)
+
+    os.setgid(gid)
+    os.setuid(uid)
 
     daemon.detach()
 
-    pidfile = open(pidfile_path, "w")
-    pidfile.write("%s\n" % os.getpid())
-    pidfile.close()
+    with open(pidfile_path, "w") as pidfile:
+        pidfile.write("%s\n" % os.getpid())
 
     was_terminated = False
 
@@ -186,7 +208,8 @@ else:
     signal.signal(signal.SIGTERM, terminated)
 
     while not was_terminated:
-        process = subprocess.Popen([sys.executable, sys.argv[0], "--slave"])
+        process = subprocess.Popen(
+            [sys.executable, "-m", "background.servicemanager", "--slave"])
 
         while not was_terminated:
             try:
@@ -205,5 +228,7 @@ else:
         except:
             pass
 
-    try: os.unlink(pidfile_path)
-    except: pass
+    try:
+        os.unlink(pidfile_path)
+    except:
+        pass

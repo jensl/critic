@@ -33,6 +33,12 @@ but not Python 3.x.  This script must be run in the Python interpreter
 that will be used to run Critic."""
     sys.exit(2)
 
+if sys.flags.optimize > 0:
+    print """
+ERROR: Please run this script without -O or -OO options.
+"""
+    sys.exit(1)
+
 import json
 import argparse
 import installation
@@ -94,13 +100,13 @@ def abort():
     print "ERROR: Installation aborted."
     print
 
-    for module in reversed(installation.modules):
-        try:
-            if hasattr(module, "undo"):
-                module.undo()
-        except:
-            print >>sys.stderr, "FAILED: %s.undo()" % module.__name__
-            traceback.print_exc()
+    # for module in reversed(installation.modules):
+    #     try:
+    #         if hasattr(module, "undo"):
+    #             module.undo()
+    #     except:
+    #         print >>sys.stderr, "FAILED: %s.undo()" % module.__name__
+    #         traceback.print_exc()
 
     sys.exit(1)
 

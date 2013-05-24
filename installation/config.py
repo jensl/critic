@@ -20,7 +20,7 @@ import os.path
 import json
 import pwd
 import grp
-import shutil
+import py_compile
 
 import installation
 
@@ -121,9 +121,25 @@ created_dir = []
 renamed = []
 modified_files = 0
 
+def compile_file(filename):
+    global created_file
+    try:
+        path = os.path.join(installation.paths.etc_dir, "main", filename)
+        with installation.utils.as_critic_system_user():
+            py_compile.compile(path, doraise=True)
+    except py_compile.PyCompileError as error:
+        print """
+ERROR: Failed to compile %s:\n%s
+""" % (filename, error)
+        return False
+    else:
+        created_file.append(path + "c")
+        return True
+
 def install(data):
     source_dir = os.path.join(installation.root_dir, "installation", "templates", "configuration")
     target_dir = os.path.join(installation.paths.etc_dir, "main", "configuration")
+    compilation_failed = False
 
     os.mkdir(target_dir, 0750)
     created_dir.append(target_dir)
@@ -151,6 +167,13 @@ def install(data):
                 with open(source_path, "r") as source:
                     target.write((source.read().decode("utf-8") % data).encode("utf-8"))
 
+            path = os.path.join("configuration", entry)
+            if not compile_file(path):
+                compilation_failed = True
+
+    if compilation_failed:
+        return False
+
     # Make the newly written 'configuration' module available to the rest of the
     # installation script(s).
     sys.path.insert(0, os.path.join(installation.paths.etc_dir, "main"))
@@ -162,6 +185,7 @@ def upgrade(arguments, data):
 
     source_dir = os.path.join("installation", "templates", "configuration")
     target_dir = os.path.join(data["installation.paths.etc_dir"], arguments.identity, "configuration")
+    compilation_failed = False
 
     system_uid = pwd.getpwnam(data["installation.system.username"]).pw_uid
     system_gid = grp.getgrnam(data["installation.system.groupname"]).gr_gid
@@ -231,7 +255,14 @@ configuration options to the existing version.
                     os.chown(target_path, system_uid, system_gid)
                     target.write(source.encode("utf-8"))
 
+                path = os.path.join("configuration", entry)
+                if not compile_file(path):
+                    compilation_failed = True
+
             modified_files += 1
+
+    if compilation_failed:
+        return False
 
     if no_changes:
         print "No changed configuration files."
@@ -239,7 +270,8 @@ configuration options to the existing version.
     return True
 
 def undo():
-    map(shutil.rmtree, created_dir)
+    map(os.unlink, reversed(created_file))
+    map(os.rmdir, reversed(created_dir))
 
     for target, backup in renamed: os.rename(backup, target)
 

@@ -87,7 +87,7 @@ def renderServices(req, db, user):
 
         headings = table.tr("headings")
         headings.th("name").text("Name")
-        headings.th("path").text("Path")
+        headings.th("module").text("Module")
         headings.th("pid").text("PID")
         headings.th("rss").text("RSS")
         headings.th("cpu").text("CPU")
@@ -132,7 +132,7 @@ def renderServices(req, db, user):
 
             row = table.tr("service")
             row.td("name").text(service_name)
-            row.td("path").text(service_data["path"])
+            row.td("module").text(service_data["module"])
             row.td("pid").text(service_data["pid"] if service_data["pid"] != -1 else "(not running)")
             row.td("rss").text(process_data["rss"])
             row.td("cpu").text(process_data["cpu"])
@@ -150,7 +150,7 @@ def renderServices(req, db, user):
 
             row = table.tr("service")
             row.td("name").text("wsgi:%d" % index)
-            row.td("path").text()
+            row.td("module").text()
             row.td("pid").text(pid)
             row.td("rss").text(process_data["rss"])
             row.td("cpu").text(process_data["cpu"])

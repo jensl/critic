@@ -20,12 +20,16 @@ import os
 import os.path
 import shutil
 import errno
+import py_compile
 
 BLACKLIST = set([ "install.py",
                   "upgrade.py",
                   "installation",
+                  "testing",
+                  "extensions/v8-jsshell",
                   "dbschema.sql",
                   "dbschema.comments.sql",
+                  "roles.sql",
                   "comments.pgsql",
                   ".git",
                   ".gitignore" ])
@@ -48,9 +52,29 @@ modified_files = 0
 sources_modified = False
 resources_modified = False
 
+def compile_file(filename):
+    global created_file
+    if not filename.endswith(".py"):
+        return True
+    try:
+        path = os.path.join(installation.paths.install_dir, filename)
+        with installation.utils.as_critic_system_user():
+            py_compile.compile(path, doraise=True)
+    except py_compile.PyCompileError as error:
+        print """
+ERROR: Failed to compile %s:\n%s
+""" % (filename, error)
+        return False
+    else:
+        created_file.append(path + "c")
+        return True
+
 def install(data):
     source_dir = os.path.dirname(os.path.abspath(sys.argv[0]))
     target_dir = installation.paths.install_dir
+
+    # Note: this is an array since it's modified in a nested scope.
+    compilation_failed = []
 
     def copy(path):
         global copied_files
@@ -60,6 +84,7 @@ def install(data):
 
         if os.path.isdir(source):
             os.mkdir(target, 0755)
+            os.chown(target, installation.system.uid, installation.system.gid)
             created_dir.append(target)
             return True
         else:
@@ -70,7 +95,10 @@ def install(data):
             else:
                 mode = 0644
             os.chmod(target, mode)
+            os.chown(target, installation.system.uid, installation.system.gid)
             copied_files += 1
+            if not compile_file(path):
+                compilation_failed.append(path)
             return False
 
     def process(path=""):
@@ -83,6 +111,9 @@ def install(data):
     process()
     sys.path.insert(0, installation.paths.install_dir)
 
+    if compilation_failed:
+        return False
+
     print "Copied %d files into %s ..." % (copied_files, target_dir)
 
     return True
@@ -90,6 +121,25 @@ def install(data):
 def upgrade(arguments, data):
     source_dir = os.path.dirname(os.path.abspath(sys.argv[0]))
     target_dir = data["installation.paths.install_dir"]
+
+    # Note: this is an array since it's modified in a nested scope.
+    compilation_failed = []
+
+    uid = installation.system.uid
+    gid = installation.system.gid
+
+    def chown(directory):
+        os.chown(directory, uid, gid)
+        for name in os.listdir(directory):
+            path = os.path.join(directory, name)
+            if os.path.isdir(path):
+                chown(path)
+            elif path.endswith(".pyc"):
+                os.chown(path, uid, gid)
+            elif path.endswith(".pyo"):
+                os.unlink(path)
+
+    chown(target_dir)
 
     git = data["installation.prereqs.git"]
 
@@ -254,6 +304,8 @@ Not installing the updated version can cause unpredictable results.
                         else:
                             mode = 0644
                         os.chmod(target_path, mode)
+                        if not compile_file(path):
+                            compilation_failed.append(path)
                     modified_files += 1
                     if isResource(path):
                         resources_modified = True
@@ -267,6 +319,9 @@ Not installing the updated version can cause unpredictable results.
         if not blacklisted(path):
             if copy(path) is False:
                 return False
+
+    if compilation_failed:
+        return False
 
     if copied_files == 0 and modified_files == 0:
         print "No new or modified source files."

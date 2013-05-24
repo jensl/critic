@@ -19,6 +19,13 @@ import sys
 import json
 import traceback
 import os.path
+
+if sys.flags.optimize > 0:
+    print """
+ERROR: Please run this script without -O or -OO options.
+"""
+    sys.exit(1)
+
 import argparse
 
 import installation

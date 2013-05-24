@@ -24,15 +24,7 @@ pidfile=%(installation.paths.run_dir)s/main/servicemanager.pid
 start () {
     log_daemon_msg "Starting Critic service manager" "servicemanager.py"
 
-    if test ! -d $critic_run
-    then
-        mkdir -p $critic_run
-        chown %(installation.system.username)s.%(installation.system.groupname)s $critic_run
-        chmod ug+s $critic_run
-    fi
-
-    cd $critic_root
-    sudo -u %(installation.system.username)s PYTHONPATH=$critic_etc:$critic_root %(installation.prereqs.python)s background/servicemanager.py
+    PYTHONPATH=$critic_etc:$critic_root %(installation.prereqs.python)s -m background.servicemanager
 
     log_end_msg $?
 }
