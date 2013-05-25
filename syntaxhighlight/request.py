@@ -24,7 +24,7 @@ from textutils import json_encode, json_decode
 
 class HighlightBackgroundServiceError(base.ImplementationError):
     def __init__(self, message):
-        super(HighlightBackgroundServiceError).__init__(
+        super(HighlightBackgroundServiceError, self).__init__(
             "Highlight background service failed: %s" % message)
 
 def requestHighlights(repository, sha1s):

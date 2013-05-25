@@ -22,7 +22,7 @@ from textutils import json_encode, json_decode, indent
 
 class ChangesetBackgroundServiceError(base.ImplementationError):
     def __init__(self, message):
-        super(ChangesetBackgroundServiceError).__init__(
+        super(ChangesetBackgroundServiceError, self).__init__(
             "Changeset background service failed: %s" % message)
 
 def requestChangesets(requests):
