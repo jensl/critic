@@ -582,7 +582,7 @@ function reapplyFilters(filter_id, reload_when_finished)
 
 function countMatchedFiles()
 {
-  if (count_matched_files.length == 0)
+  if (typeof count_matched_files == "undefined" || count_matched_files.length == 0)
     return;
 
   var item = count_matched_files.shift();
