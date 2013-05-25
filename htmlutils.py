@@ -31,7 +31,7 @@ fragments = []
 for linktype in ALL_LINKTYPES:
     if linktype.fragment:
         fragments.append(linktype.fragment)
-re_linkify = re.compile("(?:^|\\b|(?=[[<]))(" + "|".join(fragments) + ")([.,:;!?)]*(?:\\s|\\b|$))")
+re_linkify = re.compile("(?:^|\\b|(?=\\W))(" + "|".join(fragments) + ")([.,:;!?)]*(?:\\s|\\b|$))")
 
 re_simple = re.compile("^[^ \t\r\n&<>]+$")
 re_nonascii = re.compile("[^\t\n\r -\x7f]")
