@@ -174,8 +174,8 @@ class Review(LinkType):
 
 HTTP()
 URL()
-SHA1()
 Diff()
+SHA1()
 Review()
 
 try: import customization.linktypes
