@@ -99,6 +99,10 @@ function removeClass(element, cls)
 
 var extractedFiles = {};
 
+var HIDE   = 1;
+var SHOW   = 2;
+var EXPAND = 3;
+
 var CONTEXT    = 1;
 var DELETED    = 2;
 var MODIFIED   = 3;
@@ -334,6 +338,15 @@ function expandFile(id, scroll)
   saveState();
 }
 
+function hideFile(id)
+{
+  var table = fileById(id);
+
+  table.removeClass("show");
+
+  recompact(id);
+}
+
 function showFile(id)
 {
   if (typeof parentsCount != "undefined")
@@ -412,11 +425,7 @@ function hideAll(implicit)
   mode = "hide";
   $("table.file").each(function (index, table)
     {
-      table = $(table);
-
-      table.removeClass("show");
-
-      recompact(table.attr("critic-file-id"));
+      hideFile($(table).attr("critic-file-id"));
     });
 
   if (typeof CommentMarkers != "undefined")
@@ -480,7 +489,9 @@ function saveState(replace)
         var id = table.attr("critic-file-id");
 
         if (table.hasClass("show"))
-          filesView[id] = table.hasClass("expanded");
+          filesView[id] = table.hasClass("expanded") ? EXPAND : SHOW;
+        else
+          filesView[id] = HIDE;
       });
 
     var state = { filesView: filesView, scrollLeft: scrollX, scrollTop: scrollY };
@@ -510,12 +521,18 @@ function restoreState(state)
   if (state)
   {
     for (var id in state.filesView)
-      if (state.filesView[id])
-        expandFile(id);
-      else
+      switch (state.filesView[id])
       {
+      case EXPAND:
+        expandFile(id);
+        break;
+      case SHOW:
         showFile(id);
         collapseFile(id);
+        break;
+      case HIDE:
+        hideFile(id);
+        break;
       }
 
     if (typeof state.scrollTop == "number")
