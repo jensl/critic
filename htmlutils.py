@@ -448,24 +448,30 @@ class Generator(object):
 
     def text(self, value=None, preformatted=False, cdata=False, linkify=False, repository=None):
         if linkify:
-            if isinstance(linkify, Context): context = linkify
-            else: context = Context(repository=repository)
+            assert not cdata
+
+            if isinstance(linkify, Context):
+                context = linkify
+            else:
+                context = Context(repository=repository)
 
             for linktype in ALL_LINKTYPES:
-                url = linktype.linkify(value, context)
-                if url:
-                    self.a(href=url).text(value)
-                    break
+                if linktype.match(value):
+                    url = linktype.linkify(value, context)
+                    if url:
+                        self.a(href=url).text(value)
+                        break
             else:
                 for word in re_linkify.split(value):
                     if word:
                         for linktype in ALL_LINKTYPES:
-                            url = linktype.linkify(word, context)
-                            if url:
-                                self.a(href=url).text(word)
-                                break
+                            if linktype.match(word):
+                                url = linktype.linkify(word, context)
+                                if url:
+                                    self.a(href=url).text(word)
+                                    break
                         else:
-                            self.text(word)
+                            self.text(word, preformatted)
         else:
             self.__target.appendChild(Text(value, preformatted, cdata))
         return self

@@ -50,8 +50,12 @@ class LinkType(object):
         """
 
         self.fragment = fragment
+        self.fragment_regexp = re.compile("%s$" % fragment)
 
         ALL_LINKTYPES.append(self)
+
+    def match(self, word):
+        return bool(self.fragment_regexp.match(word))
 
     def linkify(self, word):
         """
@@ -73,11 +77,16 @@ class SimpleLinkType(LinkType):
 
     def __init__(self, fragment, regexp=None):
         super(SimpleLinkType, self).__init__(fragment)
-        self.regexp = re.compile(regexp or "(%s)$" % fragment)
+        if isinstance(regexp, basestring):
+            self.regexp = re.compile(regexp)
+        else:
+            self.regexp = regexp
 
     def linkify(self, word, context):
-        match = self.regexp.match(word)
-        if match: return match.group(1)
+        if self.regexp:
+            return self.regexp.match(word).group(1)
+        else:
+            return word
 
 class HTTP(SimpleLinkType):
     """
@@ -110,21 +119,19 @@ class SHA1(LinkType):
 
     def __init__(self):
         super(SHA1, self).__init__("[0-9A-Fa-f]{8,40}")
-        self.regexp = re.compile("[0-9A-Fa-f]{8,40}$")
 
     def linkify(self, word, context):
-        if self.regexp.match(word):
-            sha1 = word
-            if context.repository \
-                    and context.repository.iscommit(word):
-                sha1 = context.repository.revparse(sha1)
-                if context.review \
-                        and context.review.containsCommit(context.db, sha1):
-                    return "/%s/%s?review=%d" % (context.repository.name, sha1, context.review.id)
-                else:
-                    return "/%s/%s" % (context.repository.name, sha1)
+        sha1 = word
+        if context.repository \
+                and context.repository.iscommit(word):
+            sha1 = context.repository.revparse(sha1)
+            if context.review \
+                    and context.review.containsCommit(context.db, sha1):
+                return "/%s/%s?review=%d" % (context.repository.name, sha1, context.review.id)
             else:
-                return "/%s" % sha1
+                return "/%s/%s" % (context.repository.name, sha1)
+        else:
+            return "/%s" % sha1
 
 class Diff(LinkType):
     """
@@ -136,26 +143,22 @@ class Diff(LinkType):
 
     def __init__(self):
         super(Diff, self).__init__("[0-9A-Fa-f]{8,40}\\.\\.[0-9A-Fa-f]{8,40}")
-        self.regexp = re.compile("([0-9A-Fa-f]{8,40})\\.\\.([0-9A-Fa-f]{8,40})$")
 
     def linkify(self, word, context):
-        match = self.regexp.match(word)
-        if match:
-            from_sha1 = match.group(1)
-            to_sha1 = match.group(2)
-            if context.repository \
-                    and context.repository.iscommit(from_sha1) \
-                    and context.repository.iscommit(to_sha1):
-                from_sha1 = context.repository.revparse(from_sha1)
-                to_sha1 = context.repository.revparse(to_sha1)
-                if context.review \
-                        and context.review.containsCommit(context.db, from_sha1) \
-                        and context.review.containsCommit(context.db, to_sha1):
-                    return "/%s/%s..%s?review=%d" % (context.repository.name, from_sha1, to_sha1, context.review.id)
-                else:
-                    return "/%s/%s..%s" % (context.repository.name, from_sha1, to_sha1)
+        from_sha1, _, to_sha1 = word.partition("..")
+        if context.repository \
+                and context.repository.iscommit(from_sha1) \
+                and context.repository.iscommit(to_sha1):
+            from_sha1 = context.repository.revparse(from_sha1)
+            to_sha1 = context.repository.revparse(to_sha1)
+            if context.review \
+                    and context.review.containsCommit(context.db, from_sha1) \
+                    and context.review.containsCommit(context.db, to_sha1):
+                return "/%s/%s..%s?review=%d" % (context.repository.name, from_sha1, to_sha1, context.review.id)
             else:
-                return "/%s..%s" % (from_sha1, to_sha1)
+                return "/%s/%s..%s" % (context.repository.name, from_sha1, to_sha1)
+        else:
+            return "/%s..%s" % (from_sha1, to_sha1)
 
 class Review(LinkType):
     """
@@ -167,10 +170,9 @@ class Review(LinkType):
 
     def __init__(self):
         super(Review, self).__init__("r/\\d+")
-        self.regexp = re.compile("r/\\d+$")
 
     def linkify(self, word, context):
-        if self.regexp.match(word): return "/" + word
+        return "/" + word
 
 HTTP()
 URL()
