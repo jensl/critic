@@ -514,8 +514,8 @@ function restoreState(state)
         expandFile(id);
       else
       {
-        collapseFile(id);
         showFile(id);
+        collapseFile(id);
       }
 
     if (typeof state.scrollTop == "number")
