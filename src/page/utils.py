@@ -102,13 +102,16 @@ def generateHeader(target, db, user, generate_right=None, current_page=None, ext
     links.append(["config", "Config", None, None])
     links.append(["tutorial", "Tutorial", None, None])
 
-    cursor = db.cursor()
-    cursor.execute("""SELECT COUNT(*)
-                        FROM newsitems
-             LEFT OUTER JOIN newsread ON (item=id AND uid=%s)
-                       WHERE uid IS NULL""",
-                   (user.id,))
-    count = cursor.fetchone()[0]
+    if user.isAnonymous():
+        count = 0
+    else:
+        cursor = db.cursor()
+        cursor.execute("""SELECT COUNT(*)
+                            FROM newsitems
+                 LEFT OUTER JOIN newsread ON (item=id AND uid=%s)
+                           WHERE uid IS NULL""",
+                       (user.id,))
+        count = cursor.fetchone()[0]
 
     if count:
         links.append(["news", "News (%d)" % count, "color: red", "There are %d unread news items!" % count])
