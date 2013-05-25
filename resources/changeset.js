@@ -97,7 +97,6 @@ function removeClass(element, cls)
     element.className = element.className.replace(new RegExp("(^|\\s+)" + cls + "($|(?=\\s))"), "");
 }
 
-var expandedFiles = {};
 var extractedFiles = {};
 
 var CONTEXT    = 1;
@@ -302,7 +301,6 @@ function collapseFile(id)
   if (typeof CommentMarkers != "undefined")
     CommentMarkers.updateAll();
 
-  delete expandedFiles[id];
   saveState();
 }
 
@@ -333,11 +331,7 @@ function expandFile(id, scroll)
   if (typeof CommentMarkers != "undefined")
     CommentMarkers.updateAll();
 
-  if (!expandedFiles[id])
-  {
-    expandedFiles[id] = true;
-    saveState();
-  }
+  saveState();
 }
 
 function showFile(id)
@@ -372,17 +366,10 @@ function collapseAll(implicit)
       var id = table.attr("critic-file-id");
 
       recompact(id);
-
-      if (table.hasClass("show"))
-        expandedFiles[id] = false;
-      else
-        delete expandedFiles[id];
     });
 
   if (typeof CommentMarkers != "undefined")
     CommentMarkers.updateAll();
-
-  expandedFiles = {};
 
   if (!implicit && changed)
     saveState();
@@ -406,8 +393,6 @@ function expandAll()
         changed = true;
         table.addClass("expanded");
       }
-
-      expandedFiles[id] = true;
     });
 
   if (changed)
@@ -437,8 +422,6 @@ function hideAll(implicit)
   if (typeof CommentMarkers != "undefined")
     CommentMarkers.updateAll();
 
-  expandedFiles = {};
-
   if (!implicit)
     saveState();
 }
@@ -464,9 +447,6 @@ function showAll(implicit)
           decompact(id);
         table.addClass("show");
       }
-
-      if (!(id in expandedFiles))
-        expandedFiles[id] = false;
     });
 
   if (!implicit && changed)
@@ -491,7 +471,19 @@ function saveState(replace)
 {
   if (!isRestoringState)
   {
-    var state = { expandedFiles: expandedFiles, scrollLeft: scrollX, scrollTop: scrollY };
+    var filesView = {};
+
+    $("table.file").each(function (index, table)
+      {
+        table = $(table);
+
+        var id = table.attr("critic-file-id");
+
+        if (table.hasClass("show"))
+          filesView[id] = table.hasClass("expanded");
+      });
+
+    var state = { filesView: filesView, scrollLeft: scrollX, scrollTop: scrollY };
 
     if (!replace)
     {
@@ -517,8 +509,8 @@ function restoreState(state)
 
   if (state)
   {
-    for (var id in state.expandedFiles)
-      if (state.expandedFiles[id])
+    for (var id in state.filesView)
+      if (state.filesView[id])
         expandFile(id);
       else
       {
