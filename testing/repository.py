@@ -60,8 +60,8 @@ class Repository(object):
         _git(["clone", "--bare", os.getcwd(), "critic.git"],
              cwd=self.base_path)
 
-        _git(["push", "--quiet", self.path,
-              "%s:refs/heads/tested" % tested_commit])
+        _git(["push", "--quiet", "--force", self.path,
+              "%s:refs/heads/master" % tested_commit])
 
     def export(self):
         argv = ["git", "daemon", "--reuseaddr", "--export-all",

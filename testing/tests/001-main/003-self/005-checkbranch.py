@@ -43,7 +43,7 @@ frontend.page(
     url="checkbranch",
     params={ "repository": "critic",
              "commit": "005-checkbranch-1",
-             "upstream": "tested" },
+             "upstream": "master" },
     expect={ "document_title": document_title,
              "content_title": content_title })
 
@@ -55,7 +55,7 @@ frontend.page(
     params={ "repository": "critic",
              "commit": "005-checkbranch-1",
              "fetch": "yes",
-             "upstream": "tested" },
+             "upstream": "master" },
     expect={ "document_title": document_title,
              "content_title": content_title })
 
@@ -68,7 +68,7 @@ frontend.page(
     url="checkbranch",
     params={ "repository": "critic",
              "commit": "005-checkbranch-2",
-             "upstream": "tested" },
+             "upstream": "master" },
     expect={ "message_title": message_title })
 
 document_title = testing.expect.document_title("Branch review status: 005-checkbranch-2")
@@ -80,7 +80,7 @@ frontend.page(
     params={ "repository": "critic",
              "commit": "005-checkbranch-2",
              "fetch": "yes",
-             "upstream": "tested" },
+             "upstream": "master" },
     expect={ "document_title": document_title,
              "content_title": content_title })
 
