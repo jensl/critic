@@ -159,13 +159,13 @@ def update_from_template(arguments, data, template_path, target_path, message):
     if write_target:
         print "Updated file: %s" % target_path
 
-    if not arguments.dry_run:
-        backup_path = os.path.join(os.path.dirname(target_path),
-                                   ".%s.org" % os.path.basename(target_path))
-        copy_file(target_path, backup_path)
-        with open(target_path, "w") as target_file:
-            target_file.write(new_source.encode("utf-8"))
-        return backup_path
+        if not arguments.dry_run:
+            backup_path = os.path.join(os.path.dirname(target_path),
+                                       ".%s.org" % os.path.basename(target_path))
+            copy_file(target_path, backup_path)
+            with open(target_path, "w") as target_file:
+                target_file.write(new_source.encode("utf-8"))
+            return backup_path
 
 def write_file(path, source):
     # Use os.open() with O_EXCL to avoid trampling some existing file.
