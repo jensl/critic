@@ -320,7 +320,7 @@ class Instance(object):
             "--fullname", "'%s'" % fullname, "--password", password,
             "&&",
             "sudo", "adduser", "--ingroup", "critic", "--disabled-password",
-            name])
+            "--gecos", "''", name])
 
         # Running all commands with a single self.execute() call is just an
         # optimization; SSH sessions are fairly expensive to start.
