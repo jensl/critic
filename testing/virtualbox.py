@@ -331,3 +331,11 @@ class Instance(object):
             self.frontend.run_basic_tests()
 
             logger.info("Upgraded Critic: %s" % self.upgrade_commit_description)
+
+    def restart(self):
+        self.execute(["sudo", "service", "apache2", "restart"])
+        self.execute(["sudo", "service", "critic-main", "restart"])
+
+        # Need to give the service manager a little bit of time to actually
+        # start all the background services.
+        time.sleep(1)
