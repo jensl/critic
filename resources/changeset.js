@@ -295,7 +295,7 @@ function fileById(id)
     return $("#f" + id);
 }
 
-function collapseFile(id)
+function collapseFile(id, implicit)
 {
   var table = fileById(id);
 
@@ -305,7 +305,8 @@ function collapseFile(id)
   if (typeof CommentMarkers != "undefined")
     CommentMarkers.updateAll();
 
-  saveState();
+  if (!implicit)
+    saveState();
 }
 
 function expandFile(id, scroll)
@@ -467,6 +468,16 @@ function showAll(implicit)
 
 var isRestoringState = false;
 var saveStateTimer = null;
+var previousFilesView = {};
+
+function isFilesViewEqual(first, second)
+{
+  for (var id in first)
+    if (first[id] != second[id])
+      return false;
+
+  return true;
+}
 
 function queueSaveState(replace)
 {
@@ -495,6 +506,11 @@ function saveState(replace)
       });
 
     var state = { filesView: filesView, scrollLeft: scrollX, scrollTop: scrollY };
+
+    if (isFilesViewEqual(filesView, previousFilesView))
+      replace = true;
+    else
+      previousFilesView = filesView;
 
     if (!replace)
     {
@@ -586,9 +602,9 @@ keyboardShortcutHandlers.push(function (key)
     case 32:
       if (!currentFile)
         if (mode == "hide")
-          hideAll();
+          hideAll(true);
         else
-          collapseAll();
+          collapseAll(true);
 
       if (scrollY + innerHeight >= (currentFile ? (currentFile.offset().top + currentFile.height()) : document.documentElement.scrollHeight))
       {
@@ -606,7 +622,7 @@ keyboardShortcutHandlers.push(function (key)
               CommentMarkers.updateAll();
           }
           else
-            collapseFile(id);
+            collapseFile(id, true);
 
           if (typeof markFile != "undefined")
           {
@@ -627,6 +643,7 @@ keyboardShortcutHandlers.push(function (key)
         else
           currentFile = null;
       }
+      saveState();
       return false;
 
     case "e".charCodeAt(0):
