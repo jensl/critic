@@ -79,9 +79,9 @@ def install(data):
     with open("installation/data/preferences.json") as preferences_file:
         preferences = json.load(preferences_file)
 
-    with installation.utils.as_critic_system_user():
-        import dbutils
+    import dbutils
 
+    with installation.utils.as_critic_system_user():
         with dbutils.Database() as db:
             for item in sorted(preferences.keys()):
                 add_preference(db, item, preferences[item], silent=True)
@@ -200,9 +200,9 @@ def upgrade(arguments, data):
 
         db.commit()
 
-    with installation.utils.as_critic_system_user():
-        import dbutils
+    import dbutils
 
+    with installation.utils.as_critic_system_user():
         with dbutils.Database() as db:
             update_preferences(old_preferences,
                                new_preferences,

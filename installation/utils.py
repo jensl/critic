@@ -17,6 +17,7 @@
 import os
 import textwrap
 import subprocess
+import tempfile
 
 import installation
 
@@ -211,15 +212,18 @@ def as_critic_system_user():
         def __init__(self):
             self.__uid = os.getuid()
             self.__gid = os.getgid()
+            self.__cwd = os.getcwd()
         def __enter__(self):
             return self
         def __exit__(self, *args):
             os.seteuid(self.__uid)
             os.seteuid(self.__gid)
+            os.chdir(self.__cwd)
             return False
 
     context = Context()
 
+    os.chdir(tempfile.gettempdir())
     os.setegid(installation.system.gid)
     os.seteuid(installation.system.uid)
 
