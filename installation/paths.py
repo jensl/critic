@@ -167,24 +167,24 @@ Critic Installation: Paths
 
 created = []
 
-def install(data):
-    import errno
+def mkdir(path, mode=0750):
+    global created
+    if not os.path.isdir(path):
+        if not os.path.isdir(os.path.dirname(path)):
+            mkdir(os.path.dirname(path), mode)
+
+        print "Creating directory '%s' ..." % path
+        os.mkdir(path, mode)
+        created.append(path)
+        os.chown(path, installation.system.uid, installation.system.gid)
+
+def mkdirs():
     import stat
-
-    def mkdir(path, mode=0750):
-        global created
-        if not os.path.isdir(path):
-            if not os.path.isdir(os.path.dirname(path)):
-                mkdir(os.path.dirname(path), mode)
-
-            print "Creating directory '%s' ..." % path
-            os.mkdir(path, mode)
-            created.append(path)
-            os.chown(path, installation.system.uid, installation.system.gid)
 
     mkdir(os.path.join(etc_dir, "main"))
     mkdir(install_dir, 0755)
     mkdir(os.path.join(data_dir, "relay"))
+    mkdir(os.path.join(data_dir, "temporary"))
     mkdir(os.path.join(data_dir, "outbox", "sent"), mode=0700)
     mkdir(os.path.join(cache_dir, "main", "highlight"))
     mkdir(git_dir)
@@ -194,6 +194,12 @@ def install(data):
 
     os.chmod(git_dir, 0770 | stat.S_ISUID | stat.S_ISGID)
 
+def install(data):
+    mkdirs()
+    return True
+
+def upgrade(arguments, data):
+    mkdirs()
     return True
 
 def undo():
