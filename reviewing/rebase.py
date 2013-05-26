@@ -16,6 +16,7 @@
 
 import time
 
+import configuration
 import gitutils
 
 def timestamp(ts):
@@ -96,12 +97,13 @@ onto the %(new_upstream_name)s.""" % { "review.branch.name": review.branch.name,
                                        "old_upstream_name": old_upstream_name,
                                        "new_upstream_name": new_upstream_name }
 
-    original_sha1 = repository.run('commit-tree', old_head.tree, '-p', old_upstream.sha1,
-                                   input=commit_message,
-                                   env={ 'GIT_AUTHOR_NAME': user.fullname,
-                                         'GIT_AUTHOR_EMAIL': user.email,
-                                         'GIT_COMMITTER_NAME': user.fullname,
-                                         'GIT_COMMITTER_EMAIL': user.email }).strip()
+    original_sha1 = repository.run(
+        'commit-tree', old_head.tree, '-p', old_upstream.sha1,
+        env={ 'GIT_AUTHOR_NAME': user.fullname,
+              'GIT_AUTHOR_EMAIL': user.email,
+              'GIT_COMMITTER_NAME': "Critic System",
+              'GIT_COMMITTER_EMAIL': configuration.base.SYSTEM_USER_EMAIL },
+        input=commit_message).strip()
 
     repository.run("update-ref", "refs/commit/%s" % new_upstream.sha1, new_upstream.sha1)
     repository.run("update-ref", "refs/commit/%s" % original_sha1, original_sha1)
@@ -113,7 +115,11 @@ onto the %(new_upstream_name)s.""" % { "review.branch.name": review.branch.name,
 
         workcopy.run("checkout", "temporary")
 
-        returncode, stdout, stderr = workcopy.run("cherry-pick", "refs/heads/original", check_errors=False)
+        returncode, stdout, stderr = workcopy.run(
+            "cherry-pick", "refs/heads/original",
+            env={ "GIT_COMMITTER_NAME": "Critic System",
+                  "GIT_COMMITTER_EMAIL": configuration.base.SYSTEM_USER_EMAIL },
+            check_errors=False)
 
         # If the rebase produced conflicts, just stage and commit them:
         if returncode != 0:
