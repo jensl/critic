@@ -1311,7 +1311,14 @@ window.addEventListener("popstate", function (ev)
   }, false);
 
 if (typeof history.replaceState == "function")
+{
+  document.addEventListener("DOMContentLoaded", function (ev)
+    {
+      saveState(true);
+    });
   window.addEventListener("scroll", function (ev)
     {
       queueSaveState(true);
-    }, false);
+    });
+}
+
