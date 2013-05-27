@@ -240,20 +240,6 @@ function decompact(id)
     });
 }
 
-function extractFile(id)
-{
-  var table = fileById(id);
-
-  if (table.size())
-  {
-    var placeholder = $("<div style='display: none'>");
-
-    extractedFiles[id] = [table, placeholder];
-
-    table.replaceWith(placeholder);
-  }
-}
-
 function restoreFile(id)
 {
   if (id in extractedFiles)

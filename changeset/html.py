@@ -769,8 +769,6 @@ def renderFile(db, target, user, review, file, first_file=False, options={}, con
 
     row.td('right', colspan=4).text(chunksText)
 
-    #target.script(type="text/javascript").text("extractFile(%d);" % file.id, cdata=True)
-
 def addResources(db, user, review, compact, tabify, target):
     target.addExternalStylesheet("resource/changeset.css")
     target.addExternalScript("resource/changeset.js")
