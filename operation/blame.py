@@ -51,8 +51,9 @@ class LineAnnotator:
             self.changesets[changeset.child.sha1] = changeset_cache[changeset.child] = changeset
 
         for commit in set(self.commitset) - set(self.changesets.keys()):
-            changesets = createChangeset(db, None, repository, commit=commit, filtered_file_ids=file_ids, do_highlight=False)
-            self.changesets[commit.sha1] = changeset_cache[commit] = changeset
+            changesets = createChangeset(db, None, commit.repository, commit=commit, filtered_file_ids=file_ids, do_highlight=False)
+            assert len(changesets) == 1
+            self.changesets[commit.sha1] = changeset_cache[commit] = changesets[0]
 
         self.commits = [parent]
         self.commit_index = { parent.sha1: 0 }
