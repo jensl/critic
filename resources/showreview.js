@@ -208,7 +208,7 @@ function updateFilters(filter_type)
   var buttons = { Add: function () { checkFinished(); },
                   Cancel: function () { $(content).dialog("close"); } };
 
-  content.dialog({ width: 600, height: 250,
+  content.dialog({ width: 600, height: "auto",
                    buttons: buttons });
 
   content.find("input.name").keypress(handleKeypress);
