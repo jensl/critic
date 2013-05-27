@@ -140,26 +140,30 @@ def render(db, target, title, branch=None, commits=None, columns=DEFAULT_COLUMNS
     heads = commit_set.getHeads()
     tails = commit_set.getTails()
 
-    if rebases is not None:
-        frebases = dict([(old_head, (rebase_id, new_head, rebase_user, new_upstream, target_branch_name)) for rebase_id, old_head, new_head, rebase_user, new_upstream, target_branch_name in rebases])
-        rrebases = dict([(new_head, (rebase_id, old_head, rebase_user, new_upstream, target_branch_name)) for rebase_id, old_head, new_head, rebase_user, new_upstream, target_branch_name in rebases])
+    rebase_old_heads = set()
 
-        for rebase_id, old_head, new_head, rebase_user, new_upstream, target_branch_name in rebases:
-            if old_head in heads:
-                next_head = new_head
+    if rebases:
+        class Rebase(object):
+            def __init__(self, rebase_id, old_head, new_head, user,
+                         new_upstream, target_branch_name):
+                self.id = rebase_id
+                self.old_head = Commit.fromId(db, repository, old_head)
+                self.new_head = Commit.fromId(db, repository, new_head)
+                self.user = user
+                self.new_upstream = new_upstream and Commit.fromId(db, repository, new_upstream)
+                self.target_branch_name = target_branch_name
 
-                while next_head:
-                    for head in heads:
-                        if head == old_head: continue
-                        elif commit_set.isAncestorOf(next_head, head) or next_head in tails:
-                            heads.remove(old_head)
-                            next_head = None
-                            break
-                    else:
-                        next_head = frebases.get(next_head, (None, None))[1]
-    else:
-        frebases = None
-        rrebases = None
+        # The first element in the tuples in 'rebases' is the rebase id, which
+        # is an ever-increasing serial number that we can use as an indication
+        # of the order in which the rebases were made.
+        rebases = [Rebase(*rebase) for rebase in sorted(rebases)]
+        rebase_old_heads = set(rebase.old_head for rebase in rebases)
+        heads -= rebase_old_heads
+
+        assert 0 <= len(heads) <= 1
+
+        if not heads:
+            heads = set([rebases[-1].new_head])
 
     if repository:
         target.addInternalScript(repository.getJS())
@@ -331,23 +335,25 @@ def render(db, target, title, branch=None, commits=None, columns=DEFAULT_COLUMNS
                 parent1 = commit_set.get(parent1_sha1)
                 parent2 = commit_set.get(parent2_sha1)
 
-                if rrebases:
-                    if parent1_sha1 in rrebases:
-                        if parent2:
-                            sublog = tbody.tr('sublog')
-                            inner_last_commit, inner_table, inner_tail, inner_skipped = inner(sublog.td(colspan=len(columns)), parent2, tails)
-                            if inner_skipped:
-                                sublog.remove()
-                                if optional_merge and commit_tr: commit_tr.remove()
-                        return (commit, table, parent1_sha1, False)
-                    elif parent2_sha1 in rrebases:
-                        if parent1:
-                            sublog = tbody.tr('sublog')
-                            inner_last_commit, inner_table, inner_tail, inner_skipped = inner(sublog.td(colspan=len(columns)), parent1, tails)
-                            if inner_skipped:
-                                sublog.remove()
-                                if optional_merge and commit_tr: commit_tr.remove()
-                        return (commit, table, parent2_sha1, False)
+                # TODO: Try to remember what this code actually does, and why...
+                if parent1_sha1 in rebase_old_heads:
+                    if parent2:
+                        sublog = tbody.tr('sublog')
+                        inner_last_commit, inner_table, inner_tail, inner_skipped = \
+                            inner(sublog.td(colspan=len(columns)), parent2, tails)
+                        if inner_skipped:
+                            sublog.remove()
+                            if optional_merge and commit_tr: commit_tr.remove()
+                    return (commit, table, parent1_sha1, False)
+                elif parent2_sha1 in rebase_old_heads:
+                    if parent1:
+                        sublog = tbody.tr('sublog')
+                        inner_last_commit, inner_table, inner_tail, inner_skipped = \
+                            inner(sublog.td(colspan=len(columns)), parent1, tails)
+                        if inner_skipped:
+                            sublog.remove()
+                            if optional_merge and commit_tr: commit_tr.remove()
+                    return (commit, table, parent2_sha1, False)
 
                 if parent1 and parent2:
                     common_ancestors = commit_set.getCommonAncestors(commit)
@@ -476,81 +482,96 @@ def render(db, target, title, branch=None, commits=None, columns=DEFAULT_COLUMNS
     first_rebase = True
     silent_if_empty = set()
 
-    if frebases:
-        rebase_head = head
+    if rebases:
+        for rebase in rebases:
+            if rebase.new_upstream or rebase.target_branch_name:
+                silent_if_empty.add(rebase.old_head)
 
         top_rebases = []
 
-        while rebase_head in frebases:
-            top_rebases.insert(0, (rebase_head, frebases[rebase_head]))
-            rebase_head = frebases[rebase_head][1]
-            del rrebases[rebase_head]
+        while head == rebases[-1].new_head:
+            rebase = rebases.pop()
+            top_rebases.insert(0, (head, rebase))
+            head = rebase.old_head
+            if head in commit_set:
+                break
+
+        target.comment(repr(top_rebases))
+        target.comment(repr(conflicts))
 
         for rebase_head, rebase in top_rebases:
             thead = table.thead("rebase")
             row = thead.tr('rebase')
             cell = row.td(colspan=len(columns), align='center')
 
-            new_upstream = rebase[3]
-            if new_upstream is None and not rebase[4]: cell.text("History rewritten")
+            if rebase.new_upstream is None and not rebase.target_branch_name:
+                cell.text("History rewritten")
             else:
                 cell.text("Branch rebased onto ")
-                if rebase[4]:
-                    cell.a(href="/checkbranch?repository=%d&commit=%s" % (repository.id, rebase[4])).text(rebase[4])
+                if rebase.target_branch_name:
+                    anchor = cell.a(href=("/checkbranch?repository=%d&commit=%s"
+                                          % (repository.id, rebase.target_branch_name)))
+                    anchor.text(rebase.target_branch_name)
                 else:
-                    tag = new_upstream.findInterestingTag(db)
-                    if tag: cell.text(tag)
-                    else: cell.a(href="/%s/%s" % (repository.name, new_upstream.sha1)).text(new_upstream.sha1[:8])
-                silent_if_empty.add(rebase_head)
+                    tag = rebase.new_upstream.findInterestingTag(db)
+                    if tag:
+                        cell.text(tag)
+                    else:
+                        anchor = cell.a(href="/%s/%s" % (repository.name, rebase.new_upstream.sha1))
+                        anchor.text(rebase.new_upstream.sha1[:8])
 
-            cell.text(" by %s" % rebase[2].fullname)
+            cell.text(" by %s" % rebase.user.fullname)
 
             if first_rebase:
                 cell.text(": ")
                 review_param = "&review=%d" % review.id if review else ""
                 cell.a(href="log?repository=%d&branch=%s%s" % (repository.id, branch_name, review_param)).text("[actual log]")
 
-                if rebase[0] is not None and user == rebase[2]:
+                if user and user == rebase.user:
                     cell.text(" ")
-                    cell.a(href="javascript:revertRebase(%d)" % rebase[0]).text("[revert]")
+                    cell.a(href="javascript:revertRebase(%d)" % rebase.id).text("[revert]")
 
                 first_rebase = False
             else:
                 cell.text(".")
 
-            if rebase[1] in conflicts and not emptyCommit(rebase[1]):
-                output(table, rebase[1], overrides={ "type": "Rebase",
-                                                     "summary": "Changes introduced by rebase",
-                                                     "summary_classnames": ["rebase"],
-                                                     "rebase_conflicts": conflicts[rebase[1]] })
+            if rebase.new_head in conflicts and not emptyCommit(rebase.new_head):
+                output(table, rebase.new_head,
+                       overrides={ "type": "Rebase",
+                                   "summary": "Changes introduced by rebase",
+                                   "summary_classnames": ["rebase"],
+                                   "rebase_conflicts": conflicts[rebase.new_head] })
 
     while True:
         last_commit, table, tail, skipped = inner(target, head, tails, 'center', title, table, silent_if_empty)
 
-        if rrebases and last_commit:
-            try: rebase = rrebases.pop(tail)
-            except: break
+        if rebases:
+            rebase = rebases.pop()
 
             while True:
-                head = rebase[1]
+                head = rebase.old_head
 
                 thead = table.thead("rebase")
                 row = thead.tr('rebase')
                 cell = row.td(colspan=len(columns), align='center')
 
-                new_upstream = rebase[3]
-                if new_upstream is None and not rebase[4]: cell.text("History rewritten")
+                if rebase.new_upstream is None and not rebase.target_branch_name:
+                    cell.text("History rewritten")
                 else:
                     cell.text("Branch rebased onto ")
-                    if rebase[4]:
-                        cell.a(href="/checkbranch?repository=%d&commit=%s" % (repository.id, rebase[4])).text(rebase[4])
+                    if rebase.target_branch_name:
+                        anchor = cell.a(href=("/checkbranch?repository=%d&commit=%s"
+                                              % (repository.id, rebase.target_branch_name)))
+                        anchor.text(rebase.target_branch_name)
                     else:
-                        tag = new_upstream.findInterestingTag(db)
-                        if tag: cell.text(tag)
-                        else: cell.a(href="/%s/%s" % (repository.name, new_upstream.sha1)).text(new_upstream.sha1[:8])
-                    silent_if_empty.add(head)
+                        tag = rebase.new_upstream.findInterestingTag(db)
+                        if tag:
+                            cell.text(tag)
+                        else:
+                            anchor = cell.a(href="/%s/%s" % (repository.name, rebase.new_upstream.sha1))
+                            anchor.text(rebase.new_upstream.sha1[:8])
 
-                cell.text(" by %s" % rebase[2].fullname)
+                cell.text(" by %s" % rebase.user.fullname)
 
                 if first_rebase:
                     cell.text(": ")
@@ -568,8 +589,8 @@ def render(db, target, title, branch=None, commits=None, columns=DEFAULT_COLUMNS
                                                         "summary_classnames": ["rebase"],
                                                         "rebase_conflicts": conflicts[tail] })
 
-                if head in rrebases:
-                    rebase = rrebases.pop(head)
+                if rebases and rebases[-1].new_head == head:
+                    rebase = rebases.pop()
                 else:
                     break
 
@@ -585,8 +606,8 @@ def render(db, target, title, branch=None, commits=None, columns=DEFAULT_COLUMNS
                     cell = row.td(colspan=len(columns), align='center')
                     cell.text("Based on: %s" % tag)
 
-            if callable(bottom_right):
-                bottom_right(db, table.tfoot().tr().td(colspan=len(columns)))
+        if callable(bottom_right):
+            bottom_right(db, table.tfoot().tr().td(colspan=len(columns)))
 
         break
 
