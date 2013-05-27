@@ -289,7 +289,7 @@ function editRecipientList()
     recipient_list_dialog.dialog("close");
   }
 
-  recipient_list_dialog.dialog({ width: 600,
+  recipient_list_dialog.dialog({ width: 620,
                                  modal: true,
                                  buttons: { Save: save, Cancel: cancel }});
 
