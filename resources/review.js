@@ -436,12 +436,24 @@ function editSummary()
     return operation.execute() != null;
   }
 
+  function checkFinished()
+  {
+    if (finish()) { $(content).dialog("close"); location.reload(); }
+  }
+
+  function handleKeypress(ev)
+  {
+    if (ev.keyCode == 13)
+      checkFinished();
+  }
+
   var content = $("<div class='comment' title='Edit Summary'><div class='text'>Enter new summary:<br><input></div></div>");
 
   content.find("input").val($("#summary").text());
+  content.find("input").keypress(handleKeypress);
 
   var buttons = {
-                  "Save": function () { if (finish()) { $(content).dialog("close"); location.reload(); } },
+                  "Save": function () { checkFinished(); },
                   Cancel: function () { $(content).dialog("close"); }
                 };
 
