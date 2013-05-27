@@ -134,7 +134,7 @@ def renderFilterChanges(req, db, user):
         else:
             row = basic.tr("directory", critic_level=-1)
             row.td("select").input(type="checkbox")
-            row.td("path").preformatted().text("[SELECT ALL]")
+            row.td("path").preformatted().i().text("Everything")
             row.td().text()
             level = -1
 
