@@ -256,7 +256,7 @@ function editRecipientList()
       if (Object.keys(recipients_included).length != 0)
       {
         mode = "No-one except ";
-        users = recipients_included;
+        users = Object.keys(recipients_included);
       }
       else
         mode = "No-one at all";
@@ -264,7 +264,7 @@ function editRecipientList()
       if (Object.keys(recipients_excluded).length != 0)
       {
         mode = "Everyone except ";
-        users = recipients_excluded;
+        users = Object.keys(recipients_excluded);
       }
       else
         mode = "Everyone";
@@ -272,14 +272,7 @@ function editRecipientList()
     $("span.mode").text(mode);
 
     if (users)
-    {
-      var names = [];
-
-      for (var name in users)
-        names.push(users[name]);
-
-      $("span.users").text(names.join(", "));
-    }
+      $("span.users").text(users.join(", "));
 
     recipient_list_dialog.dialog("close");
   }
