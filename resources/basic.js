@@ -108,7 +108,10 @@ Operation.whenIdle = function (callback)
 Operation.finished = function (id)
   {
     delete Operation.current[id];
+  };
 
+Operation.checkIdle = function ()
+  {
     if (!Operation.isBusy())
     {
       Operation.idleCallbacks.forEach(function (fn) { fn(); });
@@ -170,8 +173,9 @@ Operation.prototype.execute = function ()
         wait.dialog("close");
       if (self.callback)
       {
-        handleResult(result, self.callback);
         Operation.finished(self.id);
+        handleResult(result, self.callback);
+        Operation.checkIdle();
       }
     }
 
