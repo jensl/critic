@@ -44,8 +44,12 @@ with frontend.signin("alice"):
                                    "path": "" },
                                  { "username": "dave",
                                    "type": "watcher",
-                                   "path": "" }],
-               "recipientfilters": { "mode": "opt-out" }})
+                                   "path": "" },
+                                 { "username": "erin",
+                                   "type": "watcher",
+                                   "path": "" } ],
+               "recipientfilters": { "mode": "opt-out",
+                                     "excluded": ["erin"] }})
 
     def to(name):
         return testing.mailbox.to_recipient("%s@example.org" % name)
