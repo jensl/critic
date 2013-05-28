@@ -370,7 +370,7 @@ Please confirm that this is intended by loading:
 
     new_reviewers, new_watchers = assignChanges(db, user, review, changesets=changesets)
 
-    cursor.execute("SELECT include FROM reviewrecipientfilters WHERE review=%s AND uid=0", (review.id,))
+    cursor.execute("SELECT include FROM reviewrecipientfilters WHERE review=%s AND uid IS NULL", (review.id,))
 
     try: opt_out = cursor.fetchone()[0] is True
     except: opt_out = True
@@ -505,7 +505,7 @@ using the command<p>
                                 for filter_user_id, filter_include in recipientfilters])
 
             for filter_user_id, filter_include in recipientfilters:
-                if filter_user_id == 0 and not filter_include:
+                if filter_user_id is None and not filter_include:
                     is_opt_in = True
 
         addCommitsToReview(db, user, review, commits, new_review=True)
@@ -740,7 +740,7 @@ def parseRecipientFilters(db, data):
     recipientfilters = []
 
     if mode == "opt-in":
-        recipientfilters.append((0, False))
+        recipientfilters.append((None, False))
         filter_usernames = included
         filter_include = True
     else:

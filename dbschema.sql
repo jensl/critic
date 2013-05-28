@@ -510,10 +510,10 @@ CREATE TABLE relevantcommits
 
 CREATE TABLE reviewrecipientfilters
   ( review INTEGER NOT NULL REFERENCES reviews,
-    uid INTEGER NOT NULL REFERENCES users,
+    uid INTEGER REFERENCES users,
     include BOOLEAN NOT NULL,
 
-    PRIMARY KEY (review, uid) );
+    UNIQUE (review, uid) );
 
 CREATE TABLE timezones
   ( name VARCHAR(256) PRIMARY KEY,

@@ -377,20 +377,28 @@ class Review(object):
         from dbutils import User
 
         cursor = db.cursor()
-        cursor.execute("SELECT uid, include FROM reviewrecipientfilters WHERE review=%s ORDER BY uid ASC", (self.id,))
+        cursor.execute("SELECT uid, include FROM reviewrecipientfilters WHERE review=%s", (self.id,))
 
+        default_include = True
         included = set(owner.id for owner in self.owners)
         excluded = set()
+
         for uid, include in cursor:
-            if include: included.add(uid)
-            elif uid not in self.owners: excluded.add(uid)
+            if uid is None:
+                default_include = include
+            elif include:
+                included.add(uid)
+            elif uid not in self.owners:
+                excluded.add(uid)
 
         cursor.execute("SELECT uid FROM reviewusers WHERE review=%s", (self.id,))
 
         recipients = []
         for (user_id,) in cursor:
-            if user_id in excluded: continue
-            elif user_id not in included and 0 in excluded: continue
+            if user_id in excluded:
+                continue
+            elif user_id not in included and not default_include:
+                continue
 
             user = User.fromId(db, user_id)
             if user.status != "retired":

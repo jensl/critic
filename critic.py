@@ -127,17 +127,25 @@ def watchreview(req, db, user):
     if not cursor.fetchone():
         cursor.execute("INSERT INTO reviewusers (review, uid, type) VALUES (%s, %s, 'manual')", (review_id, user.id))
 
-        cursor.execute("SELECT uid, include FROM reviewrecipientfilters WHERE review=%s AND uid IN (0, %s)", (review_id, user.id))
+        cursor.execute("""SELECT uid, include
+                            FROM reviewrecipientfilters
+                           WHERE review=%s
+                             AND (uid=%s OR uid IS NULL)""",
+                       (review_id, user.id))
 
         default_include = True
         user_include = None
 
         for user_id, include in cursor:
-            if user_id == 0: default_include = include
-            else: user_include = include
+            if user_id is None:
+                default_include = include
+            else:
+                user_include = include
 
         if not default_include and user_include is None:
-            cursor.execute("INSERT INTO reviewrecipientfilters (review, uid, include) VALUES (%s, %s, true)", (review_id, user.id))
+            cursor.execute("""INSERT INTO reviewrecipientfilters (review, uid, include)
+                                   VALUES (%s, %s, true)""",
+                           (review_id, user.id))
 
         db.commit()
 

@@ -572,14 +572,18 @@ def renderShowReview(req, db, user):
         target.button("description", onclick="editDescription();").text("Edit Description")
 
     def renderRecipientList(target):
-        cursor.execute("SELECT uid, fullname, include FROM reviewrecipientfilters JOIN users ON (uid=id) WHERE review=%s", (review.id,))
+        cursor.execute("""SELECT uid, fullname, include
+                            FROM reviewrecipientfilters
+                 LEFT OUTER JOIN users ON (uid=id)
+                           WHERE review=%s""",
+                       (review.id,))
 
         default_include = True
         included = dict((owner.fullname, owner.id) for owner in review.owners)
         excluded = {}
 
         for user_id, fullname, include in cursor:
-            if user_id == 0: default_include = include
+            if user_id is None: default_include = include
             elif include: included[fullname] = user_id
             elif user_id not in review.owners: excluded[fullname] = user_id
 
