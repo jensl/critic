@@ -338,4 +338,4 @@ class Instance(object):
 
         # Need to give the service manager a little bit of time to actually
         # start all the background services.
-        time.sleep(1)
+        time.sleep(2)
