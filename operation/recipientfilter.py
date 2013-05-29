@@ -14,6 +14,8 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
+import dbutils
+
 from operation import Operation, OperationResult
 
 class AddRecipientFilter(Operation):
@@ -30,9 +32,11 @@ class AddRecipientFilter(Operation):
         if row:
             if row[0] != include:
                 cursor.execute("UPDATE reviewrecipientfilters SET include=%s WHERE review=%s AND uid=%s", (include, review_id, user_id))
-                db.commit()
         else:
             cursor.execute("INSERT INTO reviewrecipientfilters (review, uid, include) VALUES (%s, %s, %s)", (review_id, user_id, include))
-            db.commit()
+
+        review = dbutils.Review.fromId(db, review_id)
+        review.incrementSerial(db)
+        db.commit()
 
         return OperationResult()
