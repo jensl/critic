@@ -383,7 +383,14 @@ class RemoveReviewFilter(Operation):
 
     def process(self, db, user, filter_id):
         cursor = db.cursor()
+
+        cursor.execute("SELECT review FROM reviewfilters WHERE id=%s", (filter_id,))
+        review_id = cursor.fetchone()
+
         cursor.execute("DELETE FROM reviewfilters WHERE id=%s", (filter_id,))
+
+        review = dbutils.Review.fromId(db, review_id)
+        review.incrementSerial(db)
 
         db.commit()
 
