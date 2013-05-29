@@ -506,13 +506,29 @@ function editOwners()
     return operation.execute() != null;
   }
 
+  function checkFinished()
+  {
+    if (finish())
+    {
+      $(content).dialog("close");
+      location.reload();
+    }
+  }
+
+  function handleKeypress(ev)
+  {
+    if (ev.keyCode == 13)
+      checkFinished();
+  }
+
   var self = this;
   var content = $("<div class='editowner' title='Change Review Owner'><p>Please enter the user name(s) of the new review owner(s):<br><input></p></div>");
 
   content.find("input").val(owners.map(function (user) { return user.name; }).join(", "));
+  content.find("input").keypress(handleKeypress);
 
   var buttons = {
-    Save: function () { if (finish()) { $(content).dialog("close"); location.reload(); } },
+    Save: function () { checkFinished(); },
     Cancel: function () { $(content).dialog("close"); }
   };
 
