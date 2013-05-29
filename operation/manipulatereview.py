@@ -135,6 +135,9 @@ class UpdateReview(Operation):
             for owner in remove_owners:
                 review.removeOwner(db, owner)
 
+        review = dbutils.Review.fromId(db, review_id)
+        review.incrementSerial(db)
+
         db.commit()
 
         return OperationResult()
