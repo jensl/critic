@@ -368,6 +368,9 @@ class AddReviewFilters(Operation):
             user = dbutils.User.fromId(db, user_id)
             pending_mails.extend(reviewing.utils.addReviewFilters(db, creator, user, review, reviewer_paths, watcher_paths))
 
+        review = dbutils.Review.fromId(db, review_id)
+        review.incrementSerial(db)
+
         db.commit()
 
         mailutils.sendPendingMails(pending_mails)
