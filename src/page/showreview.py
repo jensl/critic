@@ -18,7 +18,6 @@ import datetime
 import calendar
 import traceback
 
-import base
 import dbutils
 import gitutils
 import htmlutils
@@ -809,11 +808,8 @@ def renderShowReview(req, db, user):
     yield flush(target)
 
     try:
-        if prefetch_commits.error is not None:
-            raise base.ImplementationError(
-                "failed to prefetch commits:\n%s" % prefetch_commits.error)
-
-        prefetch_commits.getCommits(db)
+        if prefetch_commits.error is None:
+            prefetch_commits.getCommits(db)
 
         profiler.check("FetchCommits.getCommits()")
 
