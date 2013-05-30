@@ -25,6 +25,7 @@ import log.html as log_html
 def renderShowBranch(req, db, user):
     branch_name = req.getParameter("branch")
     base_name = req.getParameter("base", None)
+    review_id = req.getParameter("review", None)
 
     repository = gitutils.Repository.fromParameter(db, req.getParameter("repository", user.getPreference(db, "defaultRepository")))
 
@@ -67,7 +68,11 @@ def renderShowBranch(req, db, user):
         if not user.isAnonymous() and branch and branch.review is None and not rebased:
             target.button(onclick="location.href = " + htmlutils.jsify("createreview?repository=%d&branch=%s" % (repository.id, branch_name))).text("Create Review")
 
-    page.utils.generateHeader(body, db, user, renderCreateReview)
+    if review_id is not None:
+        extra_links = [("r/%s" % review_id, "Back to Review")]
+    else:
+        extra_links = []
+    page.utils.generateHeader(body, db, user, renderCreateReview, extra_links=extra_links)
 
     document.addInternalScript(branch.getJS())
 

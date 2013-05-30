@@ -507,7 +507,8 @@ def render(db, target, title, branch=None, commits=None, columns=DEFAULT_COLUMNS
 
             if first_rebase:
                 cell.text(": ")
-                cell.a(href="log?repository=%d&branch=%s" % (repository.id, branch_name)).text("[actual log]")
+                review_param = "&review=%d" % review.id if review else ""
+                cell.a(href="log?repository=%d&branch=%s%s" % (repository.id, branch_name, review_param)).text("[actual log]")
 
                 if rebase[0] is not None and user == rebase[2]:
                     cell.text(" ")
@@ -553,7 +554,8 @@ def render(db, target, title, branch=None, commits=None, columns=DEFAULT_COLUMNS
 
                 if first_rebase:
                     cell.text(": ")
-                    cell.a(href="log?repository=%d&branch=%s" % (repository.id, branch_name)).text("[actual log]")
+                    review_param = "&review=%d" % review.id if review else ""
+                    cell.a(href="log?repository=%d&branch=%s%s" % (repository.id, branch_name, review_param)).text("[actual log]")
                     first_rebase = False
                 else:
                     cell.text(".")
