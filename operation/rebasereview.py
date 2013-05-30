@@ -266,6 +266,7 @@ class RevertRebase(Operation):
         cursor.execute("UPDATE branches SET head=%s WHERE id=%s", (old_head_id, review.branch.id))
         cursor.execute("DELETE FROM reviewrebases WHERE id=%s", (rebase_id,))
 
+        review.incrementSerial(db)
         db.commit()
 
         review.repository.run("update-ref", "refs/heads/%s" % review.branch.name, old_head.sha1, new_head.sha1)
