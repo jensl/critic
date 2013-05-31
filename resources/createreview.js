@@ -164,8 +164,23 @@ function updateFilters(add_reviewer)
     return updateReviewersAndWatchers(new_reviewfilters);
   }
 
-  var buttons = { Add: function () { if (finish()) { $(content).dialog("close"); } },
+  function checkFinished()
+  {
+    if (finish())
+      $(content).dialog("close");
+  }
+
+  function handleKeypress(ev)
+  {
+    if (ev.keyCode == 13)
+      checkFinished();
+  }
+
+  var buttons = { Add: function () { checkFinished(); },
                   Cancel: function () { $(content).dialog("close"); } };
+
+  content.find("input.name").keypress(handleKeypress);
+  content.find("input.path").keypress(handleKeypress);
 
   content.dialog({ width: 600, height: "auto",
                    buttons: buttons });
