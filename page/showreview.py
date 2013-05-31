@@ -613,7 +613,7 @@ def renderShowReview(req, db, user):
                 mode = "No-one at all."
                 opt_in_button = True
 
-        if user in review.owners or user in review.reviewers or user in review.watchers:
+        if user not in review.owners and (user in review.reviewers or user in review.watchers):
             if opt_in_button:
                 buttons.append(("Include me, please!", "includeRecipient(%d);" % user.id))
             if opt_out_button:
