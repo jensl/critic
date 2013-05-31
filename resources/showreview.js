@@ -416,7 +416,7 @@ function prepareRebase()
         +     "<label><input name='single' type='checkbox'>Branch squashed into a single commit.</label>"
         +   "</p>"
         +   "<p>"
-        +     "<b>SHA-1:</b><input name='sha1' size=40>"
+        +     "<b>SHA-1:</b><input name='sha1' size=40 spellcheck='false'>"
         +   "</p>"
         +   "<p>"
         +     "<b>Tag:</b>"
