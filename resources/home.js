@@ -192,7 +192,9 @@ function changePassword()
     dialog.dialog("close");
   }
 
-  dialog.dialog({ width: 400, buttons: { "Save": save, "Cancel": cancel }});
+  dialog.dialog({ width: 400,
+                  modal: true,
+                  buttons: { "Save": save, "Cancel": cancel }});
 }
 
 function ModificationChecker(current, input, status)
@@ -451,7 +453,9 @@ function editFilter(repository_name, filter_id, filter_type, filter_path, filter
   else
     buttons["Cancel"] = closeDialog;
 
-  dialog.dialog({ width: 600, buttons: buttons });
+  dialog.dialog({ width: 600,
+                  modal: true,
+                  buttons: buttons });
 
   if (repository.val() == "-")
     repository.focus();
