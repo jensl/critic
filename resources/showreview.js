@@ -397,7 +397,8 @@ function prepareRebase()
 
         finished.dialog({ width: 400,
                           modal: true,
-                          buttons: { Close: function () { finished.dialog("close"); location.reload(); }}
+                          close: function() { location.reload(); },
+                          buttons: { Close: function () { finished.dialog("close"); }}
                         });
       }
     }
@@ -509,7 +510,8 @@ function prepareRebase()
 
             finished.dialog({ width: 400,
                               modal: true,
-                              buttons: { Close: function () { finished.dialog("close"); location.reload(); }}
+                              close: function() { location.reload(); },
+                              buttons: { Close: function () { finished.dialog("close"); }}
                             });
           }
         }
