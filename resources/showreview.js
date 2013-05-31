@@ -209,6 +209,7 @@ function updateFilters(filter_type)
                   Cancel: function () { $(content).dialog("close"); } };
 
   content.dialog({ width: 600, height: "auto",
+                   modal: true,
                    buttons: buttons });
 
   content.find("input.name").keypress(handleKeypress);

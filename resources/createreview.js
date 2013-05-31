@@ -183,6 +183,7 @@ function updateFilters(add_reviewer)
   content.find("input.path").keypress(handleKeypress);
 
   content.dialog({ width: 600, height: "auto",
+                   modal: true,
                    buttons: buttons });
 
   function enableAutoCompletion(result)
