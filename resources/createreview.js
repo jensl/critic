@@ -297,6 +297,14 @@ function editRecipientList()
     recipient_list_dialog.dialog("close");
   }
 
+  function handleKeypress(ev)
+  {
+    if (ev.keyCode == 13)
+      save();
+  }
+
+  recipient_list_dialog.find("#users").keypress(handleKeypress);
+
   recipient_list_dialog.dialog({ width: 620,
                                  modal: true,
                                  buttons: { Save: save, Cancel: cancel }});
