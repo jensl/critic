@@ -533,6 +533,7 @@ function editOwners()
   };
 
   content.dialog({ width: 400,
+                   modal: true,
                    buttons: buttons });
 }
 
