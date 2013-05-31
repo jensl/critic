@@ -167,7 +167,7 @@ function updateFilters(add_reviewer)
   var buttons = { Add: function () { if (finish()) { $(content).dialog("close"); } },
                   Cancel: function () { $(content).dialog("close"); } };
 
-  content.dialog({ width: 600, height: 250,
+  content.dialog({ width: 600, height: "auto",
                    buttons: buttons });
 
   function enableAutoCompletion(result)
