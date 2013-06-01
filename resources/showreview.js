@@ -627,8 +627,8 @@ $(document).ready(function ()
           users = users.split(",");
 
           $(element).find("a.commit").tooltip({
-            fade: 250,
-            bodyHandler: function ()
+            items: 'a.commit',
+            content: function ()
               {
                 var html = "<div class='summary-tooltip'><div class='header'>Needs review from</div>";
 
@@ -648,7 +648,8 @@ $(document).ready(function ()
 
                 return $(html + "</div>");
               },
-            showURL: false
+            track: true,
+            hide: false
           });
         }
       });
@@ -656,11 +657,13 @@ $(document).ready(function ()
     $("td.straggler.no-email").each(function (index, element)
       {
         $(element).tooltip({
-          fade: 250,
-          bodyHandler: function ()
+          items: 'td.straggler.no-email',
+          content: function ()
             {
               return $("<div class='no-email-tooltip'><strong>This user has not enabled the <u>email.activated</u> preference!</strong></div>");
-            }
+            },
+          track: true,
+          hide: false
         });
       });
 
