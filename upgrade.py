@@ -166,6 +166,13 @@ by "git rev-parse".
 
 git = data["installation.prereqs.git"]
 
+old_critic_sha1 = data["sha1"]
+new_critic_sha1 = installation.process.check_output([git, "rev-parse", "HEAD"]).strip()
+print """
+Previously installed version: %s
+Will now upgrade to version:  %s
+""" % (old_critic_sha1, new_critic_sha1)
+
 if installation.process.check_output([git, "status", "--porcelain"]).strip():
     print """
 ERROR: This Git repository has local modifications.
@@ -202,7 +209,7 @@ try:
             traceback.print_exc()
             abort()
 
-    data["sha1"] = installation.process.check_output([git, "rev-parse", "HEAD"]).strip()
+    data["sha1"] = new_critic_sha1
 
     if not arguments.dry_run:
         with open(install_data_path, "w") as install_data:
