@@ -184,7 +184,7 @@ class User(object):
     def getJSConstructor(self, db=None):
         from htmlutils import jsify
         if self.isAnonymous():
-            return "new User(null, null, null, null, null, { ui: {} }"
+            return "new User(null, null, null, null, null, { ui: {} })"
         if db:
             options = ("{ ui: { keyboardShortcuts: %s, resolveIssueWarning: %s, convertIssueToNote: %s, asynchronousReviewMarking: %s } }" %
                        ("true" if self.getPreference(db, "ui.keyboardShortcuts") else "false",
