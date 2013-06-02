@@ -14,7 +14,10 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
+import time
+
 import base
+import configuration
 
 def countDraftItems(db, user, review):
     cursor = db.cursor()
@@ -346,14 +349,22 @@ class Review(object):
         return "var review = critic.review = { id: %d, branch: { id: %d, name: %r }, owners: [ %s ], serial: %d };" % (self.id, self.branch.id, self.branch.name, ", ".join(owner.getJSConstructor() for owner in self.owners), self.serial)
 
     def getETag(self, db, user=None):
-        etag = "review%d.serial%d" % (self.id, self.serial)
+        cursor = db.cursor()
+
+        if configuration.base.IS_DEVELOPMENT:
+            cursor.execute("SELECT installed_at FROM systemidentities WHERE name=%s", (configuration.base.SYSTEM_IDENTITY,))
+            installed_at = cursor.fetchone()[0]
+            etag = "install%s." % time.mktime(installed_at.timetuple())
+        else:
+            etag = ""
+
+        etag += "review%d.serial%d" % (self.id, self.serial)
 
         if user:
             items = self.getDraftStatus(db, user)
             if any(items.values()):
                 etag += ".draft%d" % hash(tuple(sorted(items.items())))
 
-            cursor = db.cursor()
             cursor.execute("SELECT id FROM reviewrebases WHERE review=%s AND uid=%s AND new_head IS NULL", (self.id, user.id))
             row = cursor.fetchone()
             if row:
