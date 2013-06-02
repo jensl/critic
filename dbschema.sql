@@ -21,7 +21,9 @@ CREATE TABLE systemidentities
   ( key VARCHAR(32) PRIMARY KEY,
     name VARCHAR(64) UNIQUE,
     url_prefix VARCHAR(265) NOT NULL,
-    description VARCHAR(256) NOT NULL );
+    description VARCHAR(256) NOT NULL,
+    installed_sha1 CHAR(40) NOT NULL,
+    installed_at TIMESTAMP DEFAULT NOW() NOT NULL );
 
 CREATE TYPE userstatus AS ENUM
   ( 'unknown',

@@ -19,8 +19,8 @@ import sys
 import json
 import traceback
 import os.path
-
 import argparse
+
 import installation
 
 parser = argparse.ArgumentParser(description="Critic upgrade script")
@@ -210,6 +210,13 @@ try:
             abort()
 
     data["sha1"] = new_critic_sha1
+
+    with installation.utils.as_critic_system_user():
+        import dbaccess
+        db = dbaccess.connect()
+        cursor = db.cursor()
+        cursor.execute("UPDATE systemidentities SET installed_sha1=%s, installed_at=NOW() WHERE name=%s", (new_critic_sha1, arguments.identity))
+        db.commit()
 
     if not arguments.dry_run:
         with open(install_data_path, "w") as install_data:
