@@ -82,3 +82,15 @@ div.main table.preferences td.extension h2 span.author {
     font-size: 120%;
     padding-left: 0.5em
 }
+
+div.installed_sha1 {
+    text-align: center;
+    color: gray
+}
+div.installed_sha1 a {
+    text-decoration: none;
+    color: gray
+}
+div.installed_sha1 a:hover {
+    text-decoration: underline;
+}

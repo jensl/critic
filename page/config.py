@@ -17,6 +17,7 @@
 import dbutils
 import htmlutils
 import page.utils
+import configuration
 
 def renderConfig(req, db, user):
     highlight = req.getParameter("highlight", None)
@@ -200,5 +201,12 @@ def renderConfig(req, db, user):
 
                 cell = table.tr(help_class_name).td("help", colspan=3)
                 cell.text(preference_description)
+
+    cursor = db.cursor()
+    cursor.execute("SELECT installed_sha1 FROM systemidentities WHERE name=%s", (configuration.base.SYSTEM_IDENTITY,))
+    critic_installed_sha1 = cursor.fetchone()[0]
+    div = document.div("installed_sha1")
+    div.text("Critic version: ")
+    div.a(href="http://critic-review.org/critic/%s" % critic_installed_sha1).text(critic_installed_sha1)
 
     return document
