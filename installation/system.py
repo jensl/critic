@@ -33,10 +33,13 @@ created_system_user = False
 create_system_group = None
 created_system_group = False
 
+is_development = False
+
 def prepare(mode, arguments, data):
     global hostname, username, email, create_system_user
     global groupname, create_system_group
     global uid, gid
+    global is_development
 
     if mode == "install":
         print """
@@ -118,6 +121,9 @@ The system group '%s' doesn't exists.
         else:
             email = installation.input.string(prompt="What address should be used as the sender of emails from the system?",
                                               default=("%s@%s" % (username, hostname)))
+
+        if arguments.is_development:
+            is_development = True
     else:
         import configuration
 
@@ -131,10 +137,13 @@ The system group '%s' doesn't exists.
         uid = pwd.getpwnam(username).pw_uid
         gid = grp.getgrnam(groupname).gr_gid
 
+        is_development = configuration.base.IS_DEVELOPMENT
+
     data["installation.system.hostname"] = hostname
     data["installation.system.username"] = username
     data["installation.system.email"] = email
     data["installation.system.groupname"] = groupname
+    data["installation.system.is_development"] = is_development
 
     return True
 
