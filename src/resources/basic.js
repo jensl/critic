@@ -374,19 +374,27 @@ function showNotification(content, data)
 
   function hide()
   {
-    /* Using .animate({ opacity: 0 }) instead of .fadeOut() since the latter
-       "helpfully" sets display:none at the end of the animation.  We want to
-       also do .slideUp(), and that only works if the element is still there. */
-    notification.animate(
-      { opacity: 0 }, { duration: 600, complete: faded });
+    if (notification.next("div.notification").size())
+      remove();
+    else
+    {
+      /* Using .animate({ opacity: 0 }) instead of .fadeOut() since the latter
+         "helpfully" sets display:none at the end of the animation.  We want to
+         also do .slideUp(), and that only works if the element is still there. */
+      notification.animate(
+        { opacity: 0 }, { duration: 600, complete: remove });
+    }
   }
 
-  function faded()
+  function remove()
   {
-    notification.slideUp(400, hidden);
+    if (data.callback)
+      data.callback();
+
+    notification.slideUp(400, finalize);
   }
 
-  function hidden()
+  function finalize()
   {
     notification.remove();
   }
@@ -399,6 +407,8 @@ function showNotification(content, data)
   notification.click(hide);
 
   notifications.append(notification);
+
+  return { hide: hide, remove: remove };
 }
 
 $(window).resize(repositionNotifications);

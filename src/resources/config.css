@@ -31,9 +31,12 @@ div.main table.preferences tr.line td {
 
 div.main table.preferences td.heading {
     font-family: serif;
-    font-weight: bold;
     text-align: left;
     vertical-align: top
+}
+
+div.main table.preferences tr.customized td.heading {
+    font-weight: bold;
 }
 
 div.main table.preferences td.value {
@@ -56,9 +59,21 @@ div.main table.preferences td.value select.setting {
     min-width: 30%
 }
 
-div.main table.preferences td.status {
-    text-align: right;
-    font-weight: bold
+div.main table.preferences tr td.value span.reset {
+    display: none
+}
+
+div.main table.preferences tr.customized:hover td.value span.reset {
+    display: inline;
+    float: right
+}
+
+div.main table.preferences td.value span.also-configurable-per {
+    float: right;
+    padding-left: 1em;
+    font-family: sans-serif;
+    font-style: italic;
+    color: #444
 }
 
 div.main table.preferences td.help {
@@ -93,4 +108,8 @@ div.installed_sha1 a {
 }
 div.installed_sha1 a:hover {
     text-decoration: underline;
+}
+
+.notification.saved pre {
+    margin: 5px 0 3px 1em
 }

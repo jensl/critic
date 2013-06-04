@@ -17,6 +17,14 @@
 import os
 import base
 
+def _preferenceCacheKey(item, repository, filter_id):
+    cache_key = item
+    if filter_id is not None:
+        cache_key += ":f%d" % filter_id
+    if repository is not None:
+        cache_key += ":r%d" % repository.id
+    return cache_key
+
 class NoSuchUser(base.Error):
     def __init__(self, name):
         super(NoSuchUser, self).__init__("No such user: %s" % name)
@@ -72,57 +80,172 @@ class User(object):
     def loadPreferences(self, db):
         if not self.preferences:
             cursor = db.cursor()
-            cursor.execute("""SELECT preferences.item, type, COALESCE(integer, default_integer), COALESCE(string, default_string)
+            cursor.execute("""SELECT item, type, integer, string
                                 FROM preferences
-                     LEFT OUTER JOIN userpreferences ON (preferences.item=userpreferences.item
-                                                     AND userpreferences.uid=%s)""",
+                                JOIN userpreferences USING (item)
+                               WHERE (uid=%s OR uid IS NULL)
+                                 AND repository IS NULL
+                                 AND filter IS NULL
+                            ORDER BY uid NULLS LAST""",
                            (self.id,))
 
             for item, preference_type, integer, string in cursor:
-                if preference_type == "boolean":
-                    self.preferences[item] = bool(integer)
-                elif preference_type == "integer":
-                    self.preferences[item] = integer
+                cache_key = _preferenceCacheKey(item, None, None)
+                if cache_key not in self.preferences:
+                    if preference_type == "boolean":
+                        self.preferences[cache_key] = bool(integer)
+                    elif preference_type == "integer":
+                        self.preferences[cache_key] = integer
+                    else:
+                        self.preferences[cache_key] = string
+
+    @staticmethod
+    def fetchPreference(db, item, user=None, repository=None, filter_id=None):
+        cursor = db.cursor()
+        cursor.execute("SELECT type FROM preferences WHERE item=%s", (item,))
+        row = cursor.fetchone()
+        if not row:
+            raise base.ImplementationError("invalid preference: %s" % item)
+        preference_type = row[0]
+
+        arguments = [item]
+        where = ["item=%s"]
+        order_by = []
+
+        if preference_type in ("boolean", "integer"):
+            value_column = "integer"
+        else:
+            value_column = "string"
+
+        if user is not None and not user.isAnonymous():
+            arguments.append(user.id)
+            where.append("uid=%s OR uid IS NULL")
+            order_by.append("uid NULLS LAST")
+        else:
+            where.append("uid IS NULL")
+
+        if repository is not None:
+            arguments.append(repository.id)
+            where.append("repository=%s OR repository IS NULL")
+            order_by.append("repository NULLS LAST")
+        else:
+            where.append("repository IS NULL")
+
+        if filter_id is not None:
+            arguments.append(filter_id)
+            where.append("filter=%s OR filter IS NULL")
+            order_by.append("filter NULLS LAST")
+        else:
+            where.append("filter IS NULL")
+
+        query = ("""SELECT %(value_column)s
+                      FROM userpreferences
+                     WHERE %(where)s"""
+                 % { "value_column": value_column,
+                     "where": " AND ".join("(%s)" % condition
+                                           for condition in where) })
+
+        if order_by:
+            query += " ORDER BY " + ", ".join(order_by)
+
+        query += " LIMIT 1"
+
+        cursor.execute(query, arguments)
+        row = cursor.fetchone()
+        if not row:
+            raise base.ImplementationError(
+                "invalid preference read: %s (no value found)" % item)
+        (value,) = row
+        if preference_type == "boolean":
+            return bool(value)
+        return value
+
+    @staticmethod
+    def storePreference(db, item, value, user=None, repository=None, filter_id=None):
+        # A preference value can be set for either a repository or a filter, but
+        # not for both at the same time.  A filter implies a repository anyway,
+        # so there would be no point.
+        assert repository is None or filter_id is None
+        assert filter_id is None or user is not None
+
+        # If all are None, we'd be deleting the global default and not setting a
+        # new one, which would be bad.
+        if value is None and user is None \
+                and repository is None and filter is None:
+            raise base.ImplementationError("attempted to delete global default")
+
+        if User.fetchPreference(db, item, user, repository, filter_id) != value:
+            cursor = db.cursor()
+
+            arguments = [item]
+            where = ["item=%s"]
+
+            user_id = repository_id = None
+
+            if user is not None:
+                user_id = user.id
+                arguments.append(user_id)
+                where.append("uid=%s")
+            else:
+                where.append("uid IS NULL")
+
+            if repository is not None:
+                repository_id = repository.id
+                arguments.append(repository_id)
+                where.append("repository=%s")
+            else:
+                where.append("repository IS NULL")
+
+            if filter_id is not None:
+                arguments.append(filter_id)
+                where.append("filter=%s")
+            else:
+                where.append("filter IS NULL")
+
+            query = ("DELETE FROM userpreferences WHERE %s"
+                     % (" AND ".join("(%s)" % condition
+                                     for condition in where)))
+
+            cursor.execute(query, arguments)
+
+            if value is not None:
+                cursor.execute("SELECT type FROM preferences WHERE item=%s", (item,))
+
+                (value_type,) = cursor.fetchone()
+                integer = string = None
+
+                if value_type == "boolean":
+                    value = bool(value)
+                    integer = int(value)
+                elif value_type == "integer":
+                    integer = value = int(value)
                 else:
-                    self.preferences[item] = string
+                    string = value = str(value)
 
-    def getPreference(self, db, item):
-        if item not in self.preferences:
-            cursor = db.cursor()
-            cursor.execute("""SELECT type, COALESCE(integer, default_integer), COALESCE(string, default_string)
-                                FROM preferences
-                     LEFT OUTER JOIN userpreferences ON (preferences.item=userpreferences.item
-                                                     AND userpreferences.uid=%s)
-                               WHERE preferences.item=%s""", (self.id, item))
-            row = cursor.fetchone()
+                cursor.execute("""INSERT INTO userpreferences (item, uid, repository, filter, integer, string)
+                                       VALUES (%s, %s, %s, %s, %s, %s)""",
+                               (item, user_id, repository_id, filter_id, integer, string))
 
-            if not row: raise base.ImplementationError("invalid preference: %s" % item)
+            if user is not None:
+                cache_key = _preferenceCacheKey(item, repository, filter_id)
+                if cache_key in user.preferences:
+                    del user.preferences[cache_key]
 
-            preference_type, integer, string = row
+            return True
+        else:
+            return False
 
-            if preference_type == "boolean":
-                self.preferences[item] = bool(integer)
-            elif preference_type == "integer":
-                self.preferences[item] = integer
-            else:
-                self.preferences[item] = string
+    def getPreference(self, db, item, repository=None, filter_id=None):
+        cache_key = _preferenceCacheKey(item, repository, filter_id)
 
-        return self.preferences[item]
+        if cache_key not in self.preferences:
+            self.preferences[cache_key] = User.fetchPreference(
+                db, item, self, repository, filter_id)
 
-    def setPreference(self, db, item, value):
-        if self.getPreference(db, item) != value:
-            cursor = db.cursor()
-            cursor.execute("DELETE FROM userpreferences WHERE uid=%s AND item=%s", [self.id, item])
-            cursor.execute("SELECT type FROM preferences WHERE item=%s", [item])
+        return self.preferences[cache_key]
 
-            value_type = cursor.fetchone()[0]
-
-            if value_type in ('boolean', 'integer'):
-                cursor.execute("INSERT INTO userpreferences (uid, item, integer) VALUES (%s, %s, %s)", [self.id, item, int(value)])
-            else:
-                cursor.execute("INSERT INTO userpreferences (uid, item, string) VALUES (%s, %s, %s)", [self.id, item, str(value)])
-
-            self.preferences[item] = value
+    def setPreference(self, db, item, value, repository=None, filter_id=None):
+        return User.storePreference(db, item, value, self, repository, filter_id)
 
     def getDefaultRepository(self, db):
         import gitutils

@@ -52,12 +52,12 @@ table.filters tbody:first-child th {
 }
 
 table.filters td.path {
-    width: 40%;
+    width: 35%;
     font-family: monospace;
     text-align: left
 }
 table.filters td.delegates {
-    width: 30%;
+    width: 25%;
     font-family: monospace;
     text-align: left
 }
@@ -67,7 +67,7 @@ table.filters td.files {
     text-align: right
 }
 table.filters td.links {
-    width: 15%;
+    width: 25%;
     font-weight: bold;
     text-align: right
 }
@@ -93,9 +93,9 @@ div.main table.filters td.filter.type { text-align: right; width: 10%; font-weig
 div.main table.filters td.filter.type select { background-color: #ffd }
 div.main table.filters td.filter.path { text-align: left; width: 50%; font-family: monospace }
 div.main table.filters td.filter.path input { font-family: monospace; width: 90% }
-div.main table.filters td.filter.delegate { text-align: left; width: 30%; font-family: monospace }
+div.main table.filters td.filter.delegate { text-align: left; width: 20%; font-family: monospace }
 div.main table.filters td.filter.delegate input { font-family: monospace; width: 95% }
-div.main table.filters td.filter.buttons { text-align: right; width: 10%; white-space: pre }
+div.main table.filters td.filter.buttons { text-align: right; width: 20%; white-space: pre }
 div.main table.filters tr.buttons td.buttons { text-align: right; padding-top: 0.5em }
 
 div.main table.filters tr.filter:hover { background: #eec }

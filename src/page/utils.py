@@ -320,7 +320,8 @@ class PaleYellowTable:
     def addSeparator(self):
         self.table.tr("separator").td(colspan=len(self.columns)).div()
 
-def generateRepositorySelect(db, user, target, selected=None, **attributes):
+def generateRepositorySelect(db, user, target, allow_selecting_none=False,
+                             selected=None, **attributes):
     select = target.select("repository", **attributes)
 
     cursor = db.cursor()
@@ -339,8 +340,17 @@ def generateRepositorySelect(db, user, target, selected=None, **attributes):
             selected = rows[0][0]
         else:
             selected = user.getPreference(db, "defaultRepository")
-            if not selected:
-                select.option(value="-", selected="selected", disabled="disabled").text("Select a repository")
+
+    if not selected or allow_selecting_none:
+        if allow_selecting_none:
+            disabled = None
+            label = "No repository"
+        else:
+            disabled = "disabled"
+            label = "Select a repository"
+
+        option = select.option(value="-", selected="selected", disabled=disabled)
+        option.text(label)
 
     highlighted_ids = set()
 

@@ -18,12 +18,10 @@ TARGET_SHA1 = "132dbfb7c2ac0f4333fb483a70f1e8cce0333d11"
 SUMMARY = "Use temporary clones for relaying instead of temporary remotes"
 
 with frontend.signin("alice"):
-    result = frontend.operation(
+    frontend.operation(
         "savesettings",
-        data="review.createViaPush=1\n",
-        expect=None)
-
-    testing.expect.check("ok", result)
+        data={ "settings": [{ "item": "review.createViaPush",
+                              "value": True }] })
 
     with repository.workcopy() as work:
         work.run(["remote", "add", "critic",

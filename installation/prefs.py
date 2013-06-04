@@ -22,39 +22,71 @@ import subprocess
 import installation
 
 def add_preference(db, item, data, silent=False):
+    relevance = data.get("relevance", {})
+
     cursor = db.cursor()
+    cursor.execute("""INSERT INTO preferences (item, type, description,
+                                               per_system, per_user,
+                                               per_repository, per_filter)
+                           VALUES (%s, %s, %s, %s, %s, %s, %s)""",
+                   (item, data["type"], data["description"],
+                    relevance.get("system", True), relevance.get("user", True),
+                    relevance.get("repository", False), relevance.get("filter", False)))
+
     if data["type"] == "string":
-        cursor.execute("""INSERT INTO preferences (item, type, default_string, description)
-                               VALUES (%s, 'string', %s, %s)""",
-                       (item, data["default"], data["description"]))
+        cursor.execute("""INSERT INTO userpreferences (item, string)
+                               VALUES (%s, %s)""",
+                       (item, data["default"]))
     else:
-        cursor.execute("""INSERT INTO preferences (item, type, default_integer, description)
-                               VALUES (%s, %s, %s, %s)""",
-                       (item, data["type"], int(data["default"]), data["description"]))
+        cursor.execute("""INSERT INTO userpreferences (item, integer)
+                               VALUES (%s, %s)""",
+                       (item, int(data["default"])))
+
     if not silent:
         print "Added preference: '%s'" % item
 
 def update_preference(db, item, data, type_changed):
+    relevance = data.get("relevance", {})
+
     cursor = db.cursor()
+    cursor.execute("""UPDATE preferences
+                         SET type=%s,
+                             description=%s,
+                             per_system=%s,
+                             per_user=%s,
+                             per_repository=%s,
+                             per_filter=%s
+                       WHERE item=%s""",
+                   (data["type"], data["description"],
+                    relevance.get("system", True), relevance.get("user", True),
+                    relevance.get("repository", False), relevance.get("filter", False),
+                    item))
+
     if data["type"] == "string":
-        cursor.execute("""UPDATE preferences
-                             SET type='string',
-                                 default_integer=NULL,
-                                 default_string=%s,
-                                 description=%s
-                           WHERE item=%s""",
-                       (data["default"], data["description"], item))
+        cursor.execute("""UPDATE userpreferences
+                             SET integer=NULL,
+                                 string=%s
+                           WHERE item=%s
+                             AND uid IS NULL
+                             AND repository IS NULL""",
+                       (data["default"], item))
     else:
-        cursor.execute("""UPDATE preferences
-                             SET type=%s,
-                                 default_integer=%s,
-                                 default_string=NULL,
-                                 description=%s
-                           WHERE item=%s""",
-                       (data["type"], int(data["default"]), data["description"], item))
+        cursor.execute("""UPDATE userpreferences
+                             SET integer=%s,
+                                 string=NULL
+                           WHERE item=%s
+                             AND uid IS NULL
+                             AND repository IS NULL""",
+                       (int(data["default"]), item))
+
     if type_changed:
-        # Delete all user overrides; they will be of an incorrect type.
-        cursor.execute("DELETE FROM userpreferences WHERE item=%s", (item,))
+        # Delete all per-user or per-repository overrides; they will be of an
+        # incorrect type.
+        cursor.execute("""DELETE FROM userpreferences
+                                WHERE item=%s
+                                  AND (uid IS NOT NULL
+                                    OR repository IS NOT NULL)""",
+                       (item,))
 
 def remove_preference(db, item):
     cursor = db.cursor()
@@ -62,8 +94,11 @@ def remove_preference(db, item):
 
 def load_preferences(db):
     cursor = db.cursor()
-    cursor.execute("""SELECT item, type, default_integer, default_string, description
-                        FROM preferences""")
+    cursor.execute("""SELECT preferences.item, type, integer, string, description
+                        FROM preferences
+                        JOIN userpreferences USING (item)
+                       WHERE uid IS NULL
+                         AND repository IS NULL""")
     preferences = {}
     for item, item_type, default_integer, default_string, description in cursor:
         data = { "type": item_type,
@@ -78,7 +113,7 @@ def load_preferences(db):
     return preferences
 
 def install(data):
-    path = os.path.join(installation.root_dir, "installation", "data",
+    path = os.path.join(installation.root_dir, "src", "data",
                         "preferences.json")
 
     with open(path) as preferences_file:
@@ -99,7 +134,7 @@ def install(data):
 
 def upgrade(arguments, data):
     git = data["installation.prereqs.git"]
-    path = "installation/data/preferences.json"
+    path = "src/data/preferences.json"
 
     old_sha1 = data["sha1"]
     old_file_sha1 = installation.utils.get_file_sha1(git, old_sha1, path)
@@ -138,8 +173,8 @@ def upgrade(arguments, data):
                     # it.
                     update = True
                 elif db_preferences[item]["default"] == new_preferences[item]["default"]:
-                    # The default value is the same => only the description has
-                    # changed.  Probably safe to silently update.
+                    # The default value is the same => only description or flags
+                    # has changed.  Probably safe to silently update.
                     update = True
                 else:
                     if item in old_preferences \

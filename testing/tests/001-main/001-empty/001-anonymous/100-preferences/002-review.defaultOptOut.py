@@ -21,7 +21,7 @@ def check_input(document):
 
     testing.expect.check("checkbox", input["type"])
     testing.expect.check(False, input.has_key("checked"))
-    testing.expect.check("0", input["critic-default"])
+    testing.expect.check("false", input["critic-default"])
 
 frontend.page("config",
               expect={ "preference_heading": check_heading,

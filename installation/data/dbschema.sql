@@ -72,26 +72,6 @@ CREATE TABLE userroles
   ( uid INTEGER NOT NULL REFERENCES users,
     role VARCHAR(64) NOT NULL REFERENCES roles );
 
-CREATE TYPE preferencetype AS ENUM
-  ( 'boolean',
-    'integer',
-    'string' );
-CREATE TABLE preferences
-  ( item VARCHAR(64) PRIMARY KEY,
-    type preferencetype NOT NULL,
-    default_integer INTEGER,
-    default_string TEXT,
-    description TEXT NOT NULL );
-
-CREATE TABLE userpreferences
-  ( uid INTEGER NOT NULL REFERENCES users,
-    item VARCHAR(64) NOT NULL REFERENCES preferences,
-
-    integer INTEGER,
-    string TEXT,
-
-    PRIMARY KEY (uid, item) );
-
 CREATE TABLE repositories
   ( id SERIAL PRIMARY KEY,
     parent INTEGER REFERENCES repositories,
@@ -530,3 +510,66 @@ CREATE TABLE timezones
 
 INSERT INTO timezones (name, abbrev, utc_offset)
      VALUES ('Universal/UTC', 'UTC', INTERVAL '0');
+
+CREATE TYPE preferencetype AS ENUM
+  ( 'boolean',
+    'integer',
+    'string' );
+CREATE TABLE preferences
+  ( item VARCHAR(64) PRIMARY KEY,
+    type preferencetype NOT NULL,
+    description TEXT NOT NULL,
+
+    -- If TRUE, this preference is relevant to configure per system (IOW
+    -- globally), per user, per repository and/or per filter.  This controls
+    -- whether the preference is displayed on the corresponding /config page
+    -- variant.
+    per_system BOOLEAN NOT NULL DEFAULT TRUE,
+    per_user BOOLEAN NOT NULL DEFAULT TRUE,
+    per_repository BOOLEAN NOT NULL DEFAULT FALSE,
+    per_filter BOOLEAN NOT NULL DEFAULT FALSE );
+
+CREATE TABLE userpreferences
+  ( item VARCHAR(64) NOT NULL REFERENCES preferences,
+    uid INTEGER REFERENCES users ON DELETE CASCADE,
+    repository INTEGER REFERENCES repositories ON DELETE CASCADE,
+    filter INTEGER REFERENCES filters ON DELETE CASCADE,
+
+    integer INTEGER,
+    string TEXT,
+
+    -- Invariant: If 'filter' is not NULL, then 'uid' must not be NULL.
+    CONSTRAINT check_uid_filter CHECK (filter IS NULL OR uid IS NOT NULL),
+
+    -- Invariant: At least one of 'repository' and 'filter' must be NULL.
+    CONSTRAINT check_repository_filter CHECK (repository IS NULL OR filter IS NULL) );
+
+-- These indexes are primarily used to enforce uniqueness.  The three columns
+-- 'uid', 'repository' and 'filter' can all be NULL (in various configurations)
+-- and from a uniqueness point of view, we want those NULL to behave as if they
+-- compared equal.
+CREATE UNIQUE INDEX userpreferences_item
+                 ON userpreferences (item)
+              WHERE uid IS NULL
+                AND repository IS NULL
+                AND filter IS NULL;
+CREATE UNIQUE INDEX userpreferences_item_uid
+                 ON userpreferences (item, uid)
+              WHERE uid IS NOT NULL
+                AND repository IS NULL
+                AND filter IS NULL;
+CREATE UNIQUE INDEX userpreferences_item_repository
+                 ON userpreferences (item, repository)
+              WHERE uid IS NULL
+                AND repository IS NOT NULL
+                AND filter IS NULL;
+CREATE UNIQUE INDEX userpreferences_item_uid_repository
+                 ON userpreferences (item, uid, repository)
+              WHERE uid IS NOT NULL
+                AND repository IS NOT NULL
+                AND filter IS NULL;
+CREATE UNIQUE INDEX userpreferences_item_uid_filter
+                 ON userpreferences (item, uid, filter)
+              WHERE uid IS NOT NULL
+                AND repository IS NULL
+                AND filter IS NOT NULL;

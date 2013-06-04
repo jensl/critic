@@ -16,55 +16,204 @@
 
 import os
 
-import dbutils
-import htmlutils
-import page.utils
 import configuration
+import dbutils
+import gitutils
+import htmlutils
+import textutils
+import page.utils
 
 def renderConfig(req, db, user):
     highlight = req.getParameter("highlight", None)
+    repository = req.getParameter("repository", None, gitutils.Repository.FromParameter(db))
+    filter_id = req.getParameter("filter", None, int)
+    defaults = req.getParameter("defaults", "no") == "yes"
+
+    if filter_id is not None:
+        # There can't be system-wide defaults for one of a single user's
+        # filters.
+        defaults = False
 
     cursor = db.cursor()
 
+    if filter_id is not None:
+        cursor.execute("""SELECT filters.path, repositories.name
+                            FROM filters
+                            JOIN repositories ON (repositories.id=filters.repository)
+                           WHERE filters.id=%s""",
+                       (filter_id,))
+        row = cursor.fetchone()
+        if not row:
+            raise page.utils.InvalidParameterValue(
+                name="filter",
+                value=str(filter_id),
+                excepted="valid filter id")
+        title = "Filter preferences: %s in %s" % row
+    elif repository is not None:
+        title = "Repository preferences: %s" % repository.name
+    else:
+        title = "User preferences"
+
     document = htmlutils.Document(req)
-    document.setTitle("User Preferences")
+    document.setTitle(title)
 
     html = document.html()
     head = html.head()
     body = html.body()
 
-    def renderRight(target):
-        if not user.isAnonymous():
-            target.button(onclick='saveSettings();').text('Save Settings')
+    if user.isAnonymous():
+        disabled = "disabled"
+    else:
+        disabled = None
 
-    injected = page.utils.generateHeader(body, db, user, generate_right=renderRight, current_page="config")
+    def generate_right(target):
+        if defaults:
+            url = "/config"
+            if repository is not None:
+                url += "?repository=%d" % repository.id
+            target.a("button", href=url).text("Edit Own")
+        elif user.hasRole(db, "administrator"):
+            url = "/config?defaults=yes"
+            if repository is not None:
+                url += "&repository=%d" % repository.id
+                what = "Repository Defaults"
+            else:
+                what = "System Defaults"
+            target.a("button", href=url).text("Edit " + what)
+
+    injected = page.utils.generateHeader(body, db, user, current_page="config",
+                                         generate_right=generate_right)
 
     document.addExternalStylesheet("resource/config.css")
     document.addExternalScript("resource/config.js")
     document.addInternalScript(user.getJS())
+    document.addInternalScript("var repository_id = %s, filter_id = %s, defaults = %s;"
+                               % (htmlutils.jsify(repository.id if repository else None),
+                                  htmlutils.jsify(filter_id),
+                                  htmlutils.jsify(defaults)))
 
     target = body.div("main")
 
     table = target.table('preferences paleyellow', align='center', cellspacing=0)
-    table.tr().td('h1', colspan=3).h1().text("User Preferences")
+    h1 = table.tr().td('h1', colspan=3).h1()
+    h1.text(title)
+
+    if filter_id is None:
+        page.utils.generateRepositorySelect(
+            db, user, h1.span("right"), allow_selecting_none=True,
+            selected=repository.name if repository else False)
+
+    if filter_id is not None:
+        conditional = "per_filter"
+    elif repository is not None:
+        conditional = "per_repository"
+    elif defaults:
+        conditional = "per_system"
+    else:
+        conditional = "per_user"
 
     cursor = db.cursor()
-    cursor.execute("""SELECT preferences.item, type,
-                             integer, default_integer,
-                             string, default_string,
-                             description
+    cursor.execute("""SELECT item, type, description, per_repository, per_filter
                         FROM preferences
-             LEFT OUTER JOIN userpreferences
-                          ON (preferences.item=userpreferences.item AND uid=%s)
-                    ORDER BY preferences.item ASC""",
-                   [user.id])
+                       WHERE %(conditional)s"""
+                   % { "conditional": conditional })
+
+    preferences = dict((item, [preference_type, description, None, None, per_repository, per_filter])
+                       for item, preference_type, description, per_repository, per_filter in cursor)
+
+    def set_values(rows, is_overrides):
+        index = 3 if is_overrides else 2
+        for item, integer, string in rows:
+            if preferences[item][0] == "boolean":
+                preferences[item][index] = bool(integer)
+            elif preferences[item][0] == "integer":
+                preferences[item][index] = integer
+            else:
+                preferences[item][index] = string
+
+    cursor.execute("""SELECT item, integer, string
+                        FROM userpreferences
+                       WHERE item=ANY (%s)
+                         AND uid IS NULL
+                         AND repository IS NULL""",
+                   (preferences.keys(),))
+
+    set_values(cursor, is_overrides=False)
+
+    if repository is not None:
+        cursor.execute("""SELECT item, integer, string
+                            FROM userpreferences
+                           WHERE item=ANY (%s)
+                             AND uid IS NULL
+                             AND repository=%s""",
+                       (preferences.keys(), repository.id))
+
+        # These are overrides if we're editing the defaults for a specific
+        # repository.
+        set_values(cursor, is_overrides=defaults)
+
+    if not defaults:
+        cursor.execute("""SELECT item, integer, string
+                            FROM userpreferences
+                           WHERE item=ANY (%s)
+                             AND uid=%s
+                             AND repository IS NULL
+                             AND filter IS NULL""",
+                       (preferences.keys(), user.id))
+
+        if filter_id is not None or repository is not None:
+            # We're looking at per-filter or per-repository settings, so the
+            # user's global settings are defaults, not the overrides.  If a
+            # per-filter or per-repository override is deleted, the user's
+            # global setting kicks in instead.
+            set_values(cursor, is_overrides=False)
+
+            if filter_id is not None:
+                cursor.execute("""SELECT item, integer, string
+                                    FROM userpreferences
+                                   WHERE item=ANY (%s)
+                                     AND uid=%s
+                                     AND filter=%s""",
+                               (preferences.keys(), user.id, filter_id))
+            else:
+                cursor.execute("""SELECT item, integer, string
+                                    FROM userpreferences
+                                   WHERE item=ANY (%s)
+                                     AND uid=%s
+                                     AND repository=%s""",
+                               (preferences.keys(), user.id, repository.id))
+
+        # Set the overrides.  This is either the user's global settings, if
+        # we're not looking at per-filter or per-repository settings, or the
+        # user's per-filter or per-repository settings if we are.
+        set_values(cursor, is_overrides=True)
+    elif repository is None:
+        # When editing global defaults, use the values from preferences.json
+        # used when initially installing Critic as the default values.
+        defaults_path = os.path.join(configuration.paths.INSTALL_DIR,
+                                     "data/preferences.json")
+        with open(defaults_path) as defaults_file:
+            factory_defaults = textutils.json_decode(defaults_file.read())
+        for item, data in preferences.items():
+            data[3] = data[2]
+            if item in factory_defaults:
+                data[2] = factory_defaults[item]["default"]
+                if data[2] == data[3]:
+                    data[3] = None
+
+    if req.getParameter("recalculate", "no") == "yes":
+        for item, data in preferences.items():
+            if data[2] == data[3]:
+                user.setPreference(db, item, None, repository=repository, filter_id=filter_id)
+                data[3] = None
+        db.commit()
 
     debug_enabled = user.getPreference(db, "debug.enabled")
 
     if highlight:
         document.addInternalScript("$(document).ready(function () { location.hash = 'go'; $('#highlight').focus().select(); });")
 
-    for item, type, integer, default_integer, string, default_string, description in cursor:
+    for item, (preference_type, description, default_value, current_value, per_repository, per_filter) in sorted(preferences.items()):
         if item.startswith("debug.") and item != "debug.enabled" and not debug_enabled:
             continue
 
@@ -79,10 +228,8 @@ def renderConfig(req, db, user):
         else:
             input_id = None
 
-        if (integer is None or integer == default_integer) and (string is None or string == default_string):
-            line_class_name += " default"
-            integer = default_integer
-            string = default_string
+        if current_value is None:
+            current_value = default_value
         else:
             line_class_name += " customized"
 
@@ -95,22 +242,38 @@ def renderConfig(req, db, user):
 
         options = None
         optgroup = None
-        def addOption(value, name, selected=lambda value: string==value):
+        def addOption(value, name, selected=lambda value: value==current_value):
             (optgroup or options).option(value=value, selected="selected" if selected(value) else None).text(name)
 
-        if type == "boolean":
-            value.input("setting", id=input_id, type="checkbox", name=item, checked=integer and "checked" or None, critic_default=default_integer)
-        elif type == "integer":
-            value.input("setting", id=input_id, type="number", min=0, name=item, value=integer, critic_default=default_integer)
+        if preference_type == "boolean":
+            value.input(
+                "setting", id=input_id, type="checkbox", name=item,
+                checked="checked" if current_value else None, disabled=disabled,
+                critic_current=htmlutils.jsify(current_value),
+                critic_default=htmlutils.jsify(default_value))
+        elif preference_type == "integer":
+            value.input(
+                "setting", id=input_id, type="number", min=0, max=2**31 - 1,
+                name=item, value=current_value, disabled=disabled,
+                critic_current=htmlutils.jsify(current_value),
+                critic_default=htmlutils.jsify(default_value))
         elif item == "defaultRepository":
-            options = value.select("setting", id=input_id, name=item, critic_default=default_string)
+            options = value.select(
+                "setting", id=input_id, name=item, disabled=disabled,
+                critic_current=htmlutils.jsify(current_value),
+                critic_default=htmlutils.jsify(default_value))
+
+            addOption("", "(no default repository)")
 
             cursor2 = db.cursor()
             cursor2.execute("SELECT name FROM repositories ORDER BY id ASC")
             for (name,) in cursor2:
                 addOption(name, name)
         elif item == "defaultPage":
-            options = value.select("setting", id=input_id, name=item, critic_default=default_string)
+            options = value.select(
+                "setting", id=input_id, name=item, disabled=disabled,
+                critic_current=htmlutils.jsify(current_value),
+                critic_default=htmlutils.jsify(default_value))
 
             addOption("home", "Home")
             addOption("dashboard", "Dashboard")
@@ -122,21 +285,31 @@ def renderConfig(req, db, user):
             cursor2.execute("SELECT key, description FROM systemidentities")
 
             identities = cursor2.fetchall()
-            selected = set(string.split(","))
+            selected = set(current_value.split(","))
 
-            options = value.select("setting", id=input_id, name=item, size=len(identities), multiple="multiple", critic_default=default_string)
+            options = value.select(
+                "setting", id=input_id, name=item, size=len(identities),
+                multiple="multiple", disabled=disabled,
+                critic_current=htmlutils.jsify(current_value),
+                critic_default=htmlutils.jsify(default_value))
 
             for key, description in identities:
                 addOption(key, description, selected=lambda value: value in selected)
         elif item == "email.updatedReview.quotedComments":
-            options = value.select("setting", id=input_id, name=item, critic_default=default_string)
+            options = value.select(
+                "setting", id=input_id, name=item, disabled=disabled,
+                critic_current=htmlutils.jsify(current_value),
+                critic_default=htmlutils.jsify(default_value))
 
             addOption("all", "All")
             addOption("first", "First")
             addOption("last", "Last")
             addOption("firstlast", "First & Last")
         elif item == "timezone":
-            options = value.select("setting", id=input_id, name=item, critic_default=default_string)
+            options = value.select(
+                "setting", id=input_id, name=item, disabled=disabled,
+                critic_current=htmlutils.jsify(current_value),
+                critic_default=htmlutils.jsify(default_value))
 
             for group, zones in dbutils.timezones.sortedTimezones(db):
                 optgroup = options.optgroup(label=group)
@@ -145,7 +318,10 @@ def renderConfig(req, db, user):
                     offset = "%s%02d:%02d" % ("-" if seconds < 0 else "+", abs(seconds) / 3600, (abs(seconds) % 3600) / 60)
                     addOption("%s/%s" % (group, name), "%s (%s / UTC%s)" % (name, abbrev, offset))
         elif item == "repository.urlType":
-            options = value.select("setting", id=input_id, name=item, critic_default=default_string)
+            options = value.select(
+                "setting", id=input_id, name=item, disabled=disabled,
+                critic_current=htmlutils.jsify(current_value),
+                critic_default=htmlutils.jsify(default_value))
             long_path = os.path.join(configuration.paths.GIT_DIR, "<path>.git")
 
             if "git" in configuration.base.REPOSITORY_URL_TYPES:
@@ -157,7 +333,25 @@ def renderConfig(req, db, user):
             if "host" in configuration.base.REPOSITORY_URL_TYPES:
                 addOption("host", "%s:%s" % (configuration.base.HOSTNAME, long_path))
         else:
-            value.input("setting", id=input_id, type="text", size=80, name=item, value=string, critic_default=default_string)
+            value.input(
+                "setting", id=input_id, type="text", size=80, name=item,
+                value=current_value, disabled=disabled,
+                critic_current=htmlutils.jsify(current_value),
+                critic_default=htmlutils.jsify(default_value))
+
+        also_configurable_per = []
+
+        if per_repository and repository is None:
+            also_configurable_per.append("repository")
+        if per_filter and filter_id is None:
+            also_configurable_per.append("filter")
+
+        if also_configurable_per:
+            value.span("also-configurable-per").text(
+                "Also configurable per: %s" % ", ".join(also_configurable_per))
+
+        reset = value.span("reset")
+        reset.a(href="javascript:saveSettings(%s);" % htmlutils.jsify(item)).text("[reset to default]")
 
         cell = table.tr(help_class_name).td("help", colspan=3)
 
@@ -169,7 +363,10 @@ def renderConfig(req, db, user):
         else:
             cell.text(description)
 
-    if injected and injected.has_key("preferences"):
+    if injected and injected.has_key("preferences") \
+            and not defaults \
+            and repository is None \
+            and filter_id is None:
         for extension_name, author, preferences in injected["preferences"]:
             h2 = table.tr("extension").td("extension", colspan=3).h2()
             h2.span("name").text(extension_name)
@@ -195,6 +392,9 @@ def renderConfig(req, db, user):
                 else:
                     input_id = None
 
+                if preference_value != preference_default:
+                    line_class_name += " customized"
+
                 row = table.tr(line_class_name)
                 heading = row.td("heading")
                 if highlight_this: heading = heading.a(name="go")
@@ -203,13 +403,35 @@ def renderConfig(req, db, user):
                 value.preformatted()
 
                 if preference_type == "boolean":
-                    value.input("setting", id=input_id, critic_url=preference_url, type="checkbox", name=preference_name, checked="checked" if preference_value else None, critic_default=1 if preference_value else 0, critic_extension=extension_name)
+                    value.input(
+                        "setting", id=input_id, type="checkbox",
+                        name=preference_name, disabled=disabled,
+                        checked="checked" if preference_value else None,
+                        critic_url=preference_url,
+                        critic_default=htmlutils.jsify(bool(preference_value)),
+                        critic_extension=extension_name)
                 elif preference_type == "integer":
-                    value.input("setting", id=input_id, critic_url=preference_url, type="number", min=0, name=preference_name, value=preference_value, critic_default=preference_default, critic_extension=extension_name)
+                    value.input(
+                        "setting", id=input_id, type="number", min=0,
+                        name=preference_name, value=preference_value,
+                        disabled=disabled, critic_url=preference_url,
+                        critic_default=htmlutils.jsify(preference_default),
+                        critic_extension=extension_name)
                 elif preference_type == "string":
-                    value.input("setting", id=input_id, critic_url=preference_url, type="text", name=preference_name, value=preference_value, critic_default=preference_default, critic_extension=extension_name)
+                    value.input(
+                        "setting", id=input_id, type="text",
+                        name=preference_name, value=preference_value,
+                        disabled=disabled, critic_url=preference_url,
+                        critic_default=htmlutils.jsify(preference_default),
+                        critic_extension=extension_name)
                 else:
-                    select = value.select("setting", id=input_id, critic_url=preference_url, name=preference_name, critic_value=preference_value, critic_extension=extension_name)
+                    select = value.select(
+                        "setting", id=input_id, name=preference_name,
+                        disabled=disabled, critic_url=preference_url,
+                        critic_value=preference_value,
+                        critic_default=htmlutils.jsify(preference_default),
+                        critic_extension=extension_name)
+
                     for choice in preference_type:
                         select.option(value=choice["value"], selected="selected" if preference_value == choice["value"] else None).text(choice["title"])
 

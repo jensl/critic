@@ -51,6 +51,7 @@ def htmlify(text, attributeValue=False, pretty=False):
 
 def jsify(what, as_json=False):
     if what is None: return "null"
+    elif isinstance(what, bool): return "true" if what else "false"
     elif isinstance(what, int) or isinstance(what, long): return str(what)
     else:
         what = textutils.decode(what)

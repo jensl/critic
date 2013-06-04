@@ -55,6 +55,7 @@ import operation.addrepository
 import operation.news
 import operation.checkrebase
 import operation.applyfilters
+import operation.savesettings
 
 import page.utils
 import page.createreview
@@ -175,43 +176,6 @@ def setfullname(req, db, user):
 
     cursor = db.cursor()
     cursor.execute("UPDATE users SET fullname=%s WHERE id=%s", (fullname, user.id))
-
-    db.commit()
-
-    return "ok"
-
-def savesettings(req, db, user):
-    if user.isAnonymous():
-        return "ok"
-
-    data = req.read()
-    values = [line.strip().split("=", 1) for line in data.splitlines() if line.strip()]
-
-    cursor = db.cursor()
-
-    integers = []
-    strings = []
-
-    for item, value in values:
-        cursor.execute("SELECT type FROM preferences WHERE item=%s", [item])
-
-        row = cursor.fetchone()
-        if row:
-            preference_type = row[0]
-            if preference_type == "boolean":
-                value = int(bool(int(value)))
-                integers.append((user.id, item, value))
-            elif preference_type == "integer":
-                value = int(value)
-                integers.append((user.id, item, value))
-            elif preference_type == "string":
-                strings.append((user.id, item, value))
-
-    cursor.executemany("DELETE FROM userpreferences WHERE uid=%s AND item=%s", [(user.id, item[1]) for item in integers])
-    cursor.executemany("DELETE FROM userpreferences WHERE uid=%s AND item=%s", [(user.id, item[1]) for item in strings])
-
-    cursor.executemany("INSERT INTO userpreferences (uid, item, integer) VALUES (%s, %s, %s)", integers)
-    cursor.executemany("INSERT INTO userpreferences (uid, item, string) VALUES (%s, %s, %s)", strings)
 
     db.commit()
 
@@ -465,7 +429,7 @@ OPERATIONS = { "fetchlines": operation.fetchlines.FetchLines(),
                "submitchanges": operation.draftchanges.SubmitChanges(),
                "abortchanges": operation.draftchanges.AbortChanges(),
                "reviewstatechange": operation.draftchanges.ReviewStateChange(),
-               "savesettings": savesettings,
+               "savesettings": operation.savesettings.SaveSettings(),
                "showfilters": showfilters,
                "rebasebranch": rebasebranch,
                "checkserial": checkserial,

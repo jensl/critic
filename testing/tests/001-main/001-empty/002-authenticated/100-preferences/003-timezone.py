@@ -19,7 +19,7 @@ def check_select(document):
         testing.expect.check("<preference select>",
                              "<expected content not found>")
 
-    testing.expect.check("Universal/UTC", select["critic-default"])
+    testing.expect.check('"Universal/UTC"', select["critic-default"])
 
     option = select.find("option", attrs={ "selected": "selected" })
 

@@ -190,6 +190,7 @@ def renderHome(req, db, user):
                          jsify(filter_delegates))
             links.a(href="javascript:void(editFilter(%s, %d, %s, %s, %s));" % arguments).text("[edit]")
             links.a(href="javascript:if (deleteFilterById(%d)) location.reload(); void(0);" % filter_id).text("[delete]")
+            links.a(href="javascript:location.href='/config?filter=%d';" % filter_id).text("[preferences]")
 
         document.addInternalScript("var count_matched_files = %s;" % json_encode(count_matched_files.values()))
     else:

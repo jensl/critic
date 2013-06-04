@@ -17,12 +17,10 @@ second_commit = None
 third_commit = None
 
 with frontend.signin("alice"):
-    result = frontend.operation(
+    frontend.operation(
         "savesettings",
-        data="review.createViaPush=1\n",
-        expect=None)
-
-    testing.expect.check("ok", result)
+        data={ "settings": [{ "item": "review.createViaPush",
+                              "value": True }] })
 
     with repository.workcopy(empty=True) as work:
         work.run(["remote", "add", "critic",
