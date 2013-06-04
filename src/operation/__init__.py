@@ -395,3 +395,11 @@ class Operation(object):
     def sanitize(self, value):
         """Sanitize arguments value for use in error messages or logs."""
         return value
+
+    @staticmethod
+    def requireRole(db, role, user):
+        if not user.hasRole(db, role):
+            raise OperationFailure(
+                code="notallowed",
+                title="Not allowed!",
+                message="Operation not permitted.")

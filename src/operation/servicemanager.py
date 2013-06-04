@@ -14,7 +14,7 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-from operation import Operation, OperationResult, Optional, OperationError, OperationFailure
+from operation import Operation, OperationResult, Optional, OperationError
 
 import configuration
 import textutils
@@ -28,8 +28,7 @@ class RestartService(Operation):
         Operation.__init__(self, { "service_name": str })
 
     def process(self, db, user, service_name):
-        if not user.hasRole(db, "administrator"):
-            raise OperationFailure(code="notallowed", title="Not allowed!", message="Only a system administrator can restart services.")
+        Operation.requireRole(db, "administrator", user)
 
         if service_name == "wsgi":
             for pid in os.listdir(configuration.paths.WSGI_PIDFILE_DIR):

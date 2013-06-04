@@ -25,10 +25,8 @@ class SetFullname(Operation):
                                    "value": str })
 
     def process(self, db, user, user_id, value):
-        if user.id != user_id and not user.hasRole(db, "administrator"):
-            raise OperationFailure(code="notallowed",
-                                   title="Not allowed!",
-                                   message="Operation not permitted.")
+        if user.id != user_id:
+            Operation.requireRole(db, "administrator", user)
 
         if not value.strip():
             raise OperationError("empty display name is not allowed")
@@ -44,10 +42,8 @@ class SetEmail(Operation):
                                    "value": str })
 
     def process(self, db, user, user_id, value):
-        if user.id != user_id and not user.hasRole(db, "administrator"):
-            raise OperationFailure(code="notallowed",
-                                   title="Not allowed!",
-                                   message="Operation not permitted.")
+        if user.id != user_id:
+            Operation.requireRole(db, "administrator", user)
 
         if not value.strip():
             raise OperationError("empty email address is not allowed")
@@ -65,10 +61,8 @@ class SetGitEmails(Operation):
                                    "value": [str] })
 
     def process(self, db, user, user_id, value):
-        if user.id != user_id and not user.hasRole(db, "administrator"):
-            raise OperationFailure(code="notallowed",
-                                   title="Not allowed!",
-                                   message="Operation not permitted.")
+        if user.id != user_id:
+            Operation.requireRole(db, "administrator", user)
 
         for address in value:
             if not address.strip():
@@ -100,10 +94,8 @@ class ChangePassword(Operation):
     def process(self, db, user, user_id, new_pw, current_pw=None):
         import auth
 
-        if (user.id != user_id or current_pw is None) and not user.hasRole(db, "administrator"):
-            raise OperationFailure(code="notallowed",
-                                   title="Not allowed!",
-                                   message="Operation not permitted.")
+        if (user.id != user_id or current_pw is None):
+            Operation.requireRole(db, "administrator", user)
 
         subject = dbutils.User.fromId(db, user_id)
 
