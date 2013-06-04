@@ -525,7 +525,7 @@ def render(db, target, user, repository, review, changesets, commits, listed_com
 
         yield target
 
-        for stop in changeset_html.render(db, target, user, changesets[0], review, context_lines=context_lines, options=options, wrap=wrap):
+        for stop in changeset_html.render(db, target, user, repository, changesets[0], review, context_lines=context_lines, options=options, wrap=wrap):
             yield stop
     else:
         commit = changesets[0].child
@@ -638,7 +638,9 @@ def render(db, target, user, repository, review, changesets, commits, listed_com
             options['parent_index'] = index
             options['merge'] = True
 
-            for stop in changeset_html.render(db, parent, user, changeset, review, context_lines=context_lines, options=options, wrap=wrap, parent_index=index):
+            for stop in changeset_html.render(db, parent, user, repository, changeset,
+                                              review, context_lines=context_lines,
+                                              options=options, wrap=wrap, parent_index=index):
                 yield stop
 
         if profiler: profiler.check("render diff")
@@ -1227,7 +1229,7 @@ def renderShowCommit(req, db, user):
         page.utils.generateHeader(body, db, user, generateButtons)
 
     log_html.addResources(document)
-    changeset_html.addResources(db, user, review, compact, tabify, document)
+    changeset_html.addResources(db, user, repository, review, compact, tabify, document)
 
     document.addInternalScript(user.getJS(db))
     document.addInternalScript(repository.getJS())

@@ -27,7 +27,8 @@
   "commit.diff.rulerColumn": {
     "type": "integer",
     "default": 0,
-    "description": "The column at which a ruler is shown. Can be set to 0 to disable the ruler."
+    "description": "The column at which a ruler is shown. Can be set to 0 to disable the ruler.",
+    "relevance": { "repository": true }
   },
   "commit.diff.visualTabs": {
     "type": "boolean",

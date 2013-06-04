@@ -198,8 +198,10 @@ changeset[parent_index].reviewableFiles = { %s };
     if compact: return re.sub(r"\B\s+\B|\b\s+\B|\B\s+\b", "", data_script).strip()
     else: return data_script.strip()
 
-def render(db, target, user, changeset, review=None, review_mode=None, context_lines=3, style="horizontal", wrap=True, options={}, parent_index=None):
-    addResources(db, user, review, options.get("compact", False), options.get("tabify", False), target)
+def render(db, target, user, repository, changeset, review=None, review_mode=None,
+           context_lines=3, style="horizontal", wrap=True, options={}, parent_index=None):
+    addResources(db, user, repository, review, options.get("compact", False),
+                 options.get("tabify", False), target)
 
     compact = options.get("compact", False)
 
@@ -275,7 +277,7 @@ table.file > tbody.lines > tr > td.line {
 
 def renderFile(db, target, user, review, file, first_file=False, options={}, conflicts=False, add_resources=True):
     if add_resources:
-        addResources(db, user, review, options.get("compact", False), options.get("tabify"), target)
+        addResources(db, user, file.repository, review, options.get("compact", False), options.get("tabify"), target)
 
     if options.get("count_chunks"):
         deleted = 0
@@ -776,7 +778,7 @@ def renderFile(db, target, user, review, file, first_file=False, options={}, con
 
     row.td('right', colspan=4).text(chunksText)
 
-def addResources(db, user, review, compact, tabify, target):
+def addResources(db, user, repository, review, compact, tabify, target):
     target.addExternalStylesheet("resource/changeset.css")
     target.addExternalScript("resource/changeset.js")
 
@@ -786,10 +788,13 @@ def addResources(db, user, review, compact, tabify, target):
     if user.getPreference(db, "commit.diff.highlightIllegalWhitespace"):
         target.addInternalStylesheet(stripStylesheet(user.getResource(db, "whitespace.css")[1], compact))
 
-    if user.getPreference(db, "commit.diff.rulerColumn") > 0:
+    ruler_column = user.getPreference(db, "commit.diff.rulerColumn", repository=repository)
+
+    if ruler_column > 0:
         target.addExternalScript("resource/ruler.js")
+
     # Injected unconditionally (for tests).
-    target.addInternalScript("var rulerColumn = %d;" % user.getPreference(db, "commit.diff.rulerColumn"))
+    target.addInternalScript("var rulerColumn = %d;" % ruler_column)
 
     if review:
         target.addExternalStylesheet("resource/comment.css")
