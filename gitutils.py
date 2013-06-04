@@ -30,6 +30,7 @@ import configuration
 import textutils
 import htmlutils
 import communicate
+import diff.parse
 
 re_author_committer = re.compile("(.*) <(.*)> ([0-9]+ [-+][0-9]+)")
 re_sha1 = re.compile("^[A-Za-z0-9]{40}$")
@@ -920,7 +921,9 @@ class Commit:
         else:
             return True
 
-RE_LSTREE_LINE = re.compile("^([0-9]{6}) (blob|tree|commit) ([0-9a-f]{40})  *([0-9]+|-)\t(.*)$")
+RE_LSTREE_LINE = re.compile(
+    "(?P<mode>[0-9]{6}) (?P<type>blob|tree|commit) (?P<sha1>[0-9a-f]{40}) +"
+    "(?P<size>[0-9]+|-)\t(?P<quote>[\"']?)(?P<name>.*)(?P=quote)$")
 
 class Tree:
     class Entry:
@@ -941,6 +944,9 @@ class Tree:
                     return string + flags[(self & 0700) >> 6] + flags[(self & 070) >> 3] + flags[self & 07]
 
         def __init__(self, name, mode, type, sha1, size):
+            if len(name) > 2 and name[0] in ('"', "'") and name[-1] == name[0]:
+                name = diff.parse.demunge(name[1:-1])
+
             self.name = name
             self.mode = Tree.Entry.Mode(mode)
             self.type = type
@@ -991,9 +997,23 @@ class Tree:
 
         for line in commit.repository.run("ls-tree", "-l", what).splitlines():
             match = RE_LSTREE_LINE.match(line)
-            assert match
 
-            entries.append(Tree.Entry(match.group(5), match.group(1), match.group(2), match.group(3), int(match.group(4)) if match.group(2) == "blob" else None))
+            assert match, "Unexpected output from 'git ls-tree': %r" % line
+
+            name = match.group("name")
+            if match.group("quote"):
+                name = diff.parse.demunge(name)
+
+            if match.group("type") == "blob":
+                size = int(match.group("size"))
+            else:
+                size = None
+
+            entries.append(Tree.Entry(name=name,
+                                      mode=match.group("mode"),
+                                      type=match.group("type"),
+                                      sha1=match.group("sha1"),
+                                      size=size))
 
         return Tree(entries)
 

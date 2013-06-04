@@ -24,6 +24,28 @@ import analyze
 
 GIT_EMPTY_TREE = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
 
+def demunge(path):
+    special = { "a": "\a",
+                "b": "\b",
+                "t": "\t",
+                "n": "\n",
+                "v": "\v",
+                "f": "\f",
+                "r": "\r",
+                '"': '"',
+                "'": "'",
+                "/": "/",
+                "\\": "\\" }
+
+    def unescape(match):
+        escaped = match.group(1)
+        if escaped in special:
+            return special[escaped]
+        else:
+            return chr(int(escaped, 8))
+
+    return re.sub(r"""\\([abtnvfr"'/\\]|[0-9]{3})""", unescape, path)
+
 def splitlines(source):
     if not source: return source
     elif source[-1] == "\n": return source[:-1].split("\n")
@@ -198,7 +220,9 @@ def parseDifferences(repository, commit=None, from_commit=None, to_commit=None, 
 
     re_chunk = re.compile('^@@ -(\\d+)(?:,\\d+)? \\+(\\d+)(?:,\\d+)? @@')
     re_binary = re.compile('^Binary files (?:a/(.+)|/dev/null) and (?:b/(.+)|/dev/null) differ')
-    re_diff = re.compile("^diff --git a/(.*) b/(.*)$")
+    re_diff = re.compile("^diff --git ([\"']?)a/(.*)\\1 ([\"']?)b/(.*)\\3$")
+    re_old_path = re.compile("--- ([\"']?)a/(.*)\\1\\s*$")
+    re_new_path = re.compile("\\+\\+\\+ ([\"']?)b/(.*)\\1\\s*$")
 
     def isplitlines(text):
         start = 0
@@ -244,7 +268,13 @@ def parseDifferences(repository, commit=None, from_commit=None, to_commit=None, 
                 if match:
                     if old_mode is not None and new_mode is not None:
                         addFile(diff.File(None, names[0], None, None, repository, old_mode=old_mode, new_mode=new_mode, chunks=[]))
-                    names = (match.group(1), match.group(2))
+                    old_name = match.group(2)
+                    if match.group(1):
+                        old_name = demunge(old_name)
+                    new_name = match.group(4)
+                    if match.group(3):
+                        new_name = demunge(new_name)
+                    names = (old_name, new_name)
                 elif line.startswith("old mode "):
                     old_mode = line[9:]
                 elif line.startswith("new mode "):
@@ -321,19 +351,31 @@ def parseDifferences(repository, commit=None, from_commit=None, to_commit=None, 
 
                 continue
 
-            if line.startswith("--- a/"): old_path = line[6:].strip()
-            else: old_path = None
+            match = re_old_path.match(line)
+            if match:
+                old_path = match.group(2)
+                if match.group(1):
+                    old_path = demunge(old_path)
+            else:
+                old_path = None
 
             line = lines.next()
 
-            if line.startswith("+++ b/"): new_path = line[6:].strip()
-            else: new_path = None
+            match = re_new_path.match(line)
+            if match:
+                new_path = match.group(2)
+                if match.group(1):
+                    new_path = demunge(new_path)
+            else:
+                new_path = None
 
             assert (old_path is None) == ('0' * 40 == old_sha1)
             assert (new_path is None) == ('0' * 40 == new_sha1)
 
-            if old_path: path = old_path
-            else: path = new_path
+            if old_path:
+                path = old_path
+            else:
+                path = new_path
 
             if is_submodule:
                 line = lines.next()

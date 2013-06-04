@@ -16,6 +16,7 @@
 
 import re
 import json
+import unicodedata
 
 import configuration
 
@@ -61,6 +62,42 @@ def indent(string, width=4):
     prefix = " " * width
     return prefix + ("\n" + prefix).join(string.splitlines())
 
+def escape(text):
+    special = { "\a": "a",
+                "\b": "b",
+                "\t": "t",
+                "\n": "n",
+                "\v": "v",
+                "\f": "f",
+                "\r": "r" }
+
+    def escape1(match):
+        substring = match.group(0)
+
+        if ord(substring) < 128:
+            if substring in special:
+                return "\\%s" % special[substring]
+            elif ord(substring) < 32:
+                return "\\x%02x" % ord(substring)
+            else:
+                return substring
+
+        category = unicodedata.category(substring)
+        if category[0] in "CZ" or category == "So":
+            if ord(substring) < 256:
+                return "\\x%02x" % ord(substring)
+            elif ord(substring) < 65536:
+                return "\\u%04x" % ord(substring)
+            else:
+                return "\\U%08x" % ord(substring)
+        else:
+            return substring
+
+    text = decode(str(text))
+    escaped = re.sub("\W", escape1, text, flags=re.UNICODE)
+
+    return escaped.encode("utf-8")
+
 json_encode = json.dumps
 
 def json_decode(s):
@@ -80,10 +117,14 @@ def decode(text):
 
     for index, encoding in enumerate(DEFAULT_ENCODINGS):
         try:
-            return text.decode(encoding)
+            decoded = text.decode(encoding)
         except UnicodeDecodeError:
             continue
         except LookupError:
             del DEFAULT_ENCODINGS[index]
+        else:
+            # Replace characters in the surrogate pair range with U+FFFD since
+            # PostgreSQL's UTF-8 decoder won't accept them.
+            return re.sub(u"[\ud800-\udfff]", "\ufffd", decoded)
 
     return text.decode("ascii", errors="replace")

@@ -35,6 +35,7 @@ re_linkify = re.compile("(?:^|\\b|(?=\\W))(" + "|".join(fragments) + ")([.,:;!?)
 
 re_simple = re.compile("^[^ \t\r\n&<>]+$")
 re_nonascii = re.compile("[^\t\n\r -\x7f]")
+re_control = re.compile("[\x01-\x1f\x7f]")
 
 def htmlify(text, attributeValue=False, pretty=False):
     if isinstance(text, unicode): text = re_nonascii.sub(lambda x: "&#%d;" % ord(x.group()), text.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;'))
@@ -45,6 +46,7 @@ def htmlify(text, attributeValue=False, pretty=False):
             if '"' not in text: text = '"' + text + '"'
             else: text = "'" + text.replace("'", '&apos;') + "'"
         else: text = "'" + text + "'"
+        text = re_control.sub(lambda match: "&#%d;" % ord(match.group()), text)
     return text
 
 def jsify(what, as_json=False):
@@ -444,7 +446,7 @@ class Generator(object):
     def removeIfEmpty(self):
         self.__target.removeIfEmpty()
 
-    def text(self, value=None, preformatted=False, cdata=False, linkify=False, repository=None):
+    def text(self, value=None, preformatted=False, cdata=False, linkify=False, repository=None, escape=False):
         if linkify:
             assert not cdata
 
@@ -457,7 +459,7 @@ class Generator(object):
                 if linktype.match(value):
                     url = linktype.linkify(value, context)
                     if url:
-                        self.a(href=url).text(value)
+                        self.a(href=url).text(value, escape=escape)
                         break
             else:
                 for word in re_linkify.split(value):
@@ -466,11 +468,13 @@ class Generator(object):
                             if linktype.match(word):
                                 url = linktype.linkify(word, context)
                                 if url:
-                                    self.a(href=url).text(word)
+                                    self.a(href=url).text(word, escape=escape)
                                     break
                         else:
-                            self.text(word, preformatted)
+                            self.text(word, preformatted, escape=escape)
         else:
+            if escape:
+                value = textutils.escape(value)
             self.__target.appendChild(Text(value, preformatted, cdata))
         return self
 

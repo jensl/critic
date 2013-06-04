@@ -20,6 +20,7 @@ import gitutils
 import diff.analyze
 import syntaxhighlight
 import htmlutils
+import textutils
 
 re_modeline = re.compile(r"-\*-\s*(.*?)\s*-\*-")
 re_tabwidth = re.compile(r"(?:^|[ \t;])tab-width:\s*([0-9]+)(?:$|;)", re.I)
@@ -344,7 +345,7 @@ class File:
                     data = syntaxhighlight.readHighlight(self.repository, self.old_sha1, self.path, language, request=request_highlight)
                 elif self.old_highlighted: return
                 else:
-                    data = htmlutils.htmlify(self.repository.fetch(self.old_sha1).data)
+                    data = htmlutils.htmlify(textutils.decode(self.repository.fetch(self.old_sha1).data))
                 self.old_highlighted = splitlines(data)
                 self.old_eof_eol = data and data[-1] in "\n\r"
         else:
@@ -376,7 +377,7 @@ class File:
                     data = syntaxhighlight.readHighlight(self.repository, self.new_sha1, self.path, language, request=request_highlight)
                 elif self.new_highlighted: return
                 else:
-                    data = htmlutils.htmlify(self.repository.fetch(self.new_sha1).data)
+                    data = htmlutils.htmlify(textutils.decode(self.repository.fetch(self.new_sha1).data))
                 self.new_highlighted = splitlines(data)
                 self.new_eof_eol = data and data[-1] in "\n\r"
         else:
@@ -543,12 +544,31 @@ class File:
                     return sum(map(len, componentsA[:index])) + index
 
         if files:
-            previous = getpath(files[0])
-            for index in range(1, len(files)):
-                length = commonPrefixLength(previous, getpath(files[index]))
-                previous = getpath(files[index])
-                if text and length > 4: setpath(files[index], " " * (length - 4) + ".../" + previous[length:])
-                if not text and length > 2: setpath(files[index], " " * (length - 2) + "&#8230;/" + previous[length:])
+            for index in range(len(files)):
+                current = getpath(files[index])
+
+                if index > 0:
+                    length = commonPrefixLength(previous, current)
+                else:
+                    length = 0
+
+                if text:
+                    if length > 4:
+                        updated = (" " * (length - 4) + ".../" +
+                                   textutils.escape(current[length:]))
+                    else:
+                        updated = textutils.escape(current)
+                else:
+                    if length > 2:
+                        updated = (" " * (length - 2) + "&#8230;/" +
+                                   htmlutils.htmlify(textutils.escape(current[length:])))
+                    else:
+                        updated = htmlutils.htmlify(textutils.escape(current))
+
+                if updated != current:
+                    setpath(files[index], updated)
+
+                previous = current
 
         return files
 

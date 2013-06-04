@@ -14,11 +14,14 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
+import os
+import urllib
+
 import dbutils
 import gitutils
 import page.utils
-import os.path
 import htmlutils
+import textutils
 import diff
 import reviewing.utils as review_utils
 import reviewing.comment as review_comment
@@ -63,17 +66,13 @@ def renderShowFile(req, db, user):
 
     if review_id is None:
         review = None
-        review_arg = ""
         repository_arg = req.getParameter("repository", "")
         if repository_arg:
             repository = gitutils.Repository.fromParameter(db, repository_arg)
         else:
             repository = gitutils.Repository.fromSHA1(db, sha1)
-        repository_arg = "&repository=%d" % repository.id
     else:
         review = dbutils.Review.fromId(db, review_id)
-        review_arg = "&review=%d" % review_id
-        repository_arg = ""
         repository = review.repository
 
     document = htmlutils.Document(req)
@@ -96,7 +95,8 @@ def renderShowFile(req, db, user):
 
     if file_sha1 is None:
         raise page.utils.DisplayMessage("File does not exist",
-                                        body="<p>There is no file named <code>%s</code> in the commit</p>" % htmlutils.htmlify(full_path),
+                                        body=("<p>There is no file named <code>%s</code> in the commit</p>"
+                                              % htmlutils.htmlify(textutils.escape(full_path))),
                                         html=True)
 
     file = diff.File(file_id, path, None, file_sha1, repository)
@@ -176,20 +176,30 @@ def renderShowFile(req, db, user):
     cell = thead.tr().td('h1', colspan=8)
     h1 = cell.h1()
 
-    h1.a("root", href="showtree?sha1=%s&path=/%s%s" % (sha1, review_arg, repository_arg)).text("root")
+    def make_url(url_path, path):
+        params = { "sha1": sha1,
+                   "path": path }
+        if review is None:
+            params["repository"] = str(repository.id)
+        else:
+            params["review"] = str(review.id)
+        return "%s?%s" % (url_path, urllib.urlencode(params))
+
+    h1.a("root", href=make_url("showtree", "/")).text("root")
     h1.span().text('/')
 
     components = path.split("/")
     for index, component in enumerate(components[:-1]):
-        h1.a(href="showtree?sha1=%s&path=%s%s%s" % (sha1, "/".join(components[:index + 1]), review_arg, repository_arg)).text(component)
+        h1.a(href=make_url("showtree", "/".join(components[:index + 1]))).text(component, escape=True)
         h1.span().text('/')
 
     if first is not None:
-        h1.a(href="showfile?sha1=%s&path=%s%s%s" % (sha1, "/".join(components), review_arg, repository_arg)).text(components[-1])
+        h1.a(href=make_url("showfile", "/".join(components))).text(components[-1], escape=True)
     else:
-        h1.text(components[-1])
+        h1.text(components[-1], escape=True)
 
-    h1.span("right").a(href="/download/%s?repository=%s&sha1=%s" % (path, repository.name, file_sha1)).text("[download]")
+    h1.span("right").a(href=("/download/%s?repository=%s&sha1=%s"
+                             % (urllib.quote(path), repository.name, file_sha1))).text("[download]")
 
     table.tbody('spacer top').tr('spacer top').td(colspan=8).text()
 

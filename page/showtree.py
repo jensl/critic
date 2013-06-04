@@ -14,13 +14,14 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
+import os
+import stat
+import urllib
+
 import dbutils
 import gitutils
 import page.utils
 import htmlutils
-
-import os.path
-import stat
 
 def renderShowTree(req, db, user):
     cursor = db.cursor()
@@ -38,17 +39,13 @@ def renderShowTree(req, db, user):
 
     if review_id is None:
         review = None
-        review_arg = ""
         repository_arg = req.getParameter("repository", "")
         if repository_arg:
             repository = gitutils.Repository.fromParameter(db, repository_arg)
         else:
             repository = gitutils.Repository.fromSHA1(db, sha1)
-        repository_arg = "&repository=%d" % repository.id
     else:
         review = dbutils.Review.fromId(db, review_id)
-        review_arg = "&review=%d" % review_id
-        repository_arg = ""
         repository = review.repository
 
     document = htmlutils.Document(req)
@@ -76,18 +73,27 @@ def renderShowTree(req, db, user):
     thead = table.thead()
     h1 = thead.tr().td('h1', colspan=3).h1()
 
+    def make_url(url_path, path):
+        params = { "sha1": sha1,
+                   "path": path }
+        if review is None:
+            params["repository"] = str(repository.id)
+        else:
+            params["review"] = str(review.id)
+        return "%s?%s" % (url_path, urllib.urlencode(params))
+
     if path == "/":
         h1.text("/")
     else:
-        h1.a("root", href="showtree?sha1=%s&path=/%s%s" % (sha1, review_arg, repository_arg)).text("root")
+        h1.a("root", href=make_url("showtree", "/")).text("root")
         h1.span().text('/')
 
         components = path.split("/")
         for index, component in enumerate(components[:-1]):
-            h1.a(href="showtree?sha1=%s&path=%s%s%s" % (sha1, "/".join(components[:index + 1]), review_arg, repository_arg)).text(component)
+            h1.a(href=make_url("showtree", "/".join(components[:index + 1]))).text(component, escape=True)
             h1.span().text('/')
 
-        h1.text(components[-1])
+        h1.text(components[-1], escape=True)
 
     row = thead.tr()
     row.td('mode').text("Mode")
@@ -106,22 +112,29 @@ def renderShowTree(req, db, user):
     tbody = table.tbody()
 
     for entry in sorted(tree, cmp=compareEntries):
-        if entry.type == "blob": url = "showfile?sha1=%s&path=%s%s%s" % (sha1, os.path.join(path, entry.name), review_arg, repository_arg)
-        else: url = "showtree?sha1=%s&path=%s%s%s" % (sha1, os.path.join(path, entry.name), review_arg, repository_arg)
+        if entry.type in ("blob", "tree"):
+            if entry.type == "blob":
+                url_path = "showfile"
+            else:
+                url_path = "showtree"
+
+            url = make_url(url_path, os.path.join(path, entry.name))
+        else:
+            url = None
 
         row = tbody.tr(entry.type)
         row.td('mode').text(str(entry.mode))
 
         if stat.S_ISLNK(entry.mode):
             cell = row.td('link', colspan=2)
-            cell.span('name').text(entry.name)
+            cell.span('name').text(entry.name, escape=True)
             cell.text(' -> ')
             cell.span('target').text(repository.fetch(entry.sha1).data)
         elif entry.type == "commit":
-            row.td('name').text("%s (%s)" % (entry.name, entry.sha1))
+            row.td('name').text("%s (%s)" % (entry.name, entry.sha1), escape=True)
             row.td('size').text(entry.size)
         else:
-            row.td('name').a(href=url).text(entry.name)
+            row.td('name').a(href=url).text(entry.name, escape=True)
             row.td('size').text(entry.size)
 
     return document

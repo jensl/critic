@@ -14,20 +14,23 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-from diffutils import expandWithContext
-from htmlutils import jsify, Generator, Text, HTML, stripStylesheet
+import re
+import itertools
+import urllib
+
 from time import strftime
 from bisect import bisect_right
 
+import textutils
 import dbutils
 import diff
 import diff.context
 import changeset.utils as changeset_utils
 import reviewing.comment as review_comment
 import htmlutils
-import itertools
 import configuration
-import re
+
+from htmlutils import jsify, Generator, Text, HTML, stripStylesheet
 
 re_tag = re.compile("<([bi]) class='?([a-z]+)'?>")
 re_tailws = re.compile("^(.*?)(\s+)((?:<[^>]+>)*)$")
@@ -329,6 +332,14 @@ def renderFile(db, target, user, review, file, first_file=False, options={}, con
     header_left = options.get("header_left")
     header_right = options.get("header_right")
 
+    def make_url(url_path, path):
+        params = { "sha1": commit.sha1, "path": path }
+        if review is None:
+            params["repository"] = str(file.repository.id)
+        else:
+            params["review"] = str(review.id)
+        return "/%s?%s" % (url_path, urllib.urlencode(params))
+
     if header_left:
         header_left(db, row.td('left', colspan=4, align='left'), file)
     else:
@@ -336,21 +347,18 @@ def renderFile(db, target, user, review, file, first_file=False, options={}, con
 
         commit = options.get("commit")
         if commit:
-            review_arg = "&review=%d" % review.id if review else ""
-            repository_arg = "&repository=%d" % file.repository.id if not review else ""
-
-            cell.a("showtree root", href="/showtree?sha1=%s&path=/%s%s" % (commit.sha1, review_arg, repository_arg)).text("root")
+            cell.a("showtree root", href=make_url("showtree", "/")).text("root")
             cell.span("slash").text('/')
 
             components = file.path.split("/")
             for index, component in enumerate(components[:-1]):
-                cell.a("showtree", href="/showtree?sha1=%s&path=%s%s%s" % (commit.sha1, "/".join(components[:index + 1]), review_arg, repository_arg)).text(component)
+                cell.a("showtree", href=make_url("showtree", "/".join(components[:index + 1]))).text(component, escape=True)
                 cell.span("slash").text('/')
 
             if not file.wasRemoved():
-                cell.a("showtree", href="/showfile?sha1=%s&path=%s%s%s" % (commit.sha1, "/".join(components), review_arg, repository_arg)).text(components[-1])
+                cell.a("showtree", href=make_url("showfile", "/".join(components))).text(components[-1], escape=True)
             else:
-                cell.text(components[-1])
+                cell.text(components[-1], escape=True)
         else:
             cell.text(file.path)
 
@@ -751,21 +759,18 @@ def renderFile(db, target, user, review, file, first_file=False, options={}, con
 
     commit = options.get("commit")
     if commit:
-        review_arg = "&review=%d" % review.id if review else ""
-        repository_arg = "&repository=%d" % file.repository.id if not review else ""
-
-        cell.a("showtree root", href="/showtree?sha1=%s&path=/%s%s" % (commit.sha1, review_arg, repository_arg)).text("root")
+        cell.a("showtree root", href=make_url("showtree", "/")).text("root")
         cell.span("slash").text('/')
 
         components = file.path.split("/")
         for index, component in enumerate(components[:-1]):
-            cell.a("showtree", href="/showtree?sha1=%s&path=%s%s%s" % (commit.sha1, "/".join(components[:index + 1]), review_arg, repository_arg)).text(component)
+            cell.a("showtree", href=make_url("showtree", "/".join(components[:index + 1]))).text(component, escape=True)
             cell.span("slash").text('/')
 
         if not file.wasRemoved():
-            cell.a("showtree", href="/showfile?sha1=%s&path=%s%s%s" % (commit.sha1, "/".join(components), review_arg, repository_arg)).text(components[-1])
+            cell.a("showtree", href=make_url("showfile", "/".join(components))).text(components[-1], escape=True)
         else:
-            cell.text(components[-1])
+            cell.text(components[-1], escape=True)
     else:
         cell.text(file.path)
 
