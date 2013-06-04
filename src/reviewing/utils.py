@@ -518,9 +518,90 @@ using the command<p>
         for to_user in recipients:
             pending_mails.extend(mail.sendReviewCreated(db, user, to_user, recipients, review))
 
-            if not is_opt_in and to_user.getPreference(db, "review.defaultOptOut"):
-                cursor.execute("INSERT INTO reviewrecipientfilters (review, uid, include) VALUES (%s, %s, FALSE)",
-                               (review.id, to_user.id))
+        if not is_opt_in:
+            recipient_by_id = dict((to_user.id, to_user) for to_user in recipients)
+
+            cursor.execute("""SELECT userpreferences.uid, userpreferences.repository,
+                                     userpreferences.filter, userpreferences.integer
+                                FROM userpreferences
+                     LEFT OUTER JOIN filters ON (filters.id=userpreferences.filter)
+                               WHERE userpreferences.item='review.defaultOptOut'
+                                 AND userpreferences.uid=ANY (%s)
+                                 AND (userpreferences.filter IS NULL
+                                   OR filters.repository=%s)
+                                 AND (userpreferences.repository IS NULL
+                                   OR userpreferences.repository=%s)""",
+                           (recipient_by_id.keys(), repository.id, repository.id))
+
+            user_settings = {}
+            has_filter_settings = False
+
+            for user_id, repository_id, filter_id, integer in cursor:
+                settings = user_settings.setdefault(user_id, [None, None, {}])
+                value = bool(integer)
+
+                if repository_id is None and filter_id is None:
+                    settings[0] = value
+                elif repository_id is not None:
+                    settings[1] = value
+                else:
+                    settings[2][filter_id] = value
+                    has_filter_settings = True
+
+            if has_filter_settings:
+                filters = Filters()
+                filters.setFiles(db, review=review)
+
+            for user_id, (global_default, repository_default, filter_settings) in user_settings.items():
+                to_user = recipient_by_id[user_id]
+                opt_out = None
+
+                if repository_default is not None:
+                    opt_out = repository_default
+                elif global_default is not None:
+                    opt_out = global_default
+
+                if filter_settings:
+                    # Policy:
+                    #
+                    # If all of the user's filters that matched files in the
+                    # review have review.defaultOptOut enabled, then opt out.
+                    # When determining this, any review filters of the user's
+                    # that match files in the review count as filters that don't
+                    # have the review.defaultOptOut enabled.
+                    #
+                    # If any of the user's filters that matched files in the
+                    # review have review.defaultOptOut disabled, then don't opt
+                    # out.  When determining this, review filters are ignored.
+                    #
+                    # Otherwise, ignore the filter settings, and go with either
+                    # the user's per-repository or global setting (as set
+                    # above.)
+
+                    filters.load(db, review=review, user=to_user)
+
+                    # A set of filter ids.  If None is in the set, the user has
+                    # one or more review filters in the review.  (These do not
+                    # have ids.)
+                    active_filters = filters.getActiveFilters(to_user)
+
+                    for filter_id in active_filters:
+                        if filter_id is None:
+                            continue
+                        elif filter_id in filter_settings:
+                            if not filter_settings[filter_id]:
+                                opt_out = False
+                                break
+                        else:
+                            break
+                    else:
+                        if None not in active_filters:
+                            opt_out = True
+
+                if opt_out:
+                    cursor.execute("""INSERT INTO reviewrecipientfilters (review, uid, include)
+                                           VALUES (%s, %s, FALSE)""",
+                                   (review.id, to_user.id))
 
         db.commit()
 

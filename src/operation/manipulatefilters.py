@@ -192,7 +192,7 @@ class ReapplyFilters(Operation):
             filters.setFiles(db, review=review)
 
             if filter_id is not None:
-                filters.addFilter(user.id, filter_path, filter_type, filter_delegate)
+                filters.addFilter(user.id, filter_path, filter_type, filter_delegate, filter_id)
             else:
                 filters.load(db, review=review, user=user)
 

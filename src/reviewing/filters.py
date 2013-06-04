@@ -150,10 +150,11 @@ class Filters:
         #   file: tuple(file_id, data)
         #   tree: tuple(dict(dirname -> tree), dict(filename -> file))
 
-        self.files = {}       # dict(path -> file)
-        self.directories = {} # dict(dirname -> tree)
-        self.root = ({}, {})  # tree
-        self.data = {}        # dict(file_id -> data)
+        self.files = {}          # dict(path -> file)
+        self.directories = {}    # dict(dirname -> tree)
+        self.root = ({}, {})     # tree
+        self.data = {}           # dict(file_id -> data)
+        self.active_filters = {} # dict(user_id -> set(filter_id))
 
         # Note: The same per-file 'data' objects are referenced by all of
         # 'self.files', 'self.tree' and 'self.data'.
@@ -199,7 +200,7 @@ class Filters:
 
             tree[1][filename] = self.files[path]
 
-    def addFilter(self, user_id, path, filter_type, delegate):
+    def addFilter(self, user_id, path, filter_type, delegate, filter_id):
         def files_in_tree(components, tree):
             for dirname, child_tree in tree[0].items():
                 for f in files_in_tree(components + [dirname], child_tree):
@@ -266,21 +267,29 @@ class Filters:
                 else:
                     return
 
-        for data in files:
-            if filter_type == "ignored":
+        if filter_type == "ignored":
+            for data in files:
                 if user_id in data:
                     del data[user_id]
-            else:
-                data[user_id] = (filter_type, delegate)
+        else:
+            if files:
+                self.active_filters.setdefault(user_id, set()).add(filter_id)
+                for data in files:
+                    data[user_id] = (filter_type, delegate)
 
     def addFilters(self, filters):
         def compareFilters(filterA, filterB):
             return Path.cmp(filterA[1], filterB[1])
 
-        sorted_filters = sorted(filters, cmp=compareFilters)
+        def add_filter_id(filter_data):
+            if len(filter_data) == 4:
+                return tuple(filter_data) + (None,)
+            return filter_data
 
-        for user_id, path, filter_type, delegate in sorted_filters:
-            self.addFilter(user_id, path, filter_type, delegate)
+        sorted_filters = sorted(map(add_filter_id, filters), cmp=compareFilters)
+
+        for user_id, path, filter_type, delegate, filter_id in sorted_filters:
+            self.addFilter(user_id, path, filter_type, delegate, filter_id)
 
     class Review:
         def __init__(self, review_id, applyfilters, applyparentfilters, repository):
@@ -302,7 +311,7 @@ class Filters:
             if recursive and repository.parent:
                 loadGlobal(repository.parent, recursive)
 
-            cursor.execute("""SELECT filters.uid, filters.path, filters.type, filters.delegate
+            cursor.execute("""SELECT filters.uid, filters.path, filters.type, filters.delegate, filters.id
                                 FROM filters
                                 JOIN users ON (users.id=filters.uid)
                                WHERE filters.repository=%%s
@@ -369,6 +378,9 @@ class Filters:
                     relevant.setdefault(user_id, set()).add(file_id)
 
         return relevant
+
+    def getActiveFilters(self, user):
+        return self.active_filters.get(user.id, set())
 
 def getMatchedFiles(repository, paths):
     paths = [Path(path) for path in sorted(paths, cmp=Path.cmp, reverse=True)]

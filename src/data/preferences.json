@@ -258,7 +258,9 @@
   "review.defaultOptOut": {
     "type": "boolean",
     "default": false,
-    "description": "Opt out of receiving review emails (except for \"New review\" emails) by default."
+    "description": "Opt out of receiving review emails (except for \"New review\" emails) by default.",
+    "relevance": { "repository": true,
+                   "filter": true }
   },
   "review.dropAnyReview": {
     "type": "boolean",
