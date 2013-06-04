@@ -139,7 +139,10 @@ class TypeChecker:
         """
         if type(source) is dict: return DictionaryChecker(source)
         elif type(source) is list: return ArrayChecker(source)
-        elif type(source) is set: return EnumerationChecker(source)
+        elif type(source) is set:
+            if len(filter(lambda x: type(x) is str, source)) == len(source):
+                return EnumerationChecker(source)
+            return VariantChecker(source)
         elif source is str: return StringChecker()
         elif source is int: return IntegerChecker()
         elif source is bool: return BooleanChecker()
@@ -212,6 +215,26 @@ class ArrayChecker:
             raise OperationError, "%s is not a list" % context
         for index, item in enumerate(value):
             self.__checker(item, "%s[%d]" % (context, index))
+
+class VariantChecker:
+    """\
+    Type checker for variants (values of one of a set of types.)
+
+    Raises an OperationError if the checked value is not one of the permitted
+    types (checked by applying a per-type checker on the value.)
+
+    """
+    def __init__(self, source):
+        self.__checkers = [TypeChecker.make(item) for item in source]
+
+    def __call__(self, value, context):
+        for checker in self.__checkers:
+            try:
+                checker(value, context)
+                return
+            except OperationError:
+                pass
+        raise OperationError("%s is of invalid type" % context)
 
 class EnumerationChecker:
     """\
