@@ -54,7 +54,7 @@ modules = [prereqs,
            admin,
            smtp,
            initd,
-           prefs,
            git,
            criticctl,
-           migrate]
+           migrate,
+           prefs]
