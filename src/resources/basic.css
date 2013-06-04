@@ -274,3 +274,18 @@ select.repository {
     font-family: monospace;
     background-color: white
 }
+
+.notifications {
+    position: fixed;
+    width: 400px;
+    margin: 0
+}
+
+.notification {
+    border-radius: 5px;
+    border: 2px solid #8a8;
+    margin: 10px auto;
+    padding: 5px 2em;
+    background-color: #dfd;
+    text-align: left
+}

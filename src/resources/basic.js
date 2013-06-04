@@ -344,3 +344,61 @@ function signOut()
   if (operation.execute())
     location.href = "/";
 }
+
+function repositionNotifications()
+{
+  $("body > div.notifications").position({ my: "center top",
+                                           at: "center top",
+                                           of: window });
+}
+
+function showNotification(content, data)
+{
+  data = data || {};
+
+  var notifications = $("body > div.notifications");
+
+  if (notifications.size() == 0)
+  {
+    notifications = $("<div class=notifications></div>");
+    $("body").append(notifications);
+    repositionNotifications();
+  }
+
+  var notification = $("<div class=notification></div>");
+
+  function displayed()
+  {
+    setTimeout(hide, (data.duration || 3) * 1000);
+  }
+
+  function hide()
+  {
+    /* Using .animate({ opacity: 0 }) instead of .fadeOut() since the latter
+       "helpfully" sets display:none at the end of the animation.  We want to
+       also do .slideUp(), and that only works if the element is still there. */
+    notification.animate(
+      { opacity: 0 }, { duration: 600, complete: faded });
+  }
+
+  function faded()
+  {
+    notification.slideUp(400, hidden);
+  }
+
+  function hidden()
+  {
+    notification.remove();
+  }
+
+  if (data.className)
+    notification.addClass(data.className);
+
+  notification.append(content);
+  notification.fadeIn(400, displayed);
+  notification.click(hide);
+
+  notifications.append(notification);
+}
+
+$(window).resize(repositionNotifications);
