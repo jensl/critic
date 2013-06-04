@@ -173,7 +173,7 @@ def renderHome(req, db, user):
             delegates = row.td("delegates")
             if filter_delegates:
                 delegates.i().text("Delegates: ")
-                delegates.text(filter_delegates)
+                delegates.span("names").text(", ".join(filter_delegates.split(",")))
 
             if filter_path == "/":
                 row.td("files").text("all files")
