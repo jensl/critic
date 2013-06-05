@@ -513,12 +513,11 @@ def render(db, target, title, branch=None, commits=None, columns=DEFAULT_COLUMNS
                                           % (repository.id, rebase.target_branch_name)))
                     anchor.text(rebase.target_branch_name)
                 else:
-                    tag = rebase.new_upstream.findInterestingTag(db)
-                    if tag:
-                        cell.text(tag)
-                    else:
-                        anchor = cell.a(href="/%s/%s" % (repository.name, rebase.new_upstream.sha1))
-                        anchor.text(rebase.new_upstream.sha1[:8])
+                    upstream_description = repository.describe(db, rebase.new_upstream.sha1)
+                    if upstream_description is None:
+                        upstream_description = rebase.new_upstream.sha1[:8]
+                    anchor = cell.a(href="/%s/%s" % (repository.name, rebase.new_upstream.sha1))
+                    anchor.text(upstream_description)
 
             cell.text(" by %s" % rebase.user.fullname)
 
@@ -564,12 +563,11 @@ def render(db, target, title, branch=None, commits=None, columns=DEFAULT_COLUMNS
                                               % (repository.id, rebase.target_branch_name)))
                         anchor.text(rebase.target_branch_name)
                     else:
-                        tag = rebase.new_upstream.findInterestingTag(db)
-                        if tag:
-                            cell.text(tag)
-                        else:
-                            anchor = cell.a(href="/%s/%s" % (repository.name, rebase.new_upstream.sha1))
-                            anchor.text(rebase.new_upstream.sha1[:8])
+                        upstream_description = repository.describe(db, rebase.new_upstream.sha1)
+                        if upstream_description is None:
+                            upstream_description = rebase.new_upstream.sha1[:8]
+                        anchor = cell.a(href="/%s/%s" % (repository.name, rebase.new_upstream.sha1))
+                        anchor.text(upstream_description)
 
                 cell.text(" by %s" % rebase.user.fullname)
 
@@ -598,13 +596,17 @@ def render(db, target, title, branch=None, commits=None, columns=DEFAULT_COLUMNS
 
         if last_commit:
             if len(last_commit.parents) == 1:
-                tag = repository.findInterestingTag(db, last_commit.parents[0])
+                upstream = Commit.fromSHA1(db, repository, last_commit.parents[0])
+                upstream_description = repository.describe(db, upstream.sha1)
 
-                if tag:
-                    thead = table.thead("rebase")
-                    row = thead.tr('upstream')
-                    cell = row.td(colspan=len(columns), align='center')
-                    cell.text("Based on: %s" % tag)
+                if not upstream_description:
+                    upstream_description = upstream.sha1[:8]
+
+                row = table.thead("rebase").tr('upstream')
+                cell = row.td(colspan=len(columns), align='center')
+                cell.text("Based on: ")
+                anchor = cell.a(href="/%s/%s" % (repository.name, upstream.sha1))
+                anchor.text(upstream_description)
 
         if callable(bottom_right):
             bottom_right(db, table.tfoot().tr().td(colspan=len(columns)))

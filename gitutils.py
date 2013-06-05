@@ -740,6 +740,43 @@ class Repository:
         except communicate.ProcessError as error:
             raise GitHttpBackendError(error.process.returncode, error.stderr)
 
+    def describe(self, db, sha1):
+        tag = self.findInterestingTag(db, sha1)
+        if tag: return tag
+
+        cursor = db.cursor()
+        cursor.execute("""SELECT branches.name, commits.sha1
+                            FROM repositories
+                            JOIN branches ON (branches.id=repositories.branch)
+                            JOIN commits ON (commits.id=branches.head)
+                           WHERE repositories.id=%s""",
+                       (self.id,))
+
+        for branch_name, head_sha1 in cursor:
+            try:
+                if self.mergebase([sha1, head_sha1]) == sha1:
+                    return branch_name
+            except GitError:
+                pass
+
+        cursor.execute("""SELECT branches.name, commits.sha1
+                            FROM trackedbranches
+                            JOIN branches ON (branches.repository=trackedbranches.repository
+                                          AND branches.name=trackedbranches.local_name)
+                            JOIN commits ON (commits.id=branches.head)
+                           WHERE trackedbranches.repository=%s
+                             AND branches.type='normal'""",
+                       (self.id,))
+
+        for branch_name, head_sha1 in cursor:
+            try:
+                if self.mergebase([sha1, head_sha1]) == sha1:
+                    return branch_name
+            except GitError:
+                pass
+
+        return None
+
 class CommitUserTime:
     def __init__(self, name, email, time):
         self.name = name
