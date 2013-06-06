@@ -360,13 +360,15 @@ class Review(object):
 
     def getETag(self, db, user=None):
         cursor = db.cursor()
+        etag = ""
 
         if configuration.base.IS_DEVELOPMENT:
             cursor.execute("SELECT installed_at FROM systemidentities WHERE name=%s", (configuration.base.SYSTEM_IDENTITY,))
             installed_at = cursor.fetchone()[0]
-            etag = "install%s." % time.mktime(installed_at.timetuple())
-        else:
-            etag = ""
+            etag += "install%s." % time.mktime(installed_at.timetuple())
+
+        if user and not user.isAnonymous():
+            etag += "user%d." % user.id
 
         etag += "review%d.serial%d" % (self.id, self.serial)
 
