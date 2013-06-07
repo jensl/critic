@@ -175,6 +175,10 @@ class ReviewRebases(list):
             self.__old_head_map[old_head] = rebase
             self.__new_head_map[new_head] = rebase
 
+        if review.performed_rebase:
+            self.__old_head_map[review.performed_rebase.old_head] = review.performed_rebase
+            self.__new_head_map[review.performed_rebase.new_head] = review.performed_rebase
+
     def fromOldHead(self, commit):
         return self.__old_head_map.get(commit)
 
@@ -209,6 +213,7 @@ class Review(object):
         self.filters = None
         self.relevant_files = None
         self.draft_status = None
+        self.performed_rebase = None
 
     @staticmethod
     def isAccepted(db, review_id):
@@ -252,6 +257,9 @@ class Review(object):
         issues = cursor.fetchone()[0]
 
         return ReviewState(self, self.accepted(db), pending, reviewed, issues)
+
+    def setPerformedRebase(self, old_head, new_head, old_upstream, new_upstream, user):
+        self.performed_rebase = ReviewRebase(self, old_head, new_head, old_upstream, new_upstream, user)
 
     def getReviewRebases(self, db):
         return ReviewRebases(db, self)

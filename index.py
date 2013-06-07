@@ -600,6 +600,8 @@ the new upstream specified and then push that instead.""")
 
                 print "Rebase performed."
 
+                review.setPerformedRebase(old_head, new_head, old_upstream, new_upstream, user)
+
                 if unrelated_move:
                     reviewing.utils.addCommitsToReview(
                         db, user, review, [replayed_rebase],

@@ -510,7 +510,7 @@ def validateCommentChain(db, review, origin, parent_id, child_id, file_id, offse
                              "child_sha1": addressed_by.child.sha1,
                              "offset": addressed_by.location.first_line }
 
-def propagateCommentChains(db, user, review, commits):
+def propagateCommentChains(db, user, review, commits, replayed_rebases={}):
     import reviewing.comment.propagate
 
     cursor = db.cursor()
@@ -541,9 +541,14 @@ def propagateCommentChains(db, user, review, commits):
         for chain_id, first_line, last_line in cursor:
             assert len(commits.getHeads()) == 1
 
+            head = commits.getHeads().pop()
+
+            if head in replayed_rebases:
+                head = replayed_rebases[head]
+
             propagation = reviewing.comment.propagate.Propagation(db)
             propagation.setExisting(review, chain_id, review.branch.head, file_id, first_line, last_line)
-            propagation.calculateAdditionalLines(commits, commits.getHeads().pop())
+            propagation.calculateAdditionalLines(commits, head)
 
             chain_user_id, chain_type, chain_state = chains[chain_id]
             lines_state = "draft" if chain_state == "draft" else "current"

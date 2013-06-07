@@ -389,7 +389,7 @@ Please confirm that this is intended by loading:
 
         review.incrementSerial(db)
 
-        reviewing.comment.propagateCommentChains(db, user, review, new_commits)
+        reviewing.comment.propagateCommentChains(db, user, review, new_commits, replayed_rebases)
 
     if pending_mails is None: pending_mails = []
 
