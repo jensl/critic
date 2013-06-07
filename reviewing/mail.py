@@ -798,7 +798,7 @@ def sendReviewAddedCommits(db, from_user, to_user, recipients, review, commits, 
                         relevant_commits.add(changeset.child)
                     else:
                         # "Replayed rebase" commit; see comment above.
-                        relevant_commits.add(all_commits[changeset.parents[0]])
+                        relevant_commits.add(all_commits[changeset.parent])
                     break
             else:
                 cursor.execute("SELECT id FROM commentchains WHERE review=%s AND state='addressed' AND addressed_by=%s", (review.id, changeset.child.getId(db)))
