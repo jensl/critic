@@ -56,7 +56,7 @@ class OperationResult:
                     modifier = "Secure"
                 else:
                     modifier = "HttpOnly"
-                cookie = "%s=%s; %s" % (name, value, modifier)
+                cookie = "%s=%s; Max-Age=31536000; %s" % (name, value, modifier)
             else:
                 cookie = "%s=invalid; Expires=Thursday 01-Jan-1970 00:00:00 GMT" % name
             req.addResponseHeader("Set-Cookie", cookie)
