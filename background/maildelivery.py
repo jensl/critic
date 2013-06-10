@@ -184,6 +184,8 @@ class MailDelivery(PeerServer):
             attempts = 0
 
             while not self.terminated:
+                attempts += 1
+
                 try:
                     if configuration.smtp.USE_SSL:
                         self.__connection = smtplib.SMTP_SSL(timeout=self.__connection_timeout)
@@ -201,14 +203,16 @@ class MailDelivery(PeerServer):
                     self.debug("connected")
                     return
                 except:
-                    self.error("failed to connect to SMTP server")
-                    self.__has_logged_error += 1
+                    self.debug("failed to connect to SMTP server")
+                    if (attempts % 5) == 0:
+                        self.error("Failed to connect to SMTP server %d times.  "
+                                   "Will keep retrying." % attempts)
+                        self.__has_logged_error += 1
                     self.__connection = None
 
-                attempts += 1
                 seconds = min(60, 2 ** attempts)
 
-                self.info("sleeping %d seconds" % seconds)
+                self.debug("sleeping %d seconds" % seconds)
 
                 time.sleep(seconds)
 
