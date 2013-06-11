@@ -15,9 +15,12 @@
 # the License.
 
 import re
+
+import textutils
 from htmlutils import htmlify
 
 re_tag = re.compile("(<[^>]*>)")
+re_decimal_entity = re.compile("&#([0-9]+);")
 
 class Tag:
     def __init__(self, value): self.value = value
@@ -27,8 +30,17 @@ class Tag:
 
 def splitTags(line):
     def process(token):
-        if token[0] == '<': return Tag(token)
-        else: return token.replace("&lt;", "<").replace("&gt;", ">").replace("&amp;", "&")
+        if token[0] == '<':
+            return Tag(token)
+        else:
+            def replace_decimal(match):
+                return unichr(int(match.group(1)))
+
+            token = textutils.decode(token)
+            token = re_decimal_entity.sub(replace_decimal, token)
+            token = token.encode("utf-8")
+
+            return token.replace("&lt;", "<").replace("&gt;", ">").replace("&amp;", "&")
 
     return map(process, filter(None, re_tag.split(line)))
 
