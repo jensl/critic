@@ -15,12 +15,11 @@
 # the License.
 
 import re
+
 import gitutils
-import utf8utils
 import htmlutils
 import configuration
-from cStringIO import StringIO
-import traceback
+
 from request import NoDefault, MovedTemporarily, DisplayMessage, \
                     InvalidParameterValue, decodeURIComponent, Request, \
                     NeedLogin

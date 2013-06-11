@@ -27,7 +27,7 @@ import stat
 
 import base
 import configuration
-from utf8utils import convertUTF8
+import textutils
 import htmlutils
 import communicate
 
@@ -786,7 +786,9 @@ class CommitUserTime:
     @staticmethod
     def fromValue(value):
         match = re_author_committer.match(value)
-        return CommitUserTime(convertUTF8(match.group(1)), convertUTF8(match.group(2)), time.gmtime(int(match.group(3).split(" ")[0])))
+        return CommitUserTime(textutils.decode(match.group(1)).encode("utf-8"),
+                              textutils.decode(match.group(2)).encode("utf-8"),
+                              time.gmtime(int(match.group(3).split(" ")[0])))
 
 class Commit:
     def __init__(self, repository, id, sha1, parents, author, committer, message, tree):
@@ -824,7 +826,10 @@ class Commit:
             elif key == 'author': author = CommitUserTime.fromValue(value)
             elif key == 'committer': committer = CommitUserTime.fromValue(value)
 
-        commit = Commit(repository, commit_id, gitobject.sha1, parents, author, committer, convertUTF8(data), tree)
+        message = textutils.decode(data).encode("utf-8")
+
+        commit = Commit(repository, commit_id, gitobject.sha1, parents, author,
+                        committer, message, tree)
         commit.__cache(db)
         return commit
 
