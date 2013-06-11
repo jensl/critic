@@ -17,6 +17,8 @@
 import difflib
 import re
 
+import textutils
+
 re_ignore = re.compile("^\\s*(?:[{}*]|else|do|\\*/)?\\s*$")
 re_words = re.compile("([0-9]+|[A-Z][a-z]+|[A-Z]+|[a-z]+|[\\[\\]{}()]|\\s+|.)")
 re_ws = re.compile("\\s+")
@@ -25,6 +27,9 @@ re_conflict = re.compile("^<<<<<<< .*$|^=======$|^>>>>>>> .*$")
 def analyzeChunk(deletedLines, insertedLines, moved=False):
     # Pure delete or pure insert, nothing to analyze.
     if not deletedLines or not insertedLines: return None
+
+    deletedLines = map(textutils.decode, deletedLines)
+    insertedLines = map(textutils.decode, insertedLines)
 
     # Large chunk, analysis would be expensive, so skip it.
     if len(deletedLines) * len(insertedLines) <= 10000 and not moved:
@@ -72,7 +77,7 @@ def analyzeChunk1(deletedLines, insertedLines, offsetA=0, offsetB=0):
     def ratio(sm, a, b, aLength, bLength):
         matching = 0
         for i, j, n in sm.get_matching_blocks():
-            matching += sum(map(len, map(str.strip, a[i:i+n])))
+            matching += sum(map(len, map(unicode.strip, a[i:i+n])))
         if aLength > 5 and len(sm.get_matching_blocks()) == 2:
             return float(matching) / aLength
         else:
@@ -176,9 +181,11 @@ def analyzeChunk1(deletedLines, insertedLines, offsetA=0, offsetB=0):
 re_ws_words = re.compile("( {1,4}|\t|\\s+|\\S+)")
 
 def offsetInLine(words, offset):
-    return sum(map(len, words[0:offset]))
+    return sum(map(lambda word: len(word.encode("utf-8")), words[0:offset]))
 
 def analyzeWhiteSpaceLine(deletedLine, insertedLine):
+    deletedLine = textutils.decode(deletedLine)
+    insertedLine = textutils.decode(insertedLine)
     lineDiff = []
     deletedWords = filter(None, re_ws_words.findall(deletedLine))
     insertedWords = filter(None, re_ws_words.findall(insertedLine))
