@@ -607,9 +607,11 @@ def renderFile(db, target, user, review, file, first_file=False, options={}, con
                         line_type = line.type
                     data = [str(line_type)]
                     if line.type != diff.Line.INSERTED:
-                        data.append(jsify(packSyntaxHighlighting(tabify(line.old_value)), json=True))
+                        data.append(jsify(packSyntaxHighlighting(tabify(line.old_value)),
+                                          as_json=True))
                     if line.type != diff.Line.DELETED:
-                        data.append(jsify(packSyntaxHighlighting(tabify(line.new_value)), json=True))
+                        data.append(jsify(packSyntaxHighlighting(tabify(line.new_value)),
+                                          as_json=True))
                     items.append("[%s]" % ",".join(data))
                 data = "[%d,%d,%d,%d,%s]" % (file.id,
                                              2 if local_display_type == "both" else 1,

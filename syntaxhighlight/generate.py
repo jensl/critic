@@ -20,6 +20,7 @@ import errno
 
 import syntaxhighlight
 import gitutils
+import textutils
 
 def createHighlighter(language):
     import cpp
@@ -35,6 +36,7 @@ def generateHighlight(repository_path, sha1, language, output_file=None):
     if not highlighter: return False
 
     source = gitutils.Repository.readObject(repository_path, "blob", sha1)
+    source = textutils.decode(source)
 
     if output_file:
         highlighter(source, output_file, None)

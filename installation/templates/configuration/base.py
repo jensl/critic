@@ -79,3 +79,9 @@ ACCESS_SCHEME = "%(installation.config.access_scheme)s"
 # syntax) system user accounts must be created, and SSH access provided.  See
 # the system administration tutorial for more information.
 REPOSITORY_URL_TYPES = %(installation.config.repository_url_types)r
+
+# Default encodings to attempt to decode text (such as source code)
+# as, in order of decreasing precedence.  The encoding names should be
+# valid for use as the encoding argument to Python's str.decode()
+# function.
+DEFAULT_ENCODINGS = %(installation.config.default_encodings)r

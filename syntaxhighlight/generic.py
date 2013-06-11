@@ -67,9 +67,6 @@ class HighlightGeneric:
             self.output.write(htmlutils.htmlify(value))
 
     def __call__(self, source, output_file, contexts_path):
-        try: source = source.decode("utf-8")
-        except: source = source.decode("latin-1")
-
         self.output = output_file
 
         blocks = re.split("^((?:<<<<<<<|>>>>>>>)[^\n]*\n)", source, flags=re.MULTILINE)

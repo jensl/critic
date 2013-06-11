@@ -52,9 +52,11 @@ def add_arguments(mode, parser):
             help=("comma-separated list of supported repository URL types "
                   "(valid types: git, http, ssh and host)"))
 
+default_encodings = ["utf-8", "latin-1"]
+
 def prepare(mode, arguments, data):
     global auth_mode, session_type, allow_anonymous_user, access_scheme
-    global repository_url_types
+    global repository_url_types, default_encodings
 
     header_printed = False
 
@@ -123,6 +125,9 @@ the Web front-end.  This can be handled in two different ways:
         except AttributeError: pass
 
         try: repository_url_types = configuration.base.REPOSITORY_URL_TYPES
+        except AttributeError: pass
+
+        try: default_encodings = configuration.base.DEFAULT_ENCODINGS
         except AttributeError: pass
 
     if auth_mode == "critic":
@@ -231,6 +236,7 @@ web server to redirect all HTTP accesses to HTTPS.
     data["installation.config.allow_anonymous_user"] = allow_anonymous_user
     data["installation.config.access_scheme"] = access_scheme
     data["installation.config.repository_url_types"] = repository_url_types
+    data["installation.config.default_encodings"] = default_encodings
 
     return True
 
@@ -300,6 +306,8 @@ def install(data):
 
 def upgrade(arguments, data):
     global modified_files
+
+    import configuration
 
     source_dir = os.path.join("installation", "templates", "configuration")
     target_dir = os.path.join(data["installation.paths.etc_dir"], arguments.identity, "configuration")
@@ -376,6 +384,18 @@ configuration options to the existing version.
                 path = os.path.join("configuration", entry)
                 if not compile_file(path):
                     compilation_failed = True
+                else:
+                    # The module's name (relative the 'configuration' package)
+                    # is the base name minus the trailing ".py".
+                    module_name = os.path.basename(target_path)[:-3]
+
+                    if module_name != "__init__" \
+                            and hasattr(configuration, module_name):
+                        # Reload the updated module so that code executing later
+                        # sees added configuration options.  (It will also see
+                        # removed configuration options, but that is unlikely to
+                        # be a problem.)
+                        reload(getattr(configuration, module_name))
 
             modified_files += 1
 
@@ -384,6 +404,9 @@ configuration options to the existing version.
 
     if no_changes:
         print "No changed configuration files."
+
+    if modified_files:
+        reload(configuration)
 
     return True
 

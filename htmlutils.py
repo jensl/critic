@@ -19,9 +19,9 @@ import gitutils
 import time
 import configuration
 import os
+import json
 
-try: from json import dumps as json_encode
-except: from cjson import encode as json_encode
+import textutils
 
 from cStringIO import StringIO
 
@@ -47,15 +47,13 @@ def htmlify(text, attributeValue=False, pretty=False):
         else: text = "'" + text + "'"
     return text
 
-def jsify(what, json=False):
+def jsify(what, as_json=False):
     if what is None: return "null"
     elif isinstance(what, int) or isinstance(what, long): return str(what)
     else:
-        what = str(what)
-        try: what = what.decode("utf-8")
-        except: what = what.decode("latin-1")
-        result = json_encode(what)
-        if not json:
+        what = textutils.decode(what)
+        result = json.dumps(what)
+        if not as_json:
             quote = result[0]
             return result.replace("</", "<%s+%s/" % (quote, quote)).replace("<!", "<%s+%s!" % (quote, quote))
         else:

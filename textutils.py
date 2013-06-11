@@ -17,6 +17,10 @@
 import re
 import json
 
+import configuration
+
+DEFAULT_ENCODINGS = configuration.base.DEFAULT_ENCODINGS[:]
+
 def reflow(text, line_length=80, indent=0):
     if line_length == 0: return text
 
@@ -67,3 +71,19 @@ def json_decode(s):
         else: return v
 
     return deunicode(json.loads(s))
+
+def decode(text):
+    if isinstance(text, unicode):
+        return text
+
+    text = str(text)
+
+    for index, encoding in enumerate(DEFAULT_ENCODINGS):
+        try:
+            return text.decode(encoding)
+        except UnicodeDecodeError:
+            continue
+        except LookupError:
+            del DEFAULT_ENCODINGS[index]
+
+    return text.decode("ascii", errors="replace")

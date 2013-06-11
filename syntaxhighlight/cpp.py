@@ -150,6 +150,7 @@ class HighlightCPP:
                     nextContext.append(token)
 
     def __call__(self, source, output, contexts_path):
+        source = source.encode("utf-8")
         self.output = output
         if contexts_path: self.contexts = open(contexts_path, "w")
         else: self.contexts = None
