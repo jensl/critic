@@ -20,7 +20,6 @@ import httplib
 import wsgiref.util
 
 import base
-import utf8utils
 import configuration
 
 def decodeURIComponent(text):
@@ -28,7 +27,7 @@ def decodeURIComponent(text):
     Replace %HH escape sequences and return the resulting string.
     """
 
-    return utf8utils.convertUTF8(re.sub("%([0-9A-Fa-f]{2})", lambda match: chr(int(match.group(1), 16)), text))
+    return urllib.unquote_plus(text)
 
 class NoDefault:
     """\
