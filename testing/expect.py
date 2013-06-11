@@ -35,7 +35,7 @@ def simple_equal(expected, actual):
 
 def check(expected, actual, equal=simple_equal, message=None):
     if not equal(expected, actual):
-        for filename, linenr, _, _ in traceback.extract_stack():
+        for filename, linenr, _, _ in reversed(traceback.extract_stack()):
             if filename.startswith("testing/tests/"):
                 location = (filename[len("testing/tests/"):], linenr)
                 break
