@@ -178,29 +178,45 @@ def analyzeChunk1(deletedLines, insertedLines, offsetA=0, offsetB=0):
     else:
         return ""
 
-re_ws_words = re.compile("( {1,4}|\t|\\s+|\\S+)")
-
 def offsetInLine(words, offset):
     return sum(map(lambda word: len(word.encode("utf-8")), words[0:offset]))
+
+re_ws_words = re.compile("( {1,4}|\t|\\s+|\\S+)")
 
 def analyzeWhiteSpaceLine(deletedLine, insertedLine):
     deletedLine = textutils.decode(deletedLine)
     insertedLine = textutils.decode(insertedLine)
-    lineDiff = []
+
     deletedWords = filter(None, re_ws_words.findall(deletedLine))
     insertedWords = filter(None, re_ws_words.findall(insertedLine))
-    for tag, i1, i2, j1, j2 in difflib.SequenceMatcher(None, deletedWords, insertedWords).get_opcodes():
-        if tag == 'replace': lineDiff.append("r%d-%d=%d-%d" % (offsetInLine(deletedWords, i1), offsetInLine(deletedWords, i2), offsetInLine(insertedWords, j1), offsetInLine(insertedWords, j2)))
-        elif tag == 'delete': lineDiff.append("d%d-%d" % (offsetInLine(deletedWords, i1), offsetInLine(deletedWords, i2)))
-        elif tag == 'insert': lineDiff.append("i%d-%d" % (offsetInLine(insertedWords, j1), offsetInLine(insertedWords, j2)))
+
+    sm = difflib.SequenceMatcher(None, deletedWords, insertedWords)
+    lineDiff = []
+
+    for tag, i1, i2, j1, j2 in sm.get_opcodes():
+        if tag == 'replace':
+            lineDiff.append("r%d-%d=%d-%d" % (offsetInLine(deletedWords, i1),
+                                              offsetInLine(deletedWords, i2),
+                                              offsetInLine(insertedWords, j1),
+                                              offsetInLine(insertedWords, j2)))
+        elif tag == 'delete':
+            lineDiff.append("d%d-%d" % (offsetInLine(deletedWords, i1),
+                                        offsetInLine(deletedWords, i2)))
+        elif tag == 'insert':
+            lineDiff.append("i%d-%d" % (offsetInLine(insertedWords, j1),
+                                        offsetInLine(insertedWords, j2)))
+
     return ",".join(lineDiff)
 
-def analyzeWhiteSpaceChanges(deletedLines, insertedLines, at_eof=False, offsetA=0, offsetB=0, full=False):
+def analyzeWhiteSpaceChanges(deletedLines, insertedLines, at_eof=False,
+                             offsetA=0, offsetB=0, full=False):
     result = []
 
     for index, (deletedLine, insertedLine) in enumerate(zip(deletedLines, insertedLines)):
         if deletedLine != insertedLine:
-            result.append("%d=%d:%s" % (index + offsetA, index + offsetB, analyzeWhiteSpaceLine(deletedLine, insertedLine)))
+            result.append("%d=%d:%s"
+                          % (index + offsetA, index + offsetB,
+                             analyzeWhiteSpaceLine(deletedLine, insertedLine)))
         elif index == len(deletedLines) - 1 and at_eof:
             result.append("%d=%d:eol" % (index + offsetA, index + offsetB))
         elif full:
