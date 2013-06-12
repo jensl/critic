@@ -212,62 +212,78 @@ CommentChain.create = function (type_or_markers)
         var m2 = /(?:p\d+)?f\d+[on](\d+)/.exec(markers.lastLine.id);
         var lastLine = parseInt(m2[1]);
 
-        var data = { review_id: review.id,
-                     origin: side == 'o' ? "old" : "new",
-                     parent_id: useChangeset.parent.id,
-                     child_id: useChangeset.child.id,
-                     file_id: file,
-                     offset: firstLine,
-                     count: lastLine + 1 - firstLine };
-
-        var operation = new Operation({ action: "validate commented lines",
-                                        url: "validatecommentchain",
-                                        data: data });
-        var result = operation.execute();
-
-        if (result.verdict == "modified")
-        {
-          var content = $("<div title='Warning!'>"
-                        +   "<p>"
-                        +     "One or more of the lines you are commenting are modified by a "
-                        +       "<a href='" + result.parent_sha1 + ".." + result.child_sha1 + "?review=" + review.id + "#f" + file + "o" + result.offset + "'>later commit</a> "
-                        +     "in this review."
-                        +   "</p>"
-                        + "</div>");
-
-          content.dialog({ modal: true,
-                           buttons: { "Comment Anyway": function () { content.dialog("close"); start(); },
-                                      "Cancel": function () { content.dialog("close"); abort(); }}
-                         });
-
-          paused = true;
-        }
-        else if (result.verdict == "transferred")
+        if (side == 'o' && markers.linesModified())
         {
           message = "<p style='margin: 0'>"
-                  +   "<b>Note:</b> This file is modified by "
-                  +     (result.count > 1 ? result.count + " later commits " : "a later commit ")
-                  +   "in this review, without affecting the commented lines.  "
-                  +   "This comment will appear against each version of the file."
+                  +   "<b>Warning:</b> An issue raised against the old version of "
+                  +   "modified lines will never be marked as addressed, and "
+                  +   "will thus need to be resolved manually."
                   + "</p>";
         }
-        else if (result.verdict == "invalid")
+        else
         {
-          var content = $("<div title='Error!'>"
-                        +   "<p>"
-                        +     "<b>It is not possible to comment these lines.</b>"
-                        +   "</p>"
-                        +   "<p>"
-                        +     "This is probably because this/these commits are not part of the review."
-                        +   "</p>"
-                        + "</div>");
+          var data = { review_id: review.id,
+                       origin: side == 'o' ? "old" : "new",
+                       parent_id: useChangeset.parent.id,
+                       child_id: useChangeset.child.id,
+                       file_id: file,
+                       offset: firstLine,
+                       count: lastLine + 1 - firstLine };
 
-          content.dialog({ modal: true,
-                           buttons: { "OK": function () { content.dialog("close"); }}
-                         });
+          var operation = new Operation({ action: "validate commented lines",
+                                          url: "validatecommentchain",
+                                          data: data });
+          var result = operation.execute();
 
-          abort();
-          return;
+          if (result.verdict == "modified")
+          {
+            var content = $("<div title='Warning!'>"
+                          +   "<p>"
+                          +     "One or more of the lines you are commenting are modified by a "
+                          +       "<a href='" + result.parent_sha1 + ".." + result.child_sha1 + "?review=" + review.id + "#f" + file + "o" + result.offset + "'>later commit</a> "
+                          +     "in this review."
+                          +   "</p>"
+                          +   "<p>"
+                          +     "An issue raised against already modified lines "
+                          +     "will never be marked as addressed, and will thus "
+                          +     "need to be resolved manually."
+                          +   "</p>"
+                          + "</div>");
+
+            content.dialog({ modal: true, width: 400,
+                             buttons: { "Comment Anyway": function () { content.dialog("close"); start(); },
+                                        "Cancel": function () { content.dialog("close"); abort(); }}
+                           });
+
+            paused = true;
+          }
+          else if (result.verdict == "transferred")
+          {
+            message = "<p style='margin: 0'>"
+                    +   "<b>Note:</b> This file is modified by "
+                    +     (result.count > 1 ? result.count + " later commits " : "a later commit ")
+                    +   "in this review, without affecting the commented lines.  "
+                    +   "This comment will appear against each version of the file."
+                    + "</p>";
+          }
+          else if (result.verdict == "invalid")
+          {
+            var content = $("<div title='Error!'>"
+                          +   "<p>"
+                          +     "<b>It is not possible to comment these lines.</b>"
+                          +   "</p>"
+                          +   "<p>"
+                          +     "This is probably because this/these commits are not part of the review."
+                          +   "</p>"
+                          + "</div>");
+
+            content.dialog({ modal: true,
+                             buttons: { "OK": function () { content.dialog("close"); }}
+                           });
+
+            abort();
+            return;
+          }
         }
 
         markersLocation = "file";
@@ -1130,6 +1146,26 @@ CommentMarkers.prototype.remove = function ()
     allMarkers.splice(allMarkers.indexOf(this), 1);
   };
 
+CommentMarkers.prototype.linesModified = function ()
+  {
+    var iter = $(this.firstLine).closest("tr");
+    var stop = $(this.lastLine).closest("tr");
+
+    do
+    {
+      if (!iter.hasClass("context"))
+        return true;
+
+      if (iter.is(stop))
+        break;
+
+      iter = iter.next("tr");
+    }
+    while (iter.size());
+
+    return false;
+  };
+
 CommentMarkers.updateAll = function ()
 {
   try
@@ -1149,7 +1185,7 @@ function startCommentMarking(ev)
   if (ev.ctrlKey || ev.shiftKey || ev.altKey || ev.metaKey || /showcomments?$/.test(location.pathname) || ev.button != 0)
     return;
 
-  if (ev.currentTarget.id && !currentMarkers)
+  if (ev.currentTarget.id && !activeMarkers && !currentMarkers)
   {
     if (CommentChain.reopening && CommentChain.reopening.lines.file != $(ev.currentTarget).parents("table.file").first().attr("critic-file-id"))
     {
