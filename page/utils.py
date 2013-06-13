@@ -148,6 +148,8 @@ def generateHeader(target, db, user, generate_right=None, current_page=None, ext
     ul = left.ul()
 
     for index, (url, label, style, title) in enumerate(links):
+        if not re.match("[-.a-z]+:|/", url):
+            url = "/" + url
         ul.li().a(href=url, style=style, title=title).text(label)
 
         rel = LINK_RELS.get(label)
