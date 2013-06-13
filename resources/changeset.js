@@ -1105,29 +1105,32 @@ function blame()
   updateBlame();
 }
 
+function registerPathHandlers()
+{
+  $("table.commit-files td.path").click(function (ev)
+    {
+      try
+      {
+        if (mode == "hide")
+          hideAll(true);
+        else
+          collapseAll(true);
+
+        file_id = ev.currentTarget.parentNode.getAttribute("critic-file-id");
+
+        expandFile(file_id, true);
+      }
+      catch (e)
+      {
+        console.log(e.message + "\n" + e.stacktrace);
+      }
+
+      ev.preventDefault();
+    });
+}
+
 $(document).ready(function ()
   {
-    $("table.commit-files td.path").click(function (ev)
-      {
-        try
-        {
-          if (mode == "hide")
-            hideAll(true);
-          else
-            collapseAll(true);
-
-          file_id = ev.currentTarget.parentNode.getAttribute("critic-file-id");
-
-          expandFile(file_id, true);
-        }
-        catch (e)
-        {
-          console.log(e.message + "\n" + e.stacktrace);
-        }
-
-        ev.preventDefault();
-      });
-
     var match = /#f(\d+)([on])(\d+)/.exec(location.hash);
     if (match)
     {

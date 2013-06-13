@@ -462,6 +462,8 @@ def renderCommitFiles(db, target, user, repository, review, changeset=None, chan
     if all_reviewed and checkbox_everything:
         checkbox_everything.setAttribute("checked", "checked")
 
+    target.script().text("registerPathHandlers();")
+
 def render(db, target, user, repository, review, changesets, commits, listed_commits=None, context_lines=3, is_merge=False, conflicts=False, moves=False, compact=False, wrap=True, tabify=False, profiler=None, rebases=None):
     cursor = db.cursor()
 
