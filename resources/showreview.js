@@ -88,7 +88,7 @@ function disableTracking(branch_id)
 function watchReview()
 {
   $.ajax({ async: false,
-           url: "watchreview?review=" + review.id + "&user=" + user.name,
+           url: "/watchreview?review=" + review.id + "&user=" + user.name,
            dataType: "text",
            success: function (data)
              {
@@ -107,7 +107,7 @@ function watchReview()
 function unwatchReview()
 {
   $.ajax({ async: false,
-           url: "unwatchreview?review=" + review.id + "&user=" + user.name,
+           url: "/unwatchreview?review=" + review.id + "&user=" + user.name,
            dataType: "text",
            success: function (data)
              {
@@ -145,7 +145,7 @@ function filterPartialChanges()
       overrideShowSquashedDiff = null;
       content.dialog("close");
 
-      location.href = "filterchanges?review=" + review.id + "&first=" + from_sha1 + "&last=" + to_sha1;
+      location.href = "/filterchanges?review=" + review.id + "&first=" + from_sha1 + "&last=" + to_sha1;
     };
 }
 

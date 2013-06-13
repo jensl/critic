@@ -65,7 +65,7 @@ function switchResource(name)
   {
     function switchNow()
     {
-      location.replace("editresource?name=" + name);
+      location.replace("/editresource?name=" + name);
     }
 
     $("select").val(resource_name);

@@ -829,12 +829,12 @@ function expand(select, file_id, sha1, where, oldOffset, newOffset, total)
 
 function createReview()
 {
-  location.href = "createreview?repository=" + repository.id + "&commits=" + changeset.commits.join(",");
+  location.href = "/createreview?repository=" + repository.id + "&commits=" + changeset.commits.join(",");
 }
 
 function customProcessCommits()
 {
-  location.href = "processcommits?review=" + review.id + "&commits=" + changeset.commits.join(",");
+  location.href = "/processcommits?review=" + review.id + "&commits=" + changeset.commits.join(",");
 }
 
 function fetchFile(file_id, side, replace_tbody)

@@ -194,7 +194,7 @@ function markAllFiles(status)
 
 function previewChanges()
 {
-  location.href = "showbatch?review=" + review.id;
+  location.href = "/showbatch?review=" + review.id;
 }
 
 function submitChanges()
@@ -570,7 +570,7 @@ $(document).ready(function ()
       setTimeout(function ()
         {
           var callback = arguments.callee;
-          $.ajax({ url: "checkserial?review=" + review.id + "&serial=" + review.serial + "&time=" + Date.now(),
+          $.ajax({ url: "/checkserial?review=" + review.id + "&serial=" + review.serial + "&time=" + Date.now(),
                    dataType: "text",
                    success: function (data)
                      {

@@ -23,7 +23,7 @@ function deleteNote(sha1, parentDialog)
   function finish()
   {
     $.ajax({ async: false,
-             url: "deletecheckbranchnote?repository=" + repository.id + "&branch=" + branch + "&upstream=" + upstream + "&sha1=" + sha1,
+             url: "/deletecheckbranchnote?repository=" + repository.id + "&branch=" + branch + "&upstream=" + upstream + "&sha1=" + sha1,
              dataType: "text",
              success: function (data)
                {
@@ -75,7 +75,7 @@ function editCommit(sha1, commit_id, has_note, old_review_id)
 
   if (old_review_id == void 0)
     $.ajax({ async: false,
-             url: "suggestreview?repository=" + repository.id + "&sha1=" + sha1,
+             url: "/suggestreview?repository=" + repository.id + "&sha1=" + sha1,
              dataType: "text",
              success: function (data)
                {
@@ -160,7 +160,7 @@ function editCommit(sha1, commit_id, has_note, old_review_id)
 
     $.ajax({ async: false,
              type: "POST",
-             url: "addcheckbranchnote?repository=" + repository.id + "&branch=" + branch + "&upstream=" + upstream + "&sha1=" + sha1 + (new_review_id ? "&review=" + new_review_id : ""),
+             url: "/addcheckbranchnote?repository=" + repository.id + "&branch=" + branch + "&upstream=" + upstream + "&sha1=" + sha1 + (new_review_id ? "&review=" + new_review_id : ""),
              contentType: "text/plain",
              data: new_text,
              dataType: "text",

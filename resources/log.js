@@ -83,7 +83,7 @@ function rebase(name, base, newBaseBase, oldCount, newCount, baseOldCount, baseN
     var success = false;
 
     $.ajax({ async: false,
-             url: "rebasebranch?repository=" + repository.id + "&name=" + name + "&base=" + base,
+             url: "/rebasebranch?repository=" + repository.id + "&name=" + name + "&base=" + base,
              dataType: "text",
              success: function (data)
                {
@@ -156,7 +156,7 @@ function executeSelection(commit)
       if (overrideShowSquashedDiff)
         overrideShowSquashedDiff(from_sha1, to_sha1);
       else
-        location.href = "showcommit?first=" + from_sha1 + "&last=" + to_sha1 + (typeof review != "undefined" && typeof review.id == "number" ? "&review=" + review.id : "");
+        location.href = "/showcommit?first=" + from_sha1 + "&last=" + to_sha1 + (typeof review != "undefined" && typeof review.id == "number" ? "&review=" + review.id : "");
     }
 
     resetSelection();
@@ -237,7 +237,7 @@ $(document).ready(function ()
     $("select.base").change(function (ev)
       {
         if (ev.target.value != "*")
-          location.replace("log?repository=" + repository.id + "&branch=" + branch.name + "&base=" + ev.target.value);
+          location.replace("/log?repository=" + repository.id + "&branch=" + branch.name + "&base=" + ev.target.value);
       });
 
     $("span.squash, span.fixup").each(function (index, element)

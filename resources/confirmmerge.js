@@ -18,7 +18,7 @@
 
 overrideShowSquashedDiff = function (from_sha1)
 {
-  location.href = "confirmmerge?id=" + confirmation_id + "&tail=" + from_sha1;
+  location.href = "/confirmmerge?id=" + confirmation_id + "&tail=" + from_sha1;
 }
 
 $(document).ready(function ()
@@ -30,17 +30,17 @@ $(document).ready(function ()
         var tail = "";
         if (typeof tail_sha1 == "string")
           tail = "&tail=" + tail_sha1;
-        location.href = "confirmmerge?id=" + confirmation_id + "&confirm=yes" + tail;
+        location.href = "/confirmmerge?id=" + confirmation_id + "&confirm=yes" + tail;
       });
 
     $("button.confirmNone").click(function (ev)
       {
-        location.href = "confirmmerge?id=" + confirmation_id + "&confirm=yes&tail=" + merge_sha1;
+        location.href = "/confirmmerge?id=" + confirmation_id + "&confirm=yes&tail=" + merge_sha1;
       });
 
     $("button.cancel").click(function (ev)
       {
-        location.href = "confirmmerge?id=" + confirmation_id + "&cancel=yes";
+        location.href = "/confirmmerge?id=" + confirmation_id + "&cancel=yes";
       });
 
     if (confirmed)

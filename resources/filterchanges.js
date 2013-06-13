@@ -126,9 +126,9 @@ $(document).ready(function ()
 
         if (files.length != 0)
           if (commitRange)
-            location.href = "showcommit?review=" + review.id + "&first=" + commitRange.first + "&last=" + commitRange.last + "&filter=files&file=" + files.join(",");
+            location.href = "/showcommit?review=" + review.id + "&first=" + commitRange.first + "&last=" + commitRange.last + "&filter=files&file=" + files.join(",");
           else
-            location.href = "showcommit?review=" + review.id + "&filter=files&file=" + files.join(",");
+            location.href = "/showcommit?review=" + review.id + "&filter=files&file=" + files.join(",");
         else
           alert("No files selected!");
       });

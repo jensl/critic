@@ -803,7 +803,7 @@ CommentChain.prototype.reopen = function (from_showcomment, from_onload)
         function goThere()
         {
           content.dialog("close");
-          location.href = "showcommit?review=" + review.id + "&sha1=" + self.addressed_by + "&reopen=" + self.id;
+          location.href = "/showcommit?review=" + review.id + "&sha1=" + self.addressed_by + "&reopen=" + self.id;
         }
 
         function stayHere()
@@ -989,7 +989,7 @@ CommentChain.prototype.deleteComment = function (comment, parentDialog)
           {
             $("#c" + self.id).remove();
             if ($("table.file").length == 0)
-              location.href = "showreview?id=" + review.id;
+              location.href = "/showreview?id=" + review.id;
           }
         else
         {

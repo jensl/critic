@@ -538,7 +538,7 @@ function reapplyFilters(filter_id, reload_when_finished)
           result.assigned_reviews.forEach(
             function (review_id)
             {
-              changes += "<tr" + first + "><td class=id><a href=r/" + review_id + ">r/" + review_id + "</a></td><td class=summary>" + htmlify(result.summaries[review_id]) + "</td></tr>";
+              changes += "<tr" + first + "><td class=id><a href=/r/" + review_id + ">r/" + review_id + "</a></td><td class=summary>" + htmlify(result.summaries[review_id]) + "</td></tr>";
               first = "";
             });
         }
@@ -551,7 +551,7 @@ function reapplyFilters(filter_id, reload_when_finished)
           result.watched_reviews.forEach(
             function (review_id)
             {
-              changes += "<tr" + first + "><td><a href=r/" + review_id + ">r/" + review_id + "</a></td><td>" + htmlify(result.summaries[review_id]) + "</td></tr>";
+              changes += "<tr" + first + "><td><a href=/r/" + review_id + ">r/" + review_id + "</a></td><td>" + htmlify(result.summaries[review_id]) + "</td></tr>";
               first = "";
             });
         }

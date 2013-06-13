@@ -77,9 +77,9 @@ function submitReview()
       showMessage("Review Created",
                   "Extension Output",
                   "<pre>" + htmlify(result.extensions_output) + "</pre>",
-                  function () { location.href = "r/" + result.review_id; });
+                  function () { location.href = "/r/" + result.review_id; });
     else
-      location.href = "r/" + result.review_id;
+      location.href = "/r/" + result.review_id;
   }
 }
 
