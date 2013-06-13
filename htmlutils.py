@@ -111,7 +111,7 @@ def base36(n):
     return s
 
 def getStaticResourceURI(name):
-    uri = "static-resource/" + name
+    uri = "/static-resource/" + name
     ts = mtime(os.path.join(configuration.paths.INSTALL_DIR, "resources", name))
     if ts: uri += "?" + base36(ts)
     return uri
