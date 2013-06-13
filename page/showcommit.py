@@ -55,10 +55,10 @@ def renderCommitInfo(db, target, user, repository, review, commit, conflicts=Fal
             span = cell.span("branch")
 
             if review_id is None:
-                url = "log?repository=%d&branch=%s" % (repository.id, branch)
+                url = "/log?repository=%d&branch=%s" % (repository.id, branch)
                 title = branch
             else:
-                url = "r/%d" % review_id
+                url = "/r/%d" % review_id
                 title = url
 
             span.text("[")
@@ -79,16 +79,16 @@ def renderCommitInfo(db, target, user, repository, review, commit, conflicts=Fal
         review_arg = "&review=%d" % review.id if review else ""
 
         if conflicts:
-            row.td(align='left').a(href="showcommit?sha1=%s&repository=%d%s" % (commit.sha1, repository.id, review_arg)).text("display changes relative to parents")
+            row.td(align='left').a(href="/showcommit?sha1=%s&repository=%d%s" % (commit.sha1, repository.id, review_arg)).text("display changes relative to parents")
         else:
-            row.td(align='left').a(href="showcommit?sha1=%s&repository=%d%s&conflicts=yes" % (commit.sha1, repository.id, review_arg)).text("display conflict resolution changes")
+            row.td(align='left').a(href="/showcommit?sha1=%s&repository=%d%s&conflicts=yes" % (commit.sha1, repository.id, review_arg)).text("display conflict resolution changes")
 
     row = commit_info.tr("commit-info")
     row.th(align='right').text("SHA-1:")
     cell = row.td(align='left')
 
     if minimal:
-        cell.a(href="%s/%s?review=%d" % (repository.name, commit.sha1, review.id)).text(commit.sha1)
+        cell.a(href="/%s/%s?review=%d" % (repository.name, commit.sha1, review.id)).text(commit.sha1)
     else:
         cell.text(commit.sha1)
 
@@ -102,7 +102,7 @@ def renderCommitInfo(db, target, user, repository, review, commit, conflicts=Fal
 
         span = cell.span("links").span("link")
         span.text("[")
-        span.a("link", href="showtree?sha1=%s%s" % (commit.sha1, review_arg)).innerHTML("browse&nbsp;tree")
+        span.a("link", href="/showtree?sha1=%s%s" % (commit.sha1, review_arg)).innerHTML("browse&nbsp;tree")
         span.text("]")
 
     if not review:
@@ -146,7 +146,7 @@ def renderCommitInfo(db, target, user, repository, review, commit, conflicts=Fal
             parent = gitutils.Commit.fromSHA1(db, repository, parent_sha1)
 
             if not review or review.containsCommit(db, parent):
-                parent_href = "%s/%s%s" % (repository.name, parent.sha1, review_url_contribution)
+                parent_href = "/%s/%s%s" % (repository.name, parent.sha1, review_url_contribution)
 
                 row = commit_info.tr("commit-info")
                 row.th(align='right').text("Parent:")
@@ -166,7 +166,7 @@ def renderCommitInfo(db, target, user, repository, review, commit, conflicts=Fal
                 try: child = gitutils.Commit.fromId(db, repository, child_id)
                 except: continue
 
-                child_href = "%s/%s%s" % (repository.name, child.sha1, review_url_contribution)
+                child_href = "/%s/%s%s" % (repository.name, child.sha1, review_url_contribution)
 
                 row = commit_info.tr("commit-info")
                 row.th(align='right').text("Child:")
@@ -319,7 +319,7 @@ def renderCommitFiles(db, target, user, repository, review, changeset=None, chan
                         else:
                             module_repository = repository.getModuleRepository(db, changesets[index].child, file.path)
                             if module_repository:
-                                url = "showcommit?repository=%d&from=%s&to=%s" % (module_repository.id, file.old_sha1, file.new_sha1)
+                                url = "/showcommit?repository=%d&from=%s&to=%s" % (module_repository.id, file.old_sha1, file.new_sha1)
                                 row.td("parent", critic_parent_index=index, colspan=2).i().a(href=url).text("updated submodule")
                             else:
                                 row.td("parent", critic_parent_index=index, colspan=2).i().text("updated submodule")
@@ -444,7 +444,7 @@ def renderCommitFiles(db, target, user, repository, review, changeset=None, chan
         elif file.old_mode == "160000" and file.new_mode == "160000":
             module_repository = repository.getModuleRepository(db, changeset.child, file.path)
             if module_repository:
-                url = "showcommit?repository=%d&from=%s&to=%s" % (module_repository.id, file.old_sha1, file.new_sha1)
+                url = "/showcommit?repository=%d&from=%s&to=%s" % (module_repository.id, file.old_sha1, file.new_sha1)
                 row.td().i().a(href=url).text("updated submodule")
             else:
                 row.td().i().text("updated submodule")
@@ -949,6 +949,7 @@ def renderShowCommit(req, db, user):
     repository = None
 
     document = htmlutils.Document(req)
+    document.setBase(None)
 
     if review_id is None:
         review = None

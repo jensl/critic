@@ -339,16 +339,16 @@ def renderFile(db, target, user, review, file, first_file=False, options={}, con
             review_arg = "&review=%d" % review.id if review else ""
             repository_arg = "&repository=%d" % file.repository.id if not review else ""
 
-            cell.a("showtree root", href="showtree?sha1=%s&path=/%s%s" % (commit.sha1, review_arg, repository_arg)).text("root")
+            cell.a("showtree root", href="/showtree?sha1=%s&path=/%s%s" % (commit.sha1, review_arg, repository_arg)).text("root")
             cell.span("slash").text('/')
 
             components = file.path.split("/")
             for index, component in enumerate(components[:-1]):
-                cell.a("showtree", href="showtree?sha1=%s&path=%s%s%s" % (commit.sha1, "/".join(components[:index + 1]), review_arg, repository_arg)).text(component)
+                cell.a("showtree", href="/showtree?sha1=%s&path=%s%s%s" % (commit.sha1, "/".join(components[:index + 1]), review_arg, repository_arg)).text(component)
                 cell.span("slash").text('/')
 
             if not file.wasRemoved():
-                cell.a("showtree", href="showfile?sha1=%s&path=%s%s%s" % (commit.sha1, "/".join(components), review_arg, repository_arg)).text(components[-1])
+                cell.a("showtree", href="/showfile?sha1=%s&path=%s%s%s" % (commit.sha1, "/".join(components), review_arg, repository_arg)).text(components[-1])
             else:
                 cell.text(components[-1])
         else:
@@ -506,7 +506,7 @@ def renderFile(db, target, user, review, file, first_file=False, options={}, con
                 except:
                     pass
 
-                url = "download/%s?sha1=%s&repository=%d" % (file.path, sha1, file.repository.id)
+                url = "/download/%s?sha1=%s&repository=%d" % (file.path, sha1, file.repository.id)
                 link = target.a(href=url)
 
                 if is_image: link.img(src=url)
@@ -752,16 +752,16 @@ def renderFile(db, target, user, review, file, first_file=False, options={}, con
         review_arg = "&review=%d" % review.id if review else ""
         repository_arg = "&repository=%d" % file.repository.id if not review else ""
 
-        cell.a("showtree root", href="showtree?sha1=%s&path=/%s%s" % (commit.sha1, review_arg, repository_arg)).text("root")
+        cell.a("showtree root", href="/showtree?sha1=%s&path=/%s%s" % (commit.sha1, review_arg, repository_arg)).text("root")
         cell.span("slash").text('/')
 
         components = file.path.split("/")
         for index, component in enumerate(components[:-1]):
-            cell.a("showtree", href="showtree?sha1=%s&path=%s%s%s" % (commit.sha1, "/".join(components[:index + 1]), review_arg, repository_arg)).text(component)
+            cell.a("showtree", href="/showtree?sha1=%s&path=%s%s%s" % (commit.sha1, "/".join(components[:index + 1]), review_arg, repository_arg)).text(component)
             cell.span("slash").text('/')
 
         if not file.wasRemoved():
-            cell.a("showtree", href="showfile?sha1=%s&path=%s%s%s" % (commit.sha1, "/".join(components), review_arg, repository_arg)).text(components[-1])
+            cell.a("showtree", href="/showfile?sha1=%s&path=%s%s%s" % (commit.sha1, "/".join(components), review_arg, repository_arg)).text(components[-1])
         else:
             cell.text(components[-1])
     else:
