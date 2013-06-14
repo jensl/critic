@@ -654,6 +654,9 @@ class WrappedResult(object):
                 raise StopIteration
 
 def handleRepositoryPath(db, req, user, suffix):
+    if "http" not in configuration.base.REPOSITORY_URL_TYPES:
+        return False
+
     components = req.path.split("/")
 
     for index in range(1, len(components) + 1):

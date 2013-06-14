@@ -14,18 +14,22 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-import configuration
-import dbutils
 import re
 
-def renderFormatted(db, table, lines, toc=False):
+import configuration
+import dbutils
+import gitutils
+
+def renderFormatted(db, user, table, lines, toc=False):
     re_h1 = re.compile("^=+$")
     re_h2 = re.compile("^-+$")
     data = { "configuration.URL": dbutils.getURLPrefix(db),
+             "configuration.base.HOSTNAME": configuration.base.HOSTNAME,
              "configuration.base.SYSTEM_USER_NAME": configuration.base.SYSTEM_USER_NAME,
              "configuration.base.SYSTEM_GROUP_NAME": configuration.base.SYSTEM_GROUP_NAME,
              "configuration.paths.CONFIG_DIR": configuration.paths.CONFIG_DIR,
-             "configuration.paths.INSTALL_DIR": configuration.paths.INSTALL_DIR }
+             "configuration.paths.INSTALL_DIR": configuration.paths.INSTALL_DIR,
+             "configuration.paths.GIT_DIR": configuration.paths.GIT_DIR }
 
     blocks = []
     block = []
@@ -77,7 +81,7 @@ def renderFormatted(db, table, lines, toc=False):
             for name, path in cursor:
                 row = repositories.tr("repository" + first)
                 row.td("name").text(name)
-                row.td("path").text("%s:%s" % (configuration.base.HOSTNAME, path))
+                row.td("path").text(gitutils.Repository.constructURL(db, user, path))
                 first = ""
 
             continue

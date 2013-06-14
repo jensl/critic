@@ -32,7 +32,7 @@ class ExtraColumn:
         self.heading = heading
         self.render = render
 
-def render(db, target, title, repository, branches, linkToBranch=linkToBranch, extraColumns=[], description=""):
+def render(db, user, target, title, repository, branches, linkToBranch=linkToBranch, extraColumns=[], description=""):
     target.addExternalStylesheet("resource/branches.css")
 
     cursor = db.cursor()
@@ -48,7 +48,7 @@ def render(db, target, title, repository, branches, linkToBranch=linkToBranch, e
 
     cursor.execute("SELECT id, path FROM repositories ORDER BY id")
     for id, path in cursor:
-        repositories.option(value=id, selected="selected" if repository and id == repository.id else None).text("%s:%s" % (configuration.base.HOSTNAME, path))
+        repositories.option(value=id, selected="selected" if repository and id == repository.id else None).text(gitutils.Repository.constructURL(db, user, path))
 
     if branches:
         values = []
@@ -141,6 +141,6 @@ def renderBranches(req, db, user):
 
     extraColumns = [ExtraColumn("when", "When", lambda target, index: log.html.renderWhen(target, commit_times[index]))]
 
-    render(db, body.div("main"), "All Branches", repository, all_branches[offset:], extraColumns=extraColumns)
+    render(db, user, body.div("main"), "All Branches", repository, all_branches[offset:], extraColumns=extraColumns)
 
     return document

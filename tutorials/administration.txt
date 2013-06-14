@@ -65,6 +65,83 @@ otherwise has.  It is strongly recommended that the offer is accepted, since the
 changes made by such a migration script are generally not reversible in any
 other than to restore an earlier backup copy of the database.
 
+Git Repository Access
+---------------------
+
+Critic's Git repositories should normally be accessible to the users of the
+system, both to clone and examine locally and to push new commits to.  It is not
+strictly required that they are -- Critic can be set up such that users only
+access Git repositories on some other system from which Critic in turn fetches
+-- but it is the typical set-up.
+
+Git supports a variety of schemes (or protocols) for accessing repositories.  In
+general, any access scheme will work with Critic as long as doesn't involve
+directly manipulating the repository on the Critic server in a way that bypasses
+Critic's <code>pre-receive</code> hook.  Some access schemes require the system
+administrator to perform administration tasks beyond installing and managing
+Critic, however.
+
+git://host/path.git
+-------------------
+The Git scheme, provided by the <code>git daemon</code> command, is typically
+used only for read-only access to Git repositories.  It can support push as well
+but it will be unauthenticated, which means there will be no way of knowing
+which user is responsible for the push.  Critic has no support for starting and
+running <code>git daemon</code>.
+
+This simple command can be used to start a <code>git daemon</code> process that
+provides read-only access to all of Critic's repositories on
+%(configuration.base.HOSTNAME)s:
+
+| git daemon --export-all --base-path=%(configuration.paths.GIT_DIR)s %(configuration.paths.GIT_DIR)s
+
+The command needs to be executed as the Critic system user
+(<code>%(configuration.base.SYSTEM_USER_NAME)s</code>), for instance using
+<code>sudo</code>:
+
+| sudo -H -u critic git daemon ...
+
+For more details about how to run <code>git daemon</code>, see its built-in
+documentation:
+
+| git daemon --help
+
+http://host/path.git
+--------------------
+The HTTP (and/or HTTPS) protocol, provided by the <code>git http-backend</code>
+command, is supported by Critic and enabled by default.  If the Critic web
+front-end allows anonymous users, then it also allows unauthenticated read-only
+access.  Push is only supported from authenticated users.
+
+ssh://host%(configuration.paths.GIT_DIR)s/path.git / host:%(configuration.paths.GIT_DIR)s/path.git
+---------------------------------------------------------------------
+Access to repositories over SSH simply requires users to be able to log into the
+Critic system over SSH and be members of the
+  <code>%(configuration.base.SYSTEM_GROUP_NAME)s</code>
+system group; Git takes care of the rest.  See also the note on
+  <a href="#system_users">System Users</a>
+below.
+
+  Hint: To allow users to access Git repositories over SSH without giving them
+  "shell access," set the system users' shell to <code>git-shell</code>.
+
+Configuration
+-------------
+There are two settings in Critic relating to repository access.
+
+First, there's the system configuration setting
+<code>REPOSITORY_URL_TYPES</code>, set in
+<code>%(configuration.paths.CONFIG_DIR)s/configuration/base.py</code>, which is
+a list of access schemes that are supported on the system.  If this list does
+not contain the string <code>"http"</code>, the built-in support for this access
+scheme is disabled.  The other schemes -- <code>"git"</code>, <code>"ssh"</code>
+and <code>"host"</code> -- are not in themselves affected by the setting.
+
+Second, there's the user preference setting CONFIG(repository.urlType) that
+determines what type of repository URLs the web front-end displays.  Each user
+can select their preferred URL type among the set of supported schemes as
+defined by the system configuration setting above.
+
 Users
 -----
 

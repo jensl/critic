@@ -239,6 +239,11 @@
     "default": "main",
     "description": "Type of URLs used in emails."
   },
+  "repository.urlType": {
+    "type": "string",
+    "default": "http",
+    "description": "Type of repository URL to display."
+  },
   "review.applyUpstreamFilters": {
     "type": "boolean",
     "default": true,

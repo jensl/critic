@@ -15,6 +15,7 @@
 # the License.
 
 import re
+import gitutils
 import utf8utils
 import htmlutils
 import configuration
@@ -364,8 +365,8 @@ def generateRepositorySelect(db, user, target, selected=None, **attributes):
         highlighted = select.optgroup(label="Highlighted")
         other = select.optgroup(label="Other")
 
-    name_width = max(len(name) for (repository_id, name, path) in rows)
-    url_width = len(configuration.base.HOSTNAME) + 1 + max(len(path) for (repository_id, name, path) in rows)
+    name_width = max(len(name) for (_, name, _) in rows)
+    url_width = max(len(gitutils.Repository.constructURL(db, user, path)) for (_, _, path) in rows)
     label_format = "%-{0}s %{1}s".format(name_width, url_width)
 
     for repository_id, name, path in rows:
@@ -374,7 +375,7 @@ def generateRepositorySelect(db, user, target, selected=None, **attributes):
         else:
             optgroup = other
 
-        url = "%s:%s" % (configuration.base.HOSTNAME, path)
+        url = gitutils.Repository.constructURL(db, user, path)
 
         if repository_id == selected or name == selected:
             is_selected = "selected"

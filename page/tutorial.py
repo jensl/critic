@@ -21,11 +21,11 @@ import configuration
 import re
 import textformatting
 
-def renderFromFile(db, target, name):
+def renderFromFile(db, user, target, name):
     lines = open("%s/tutorials/%s.txt" % (configuration.paths.INSTALL_DIR, name)).read().splitlines()
 
     table = target.table("paleyellow", align="center")
-    textformatting.renderFormatted(db, table, lines, toc=True)
+    textformatting.renderFormatted(db, user, table, lines, toc=True)
     table.tr("back").td("back").div().a(href="tutorial").text("Back")
 
 def renderSections(db, user, target):
@@ -113,7 +113,7 @@ def renderTutorial(req, db, user):
                        "extensions-api": "extensions-api" })
 
     if item in items:
-        renderFromFile(db, target, items[item])
+        renderFromFile(db, user, target, items[item])
     else:
         renderSections(db, user, target)
 

@@ -14,6 +14,8 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
+import os
+
 import dbutils
 import htmlutils
 import page.utils
@@ -142,6 +144,18 @@ def renderConfig(req, db, user):
                     seconds = utc_offset.total_seconds()
                     offset = "%s%02d:%02d" % ("-" if seconds < 0 else "+", abs(seconds) / 3600, (abs(seconds) % 3600) / 60)
                     addOption("%s/%s" % (group, name), "%s (%s / UTC%s)" % (name, abbrev, offset))
+        elif item == "repository.urlType":
+            options = value.select("setting", id=input_id, name=item, critic_default=default_string)
+            long_path = os.path.join(configuration.paths.GIT_DIR, "<path>.git")
+
+            if "git" in configuration.base.REPOSITORY_URL_TYPES:
+                addOption("git", "git://%s/<path>.git" % configuration.base.HOSTNAME)
+            if "http" in configuration.base.REPOSITORY_URL_TYPES:
+                addOption("http", "http://%s/<path>.git" % configuration.base.HOSTNAME)
+            if "ssh" in configuration.base.REPOSITORY_URL_TYPES:
+                addOption("ssh", "ssh://%s%s" % (configuration.base.HOSTNAME, long_path))
+            if "host" in configuration.base.REPOSITORY_URL_TYPES:
+                addOption("host", "%s:%s" % (configuration.base.HOSTNAME, long_path))
         else:
             value.input("setting", id=input_id, type="text", size=80, name=item, value=string, critic_default=default_string)
 

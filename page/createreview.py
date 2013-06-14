@@ -145,7 +145,7 @@ def renderSelectSource(req, db, user):
 
         for repository_id, name, path, branch_name in cursor.fetchall():
             option = repositories.option("repository", value=name, selected="selected" if name == default_repository else None)
-            option.text("%s [%s:%s]" % (name, configuration.base.HOSTNAME, path))
+            option.text("%s [%s]" % (name, gitutils.Repository.constructURL(db, user, path)))
 
             local_names = ["*"]
 

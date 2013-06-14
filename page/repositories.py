@@ -17,6 +17,7 @@
 import page.utils
 import htmlutils
 import dbutils
+import gitutils
 import configuration
 
 def renderRepositories(req, db, user):
@@ -62,6 +63,7 @@ def renderRepositories(req, db, user):
             self.parent_id = parent_id
             self.branch_id = branch_id
             self.default_remote = None
+            self.location = gitutils.Repository.constructURL(db, user, path)
 
     repositories = list(Repository(*row) for row in rows)
     repository_by_id = dict((repository.id, repository) for repository in repositories)
@@ -79,7 +81,7 @@ def renderRepositories(req, db, user):
         for repository in repositories:
             row = table.tr("repository %s" % repository.name)
             row.td("name").text(repository.name)
-            row.td("location").text("%s:%s" % (configuration.base.HOSTNAME, repository.path))
+            row.td("location").text(repository.location)
 
             if repository.parent_id:
                 row.td("upstream").text(repository_by_id[repository.parent_id].name)
@@ -136,8 +138,8 @@ def renderRepositories(req, db, user):
 
                     for index, user_id in enumerate(user_ids):
                         if index: cell.text(", ")
-                        user = dbutils.User.fromId(db, user_id)
-                        cell.span("user").text(user.name)
+                        trackedbranch_user = dbutils.User.fromId(db, user_id)
+                        cell.span("user").text(trackedbranch_user.name)
 
                 if default_remote:
                     repository.default_remote = default_remote
@@ -153,7 +155,7 @@ def renderRepositories(req, db, user):
     for repository in repositories:
         name = htmlutils.jsify(repository.name)
         path = htmlutils.jsify(repository.path)
-        location = htmlutils.jsify("%s:%s" % (configuration.base.HOSTNAME, repository.path))
+        location = htmlutils.jsify(repository.location)
         default_remote = htmlutils.jsify(repository.default_remote)
 
         repositories_js.append(("%d: { name: %s, path: %s, location: %s, defaultRemoteLocation: %s }"

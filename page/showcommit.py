@@ -94,7 +94,7 @@ def renderCommitInfo(db, target, user, repository, review, commit, conflicts=Fal
 
     if repository.name != user.getPreference(db, "defaultRepository"):
         cell.text(" in ")
-        cell.b().text("%s:%s" % (configuration.base.HOSTNAME, repository.path))
+        cell.b().text(repository.getURL(db, user))
 
     if not minimal:
         if review: review_arg = "&review=%d" % review.id

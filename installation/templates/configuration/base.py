@@ -59,3 +59,23 @@ ALLOW_ANONYMOUS_USER = %(installation.config.allow_anonymous_user)r
 
 # Access scheme: "http", "https" or "both".
 ACCESS_SCHEME = "%(installation.config.access_scheme)s"
+
+# Supported repository URL types (when displayed in UI and in emails):
+#
+#  "git"  => "git://hostname/path.git"
+#  "http" => "http://hostname/path.git" or "https://hostname/path.git"
+#  "ssh"  => "ssh://hostname/path.git"
+#  "host" => "hostname:/path.git"
+#
+# where 'hostname' is the system's FQDN and 'path.git' is the repository's path
+# relative configuration.paths.GIT_DIR.
+#
+# The 'http' choice means HTTP or HTTPS depending on the ACCESS_SCHEME setting
+# and whether the user is anonymous or not.
+#
+# Note: Only 'http' is currently supported natively by Critic.  For 'git' to
+# work, the system administrator must configure 'git daemon' to run manually.
+# For 'ssh' and 'host' to work (they mean the same thing, only with different
+# syntax) system user accounts must be created, and SSH access provided.  See
+# the system administration tutorial for more information.
+REPOSITORY_URL_TYPES = %(installation.config.repository_url_types)r

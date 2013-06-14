@@ -129,7 +129,34 @@ class Repository:
         self.__startBatch()
 
     def __str__(self):
-        return "%s:%s" % (configuration.base.HOSTNAME, self.path)
+        return self.path
+
+    def getURL(self, db, user):
+        return Repository.constructURL(db, user, self.path)
+
+    @staticmethod
+    def constructURL(db, user, path):
+        path = os.path.relpath(path, configuration.paths.GIT_DIR)
+        url_type = user.getPreference(db, "repository.urlType")
+
+        if url_type == "git":
+            url_format = "git://%s/%s"
+        elif url_type in ("ssh", "host"):
+            if url_type == "ssh":
+                prefix = "ssh://%s"
+            else:
+                prefix = "%s:"
+            url_format = prefix + os.path.join(configuration.paths.GIT_DIR, "%s")
+        elif configuration.base.ACCESS_SCHEME == "http":
+            url_format = "http://%s/%s"
+        elif configuration.base.ACCESS_SCHEME == "https":
+            url_format = "https://%s/%s"
+        elif user.isAnonymous():
+            url_format = "http://%s/%s"
+        else:
+            url_format = "https://%s/%s"
+
+        return url_format % (configuration.base.HOSTNAME, path)
 
     def enableBlobCache(self):
         assert self.__db

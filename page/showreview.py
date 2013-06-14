@@ -353,7 +353,7 @@ def renderShowReview(req, db, user):
 
         if repository.name != user.getPreference(db, "defaultRepository"):
             target.text(" in ")
-            target.code("repository").text("%s:%s" % (configuration.base.HOSTNAME, repository.path))
+            target.code("repository").text(repository.getURL(db, user))
 
         cursor.execute("""SELECT id, remote, remote_name, disabled, previous
                             FROM trackedbranches

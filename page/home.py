@@ -146,7 +146,7 @@ def renderHome(req, db, user):
              filter_id, filter_type, filter_path, filter_delegates) in rows:
             if not repository or repository.id != repository_id:
                 repository = gitutils.Repository.fromId(db, repository_id)
-                repository_url = str(repository)
+                repository_url = repository.getURL(db, user)
                 filters.addSection(repository_name, repository_url)
                 repository_filters = filters.addCentered().table("filters", align="center")
                 tbody_reviewer = tbody_watcher = tbody_ignored = None

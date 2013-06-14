@@ -32,6 +32,6 @@ def renderTutorial(db, user, source):
     page.utils.generateHeader(body, db, user)
 
     table = body.div("main").table("paleyellow", align="center")
-    textformatting.renderFormatted(db, table, source.splitlines(), toc=True)
+    textformatting.renderFormatted(db, user, table, source.splitlines(), toc=True)
 
     return str(document)

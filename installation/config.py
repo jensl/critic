@@ -28,6 +28,7 @@ auth_mode = "host"
 session_type = None
 allow_anonymous_user = None
 access_scheme = None
+repository_url_types = ["http"]
 
 def add_arguments(mode, parser):
     if mode == "install":
@@ -46,13 +47,35 @@ def add_arguments(mode, parser):
         parser.add_argument(
             "--access-scheme", choices=["http", "https", "both"],
             help="scheme used to access Critic")
+        parser.add_argument(
+            "--repository-url-types", default="http",
+            help=("comma-separated list of supported repository URL types "
+                  "(valid types: git, http, ssh and host)"))
 
 def prepare(mode, arguments, data):
     global auth_mode, session_type, allow_anonymous_user, access_scheme
+    global repository_url_types
 
     header_printed = False
 
     if mode == "install":
+        if arguments.repository_url_types:
+            repository_url_types = filter(
+                None, arguments.repository_url_types.split(","))
+            invalid_url_types = []
+            for url_type in repository_url_types:
+                if url_type not in ["git", "http", "ssh", "host"]:
+                    invalid_url_types.append(url_type)
+            if invalid_url_types or not repository_url_types:
+                print ("Invalid --repository-url-types argument: %s"
+                       % arguments.repository_url_types)
+                if invalid_url_types:
+                    print ("These types are invalid: %s"
+                           % ",".join(invalid_url_types))
+                if not repository_url_types:
+                    print "No URL types specified!"
+                return False
+
         if installation.prereqs.bcrypt_available:
             def check_auth_mode(value):
                 if value.strip() not in ("host", "critic"):
@@ -93,10 +116,13 @@ the Web front-end.  This can be handled in two different ways:
         try: session_type = configuration.base.SESSION_TYPE
         except AttributeError: pass
 
-        try: allow_anonymous_user = configuration.ALLOW_ANONYMOUS_USER
+        try: allow_anonymous_user = configuration.base.ALLOW_ANONYMOUS_USER
         except AttributeError: pass
 
-        try: access_scheme = configuration.ACCESS_SCHEME
+        try: access_scheme = configuration.base.ACCESS_SCHEME
+        except AttributeError: pass
+
+        try: repository_url_types = configuration.base.REPOSITORY_URL_TYPES
         except AttributeError: pass
 
     if auth_mode == "critic":
@@ -204,6 +230,7 @@ web server to redirect all HTTP accesses to HTTPS.
     data["installation.config.session_type"] = session_type
     data["installation.config.allow_anonymous_user"] = allow_anonymous_user
     data["installation.config.access_scheme"] = access_scheme
+    data["installation.config.repository_url_types"] = repository_url_types
 
     return True
 
