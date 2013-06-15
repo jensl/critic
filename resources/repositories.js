@@ -176,44 +176,21 @@ $(function ()
 
 function addTrackedBranch(repository_id)
 {
-  var hosts = "<option value=''>Select host...</option>";
   var repository = repositories[repository_id];
-  var path_default = "";
-
-  for (var knownhost in knownhosts)
-  {
-    var path = knownhosts[knownhost], selected = "";
-    if (knownhost.indexOf(":") == -1)
-      knownhost += ":";
-    if (repository.defaultRemoteLocation && repository.defaultRemoteLocation.indexOf(knownhost) == 0)
-    {
-      selected = " selected";
-      path_default = " value='" + repository.defaultRemoteLocation.substring(knownhost.length) + "'";
-    }
-    hosts += "<option path='" + path + "'" + selected + ">" + knownhost + "</option>";
-  }
 
   var dialog = $("<div title='Add Tracked Branch' id=addtrackedbranch>" +
                  "<table>" +
                  "<tr><td class=key>Source repository:</td>" +
-                 "<td class=value><select id=sourcehost>" + hosts + "</select><input id=sourcepath" + path_default + "></td></tr>" +
-                 "<tr><td class=key></td><td class=note><b>Important:</b> the path must be absolute and include the trailing \".git\" if the repository's actual path on the server does.</td></tr>" +
+                 "<td class=value><input id=sourcelocation value='" + htmlify(repository.defaultRemoteLocation) + "'></td></tr>" +
+                 "<tr><td class=key></td><td class=note>Source repository location/URL.</td></tr>" +
                  "<tr><td class=key>Source branch name:</td><td class=value><input id=sourcename></td></tr>" +
                  "<tr><td class=key></td><td class=note>Name of the branch in the source repository, without the leading \"refs/heads/\".</td></tr>" +
-                 "<tr><td class=key>Target repository:</td><td class=value>" + repository.location + "</td></tr>" +
+                 "<tr><td class=key>Target repository:</td><td class=value>" + htmlify(repository.location) + "</td></tr>" +
                  "<tr><td class=key>Target branch name:</td><td class=value><input id=targetname></td></tr>" +
                  "<tr><td class=key></td><td class=note>Name of the branch in Critic's repository, without the leading \"refs/heads/\".</td></tr>" +
-                 "<tr><td class=key>Users:</td><td class=value><input id=users value='" + user.name + "'></td></tr>" +
+                 "<tr><td class=key>Users:</td><td class=value><input id=users value='" + htmlify(user.name) + "'></td></tr>" +
                  "<tr><td class=key></td><td class=note>Space or comma separated list of users to send emails to if the tracking fails.</td></tr>" +
                  "</div>");
-
-  dialog.find("#sourcehost").change(
-    function ()
-    {
-      var selected = this.options[this.selectedIndex];
-      if (selected && selected.hasAttribute("path"))
-        dialog.find("#sourcepath").val(selected.getAttribute("path"));
-    });
 
   var sourcename = dialog.find("#sourcename");
   var targetname = dialog.find("#targetname");
@@ -227,31 +204,27 @@ function addTrackedBranch(repository_id)
 
   function finish()
   {
-    var source_host = dialog.find("#sourcehost").val();
-    var source_path = dialog.find("#sourcepath").val();
-    var source_name = dialog.find("#sourcename").val();
-    var target_name = dialog.find("#targetname").val();
+    var source_location = dialog.find("#sourcelocation").val().trim();
+    var source_name = dialog.find("#sourcename").val().trim();
+    var target_name = dialog.find("#targetname").val().trim();
     var users = dialog.find("#users").val().split(/\s*,\s*|\s+/g);
     var errors = [];
 
-    if (source_host == "")
-      errors.push("No source host selected.");
-
-    if (source_path == "" || /^[^/~]|[/]$/.test(source_path))
-      errors.push("Invalid source path.");
+    if (source_location == "")
+      errors.push("Empty source repository.");
 
     if (source_name == "")
-      errors.push("Invalid source branch name.");
+      errors.push("Empty source branch name.");
 
     if (target_name == "")
-      errors.push("Invalid target branch name.");
+      errors.push("Empty target branch name.");
 
     if (errors.length == 0)
     {
       var operation = new Operation({ action: "add tracked branch",
                                       url: "addtrackedbranch",
                                       data: { repository_id: repository_id,
-                                              source_location: source_host + source_path,
+                                              source_location: source_location,
                                               source_name: source_name,
                                               target_name: target_name,
                                               users: users }});
@@ -277,8 +250,8 @@ function addTrackedBranch(repository_id)
 
   dialog.dialog({ width: 600, buttons: buttons });
 
-  if (path_default)
+  if (repository.defaultRemoteLocation)
     dialog.find("#sourcename").focus();
   else
-    dialog.find("#sourcehost").focus();
+    dialog.find("#sourcelocation").focus();
 }

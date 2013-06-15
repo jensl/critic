@@ -167,20 +167,7 @@ div#addtrackedbranch td.note {
     padding-bottom: 0.5em
 }
 
-div#addtrackedbranch select {
-    font-family: monospace;
-    background-color: white;
-    width: 40%
-}
-
 div#addtrackedbranch input {
-    font-family: monospace
-}
-
-div#addtrackedbranch input#sourcepath {
-    width: 60%
-}
-
-div#addtrackedbranch input#sourcename, div#addtrackedbranch input#targetname, div#addtrackedbranch input#users {
+    font-family: monospace;
     width: 100%
 }

@@ -97,11 +97,6 @@ CREATE TABLE repositories
     name VARCHAR(64) NOT NULL UNIQUE,
     path VARCHAR(256) NOT NULL UNIQUE );
 
-CREATE TABLE knownhosts
-  ( id SERIAL PRIMARY KEY,
-    name VARCHAR(256) NOT NULL UNIQUE,
-    path VARCHAR(256) );
-
 CREATE TABLE knownremotes
   ( url VARCHAR(256) PRIMARY KEY,
     pushing BOOLEAN NOT NULL -- This remote has a post-update hook (or similar)

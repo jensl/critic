@@ -44,13 +44,6 @@ def renderRepositories(req, db, user):
         document.addInternalScript("user.administrator = true;")
 
     cursor = db.cursor()
-    cursor.execute("SELECT name, path FROM knownhosts ORDER BY id")
-
-    knownhosts = cursor.fetchall()
-
-    document.addInternalScript("var knownhosts = { %s };" % ", ".join([("%s: %s" % (htmlutils.jsify(name), htmlutils.jsify(path)))
-                                                                       for name, path in knownhosts]))
-
     cursor.execute("SELECT id, name, path, parent, branch FROM repositories ORDER BY name ASC")
 
     rows = cursor.fetchall()

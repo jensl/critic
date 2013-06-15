@@ -106,7 +106,7 @@ p.remotepath {
     margin-bottom: 0
 }
 
-select.repository, select.remotehost {
+select.repository {
     font-family: monospace;
     background-color: white;
     width: 40em
@@ -122,13 +122,7 @@ code.branch > a, code.remote > a {
     color: black
 }
 
-input.remotepath {
-    font-family: monospace;
-    background-color: white;
-    width: 40em
-}
-
-input.workbranch, input.upstreamcommit {
+input.remote, input.workbranch, input.upstreamcommit {
     font-family: monospace;
     width: 40em
 }

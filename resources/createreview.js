@@ -352,10 +352,7 @@ $(document).ready(function ()
         var name = $(this).val();
 
         if (default_remotes[name])
-        {
-          $("select.remotehost").val(default_remotes[name][0]);
-          $("input.remotepath").val(default_remotes[name][1]);
-        }
+          $("input.remote").val(default_remotes[name]);
 
         if (default_branches[name])
           $("input.upstreamcommit").val(default_branches[name] ? "refs/heads/" + default_branches[name] : "");
@@ -363,14 +360,7 @@ $(document).ready(function ()
 
     function getCurrentRemote()
     {
-      var host = $("select.remotehost").val();
-      if (host.indexOf(":") == -1)
-        host += ":";
-      var path = $("input.remotepath").val();
-      if (!/[:\/]$/.test(host) && !/^\//.test(path))
-        return host + "/" + path;
-      else
-        return host + path;
+      return $("input.remote").val().trim();
     }
 
     var input_workbranch = $("input.workbranch");
@@ -428,4 +418,9 @@ $(document).ready(function ()
 
         operation.execute();
       });
+
+    if (getCurrentRemote())
+      input_workbranch.focus();
+    else
+      $("input.remote").focus();
   });

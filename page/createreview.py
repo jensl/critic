@@ -160,17 +160,9 @@ def renderSelectSource(req, db, user):
                                LIMIT 1""",
                            (repository_id, local_names))
 
-            def splitRemote(remote):
-                if remote.startswith("git://"):
-                    host, path = remote[6:].split("/", 1)
-                    host = "git://" + host
-                else:
-                    host, path = remote.split(":", 1)
-                return host, path
-
             row = cursor.fetchone()
 
-            if row: default_remotes[name] = splitRemote(row[0])
+            if row: default_remotes[name] = row[0]
             else: default_remotes[name] = None
 
             default_branches[name] = branch_name
@@ -179,22 +171,7 @@ def renderSelectSource(req, db, user):
         document.addInternalScript("var default_branches = %s;" % json_encode(default_branches))
 
     def renderRemoteRepository(target):
-        host = target.p("remotehost")
-        host.text("Host: ")
-        hosts = host.select("remotehost")
-
-        cursor.execute("SELECT name, path FROM knownhosts ORDER BY id")
-
-        default_remote = default_remotes.get(default_repository)
-
-        for name, path in cursor:
-            option = hosts.option("remotehost", value=name, critic_default_path=path,
-                                  selected="selected" if default_remote and default_remote[0] == name else None)
-            option.text(name)
-
-        path = target.p("remotepath")
-        path.text("Path: ")
-        path.input("remotepath", value=default_remote[1] if default_remote else None)
+        target.input("remote", value=default_remotes.get(default_repository))
 
     def renderWorkBranch(target):
         target.text("refs/heads/")
