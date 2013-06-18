@@ -62,3 +62,13 @@ def configureLogging(arguments=None):
     else:
         logger = logging.getLogger("critic")
     return logger
+
+def pause(prompt="Press ENTER to continue: "):
+    print
+    try:
+        raw_input(prompt)
+    except KeyboardInterrupt:
+        print
+        print
+        raise
+    print

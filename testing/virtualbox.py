@@ -200,63 +200,70 @@ class Instance(object):
         self.__vmcommand("snapshot", "delete", name)
         self.__vmcommand("snapshot", "edit", temporary_name, "--name", name)
 
-    def execute(self, argv, cwd=None, timeout=None):
+    def execute(self, argv, cwd=None, timeout=None, interactive=False):
         guest_argv = list(argv)
         if cwd is not None:
             guest_argv[:0] = ["cd", cwd, "&&"]
-        host_argv = ["ssh", "-n", "-p", str(self.ssh_port)]
+        host_argv = ["ssh"]
+        if self.ssh_port != 22:
+            host_argv.extend(["-p", str(self.ssh_port)])
         if timeout is not None:
             host_argv.extend(["-o", "ConnectTimeout=%d" % timeout])
+        if not interactive:
+            host_argv.append("-n")
         host_argv.append(self.hostname)
 
         logger.debug("Running: " + " ".join(host_argv + guest_argv))
 
-        process = subprocess.Popen(host_argv + guest_argv,
-                                   stdout=subprocess.PIPE,
-                                   stderr=subprocess.PIPE)
+        process = subprocess.Popen(
+            host_argv + guest_argv,
+            stdout=subprocess.PIPE if not interactive else None,
+            stderr=subprocess.PIPE if not interactive else None)
 
-        setnonblocking(process.stdout)
-        setnonblocking(process.stderr)
-
-        poll = select.poll()
-        poll.register(process.stdout)
-        poll.register(process.stderr)
-
-        stdout_done = False
         stdout_data = ""
-        stderr_done = False
         stderr_data = ""
 
-        while not (stdout_done and stderr_done):
-            poll.poll()
+        if not interactive:
+            setnonblocking(process.stdout)
+            setnonblocking(process.stderr)
 
-            while not stdout_done:
-                try:
-                    line = process.stdout.readline()
-                    if not line:
-                        poll.unregister(process.stdout)
-                        stdout_done = True
-                        break
-                    stdout_data += line
-                    logger.log(testing.STDOUT, "%s" % line.rstrip("\n"))
-                except IOError as error:
-                    if error.errno == errno.EAGAIN:
-                        break
-                    raise
+            poll = select.poll()
+            poll.register(process.stdout)
+            poll.register(process.stderr)
 
-            while not stderr_done:
-                try:
-                    line = process.stderr.readline()
-                    if not line:
-                        poll.unregister(process.stderr)
-                        stderr_done = True
-                        break
-                    stderr_data += line
-                    logger.log(testing.STDERR, "%s" % line.rstrip("\n"))
-                except IOError as error:
-                    if error.errno == errno.EAGAIN:
-                        break
-                    raise
+            stdout_done = False
+            stderr_done = False
+
+            while not (stdout_done and stderr_done):
+                poll.poll()
+
+                while not stdout_done:
+                    try:
+                        line = process.stdout.readline()
+                        if not line:
+                            poll.unregister(process.stdout)
+                            stdout_done = True
+                            break
+                        stdout_data += line
+                        logger.log(testing.STDOUT, "%s" % line.rstrip("\n"))
+                    except IOError as error:
+                        if error.errno == errno.EAGAIN:
+                            break
+                        raise
+
+                while not stderr_done:
+                    try:
+                        line = process.stderr.readline()
+                        if not line:
+                            poll.unregister(process.stderr)
+                            stderr_done = True
+                            break
+                        stderr_data += line
+                        logger.log(testing.STDERR, "%s" % line.rstrip("\n"))
+                    except IOError as error:
+                        if error.errno == errno.EAGAIN:
+                            break
+                        raise
 
         process.wait()
 
@@ -311,21 +318,25 @@ class Instance(object):
         # the ownership back to us.
         self.execute(["sudo", "chown", "-R", "$LOGNAME", "$HOME"])
 
-    def install(self, repository, override_arguments={}, other_cwd=False):
+    def install(self, repository, override_arguments={}, other_cwd=False,
+                quick=False, interactive=False):
         logger.debug("Installing Critic ...")
 
-        use_arguments = { "--headless": True,
-                          "--system-hostname": self.hostname,
-                          "--auth-mode": "critic",
-                          "--session-type": "cookie",
-                          "--admin-username": "admin",
-                          "--admin-email": "admin@example.org",
-                          "--admin-fullname": "'Testing Administrator'",
-                          "--admin-password": "testing",
-                          "--smtp-host": self.vboxhost,
-                          "--smtp-port": str(self.mailbox.port),
-                          "--smtp-no-ssl-tls": True,
-                          "--skip-testmail-check": True, }
+        if not interactive:
+            use_arguments = { "--headless": True,
+                              "--system-hostname": self.hostname,
+                              "--auth-mode": "critic",
+                              "--session-type": "cookie",
+                              "--admin-username": "admin",
+                              "--admin-email": "admin@example.org",
+                              "--admin-fullname": "'Testing Administrator'",
+                              "--admin-password": "testing",
+                              "--smtp-host": self.vboxhost,
+                              "--smtp-port": str(self.mailbox.port),
+                              "--smtp-no-ssl-tls": True,
+                              "--skip-testmail-check": True }
+        else:
+            use_arguments = { "--admin-password": "testing" }
 
         if flag_minimum_password_hash_time(self.install_commit):
             use_arguments["--minimum-password-hash-time"] = "0.01"
@@ -383,59 +394,66 @@ class Instance(object):
             install_py = "install.py"
             cwd = "critic"
 
-        self.execute(["sudo", "python", "-u", install_py] + arguments,
-                     cwd=cwd)
+        self.execute(
+            ["sudo", "python", "-u", install_py] + arguments,
+            cwd=cwd, interactive="--headless" not in use_arguments)
 
-        try:
-            testmail = self.mailbox.pop(
-                testing.mailbox.with_subject("Test email from Critic"),
-                timeout=3)
+        if not quick:
+            try:
+                testmail = self.mailbox.pop(
+                    testing.mailbox.with_subject("Test email from Critic"),
+                    timeout=3)
 
-            if not testmail:
-                testing.expect.check("<test email>", "<no test email received>")
-            else:
-                testing.expect.check("admin@example.org",
-                                     testmail.header("To"))
-                testing.expect.check("This is the configuration test email from Critic.",
-                                     "\n".join(testmail.lines))
+                if not testmail:
+                    testing.expect.check("<test email>", "<no test email received>")
+                else:
+                    testing.expect.check("admin@example.org",
+                                         testmail.header("To"))
+                    testing.expect.check("This is the configuration test email from Critic.",
+                                         "\n".join(testmail.lines))
 
-            self.mailbox.check_empty()
-        except testing.TestFailure as error:
-            if error.message:
-                logger.error("Basic test: %s" % error.message)
+                self.mailbox.check_empty()
+            except testing.TestFailure as error:
+                if error.message:
+                    logger.error("Basic test: %s" % error.message)
 
-            # If basic tests fail, there's no reason to further test this
-            # instance; it seems to be properly broken.
-            raise testing.InstanceError
+                # If basic tests fail, there's no reason to further test this
+                # instance; it seems to be properly broken.
+                raise testing.InstanceError
 
-        # Add "developer" role to get stacktraces in error messages.
-        self.execute(["sudo", "criticctl", "addrole",
-                      "--name", "admin",
-                      "--role", "developer"])
+            # Add "developer" role to get stacktraces in error messages.
+            self.execute(["sudo", "criticctl", "addrole",
+                          "--name", "admin",
+                          "--role", "developer"])
 
-        # Add some regular users.
-        for name in ("alice", "bob", "dave", "erin"):
-            self.adduser(name)
+            # Add some regular users.
+            for name in ("alice", "bob", "dave", "erin"):
+                self.adduser(name)
 
-        try:
-            self.frontend.run_basic_tests()
-        except testing.TestFailure as error:
-            if error.message:
-                logger.error("Basic test: %s" % error.message)
+            try:
+                self.frontend.run_basic_tests()
+                self.mailbox.check_empty()
+            except testing.TestFailure as error:
+                if error.message:
+                    logger.error("Basic test: %s" % error.message)
 
-            # If basic tests fail, there's no reason to further test this
-            # instance; it seems to be properly broken.
-            raise testing.InstanceError
+                # If basic tests fail, there's no reason to further test this
+                # instance; it seems to be properly broken.
+                raise testing.InstanceError
 
         logger.info("Installed Critic: %s" % self.install_commit_description)
 
-    def upgrade(self, override_arguments={}, other_cwd=False):
+    def upgrade(self, override_arguments={}, other_cwd=False, quick=False,
+                interactive=False):
         if self.upgrade_commit:
             logger.debug("Upgrading Critic ...")
 
             self.restrict_access()
 
-            use_arguments = { "--headless": True }
+            if not interactive:
+                use_arguments = { "--headless": True }
+            else:
+                use_arguments = {}
 
             if not flag_minimum_password_hash_time(self.install_commit):
                 use_arguments["--minimum-password-hash-time"] = "0.01"
@@ -464,9 +482,10 @@ class Instance(object):
                 cwd = "critic"
 
             self.execute(["sudo", "python", "-u", upgrade_py] + arguments,
-                         cwd=cwd)
+                         cwd=cwd, interactive="--headless" not in use_arguments)
 
-            self.frontend.run_basic_tests()
+            if not quick:
+                self.frontend.run_basic_tests()
 
             logger.info("Upgraded Critic: %s" % self.upgrade_commit_description)
 

@@ -183,14 +183,7 @@ def main():
             return True
 
     def pause():
-        print
-        try:
-            raw_input("Testing paused.  Press ENTER to continue: ")
-        except KeyboardInterrupt:
-            print
-            print
-            raise
-        print
+        testing.pause("Testing paused.  Press ENTER to continue: ")
 
     pause_before = set(arguments.pause_before or [])
     pause_after = set(arguments.pause_after or [])
