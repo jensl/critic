@@ -24,8 +24,13 @@ def check_summary_input(document):
     testing.expect.check(COMMIT_SUMMARY, input["value"])
 
 with frontend.signin("alice"):
-    # Loading /createreview is not really necessary, but might as well try that
-    # as well.
+    # Loading /createreview first is not really necessary, but might as well try
+    # that as well.
+
+    document = frontend.page(
+        "createreview",
+        expect={ "document_title": testing.expect.document_title(u"Create Review") })
+
     document = frontend.page(
         "createreview",
         params={ "repository": "critic",
