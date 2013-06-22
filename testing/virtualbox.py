@@ -239,6 +239,7 @@ class Instance(object):
         logger.debug("Installing Critic ...")
 
         use_arguments = { "--headless": True,
+                          "--system-hostname": self.hostname,
                           "--auth-mode": "critic",
                           "--session-type": "cookie",
                           "--admin-username": "admin",
