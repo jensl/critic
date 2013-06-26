@@ -21,6 +21,30 @@ import installation
 
 pass_auth = "Off"
 
+def restart():
+    print
+    print "Restarting Apache ..."
+
+    try:
+        subprocess.check_call(["service", "apache2", "restart"])
+    except subprocess.CalledProcessError:
+        print """
+WARNING: Apache failed to restart.
+
+You can now either abort this Critic installation/upgrade, or you can
+go ahead anyway, fix the Apache configuration problem manually (now or
+later), and then restart Apache yourself using the command
+
+  service apache2 restart
+
+Note that if you don't abort, the Critic system will most likely not
+be accessible until the Apache configuration has been fixed.
+"""
+        return not installation.input.yes_or_no(
+            "Do you want to abort this Critic installation/upgrade?")
+    else:
+        return True
+
 def prepare(mode, arguments, data):
     global pass_auth
 
@@ -66,9 +90,7 @@ def install(data):
         if "Site default disabled." in output:
             default_site_disabled = True
 
-    subprocess.check_call(["service", "apache2", "restart"])
-
-    return True
+    return restart()
 
 def upgrade(arguments, data):
     site = "site.%s" % installation.config.access_scheme
@@ -122,11 +144,8 @@ likely to break.
                 target.write(source.encode("utf-8"))
 
     if write_target or installation.files.sources_modified or installation.config.modified_files:
-        print
-        print "Restarting Apache ..."
-
-        if not arguments.dry_run:
-            subprocess.check_call(["service", "apache2", "restart"])
+        if not arguments.dry_run and not restart():
+            return False
 
     return True
 

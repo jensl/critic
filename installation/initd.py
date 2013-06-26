@@ -19,6 +19,7 @@ import os.path
 import json
 import pwd
 import grp
+import subprocess
 
 import installation
 
@@ -27,6 +28,17 @@ renamed = []
 
 rclinks_added = False
 servicemanager_started = False
+
+def restart(identity="main"):
+    print
+    print "Restarting service manager ..."
+
+    try:
+        subprocess.check_call(["service", "critic-%s" % identity, "restart"])
+    except subprocess.CalledProcessError:
+        return False
+
+    return True
 
 def install(data):
     global servicemanager_started, rclinks_added
@@ -43,10 +55,10 @@ def install(data):
         with open(source_path, "r") as source:
             target.write((source.read().decode("utf-8") % data).encode("utf-8"))
 
-    installation.process.check_call(["update-rc.d", "critic-main", "defaults"])
+    subprocess.check_call(["update-rc.d", "critic-main", "defaults"])
     rclinks_added = True
 
-    installation.process.check_call([target_path, "start"])
+    subprocess.check_call([target_path, "start"])
     servicemanager_started = True
 
     return True
@@ -105,24 +117,21 @@ likely to break.
                 target.write(source.encode("utf-8"))
 
     if write_target or installation.files.sources_modified or installation.config.modified_files:
-        print
-        print "Restarting service manager ..."
-
-        if not arguments.dry_run:
-            installation.process.check_call(["service", "critic-main", "restart"])
+        if not arguments.dry_run and not restart():
+            return False
 
     return True
 
 def undo():
     if servicemanager_started:
-        installation.process.check_call([os.path.join("/etc", "init.d", "critic-main"), "stop"])
+        subprocess.check_call([os.path.join("/etc", "init.d", "critic-main"), "stop"])
 
     map(os.unlink, created_file)
 
     for target, backup in renamed: os.rename(backup, target)
 
     if rclinks_added:
-        installation.process.check_call(["update-rc.d", "critic-main", "remove"])
+        subprocess.check_call(["update-rc.d", "critic-main", "remove"])
 
 def finish():
     for target, backup in renamed: os.unlink(backup)
