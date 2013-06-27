@@ -181,7 +181,7 @@ def analyzeChunk1(deletedLines, insertedLines, offsetA=0, offsetB=0):
 def offsetInLine(words, offset):
     return sum(map(lambda word: len(word.encode("utf-8")), words[0:offset]))
 
-re_ws_words = re.compile("( {1,4}|\t|\\s+|\\S+)")
+re_ws_words = re.compile("( |\t|\\s+|\\S+)")
 
 def analyzeWhiteSpaceLine(deletedLine, insertedLine):
     deletedLine = textutils.decode(deletedLine)
