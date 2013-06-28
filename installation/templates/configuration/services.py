@@ -36,7 +36,6 @@ HIGHLIGHT         = service(name="highlight")
 CHANGESET         = service(name="changeset")
 GITHOOK           = service(name="githook")
 BRANCHTRACKER     = service(name="branchtracker",     address=None)
-BRANCHTRACKERHOOK = service(name="branchtrackerhook", address=(configuration.base.HOSTNAME, 9999))
 MAILDELIVERY      = service(name="maildelivery",      address=None)
 WATCHDOG          = service(name="watchdog",          address=None)
 MAINTENANCE       = service(name="maintenance",       address=None)
@@ -64,7 +63,6 @@ SERVICEMANAGER["services"] = [HIGHLIGHT,
                               CHANGESET,
                               GITHOOK,
                               BRANCHTRACKER,
-                              BRANCHTRACKERHOOK,
                               MAILDELIVERY,
                               WATCHDOG,
                               MAINTENANCE]
