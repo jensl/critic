@@ -41,11 +41,11 @@ def createFullMergeChangeset(db, user, repository, commit, review=None):
 
     assert len(changesets) == len(commit.parents)
 
-    try:
-        replay = createChangeset(db, user, repository, commit, conflicts=True, review=review)
-        if replay: changesets.append(replay[0])
-    except:
-        pass
+    replayed = createChangeset(db, user, repository, commit, conflicts=True, review=review)
+
+    assert len(replayed) == 1
+
+    changesets.append(replayed[0])
 
     return changesets
 
