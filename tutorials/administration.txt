@@ -285,3 +285,177 @@ and to unassign a role:
 
   Note: If the options are not provided, <code>criticctl</code> will instead
   prompt for the missing information.
+
+Background Services
+-------------------
+
+The running Critic system is divided into two parts: the web front-end code,
+running as a WSGI application (in Apache, using mod_wsgi) and a number of
+background services running as daemon processes (started via a SysV init
+script.)  The background services are listed on the page
+  <code><a href="/services">%(configuration.URL)s/services</a></code>
+where the system administrator (any user with the <code>administrator</code>
+role) can restart them and view their logs.  The WSGI daemon processes can also
+be restarted from that page.  By default there are two WSGI daemon processes;
+this number can be adjusted by modifying the <code>WSGIDaemonProcess</code>
+directive in the Apache site definition file.
+
+Normally, the system administrator does not need to do anything to any of the
+background services; they are restarted automatically when Critic is upgraded or
+if any of them crash.  If any errors or warnings are logged by a background
+service, an email is sent to the system administrator email address.
+
+Background services are configured in the configuration file
+  <code>%(configuration.paths.CONFIG_DIR)s/configuration/services.py</code>
+where the set of services to start is defined, as well as various per-service
+configuration settings.  If these settings are changed, the services need to be
+restarted for the new settings to take effect.
+
+The following background services are started automatically by Critic:
+
+branchtracker
+-------------
+The <code>branchtracker</code> service is responsible for fetching tracked
+branches from remote Git repositories and pushing them to Critic's repositories.
+If a Critic repository is created to mirror another Git repository, one such
+tracked branch is automatically set up, typically named <code>master</code>.
+Additional tracked branches can be added via the
+  <code><a href="/repositories">%(configuration.URL)s/repositories</a></code>
+page by any user with the <code>administrator</code> role.  Reviews can also be
+created to track branches in other Git repositories using the
+  <code><a href="/createreview">%(configuration.URL)s/createreview</a></code>
+page.
+
+changeset
+---------
+The <code>changeset</code> service is responsible for processing diffs and
+storing cached information about them in Critic's database.  The service also
+periodically scans the database for cached diffs that haven't been accessed for
+some time, and deletes them.
+
+The service has the following additional configuration settings in
+<code>services.py</code> (with the default settings):
+
+| CHANGESET["max_workers"] = 4
+| CHANGESET["rss_limit"] = 1024 ** 3
+| CHANGESET["purge_at"] = (2, 15)
+
+The "max_workers" setting decides how many parallel jobs the service can run.
+The "rss_limit" setting is a safe-guard against run-away memory usage.  The
+"purge_at" setting is a tuple (HOUR, MINUTE) that defines when during the day
+(in the server's local time) that the service should perform its maintenance
+tasks.
+
+githook
+-------
+The <code>githook</code> service performs all the checks and updates needed when
+Critic's repositories are updated by users using <code>git push</code>.  The
+actual <code>pre-receive</code> hook that is installed in Critic's repositories
+is a simple script that connects to the service over a UNIX socket and forwards
+all information about the update to the service.
+
+highlight
+---------
+The <code>highlight</code> service is responsible for generating syntax
+highlighted copies of source file versions and storing them in a cache, as well
+as periodically compressing and eventually deleting old highlighted copies.
+
+As part of syntax highlighting, "code contexts" are in some cases (depending on
+the language of the source file) calculated and stored in Critic's database.  A
+"code context" is a short string, for instance a function signature, mapped to a
+range of lines, and used by the diff viewer to give context to the code
+fragments it displays.
+
+The service has the following additional configuration settings in
+<code>services.py</code> (with the default settings):
+
+| HIGHLIGHT["cache_dir"] = os.path.join(configuration.paths.CACHE_DIR, "highlight")
+| HIGHLIGHT["min_context_length"] = 5
+| HIGHLIGHT["max_context_length"] = 256
+| HIGHLIGHT["max_workers"] = 4
+| HIGHLIGHT["compact_at"] = (3, 15)
+
+The "cache_dir" setting defines where cached highlighted copies are stored on
+disk.  The "min_context_length" and "max_context_length" limits length of code
+context strings.  The "max_workers" setting defines how many parallel jobs the
+service can run.  The "compact_at" setting is a tuple (HOUR, MINUTE) that
+defines when during the day (in the server's local time) that the service should
+perform its maintenance tasks.
+
+maildelivery
+------------
+The <code>maildelivery</code> service is responsible for picking up queued mails
+produced by other parts of Critic and delivering them to the configured SMTP
+server.
+
+The service has the following additional configuration settings in
+<code>services.py</code> (with the default settings):
+
+| MAILDELIVERY["timeout"] = 10
+
+The "timeout" setting defines the (socket) timeout used when contacting the SMTP
+server.  If a connection or mail delivery attempt times out, the service will
+wait a while and then try again.
+
+maintenance
+-----------
+The <code>maintenance</code> service performs miscellaneous maintenance tasks
+periodically.  Currently it performs these tasks:
+
+* Keeping the UTC offsets in the <code>timezones</code> table in Critic's
+  database up-to-date.  The offsets are fetched from PostgreSQL's
+  <code>pg_timezone_names</code> table, but accessing this table directly is
+  quite slow, so the offsets in it are read periodically and cached.
+* Running <code>git gc</code> in Critic's Git repositories.
+
+The service has the following additional configuration settings in
+<code>services.py</code> (with the default settings):
+
+| MAINTENANCE["maintenance_at"] = (4, 0)
+
+The "maintenance_at" setting is a tuple (HOUR, MINUTE) that defines when during
+the day (in the server's local time) that the service should perform its
+maintenance tasks.
+
+servicemanager
+--------------
+The <code>servicemanager</code> service is a meta-service that starts all other
+services, and restarts them if they crash.  If this service is restarted it
+restarts all other services.
+
+The service has the following additional configuration settings in
+<code>services.py</code> (with the default settings):
+
+| SERVICEMANAGER["services"] = [...]
+
+The "services" setting is a list of services to start.
+
+watchdog
+--------
+The <code>watchdog</code> service is a simple monitoring service.
+
+By default it only monitors the memory usage of the WSGI daemon processes and
+restarts them if their memory usage exceeds the configured limits.  There are
+two limits; a soft limit at which it tells the WSGI process to restart itself by
+sending it a <code>SIGINT</code> signal, and a hard limit at which it kills the
+WSGI process by sending it a <code>SIGKILL</code> signal.
+
+If configured to do so, the service can also monitor overall system load and
+send emails to the system administrator if the load exceeds configured limits.
+
+The service has the following additional configuration settings in
+<code>services.py</code> (with the default settings):
+
+| WATCHDOG["rss_soft_limit"] = 1024 ** 3
+| WATCHDOG["rss_hard_limit"] = 2 * WATCHDOG["rss_soft_limit"]
+|
+| # Not set by default:
+| WATCHDOG["load1_limit"] = <1-minute load average limit>
+| WATCHDOG["load5_limit"] = <5-minute load average limit>
+| WATCHDOG["load15_limit"] = <15-minute load average limit>
+
+The "rss_soft_limit" and "rss_hard_limit" defines the memory limits, in bytes.
+The load average limit settings defines the limit at which to start warning
+about high system load.  Any one, or all three, can be set to different values.
+Note: the configured value is multiplied by the number of CPUs in the system
+before being compared to the actual system load.
