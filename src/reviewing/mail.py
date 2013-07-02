@@ -42,6 +42,10 @@ def sendMail(db, review, message_id, from_user, to_user, recipients, subject, bo
     headers["OperaCritic-Association"] = review.getUserAssociation(db, to_user)
     headers["OperaCritic-Repository"] = review.repository.getURL(db, to_user)
 
+    list_id = to_user.getPreference(db, "email.listId", repository=review.repository)
+    if list_id:
+        headers["List-Id"] = "<%s.%s>" % (list_id, configuration.base.HOSTNAME)
+
     return queueMail(from_user, to_user, recipients, subject, body,
                      message_id=message_id,
                      parent_message_id=parent_message_id,

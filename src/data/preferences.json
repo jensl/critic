@@ -110,6 +110,12 @@
     "default": 80,
     "description": "Maximum line length in emails sent.  Plain text will be reflowed to adhere to this.  Diffs and other non-prose items are never reflowed."
   },
+  "email.listId": {
+    "type": "string",
+    "default": "",
+    "description": "Identifier used to construct a List-Id header for review emails.  Used for the $id in \"<$id.$hostname>\" in the header value.",
+    "relevance": { "repository": true }
+  },
   "email.newReview.diff.contextLines": {
     "type": "integer",
     "default": 3,
