@@ -165,6 +165,9 @@ Please commit or stash the changes and then try again.
             traceback.print_exc()
             abort()
 
+    with open(os.path.join(installation.paths.install_dir, ".install.data"), "w") as install_data:
+        json.dump(data, install_data)
+
     for module in installation.modules:
         try:
             if hasattr(module, "finish"):

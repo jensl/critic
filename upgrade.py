@@ -28,6 +28,8 @@ ERROR: Please run this script without -O or -OO options.
 
 import argparse
 
+sys.path.insert(0, os.path.join(os.getcwd(), "src"))
+
 import installation
 
 parser = argparse.ArgumentParser(description="Critic upgrade script")

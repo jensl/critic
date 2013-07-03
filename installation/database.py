@@ -96,7 +96,6 @@ def install(data):
 
     # Several subsequent commands will run as Critic system user or "postgres" user,
     # and these users typically don't have read access to the installation 'root_dir'
-    root_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
     original_dir = os.getcwd()
     try:
         # Set cwd to something that Critic system / "postgres" users has access to.
@@ -121,7 +120,7 @@ def install(data):
 
         process.check_output(["su", "-c", "psql -v ON_ERROR_STOP=1 -c 'GRANT ALL ON DATABASE \"critic\" TO \"%s\";'" % installation.system.username, "postgres"])
 
-        data_dir = os.path.join(root_dir, "installation/data")
+        data_dir = os.path.join(installation.root_dir, "installation/data")
 
         psql_import(os.path.join(data_dir, "dbschema.sql"))
         psql_import(os.path.join(data_dir, "dbschema.comments.sql"))

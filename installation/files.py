@@ -22,28 +22,6 @@ import shutil
 import errno
 import py_compile
 
-BLACKLIST = set([ "install.py",
-                  "upgrade.py",
-                  "installation",
-                  "testing",
-                  "extensions/v8-jsshell",
-                  "dbschema.sql",
-                  "dbschema.comments.sql",
-                  "roles.sql",
-                  "comments.pgsql",
-                  ".git",
-                  ".gitignore" ])
-
-def blacklisted(name):
-    path = os.path.dirname(name)
-    while path:
-        if path in BLACKLIST: return True
-        path = os.path.dirname(path)
-    if name in BLACKLIST: return True
-    elif name.endswith(".pyc"): return True
-    elif name.endswith(".pyo"): return True
-    else: return False
-
 created_dir = []
 created_file = []
 renamed = []
@@ -70,7 +48,7 @@ ERROR: Failed to compile %s:\n%s
         return True
 
 def install(data):
-    source_dir = os.path.dirname(os.path.abspath(sys.argv[0]))
+    source_dir = os.path.join(installation.root_dir, "src")
     target_dir = installation.paths.install_dir
 
     # Note: this is an array since it's modified in a nested scope.
@@ -105,7 +83,7 @@ def install(data):
         for entry in os.listdir(os.path.join(source_dir, path)):
             name = os.path.join(path, entry)
 
-            if not blacklisted(name) and copy(name):
+            if copy(name):
                 process(name)
 
     process()
@@ -119,7 +97,7 @@ def install(data):
     return True
 
 def upgrade(arguments, data):
-    source_dir = os.path.dirname(os.path.abspath(sys.argv[0]))
+    source_dir = os.path.join(installation.root_dir, "src")
     target_dir = data["installation.paths.install_dir"]
 
     # Note: this is an array since it's modified in a nested scope.
@@ -316,9 +294,8 @@ Not installing the updated version can cause unpredictable results.
 
     for line in differences.splitlines():
         added, deleted, path = map(str.strip, line.split(None, 3))
-        if not blacklisted(path):
-            if copy(path) is False:
-                return False
+        if copy(path) is False:
+            return False
 
     if compilation_failed:
         return False
