@@ -387,7 +387,7 @@ class Review(object):
 
         indent = " " * indent
 
-        if db and user:
+        if user:
             url_prefixes = user.getCriticURLs(db)
         else:
             url_prefixes = [dbutils.getURLPrefix(db)]

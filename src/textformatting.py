@@ -23,7 +23,7 @@ import gitutils
 def renderFormatted(db, user, table, lines, toc=False, title_right=None):
     re_h1 = re.compile("^=+$")
     re_h2 = re.compile("^-+$")
-    data = { "configuration.URL": dbutils.getURLPrefix(db),
+    data = { "configuration.URL": dbutils.getURLPrefix(db, user),
              "configuration.base.HOSTNAME": configuration.base.HOSTNAME,
              "configuration.base.SYSTEM_USER_NAME": configuration.base.SYSTEM_USER_NAME,
              "configuration.base.SYSTEM_GROUP_NAME": configuration.base.SYSTEM_GROUP_NAME,

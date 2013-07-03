@@ -258,7 +258,8 @@ def createBranch(user, repository, name, head, flags):
             all_commits = [the_commit]
             review = reviewing.utils.createReview(db, user, repository, all_commits, name, the_commit.summary(), None, via_push=True)
 
-            print "Submitted review: %s/r/%d" % (dbutils.getURLPrefix(db), review.id)
+            print "Submitted review:"
+            print review.getURL(db, user, indent=2)
 
             if review.reviewers:
                 print "  Reviewers:"
@@ -365,15 +366,24 @@ def createBranch(user, repository, name, head, flags):
         cursor.execute("INSERT INTO branches (repository, name, head, base, tail) VALUES (%s, %s, %s, %s, %s) RETURNING id", (repository.id, name, commit_id(head), base, commit_id(tail)))
         branch_id = cursor.fetchone()[0]
 
-        cursor.execute("SELECT name FROM branches WHERE id=%s", [base])
+        # If 'user' isn't a dbutils.User object, it means this push was made by
+        # the system (as the system user,) and in that case we're not really
+        # interested in this "user friendly" feedback.
+        #
+        # Also, the calls to user.getCriticURLs() obvious don't work if 'user'
+        # isn't a dbutils.User object.
+        if isinstance(user, dbutils.User):
+            cursor.execute("SELECT name FROM branches WHERE id=%s", [base])
 
-        print "Added branch based on %s containing %d commit%s:" % (cursor.fetchone()[0], len(commit_list), "s" if len(commit_list) > 1 else "")
-        print "  %s/log?repository=%d&branch=%s" % (dbutils.getURLPrefix(db), repository.id, name)
-        if len(commit_list) > 1:
-            print "To create a review of all %d commits:" % len(commit_list)
-        else:
-            print "To create a review of the commit:"
-        print "  %s/createreview?repository=%d&branch=%s" % (dbutils.getURLPrefix(db), repository.id, name)
+            print "Added branch based on %s containing %d commit%s:" % (cursor.fetchone()[0], len(commit_list), "s" if len(commit_list) > 1 else "")
+            for url_prefix in user.getCriticURLs(db):
+                print "  %s/log?repository=%d&branch=%s" % (url_prefix, repository.id, name)
+            if len(commit_list) > 1:
+                print "To create a review of all %d commits:" % len(commit_list)
+            else:
+                print "To create a review of the commit:"
+            for url_prefix in user.getCriticURLs(db):
+                print "  %s/createreview?repository=%d&branch=%s" % (url_prefix, repository.id, name)
 
     reachable_values = [(branch_id, commit.sha1) for commit in commit_list]
     cursor.executemany("INSERT INTO reachable (branch, commit) SELECT %s, id FROM commits WHERE sha1=%s", reachable_values)

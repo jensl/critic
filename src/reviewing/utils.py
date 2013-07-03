@@ -291,7 +291,7 @@ and follow the instructions.""" % merge.sha1[:8]
 
                     message += """
 Please confirm that this is intended by loading:
-  %s/confirmmerge?id=%d""" % (dbutils.getURLPrefix(db), confirmation_id)
+  %s/confirmmerge?id=%d""" % (dbutils.getURLPrefix(db, user), confirmation_id)
 
                     raise index.IndexException, message
                 elif row[2] is not None:

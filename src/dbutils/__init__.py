@@ -25,8 +25,16 @@ from dbutils.paths import find_file, find_files, describe_file
 from dbutils.timezones import loadTimezones, updateTimezones, sortedTimezones, \
                               adjustTimestamp
 
-def getURLPrefix(db):
+def getURLPrefix(db, user=None):
     import configuration
     cursor = db.cursor()
-    cursor.execute("SELECT url_prefix FROM systemidentities WHERE name=%s", (configuration.base.SYSTEM_IDENTITY,))
-    return cursor.fetchone()[0]
+    cursor.execute("""SELECT anonymous_scheme, authenticated_scheme, hostname
+                        FROM systemidentities
+                       WHERE name=%s""",
+                   (configuration.base.SYSTEM_IDENTITY,))
+    anonymous_scheme, authenticated_scheme, hostname = cursor.fetchone()
+    if user and not user.isAnonymous():
+        scheme = authenticated_scheme
+    else:
+        scheme = anonymous_scheme
+    return "%s://%s" % (scheme, hostname)

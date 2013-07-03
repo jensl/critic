@@ -136,11 +136,20 @@ def install(data):
 
         def adapt(value): return psycopg2.extensions.adapt(value).getquoted()
 
-        quoted_urlprefix = adapt("http://%s" % installation.system.hostname)
-        quoted_installed_sha1 = adapt(data["sha1"])
-        add_systemidentity_query = """INSERT INTO systemidentities (key, name, url_prefix, description, installed_sha1)
-                                          VALUES ('main', 'main', %s, 'Main', %s);""" \
-                                   % (quoted_urlprefix, quoted_installed_sha1)
+        if installation.config.access_scheme in ("http", "https"):
+            anonymous_scheme = authenticated_scheme = installation.config.access_scheme
+        else:
+            anonymous_scheme = "http"
+            authenticated_scheme = "https"
+
+        add_systemidentity_query = (
+            """INSERT INTO systemidentities (key, name, anonymous_scheme,
+                                             authenticated_scheme, hostname,
+                                             description, installed_sha1)
+                    VALUES ('main', 'main', %s, %s, %s, 'Main', %s);"""
+            % (adapt(anonymous_scheme), adapt(authenticated_scheme),
+               adapt(installation.system.hostname), adapt(data["sha1"])))
+
         installation.process.check_input(
             ["su", "-s", "/bin/sh", "-c", "psql -q -v ON_ERROR_STOP=1 -f -", installation.system.username],
             stdin=add_systemidentity_query)

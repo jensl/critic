@@ -34,16 +34,17 @@ with frontend.signin("alice"):
                  GIT_COMMITTER_EMAIL="alice@example.org")
 
         output = work.run(["push", "critic", "HEAD"])
+        next_is_review_url = False
 
         for line in output.splitlines():
             if not line.startswith("remote:"):
                 continue
             line = line[len("remote:"):].split("\x1b", 1)[0].strip()
-            if not line.startswith("Submitted review:"):
-                continue
-            url = line[len("Submitted review:"):].strip()
-            review_id = int(re.search(r"/r/(\d+)$", url).group(1))
-            break
+            if line == "Submitted review:":
+                next_is_review_url = True
+            elif next_is_review_url:
+                review_id = int(re.search(r"/r/(\d+)$", line).group(1))
+                break
         else:
             testing.expect.check("<review URL in git hook output>",
                                  "<expected content not found>")

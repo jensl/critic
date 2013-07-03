@@ -772,7 +772,7 @@ commits that contains only changes from those commits.</p>
 
 <p>You can use the URL below if you want to view this diff anyway,
 including the unrelated changes.</p>
-<pre style='padding-left: 2em'><a href='%s'>%s%s</a></pre>""" % ("\n".join(sorted(overlapping_changes)), url, dbutils.getURLPrefix(db), url)
+<pre style='padding-left: 2em'><a href='%s'>%s%s</a></pre>""" % ("\n".join(sorted(overlapping_changes)), url, dbutils.getURLPrefix(db, user), url)
 
                 raise page.utils.DisplayMessage(title="Impossible Diff",
                                                 body=message,

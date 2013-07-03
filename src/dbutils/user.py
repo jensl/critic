@@ -172,11 +172,22 @@ class User(object):
         url_types = self.getPreference(db, 'email.urlType').split(",")
 
         cursor = db.cursor()
-        cursor.execute("SELECT key, url_prefix FROM systemidentities")
+        cursor.execute("""SELECT key, anonymous_scheme, authenticated_scheme, hostname
+                            FROM systemidentities""")
 
-        url_prefixes = dict(cursor)
+        url_prefixes = dict((row[0], row[1:]) for row in cursor)
+        urls = []
 
-        return [url_prefixes[url_type] for url_type in url_types]
+        for url_type in url_types:
+            if url_prefixes.has_key(url_type):
+                anonymous_scheme, authenticated_scheme, hostname = url_prefixes[url_type]
+                if self.isAnonymous():
+                    scheme = anonymous_scheme
+                else:
+                    scheme = authenticated_scheme
+                urls.append("%s://%s" % (scheme, hostname))
+
+        return urls
 
     def getFirstName(self):
         return self.fullname.split(" ")[0]
