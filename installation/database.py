@@ -120,10 +120,13 @@ def install(data):
             pass
 
         process.check_output(["su", "-c", "psql -v ON_ERROR_STOP=1 -c 'GRANT ALL ON DATABASE \"critic\" TO \"%s\";'" % installation.system.username, "postgres"])
-        psql_import(os.path.join(root_dir, "dbschema.sql"))
-        psql_import(os.path.join(root_dir, "dbschema.comments.sql"))
-        psql_import(os.path.join(root_dir, "comments.pgsql"))
-        psql_import(os.path.join(root_dir, "roles.sql"))
+
+        data_dir = os.path.join(root_dir, "installation/data")
+
+        psql_import(os.path.join(data_dir, "dbschema.sql"))
+        psql_import(os.path.join(data_dir, "dbschema.comments.sql"))
+        psql_import(os.path.join(data_dir, "comments.pgsql"))
+        psql_import(os.path.join(data_dir, "roles.sql"))
 
         import psycopg2
 
