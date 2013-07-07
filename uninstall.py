@@ -18,6 +18,8 @@ import os
 import grp
 import sys
 import argparse
+import subprocess
+
 import installation
 
 def enum(*sequential, **named):
@@ -62,7 +64,7 @@ def get_all_configurations(arguments):
 
 def run_command(arguments, command_parts):
     try:
-        installation.process.check_output(command_parts)
+        subprocess.check_output(command_parts)
     except:
         abort_if_no_keep_going_param(arguments, "Error while running command: " + ' '.join(command_parts))
 
@@ -138,7 +140,7 @@ This step cannot be undone! To abort the uninstall script, press CTRL-C now.
             # delgroup doesn't do this automatically and we want to avoid users gettings errors like:
             # "groups: cannot find name for group ID 132"
             for group_member in grp.getgrnam(group).gr_mem:
-                installation.process.check_output(["gpasswd", "-d", group_member, group])
+                subprocess.check_output(["gpasswd", "-d", group_member, group])
         except KeyError:
             abort_if_no_keep_going_param(arguments, "ERROR: Could not find group '%s'." % group)
         run_command(arguments, ["delgroup", "--system", group])

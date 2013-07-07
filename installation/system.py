@@ -16,9 +16,9 @@
 
 import pwd
 import grp
+import subprocess
 
 import installation
-from installation import process
 
 hostname = None
 username = "critic"
@@ -49,7 +49,7 @@ Critic Installation: System
 
         if arguments.system_hostname: hostname = arguments.system_hostname
         else:
-            try: hostname = process.check_output(["hostname", "--fqdn"]).strip()
+            try: hostname = subprocess.check_output(["hostname", "--fqdn"]).strip()
             except: pass
 
             hostname = installation.input.string(prompt="What is the machine's FQDN?",
@@ -153,12 +153,15 @@ def install(data):
     if create_system_group:
         print "Creating group '%s' ..." % groupname
 
-        process.check_call(["addgroup", "--quiet", "--system", groupname])
+        subprocess.check_call(["addgroup", "--quiet", "--system", groupname])
 
     if create_system_user:
         print "Creating user '%s' ..." % username
 
-        process.check_call(["adduser", "--quiet", "--system", "--ingroup=%s" % groupname, "--home=%s" % installation.paths.data_dir, "--disabled-login", username])
+        subprocess.check_call(
+            ["adduser", "--quiet", "--system", "--ingroup=%s" % groupname,
+             "--home=%s" % installation.paths.data_dir, "--disabled-login",
+             username])
 
     uid = pwd.getpwnam(username).pw_uid
     gid = grp.getgrnam(groupname).gr_gid
@@ -169,9 +172,9 @@ def undo():
     if created_system_user:
         print "Deleting user '%s' ..." % username
 
-        process.check_call(["deluser", "--system", username])
+        subprocess.check_call(["deluser", "--system", username])
 
     if created_system_group:
         print "Deleting group '%s' ..." % groupname
 
-        process.check_call(["delgroup", "--system", groupname])
+        subprocess.check_call(["delgroup", "--system", groupname])

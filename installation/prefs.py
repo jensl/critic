@@ -14,8 +14,10 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
+import os
 import json
 import textwrap
+import subprocess
 
 import installation
 
@@ -76,7 +78,10 @@ def load_preferences(db):
     return preferences
 
 def install(data):
-    with open("installation/data/preferences.json") as preferences_file:
+    path = os.path.join(installation.root_dir, "installation", "data",
+                        "preferences.json")
+
+    with open(path) as preferences_file:
         preferences = json.load(preferences_file)
 
     import dbutils
@@ -99,16 +104,20 @@ def upgrade(arguments, data):
     old_sha1 = data["sha1"]
     old_file_sha1 = installation.utils.get_file_sha1(git, old_sha1, path)
 
-    new_sha1 = installation.process.check_output([git, "rev-parse", "HEAD"]).strip()
+    new_sha1 = subprocess.check_output([git, "rev-parse", "HEAD"],
+                                       cwd=installation.root_dir).strip()
     new_file_sha1 = installation.utils.get_file_sha1(git, new_sha1, path)
 
     if old_file_sha1:
-        old_source = installation.process.check_output([git, "cat-file", "blob", old_file_sha1])
+        old_source = subprocess.check_output([git, "cat-file", "blob", old_file_sha1],
+                                             cwd=installation.root_dir)
         old_preferences = json.loads(old_source)
     else:
         old_preferences = {}
 
-    with open(path) as preferences_file:
+    preferences_path = os.path.join(installation.root_dir, path)
+
+    with open(preferences_path) as preferences_file:
         new_preferences = json.load(preferences_file)
 
     def update_preferences(old_preferences, new_preferences, db_preferences):

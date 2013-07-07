@@ -18,9 +18,9 @@ import sys
 import os
 import os.path
 import re
+import subprocess
 
 import installation
-from installation import process
 
 def find_executable(name):
     for search_path in os.environ["PATH"].split(":"):
@@ -84,11 +84,11 @@ missing software using it.
             if arguments.headless:
                 aptget_env["DEBIAN_FRONTEND"] = "noninteractive"
             if not aptget_updated:
-                process.check_output(
+                subprocess.check_output(
                     [aptget, "-qq", "update"],
                     env=aptget_env)
                 aptget_updated = True
-            aptget_output = process.check_output(
+            aptget_output = subprocess.check_output(
                 [aptget, "-qq", "-y", "install"] + list(packages),
                 env=aptget_env)
             for line in aptget_output.splitlines():
@@ -140,7 +140,7 @@ to install are 'postgresql' and 'postgresql-client'.
             if not psql: success = False
 
     if psql:
-        postgresql_version = process.check_output([psql, "--version"]).splitlines()[0].split()[-1].split(".")
+        postgresql_version = subprocess.check_output([psql, "--version"]).splitlines()[0].split()[-1].split(".")
 
         postgresql_major = postgresql_version[0]
         postgresql_minor = postgresql_version[1]
@@ -300,11 +300,11 @@ source code can be downloaded here:
     def check_bcrypt():
         global bcrypt_available
         try:
-            process.check_output(
+            subprocess.check_output(
                 [sys.executable, "-c", "import bcrypt"],
-                stderr=process.STDOUT)
+                stderr=subprocess.STDOUT)
             bcrypt_available = True
-        except process.CalledProcessError:
+        except subprocess.CalledProcessError:
             pass
 
     global bcrypt_available

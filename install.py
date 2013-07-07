@@ -17,6 +17,7 @@
 import os
 import sys
 import traceback
+import subprocess
 
 if os.getuid() != 0:
     print """
@@ -122,7 +123,8 @@ try:
 
     git = installation.prereqs.git
 
-    if installation.process.check_output([git, "status", "--porcelain"]).strip():
+    if subprocess.check_output([git, "status", "--porcelain"],
+                               cwd=installation.root_dir).strip():
         print """
 ERROR: This Git repository has local modifications.
 
@@ -131,7 +133,8 @@ Please commit or stash the changes and then try again.
 """
         sys.exit(1)
 
-    sha1 = installation.process.check_output([git, "rev-parse", "HEAD"]).strip()
+    sha1 = subprocess.check_output([git, "rev-parse", "HEAD"],
+                                   cwd=installation.root_dir).strip()
     data = { "sha1": sha1 }
 
     for module in installation.modules:

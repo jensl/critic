@@ -14,15 +14,15 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-from subprocess import Popen as process, check_call, check_output, CalledProcessError, PIPE, STDOUT
+import subprocess
 
 def check_input(args, stdin, **kwargs):
     assert isinstance(stdin, str)
 
-    child = process(args, stdin=PIPE, **kwargs)
+    child = subprocess.Popen(args, stdin=subprocess.PIPE, **kwargs)
     stdout, stderr = child.communicate(stdin)
 
     if child.returncode != 0:
-        raise CalledProcessError(child.returncode, args, None)
+        raise subprocess.CalledProcessError(child.returncode, args, None)
 
     return stdout

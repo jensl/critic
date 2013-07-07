@@ -309,7 +309,7 @@ def upgrade(arguments, data):
 
     import configuration
 
-    source_dir = os.path.join("installation", "templates", "configuration")
+    source_dir = os.path.join(installation.root_dir, "installation", "templates", "configuration")
     target_dir = os.path.join(data["installation.paths.etc_dir"], arguments.identity, "configuration")
     compilation_failed = False
 

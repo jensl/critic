@@ -22,6 +22,11 @@ import testing
 
 logger = logging.getLogger("critic")
 
+def flag_pwd_independence(commit_sha1):
+    lstree = subprocess.check_output(
+        ["git", "ls-tree", commit_sha1, "testing/flags/pwd-independence.flag"])
+    return bool(lstree.strip())
+
 class HostCommandError(testing.InstanceError):
     def __init__(self, command, output):
         super(HostCommandError, self).__init__(
@@ -297,8 +302,15 @@ class Instance(object):
         else:
             self.restrict_access()
 
+        if flag_pwd_independence(self.install_commit):
+            install_py = "critic/install.py"
+            cwd = None
+        else:
+            install_py = "install.py"
+            cwd = "critic"
+
         install_output = self.execute(
-            ["sudo", "python", "-u", "install.py"] + arguments, cwd="critic")
+            ["sudo", "python", "-u", install_py] + arguments, cwd=cwd)
 
         logger.debug("Output from install.py:\n" + install_output)
 
@@ -365,8 +377,15 @@ class Instance(object):
 
             self.execute(["git", "checkout", self.upgrade_commit], cwd="critic")
 
+            if flag_pwd_independence(self.upgrade_commit):
+                upgrade_py = "critic/upgrade.py"
+                cwd = None
+            else:
+                upgrade_py = "upgrade.py"
+                cwd = "critic"
+
             upgrade_output = self.execute(
-                ["sudo", "python", "-u", "upgrade.py"] + arguments, cwd="critic")
+                ["sudo", "python", "-u", upgrade_py] + arguments, cwd=cwd)
 
             logger.debug("Output from upgrade.py:\n" + upgrade_output)
 

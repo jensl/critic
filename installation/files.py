@@ -14,13 +14,14 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-import installation
 import sys
 import os
-import os.path
 import shutil
 import errno
 import py_compile
+import subprocess
+
+import installation
 
 created_dir = []
 created_file = []
@@ -122,7 +123,8 @@ def upgrade(arguments, data):
     git = data["installation.prereqs.git"]
 
     old_sha1 = data["sha1"]
-    new_sha1 = installation.process.check_output([git, "rev-parse", "HEAD"]).strip()
+    new_sha1 = subprocess.check_output([git, "rev-parse", "HEAD"],
+                                       cwd=installation.root_dir).strip()
 
     def isResource(path):
         return path.endswith(".css") or path.endswith(".js") or path.endswith(".txt")
@@ -140,7 +142,8 @@ def upgrade(arguments, data):
         if old_file_sha1 != current_file_sha1:
             def generateVersion(label, path):
                 if label == "installed":
-                    source = installation.process.check_output([git, "cat-file", "blob", old_file_sha1])
+                    source = subprocess.check_output([git, "cat-file", "blob", old_file_sha1],
+                                                     cwd=installation.root_dir)
                     with open(path, "w") as target: target.write(source)
 
             update_query = installation.utils.UpdateModifiedFile(
@@ -240,7 +243,8 @@ deleted.
                 if current_file_sha1 != old_file_sha1:
                     def generateVersion(label, path):
                         if label == "installed":
-                            source = installation.process.check_output([git, "cat-file", "blob", old_file_sha1])
+                            source = subprocess.check_output([git, "cat-file", "blob", old_file_sha1],
+                                                             cwd=installation.root_dir)
                             with open(target_path + ".org", "w") as target: target.write(source)
                         elif label == "updated":
                             shutil.copyfile(source_path, target_path + ".new")
@@ -290,7 +294,8 @@ Not installing the updated version can cause unpredictable results.
                     else:
                         sources_modified = True
 
-    differences = installation.process.check_output([git, "diff", "--numstat", "%s..%s" % (old_sha1, new_sha1)])
+    differences = subprocess.check_output([git, "diff", "--numstat", "%s..%s" % (old_sha1, new_sha1)],
+                                          cwd=installation.root_dir)
 
     for line in differences.splitlines():
         added, deleted, path = map(str.strip, line.split(None, 3))

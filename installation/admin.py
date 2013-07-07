@@ -15,9 +15,9 @@
 # the License.
 
 import sys
+import subprocess
 
 import installation
-from installation import process
 
 username = None
 email = None
@@ -58,9 +58,9 @@ This user does not need to match a system user on this machine.
                 # It should have been installed by now, but for some reason it
                 # doesn't always work to import it into this Python process, so
                 # we have to do it in a child process instead.
-                password = process.check_input(
+                password = installation.process.check_input(
                     [sys.executable, "-c", "import sys, bcrypt; sys.stdout.write(bcrypt.hashpw(sys.stdin.read(), bcrypt.gensalt()))"],
-                    stdin=plaintext, stdout=process.PIPE)
+                    stdin=plaintext, stdout=subprocess.PIPE)
             else:
                 password = bcrypt.hashpw(plaintext, bcrypt.gensalt())
     else:
@@ -81,28 +81,32 @@ This user does not need to match a system user on this machine.
 def install(data):
     import psycopg2
 
-    def adapt(value): return psycopg2.extensions.adapt(value).getquoted()
+    def adapt(value):
+        return psycopg2.extensions.adapt(value).getquoted()
 
-    process.check_input(["su", "-s", "/bin/sh", "-c", "psql -q -v ON_ERROR_STOP=1 -f -", installation.system.username],
-                        stdin=("""INSERT INTO users (name, email, password, fullname, status)
-                                      VALUES (%s, %s, %s, %s, 'current');"""
-                               % (adapt(username),
-                                  adapt(email),
-                                  adapt(password),
-                                  adapt(fullname))))
+    installation.process.check_input(
+        ["su", "-s", "/bin/sh", "-c", "psql -q -v ON_ERROR_STOP=1 -f -", installation.system.username],
+        stdin=("""INSERT INTO users (name, email, password, fullname, status)
+                       VALUES (%s, %s, %s, %s, 'current');"""
+               % (adapt(username),
+                  adapt(email),
+                  adapt(password),
+                  adapt(fullname))))
 
-    process.check_input(["su", "-s", "/bin/sh", "-c", "psql -q -v ON_ERROR_STOP=1 -f -", installation.system.username],
-                        stdin=("""INSERT INTO userroles (uid, role)
-                                       SELECT id, 'administrator'
-                                         FROM users
-                                        WHERE name=%s;"""
-                               % adapt(username)))
+    installation.process.check_input(
+        ["su", "-s", "/bin/sh", "-c", "psql -q -v ON_ERROR_STOP=1 -f -", installation.system.username],
+        stdin=("""INSERT INTO userroles (uid, role)
+                       SELECT id, 'administrator'
+                         FROM users
+                        WHERE name=%s;"""
+               % adapt(username)))
 
-    process.check_input(["su", "-s", "/bin/sh", "-c", "psql -q -v ON_ERROR_STOP=1 -f -", installation.system.username],
-                        stdin=("""INSERT INTO userroles (uid, role)
-                                       SELECT id, 'repositories'
-                                         FROM users
-                                        WHERE name=%s;"""
-                               % adapt(username)))
+    installation.process.check_input(
+        ["su", "-s", "/bin/sh", "-c", "psql -q -v ON_ERROR_STOP=1 -f -", installation.system.username],
+        stdin=("""INSERT INTO userroles (uid, role)
+                       SELECT id, 'repositories'
+                         FROM users
+                        WHERE name=%s;"""
+               % adapt(username)))
 
     return True

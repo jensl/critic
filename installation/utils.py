@@ -64,7 +64,7 @@ class UpdateModifiedFile:
         print
         print "=" * 80
 
-        diff = installation.process.process(["diff", "-u", self.__versions[from_version], self.__versions[to_version]])
+        diff = subprocess.Popen(["diff", "-u", self.__versions[from_version], self.__versions[to_version]])
         diff.wait()
 
         print "=" * 80
@@ -109,7 +109,8 @@ def update_from_template(arguments, data, template_path, target_path, message):
     git = data["installation.prereqs.git"]
 
     old_commit_sha1 = data["sha1"]
-    new_commit_sha1 = subprocess.check_output([git, "rev-parse", "HEAD"]).strip()
+    new_commit_sha1 = subprocess.check_output([git, "rev-parse", "HEAD"],
+                                              cwd=installation.root_dir).strip()
 
     old_template = read_file(git, old_commit_sha1, template_path)
     new_template = read_file(git, new_commit_sha1, template_path)
@@ -185,10 +186,12 @@ def copy_file(source_path, target_path):
             os.fchown(target.fileno(), stat.st_uid, stat.st_gid)
 
 def hash_file(git, path):
-    return installation.process.check_output([git, "hash-object", path]).strip()
+    return subprocess.check_output([git, "hash-object", path],
+                                   cwd=installation.root_dir).strip()
 
 def get_file_sha1(git, commit_sha1, path):
-    lstree = installation.process.check_output([git, "ls-tree", commit_sha1, path]).strip()
+    lstree = subprocess.check_output([git, "ls-tree", commit_sha1, path],
+                                     cwd=installation.root_dir).strip()
 
     if lstree:
         lstree_mode, lstree_type, lstree_sha1, lstree_path = lstree.split()
@@ -204,8 +207,8 @@ def read_file(git, commit_sha1, path):
     file_sha1 = get_file_sha1(git, commit_sha1, path)
     if file_sha1 is None:
         return None
-    return installation.process.check_output(
-        [git, "cat-file", "blob", file_sha1])
+    return subprocess.check_output([git, "cat-file", "blob", file_sha1],
+                                   cwd=installation.root_dir)
 
 def as_critic_system_user():
     class Context:

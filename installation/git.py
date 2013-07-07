@@ -14,12 +14,12 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-import os.path
+import os
+import subprocess
 
 import installation
-from installation import process
 
 def install(data):
     socket_path = os.path.join(installation.paths.run_dir, "main", "sockets", "githook.unix")
-    process.check_call([installation.prereqs.git, "config", "--system", "critic.socket", socket_path])
+    subprocess.check_call([installation.prereqs.git, "config", "--system", "critic.socket", socket_path])
     return True

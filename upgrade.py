@@ -18,7 +18,7 @@ import os
 import sys
 import json
 import traceback
-import os.path
+import subprocess
 
 if sys.flags.optimize > 0:
     print """
@@ -125,10 +125,14 @@ Critic Upgrade
 ==============
 """
 
+git = data["installation.prereqs.git"]
+
 if "sha1" not in data:
-    try: guess_sha1 = installation.process.check_output([data["installation.prereqs.git"], "rev-parse", "HEAD@{1}"],
-                                                        cwd=os.path.dirname(os.path.abspath(__file__)))
-    except: guess_sha1 = None
+    try:
+        guess_sha1 = subprocess.check_output([git, "rev-parse", "HEAD@{1}"],
+                                             cwd=installation.root_dir).strip()
+    except:
+        guess_sha1 = None
 
     print """
 The SHA-1 of the commit you initially installed was not recorded.  This
@@ -156,16 +160,20 @@ by "git rev-parse".
 """
 
     def revparse(value):
-        return installation.process.check_output([data["installation.prereqs.git"], "rev-parse", "--verify", value],
-                                                 cwd=os.path.dirname(os.path.abspath(__file__))).strip()
+        return subprocess.check_output([git, "rev-parse", "--verify", value],
+                                       cwd=installation.root_dir).strip()
 
     def valid_commit(value):
-        try: sha1 = revparse(value)
-        except: return "not a valid ref (checked with \"git rev-parse --verify\")"
+        try:
+            sha1 = revparse(value)
+        except subprocess.CalledProcessError:
+            return "not a valid ref (checked with \"git rev-parse --verify\")"
 
-        try: installation.process.check_output([data["installation.prereqs.git"], "cat-file", "commit", sha1],
-                                               cwd=os.path.dirname(os.path.abspath(__file__)))
-        except: return "not a commit"
+        try:
+            subprocess.check_output([git, "cat-file", "commit", sha1],
+                                    cwd=installation.root_dir)
+        except subprocess.CalledProcessError:
+            return "not a commit"
 
     sha1 = revparse(installation.input.string(prompt="What commit was originally installed?",
                                               default=default,
@@ -173,16 +181,16 @@ by "git rev-parse".
 
     data["sha1"] = sha1
 
-git = data["installation.prereqs.git"]
-
 old_critic_sha1 = data["sha1"]
-new_critic_sha1 = installation.process.check_output([git, "rev-parse", "HEAD"]).strip()
+new_critic_sha1 = subprocess.check_output([git, "rev-parse", "HEAD"],
+                                          cwd=installation.root_dir).strip()
 print """
 Previously installed version: %s
 Will now upgrade to version:  %s
 """ % (old_critic_sha1, new_critic_sha1)
 
-if installation.process.check_output([git, "status", "--porcelain"]).strip():
+if subprocess.check_output([git, "status", "--porcelain"],
+                           cwd=installation.root_dir).strip():
     print """
 ERROR: This Git repository has local modifications.
 
