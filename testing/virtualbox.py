@@ -240,7 +240,7 @@ class Instance(object):
         # the ownership back to us.
         self.execute(["sudo", "chown", "-R", "$LOGNAME", "$HOME"])
 
-    def install(self, repository, override_arguments={}):
+    def install(self, repository, override_arguments={}, other_cwd=False):
         logger.debug("Installing Critic ...")
 
         use_arguments = { "--headless": True,
@@ -302,7 +302,7 @@ class Instance(object):
         else:
             self.restrict_access()
 
-        if flag_pwd_independence(self.install_commit):
+        if other_cwd and flag_pwd_independence(self.install_commit):
             install_py = "critic/install.py"
             cwd = None
         else:
@@ -353,7 +353,7 @@ class Instance(object):
 
         logger.info("Installed Critic: %s" % self.install_commit_description)
 
-    def upgrade(self, override_arguments={}):
+    def upgrade(self, override_arguments={}, other_cwd=False):
         if self.upgrade_commit:
             logger.debug("Upgrading Critic ...")
 
@@ -377,7 +377,7 @@ class Instance(object):
 
             self.execute(["git", "checkout", self.upgrade_commit], cwd="critic")
 
-            if flag_pwd_independence(self.upgrade_commit):
+            if other_cwd and flag_pwd_independence(self.upgrade_commit):
                 upgrade_py = "critic/upgrade.py"
                 cwd = None
             else:
@@ -400,3 +400,14 @@ class Instance(object):
         # Need to give the service manager a little bit of time to actually
         # start all the background services.
         time.sleep(2)
+
+    def uninstall(self):
+        self.execute(
+            ["sudo", "python", "uninstall.py", "--headless", "--keep-going"],
+            cwd="critic")
+
+        # Delete the regular users.
+        for name in ("alice", "bob", "dave", "erin"):
+            self.execute(["sudo", "deluser", "--remove-home", name])
+
+

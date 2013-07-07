@@ -77,6 +77,7 @@ def rmdir_if_empty(directories):
 
 def main():
     parser = argparse.ArgumentParser(description="Critic uninstall script")
+    parser.add_argument("--headless", help=argparse.SUPPRESS, action="store_true")
     parser.add_argument("--etc-dir", default="/etc/critic", help="root directory for Critic system configurations i.e. specifying /etc/critic will read configuration data from /etc/critic/*/configuration/*.py", action="store")
     parser.add_argument("--keep-going", help="keep going even if errors are encountered (useful for purging broken installations)", action="store_true")
     arguments = parser.parse_args()
@@ -87,8 +88,8 @@ ERROR: This script must be run as root.
 """
         sys.exit(ExitStatus.MUST_RUN_AS_ROOT)
 
-
-    print """\
+    if not arguments.headless:
+        print """\
 !!!! WARNING !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 This uninstall script will delete Critic, all Critic logs, caches and
 configuration files, and it will also DELETE ALL DATA related to Critic.
@@ -99,7 +100,7 @@ instances of Critic on this system, all of them will be removed.
 
 This step cannot be undone! To abort the uninstall script, press CTRL-C now.
 """
-    installation.input.string("To continue the uninstall script and DELETE ALL YOUR DATA, enter 'deletemydata' here:", default="", check=check)
+        installation.input.string("To continue the uninstall script and DELETE ALL YOUR DATA, enter 'deletemydata' here:", default="", check=check)
 
     if not os.path.isdir(arguments.etc_dir):
         print "%s: no such directory.  Invalid --etc-dir parameter." % arguments.etc_dir
