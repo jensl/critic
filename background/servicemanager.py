@@ -195,9 +195,8 @@ else:
     os.setuid(uid)
 
     with open(pidfile_path, "w") as pidfile:
+        daemon.detach()
         pidfile.write("%s\n" % os.getpid())
-
-    daemon.detach()
 
     was_terminated = False
 
