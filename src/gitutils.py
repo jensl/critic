@@ -461,13 +461,24 @@ class Repository:
     def keepalive(self, commit):
         self.run('update-ref', 'refs/keepalive/%s' % str(commit), str(commit))
 
-    def relaycopy(self, identifier):
-        class RelayCopy(object):
-            def __init__(self, origin, path):
+    def __copy(self, identifier, flavor):
+        base_args = ["clone", "--quiet"]
+
+        if flavor == "relay":
+            base_args.append("--bare")
+            base_dir = REPOSITORY_RELAYCOPY_DIR
+        else:
+            assert flavor == "work"
+            base_dir = REPOSITORY_WORKCOPY_DIR
+
+        class Copy(object):
+            def __init__(self, origin, path, name):
                 self.origin = origin
                 self.path = path
+                self.name = name
             def run(self, *args, **kwargs):
-                return self.origin.runCustom(self.path, *args, **kwargs)
+                return self.origin.runCustom(
+                    os.path.join(self.path, self.name), *args, **kwargs)
             def __enter__(self):
                 return self
             def __exit__(self, *args):
@@ -475,53 +486,39 @@ class Repository:
                 return False
 
         path = tempfile.mkdtemp(prefix="%s_%s_" % (self.name, identifier),
-                                dir=REPOSITORY_RELAYCOPY_DIR)
+                                dir=base_dir)
         name = os.path.basename(self.path)
-        args = ["clone", "--quiet", "--bare"]
 
+        local_args = base_args[:]
         if not same_filesystem(self.path, path):
-            args.append("--shared")
+            local_args.append("--shared")
+        local_args.extend([self.path, name])
 
-        args.extend([self.path, name])
+        fallback_args = base_args[:]
+        fallback_args.extend(["file://" + os.path.abspath(self.path), name])
 
         try:
-            self.runCustom(path, *args)
-        except:
-            shutil.rmtree(path)
-            raise
-        else:
-            return RelayCopy(self, os.path.join(path, name))
+            # Try cloning with --local (implied by using a plain path as the
+            # repository URL.)  This may fail due to inaccessible pack-*.keep
+            # files in the repository.
+            self.runCustom(path, *local_args)
+        except GitCommandError:
+            try:
+                # Try cloning without --local (implied by using a file://
+                # repository URL.)  This is slower and uses more disk space, but
+                # is immune to the problems with inaccessible pack-*.keep files.
+                self.runCustom(path, *fallback_args)
+            except GitCommandError:
+                shutil.rmtree(path)
+                raise
+
+        return Copy(self, path, name)
+
+    def relaycopy(self, identifier):
+        return self.__copy(identifier, "relay")
 
     def workcopy(self, identifier):
-        class WorkCopy(object):
-            def __init__(self, origin, path):
-                self.origin = origin
-                self.path = path
-            def run(self, *args, **kwargs):
-                return self.origin.runCustom(self.path, *args, **kwargs)
-            def __enter__(self):
-                return self
-            def __exit__(self, *args):
-                shutil.rmtree(self.path)
-                return False
-
-        path = tempfile.mkdtemp(prefix="%s_%s_" % (self.name, identifier),
-                                dir=REPOSITORY_WORKCOPY_DIR)
-        name = os.path.basename(self.path)
-        args = ["clone", "--quiet"]
-
-        if not same_filesystem(self.path, path):
-            args.append("--shared")
-
-        args.extend([self.path, name])
-
-        try:
-            self.runCustom(path, *args)
-        except:
-            shutil.rmtree(path)
-            raise
-        else:
-            return WorkCopy(self, os.path.join(path, name))
+        return self.__copy(identifier, "work")
 
     def replaymerge(self, db, user, commit):
         self.keepalive(commit)
