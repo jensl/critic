@@ -98,7 +98,7 @@ def install(data):
     return True
 
 def upgrade(arguments, data):
-    source_dir = os.path.join(installation.root_dir, "src")
+    source_dir = installation.root_dir
     target_dir = data["installation.paths.install_dir"]
 
     # Note: this is an array since it's modified in a nested scope.
@@ -126,25 +126,34 @@ def upgrade(arguments, data):
     new_sha1 = subprocess.check_output([git, "rev-parse", "HEAD"],
                                        cwd=installation.root_dir).strip()
 
+    old_has_src = installation.utils.get_tree_sha1(git, old_sha1, "src")
+
     def isResource(path):
         return path.endswith(".css") or path.endswith(".js") or path.endswith(".txt")
 
-    def remove(path):
-        source_path = os.path.join(source_dir, path)
-        target_path = os.path.join(target_dir, path)
-        backup_path = os.path.join(os.path.dirname(target_path), "_" + os.path.basename(target_path))
+    def remove(old_source_path, target_path):
+        full_target_path = os.path.join(target_dir, target_path)
+        backup_path = os.path.join(os.path.dirname(full_target_path),
+                                   "_" + os.path.basename(target_path))
 
-        if not os.path.isfile(target_path): return
+        if not os.path.isfile(full_target_path):
+            return
 
-        old_file_sha1 = installation.utils.get_file_sha1(git, old_sha1, path)
-        current_file_sha1 = installation.utils.hash_file(git, target_path)
+        old_file_sha1 = installation.utils.get_file_sha1(
+            git, old_sha1, old_source_path)
+        current_file_sha1 = installation.utils.hash_file(
+            git, full_target_path)
+
+        assert old_file_sha1 is not None
 
         if old_file_sha1 != current_file_sha1:
             def generateVersion(label, path):
                 if label == "installed":
-                    source = subprocess.check_output([git, "cat-file", "blob", old_file_sha1],
-                                                     cwd=installation.root_dir)
-                    with open(path, "w") as target: target.write(source)
+                    source = subprocess.check_output(
+                        [git, "cat-file", "blob", old_file_sha1],
+                        cwd=installation.root_dir)
+                    with open(path, "w") as target:
+                        target.write(source)
 
             update_query = installation.utils.UpdateModifiedFile(
                 arguments,
@@ -157,8 +166,8 @@ appears to have been edited since it was installed.
 
 Not removing the file can cause unpredictable results.
 """,
-                versions={ "installed": target_path + ".org",
-                           "current": target_path },
+                versions={ "installed": full_target_path + ".org",
+                           "current": full_target_path },
                 options=[ ("r", "remove the file"),
                           ("k", "keep the file"),
                           ("d", ("installed", "current")) ],
@@ -172,30 +181,31 @@ Not removing the file can cause unpredictable results.
             remove_file = True
 
         if remove_file:
-            print "Removing file: %s" % path
+            print "Removing file: %s" % target_path
             if not arguments.dry_run:
-                os.rename(target_path, backup_path)
-                renamed.append((target_path, backup_path))
+                os.rename(full_target_path, backup_path)
+                renamed.append((full_target_path, backup_path))
 
                 if target_path.endswith(".py"):
-                    if os.path.isfile(target_path + "c"):
-                        os.unlink(target_path + "c")
-                    if os.path.isfile(target_path + "o"):
-                        os.unlink(target_path + "o")
+                    if os.path.isfile(full_target_path + "c"):
+                        os.unlink(full_target_path + "c")
+                    if os.path.isfile(full_target_path + "o"):
+                        os.unlink(full_target_path + "o")
 
-    def copy(path):
+    def copy(old_source_path, new_source_path, target_path):
         global copied_files, modified_files
         global resources_modified, sources_modified
 
-        source_path = os.path.join(source_dir, path)
-        target_path = os.path.join(target_dir, path)
-        backup_path = os.path.join(os.path.dirname(target_path), "_" + os.path.basename(target_path))
+        full_source_path = os.path.join(source_dir, new_source_path)
+        full_target_path = os.path.join(target_dir, target_path)
+        backup_path = os.path.join(os.path.dirname(full_target_path),
+                                   "_" + os.path.basename(target_path))
 
-        if not os.path.isfile(source_path):
-            remove(path)
+        if not os.path.isfile(full_source_path):
+            remove(old_source_path, target_path)
             return
 
-        if os.path.isfile(source_path) and os.path.isdir(target_path):
+        if os.path.isfile(full_source_path) and os.path.isdir(full_target_path):
             print """
 The directory
 
@@ -204,50 +214,59 @@ The directory
 is about to be deleted because a file is about to be installed in its
 place.  Please make sure it doesn't contain anything that shouldn't be
 deleted.
-"""
+""" % full_target_path
 
             if not installation.input.yes_or_no("Do you want to delete the directory?", default=False):
                 return False
 
-            print "Removing directory: %s" % path
+            print "Removing directory: %s" % target_path
             if not arguments.dry_run:
-                os.rename(target_path, backup_path)
-                renamed.append((target_path, backup_path))
+                os.rename(full_target_path, backup_path)
+                renamed.append((full_target_path, backup_path))
 
-        if not os.path.isfile(target_path):
-            print "New file: %s" % path
+        if not os.path.isfile(full_target_path):
+            print "New file: %s" % target_path
             if not arguments.dry_run:
-                try: os.makedirs(os.path.dirname(target_path), 0755)
+                try: os.makedirs(os.path.dirname(full_target_path), 0755)
                 except OSError, error:
                     if error.errno == errno.EEXIST: pass
                     else: raise
-                shutil.copyfile(source_path, target_path)
-                created_file.append(target_path)
-                if path.startswith("hooks/"):
+                shutil.copyfile(full_source_path, full_target_path)
+                created_file.append(full_target_path)
+                if target_path.startswith("hooks/"):
                     mode = 0755
                 else:
                     mode = 0644
-                os.chmod(target_path, mode)
+                os.chmod(full_target_path, mode)
             copied_files += 1
-            if isResource(path):
+            if isResource(target_path):
                 resources_modified = True
             else:
                 sources_modified = True
         else:
-            old_file_sha1 = installation.utils.get_file_sha1(git, old_sha1, path)
-            new_file_sha1 = installation.utils.get_file_sha1(git, new_sha1, path)
+            old_file_sha1 = installation.utils.get_file_sha1(
+                git, old_sha1, old_source_path)
+            new_file_sha1 = installation.utils.get_file_sha1(
+                git, new_sha1, new_source_path)
 
-            current_file_sha1 = installation.utils.hash_file(git, target_path)
+            assert old_file_sha1 is not None
+            assert new_file_sha1 is not None
+
+            current_file_sha1 = installation.utils.hash_file(
+                git, full_target_path)
 
             if current_file_sha1 != new_file_sha1:
                 if current_file_sha1 != old_file_sha1:
                     def generateVersion(label, path):
                         if label == "installed":
-                            source = subprocess.check_output([git, "cat-file", "blob", old_file_sha1],
-                                                             cwd=installation.root_dir)
-                            with open(target_path + ".org", "w") as target: target.write(source)
+                            source = subprocess.check_output(
+                                [git, "cat-file", "blob", old_file_sha1],
+                                cwd=installation.root_dir)
+                            with open(full_target_path + ".org", "w") as target:
+                                target.write(source)
                         elif label == "updated":
-                            shutil.copyfile(source_path, target_path + ".new")
+                            shutil.copyfile(full_source_path,
+                                            full_target_path + ".new")
 
                     update_query = installation.utils.UpdateModifiedFile(
                         arguments,
@@ -261,9 +280,9 @@ appears to have been edited since it was installed.
 
 Not installing the updated version can cause unpredictable results.
 """,
-                        versions={ "installed": target_path + ".org",
-                                   "current": target_path,
-                                   "updated": target_path + ".new" },
+                        versions={ "installed": full_target_path + ".org",
+                                   "current": full_target_path,
+                                   "updated": full_target_path + ".new" },
                         options=[ ("i", "install the updated version"),
                                   ("k", "keep the current version"),
                                   ("do", ("installed", "current")),
@@ -275,31 +294,47 @@ Not installing the updated version can cause unpredictable results.
                     install_file = True
 
                 if install_file:
-                    print "Updated file: %s" % path
+                    print "Updated file: %s" % target_path
                     if not arguments.dry_run:
-                        os.rename(target_path, backup_path)
-                        renamed.append((target_path, backup_path))
-                        shutil.copyfile(source_path, target_path)
-                        created_file.append(target_path)
-                        if path.startswith("hooks/"):
+                        os.rename(full_target_path, backup_path)
+                        renamed.append((full_target_path, backup_path))
+                        shutil.copyfile(full_source_path, full_target_path)
+                        created_file.append(full_target_path)
+                        if target_path.startswith("hooks/"):
                             mode = 0755
                         else:
                             mode = 0644
-                        os.chmod(target_path, mode)
-                        if not compile_file(path):
-                            compilation_failed.append(path)
+                        os.chmod(full_target_path, mode)
+                        if not compile_file(target_path):
+                            compilation_failed.append(target_path)
                     modified_files += 1
-                    if isResource(path):
+                    if isResource(target_path):
                         resources_modified = True
                     else:
                         sources_modified = True
 
-    differences = subprocess.check_output([git, "diff", "--numstat", "%s..%s" % (old_sha1, new_sha1)],
-                                          cwd=installation.root_dir)
+    differences = subprocess.check_output(
+        [git, "diff", "--numstat", "%s..%s" % (old_sha1, new_sha1)],
+        cwd=installation.root_dir)
+
+    changed_paths = set()
 
     for line in differences.splitlines():
-        added, deleted, path = map(str.strip, line.split(None, 3))
-        if copy(path) is False:
+        _, _, path = map(str.strip, line.split(None, 3))
+        if path.startswith("src/"):
+            changed_paths.add(path[len("src/"):])
+        elif not old_has_src:
+            if os.path.isfile(os.path.join(target_dir, path)):
+                changed_paths.add(path)
+
+    for path in sorted(changed_paths):
+        if old_has_src:
+            old_source_path = os.path.join("src", path)
+        else:
+            old_source_path = path
+        if copy(old_source_path=old_source_path,
+                new_source_path=os.path.join("src", path),
+                target_path=path) is False:
             return False
 
     if compilation_failed:

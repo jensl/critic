@@ -189,19 +189,25 @@ def hash_file(git, path):
     return subprocess.check_output([git, "hash-object", path],
                                    cwd=installation.root_dir).strip()
 
-def get_file_sha1(git, commit_sha1, path):
+def get_entry_sha1(git, commit_sha1, path, entry_type):
     lstree = subprocess.check_output([git, "ls-tree", commit_sha1, path],
                                      cwd=installation.root_dir).strip()
 
     if lstree:
         lstree_mode, lstree_type, lstree_sha1, lstree_path = lstree.split()
 
-        assert lstree_type == "blob"
+        assert lstree_type == entry_type
         assert lstree_path == path
 
         return lstree_sha1
     else:
         return None
+
+def get_file_sha1(git, commit_sha1, path):
+    return get_entry_sha1(git, commit_sha1, path, "blob")
+
+def get_tree_sha1(git, commit_sha1, path):
+    return get_entry_sha1(git, commit_sha1, path, "tree")
 
 def read_file(git, commit_sha1, path):
     file_sha1 = get_file_sha1(git, commit_sha1, path)
