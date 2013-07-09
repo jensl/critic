@@ -710,6 +710,8 @@ the same tree as the old head of the branch.""")
 
                 repository.run('update-ref', 'refs/keepalive/%s' % old, old)
 
+            review.incrementSerial(db)
+
             return True
         elif old != repository.mergebase([old, new]):
             raise IndexException("Rejecting non-fast-forward update of review branch.")
