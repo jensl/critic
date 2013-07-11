@@ -980,8 +980,7 @@ def renderShowCommit(req, db, user):
         if parameter:
             repository = gitutils.Repository.fromParameter(db, parameter)
             if not repository:
-                yield page.utils.displayMessage(db, req, user, "'%s' is not a valid repository!" % repository.name, review=review)
-                return
+                raise page.utils.DisplayMessage("'%s' is not a valid repository!" % repository.name, review=review)
 
     cursor = db.cursor()
 
@@ -1034,8 +1033,7 @@ def renderShowCommit(req, db, user):
 
     if repository:
         if not repository.iscommit(one_sha1):
-            yield page.utils.displayMessage(db, req, user, "'%s' is not a valid commit in the repository '%s'!" % (one_sha1, repository.name), review=review)
-            return
+            raise page.utils.DisplayMessage("'%s' is not a valid commit in the repository '%s'!" % (one_sha1, repository.name), review=review)
     else:
         default = user.getPreference(db, "defaultRepository")
         if default:
@@ -1045,8 +1043,7 @@ def renderShowCommit(req, db, user):
         if not repository:
             repository = gitutils.Repository.fromSHA1(db, one_sha1)
             if not repository:
-                yield page.utils.displayMessage(db, req, user, "'%s' is not a valid commit in any repository!" % one_sha1, review=review)
-                return
+                raise page.utils.DisplayMessage("'%s' is not a valid commit in any repository!" % one_sha1, review=review)
 
     if first_sha1 is not None:
         try:
@@ -1055,8 +1052,7 @@ def renderShowCommit(req, db, user):
             raise page.utils.DisplayMessage("Invalid SHA-1", "%s is not a commit in %s" % (error.sha1, repository.path))
 
         if len(first_commit.parents) > 1:
-            yield page.utils.displayMessage(db, req, user, "Invalid parameters; 'first' can not be a merge commit.", review=review)
-            return
+            raise page.utils.DisplayMessage("Invalid parameters; 'first' can not be a merge commit.", review=review)
 
         from_sha1 = first_commit.parents[0] if first_commit.parents else None
         to_sha1 = last_sha1
@@ -1195,14 +1191,12 @@ def renderShowCommit(req, db, user):
 
     if moves:
         if len(changesets) != 1:
-            yield page.utils.displayMessage(db, req, user, "Can't detect moves in a merge commit!", review=review)
-            return
+            raise page.utils.DisplayMessage("Can't detect moves in a merge commit!", review=review)
 
         move_changeset = changeset_detectmoves.detectMoves(db, changesets[0], move_source_file_ids, move_target_file_ids)
 
         if not move_changeset:
-            yield page.utils.displayMessage(db, req, user, "No moved code found!", review=review)
-            return
+            raise page.utils.DisplayMessage(db, req, user, "No moved code found!", review=review)
 
         changesets = [move_changeset]
 
