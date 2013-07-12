@@ -22,6 +22,7 @@ import signal
 import configuration
 
 import gitutils
+import htmlutils
 from operation import Operation, OperationResult, OperationFailure, Optional
 
 class AddRepository(Operation):
@@ -77,6 +78,16 @@ class AddRepository(Operation):
             stdout, stderr = git.communicate()
             if git.returncode != 0:
                 raise gitutils.GitError("unexpected output from '%s': %s" % (" ".join(argv), stderr))
+
+        if remote:
+            try:
+                subprocess.check_output([configuration.executables.GIT, "ls-remote", remote["url"]], stderr=subprocess.STDOUT)
+            except subprocess.CalledProcessError as e:
+                raise OperationFailure(code="failedreadremote",
+                                       title="Failed to read source repository",
+                                       message="Critic failed to read from the specified source repository. The error reported from git " +
+                                               "(when running as the system user '%s') was: <pre>%s</pre>" % (configuration.base.SYSTEM_USER_NAME, htmlutils.htmlify(e.output)),
+                                       is_html=True)
 
         git(["init", "--bare", "--shared", repository_name + ".git"], cwd=main_base_path)
         git(["config", "receive.denyNonFastforwards", "false"], cwd=main_path)
