@@ -295,6 +295,8 @@ def install(data):
             if not compile_file(path):
                 compilation_failed = True
 
+            os.chmod(target_path + "c", mode)
+
     if compilation_failed:
         return False
 
@@ -396,6 +398,8 @@ configuration options to the existing version.
                         # removed configuration options, but that is unlikely to
                         # be a problem.)
                         reload(getattr(configuration, module_name))
+
+                os.chmod(target_path + "c", mode)
 
             modified_files += 1
 
