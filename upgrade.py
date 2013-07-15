@@ -247,6 +247,8 @@ try:
             print >>sys.stderr, "WARNING: %s.finish() failed" % module.__name__
             traceback.print_exc()
 
+    installation.utils.clean_root_pyc_files()
+
     print
     print "SUCCESS: Upgrade complete!"
     print

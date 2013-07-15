@@ -216,6 +216,14 @@ def read_file(git, commit_sha1, path):
     return subprocess.check_output([git, "cat-file", "blob", file_sha1],
                                    cwd=installation.root_dir)
 
+def clean_root_pyc_files():
+    print "Cleaning up .pyc files owned by root ..."
+    for root, _, files in os.walk(installation.root_dir):
+        for file in files:
+            file = os.path.join(root, file)
+            if file.endswith(".pyc") and os.stat(file).st_uid == 0:
+                os.unlink(file)
+
 def as_critic_system_user():
     class Context:
         def __init__(self):

@@ -182,12 +182,7 @@ Please commit or stash the changes and then try again.
             print >>sys.stderr, "WARNING: %s.finish() failed" % module.__name__
             traceback.print_exc()
 
-    print "Cleaning up .pyc files owned by root ..."
-    for root, _, files in os.walk(installation.root_dir):
-        for file in files:
-            file = os.path.join(root, file)
-            if file.endswith(".pyc") and os.stat(file).st_uid == 0:
-                os.unlink(file)
+    installation.utils.clean_root_pyc_files()
 
     print
     print "SUCCESS: Installation complete!"
