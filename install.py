@@ -80,9 +80,9 @@ for module in installation.modules:
 
 arguments = parser.parse_args()
 
-if os.path.exists(os.path.join(installation.root_dir, ".install.data")):
+if os.path.exists(os.path.join(installation.root_dir, ".installed")):
     print """
-ERROR: Found an .install.data file in the directory you're installing from.
+ERROR: Found an .installed file in the directory you're installing from.
 
 This typically means that Critic is already installed on this system, and if so
 then the upgrade.py script should be used to upgrade the installation rather than
@@ -152,8 +152,8 @@ Please commit or stash the changes and then try again.
 
     print
 
-    with open(os.path.join(installation.root_dir, ".install.data"), "w") as install_data:
-        json.dump(data, install_data)
+    with open(os.path.join(installation.root_dir, ".installed"), "w") as installed:
+        pass
 
     for module in installation.modules:
         try:

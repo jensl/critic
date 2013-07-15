@@ -1,4 +1,5 @@
 .install.data
+.installed
 *.pyc
 *.pyo
 *~

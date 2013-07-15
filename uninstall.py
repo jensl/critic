@@ -155,7 +155,7 @@ This step cannot be undone! To abort the uninstall script, press CTRL-C now.
     # trickier to know if the user really wants to delete empty parent dirs.
     rmdir_if_empty(["/var/log/critic", "/var/run/critic", "/var/cache/critic"])
 
-    run_command(arguments, ["rm", "-f", os.path.join(installation.root_dir, ".install.data")])
+    run_command(arguments, ["rm", "-f", os.path.join(installation.root_dir, ".installed")])
 
     print
     print "SUCCESS: Uninstall complete."
