@@ -43,5 +43,7 @@ Critic depends on the following software packages:
 
     - psycopg2
 
+    - pygments
+
 Note that on Debian/Ubuntu systems, the install.py script can install
 all of these software packages automatically.
