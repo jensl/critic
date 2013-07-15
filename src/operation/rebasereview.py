@@ -175,7 +175,9 @@ class RebaseReview(Operation):
 
             with review.repository.relaycopy("RebaseReview") as relay:
                 relay.run("fetch", "origin", "refs/commit/%s" % new_head.sha1)
-                relay.run("push", "-f", "origin", "%s:refs/heads/%s" % (new_head.sha1, review.branch.name))
+                relay.run("push", "--force", "origin",
+                          "%s:refs/heads/%s" % (new_head.sha1, review.branch.name),
+                          env={ "REMOTE_USER": user.name })
 
             if closed_by is not None:
                 db.commit()

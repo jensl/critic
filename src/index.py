@@ -562,18 +562,14 @@ review branch at a time.""")
             review = dbutils.Review.fromId(db, review_id)
             rebaser = dbutils.User.fromId(db, rebaser_id)
 
-            if isinstance(user, dbutils.User):
-                if rebaser.id != user.id:
-                    if user_name == configuration.base.SYSTEM_USER_NAME:
-                        user = rebaser
-                    else:
-                        raise IndexException("""\
+            if rebaser.id != user.id:
+                if user_name == configuration.base.SYSTEM_USER_NAME:
+                    user = rebaser
+                else:
+                    raise IndexException("""\
 This review is currently being rebased by
   %s <%s>
 and can't be otherwise updated right now.""" % (rebaser.fullname, rebaser.email))
-            else:
-                assert user == configuration.base.SYSTEM_USER_NAME, "Unexpected user name: %s" % user
-                user = rebaser
 
             old_head = gitutils.Commit.fromId(db, repository, old_head_id)
             old_commitset = log.commitset.CommitSet(review.branch.commits)

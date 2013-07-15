@@ -778,7 +778,9 @@ CriticRepository.prototype.getMergeChangeset = function (commit, data)
 
 function CriticRepositoryWorkCopy(repository, branch)
 {
-  if (!repository_work_copy_path || !IO.File.isDirectory(repository_work_copy_path))
+  if (!repository_work_copy_path ||
+      !IO.File.isDirectory(repository_work_copy_path) ||
+      global.user.id === null)
     throw CriticError("operation not available");
 
   var name = format("%s/%d/%s", global.user.name, extension_id, repository.name);
@@ -793,6 +795,8 @@ function CriticRepositoryWorkCopy(repository, branch)
         env = args.pop();
       else
         env = {};
+
+      env["REMOTE_USER"] = global.user.name;
 
       var stdin;
 
