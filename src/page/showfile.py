@@ -199,7 +199,10 @@ def renderShowFile(req, db, user):
         h1.text(components[-1], escape=True)
 
     h1.span("right").a(href=("/download/%s?repository=%s&sha1=%s"
-                             % (urllib.quote(path), repository.name, file_sha1))).text("[download]")
+                             % (urllib.quote(path), repository.name, file_sha1)),
+                       download=urllib.quote(path)).text("[download]")
+    h1.span("right").a(href=("/download/%s?repository=%s&sha1=%s"
+                             % (urllib.quote(path), repository.name, file_sha1))).text("[view]")
 
     table.tbody('spacer top').tr('spacer top').td(colspan=8).text()
 

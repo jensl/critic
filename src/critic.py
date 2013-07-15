@@ -108,9 +108,9 @@ def download(req, db, user):
 
     match = re.search("\\.([a-z]+)", req.path)
     if match:
-        req.setContentType(configuration.mimetypes.MIMETYPES.get(match.group(1), "application/octet-stream"))
+        req.setContentType(configuration.mimetypes.MIMETYPES.get(match.group(1), "text/plain"))
     else:
-        req.setContentType("application/octet-stream")
+        req.setContentType("text/plain")
 
     # req.headers_out["ETag"] = etag
 
