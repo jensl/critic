@@ -16,6 +16,7 @@
 
 import os
 import sys
+import stat
 import traceback
 import subprocess
 
@@ -171,8 +172,11 @@ Please commit or stash the changes and then try again.
             traceback.print_exc()
             abort()
 
-    with open(os.path.join(installation.paths.install_dir, ".install.data"), "w") as install_data:
-        json.dump(data, install_data)
+    install_data_path = os.path.join(installation.paths.install_dir, ".install.data")
+    with open(install_data_path, "w") as install_data_file:
+        json.dump(data, install_data_file)
+    # May contain SMTP password etc.
+    os.chmod(install_data_path, 0600)
 
     for module in installation.modules:
         try:
