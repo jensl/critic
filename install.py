@@ -152,8 +152,11 @@ Please commit or stash the changes and then try again.
 
     print
 
-    with open(os.path.join(installation.root_dir, ".installed"), "w") as installed:
+    installed_file = os.path.join(installation.root_dir, ".installed")
+    with open(installed_file, "w"):
         pass
+    install_py_stat = os.stat(os.path.join(installation.root_dir, "install.py"))
+    os.chown(installed_file, install_py_stat.st_uid, install_py_stat.st_gid)
 
     for module in installation.modules:
         try:
