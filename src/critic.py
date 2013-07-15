@@ -100,19 +100,11 @@ def download(req, db, user):
     sha1 = req.getParameter("sha1")
     repository = gitutils.Repository.fromParameter(db, req.getParameter("repository", user.getPreference(db, "defaultRepository")))
 
-    # etag = "\"critic.%s\"" % sha1
-
-    # if req.headers_in.has_key("If-None-Match"):
-    #     if etag == req.headers_in["If-None-Match"]:
-    #         return apache.HTTP_NOT_MODIFIED
-
     match = re.search("\\.([a-z]+)", req.path)
     if match:
         req.setContentType(configuration.mimetypes.MIMETYPES.get(match.group(1), "text/plain"))
     else:
         req.setContentType("text/plain")
-
-    # req.headers_out["ETag"] = etag
 
     return repository.fetch(sha1).data
 
