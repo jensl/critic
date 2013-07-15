@@ -179,14 +179,17 @@ else:
         print >>sys.stderr, "%s: file exists; daemon already running?" % pidfile_path
         sys.exit(1)
 
+    pidfile_dir = os.path.dirname(pidfile_path)
     try:
-        os.makedirs(os.path.dirname(pidfile_path))
+        # /var/run is typically a tmpfs that gets nuked on reboot,
+        # so recreate /var/run/critic/IDENTITY if it doesn't exist.
+        os.makedirs(pidfile_dir)
     except OSError, error:
         if error.errno != errno.EEXIST:
             raise
     else:
-        os.chown(pidfile_path, uid, gid)
-        os.chmod(pidfile_path, 0750 | stat.S_ISUID | stat.S_ISGID)
+        os.chown(pidfile_dir, uid, gid)
+        os.chmod(pidfile_dir, 0750 | stat.S_ISUID | stat.S_ISGID)
 
     os.environ["HOME"] = home
     os.chdir(home)

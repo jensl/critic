@@ -117,8 +117,19 @@ likely to break.
                 target.write(source.encode("utf-8"))
 
     if write_target or installation.files.sources_modified or installation.config.modified_files:
-        if not arguments.dry_run and not restart():
-            return False
+        if not arguments.dry_run:
+            # Due to a Critic bug (see fix: "Fix recreation of /var/run/critic/IDENTITY after reboot")
+            # it was possible that /var/run/critic/IDENTITY was accidentally recreated owned by root:root
+            # instead of critic:critic (on reboot). If this had happened the service manager restart that
+            # is done during upgrade would fail so upgrades always failed. Further, it was not possible
+            # to write a migration script for this because migrations execute after the service manager
+            # restart. Because of this the following 3 line workaround was necessary:
+            import configuration
+            if os.path.exists(configuration.paths.RUN_DIR):
+                os.chown(configuration.paths.RUN_DIR, installation.system.uid, installation.system.gid)
+
+            if not restart():
+                return False
 
     return True
 
