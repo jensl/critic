@@ -31,8 +31,8 @@ def unified(db, changeset, context_lines=3):
 
             file.macro_chunks = lines.getMacroChunks(context_lines, highlight=False)
 
-            oldPath = file.path if not file.wasRemoved() else "dev/null"
-            newPath = file.path if not file.wasAdded() else "dev/null"
+            oldPath = file.path if not file.wasAdded() else "dev/null"
+            newPath = file.path if not file.wasRemoved() else "dev/null"
 
             result += "--- a/%s\n+++ b/%s\n" % (oldPath, newPath)
 
