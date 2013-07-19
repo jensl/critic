@@ -31,16 +31,16 @@ import expect
 import repository
 import mailbox
 
-_logging_configured = False
+logger = None
 
 STDOUT = None
 STDERR = None
 
-def configureLogging(arguments=None):
+def configureLogging(arguments=None, wrap=None):
     import logging
     import sys
-    global _logging_configured, STDOUT, STDERR
-    if not _logging_configured:
+    global logger, STDOUT, STDERR
+    if not logger:
         # Essentially same as DEBUG, used when logging the output from commands
         # run in the guest system.
         STDOUT = logging.DEBUG + 1
@@ -58,9 +58,8 @@ def configureLogging(arguments=None):
             elif getattr(arguments, "quiet", False):
                 level = logging.WARNING
         logger.setLevel(level)
-        _logging_configured = True
-    else:
-        logger = logging.getLogger("critic")
+        if wrap:
+            logger = wrap(logger)
     return logger
 
 def pause(prompt="Press ENTER to continue: "):

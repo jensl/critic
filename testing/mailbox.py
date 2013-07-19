@@ -18,10 +18,9 @@ import socket
 import threading
 import time
 import re
-import logging
 import email
 
-logger = logging.getLogger("critic")
+import testing
 
 class User(object):
     def __init__(self, name, address):
@@ -122,7 +121,7 @@ class Client(threading.Thread):
         # single-recipient mails.)
         (mail.recipient,) = self.expectline(r"rcpt\s+to:<([^>]+)>$")
 
-        logger.debug("Mailbox: Mail to <%s>." % mail.recipient)
+        testing.logger.debug("Mailbox: Mail to <%s>." % mail.recipient)
 
         self.sendline("250 OK")
         self.expectline("data")
@@ -146,27 +145,27 @@ class Client(threading.Thread):
 
         mail.lines = message.get_payload(decode=True).splitlines()
 
-        logger.debug("Received mail to: <%s> \"%s\""
-                     % (mail.recipient, mail.header("Subject")))
+        testing.logger.debug("Received mail to: <%s> \"%s\""
+                             % (mail.recipient, mail.header("Subject")))
 
         self.mailbox.add(mail)
         self.sendline("250 OK")
 
     def run(self):
         try:
-            logger.debug("Mailbox: Client connected.")
+            testing.logger.debug("Mailbox: Client connected.")
             self.handshake()
-            logger.debug("Mailbox: Client ready.")
+            testing.logger.debug("Mailbox: Client ready.")
             while True:
                 self.receive()
         except Error as error:
-            logger.error("Mailbox: Client error: %s" % error.message)
+            testing.logger.error("Mailbox: Client error: %s" % error.message)
         except Quit:
-            logger.debug("Mailbox: Client quit.")
+            testing.logger.debug("Mailbox: Client quit.")
         except EOF:
-            logger.debug("Mailbox: Client disconnected prematurely.")
+            testing.logger.debug("Mailbox: Client disconnected prematurely.")
         except Exception:
-            logger.exception("Mailbox: Client error!")
+            testing.logger.exception("Mailbox: Client error!")
         self.close()
 
     def close(self):
@@ -252,8 +251,8 @@ class Mailbox(object):
             unexpected = self.pop(timeout=1)
             if unexpected is None:
                 return
-            logger.error("Unexpected mail to <%s>:\n%s"
-                         % (unexpected.recipient, unexpected))
+            testing.logger.error("Unexpected mail to <%s>:\n%s"
+                                 % (unexpected.recipient, unexpected))
 
     @property
     def port(self):

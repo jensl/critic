@@ -18,12 +18,9 @@ import os
 import time
 import tempfile
 import shutil
-import logging
 import subprocess
 
 import testing
-
-logger = logging.getLogger("critic")
 
 class GitCommandError(testing.TestFailure):
     def __init__(self, command, output):
@@ -35,7 +32,7 @@ class GitCommandError(testing.TestFailure):
 
 def _git(args, **kwargs):
     argv = ["git"] + args
-    logger.debug("Running: %s" % " ".join(argv))
+    testing.logger.debug("Running: %s" % " ".join(argv))
     try:
         return subprocess.check_output(
             argv, stdin=open("/dev/null"), stderr=subprocess.STDOUT, **kwargs)
@@ -55,7 +52,7 @@ class Repository(object):
         else:
             self.url = "git://%s/critic.git" % host
 
-        logger.debug("Creating temporary repository: %s" % self.path)
+        testing.logger.debug("Creating temporary repository: %s" % self.path)
 
         _git(["clone", "--bare", os.getcwd(), "critic.git"],
              cwd=self.base_path)
@@ -77,10 +74,10 @@ class Repository(object):
         pid, status = os.waitpid(self.daemon.pid, os.WNOHANG)
         if pid != 0:
             self.daemon = None
-            logger.error("Failed to export repository!")
+            testing.logger.error("Failed to export repository!")
             return False
 
-        logger.info("Exported repository: %s" % self.path)
+        testing.logger.info("Exported repository: %s" % self.path)
         return True
 
     def run(self, args):
@@ -129,11 +126,11 @@ class Repository(object):
                 self.daemon.terminate()
                 self.daemon.wait()
         except:
-            logger.exception("Repository clean-up failed!")
+            testing.logger.exception("Repository clean-up failed!")
 
         try:
             shutil.rmtree(self.base_path)
         except:
-            logger.exception("Repository clean-up failed!")
+            testing.logger.exception("Repository clean-up failed!")
 
         return False

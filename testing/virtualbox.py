@@ -17,14 +17,11 @@
 import os
 import subprocess
 import time
-import logging
 import fcntl
 import select
 import errno
 
 import testing
-
-logger = logging.getLogger("critic")
 
 def flag_pwd_independence(commit_sha1):
     lstree = subprocess.check_output(
@@ -103,7 +100,7 @@ class Instance(object):
     def __vmcommand(self, command, *arguments):
         argv = ["VBoxManage", command, self.identifier] + list(arguments)
         try:
-            logger.debug("Running: " + " ".join(argv))
+            testing.logger.debug("Running: " + " ".join(argv))
             return subprocess.check_output(argv, stderr=subprocess.STDOUT)
         except subprocess.CalledProcessError as error:
             raise HostCommandError(" ".join(argv), error.output)
@@ -151,7 +148,7 @@ class Instance(object):
             return count
 
     def wait(self):
-        logger.debug("Waiting for VM to come online ...")
+        testing.logger.debug("Waiting for VM to come online ...")
 
         while True:
             try:
@@ -162,7 +159,7 @@ class Instance(object):
                 break
 
     def start(self):
-        logger.debug("Starting VM: %s ..." % self.identifier)
+        testing.logger.debug("Starting VM: %s ..." % self.identifier)
 
         self.__vmcommand("snapshot", "restore", self.snapshot)
         self.__vmcommand("startvm", "--type", "headless")
@@ -170,10 +167,10 @@ class Instance(object):
 
         self.wait()
 
-        logger.info("Started VM: %s" % self.identifier)
+        testing.logger.info("Started VM: %s" % self.identifier)
 
     def stop(self):
-        logger.debug("Stopping VM: %s ..." % self.identifier)
+        testing.logger.debug("Stopping VM: %s ..." % self.identifier)
 
         self.__vmcommand("controlvm", "poweroff")
 
@@ -185,7 +182,7 @@ class Instance(object):
         # changes to "poweroff", so sleep a little longer to avoid problems.
         time.sleep(0.5)
 
-        logger.info("Stopped VM: %s" % self.identifier)
+        testing.logger.info("Stopped VM: %s" % self.identifier)
 
     def retake_snapshot(self, name):
         index = 1
@@ -213,7 +210,7 @@ class Instance(object):
             host_argv.append("-n")
         host_argv.append(self.hostname)
 
-        logger.debug("Running: " + " ".join(host_argv + guest_argv))
+        testing.logger.debug("Running: " + " ".join(host_argv + guest_argv))
 
         process = subprocess.Popen(
             host_argv + guest_argv,
@@ -245,7 +242,7 @@ class Instance(object):
                             stdout_done = True
                             break
                         stdout_data += line
-                        logger.log(testing.STDOUT, "%s" % line.rstrip("\n"))
+                        testing.logger.log(testing.STDOUT, "%s" % line.rstrip("\n"))
                     except IOError as error:
                         if error.errno == errno.EAGAIN:
                             break
@@ -259,7 +256,7 @@ class Instance(object):
                             stderr_done = True
                             break
                         stderr_data += line
-                        logger.log(testing.STDERR, "%s" % line.rstrip("\n"))
+                        testing.logger.log(testing.STDERR, "%s" % line.rstrip("\n"))
                     except IOError as error:
                         if error.errno == errno.EAGAIN:
                             break
@@ -320,7 +317,7 @@ class Instance(object):
 
     def install(self, repository, override_arguments={}, other_cwd=False,
                 quick=False, interactive=False):
-        logger.debug("Installing Critic ...")
+        testing.logger.debug("Installing Critic ...")
 
         if not interactive:
             use_arguments = { "--headless": True,
@@ -359,7 +356,7 @@ class Instance(object):
         try:
             self.execute(["git", "--version"])
         except GuestCommandError:
-            logger.debug("Installing Git ...")
+            testing.logger.debug("Installing Git ...")
 
             self.execute(["sudo", "DEBIAN_FRONTEND=noninteractive",
                           "apt-get", "-qq", "update"])
@@ -367,7 +364,7 @@ class Instance(object):
             self.execute(["sudo", "DEBIAN_FRONTEND=noninteractive",
                           "apt-get", "-qq", "-y", "install", "git-core"])
 
-            logger.info("Installed Git: %s" % self.execute(["git", "--version"]).strip())
+            testing.logger.info("Installed Git: %s" % self.execute(["git", "--version"]).strip())
 
         self.execute(["git", "clone", repository.url, "critic"])
         self.execute(["git", "fetch", "--quiet", "&&",
@@ -415,7 +412,7 @@ class Instance(object):
                 self.mailbox.check_empty()
             except testing.TestFailure as error:
                 if error.message:
-                    logger.error("Basic test: %s" % error.message)
+                    testing.logger.error("Basic test: %s" % error.message)
 
                 # If basic tests fail, there's no reason to further test this
                 # instance; it seems to be properly broken.
@@ -435,18 +432,18 @@ class Instance(object):
                 self.mailbox.check_empty()
             except testing.TestFailure as error:
                 if error.message:
-                    logger.error("Basic test: %s" % error.message)
+                    testing.logger.error("Basic test: %s" % error.message)
 
                 # If basic tests fail, there's no reason to further test this
                 # instance; it seems to be properly broken.
                 raise testing.InstanceError
 
-        logger.info("Installed Critic: %s" % self.install_commit_description)
+        testing.logger.info("Installed Critic: %s" % self.install_commit_description)
 
     def upgrade(self, override_arguments={}, other_cwd=False, quick=False,
                 interactive=False):
         if self.upgrade_commit:
-            logger.debug("Upgrading Critic ...")
+            testing.logger.debug("Upgrading Critic ...")
 
             self.restrict_access()
 
@@ -487,7 +484,7 @@ class Instance(object):
             if not quick:
                 self.frontend.run_basic_tests()
 
-            logger.info("Upgraded Critic: %s" % self.upgrade_commit_description)
+            testing.logger.info("Upgraded Critic: %s" % self.upgrade_commit_description)
 
     def restart(self):
         self.execute(["sudo", "service", "apache2", "restart"])

@@ -20,6 +20,7 @@ import argparse
 import logging
 import re
 import subprocess
+import traceback
 
 import testing
 
@@ -44,7 +45,40 @@ def main():
 
     arguments = parser.parse_args()
 
-    logger = testing.configureLogging(arguments)
+    class Counters:
+        def __init__(self):
+            self.tests_run = 0
+            self.tests_failed = 0
+            self.errors_logged = 0
+            self.warnings_logged = 0
+
+    counters = Counters()
+
+    class CountingLogger(object):
+        def __init__(self, real, counters):
+            self.real = real
+            self.counters = counters
+
+        def log(self, level, message):
+            if level == logging.ERROR:
+                self.counters.errors_logged += 1
+            elif level == logging.WARNING:
+                self.counters.warnings_logged += 1
+            for line in message.splitlines() or [""]:
+                self.real.log(level, line)
+        def debug(self, message):
+            self.log(logging.DEBUG, message)
+        def info(self, message):
+            self.log(logging.INFO, message)
+        def warning(self, message):
+            self.log(logging.WARNING, message)
+        def error(self, message):
+            self.log(logging.ERROR, message)
+        def exception(self, message):
+            self.log(logging.ERROR, message + "\n" + traceback.format_exc())
+
+    logger = testing.configureLogging(
+        arguments, wrap=lambda logger: CountingLogger(logger, counters))
     logger.info("Critic Testing Framework")
 
     import_errors = False
@@ -235,6 +269,7 @@ def main():
                     else:
                         mode = " (%s)" % enabled
                     logger.info("Running: %s%s" % (path, mode))
+                    counters.tests_run += 1
                     try:
                         execfile(os.path.join("testing/tests", path),
                                  { "testing": testing,
@@ -244,6 +279,7 @@ def main():
                                    "repository": repository,
                                    "mailbox": mailbox })
                     except testing.TestFailure as failure:
+                        counters.tests_failed += 1
                         if failure.message:
                             logger.error(failure.message)
                         while True:
@@ -302,6 +338,18 @@ def main():
                     run_group(group_name)
 
                 mailbox.check_empty()
+
+    logger.info("""
+Test summary
+============
+Tests run:       %3d
+Tests failed:    %3d
+Errors logged:   %3d
+Warnings logged: %3d
+""" % (counters.tests_run,
+       counters.tests_failed,
+       counters.errors_logged,
+       counters.warnings_logged))
 
 if __name__ == "__main__":
     main()

@@ -14,7 +14,6 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-import logging
 import json
 import testing
 
@@ -25,8 +24,6 @@ except ImportError:
     # testing/main.py detects and abort if either of these are missing, so just
     # ignore errors here.
     pass
-
-logger = logging.getLogger("critic")
 
 class Error(testing.TestFailure):
     def __init__(self, url, message):
@@ -79,7 +76,7 @@ class Frontend(object):
     def page(self, url, params={}, expect={}, expected_http_status=200):
         full_url = "http://%s:%d/%s" % (self.hostname, self.http_port, url)
 
-        logger.debug("Fetching page: %s ..." % full_url)
+        testing.logger.debug("Fetching page: %s ..." % full_url)
 
         headers = {}
 
@@ -110,7 +107,7 @@ class Frontend(object):
                     body = None
                 raise HTTPError(url, expected_http_status, response.status_code, body)
         except testing.TestFailure as error:
-            logger.error("Page '%s': %s" % (url, error.message))
+            testing.logger.error("Page '%s': %s" % (url, error.message))
             raise testing.TestFailure
 
         if response.status_code >= 400 and 200 in expected_http_status:
@@ -118,7 +115,7 @@ class Frontend(object):
             # by returning None.
             return None
 
-        logger.debug("Fetched page: %s" % full_url)
+        testing.logger.debug("Fetched page: %s" % full_url)
 
         document = text(response)
 
@@ -128,12 +125,13 @@ class Frontend(object):
             div_fatal = document.find("div", attrs={ "class": "fatal" })
             if div_fatal:
                 message = div_fatal.find("pre")
-                logger.error("Page '%s': crash during incremental page generation:\n%s"
-                             % (url, message.string if message else "<no message found>"))
+                testing.logger.error(
+                    "Page '%s': crash during incremental page generation:\n%s"
+                    % (url, message.string if message else "<no message found>"))
                 raise testing.TestFailure
 
         if expect:
-            logger.debug("Checking page: %s ..." % full_url)
+            testing.logger.debug("Checking page: %s ..." % full_url)
 
             failed_checks = False
 
@@ -141,8 +139,8 @@ class Frontend(object):
                 try:
                     check(document)
                 except testing.expect.FailedCheck as failed_check:
-                    logger.error("Page '%s', test '%s': %s"
-                                 % (url, key, failed_check.message))
+                    testing.logger.error("Page '%s', test '%s': %s"
+                                         % (url, key, failed_check.message))
                     failed_checks = True
                 except Exception as error:
                     raise Error(url, "'%s' checker failed: %s" % (key, str(error)))
@@ -150,14 +148,14 @@ class Frontend(object):
             if failed_checks:
                 raise testing.TestFailure
 
-            logger.debug("Checked page: %s ..." % full_url)
+            testing.logger.debug("Checked page: %s ..." % full_url)
 
         return document
 
     def operation(self, url, data, expect={}):
         full_url = "http://%s:%d/%s" % (self.hostname, self.http_port, url)
 
-        logger.debug("Executing operation: %s ..." % full_url)
+        testing.logger.debug("Executing operation: %s ..." % full_url)
 
         headers = {}
 
@@ -194,17 +192,17 @@ class Frontend(object):
                 except ValueError:
                     raise OperationError(url, message="malformed response (not JSON)")
         except testing.TestFailure as error:
-            logger.error("Operation '%s': %s" % (url, error.message))
+            testing.logger.error("Operation '%s': %s" % (url, error.message))
             raise testing.TestFailure
 
         if "sid" in response.cookies:
-            logger.debug("Cookie: sid=%s" % response.cookies["sid"])
+            testing.logger.debug("Cookie: sid=%s" % response.cookies["sid"])
             self.session_id = response.cookies["sid"]
 
-        logger.debug("Executed operation: %s" % full_url)
+        testing.logger.debug("Executed operation: %s" % full_url)
 
         if expect is not None:
-            logger.debug("Checking operation: %s" % full_url)
+            testing.logger.debug("Checking operation: %s" % full_url)
 
             # Check result["status"] first; if it doesn't have the expected value,
             # it's likely all other expected keys are simply missing from the
@@ -218,9 +216,10 @@ class Frontend(object):
                     extra = " (code=%r)" % result.get("code")
                 else:
                     extra = ""
-                logger.error("Operation '%s', key 'status': check failed: "
-                             "expected=%r, actual=%r%s"
-                             % (url, expected, actual, extra))
+                testing.logger.error(
+                    "Operation '%s', key 'status': check failed: "
+                    "expected=%r, actual=%r%s"
+                    % (url, expected, actual, extra))
                 raise testing.TestFailure
 
             failed_checks = False
@@ -236,15 +235,16 @@ class Frontend(object):
                         else:
                             continue
                     if expected != actual:
-                        logger.error("Operation '%s', key '%s': check failed: "
-                                     "expected=%r, actual=%r"
-                                     % (url, key, expected, actual))
+                        testing.logger.error(
+                            "Operation '%s', key '%s': check failed: "
+                            "expected=%r, actual=%r"
+                            % (url, key, expected, actual))
                         failed_checks = True
 
             if failed_checks:
                 raise testing.TestFailure
 
-            logger.debug("Checked operation: %s" % full_url)
+            testing.logger.debug("Checked operation: %s" % full_url)
 
         return result
 
@@ -258,9 +258,9 @@ class Frontend(object):
             self.operation("endsession", data={})
         except testing.TestFailure as failure:
             if failure.message:
-                logger.error(failure.message)
+                testing.logger.error(failure.message)
         except Exception:
-            logger.exception("Failed to sign out!")
+            testing.logger.exception("Failed to sign out!")
 
         # Resetting the cookie effectively signs out even if the "endsession"
         # operation failed.
