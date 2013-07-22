@@ -19,6 +19,7 @@ import threading
 import time
 import re
 import email
+import base64
 
 import testing
 
@@ -68,6 +69,7 @@ class Client(threading.Thread):
     def __init__(self, mailbox, client):
         super(Client, self).__init__()
         self.mailbox = mailbox
+        self.credentials = mailbox.credentials
         self.client = client
         self.client.settimeout(None)
         self.buffered = ""
@@ -96,11 +98,51 @@ class Client(threading.Thread):
         self.sendline("220 critic.example.org I'm the Critic Testing Framework")
 
         line = self.recvline()
-        if not re.match(r"helo\s+(\S+)$", line, re.IGNORECASE) \
-                and not re.match(r"ehlo\s+(\S+)$", line, re.IGNORECASE):
-            raise Error
+        if re.match(r"helo\s+(\S+)$", line, re.IGNORECASE):
+            if self.credentials:
+                raise Error
+            self.sendline("250 critic.example.org")
+        elif re.match(r"ehlo\s+(\S+)$", line, re.IGNORECASE):
+            if self.credentials:
+                self.sendline("250-critic.example.org")
+                self.sendline("250 AUTH LOGIN")
 
-        self.sendline("250 critic.example.org")
+                line = self.recvline()
+                match = re.match(r"auth\s+login(?:\s+(.+))?$",
+                                 line, re.IGNORECASE)
+                if not match:
+                    raise ParseError(line)
+
+                (username_b64,) = match.groups()
+
+                if not username_b64:
+                    self.sendline("334 %s" % base64.b64encode("Username:"))
+                    username_b64 = self.recvline()
+
+                self.sendline("334 %s" % base64.b64encode("Password:"))
+                password_b64 = self.recvline()
+
+                try:
+                    username = base64.b64decode(username_b64)
+                except TypeError:
+                    raise Error("Invalid base64: %r" % username_b64)
+
+                try:
+                    password = base64.b64decode(password_b64)
+                except TypeError:
+                    raise Error("Invalid base64: %r" % password_b64)
+
+                if username != self.credentials["username"] \
+                        or password != self.credentials["password"]:
+                    raise Error("Wrong credentials: %r / %r" % (username, password))
+
+                self.sendline("235 Welcome, %s!" % username)
+
+                testing.logger.debug("Mailbox: Client authenticated.")
+            else:
+                self.sendline("250 critic.example.org")
+        else:
+            raise Error
 
     def receive(self):
         try:
@@ -199,7 +241,8 @@ class Listener(threading.Thread):
         self.stopped = True
 
 class Mailbox(object):
-    def __init__(self):
+    def __init__(self, credentials=None):
+        self.credentials = credentials
         self.queued = []
         self.errors = []
         self.condition = threading.Condition()

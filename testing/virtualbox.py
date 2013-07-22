@@ -332,6 +332,10 @@ class Instance(object):
                               "--smtp-port": str(self.mailbox.port),
                               "--smtp-no-ssl-tls": True,
                               "--skip-testmail-check": True }
+
+            if self.mailbox.credentials:
+                use_arguments["--smtp-username"] = self.mailbox.credentials["username"]
+                use_arguments["--smtp-password"] = self.mailbox.credentials["password"]
         else:
             use_arguments = { "--admin-password": "testing" }
 

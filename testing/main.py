@@ -327,7 +327,8 @@ def main():
             arguments.git_daemon_port,
             tested_commit,
             arguments.vm_hostname)
-        mailbox = testing.mailbox.Mailbox()
+        mailbox = testing.mailbox.Mailbox({ "username": "smtp_username",
+                                            "password": "SmTp_PaSsWoRd" })
 
         with repository:
             with mailbox:
