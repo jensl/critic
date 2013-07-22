@@ -16,8 +16,6 @@
 
 HOST = %(installation.smtp.host)r
 PORT = %(installation.smtp.port)r
-USERNAME = %(installation.smtp.username)r
-PASSWORD = %(installation.smtp.password)r
 USE_SSL = %(installation.smtp.use_ssl)r
 USE_STARTTLS = %(installation.smtp.use_starttls)r
 

@@ -17,14 +17,10 @@
 import sys
 import os
 import os.path
-import pwd
-import grp
 import py_compile
 import argparse
 
 import installation
-
-SENSITIVE_FILES = ("database.py", "smtp.py", "auth.py")
 
 auth_mode = "host"
 session_type = None
@@ -541,6 +537,28 @@ ERROR: Failed to compile %s:\n%s
         created_file.append(path + "c")
         return True
 
+def set_file_mode_and_owner(path):
+    uid = installation.system.uid
+    gid = installation.system.gid
+
+    filename = os.path.basename(path)
+    if filename in ("database.py", "auth.py", "smtp-credentials.json"):
+        # May contain sensitive information.
+        mode = 0600
+        if filename == "smtp-credentials.json":
+            uid = gid = 0
+    else:
+        mode = 0640
+
+    os.chmod(path, mode)
+    os.chown(path, uid, gid)
+
+def copy_file_mode_and_owner(src_path, dst_path):
+    status = os.stat(src_path)
+
+    os.chmod(dst_path, status.st_mode)
+    os.chown(dst_path, status.st_uid, status.st_gid)
+
 def install(data):
     source_dir = os.path.join(installation.root_dir, "installation", "templates", "configuration")
     target_dir = os.path.join(installation.paths.etc_dir, "main", "configuration")
@@ -552,31 +570,23 @@ def install(data):
     os.chown(target_dir, installation.system.uid, installation.system.gid)
 
     for entry in os.listdir(source_dir):
+        source_path = os.path.join(source_dir, entry)
+        target_path = os.path.join(target_dir, entry)
+
+        with open(target_path, "w") as target:
+            created_file.append(target_path)
+
+            with open(source_path, "r") as source:
+                target.write((source.read().decode("utf-8") % data).encode("utf-8"))
+
+        set_file_mode_and_owner(target_path)
+
         if entry.endswith(".py"):
-            source_path = os.path.join(source_dir, entry)
-            target_path = os.path.join(target_dir, entry)
-
-            with open(target_path, "w") as target:
-                created_file.append(target_path)
-
-                if entry in SENSITIVE_FILES:
-                    # May contain secrets (passwords.)
-                    mode = 0600
-                else:
-                    # Won't contain secrets.
-                    mode = 0640
-
-                os.chmod(target_path, mode)
-                os.chown(target_path, installation.system.uid, installation.system.gid)
-
-                with open(source_path, "r") as source:
-                    target.write((source.read().decode("utf-8") % data).encode("utf-8"))
-
             path = os.path.join("configuration", entry)
             if not compile_file(path):
                 compilation_failed = True
-
-            os.chmod(target_path + "c", mode)
+            else:
+                copy_file_mode_and_owner(target_path, target_path + "c")
 
     if compilation_failed:
         return False
@@ -594,9 +604,6 @@ def update_file(target_dir, entry, data, arguments, compilation_failed):
 
     source_dir = os.path.join(installation.root_dir, "installation", "templates", "configuration")
     compilation_failed = False
-
-    system_uid = pwd.getpwnam(data["installation.system.username"]).pw_uid
-    system_gid = grp.getgrnam(data["installation.system.groupname"]).gr_gid
 
     source_path = os.path.join(source_dir, entry)
     target_path = os.path.join(target_dir, entry)
@@ -648,31 +655,28 @@ configuration options to the existing version.
 
             with open(target_path, "w") as target:
                 created_file.append(target_path)
-                if entry in SENSITIVE_FILES:
-                    # May contain secrets (passwords.)
-                    mode = 0600
-                else:
-                    # Won't contain secrets.
-                    mode = 0640
-                os.chmod(target_path, mode)
-                os.chown(target_path, system_uid, system_gid)
                 target.write(source.encode("utf-8"))
 
-            path = os.path.join("configuration", entry)
-            if not compile_file(path):
-                compilation_failed.append(path)
-            else:
-                # The module's name (relative the 'configuration' package)
-                # is the base name minus the trailing ".py".
-                module_name = os.path.basename(target_path)[:-3]
+            set_file_mode_and_owner(target_path)
 
-                if module_name != "__init__" \
-                        and hasattr(configuration, module_name):
-                    # Reload the updated module so that code executing later
-                    # sees added configuration options.  (It will also see
-                    # removed configuration options, but that is unlikely to
-                    # be a problem.)
-                    reload(getattr(configuration, module_name))
+            if target_path.endswith(".py"):
+                path = os.path.join("configuration", entry)
+                if not compile_file(path):
+                    compilation_failed.append(path)
+                else:
+                    copy_file_mode_and_owner(target_path, target_path + "c")
+
+                    # The module's name (relative the 'configuration' package)
+                    # is the base name minus the trailing ".py".
+                    module_name = os.path.basename(target_path)[:-3]
+
+                    if module_name != "__init__" \
+                            and hasattr(configuration, module_name):
+                        # Reload the updated module so that code executing later
+                        # sees added configuration options.  (It will also see
+                        # removed configuration options, but that is unlikely to
+                        # be a problem.)
+                        reload(getattr(configuration, module_name))
 
         modified_files += 1
 

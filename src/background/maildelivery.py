@@ -17,6 +17,7 @@
 import sys
 import os
 import time
+import json
 
 import smtplib
 import email.mime.text
@@ -35,7 +36,7 @@ class User():
         self.fullname = fullname
 
 class MailDelivery(background.utils.PeerServer):
-    def __init__(self):
+    def __init__(self, credentials):
         # We disable the automatic administrator mails (using the
         # 'send_administrator_mails' argument) since
         #
@@ -55,6 +56,7 @@ class MailDelivery(background.utils.PeerServer):
         super(MailDelivery, self).__init__(service=service,
                                            send_administrator_mails=False)
 
+        self.__credentials = credentials
         self.__connection = None
         self.__connection_timeout = service.get("timeout")
         self.__has_logged_warning = 0
@@ -195,8 +197,9 @@ class MailDelivery(background.utils.PeerServer):
                     if configuration.smtp.USE_STARTTLS:
                         self.__connection.starttls()
 
-                    if configuration.smtp.USERNAME and configuration.smtp.PASSWORD:
-                        self.__connection.login(configuration.smtp.USERNAME, configuration.smtp.PASSWORD)
+                    if self.__credentials:
+                        self.__connection.login(self.__credentials["username"],
+                                                self.__credentials["password"])
 
                     self.debug("connected")
                     return
@@ -321,7 +324,16 @@ class MailDelivery(background.utils.PeerServer):
                       % (deleted, os.path.join(configuration.paths.OUTBOX, "sent")))
 
 def start_service():
-    maildelivery = MailDelivery()
+    stdin_data = sys.stdin.read()
+
+    if stdin_data:
+        credentials = json.loads(stdin_data)["credentials"]
+        if not credentials.get("username") or not credentials.get("password"):
+            credentials = None
+    else:
+        credentials = None
+
+    maildelivery = MailDelivery(credentials)
     maildelivery.run()
 
 background.utils.call("maildelivery", start_service)

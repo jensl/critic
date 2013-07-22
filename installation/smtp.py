@@ -14,6 +14,9 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
+import os
+import json
+
 import installation
 
 host = None
@@ -214,20 +217,35 @@ Please check the configuration!
             first = False
 
         port = int(port)
-
-        data["installation.smtp.host"] = host
-        data["installation.smtp.port"] = port
-        data["installation.smtp.username"] = username
-        data["installation.smtp.password"] = password
-        data["installation.smtp.use_ssl"] = use_ssl
-        data["installation.smtp.use_starttls"] = use_starttls
     else:
-        host = data["installation.smtp.host"]
-        port = data["installation.smtp.port"]
-        username = data["installation.smtp.username"]
-        password = data["installation.smtp.password"]
-        use_ssl = data["installation.smtp.use_ssl"]
-        use_starttls = data["installation.smtp.use_starttls"]
+        import configuration
+
+        host = configuration.smtp.HOST
+        port = configuration.smtp.PORT
+        use_ssl = configuration.smtp.USE_SSL
+        use_starttls = configuration.smtp.USE_STARTTLS
+
+        credentials_path = os.path.join(configuration.paths.CONFIG_DIR,
+                                        "configuration/smtp-credentials.json")
+        try:
+            with open(credentials_path) as credentials_file:
+                credentials = json.load(credentials_file)
+
+            username = credentials["username"]
+            password = credentials["password"]
+        except:
+            username = getattr(configuration.smtp, "USERNAME")
+            password = getattr(configuration.smtp, "PASSWORD")
+
+    data["installation.smtp.host"] = host
+    data["installation.smtp.port"] = port
+    data["installation.smtp.username"] = json.dumps(username)
+    data["installation.smtp.password"] = json.dumps(password)
+    data["installation.smtp.use_ssl"] = use_ssl
+    data["installation.smtp.use_starttls"] = use_starttls
 
     return True
 
+def finish(mode, arguments, data):
+    del data["installation.smtp.username"]
+    del data["installation.smtp.password"]

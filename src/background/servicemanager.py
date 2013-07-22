@@ -18,8 +18,8 @@ import sys
 import subprocess
 import time
 import signal
-import os.path
 import os
+import json
 
 import configuration
 
@@ -29,12 +29,15 @@ if "--slave" in sys.argv:
     class ServiceManager(background.utils.PeerServer):
         class Service(object):
             class Process(background.utils.PeerServer.ChildProcess):
-                def __init__(self, service):
+                def __init__(self, service, input_data):
                     super(ServiceManager.Service.Process, self).__init__(
                         service.manager, [sys.executable, "-m", service.module],
                         stderr=subprocess.STDOUT)
+
                     self.__service = service
                     self.__output = None
+                    if input_data:
+                        self.write(json.dumps(input_data))
                     self.close()
 
                 def handle_input(self, data):
@@ -51,8 +54,8 @@ if "--slave" in sys.argv:
                 self.started = None
                 self.process = None
 
-            def start(self):
-                self.process = ServiceManager.Service.Process(self)
+            def start(self, input_data):
+                self.process = ServiceManager.Service.Process(self, input_data)
                 self.started = time.time()
                 self.manager.add_peer(self.process)
                 self.manager.info("%s: started (pid=%d)" % (self.name, self.process.pid))
@@ -125,7 +128,7 @@ if "--slave" in sys.argv:
                 else:
                     return result({ "status": "error", "error": "invalid input: unsupported data" })
 
-        def __init__(self):
+        def __init__(self, input_data):
             service = configuration.services.SERVICEMANAGER.copy()
 
             # This is the slave process; the pid file is maintained by the
@@ -134,6 +137,7 @@ if "--slave" in sys.argv:
 
             super(ServiceManager, self).__init__(service=service)
 
+            self.input_data = input_data
             self.services = []
             self.started = time.time()
 
@@ -143,7 +147,7 @@ if "--slave" in sys.argv:
         def startup(self):
             for service_data in configuration.services.SERVICEMANAGER["services"]:
                 service = ServiceManager.Service(self, service_data)
-                service.start()
+                service.start(self.input_data.get(service.name))
                 self.services.append(service)
 
         def shutdown(self):
@@ -157,7 +161,14 @@ if "--slave" in sys.argv:
                 service.stop()
 
     def start_service():
-        manager = ServiceManager()
+        stdin_data = sys.stdin.read()
+
+        if stdin_data:
+            input_data = json.loads(stdin_data)
+        else:
+            input_data = {}
+
+        manager = ServiceManager(input_data)
         manager.run()
 
     background.utils.call("servicemanager", start_service)
@@ -197,6 +208,17 @@ else:
     os.environ["HOME"] = home
     os.chdir(home)
 
+    smtp_credentials_path = os.path.join(configuration.paths.CONFIG_DIR,
+                                         "configuration",
+                                         "smtp-credentials.json")
+    if os.path.isfile(smtp_credentials_path):
+        with open(smtp_credentials_path) as smtp_credentials_file:
+            smtp_credentials = json.load(smtp_credentials_file)
+    else:
+        smtp_credentials = None
+
+    input_data = { "maildelivery": { "credentials": smtp_credentials }}
+
     os.setgid(gid)
     os.setuid(uid)
 
@@ -214,7 +236,11 @@ else:
 
     while not was_terminated:
         process = subprocess.Popen(
-            [sys.executable, "-m", "background.servicemanager", "--slave"])
+            [sys.executable, "-m", "background.servicemanager", "--slave"],
+            stdin=subprocess.PIPE)
+
+        process.stdin.write(json.dumps(input_data))
+        process.stdin.close()
 
         while not was_terminated:
             try:
