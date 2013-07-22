@@ -34,14 +34,14 @@ import load
 import dbutils
 import client
 
-def createFullMergeChangeset(db, user, repository, commit, review=None):
+def createFullMergeChangeset(db, user, repository, commit, **kwargs):
     assert len(commit.parents) > 1
 
-    changesets = createChangeset(db, user, repository, commit, review=review)
+    changesets = createChangeset(db, user, repository, commit, **kwargs)
 
     assert len(changesets) == len(commit.parents)
 
-    replayed = createChangeset(db, user, repository, commit, conflicts=True, review=review)
+    replayed = createChangeset(db, user, repository, commit, conflicts=True, **kwargs)
 
     assert len(replayed) == 1
 

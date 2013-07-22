@@ -328,15 +328,15 @@ Please confirm that this is intended by loading:
     for commit in commits:
         if commit in full_merges:
             commit_changesets = changeset_utils.createFullMergeChangeset(
-                db, user, review.repository, commit)
+                db, user, review.repository, commit, do_highlight=False)
         elif commit in replayed_rebases:
             commit_changesets = changeset_utils.createChangeset(
                 db, user, review.repository,
                 from_commit=commit, to_commit=replayed_rebases[commit],
-                conflicts=True)
+                conflicts=True, do_highlight=False)
         else:
             commit_changesets = changeset_utils.createChangeset(
-                db, user, review.repository, commit)
+                db, user, review.repository, commit, do_highlight=False)
 
         if commit in silent_if_empty:
             for commit_changeset in commit_changesets:
