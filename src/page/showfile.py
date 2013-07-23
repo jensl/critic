@@ -94,10 +94,15 @@ def renderShowFile(req, db, user):
     file_id = dbutils.find_file(db, path=path)
 
     if file_sha1 is None:
-        raise page.utils.DisplayMessage("File does not exist",
-                                        body=("<p>There is no file named <code>%s</code> in the commit</p>"
-                                              % htmlutils.htmlify(textutils.escape(full_path))),
-                                        html=True)
+        raise page.utils.DisplayMessage(
+            title="File does not exist",
+            body=("<p>There is no file named <code>%s</code> in the commit "
+                  "<a href='/showcommit?repository=%s&amp;sha1=%s'>"
+                  "<code>%s</code></a>.</p>"
+                  % (htmlutils.htmlify(textutils.escape(full_path)),
+                     htmlutils.htmlify(repository.name),
+                     htmlutils.htmlify(sha1), htmlutils.htmlify(sha1[:8]))),
+            html=True)
 
     file = diff.File(file_id, path, None, file_sha1, repository)
 

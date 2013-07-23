@@ -963,23 +963,19 @@ class Commit:
             return mergebase_sha1 == self.sha1
 
     def getFileEntry(self, path):
-        try:
-            tree = Tree.fromPath(self, "/" + os.path.dirname(path).lstrip("/"))
-        except GitCommandError:
+        tree = Tree.fromPath(self, "/" + os.path.dirname(path).lstrip("/"))
+        if tree is None:
             return None
         return tree.get(os.path.basename(path))
 
     def getFileSHA1(self, path):
         entry = self.getFileEntry(path)
-        return entry.sha1 if entry else None
+        if entry is None:
+            return None
+        return entry.sha1
 
     def isDirectory(self, path):
-        try:
-            Tree.fromPath(self, "/" + path.lstrip("/"))
-        except Exception:
-            return False
-        else:
-            return True
+        return Tree.fromPath(self, "/" + path.lstrip("/")) is not None
 
 RE_LSTREE_LINE = re.compile(
     "(?P<mode>[0-9]{6}) (?P<type>blob|tree|commit) (?P<sha1>[0-9a-f]{40}) +"
@@ -1055,7 +1051,14 @@ class Tree:
 
         entries = []
 
-        for line in commit.repository.run("ls-tree", "-l", what).splitlines():
+        try:
+            lstree_output = commit.repository.run("ls-tree", "-l", what)
+        except GitCommandError as error:
+            if error.output == "fatal: Not a valid object name %s" % what:
+                return None
+            raise
+
+        for line in lstree_output.splitlines():
             match = RE_LSTREE_LINE.match(line)
 
             assert match, "Unexpected output from 'git ls-tree': %r" % line

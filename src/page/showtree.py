@@ -22,6 +22,7 @@ import dbutils
 import gitutils
 import page.utils
 import htmlutils
+import textutils
 
 def renderShowTree(req, db, user):
     cursor = db.cursor()
@@ -101,6 +102,17 @@ def renderShowTree(req, db, user):
     row.td('size').text("Size")
 
     tree = gitutils.Tree.fromPath(gitutils.Commit.fromSHA1(db, repository, sha1), full_path)
+
+    if tree is None:
+        raise page.utils.DisplayMessage(
+            title="Directory does not exist",
+            body=("<p>There is no directory named <code>%s</code> in the commit "
+                  "<a href='/showcommit?repository=%s&amp;sha1=%s'>"
+                  "<code>%s</code></a>.</p>"
+                  % (htmlutils.htmlify(textutils.escape(full_path)),
+                     htmlutils.htmlify(repository.name),
+                     htmlutils.htmlify(sha1), htmlutils.htmlify(sha1[:8]))),
+            html=True)
 
     def compareEntries(a, b):
         if a.type != b.type:
