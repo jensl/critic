@@ -533,7 +533,12 @@ class Repository:
             workcopy.run('checkout', '-b', 'replay', parent_sha1s[0])
 
             # Then perform the merge with the other parents.
-            returncode, stdout, stderr = workcopy.run("merge", *parent_sha1s[1:], check_errors=False)
+            returncode, stdout, stderr = workcopy.run("merge", *parent_sha1s[1:],
+                env={ 'GIT_AUTHOR_NAME': commit.author.name,
+                      'GIT_AUTHOR_EMAIL': commit.author.email,
+                      'GIT_COMMITTER_NAME': "Critic System",
+                      'GIT_COMMITTER_EMAIL': configuration.base.SYSTEM_USER_EMAIL },
+                check_errors=False)
 
             # If the merge produced conflicts, just stage and commit them:
             if returncode != 0:
@@ -546,7 +551,12 @@ class Repository:
                         workcopy.run("reset", "--", submodule_path, check_errors=False)
 
                 # Then stage and commit the result, with conflict markers and all.
-                workcopy.run("commit", "--all", "--message=replay of merge that produced %s" % commit.sha1)
+                workcopy.run("commit", "--all", "--message=replay of merge that produced %s" % commit.sha1,
+                             env={ 'GIT_AUTHOR_NAME': commit.author.name,
+                                   'GIT_AUTHOR_EMAIL': commit.author.email,
+                                   'GIT_COMMITTER_NAME': "Critic System",
+                                   'GIT_COMMITTER_EMAIL': configuration.base.SYSTEM_USER_EMAIL })
+
 
             # Then push the branch to the main repository.
             workcopy.run('push', 'origin', 'refs/heads/replay:refs/replays/%s' % commit.sha1)
