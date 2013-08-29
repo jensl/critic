@@ -99,7 +99,7 @@ function saveSettings(reset_item)
       else if (element.type == "number")
         value = parseInt(element.value);
       else
-        value = element.value;
+        value = String($(element).val());
 
       if (value != JSON.parse(element.getAttribute("critic-current")))
       {
