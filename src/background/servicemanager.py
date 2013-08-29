@@ -165,7 +165,7 @@ else:
     import stat
 
     pwentry = pwd.getpwnam(configuration.base.SYSTEM_USER_NAME)
-    grentry = grp.getgrnam(configuration.base.SYSTEM_USER_NAME)
+    grentry = grp.getgrnam(configuration.base.SYSTEM_GROUP_NAME)
 
     uid = pwentry.pw_uid
     gid = grentry.gr_gid
