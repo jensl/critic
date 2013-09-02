@@ -36,7 +36,7 @@ import sys
 
 def sendMail(db, review, message_id, from_user, to_user, recipients, subject, body, parent_message_id=None):
     return queueMail(from_user, to_user, recipients, subject, body,
-                     review_url=review.getURL(db, to_user),
+                     review_url=review.getURL(db, to_user, separator=", "),
                      review_association=review.getUserAssociation(db, to_user),
                      review_repository=review.repository.getURL(db, to_user),
                      message_id=message_id,

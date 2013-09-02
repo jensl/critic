@@ -384,7 +384,7 @@ class Review(object):
 
         return '"%s"' % etag
 
-    def getURL(self, db, user=None, indent=0):
+    def getURL(self, db, user=None, indent=0, separator="\n"):
         import dbutils
 
         indent = " " * indent
@@ -394,7 +394,7 @@ class Review(object):
         else:
             url_prefixes = [dbutils.getURLPrefix(db)]
 
-        return "\n".join(["%s%s/r/%d" % (indent, url_prefix, self.id) for url_prefix in url_prefixes])
+        return separator.join(["%s%s/r/%d" % (indent, url_prefix, self.id) for url_prefix in url_prefixes])
 
     def getRecipients(self, db):
         from dbutils import User
