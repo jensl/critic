@@ -39,7 +39,7 @@ a2dissite = None
 
 psycopg2_available = False
 pygments_available = False
-bcrypt_available = False
+passlib_available = False
 
 aptget = None
 aptget_approved = False
@@ -53,8 +53,8 @@ def blankline():
         print
         need_blankline = False
 
-def check(arguments):
-    global git, tar, psql, bcrypt_available, aptget, apache2ctl, a2enmod, a2ensite, a2dissite
+def check(mode, arguments):
+    global git, tar, psql, passlib_available, aptget, apache2ctl, a2enmod, a2ensite, a2dissite
 
     print """
 Critic Installation: Prerequisites
@@ -297,46 +297,52 @@ source code can be downloaded here:
         if not pygments_available:
             success = False
 
-    def check_bcrypt():
-        global bcrypt_available
+    def check_passlib():
+        global passlib_available
         try:
             subprocess.check_output(
-                [sys.executable, "-c", "import bcrypt"],
+                [sys.executable, "-c", "import passlib"],
                 stderr=subprocess.STDOUT)
-            bcrypt_available = True
+            passlib_available = True
         except subprocess.CalledProcessError:
             pass
 
-    global bcrypt_available
+    global passlib_available
 
-    check_bcrypt()
-    if not bcrypt_available:
-        if arguments.auth_mode == "critic":
-            install_bcrypt = True
+    check_passlib()
+    if not passlib_available:
+        if mode == "install":
+            auth_mode = arguments.auth_mode
+        else:
+            import configuration
+            auth_mode = configuration.base.AUTHENTICATION_MODE
+
+        if auth_mode == "critic":
+            install_passlib = True
         else:
             blankline()
             all_ok = False
             print """\
-Failed to import the 'bcrypt' module, which is required if you want Critic to
+Failed to import the 'passlib' module, which is required if you want Critic to
 handle user authentication itself.  If user authentication is to be handled by
-Apache instead there is no need to install the bcrypt module.
+Apache instead there is no need to install the passlib module.
 
-In Debian/Ubuntu, the module is provided by the 'python-bcrypt' package.  The
+In Debian/Ubuntu, the module is provided by the 'python-passlib' package.  The
 source code can be downloaded here:
 
-  http://code.google.com/p/py-bcrypt/
+  https://pypi.python.org/pypi/passlib
 """
-            install_bcrypt = installation.input.yes_or_no(
-                "Do you want to install the 'bcrypt' module?",
+            install_passlib = installation.input.yes_or_no(
+                "Do you want to install the 'passlib' module?",
                 default=False)
-        if install_bcrypt:
-            if install("python-bcrypt"):
-                check_bcrypt()
-                if not bcrypt_available:
+        if install_passlib:
+            if install("python-passlib"):
+                check_passlib()
+                if not passlib_available:
                     print """
-Failed to import 'bcrypt' module!  Installing it appeared to go fine, though,
+Failed to import 'passlib' module!  Installing it appeared to go fine, though,
 so you might just need to restart this script."""
-        if install_bcrypt and not bcrypt_available:
+        if install_passlib and not passlib_available:
             success = False
 
     if all_ok: print "All okay."

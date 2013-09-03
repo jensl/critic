@@ -39,7 +39,7 @@ Critic depends on the following software packages:
 
   * Non-standard Python modules:
 
-    - bcrypt (if Critic does user authentication)
+    - passlib (if Critic does user authentication)
 
     - psycopg2
 

@@ -15,6 +15,7 @@
 # the License.
 
 import base
+import auth
 import paths
 import services
 import mimetypes

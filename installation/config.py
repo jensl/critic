@@ -30,6 +30,46 @@ allow_anonymous_user = None
 access_scheme = None
 repository_url_types = ["http"]
 
+password_hash_schemes = ["pbkdf2_sha256", "bcrypt"]
+default_password_hash_scheme = "pbkdf2_sha256"
+minimum_password_hash_time = 0.25
+minimum_rounds = {}
+
+def calibrate_minimum_rounds():
+    import time
+    import passlib.context
+
+    min_rounds_name = "%s__min_rounds" % default_password_hash_scheme
+    min_rounds_value = 100
+
+    while True:
+        calibration_context = passlib.context.CryptContext(
+            schemes=[default_password_hash_scheme],
+            default=default_password_hash_scheme,
+            **{ min_rounds_name: min_rounds_value })
+
+        before = time.time()
+
+        calibration_context.encrypt("password")
+
+        hash_time = time.time() - before
+
+        if hash_time >= minimum_password_hash_time:
+            break
+
+        factor = min(1.2, minimum_password_hash_time / hash_time)
+        min_rounds_value = int(factor * min_rounds_value)
+
+    # If we're upgrading and have a current calibrated value, only change it if
+    # the new value is significantly higher, indicating that the system's
+    # performance has increased, or the hash implementation has gotten faster.
+    if default_password_hash_scheme in minimum_rounds:
+        current_value = minimum_rounds[default_password_hash_scheme]
+        if current_value * 1.5 > min_rounds_value:
+            return
+
+    minimum_rounds[default_password_hash_scheme] = min_rounds_value
+
 def add_arguments(mode, parser):
     if mode == "install":
         parser.add_argument(
@@ -52,13 +92,27 @@ def add_arguments(mode, parser):
             help=("comma-separated list of supported repository URL types "
                   "(valid types: git, http, ssh and host)"))
 
+    parser.add_argument(
+        "--minimum-password-hash-time",
+        help="approximate minimum time to spend hashing a single password")
+
 default_encodings = ["utf-8", "latin-1"]
 
 def prepare(mode, arguments, data):
     global auth_mode, session_type, allow_anonymous_user, access_scheme
     global repository_url_types, default_encodings
+    global password_hash_schemes, default_password_hash_scheme
+    global minimum_password_hash_time, minimum_rounds
 
     header_printed = False
+
+    if arguments.minimum_password_hash_time is not None:
+        try:
+            minimum_password_hash_time = float(arguments.minimum_password_hash_time)
+        except ValueError:
+            print ("Invalid --minimum-password-hash-time argument: %s (must be a number)."
+                   % arguments.minimum_password_hash_time)
+            return False
 
     if mode == "install":
         if arguments.repository_url_types:
@@ -78,7 +132,7 @@ def prepare(mode, arguments, data):
                     print "No URL types specified!"
                 return False
 
-        if installation.prereqs.bcrypt_available:
+        if installation.prereqs.passlib_available:
             def check_auth_mode(value):
                 if value.strip() not in ("host", "critic"):
                     return "must be one of 'host' and 'critic'"
@@ -129,6 +183,14 @@ the Web front-end.  This can be handled in two different ways:
 
         try: default_encodings = configuration.base.DEFAULT_ENCODINGS
         except AttributeError: pass
+
+        try:
+            password_hash_schemes = configuration.auth.PASSWORD_HASH_SCHEMES
+            default_password_hash_scheme = configuration.auth.DEFAULT_PASSWORD_HASH_SCHEME
+            minimum_password_hash_time = configuration.auth.MINIMUM_PASSWORD_HASH_TIME
+            minimum_rounds = configuration.auth.MINIMUM_ROUNDS
+        except AttributeError:
+            pass
 
     if auth_mode == "critic":
         if session_type is None:
@@ -237,6 +299,13 @@ web server to redirect all HTTP accesses to HTTPS.
     data["installation.config.access_scheme"] = access_scheme
     data["installation.config.repository_url_types"] = repository_url_types
     data["installation.config.default_encodings"] = default_encodings
+
+    calibrate_minimum_rounds()
+
+    data["installation.config.password_hash_schemes"] = password_hash_schemes
+    data["installation.config.default_password_hash_scheme"] = default_password_hash_scheme
+    data["installation.config.minimum_password_hash_time"] = minimum_password_hash_time
+    data["installation.config.minimum_rounds"] = minimum_rounds
 
     return True
 

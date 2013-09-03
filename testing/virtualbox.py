@@ -27,6 +27,16 @@ def flag_pwd_independence(commit_sha1):
         ["git", "ls-tree", commit_sha1, "testing/flags/pwd-independence.flag"])
     return bool(lstree.strip())
 
+def flag_minimum_password_hash_time(commit_sha1):
+    try:
+        subprocess.check_call(
+            ["git", "grep", "--quiet", "-e", "--minimum-password-hash-time",
+             commit_sha1, "--", "installation/config.py"])
+    except subprocess.CalledProcessError:
+        return False
+    else:
+        return True
+
 class HostCommandError(testing.InstanceError):
     def __init__(self, command, output):
         super(HostCommandError, self).__init__(
@@ -256,6 +266,9 @@ class Instance(object):
                           "--smtp-no-ssl-tls": True,
                           "--skip-testmail-check": True, }
 
+        if flag_minimum_password_hash_time(self.install_commit):
+            use_arguments["--minimum-password-hash-time"] = "0.01"
+
         for name, value in override_arguments.items():
             if value is None:
                 if name in use_arguments:
@@ -360,6 +373,9 @@ class Instance(object):
             self.restrict_access()
 
             use_arguments = { "--headless": True }
+
+            if not flag_minimum_password_hash_time(self.install_commit):
+                use_arguments["--minimum-password-hash-time"] = "0.01"
 
             for name, value in override_arguments.items():
                 if value is None:

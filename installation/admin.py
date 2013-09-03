@@ -16,6 +16,7 @@
 
 import sys
 import subprocess
+import os
 
 import installation
 
@@ -49,20 +50,8 @@ This user does not need to match a system user on this machine.
         else: fullname = installation.input.string(prompt="Administrator full name:")
 
         if installation.config.auth_mode == "critic":
-            if arguments.admin_password: plaintext = arguments.admin_password
-            else: plaintext = installation.input.password("Password for '%s':" % username)
-
-            try:
-                import bcrypt
-            except ImportError:
-                # It should have been installed by now, but for some reason it
-                # doesn't always work to import it into this Python process, so
-                # we have to do it in a child process instead.
-                password = installation.process.check_input(
-                    [sys.executable, "-c", "import sys, bcrypt; sys.stdout.write(bcrypt.hashpw(sys.stdin.read(), bcrypt.gensalt()))"],
-                    stdin=plaintext, stdout=subprocess.PIPE)
-            else:
-                password = bcrypt.hashpw(plaintext, bcrypt.gensalt())
+            if arguments.admin_password: password = arguments.admin_password
+            else: password = installation.input.password("Password for '%s':" % username)
     else:
         import configuration
 
@@ -79,10 +68,25 @@ This user does not need to match a system user on this machine.
     return True
 
 def install(data):
+    global password
+
     import psycopg2
 
     def adapt(value):
         return psycopg2.extensions.adapt(value).getquoted()
+
+    if password is not None:
+        try:
+            import auth
+        except ImportError:
+            password = installation.process.check_input(
+                [sys.executable, "-c",
+                 "import sys, auth; sys.stdout.write(auth.hashPassword(sys.stdin.read()))"],
+                stdin=password, stdout=subprocess.PIPE,
+                env={ "PYTHONPATH": ":".join([os.path.join(installation.paths.etc_dir, "main"),
+                                              installation.paths.install_dir]) })
+        else:
+            password = auth.hashPassword(password)
 
     installation.process.check_input(
         ["su", "-s", "/bin/sh", "-c", "psql -q -v ON_ERROR_STOP=1 -f -", installation.system.username],

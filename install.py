@@ -111,7 +111,7 @@ def abort():
 
 try:
     try:
-        if not installation.prereqs.check(arguments):
+        if not installation.prereqs.check("install", arguments):
             abort()
     except KeyboardInterrupt:
         abort()

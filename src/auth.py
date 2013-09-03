@@ -14,21 +14,45 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-import bcrypt
+from passlib.context import CryptContext
+
+import configuration
 
 class CheckFailed(Exception): pass
 class NoSuchUser(CheckFailed): pass
 class WrongPassword(CheckFailed): pass
 
+def createCryptContext():
+    kwargs = {}
+
+    for scheme, min_rounds in configuration.auth.MINIMUM_ROUNDS.items():
+        kwargs["%s__min_rounds" % scheme] = min_rounds
+
+    all_schemes = configuration.auth.PASSWORD_HASH_SCHEMES
+    default_scheme = configuration.auth.DEFAULT_PASSWORD_HASH_SCHEME
+
+    return CryptContext(
+        schemes=all_schemes, default=default_scheme,
+        deprecated=filter(lambda scheme: scheme != default_scheme, all_schemes),
+        **kwargs)
+
 def checkPassword(db, username, password):
     cursor = db.cursor()
     cursor.execute("SELECT password FROM users WHERE name=%s", (username,))
 
-    try: hashed = cursor.fetchone()[0]
-    except: raise NoSuchUser
+    row = cursor.fetchone()
+    if not row:
+        raise NoSuchUser
+    hashed = row[0]
 
-    if bcrypt.hashpw(password, hashed) == hashed: return
-    else: raise WrongPassword
+    ok, new_hashed = createCryptContext().verify_and_update(password, hashed)
+
+    if not ok:
+        raise WrongPassword
+
+    if new_hashed:
+        cursor.execute("UPDATE users SET password=%s WHERE name=%s",
+                       (new_hashed, username))
 
 def hashPassword(password):
-    return bcrypt.hashpw(password, bcrypt.gensalt())
+    return createCryptContext().encrypt(password)
