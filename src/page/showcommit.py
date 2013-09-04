@@ -1196,7 +1196,7 @@ def renderShowCommit(req, db, user):
         move_changeset = changeset_detectmoves.detectMoves(db, changesets[0], move_source_file_ids, move_target_file_ids)
 
         if not move_changeset:
-            raise page.utils.DisplayMessage(db, req, user, "No moved code found!", review=review)
+            raise page.utils.DisplayMessage("No moved code found!", review=review)
 
         changesets = [move_changeset]
 
