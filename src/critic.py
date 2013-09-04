@@ -266,8 +266,8 @@ def findreview(req, db, _user):
     try:
         repository = gitutils.Repository.fromSHA1(db, sha1)
         commit = gitutils.Commit.fromSHA1(db, repository, repository.revparse(sha1))
-    except:
-        raise page.utils.DisplayMessage, "No such commit: '%s'" % sha1
+    except gitutils.GitReferenceError as error:
+        raise page.utils.DisplayMessage(error.message)
 
     cursor = db.cursor()
     cursor.execute("""SELECT reviews.id
@@ -816,8 +816,7 @@ def main(environ, start_response):
                         elif error.sha1:
                             raise page.utils.DisplayMessage(
                                 title="SHA-1 not found",
-                                body=("There is no object %s in %s."
-                                      % (error.sha1, error.repository)))
+                                body=error.message)
                         else:
                             raise
                     except dbutils.NoSuchUser as error:
@@ -878,7 +877,10 @@ def main(environ, start_response):
                             repository = None
 
                         if not repository:
-                            repository = gitutils.Repository.fromSHA1(db, path)
+                            try:
+                                repository = gitutils.Repository.fromSHA1(db, path)
+                            except gitutils.GitReferenceError:
+                                repository = None
 
                 if repository:
                     try:

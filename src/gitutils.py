@@ -214,6 +214,9 @@ class Repository:
         for (repository_id,) in cursor:
             repository = Repository.fromId(db, repository_id)
             if repository.iscommit(sha1): return repository
+        raise GitReferenceError(
+            "Couldn't find commit %s in any repository." % sha1,
+            sha1=sha1)
 
     @staticmethod
     def fromPath(db, path):

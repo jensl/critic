@@ -1042,8 +1042,6 @@ def renderShowCommit(req, db, user):
                 repository = None
         if not repository:
             repository = gitutils.Repository.fromSHA1(db, one_sha1)
-            if not repository:
-                raise page.utils.DisplayMessage("'%s' is not a valid commit in any repository!" % one_sha1, review=review)
 
     if first_sha1 is not None:
         try:
