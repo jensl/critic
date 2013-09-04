@@ -892,14 +892,19 @@ function detectMoves()
   var target = content.find("select.target");
   var fileids = {};
   var paths = [];
+  var expanded_files = [];
 
   for (var name in files)
     if (/^\d+$/.test(name))
     {
-      var path = files[name].path;
+      var fileid = parseInt(name);
+      var path = files[fileid].path;
 
-      fileids[path] = name;
+      fileids[path] = fileid;
       paths.push(path);
+
+      if ($("#f" + fileid).is(".expanded"))
+        expanded_files.push(fileid);
     }
 
   paths.sort();
@@ -908,9 +913,15 @@ function detectMoves()
   {
     var path = paths[index];
     var fileid = fileids[path];
+    var selected;
 
-    source.append("<option value='" + fileid + "'>" + htmlify(path) + "</option>");
-    target.append("<option value='" + fileid + "'>" + htmlify(path) + "</option>");
+    if (expanded_files.length == 1 && expanded_files[0] == fileid)
+      selected = " selected";
+    else
+      selected = "";
+
+    source.append("<option value='" + fileid + "'" + selected + ">" + htmlify(path) + "</option>");
+    target.append("<option value='" + fileid + "'" + selected + ">" + htmlify(path) + "</option>");
   }
 
   function finish()
