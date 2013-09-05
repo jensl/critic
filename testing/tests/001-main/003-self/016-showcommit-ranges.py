@@ -17,8 +17,7 @@ with frontend.signin("alice"):
     document = frontend.page(
         "showcommit",
         params={ "first": "57a886e6352b229991c81e7ba43244ace7e02d76",
-                 "last": "b2b78ca013b49c73231bee11674bcdb3edf6d3f2" })
-    h1 = document.find("div", attrs={ "class": "message" }).find("h1")
-    testing.expect.check(u"Invalid parameters; 'first' can not be a merge commit.", h1.string)
+                 "last": "b2b78ca013b49c73231bee11674bcdb3edf6d3f2" },
+        expect={ "message": testing.expect.message_title(u"Invalid parameters; 'first' can not be a merge commit.") })
 
     mailbox.check_empty()
