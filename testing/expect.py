@@ -19,6 +19,22 @@ import traceback
 
 import testing
 
+def extract_text(source):
+    result = u""
+    if source:
+        if isinstance(source, list):
+            for element in source:
+                result += extract_text(element)
+        elif isinstance(source, basestring):
+            result += source
+        elif getattr(source, "string"):
+            result += source.string
+        elif getattr(source, "contents"):
+            result += extract_text(source.contents)
+        else:
+            result += "[%r]" % source
+    return result
+
 class FailedCheck(testing.TestFailure):
     def __init__(self, expected, actual, location=None, message=None):
         if message is None:
@@ -78,18 +94,45 @@ def paleyellow_title(index, expected):
         return check(expected, actual)
     return checker
 
-def message_title(expected):
+def message(expected_title, expected_body):
     """Return <div class="message"> title checker."""
     def checker(document):
         message = document.find(
             "div", attrs={ "class": lambda value: "message" in value.split() })
-        actual = "<no message found>"
+        actual_title = None
+        actual_body = None
         if message:
-            actual = "<no title found>"
-            h1 = message.find("h1")
-            if h1 and h1.contents:
-                actual = h1.contents[0]
-        return check(expected, actual)
+            title = message.find("h1")
+            actual_title = extract_text(title)
+            if expected_body is not None:
+                body = title.nextSibling
+                actual_body = ""
+                while body is not None:
+                    if body:
+                        actual_body += extract_text(body)
+                    body = body.nextSibling
+        if not actual_title:
+            actual_title = "<no message title found>"
+        check(expected_title, actual_title, message="title check failed")
+        if expected_body is not None:
+            if not actual_body:
+                actual_body = "<no message body found>"
+            check(expected_body, actual_body, message="body check failed")
+    return checker
+
+def message_title(expected_title):
+    return message(expected_title, None)
+
+def no_message():
+    """Return negative <div class="message"> checker."""
+    def checker(document):
+        message = document.find(
+            "div", attrs={ "class": lambda value: "message" in value.split() })
+        if message:
+            actual = "<message: %s>" % message.find("h1").contents[0]
+        else:
+            actual = "<no message found>"
+        return check("<no message found>", actual)
     return checker
 
 def pageheader_links(*scopes):
