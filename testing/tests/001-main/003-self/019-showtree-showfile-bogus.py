@@ -25,6 +25,10 @@ missing_file = testing.expect.message(
     expected_body=("There is no file named /%s in the commit %s."
                    % (INVALID_FILE_PATH, VALID_SHA1[:8])))
 
+invalid_file = testing.expect.message(
+    expected_title="Invalid path parameter",
+    expected_body="The path must be non-empty and must not end with a /.")
+
 frontend.page(
     "showtree",
     params={ "sha1": VALID_SHA1,
@@ -60,3 +64,15 @@ frontend.page(
     params={ "sha1": VALID_SHA1,
              "path": INVALID_FILE_PATH },
     expect={ "message": missing_file })
+
+frontend.page(
+    "showfile",
+    params={ "sha1": VALID_SHA1,
+             "path": "" },
+    expect={ "message": invalid_file })
+
+frontend.page(
+    "showfile",
+    params={ "sha1": VALID_SHA1,
+             "path": VALID_FILE_PATH + "/" },
+    expect={ "message": invalid_file })
