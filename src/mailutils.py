@@ -80,9 +80,16 @@ def sendAdministratorMessage(source, summary, message):
 
     sendMessage(recipients, "%s: %s" % (source, summary), message)
 
-def sendExceptionMessage(source, exception):
+def sendAdministratorErrorReport(db, source, summary, message):
+    if db:
+        installed_sha1 = dbutils.getInstalledSHA1(db)
+    else:
+        installed_sha1 = "<unknown>"
+    sendAdministratorMessage(source, summary, message + "\n\nCritic version: " + installed_sha1)
+
+def sendExceptionMessage(db, source, exception):
     lines = exception.splitlines()
-    sendAdministratorMessage(source, lines[-1], exception.rstrip() + "\n\n-- critic")
+    sendAdministratorErrorReport(db, source, lines[-1], exception.rstrip())
 
 def sendPendingMails(filenames):
     for filename in filenames:

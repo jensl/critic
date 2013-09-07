@@ -438,9 +438,7 @@ def renderConfig(req, db, user):
                 cell = table.tr(help_class_name).td("help", colspan=3)
                 cell.text(preference_description)
 
-    cursor = db.cursor()
-    cursor.execute("SELECT installed_sha1 FROM systemidentities WHERE name=%s", (configuration.base.SYSTEM_IDENTITY,))
-    critic_installed_sha1 = cursor.fetchone()[0]
+    critic_installed_sha1 = dbutils.getInstalledSHA1(db)
     div = document.div("installed_sha1")
     div.text("Critic version: ")
     div.a(href="http://critic-review.org/critic/%s" % critic_installed_sha1).text(critic_installed_sha1)

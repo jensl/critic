@@ -43,7 +43,16 @@ class AdministratorMailHandler(logging.Handler):
 
     def emit(self, record):
         import mailutils
-        mailutils.sendAdministratorMessage(self.__logfile_name, record.message.splitlines()[0], self.formatter.format(record))
+        try:
+            import dbutils
+            db = dbutils.Database()
+        except:
+            db = None
+        mailutils.sendAdministratorErrorReport(db, self.__logfile_name,
+                                                   record.message.splitlines()[0],
+                                                   self.formatter.format(record))
+        if db:
+            db.close()
 
 class BackgroundProcess(object):
     def __init__(self, service, send_administrator_mails=True):

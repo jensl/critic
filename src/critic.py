@@ -518,7 +518,7 @@ def handleException(db, req, user):
                 return match.group(1) + original_host
             url = re.sub("^([a-z]+://)[^/]+", replace_host, url)
 
-        mailutils.sendExceptionMessage(
+        mailutils.sendExceptionMessage(db,
             "wsgi", "\n".join(["User:   %s" % (req.user or "<anonymous>"),
                                "Method: %s" % req.method,
                                "URL:    %s" % url,
