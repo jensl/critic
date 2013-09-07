@@ -192,6 +192,27 @@ function changePassword()
     dialog.dialog("close");
   }
 
+  current = dialog.find("input.current");
+  new1 = dialog.find("input.new1");
+  new2 = dialog.find("input.new2");
+
+  function handleKeypress(ev)
+  {
+    if (ev.keyCode == 13)
+    {
+      if ($(".current").is(":focus"))
+        new1.focus();
+      else if ($(".new1").is(":focus"))
+        new2.focus();
+      else if ($(".new2").is(":focus"))
+        save();
+    }
+  }
+
+  current.keypress(handleKeypress);
+  new1.keypress(handleKeypress);
+  new2.keypress(handleKeypress);
+
   dialog.dialog({ width: 400,
                   modal: true,
                   buttons: { "Save": save, "Cancel": cancel }});
