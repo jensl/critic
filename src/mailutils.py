@@ -85,7 +85,13 @@ def sendAdministratorErrorReport(db, source, summary, message):
         installed_sha1 = dbutils.getInstalledSHA1(db)
     else:
         installed_sha1 = "<unknown>"
-    sendAdministratorMessage(source, summary, message + "\n\nCritic version: " + installed_sha1)
+    sendAdministratorMessage(source, summary, "Critic encountered an unexpected error.  If you know a series " +
+                             "of steps that can reproduce this error it would be very useful if you submitted " +
+                             "a bug report including the steps plus the information below (see bug reporting URL " +
+                             "at the bottom of this e-mail).\n\n" +
+                             message +
+                             "\n\nCritic version: " + installed_sha1 +
+                             "\nCritic bug reports can be filed here: https://github.com/jensl/critic/issues/new")
 
 def sendExceptionMessage(db, source, exception):
     lines = exception.splitlines()
