@@ -87,14 +87,21 @@ class SetGitEmails(Operation):
 
 class ChangePassword(Operation):
     def __init__(self):
-        Operation.__init__(self, { "user_id": int,
+        Operation.__init__(self, { "subject": Optional(set([int, str])),
                                    "current_pw": Optional(str),
                                    "new_pw": str })
 
-    def process(self, db, user, user_id, new_pw, current_pw=None):
+    def process(self, db, user, new_pw, subject=None, current_pw=None):
         import auth
 
-        if (user.id != user_id or current_pw is None):
+        if subject is None:
+            user_id = user.id
+        elif isinstance(subject, basestring):
+            user_id = dbutils.User.fromName(db, subject).id
+        else:
+            user_id = subject
+
+        if user.id != user_id or current_pw is None:
             Operation.requireRole(db, "administrator", user)
 
         subject = dbutils.User.fromId(db, user_id)

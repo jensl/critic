@@ -169,12 +169,10 @@ function changePassword()
       return;
     }
 
-    var data = { user_id: user.id, new_pw: new1 };
+    var data = { subject: user.id, new_pw: new1 };
 
     if (!administrator)
-    {
       data.current_pw = dialog.find("input.current").val();
-    }
 
     var operation = new Operation({ action: "change password",
                                     url: "changepassword",

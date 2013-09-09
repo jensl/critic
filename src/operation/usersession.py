@@ -75,10 +75,9 @@ class EndSession(Operation):
         Operation.__init__(self, {})
 
     def process(self, db, user):
-        if not user.isAnonymous():
-            cursor = db.cursor()
-            cursor.execute("DELETE FROM usersessions WHERE uid=%s", (user.id,))
+        cursor = db.cursor()
+        cursor.execute("DELETE FROM usersessions WHERE uid=%s", (user.id,))
 
-            db.commit()
+        db.commit()
 
-            return OperationResult().setCookie("sid").setCookie("has_sid")
+        return OperationResult().setCookie("sid").setCookie("has_sid")
