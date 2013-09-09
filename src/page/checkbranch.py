@@ -108,7 +108,7 @@ def renderCheckBranch(req, db, user):
             header_right[0].a("button", href="tutorial?item=checkbranch").text("Help")
             header_right[0].a("button", href="checkbranchtext?repository=%s&commit=%s&upstream=%s" % (repository_arg, branch_arg, upstream_arg)).text("Get Textual Log")
             header_right[0].span("buttonscope buttonscope-global")
-            target.addInternalScript(repository.getJS());
+            target.addInternalScript(repository.getJS())
             target.addInternalScript("var branch = %r, upstream = %r;" % (branch_arg, upstream_arg))
 
         upstream = repository.revparse(upstream_arg)
