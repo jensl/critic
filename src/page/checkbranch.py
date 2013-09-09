@@ -124,7 +124,8 @@ def renderCheckBranch(req, db, user):
         try: gitutils.Commit.fromSHA1(db, repository, commit)
         except: raise page.utils.DisplayMessage, "'%s' doesn't exist in the repository." % commit
 
-        document.setTitle("Branch review status: %s" % branch_arg)
+        if mode == "html":
+            document.setTitle("Branch review status: %s" % branch_arg)
 
         commits = repository.revlist([commit], [upstream], "--topo-order")
 
