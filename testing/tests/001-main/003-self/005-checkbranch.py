@@ -95,3 +95,13 @@ frontend.page(
              "upstream": "005-checkbranch-1" },
     expect={ "document_title": document_title,
              "content_title": content_title })
+
+# Load /checkbranchtext checking the first branch.
+document = frontend.page(
+    url="checkbranchtext",
+    params={ "repository": "critic",
+             "commit": "005-checkbranch-1",
+             "upstream": "master" })
+
+testing.expect.check('Revert "Fix typo s/orderIndeces/orderIndices/": REVIEW STATUS UNKNOWN!\n' +
+    'Revert "Delete unused commented out code": REVIEW STATUS UNKNOWN!\n', str(document))
