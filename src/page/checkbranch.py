@@ -18,7 +18,6 @@ import dbutils
 import htmlutils
 import page.utils
 import gitutils
-import dbutils
 import re
 import log.commitset
 
