@@ -269,7 +269,7 @@ function editFilter(repository_name, filter_id, filter_type, filter_path, filter
   {
     var repository_name = repository.val();
 
-    if (repository_name != "-")
+    if (repository_name && repository_name != "-")
     {
       var operation = new Operation({ action: "fetch path suggestions",
                                       url: "getrepositorypaths",
@@ -329,7 +329,7 @@ function editFilter(repository_name, filter_id, filter_type, filter_path, filter
 
   function updateMatchedFiles()
   {
-    if (repository.val() == "-")
+    if (!repository.val() || repository.val() == "-")
       return;
 
     var repository_value = repository.val();
