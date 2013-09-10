@@ -92,8 +92,6 @@ class SummaryColumn:
         if summary:
             target.a(" ".join(classnames), href=url).text(summary)
 
-        target.setAttribute("onclick", "location.href=%s; return false;" % jsify(url))
-
 class AuthorColumn:
     def __init__(self):
         self.cache = {}
