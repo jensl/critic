@@ -91,7 +91,7 @@ except ImportError:
 Failed to import 'configuration' module.
 
 Make sure the --etc-dir[=%s] and --identity[=%s] options
-correctly define where the installed system's configuration is stored.""" % (etc_path, arguments.etc_dir, arguments.identity)
+correctly define where the installed system's configuration is stored.""" % (arguments.etc_dir, arguments.identity)
     sys.exit(1)
 
 install_data_path = os.path.join(configuration.paths.INSTALL_DIR, ".install.data")
