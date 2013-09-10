@@ -544,6 +544,7 @@ class File:
                     return sum(map(len, componentsA[:index])) + index
 
         if files:
+            previous = None
             for index in range(len(files)):
                 current = getpath(files[index])
 
