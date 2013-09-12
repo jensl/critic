@@ -76,8 +76,8 @@ class SummaryColumn:
         if self.isFixupOrSquash is not None:
             data = self.isFixupOrSquash(commit)
             if data:
-                what, ref_commit = data
-                target.span(what, critic_ref=ref_commit.summary()).text("[%s] " % what)
+                what, ref = data
+                target.span(what, critic_ref=ref).text("[%s] " % what)
                 lines = commit.message.splitlines()[1:]
                 while lines and not lines[0].strip():
                     lines.pop(0)
@@ -175,36 +175,39 @@ def render(db, target, title, branch=None, commits=None, columns=DEFAULT_COLUMNS
     for commit in commits:
         summary = commit.summary().strip()
         summaries[summary] = commit
-        if len(summary) > 60:
-            summaries[summary[:40]] = commit
         summaries[commit.sha1] = commit
-        summaries[commit.sha1[:8]] = commit
 
     if extra_commits:
         for commit in extra_commits:
             summary = commit.summary().strip()
             summaries[summary] = commit
-            if len(summary) > 60:
-                summaries[summary[:40]] = commit
             summaries[commit.sha1] = commit
-            summaries[commit.sha1[:8]] = commit
 
     def isFixupOrSquash(commit):
-        if commit.message.startswith("fixup! "):
-            what = "fixup"
-            summary = commit.summary()[6:].strip()
-        elif commit.message.startswith("squash! "):
-            what = "squash"
-            summary = commit.summary()[7:].strip()
+        key, _, summary = commit.summary().partition(" ")
+
+        if key in ("fixup!", "squash!"):
+            what = key[:-1]
         else:
             return None
 
-        commit = (summaries.get(summary) or
-                  summaries.get(summary[:40]) or
-                  summaries.get(summary[:8]))
+        summary = summary.strip()
+        commit = summaries.get(summary)
 
-        if commit: return what, commit
-        else: return None
+        if not commit and re.match("[0-9A-Fa-f]{40}$", summary):
+            commit = summaries.get(summary)
+
+            if not commit:
+                try:
+                    sha1 = repository.revparse(summary)
+                    commit = Commit.fromSHA1(db, repository, sha1)
+                except Exception:
+                    pass
+
+            if commit:
+                summary = commit.summary()
+
+        return what, summary
 
     for width, column in columns:
         if isinstance(column, SummaryColumn):
