@@ -100,8 +100,11 @@ class AuthorColumn:
     def heading(self, target):
         target.text("Author")
     def render(self, db, commit, target, overrides={}):
-        email = commit.author.email
-        user = self.cache.get(email)
+        if "author" in overrides:
+            user = overrides["author"]
+        else:
+            email = commit.author.email
+            user = self.cache.get(email)
         if not user:
             user_id = commit.author.getUserId(db)
             if user_id is None:
@@ -489,13 +492,10 @@ def render(db, target, title, branch=None, commits=None, columns=DEFAULT_COLUMNS
 
         while head == rebases[-1].new_head:
             rebase = rebases.pop()
-            top_rebases.insert(0, (head, rebase))
+            top_rebases.append((head, rebase))
             head = rebase.old_head
             if head in commit_set:
                 break
-
-        target.comment(repr(top_rebases))
-        target.comment(repr(conflicts))
 
         for rebase_head, rebase in top_rebases:
             thead = table.thead("rebase")
@@ -537,13 +537,28 @@ def render(db, target, title, branch=None, commits=None, columns=DEFAULT_COLUMNS
                        overrides={ "type": "Rebase",
                                    "summary": "Changes introduced by rebase",
                                    "summary_classnames": ["rebase"],
+                                   "author": rebase.user,
                                    "rebase_conflicts": conflicts[rebase.new_head] })
 
     while True:
-        last_commit, table, tail, skipped = inner(target, head, tails, 'center', title, table, silent_if_empty)
+        # 'local_tails' is the set of commits that, when reached, should make
+        # inner() stop outputting commits and instead return.  This set of
+        # commits contains all the "tails" of the whole commit-set we're
+        # rendering (in the 'tails' set here), as well as the "new head" of the
+        # next rebase to be output.
+
+        local_tails = tails.copy()
+
+        if rebases:
+            local_tails.add(rebases[-1].new_head)
+
+        last_commit, table, tail, skipped = inner(
+            target, head, local_tails, 'center', title, table, silent_if_empty)
 
         if rebases:
             rebase = rebases.pop()
+
+            assert tail == rebase.new_head, "tail (%s) != rebase.new_head (%s)" % (tail, rebase.new_head)
 
             while True:
                 head = rebase.old_head
@@ -577,13 +592,14 @@ def render(db, target, title, branch=None, commits=None, columns=DEFAULT_COLUMNS
                 else:
                     cell.text(".")
 
-                if tail in conflicts:
-                    tail = Commit.fromSHA1(db, repository, str(tail))
-                    if not emptyCommit(tail):
-                        output(table, tail, overrides={ "type": "Rebase",
-                                                        "summary": "Changes introduced by rebase",
-                                                        "summary_classnames": ["rebase"],
-                                                        "rebase_conflicts": conflicts[tail] })
+                if rebase.new_head in conflicts:
+                    if len(rebase.new_head.parents) < 2 and not emptyCommit(rebase.new_head):
+                        output(table, rebase.new_head,
+                               overrides={ "type": "Rebase",
+                                           "summary": "Changes introduced by rebase",
+                                           "summary_classnames": ["rebase"],
+                                           "author": rebase.user,
+                                           "rebase_conflicts": conflicts[rebase.new_head] })
 
                 if rebases and rebases[-1].new_head == head:
                     rebase = rebases.pop()
