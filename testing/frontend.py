@@ -118,34 +118,39 @@ class Frontend(object):
             # by returning None.
             return None
 
-        document = BeautifulSoup.BeautifulSoup(text(response))
-
         logger.debug("Fetched page: %s" % full_url)
-        logger.debug("Checking page: %s ..." % full_url)
 
-        div_fatal = document.find("div", attrs={ "class": "fatal" })
-        if div_fatal:
-            message = div_fatal.find("pre")
-            logger.error("Page '%s': crash during incremental page generation:\n%s"
-                         % (url, message.string if message else "<no message found>"))
-            raise testing.TestFailure
+        document = text(response)
 
-        failed_checks = False
+        if response.headers["content-type"].startswith("text/html"):
+            document = BeautifulSoup.BeautifulSoup(document)
 
-        for key, check in expect.items():
-            try:
-                check(document)
-            except testing.expect.FailedCheck as failed_check:
-                logger.error("Page '%s', test '%s': %s"
-                             % (url, key, failed_check.message))
-                failed_checks = True
-            except Exception as error:
-                raise Error(url, "'%s' checker failed: %s" % (key, str(error)))
+            div_fatal = document.find("div", attrs={ "class": "fatal" })
+            if div_fatal:
+                message = div_fatal.find("pre")
+                logger.error("Page '%s': crash during incremental page generation:\n%s"
+                             % (url, message.string if message else "<no message found>"))
+                raise testing.TestFailure
 
-        if failed_checks:
-            raise testing.TestFailure
+        if expect:
+            logger.debug("Checking page: %s ..." % full_url)
 
-        logger.debug("Checked page: %s ..." % full_url)
+            failed_checks = False
+
+            for key, check in expect.items():
+                try:
+                    check(document)
+                except testing.expect.FailedCheck as failed_check:
+                    logger.error("Page '%s', test '%s': %s"
+                                 % (url, key, failed_check.message))
+                    failed_checks = True
+                except Exception as error:
+                    raise Error(url, "'%s' checker failed: %s" % (key, str(error)))
+
+            if failed_checks:
+                raise testing.TestFailure
+
+            logger.debug("Checked page: %s ..." % full_url)
 
         return document
 
