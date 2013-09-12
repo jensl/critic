@@ -28,7 +28,7 @@ WSGIDaemonProcess critic-main processes=2 \
 
 	Alias /static-resource/ "%(installation.paths.install_dir)s/resources/"
 	<Directory "%(installation.paths.install_dir)s/resources">
-		Options Indexes MultiViews FollowSymLinks
+		Options FollowSymLinks
 		AllowOverride None
 		Order allow,deny
 		Allow from all
@@ -63,7 +63,7 @@ WSGIDaemonProcess critic-main processes=2 \
 
 	Alias /static-resource/ "%(installation.paths.install_dir)s/resources/"
 	<Directory "%(installation.paths.install_dir)s/resources">
-		Options Indexes MultiViews FollowSymLinks
+		Options FollowSymLinks
 		AllowOverride None
 		Order allow,deny
 		Allow from all
