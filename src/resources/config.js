@@ -234,7 +234,7 @@ $(document).ready(function ()
         var url = "/config";
 
         if (Object.keys(params).length)
-          url += "?" + Object.keys(params).map(function (name) { return name + "=" + params[name]; }).join("&");
+          url += "?" + Object.keys(params).map(function (name) { return name + "=" + encodeURIComponent(params[name]); }).join("&");
 
         location.assign(url);
       });

@@ -21,6 +21,6 @@ $(document).ready(function ()
     $("td.repositories select").change(function (ev)
       {
         if (typeof repository == "undefined" || ev.target.value != repository.id)
-          location.href = "/branches?repository=" + ev.target.value;
+          location.href = "/branches?repository=" + encodeURIComponent(ev.target.value);
       });
   });
