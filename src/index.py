@@ -256,7 +256,10 @@ def createBranch(user, repository, name, head, flags):
         if user.getPreference(db, "review.createViaPush"):
             the_commit = gitutils.Commit.fromSHA1(db, repository, head, commit_id(head))
             all_commits = [the_commit]
-            review = reviewing.utils.createReview(db, user, repository, all_commits, name, the_commit.summary(), None, via_push=True)
+
+            review = reviewing.utils.createReview(
+                db, user, repository, all_commits, name,
+                the_commit.niceSummary(include_tag=False), None, via_push=True)
 
             print "Submitted review:"
             print review.getURL(db, user, indent=2)

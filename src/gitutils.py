@@ -909,15 +909,18 @@ class Commit:
             summary = summary[:maxlen - 3].strip() + "..."
         return summary
 
-    def niceSummary(self):
+    def niceSummary(self, include_tag=True):
         try:
-            summary, rest = self.message.split("\n", 1)
+            summary, _, rest = self.message.partition("\n")
 
             if summary.startswith("fixup! ") or summary.startswith("squash! "):
-                fixup_summary = rest.strip().split("\n", 1)[0]
-                if fixup_summary.strip():
+                fixup_summary = rest.strip().partition("\n")[0].strip()
+                if fixup_summary:
                     what = summary[:summary.index("!")]
-                    return "[%s] %s" % (what, fixup_summary)
+                    if include_tag:
+                        return "[%s] %s" % (what, fixup_summary)
+                    else:
+                        return fixup_summary
 
             return summary
         except:
