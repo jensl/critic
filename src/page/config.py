@@ -327,7 +327,13 @@ def renderConfig(req, db, user):
             if "git" in configuration.base.REPOSITORY_URL_TYPES:
                 addOption("git", "git://%s/<path>.git" % configuration.base.HOSTNAME)
             if "http" in configuration.base.REPOSITORY_URL_TYPES:
-                addOption("http", "http://%s/<path>.git" % configuration.base.HOSTNAME)
+                scheme = configuration.base.ACCESS_SCHEME
+                if scheme == "both":
+                    if user.isAnonymous():
+                        scheme = "http"
+                    else:
+                        scheme = "https"
+                addOption("http", "%s://%s/<path>.git" % (scheme, configuration.base.HOSTNAME))
             if "ssh" in configuration.base.REPOSITORY_URL_TYPES:
                 addOption("ssh", "ssh://%s%s" % (configuration.base.HOSTNAME, long_path))
             if "host" in configuration.base.REPOSITORY_URL_TYPES:
