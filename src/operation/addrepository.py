@@ -42,6 +42,10 @@ class AddRepository(Operation):
             raise OperationFailure(code="invalidsourcerepository",
                                    title="Invalid source repository",
                                    message="The specified source repository URL is too long.")
+        if not name or len(name) > 64:
+            raise OperationFailure(code="invalidshortname",
+                                   title="Invalid repository short name",
+                                   message="The repository short name must be non-empty and may be at most 64 characters long.")
 
         path = path.strip("/").rsplit("/", 1)
 
