@@ -86,3 +86,15 @@ with frontend.signin():
         expect={ "document_title": testing.expect.document_title(u"Repositories"),
                  "content_title": testing.expect.paleyellow_title(0, u"Repositories"),
                  "repository": check_repository })
+
+    frontend.operation("addrepository",
+                       data={ "name": "a" * 65,
+                              "path": "validpath2" },
+                       expect={ "status": "failure",
+                                "code": "invalidshortname" })
+
+    frontend.operation("addrepository",
+                       data={ "name": "",
+                              "path": "validpath1" },
+                       expect={ "status": "failure",
+                                "code": "invalidshortname" })
