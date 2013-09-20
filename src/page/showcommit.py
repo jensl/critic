@@ -1090,20 +1090,18 @@ def renderShowCommit(req, db, user):
                 # filtered by file) => include rebase information when rendering
                 # the "Squashed History" log.
 
-                cursor.execute("""SELECT old_head, new_head, new_upstream, uid, branch
+                cursor.execute("""SELECT id, old_head, new_head, new_upstream, uid, branch
                                     FROM reviewrebases
                                    WHERE review=%s AND new_head IS NOT NULL""",
                                (review.id,))
 
-                all_rebases = [(None,
-                                gitutils.Commit.fromId(db, repository, old_head),
-                                gitutils.Commit.fromId(db, repository, new_head),
-                                dbutils.User.fromId(db, user_id),
-                                gitutils.Commit.fromId(db, repository, new_upstream) if new_upstream is not None else None,
-                                branch_name)
-                               for old_head, new_head, new_upstream, user_id, branch_name in cursor]
-
-                rebases = filter(lambda item: item[1] is not None, all_rebases)
+                rebases = [(rebase_id,
+                            gitutils.Commit.fromId(db, repository, old_head),
+                            gitutils.Commit.fromId(db, repository, new_head),
+                            dbutils.User.fromId(db, user_id),
+                            gitutils.Commit.fromId(db, repository, new_upstream) if new_upstream is not None else None,
+                            branch_name)
+                           for rebase_id, old_head, new_head, new_upstream, user_id, branch_name in cursor]
 
             if all_commits:
                 commits = all_commits
