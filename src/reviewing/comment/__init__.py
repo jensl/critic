@@ -457,14 +457,6 @@ def createCommentChain(db, user, review, chain_type, commit=None, origin=None, f
 
     commentchainusers = set([user.id] + map(int, review.owners))
 
-    if file is not None:
-        filters = Filters()
-        filters.setFiles(db, review=review)
-        filters.load(db, review=review)
-
-        for user_id in filters.listUsers(file.id):
-            commentchainusers.add(user_id)
-
     cursor.executemany("INSERT INTO commentchainusers (chain, uid) VALUES (%s, %s)", [(chain_id, user_id) for user_id in commentchainusers])
 
     return chain_id
