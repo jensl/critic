@@ -240,7 +240,7 @@ CommentChain.create = function (type_or_markers)
             var content = $("<div title='Warning!'>"
                           +   "<p>"
                           +     "One or more of the lines you are commenting are modified by a "
-                          +       "<a href='" + result.parent_sha1 + ".." + result.child_sha1 + "?review=" + review.id + "#f" + file + "o" + result.offset + "'>later commit</a> "
+                          +       "<a href='/" + result.parent_sha1 + ".." + result.child_sha1 + "?review=" + review.id + "#f" + file + "o" + result.offset + "'>later commit</a> "
                           +     "in this review."
                           +   "</p>"
                           +   "<p>"
@@ -362,12 +362,12 @@ CommentChain.create = function (type_or_markers)
         {
           var chain = new CommentChain(result.chain_id, user, chain_type, false, "draft", null, null, [comment], null, null);
 
-          var html = "<tr class='comment draft " + chain_type + "'><td class='author'>" + user.displayName + "</td><td class='title'><a href='showcomment?chain=" + chain.id + "'>" + chain.comments[0].getLeader() + "</a></td><td class='when'>now</td></tr>";
+          var html = "<tr class='comment draft " + chain_type + "'><td class='author'>" + htmlify(user.displayName) + "</td><td class='title'><a href='/showcomment?chain=" + chain.id + "'>" + chain.comments[0].getLeader() + "</a></td><td class='when'>now</td></tr>";
           if (chain_type == "issue")
           {
             target = $("tr#draft-issues");
             if (target.length == 0)
-              $("table.comments tr.h1").after("<tr id='draft-issues'><td class='h2' colspan='3'><h2>Draft Issues<a href='showcomments?review=" + review.id + "&amp;filter=draft-issues'>[display all]</h2></td></tr>" + html);
+              $("table.comments tr.h1").after("<tr id='draft-issues'><td class='h2' colspan='3'><h2>Draft Issues<a href='/showcomments?review=" + review.id + "&amp;filter=draft-issues'>[display all]</h2></td></tr>" + html);
             else
               target.after(html);
           }
@@ -379,7 +379,7 @@ CommentChain.create = function (type_or_markers)
               target = $("tr#notes");
               if (target.length == 0)
                 target = $("tr.buttons");
-              target.before("<tr id='draft-notes'><td class='h2' colspan='3'><h2>Draft Notes<a href='showcomments?review=" + review.id + "&amp;filter=draft-notes'>[display all]</h2></td></tr>" + html);
+              target.before("<tr id='draft-notes'><td class='h2' colspan='3'><h2>Draft Notes<a href='/showcomments?review=" + review.id + "&amp;filter=draft-notes'>[display all]</h2></td></tr>" + html);
             }
             else
               target.after(html);
@@ -518,7 +518,7 @@ CommentChain.prototype.display = function ()
     }
 
     var self = this;
-    var html = "<div class='comment-dialog' title='" + (this.type == "issue" ? "Issue raised" : "Note") + " by " + this.comments[0].author.displayName + "'>";
+    var html = "<div class='comment-dialog' title='" + (this.type == "issue" ? "Issue raised" : "Note") + " by " + htmlify(this.comments[0].author.displayName) + "'>";
 
     for (var index = 0; index < this.comments.length; ++index)
     {
@@ -533,7 +533,7 @@ CommentChain.prototype.display = function ()
       switch (this.state)
       {
       case "addressed":
-        text = "Addressed by <a href='showcommit?review=" + review.id + "&amp;sha1=" + this.addressed_by + "'>" + this.addressed_by.substr(0, 8) + "</a>";
+        text = "Addressed by <a href='/showcommit?review=" + review.id + "&amp;sha1=" + this.addressed_by + "'>" + this.addressed_by.substr(0, 8) + "</a>";
         break;
 
       case "closed":
@@ -1015,8 +1015,8 @@ CommentChain.prototype.deleteComment = function (comment, parentDialog)
 CommentChain.prototype.toolTip = function ()
   {
     var html = "<div class='tooltip'>";
-    html += "<div class='header'>" + (this.type == "issue" ? "Issue raised" : "Note")+ " by " + this.comments[0].author.displayName + "</div>";
-    html += "<div class='text sourcefont'>" + this.comments[0].text + "</div>";
+    html += "<div class='header'>" + (this.type == "issue" ? "Issue raised" : "Note") + " by " + htmlify(this.comments[0].author.displayName) + "</div>";
+    html += "<div class='text sourcefont'>" + htmlify(this.comments[0].text) + "</div>";
     html += "</div>";
     return html;
   };
@@ -1056,7 +1056,7 @@ function CommentMarkers(commentChain)
     this.setType("new");
 
   this.bothMarkers.tooltip({
-    content: function () { if (self.commentChain) return commentChain.toolTip() },
+    content: function () { if (self.commentChain) return self.commentChain.toolTip() },
     items: "div.marker",
     tooltipClass: "comment-tooltip",
     track: true,
