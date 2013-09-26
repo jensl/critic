@@ -320,14 +320,14 @@ def renderFile(db, target, user, review, file, first_file=False, options={}, con
 
     if not compact:
         columns = table.colgroup()
-        columns.col('edge').empty()
-        columns.col('linenr').empty()
-        columns.col('line').empty()
-        columns.col('middle').empty()
-        columns.col('middle').empty()
-        columns.col('line').empty()
-        columns.col('linenr').empty()
-        columns.col('edge').empty()
+        columns.col('edge')
+        columns.col('linenr')
+        columns.col('line')
+        columns.col('middle')
+        columns.col('middle')
+        columns.col('line')
+        columns.col('linenr')
+        columns.col('edge')
 
     row = table.thead().tr()
 
