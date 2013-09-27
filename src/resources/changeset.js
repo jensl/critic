@@ -329,8 +329,8 @@ function expandFile(id, scroll)
 
   if (scroll)
   {
-    if (table.offset().top + table.height() > scrollY + innerHeight || table.offset().top < scrollY)
-      scrollTo(scrollX, table.offset().top);
+    if (table.offset().top + table.height() > pageYOffset + innerHeight || table.offset().top < scrollY)
+      scrollTo(pageXOffset, table.offset().top);
   }
 
   if (typeof CommentMarkers != "undefined")
@@ -505,7 +505,7 @@ function saveState(replace)
           filesView[id] = HIDE;
       });
 
-    var state = { filesView: filesView, scrollLeft: scrollX, scrollTop: scrollY };
+    var state = { filesView: filesView, scrollLeft: pageXOffset, scrollTop: pageYOffset };
 
     if (isFilesViewEqual(filesView, previousFilesView))
       replace = true;
@@ -606,7 +606,7 @@ keyboardShortcutHandlers.push(function (key)
         else
           collapseAll(true);
 
-      if (scrollY + innerHeight >= (currentFile ? (currentFile.offset().top + currentFile.height()) : document.documentElement.scrollHeight))
+      if (pageYOffset + innerHeight >= (currentFile ? (currentFile.offset().top + currentFile.height()) : document.documentElement.scrollHeight))
       {
         var nextFile = currentFile ? currentFile.nextAll("table.file").first() : $("table.file.first");
 

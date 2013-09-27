@@ -257,7 +257,7 @@ $(document).ready(function ()
 
     var highlight = $("tr.commit.highlight td");
     if (highlight.size())
-      window.scrollTo(scrollX, highlight.offset().top - (innerHeight - highlight.height()) / 2);
+      window.scrollTo(pageXOffset, highlight.offset().top - (innerHeight - highlight.height()) / 2);
 
     $("table.log.collapsable > thead.title").click(function (ev)
       {
