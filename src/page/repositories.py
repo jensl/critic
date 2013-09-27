@@ -95,7 +95,7 @@ def renderRepositories(req, db, user):
 
             if branches:
                 trackedbranches = details.table("trackedbranches", cellspacing=0)
-                trackedbranches.th("title", colspan=5).text("Tracked Branches")
+                trackedbranches.tr().th("title", colspan=5).text("Tracked Branches")
 
                 row = trackedbranches.tr("headings")
                 row.th("localname").text("Local branch")
