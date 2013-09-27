@@ -763,6 +763,8 @@ class Repository:
                        (self.id,))
 
         for branch_name, head_sha1 in cursor:
+            if sha1 == head_sha1:
+                return "tip of " + branch_name
             try:
                 if self.mergebase([sha1, head_sha1]) == sha1:
                     return branch_name
@@ -779,6 +781,8 @@ class Repository:
                        (self.id,))
 
         for branch_name, head_sha1 in cursor:
+            if sha1 == head_sha1:
+                return "tip of " + branch_name
             try:
                 if self.mergebase([sha1, head_sha1]) == sha1:
                     return branch_name
