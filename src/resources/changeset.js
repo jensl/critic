@@ -1247,7 +1247,7 @@ function applyLengthLimit(lines)
   var currentTable = null; ///< cached reference to the table whose panes are being resized
   var currentCols = null; ///< cached reference to the col elements that are being resized
   var tableCoord = { left: 0, width: 0 }
-  const HALF_DIVIDER_WIDTH = 15; ///< half of the width of the divider between diff views (somewhat arbitrary)
+  var HALF_DIVIDER_WIDTH = 15; ///< half of the width of the divider between diff views (somewhat arbitrary)
 
   document.addEventListener('mousedown', handleMouseDown);
   document.addEventListener('dblclick', handleDblClick);
