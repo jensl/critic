@@ -27,7 +27,7 @@ front-page.  Normally, only the review owner is given the option to drop the
 review.  This limitation is convenience only: the assumption is that normally
 only the review owner is ever interested in dropping the review.  If the
 configuration option
-  <a href=config?highlight=review.dropAnyReview#go><code>review.dropAnyReview</code></a>
+  <a href="config?highlight=review.dropAnyReview#go"><code>review.dropAnyReview</code></a>
 is enabled the "Drop Review" button is displayed on the front-page of all
 reviews.
 

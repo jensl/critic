@@ -53,7 +53,7 @@ prefix the branch is associated with a review.  So you have two choices:
 If the prospect of creating a review immediately merely by pushing a branch to a
 remote seems frightening, fear not.  The ability to create a review by pushing a
 branch is controlled by the configuration option
-  <a href=config?highlight=review.createViaPush#go><code>review.createViaPush</code></a>,
+  <a href="config?highlight=review.createViaPush#go"><code>review.createViaPush</code></a>,
 which is disabled by default.  Trying to push a branch whose name has
 the
   "<code class=bold>r/</code>"
