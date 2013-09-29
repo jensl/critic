@@ -47,7 +47,7 @@ def renderConfig(req, db, user):
             raise page.utils.InvalidParameterValue(
                 name="filter",
                 value=str(filter_id),
-                excepted="valid filter id")
+                expected="valid filter id")
         title = "Filter preferences: %s in %s" % row
     elif repository is not None:
         title = "Repository preferences: %s" % repository.name
