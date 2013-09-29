@@ -218,9 +218,9 @@ class User(object):
                     value = bool(value)
                     integer = int(value)
                 elif value_type == "integer":
-                    integer = value = int(value)
+                    integer = int(value)
                 else:
-                    string = value = str(value)
+                    string = str(value)
 
                 cursor.execute("""INSERT INTO userpreferences (item, uid, repository, filter, integer, string)
                                        VALUES (%s, %s, %s, %s, %s, %s)""",
