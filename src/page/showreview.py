@@ -202,7 +202,7 @@ def renderShowReview(req, db, user):
     profiler.check("create review")
 
     if not review:
-        raise page.utils.DisplayMessage, ("Invalid Review ID", "%d is not a valid review ID." % review_id)
+        raise page.utils.DisplayMessage("Invalid Review ID", "%d is not a valid review ID." % review_id)
 
     if review.getETag(db, user) == req.getRequestHeader("If-None-Match"):
         raise page.utils.NotModified

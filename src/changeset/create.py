@@ -50,7 +50,7 @@ def createChangeset(db, request):
         file_ids = set()
 
         for file in files:
-            if file.id in file_ids: raise Exception, "duplicate:%d:%s" % (file.id, file.path)
+            if file.id in file_ids: raise Exception("duplicate:%d:%s" % (file.id, file.path))
             file_ids.add(file.id)
 
             fileversions_values.append((changeset_id, file.id, file.old_sha1, file.new_sha1, file.old_mode, file.new_mode))

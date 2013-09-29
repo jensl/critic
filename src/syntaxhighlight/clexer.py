@@ -355,7 +355,7 @@ def group(tokens, groups=None):
                 line, column = token.line(), token.column()
             else:
                 line, column = locate(tokens, index)
-            raise CLexerException, "%d:%d: expected '%s', got '%s'" % (line, column, currentEnd, token)
+            raise CLexerException("%d:%d: expected '%s', got '%s'" % (line, column, currentEnd, token))
         else:
             currentList.append(token)
 
@@ -365,7 +365,7 @@ def group(tokens, groups=None):
             line, column = token.line(), token.column()
         else:
             line, column = locate(tokens, stack[-1][2])
-        raise CLexerException, "%d:%d: unmatched group opener '%s'" % (line, column, token)
+        raise CLexerException("%d:%d: unmatched group opener '%s'" % (line, column, token))
 
     return currentList
 
@@ -399,7 +399,7 @@ def group1(iterable, end, groups=None):
                 stack.pop()
                 stack[-1][1].append(currentList)
                 currentList = stack[-1][1]
-            raise CLexerGroupingException, ("expected '%s', got '%s'" % (currentEnd, token), flatten(currentList))
+            raise CLexerGroupingException("expected '%s', got '%s'" % (currentEnd, token), flatten(currentList))
         else:
             currentList.append(token)
 
@@ -410,7 +410,7 @@ def group1(iterable, end, groups=None):
 
     token = stack[-1][1][0]
 
-    raise CLexerGroupingException, ("unmatched group opener '%s'" % token, list(flatten(currentList)))
+    raise CLexerGroupingException("unmatched group opener '%s'" % token, list(flatten(currentList)))
 
 def partition(tokens, separator):
     current = []

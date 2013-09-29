@@ -279,8 +279,8 @@ class Request:
             except:
                 if filter is int: expected = "expected integer"
                 else: expected = "something else"
-                raise InvalidParameterValue, (name, match.group(1), expected)
-        elif isinstance(default, NoDefault): raise MissingParameter, name
+                raise InvalidParameterValue(name, match.group(1), expected)
+        elif isinstance(default, NoDefault): raise MissingParameter(name)
         else: return default
 
     def getRequestHeader(self, name, default=None):

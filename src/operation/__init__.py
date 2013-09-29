@@ -181,11 +181,11 @@ class DictionaryChecker:
 
     def __call__(self, value, context=None):
         if not type(value) is dict:
-            raise OperationError, "invalid input: %s is not a dictionary" % (context if context else "value")
+            raise OperationError("invalid input: %s is not a dictionary" % (context if context else "value"))
         for name, checker in self.__required:
             child_context = "%s.%s" % (context, name) if context else name
             if name not in value:
-                raise OperationError, "invalid input: %s missing" % child_context
+                raise OperationError("invalid input: %s missing" % child_context)
             else:
                 checker(value[name], child_context)
         for name, checker in self.__optional:
@@ -195,7 +195,7 @@ class DictionaryChecker:
         for name in value:
             if name not in self.__expected:
                 child_context = "%s.%s" % (context, name) if context else name
-                raise OperationError, "invalid input: %s is unexpected" % child_context
+                raise OperationError("invalid input: %s is unexpected" % child_context)
 
 class ArrayChecker:
     """\
@@ -212,7 +212,7 @@ class ArrayChecker:
 
     def __call__(self, value, context):
         if not type(value) is list:
-            raise OperationError, "%s is not a list" % context
+            raise OperationError("%s is not a list" % context)
         for index, item in enumerate(value):
             self.__checker(item, "%s[%d]" % (context, index))
 
@@ -254,7 +254,7 @@ class EnumerationChecker:
     def __call__(self, value, context):
         self.__checker(value, context)
         if value not in self.__enumeration:
-            raise OperationError, "invalid input: %s is not valid" % context
+            raise OperationError("invalid input: %s is not valid" % context)
 
 class StringChecker:
     """\
@@ -265,7 +265,7 @@ class StringChecker:
     """
     def __call__(self, value, context):
         if not (type(value) is str or type(value) is unicode):
-            raise OperationError, "invalid input: %s is not a string" % context
+            raise OperationError("invalid input: %s is not a string" % context)
 
 class IntegerChecker:
     """\
@@ -276,7 +276,7 @@ class IntegerChecker:
     """
     def __call__(self, value, context):
         if not type(value) is int:
-            raise OperationError, "invalid input: %s is not an integer" % context
+            raise OperationError("invalid input: %s is not an integer" % context)
 
 class BooleanChecker:
     """\
@@ -287,7 +287,7 @@ class BooleanChecker:
     """
     def __call__(self, value, context):
         if not type(value) is bool:
-            raise OperationError, "invalid input: %s is not a boolean" % context
+            raise OperationError("invalid input: %s is not a boolean" % context)
 
 class Operation(object):
     """\
@@ -346,10 +346,10 @@ class Operation(object):
         if req.method == "POST": data = req.read()
         else: data = req.getParameter("data")
 
-        if not data: raise OperationError, "no input"
+        if not data: raise OperationError("no input")
 
         try: value = json_decode(data)
-        except ValueError, error: raise OperationError, "invalid input: %s" % str(error)
+        except ValueError, error: raise OperationError("invalid input: %s" % str(error))
 
         try:
             self.__checker(value)
@@ -390,7 +390,7 @@ class Operation(object):
                                       "with details about the problem.")
 
     def process(self, db, user, **kwargs):
-        raise OperationError, "not implemented!?!"
+        raise OperationError("not implemented!?!")
 
     def sanitize(self, value):
         """Sanitize arguments value for use in error messages or logs."""

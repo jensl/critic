@@ -36,9 +36,9 @@ def getRSS(pid):
             if words[2].lower() == "kb": unit = 1024
             elif words[2].lower() == "mb": unit = 1024 ** 2
             elif words[2].lower() == "gb": unit = 1024 ** 3
-            else: raise Exception, "unknown unit: %s" % words[2]
+            else: raise Exception("unknown unit: %s" % words[2])
             return int(words[1]) * unit
-    else: raise Exception, "invalid pid"
+    else: raise Exception("invalid pid")
 
 class Watchdog(BackgroundProcess):
     def __init__(self):

@@ -50,7 +50,7 @@ class RestartService(Operation):
             result = textutils.json_decode(data)
 
             if result["status"] == "ok": return OperationResult()
-            else: raise OperationError, result["error"]
+            else: raise OperationError(result["error"])
 
 class GetServiceLog(Operation):
     def __init__(self):
@@ -65,10 +65,10 @@ class GetServiceLog(Operation):
         logfile_path = logfile_paths.get(service_name)
 
         if not logfile_path:
-            raise OperationError, "unknown service: %s" % service_name
+            raise OperationError("unknown service: %s" % service_name)
 
         try: logfile = open(logfile_path)
         except OSError, error:
-            raise OperationError, "failed to open logfile: %s" % error.message
+            raise OperationError("failed to open logfile: %s" % error.message)
 
         return OperationResult(lines=logfile.read().splitlines()[-lines:])

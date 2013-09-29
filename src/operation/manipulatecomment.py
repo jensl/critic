@@ -171,9 +171,9 @@ class MorphCommentChain(Operation):
         review = chain.review
 
         if chain.type == new_type:
-            raise OperationError, "the comment chain's type is already '%s'" % new_type
+            raise OperationError("the comment chain's type is already '%s'" % new_type)
         elif new_type == "note" and chain.state in ("closed", "addressed"):
-            raise OperationError, "can't convert resolved or addressed issue to a note"
+            raise OperationError("can't convert resolved or addressed issue to a note")
 
         cursor = db.cursor()
 
@@ -212,11 +212,11 @@ class UpdateComment(Operation):
         comment = Comment.fromId(db, comment_id, user)
 
         if user != comment.user:
-            raise OperationError, "can't edit comment written by another user"
+            raise OperationError("can't edit comment written by another user")
         if comment.state != "draft":
-            raise OperationError, "can't edit comment that has been submitted"
+            raise OperationError("can't edit comment that has been submitted")
         if not new_text.strip():
-            raise OperationError, "empty comment"
+            raise OperationError("empty comment")
 
         cursor = db.cursor()
         cursor.execute("""UPDATE comments
@@ -236,9 +236,9 @@ class DeleteComment(Operation):
         comment = Comment.fromId(db, comment_id, user)
 
         if user != comment.user:
-            raise OperationError, "can't delete comment written by another user"
+            raise OperationError("can't delete comment written by another user")
         if comment.state != "draft":
-            raise OperationError, "can't delete comment that has been submitted"
+            raise OperationError("can't delete comment that has been submitted")
 
         cursor = db.cursor()
         cursor.execute("""UPDATE comments

@@ -795,10 +795,10 @@ including the unrelated changes.</p>
 
     if not with_pending:
         if filter_value == "pending":
-            raise page.utils.DisplayMessage, ("Your work here is done!", None, review)
+            raise page.utils.DisplayMessage("Your work here is done!", None, review)
         else:
             assert filter_value != "files"
-            raise page.utils.DisplayMessage, ("No %s changes found." % filter_value, None, review)
+            raise page.utils.DisplayMessage("No %s changes found." % filter_value, None, review)
 
     cursor.execute("""SELECT parent, child
                         FROM changesets
@@ -842,14 +842,14 @@ including the unrelated changes.</p>
             tails.add(candidate_id)
 
     if len(heads) != 1 or len(tails) != 1:
-        raise page.utils.DisplayMessage, "Filtered view not possible since it includes a merge commit."
+        raise page.utils.DisplayMessage("Filtered view not possible since it includes a merge commit.")
 
     head = gitutils.Commit.fromId(db, review.repository, heads.pop())
     tail = gitutils.Commit.fromId(db, review.repository, tails.pop())
 
     # if tail.parents greater than 1, it means it's a merge commit
     if len(tail.parents) > 1:
-        raise page.utils.DisplayMessage, "Filtered view not possible since it includes a merge commit."
+        raise page.utils.DisplayMessage("Filtered view not possible since it includes a merge commit.")
 
     if len(tail.parents) == 0:
         tail = None
@@ -859,7 +859,7 @@ including the unrelated changes.</p>
     commits = getCommitList(db, review.repository, tail, head)
 
     if not commits:
-        raise page.utils.DisplayMessage, "Filtered view not possible since it includes a merge commit."
+        raise page.utils.DisplayMessage("Filtered view not possible since it includes a merge commit.")
 
     tail_to_return = tail.sha1 if tail is not None else None
     return tail_to_return, head.sha1, commits, listed_commits
@@ -959,7 +959,7 @@ def renderShowCommit(req, db, user):
         review = None
     else:
         review = dbutils.Review.fromId(db, review_id)
-        if not review: raise page.utils.DisplayMessage, "Invalid review ID: %d" % review_id
+        if not review: raise page.utils.DisplayMessage("Invalid review ID: %d" % review_id)
         branch = review.branch
         repository = review.repository
 
@@ -1006,14 +1006,14 @@ def renderShowCommit(req, db, user):
         to_sha1 = req.getParameter("to", None, filter=expand_sha1)
 
         if (from_sha1 is None) != (to_sha1 is None):
-            raise page.utils.DisplayMessage, "invalid parameters; one of 'from'/'to' specified but not both"
+            raise page.utils.DisplayMessage("invalid parameters; one of 'from'/'to' specified but not both")
 
         if from_sha1 is None:
             first_sha1 = req.getParameter("first", None, filter=expand_sha1)
             last_sha1 = req.getParameter("last", None, filter=expand_sha1)
 
             if (first_sha1 is None) != (last_sha1 is None):
-                raise page.utils.DisplayMessage, "invalid parameters; one of 'first'/'last' specified but not both"
+                raise page.utils.DisplayMessage("invalid parameters; one of 'first'/'last' specified but not both")
 
             if first_sha1 is None:
                 if review_id and review_filter:
@@ -1022,7 +1022,7 @@ def renderShowCommit(req, db, user):
                         sha1 = to_sha1
                         to_sha1 = None
                 else:
-                    raise page.utils.DisplayMessage, "invalid parameters; need 'sha1', 'from'/'to' or 'first'/'last'"
+                    raise page.utils.DisplayMessage("invalid parameters; need 'sha1', 'from'/'to' or 'first'/'last'")
     else:
         from_sha1 = None
         to_sha1 = None

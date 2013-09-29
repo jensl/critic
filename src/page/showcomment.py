@@ -43,7 +43,7 @@ def renderShowComment(req, db, user):
     chain = review_comment.CommentChain.fromId(db, chain_id, user)
 
     if chain is None or chain.state == "empty":
-        raise page.utils.DisplayMessage, "Invalid comment chain ID: %d" % chain_id
+        raise page.utils.DisplayMessage("Invalid comment chain ID: %d" % chain_id)
 
     review = chain.review
 

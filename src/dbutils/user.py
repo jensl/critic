@@ -50,7 +50,7 @@ class User(object):
         elif isinstance(other, basestring):
             return self.name == other
         else:
-            raise base.Error, "invalid comparison"
+            raise base.Error("invalid comparison")
 
     def __ne__(self, other):
         return not (self == other)
@@ -405,7 +405,7 @@ class User(object):
             cursor = db.cursor()
             cursor.execute("SELECT id, email, fullname, status FROM users WHERE name=%s", (name,))
             row = cursor.fetchone()
-            if not row: raise NoSuchUser, name
+            if not row: raise NoSuchUser(name)
             user_id, email, fullname, status = row
             return User.cache(db, User(user_id, name, email, fullname, status))
 

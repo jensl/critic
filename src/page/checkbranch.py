@@ -114,14 +114,14 @@ def renderCheckBranch(req, db, user):
 
         if fetch:
             if commit.startswith("r/"):
-                raise page.utils.DisplayMessage, "Won't fetch review branch from remote!"
+                raise page.utils.DisplayMessage("Won't fetch review branch from remote!")
             repository.updateBranchFromRemote(db, repository.getDefaultRemote(db), commit)
 
         try: commit = repository.revparse(commit)
-        except: raise page.utils.DisplayMessage, "Unable to interpret '%s' as a commit reference." % commit
+        except: raise page.utils.DisplayMessage("Unable to interpret '%s' as a commit reference." % commit)
 
         try: gitutils.Commit.fromSHA1(db, repository, commit)
-        except: raise page.utils.DisplayMessage, "'%s' doesn't exist in the repository." % commit
+        except: raise page.utils.DisplayMessage("'%s' doesn't exist in the repository." % commit)
 
         if mode == "html":
             document.setTitle("Branch review status: %s" % branch_arg)
@@ -130,7 +130,7 @@ def renderCheckBranch(req, db, user):
 
         if not commits:
             try: merge_sha1 = repository.revlist([upstream], [commit], "--topo-order", "--ancestry-path")[-1]
-            except: raise page.utils.DisplayMessage, "No merged or unmerged commits found."
+            except: raise page.utils.DisplayMessage("No merged or unmerged commits found.")
 
             merge = gitutils.Commit.fromSHA1(db, repository, merge_sha1)
 
@@ -142,7 +142,7 @@ def renderCheckBranch(req, db, user):
                         use_upstream = merge.parents[1]
                         break
                 else:
-                    raise page.utils.DisplayMessage, "Merge into upstream was a fast-forward; can't figure out what was merged in."
+                    raise page.utils.DisplayMessage("Merge into upstream was a fast-forward; can't figure out what was merged in.")
             else:
                 assert commit in merge.parents
 

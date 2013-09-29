@@ -250,9 +250,9 @@ def addCommitsToReview(db, user, review, commits, new_review=False, commitset=No
 
             if tails:
                 if tracked_branch:
-                    raise index.IndexException, """\
+                    raise index.IndexException("""\
 Merge %s adds merged-in commits.  Please push the merge manually
-and follow the instructions.""" % merge.sha1[:8]
+and follow the instructions.""" % merge.sha1[:8])
 
                 cursor.execute("SELECT id, confirmed, tail FROM reviewmergeconfirmations WHERE review=%s AND uid=%s AND merge=%s", (review.id, user.id, merge.getId(db)))
 
@@ -293,7 +293,7 @@ and follow the instructions.""" % merge.sha1[:8]
 Please confirm that this is intended by loading:
   %s/confirmmerge?id=%d""" % (dbutils.getURLPrefix(db, user), confirmation_id)
 
-                    raise index.IndexException, message
+                    raise index.IndexException(message)
                 elif row[2] is not None:
                     if row[2] == merge.getId(db):
                         cursor.execute("SELECT merged FROM reviewmergecontributions WHERE id=%s",

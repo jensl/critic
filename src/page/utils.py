@@ -38,7 +38,7 @@ class NotModified:
 def YesOrNo(value):
     if value == "yes": return True
     elif value == "no": return False
-    else: raise DisplayMessage, "invalid parameter value; expected 'yes' or 'no'"
+    else: raise DisplayMessage("invalid parameter value; expected 'yes' or 'no'")
 
 def generateEmpty(target):
     pass
@@ -180,8 +180,8 @@ def getParameter(req, name, default=NoDefault(), filter=lambda value: value):
     if match:
         try: return filter(decodeURIComponent(match.group(1)))
         except DisplayMessage: raise
-        except: raise DisplayMessage, "Invalid parameter value: %s=%r" % (name, match.group(1))
-    elif isinstance(default, NoDefault): raise DisplayMessage, "Required parameter missing: %s" % name
+        except: raise DisplayMessage("Invalid parameter value: %s=%r" % (name, match.group(1)))
+    elif isinstance(default, NoDefault): raise DisplayMessage("Required parameter missing: %s" % name)
     else: return default
 
 def renderShortcuts(target, page, **kwargs):

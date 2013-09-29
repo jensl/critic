@@ -26,7 +26,7 @@ from htmlutils import jsify
 from textutils import json_encode
 
 def renderHome(req, db, user):
-    if user.isAnonymous(): raise page.utils.NeedLogin, req
+    if user.isAnonymous(): raise page.utils.NeedLogin(req)
 
     profiler = profiling.Profiler()
 

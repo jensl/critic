@@ -73,7 +73,7 @@ class GitObject:
         if index == 0: return self.type
         elif index == 1: return self.size
         elif index == 2: return self.data
-        raise IndexError, "GitObject index out of range: %d" % index
+        raise IndexError("GitObject index out of range: %d" % index)
 
 class GitHttpBackendError(GitError):
     def __init__(self, returncode, stderr):
@@ -205,7 +205,7 @@ class Repository:
         try: repository = Repository.fromId(db, int(parameter))
         except: repository = Repository.fromName(db, parameter)
         if repository: return repository
-        else: raise NoSuchRepository, parameter
+        else: raise NoSuchRepository(parameter)
 
     @staticmethod
     def fromSHA1(db, sha1):

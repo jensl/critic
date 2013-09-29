@@ -293,9 +293,9 @@ def findreview(req, db, _user):
         if row:
             review_id = row[0]
         else:
-            raise page.utils.DisplayMessage, "No review found!"
+            raise page.utils.DisplayMessage("No review found!")
 
-    raise page.utils.MovedTemporarily, "/r/%d?highlight=%s#%s" % (review_id, sha1, sha1)
+    raise page.utils.MovedTemporarily("/r/%d?highlight=%s#%s" % (review_id, sha1, sha1))
 
 def suggestreview(req, db, _user):
     repository_id = req.getParameter("repository", filter=int)
@@ -698,7 +698,7 @@ def main(environ, start_response):
 
                     return ["<meta http-equiv='refresh' content='0; %s'>" % htmlify(target)]
                 else:
-                    raise request.MovedTemporarily, target
+                    raise request.MovedTemporarily(target)
 
             # Require a .git suffix on HTTP(S) repository URLs unless the user-
             # agent starts with "git/" (as Git's normally does.)

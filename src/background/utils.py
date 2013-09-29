@@ -336,7 +336,7 @@ class PeerServer(BackgroundProcess):
 
             self.debug("not listening")
         else:
-            raise Exception, "invalid address: %r" % self.__address
+            raise Exception("invalid address: %r" % self.__address)
 
         atexit.register(self.__destroy_listening_socket)
 

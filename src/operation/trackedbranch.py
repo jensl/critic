@@ -252,7 +252,7 @@ class AddTrackedBranch(Operation):
                        (repository_id, target_name))
 
         if cursor.fetchone():
-            raise OperationError, "branch '%s' already tracks another branch" % target_name
+            raise OperationError("branch '%s' already tracks another branch" % target_name)
 
         users = [dbutils.User.fromName(db, username) for username in users]
         forced = True
@@ -266,7 +266,7 @@ class AddTrackedBranch(Operation):
                            (repository_id, target_name))
 
             if not cursor.fetchone():
-                raise OperationError, "non-existing review branch can't track another branch"
+                raise OperationError("non-existing review branch can't track another branch")
         else:
             forced = False
 

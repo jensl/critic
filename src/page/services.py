@@ -64,7 +64,7 @@ def renderServices(req, db, user):
             else: raise
 
     if not connected:
-        raise page.utils.DisplayMessage, "Service manager not responding!"
+        raise page.utils.DisplayMessage("Service manager not responding!")
 
     connection.send(textutils.json_encode({ "query": "status" }))
     connection.shutdown(socket.SHUT_WR)
@@ -78,7 +78,7 @@ def renderServices(req, db, user):
     result = textutils.json_decode(data)
 
     if result["status"] == "error":
-        raise page.utils.DisplayMessage, result["error"]
+        raise page.utils.DisplayMessage(result["error"])
 
     paleyellow = page.utils.PaleYellowTable(body, "Services")
 
