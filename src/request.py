@@ -277,7 +277,7 @@ class Request:
             try: return filter(decodeURIComponent(match.group(1)))
             except base.Error: raise
             except:
-                if filter is int: expected = "expected integer"
+                if filter is int: expected = "integer"
                 else: expected = "something else"
                 raise InvalidParameterValue(name, match.group(1), expected)
         elif isinstance(default, NoDefault): raise MissingParameter(name)
