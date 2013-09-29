@@ -103,8 +103,6 @@ def createChangeset(db, user, repository, commit=None, from_commit=None, to_comm
 
     changes = None
     changesets = []
-    fileversions_values = []
-    chunks_values = []
 
     thin_diff = False
 

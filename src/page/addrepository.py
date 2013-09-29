@@ -23,8 +23,6 @@ def renderNewRepository(req, db, user):
     if not user.hasRole(db, "repositories"):
         raise page.utils.DisplayMessage(title="Not allowed!", body="Only users with the 'repositories' role can add new repositories.")
 
-    cursor = db.cursor()
-
     document = htmlutils.Document(req)
 
     html = document.html()

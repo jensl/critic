@@ -403,10 +403,8 @@ def parseDifferences(repository, commit=None, from_commit=None, to_commit=None, 
                 line = lines.next()
 
                 delete_offset = 1
-                delete_count = 0
                 deleted_lines = []
                 insert_offset = 1
-                insert_count = 0
                 inserted_lines = []
 
                 if old_path and new_path and not simple:

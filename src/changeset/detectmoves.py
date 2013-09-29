@@ -163,7 +163,6 @@ def detectMoves(db, changeset, source_file_ids=None, target_file_ids=None):
         current_chunks = target_file.chunks
 
         count = 0
-        log = ""
 
         while current_chunks:
             extra_target_chunks = []
