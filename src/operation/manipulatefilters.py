@@ -39,7 +39,7 @@ class AddFilter(Operation):
         if "*" in path:
             try:
                 reviewing.filters.validatePattern(path)
-            except reviewing.filters.PatternError, error:
+            except reviewing.filters.PatternError as error:
                 raise OperationFailure(code="invalidpattern",
                                        title="Invalid path pattern",
                                        message="There are invalid wild-cards in the path: %s" % error.message)
@@ -359,7 +359,7 @@ class AddReviewFilters(Operation):
                 for path in paths:
                     try:
                         reviewing.filters.validatePattern(path)
-                    except reviewing.filters.PatternError, error:
+                    except reviewing.filters.PatternError as error:
                         raise OperationFailure(
                             code="invalidpattern",
                             title="Invalid path pattern",

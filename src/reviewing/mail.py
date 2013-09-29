@@ -51,7 +51,7 @@ def generateSubjectLine(db, user, review, item):
              "branch": review.branch.name }
 
     try: return format % data
-    except Exception, exc: return "%s (format: %r)" % (str(exc), format)
+    except Exception as exc: return "%s (format: %r)" % (str(exc), format)
 
 def renderChainInMail(db, to_user, chain, focus_comment, new_state, new_type, line_length, context_lines):
     result = ""

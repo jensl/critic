@@ -47,7 +47,7 @@ class Page(object):
 
             try:
                 value = req.getParameter(name, default, str if is_list else checker)
-            except page.parameters.InvalidParameterValue, error:
+            except page.parameters.InvalidParameterValue as error:
                 raise request.InvalidParameterValue(name, req.getParameter(name), error.expected)
 
             if value is not None:

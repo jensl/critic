@@ -123,7 +123,7 @@ class Watchdog(BackgroundProcess):
 
             for pid in pids:
                 try: rss = getRSS(pid)
-                except IOError, error:
+                except IOError as error:
                     if error.errno == errno.ENOENT:
                         self.warning("unlinking stale pid-file: %s" % os.path.join(pidfile_dir, str(pid)))
                         os.unlink(os.path.join(pidfile_dir, str(pid)))

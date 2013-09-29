@@ -84,7 +84,7 @@ def execute(db, req, user):
             except ProcessTimeout:
                 req.setStatus(500, "Extension Timeout")
                 return "Extension timed out!"
-            except ProcessError, error:
+            except ProcessError as error:
                 req.setStatus(500, "Extension Failure")
                 if error.returncode < 0:
                     if -error.returncode == signal.SIGXCPU:

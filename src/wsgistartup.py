@@ -32,7 +32,7 @@ try:
         except: pass
 
     try: os.makedirs(os.path.dirname(pidfile_path))
-    except OSError, error:
+    except OSError as error:
         if error.errno == errno.EEXIST: pass
         else: raise
 

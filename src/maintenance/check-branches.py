@@ -121,7 +121,7 @@ for repository_id in repository_ids:
                         refs[ref[11:]] = sha1
                 except ValueError:
                     pass
-    except IOError, error:
+    except IOError as error:
         if error.errno == errno.ENOENT: pass
         else: raise
 

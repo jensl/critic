@@ -801,7 +801,7 @@ def parseReviewFilters(db, data):
         # Make sure the path doesn't contain any invalid wild-cards.
         try:
             reviewing.filters.validatePattern(filter_path)
-        except reviewing.filters.PatternError, error:
+        except reviewing.filters.PatternError as error:
             raise OperationFailure(code="invalidpattern",
                                    title="Invalid filter pattern",
                                    message="Problem: %s" % error.message)

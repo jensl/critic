@@ -349,7 +349,7 @@ class Operation(object):
         if not data: raise OperationError("no input")
 
         try: value = json_decode(data)
-        except ValueError, error: raise OperationError("invalid input: %s" % str(error))
+        except ValueError as error: raise OperationError("invalid input: %s" % str(error))
 
         try:
             self.__checker(value)

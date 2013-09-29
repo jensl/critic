@@ -134,7 +134,7 @@ if "--slave" in sys.argv[1:]:
         sys_stdout.write(json_encode({ "status": "ok", "accept": True, "output": sys.stdout.getvalue(), "info": info }))
 
         index.finish()
-    except index.IndexException, exception:
+    except index.IndexException as exception:
         sys_stdout.write(json_encode({ "status": "ok", "accept": False, "output": exception.message, "info": info }))
     except SystemExit:
         raise

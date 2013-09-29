@@ -752,7 +752,7 @@ def renderShowReview(req, db, user):
 
     try:
         document.setTitle(title_format % title_data)
-    except Exception, exc:
+    except Exception as exc:
         document.setTitle(traceback.format_exception_only(type(exc), exc)[0].strip())
 
     profiler.check("progress")

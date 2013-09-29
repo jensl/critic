@@ -169,7 +169,7 @@ class FetchRemoteBranches(Operation):
 
         try:
             refs = gitutils.Repository.lsremote(remote, regexp=regexp)
-        except gitutils.GitCommandError, error:
+        except gitutils.GitCommandError as error:
             if error.output.splitlines()[0].endswith("does not appear to be a git repository"):
                 raise OperationFailure(
                     code="invalidremote",
@@ -229,7 +229,7 @@ class FetchRemoteBranch(Operation):
                 message=("Could not find the ref <code>%s</code> in the repository <code>%s</code>."
                          % (htmlutils.htmlify(branch), htmlutils.htmlify(remote))),
                 is_html=True)
-        except gitutils.GitCommandError, error:
+        except gitutils.GitCommandError as error:
             if error.output.splitlines()[0].endswith("does not appear to be a git repository"):
                 raise OperationFailure(
                     code="invalidremote",

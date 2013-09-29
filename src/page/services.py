@@ -57,7 +57,7 @@ def renderServices(req, db, user):
         try:
             connection.connect(configuration.services.SERVICEMANAGER["address"])
             connected = True
-        except socket.error, error:
+        except socket.error as error:
             if error[0] in (errno.ENOENT, errno.ECONNREFUSED):
                 time.sleep(delay)
                 delay += delay

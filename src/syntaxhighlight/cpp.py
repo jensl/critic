@@ -142,7 +142,7 @@ class HighlightCPP:
                             group = list(syntaxhighlight.clexer.flatten(group)) + [token]
                             nextContext.extend(group)
                             for token in group: self.highlightToken(token)
-                        except syntaxhighlight.clexer.CLexerGroupingException, error:
+                        except syntaxhighlight.clexer.CLexerGroupingException as error:
                             for token in error.tokens(): self.highlightToken(token)
                             nextContext = []
                             nextContextClosed = False

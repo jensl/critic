@@ -344,7 +344,7 @@ def loadmanifest(req, _db, _user):
     try:
         extensions.manifest.Manifest.load(extensions.getExtensionPath(author, name))
         return "That's a valid manifest, friend."
-    except extensions.manifest.ManifestError, error:
+    except extensions.manifest.ManifestError as error:
         return str(error)
 
 def processcommits(req, db, user):

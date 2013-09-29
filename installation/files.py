@@ -228,7 +228,7 @@ deleted.
             print "New file: %s" % target_path
             if not arguments.dry_run:
                 try: os.makedirs(os.path.dirname(full_target_path), 0755)
-                except OSError, error:
+                except OSError as error:
                     if error.errno == errno.EEXIST: pass
                     else: raise
                 shutil.copyfile(full_source_path, full_target_path)

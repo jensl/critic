@@ -48,7 +48,7 @@ def requestHighlights(repository, sha1s):
             data += received
 
         connection.close()
-    except socket.error, error:
+    except socket.error as error:
         raise HighlightBackgroundServiceError(error[1])
 
     try:

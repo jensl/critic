@@ -68,7 +68,7 @@ class GetServiceLog(Operation):
             raise OperationError("unknown service: %s" % service_name)
 
         try: logfile = open(logfile_path)
-        except OSError, error:
+        except OSError as error:
             raise OperationError("failed to open logfile: %s" % error.message)
 
         return OperationResult(lines=logfile.read().splitlines()[-lines:])

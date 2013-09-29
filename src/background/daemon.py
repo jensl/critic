@@ -22,7 +22,7 @@ def detach():
         if os.fork() != 0:
             # Exit from parent process.
             sys.exit(0)
-    except OSError, error:
+    except OSError as error:
         print >>sys.stderr, "fork failed: %s" % error.message
         sys.exit(1)
 
@@ -33,7 +33,7 @@ def detach():
         if os.fork() != 0:
             # Exit from parent process.
             sys.exit(0)
-    except OSError, error:
+    except OSError as error:
         print >>sys.stderr, "fork failed: %s" % error.message
         sys.exit(1)
 

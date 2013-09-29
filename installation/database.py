@@ -73,7 +73,7 @@ backup of the database first is strongly recommended.
 
         if backup_database:
             try: os.makedirs(os.path.dirname(backup_path), 0750)
-            except OSError, error:
+            except OSError as error:
                 if error.errno == errno.EEXIST: pass
                 else: raise
 

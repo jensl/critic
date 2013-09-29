@@ -101,7 +101,7 @@ class BackgroundProcess(object):
     def __create_pidfile(self):
         if self.__pidfile_path:
             try: os.makedirs(os.path.dirname(self.__pidfile_path))
-            except OSError, error:
+            except OSError as error:
                 if error.errno == errno.EEXIST: pass
                 else: raise
             pidfile = open(self.__pidfile_path, "w")
@@ -296,7 +296,7 @@ class PeerServer(BackgroundProcess):
     def __create_listening_socket(self):
         if type(self.__address) == str:
             try: os.makedirs(os.path.dirname(self.__address))
-            except OSError, error:
+            except OSError as error:
                 if error.errno == errno.EEXIST: pass
                 else: raise
 
@@ -308,7 +308,7 @@ class PeerServer(BackgroundProcess):
 
                     print >>sys.stderr, "ERROR: Server already started!"
                     sys.exit(1)
-                except socket.error, error:
+                except socket.error as error:
                     if error[0] == errno.ECONNREFUSED:
                         self.debug("removing stale socket")
                         os.unlink(self.__address)
@@ -380,7 +380,7 @@ class PeerServer(BackgroundProcess):
                         try:
                             events = poll.poll(timeout * 1000 if timeout else None)
                             break
-                        except select.error, error:
+                        except select.error as error:
                             if error[0] == errno.EINTR: continue
                             else: raise
 
@@ -388,9 +388,9 @@ class PeerServer(BackgroundProcess):
 
                     def catch_error(fn):
                         try: fn()
-                        except socket.error, error:
+                        except socket.error as error:
                             if error[0] not in (errno.EAGAIN, errno.EINTR): raise
-                        except OSError, error:
+                        except OSError as error:
                             if error.errno not in (errno.EAGAIN, errno.EINTR): raise
 
                     for fd, event in events:

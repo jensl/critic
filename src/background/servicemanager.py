@@ -184,7 +184,7 @@ else:
         # /var/run is typically a tmpfs that gets nuked on reboot,
         # so recreate /var/run/critic/IDENTITY if it doesn't exist.
         os.makedirs(pidfile_dir)
-    except OSError, error:
+    except OSError as error:
         if error.errno != errno.EEXIST:
             raise
     else:
@@ -219,7 +219,7 @@ else:
                 if pid == process.pid:
                     process = None
                     break
-            except OSError, error:
+            except OSError as error:
                 if error.errno == errno.EINTR: continue
                 else: break
 

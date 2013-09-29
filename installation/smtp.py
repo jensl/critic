@@ -183,7 +183,7 @@ well as to the system administrator to alert about problems.
                     print
                     print "Test email sent to %s." % recipient
                     print
-                except Exception, exception:
+                except Exception as exception:
                     if not failed:
                         failed = str(exception)
 
