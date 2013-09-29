@@ -101,7 +101,6 @@ def createChangeset(db, user, repository, commit=None, from_commit=None, to_comm
         commit = to_commit
         changeset_type = 'direct' if len(to_commit.parents) == 1 and from_commit == to_commit.parents[0] else 'custom'
 
-    changes = None
     changesets = []
 
     thin_diff = False
