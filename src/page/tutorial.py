@@ -18,7 +18,6 @@ import page.utils
 import dbutils
 import htmlutils
 import configuration
-import re
 import textformatting
 
 def renderFromFile(db, user, target, name):

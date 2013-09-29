@@ -16,7 +16,6 @@
 
 import sys
 import os
-import os.path
 import signal
 import time
 

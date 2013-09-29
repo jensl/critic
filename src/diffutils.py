@@ -14,7 +14,6 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-import re
 from difflib import SequenceMatcher
 from itertools import izip, repeat
 

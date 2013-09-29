@@ -17,7 +17,6 @@
 import sys
 import subprocess
 import os
-import os.path
 import logging
 import logging.handlers
 import atexit

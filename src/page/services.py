@@ -15,7 +15,6 @@
 # the License.
 
 import os
-import os.path
 import socket
 import time
 import errno

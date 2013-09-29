@@ -16,7 +16,6 @@
 
 import subprocess
 import os
-import os.path
 import signal
 
 import configuration

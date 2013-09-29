@@ -16,8 +16,6 @@
 
 import sys
 import os
-import os.path
-import time
 import cPickle
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(sys.argv[0]), "..")))

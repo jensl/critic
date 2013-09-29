@@ -30,9 +30,6 @@ import reviewing.comment as review_comment
 import utils as review_utils
 
 import time
-import re
-import os
-import sys
 
 def sendMail(db, review, message_id, from_user, to_user, recipients, subject, body, parent_message_id=None):
     return queueMail(from_user, to_user, recipients, subject, body,

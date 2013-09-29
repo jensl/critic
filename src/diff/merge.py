@@ -17,7 +17,6 @@
 import diff
 import diff.parse
 import gitutils
-import bisect
 
 # Maximum number of lines allowed between a two chunks to consider
 # them near enough to warrant inclusion.

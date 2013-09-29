@@ -19,7 +19,6 @@ import textformatting
 import dbutils
 import htmlutils
 import configuration
-import re
 
 def renderNewsItem(db, user, target, text, timestamp):
     table = target.table("paleyellow", align="center")

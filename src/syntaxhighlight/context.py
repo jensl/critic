@@ -15,7 +15,6 @@
 # the License.
 
 import os
-import os.path
 
 import syntaxhighlight
 import configuration

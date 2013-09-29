@@ -25,7 +25,6 @@ import changeset.utils as changeset_utils
 import page.utils
 import page.showcommit
 import linkify
-import traceback
 
 def renderComments(db, target, user, chain, position, linkify):
     repository = chain.review.repository

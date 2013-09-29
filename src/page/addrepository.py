@@ -15,14 +15,9 @@
 # the License.
 
 import page.utils
-import os
-import os.path
-import signal
 import configuration
 import htmlutils
 import dbutils
-
-from subprocess import Popen as process, PIPE
 
 def renderNewRepository(req, db, user):
     if not user.hasRole(db, "repositories"):

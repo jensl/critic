@@ -16,7 +16,6 @@
 
 import sys
 import os
-import os.path
 import time
 from subprocess import Popen as process
 
