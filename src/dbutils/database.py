@@ -40,7 +40,7 @@ class Database(Session):
         def __init__(self, db, cursor, profiling):
             self.__db = db
             self.__cursor = cursor
-            self.__profiling = self.__db.profiling is not None
+            self.__profiling = profiling is not None
             self.__rows = None
             self.__iterators = []
 
