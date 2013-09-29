@@ -18,7 +18,7 @@ import psycopg2
 import configuration
 
 def connect():
-   return psycopg2.connect(**configuration.database.PARAMETERS)
+    return psycopg2.connect(**configuration.database.PARAMETERS)
 
 IntegrityError = psycopg2.IntegrityError
 ProgrammingError = psycopg2.ProgrammingError
