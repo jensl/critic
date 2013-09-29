@@ -64,16 +64,14 @@ class BackgroundProcess(object):
         file_handler.setFormatter(formatter)
         file_handler.setLevel(loglevel)
 
-        if send_administrator_mails:
-            mail_handler = AdministratorMailHandler(service["logfile_path"])
-            mail_handler.setFormatter(formatter)
-            mail_handler.setLevel(logging.WARNING)
-
         logger = logging.getLogger()
         logger.setLevel(loglevel)
         logger.addHandler(file_handler)
 
         if send_administrator_mails:
+            mail_handler = AdministratorMailHandler(service["logfile_path"])
+            mail_handler.setFormatter(formatter)
+            mail_handler.setLevel(logging.WARNING)
             logger.addHandler(mail_handler)
 
         self.terminated = False
