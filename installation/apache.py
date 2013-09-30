@@ -15,11 +15,21 @@
 # the License.
 
 import os
+import re
 import subprocess
 
 import installation
 
 pass_auth = "Off"
+site_suffix = ".conf"
+default_site = "000-default"
+
+def get_apache2_version():
+    output = subprocess.check_output([installation.prereqs.apache2ctl, "-v"])
+    match = re.search("Server version:\s*Apache/([^\s\n]*)", output, re.M)
+    if not match:
+        return None
+    return match.group(1)
 
 def restart():
     print
@@ -46,12 +56,17 @@ be accessible until the Apache configuration has been fixed.
         return True
 
 def prepare(mode, arguments, data):
-    global pass_auth
+    global pass_auth, site_suffix, default_site
 
     if installation.config.auth_mode == "critic":
         pass_auth = "On"
 
     data["installation.apache.pass_auth"] = pass_auth
+
+    version = get_apache2_version()
+    if version and version.startswith("2.2."):
+        site_suffix = ""
+        default_site = "default"
 
     return True
 
@@ -66,7 +81,7 @@ def install(data):
     site = "site.%s" % installation.config.access_scheme
 
     source_path = os.path.join(installation.root_dir, "installation", "templates", site)
-    target_path = os.path.join("/etc", "apache2", "sites-available", "critic-main")
+    target_path = os.path.join("/etc", "apache2", "sites-available", "critic-main%s" % site_suffix)
 
     with open(target_path, "w") as target:
         created_file.append(target_path)
@@ -85,7 +100,7 @@ def install(data):
         subprocess.check_call([installation.prereqs.a2ensite, "critic-main"])
         site_enabled = True
     if installation.prereqs.a2dissite:
-        output = subprocess.check_output([installation.prereqs.a2dissite, "default"],
+        output = subprocess.check_output([installation.prereqs.a2dissite, default_site],
                                          env={ "LANG": "C" })
         if "Site default disabled." in output:
             default_site_disabled = True
@@ -96,7 +111,7 @@ def upgrade(arguments, data):
     site = "site.%s" % installation.config.access_scheme
 
     source_path = os.path.join(installation.root_dir, "installation", "templates", site)
-    target_path = os.path.join("/etc", "apache2", "sites-available", "critic-main")
+    target_path = os.path.join("/etc", "apache2", "sites-available", "critic-main%s" % site_suffix)
     backup_path = os.path.join(os.path.dirname(target_path), "_" + os.path.basename(target_path))
 
     source = open(source_path, "r").read().decode("utf-8") % data
@@ -154,7 +169,7 @@ def undo():
         subprocess.check_call([installation.prereqs.a2dissite, "critic-main"])
 
         if default_site_disabled:
-            subprocess.check_call([installation.prereqs.a2ensite, "default"])
+            subprocess.check_call([installation.prereqs.a2ensite, default_site])
 
         if installation.prereqs.apache2ctl:
             subprocess.check_call([installation.prereqs.apache2ctl, "restart"])

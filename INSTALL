@@ -31,7 +31,7 @@ Critic depends on the following software packages:
 
   * PostgreSQL (9.1 or later), both client and server parts
 
-  * Apache (2.2 or later; 2.4 hasn't been tested)
+  * Apache (2.2 or later)
 
   * Git
 
