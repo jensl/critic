@@ -798,7 +798,7 @@ def renderShowReview(req, db, user):
         target.text("Manual: ")
         target.a(href="filterchanges?review=%d" % review.id, title="Manually select what files to display of the changes from all commits.").text("[full]")
         target.text()
-        target.a(href="javascript:void(filterPartialChanges());", title="Manually select what what files to display of the changes in a selection of commits.").text("[partial]")
+        target.a(href="javascript:void(filterPartialChanges());", title="Manually select what files to display of the changes in a selection of commits.").text("[partial]")
 
     req.addResponseHeader("ETag", review.getETag(db, user))
 

@@ -127,7 +127,7 @@ function unwatchReview()
 
 function filterPartialChanges()
 {
-  var content = $("<div title='Filter Partial Changes'>Please select the commits to filter.</div>");
+  var content = $("<div title='Filter Partial Changes'>Please select the desired range of commits below using click-and-drag.</div>");
 
   function cancel()
   {
