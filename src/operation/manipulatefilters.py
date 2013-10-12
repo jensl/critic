@@ -403,6 +403,12 @@ class RemoveReviewFilter(Operation):
 
         cursor.execute("SELECT review FROM reviewfilters WHERE id=%s", (filter_id,))
         review_id = cursor.fetchone()
+        if not review_id:
+            raise OperationFailure(
+                code="nosuchfilter",
+                title="No such filter!",
+                message=("Maybe the filter has been deleted since you "
+                         "loaded this page?"))
 
         cursor.execute("DELETE FROM reviewfilters WHERE id=%s", (filter_id,))
 
