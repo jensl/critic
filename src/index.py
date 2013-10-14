@@ -421,9 +421,9 @@ def updateBranch(user_name, repository_name, name, old, new, multiple, flags):
 
             message = """CONFUSED!  Git thinks %(name)s points to %(old)s, but Critic thinks it points to %(current)s.  Rejecting push since it would only makes matters worse.  To resolve this problem, use
 
-  git push critic %(current)s:%(name)s
+  git push -f critic %(current)s:%(name)s
 
-to resynchronize the Git repository with Critic's database.""" % data
+to resynchronize the Git repository with Critic's database.  Note that 'critic' above must be replaced by the actual name of your Critic remote, if not 'critic'.""" % data
 
             raise IndexException(textutils.reflow(message, line_length=80 - len("remote: ")))
 
