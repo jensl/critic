@@ -58,15 +58,6 @@ class OperationError(Error):
         self.expected = expected
         self.actual = actual
 
-class Context(object):
-    def __init__(self, finish):
-        self.finish = finish
-    def __enter__(self):
-        return self
-    def __exit__(self, *args):
-        self.finish()
-        return False
-
 class Frontend(object):
     def __init__(self, hostname, http_port=8080):
         self.hostname = hostname
@@ -249,9 +240,12 @@ class Frontend(object):
         return result
 
     def signin(self, username="admin", password="testing"):
-        self.operation("validatelogin", data={ "username": username,
-                                               "password": password })
-        return Context(self.signout)
+        def start():
+            self.operation("validatelogin", data={ "username": username,
+                                                   "password": password })
+        def finish():
+            self.signout()
+        return testing.Context(start, finish)
 
     def signout(self):
         try:

@@ -77,3 +77,14 @@ def pause(prompt="Press ENTER to continue: "):
         print >>STREAM
         raise
     print >>STREAM
+
+class Context(object):
+    def __init__(self, start, finish):
+        self.start = start
+        self.finish = finish
+    def __enter__(self):
+        self.start()
+        return self
+    def __exit__(self, *args):
+        self.finish()
+        return False
