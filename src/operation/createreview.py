@@ -65,29 +65,36 @@ class ReviewersAndWatchers(Operation):
 class SubmitReview(Operation):
     def __init__(self):
         Operation.__init__(self, { "repository_id": int,
-                                   "commit_ids": [int],
                                    "branch": str,
                                    "summary": str,
-                                   "applyfilters": bool,
-                                   "applyparentfilters": bool,
-                                   "reviewfilters": [{ "username": str,
-                                                       "type": set(["reviewer", "watcher"]),
-                                                       "path": str }],
-                                   "recipientfilters": { "mode": set(["opt-in", "opt-out"]),
-                                                         "included": Optional([str]),
-                                                         "excluded": Optional([str]) },
+                                   "commit_ids": Optional([int]),
+                                   "commit_sha1s": Optional([str]),
+                                   "applyfilters": Optional(bool),
+                                   "applyparentfilters": Optional(bool),
+                                   "reviewfilters": Optional([{ "username": str,
+                                                                "type": set(["reviewer", "watcher"]),
+                                                                "path": str }]),
+                                   "recipientfilters": Optional({ "mode": set(["opt-in", "opt-out"]),
+                                                                  "included": Optional([str]),
+                                                                  "excluded": Optional([str]) }),
                                    "description": Optional(str),
                                    "frombranch": Optional(str),
                                    "trackedbranch": Optional({ "remote": str,
                                                                "name": str }) })
 
-    def process(self, db, user, repository_id, commit_ids, branch, summary,
-                reviewfilters, recipientfilters, applyfilters, applyparentfilters,
-                description=None, frombranch=None, trackedbranch=None):
+    def process(self, db, user, repository_id, branch, summary, commit_ids=None,
+                commit_sha1s=None, applyfilters=True, applyparentfilters=True,
+                reviewfilters=None, recipientfilters=None, description=None,
+                frombranch=None, trackedbranch=None):
         if not branch.startswith("r/"):
             raise OperationFailure(code="invalidbranch",
                                    title="Invalid review branch name",
                                    message="'%s' is not a valid review branch name; it must have a \"r/\" prefix." % branch)
+
+        if reviewfilters is None:
+            reviewfilters = []
+        if recipientfilters is None:
+            recipientfilters = {}
 
         repository = gitutils.Repository.fromId(db, repository_id)
 
@@ -105,7 +112,13 @@ class SubmitReview(Operation):
                                    message=message,
                                    is_html=True)
 
-        commits = [gitutils.Commit.fromId(db, repository, commit_id) for commit_id in commit_ids]
+        if commit_sha1s is not None:
+            commits = [gitutils.Commit.fromSHA1(db, repository, commit_sha1) for commit_sha1 in commit_sha1s]
+        elif commit_ids is not None:
+            commits = [gitutils.Commit.fromId(db, repository, commit_id) for commit_id in commit_ids]
+        else:
+            commits = []
+
         commitset = CommitSet(commits)
 
         reviewfilters = parseReviewFilters(db, reviewfilters)
