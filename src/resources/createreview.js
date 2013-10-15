@@ -18,8 +18,20 @@
 
 /* -*- Mode: js; js-indent-level: 2; indent-tabs-mode: nil -*- */
 
-var reviewfilters = [];
+var reviewfilters = {};
 var recipients_mode = "opt-out", recipients_included = {}, recipients_excluded = {};
+
+function splitReviewFilters(reviewfilters)
+{
+  var result = [];
+  for (var key in reviewfilters)
+  {
+    var data = JSON.parse(key);
+    data.type = reviewfilters[key];
+    result.push(data);
+  }
+  return result;
+}
 
 function submitReview()
 {
@@ -52,7 +64,7 @@ function submitReview()
                commit_ids: review.commit_ids,
                branch: "r/" + branch_name.value,
                summary: summary.value.trim(),
-               reviewfilters: reviewfilters,
+               reviewfilters: splitReviewFilters(reviewfilters),
                recipientfilters: { mode: recipients_mode,
                                    included: Object.keys(recipients_included),
                                    excluded: Object.keys(recipients_excluded) },
@@ -92,7 +104,7 @@ function updateReviewersAndWatchers(new_reviewfilters)
 
   var data = { repository_id: repository.id,
                commit_ids: review.commit_ids,
-               reviewfilters: new_reviewfilters,
+               reviewfilters: splitReviewFilters(new_reviewfilters),
                applyfilters: $("input.applyfilters:checked").size() != 0,
                applyparentfilters: $("input.applyparentfilters:checked").size() != 0 };
 
@@ -137,29 +149,30 @@ function updateFilters(add_reviewer)
                 +     "<b>User name(s):</b><br>"
                 +     "<input class='name' style='width: 100%'><br>"
                 +     "<b>Directory:</b><br>"
-                +     "<input class='path' style='width: 100%'>"
+                +     "<input class='path' style='width: 100%'"
+                +           " placeholder='Leave empty for \"everything\"'>"
                 +   "</p>"
                 + "</div>");
 
-  function finish(type)
+  function finish()
   {
-    var name = content.find("input.name").val();
-    var path = content.find("input.path").val();
+    var name = content.find("input.name").val().trim();
+    var path = content.find("input.path").val().trim();
 
-    var names = {};
+    if (!path)
+      path = "/";
 
-    name.split(/[, ]+/).forEach(function (name) { names[name] = true; });
+    new_reviewfilters = {};
 
-    new_reviewfilters = [];
+    for (var key in reviewfilters)
+      new_reviewfilters[key] = reviewfilters[key];
 
-    for (var index = 0; index < reviewfilters.length; ++index)
-      if (!(reviewfilters[index].username in names) || reviewfilters[index].path != path)
-        new_reviewfilters.push(reviewfilters[index]);
-
-    for (var name in names)
-      new_reviewfilters.push({ username: name,
-                               type: add_reviewer ? "reviewer" : "watcher",
-                               path: path });
+    name.split(/[, ]+/).forEach(
+      function (name)
+      {
+        var key = JSON.stringify({ username: name, path: path });
+        new_reviewfilters[key] = add_reviewer ? "reviewer" : "watcher";
+      });
 
     return updateReviewersAndWatchers(new_reviewfilters);
   }
