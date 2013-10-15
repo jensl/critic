@@ -515,12 +515,12 @@ function saveState(replace)
     if (!replace)
     {
       if (typeof history.pushState == "function")
-        history.pushState(state, document.title);
+        history.pushState(state, document.title, location.href);
     }
     else
     {
       if (typeof history.replaceState == "function")
-        history.replaceState(state, document.title);
+        history.replaceState(state, document.title, location.href);
     }
   }
 
