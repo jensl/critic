@@ -127,104 +127,40 @@ function updateReviewersAndWatchers(new_reviewfilters)
     return false;
 }
 
-function updateFilters(add_reviewer)
+function updateFilters(filter_type)
 {
-  var title, message;
-  if (add_reviewer)
+  function addFilters(names, path)
   {
-    title = "Add Reviewer";
-    message = "<p>Make specified users reviewers of given path during this review.</p>";
-  }
-  else
-  {
-    title = "Add Watcher";
-    message = "<p>Make specified users watchers of given path during this review.  "
-            +    "If a user would normally be a reviewer of the path, he/she is "
-            +    "reduced to just a watcher.</p>";
-  }
-
-  var content = $("<div class='comment' title='" + title + "'>"
-                +   message
-                +   "<p>"
-                +     "<b>User name(s):</b><br>"
-                +     "<input class='name' style='width: 100%'><br>"
-                +     "<b>Directory:</b><br>"
-                +     "<input class='path' style='width: 100%'"
-                +           " placeholder='Leave empty for \"everything\"'>"
-                +   "</p>"
-                + "</div>");
-
-  function finish()
-  {
-    var name = content.find("input.name").val().trim();
-    var path = content.find("input.path").val().trim();
-
-    if (!path)
-      path = "/";
-
     new_reviewfilters = {};
 
     for (var key in reviewfilters)
       new_reviewfilters[key] = reviewfilters[key];
 
-    name.split(/[, ]+/).forEach(
+    names.forEach(
       function (name)
       {
         var key = JSON.stringify({ username: name, path: path });
-        new_reviewfilters[key] = add_reviewer ? "reviewer" : "watcher";
+        new_reviewfilters[key] = filter_type;
       });
 
     return updateReviewersAndWatchers(new_reviewfilters);
   }
 
-  function checkFinished()
-  {
-    if (finish())
-      $(content).dialog("close");
-  }
-
-  function handleKeypress(ev)
-  {
-    if (ev.keyCode == 13)
-      checkFinished();
-  }
-
-  var buttons = { Add: function () { checkFinished(); },
-                  Cancel: function () { $(content).dialog("close"); } };
-
-  content.find("input.name").keypress(handleKeypress);
-  content.find("input.path").keypress(handleKeypress);
-
-  content.dialog({ width: 600, height: "auto",
-                   modal: true,
-                   buttons: buttons });
-
-  function enableAutoCompletion(result)
-  {
-    content.find("input.name").autocomplete(
-      { source: AutoCompleteUsers(result.users) });
-    content.find("input.path").autocomplete(
-      { source: AutoCompletePath(result.paths),
-        html: true });
-  }
-
-  var operation = new Operation({ action: "get auto-complete data",
-                                  url: "getautocompletedata",
-                                  data: { values: ["users", "paths"],
-                                          changeset_ids: review.changeset_ids },
-                                  callback: enableAutoCompletion });
-
-  operation.execute();
+  addReviewFiltersDialog({
+    filter_type: filter_type,
+    callback: addFilters,
+    reload_page: false
+  });
 }
 
 function addReviewer()
 {
-  updateFilters(true);
+  updateFilters("reviewer");
 }
 
 function addWatcher()
 {
-  updateFilters(false);
+  updateFilters("watcher");
 }
 
 function editRecipientList()

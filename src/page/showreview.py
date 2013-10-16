@@ -309,6 +309,7 @@ def renderShowReview(req, db, user):
     document.addExternalScript("resource/showreview.js")
     document.addExternalScript("resource/review.js")
     document.addExternalScript("resource/comment.js")
+    document.addExternalScript("resource/reviewfilters.js")
     document.addExternalScript("resource/autocomplete.js")
     document.addInternalScript(user.getJS())
     document.addInternalScript("var owners = [ %s ];" % ", ".join(owner.getJSConstructor() for owner in review.owners))

@@ -308,6 +308,7 @@ def renderCreateReview(req, db, user):
 
     document.addExternalStylesheet("resource/createreview.css")
     document.addExternalScript("resource/createreview.js")
+    document.addExternalScript("resource/reviewfilters.js")
     document.addExternalScript("resource/autocomplete.js")
 
     document.addInternalScript("""

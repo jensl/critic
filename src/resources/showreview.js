@@ -151,67 +151,25 @@ function filterPartialChanges()
 
 function updateFilters(filter_type)
 {
-  var content;
-
-  if (filter_type == "reviewer")
-    content = $("<div class='comment' title='Add Reviewer'><p>Make specified users reviewers of given path during this review.</p><p><b>User name(s):</b><br><input class='name sourcefont' style='width:100%'><br><b>Directory:</b><input class='path sourcefont' style='width:100%'></p></div>");
-  else
-    content = $("<div class='comment' title='Add Watcher'><p>Make specified users watchers of given path during this review.  If a user would normally be a reviewer of the path, he/she is reduced to just a watcher.</p><p><b>User name(s):</b><br><input class='name sourcefont' style='width: 100%'><br><b>Directory:</b><br><input class='path sourcefont' style='width:100%'></p></div>");
-
-  function finish()
+  function addFilters(names, path)
   {
-    var name = content.find("input.name").val().trim();
-    var path = content.find("input.path").val().trim();
-    var names = name.split(/[, ]+/);
-
-    var operation = new Operation({ action: "update review filters",
-                                    url: "addreviewfilters",
-                                    data: { review_id: review.id,
-                                            filters: [{ type: filter_type,
-                                                        user_names: name.split(/[, ]+/),
-                                                        paths: [path] }] }});
+    var operation = new Operation({
+      action: "add review filters",
+      url: "addreviewfilters",
+      data: { review_id: review.id,
+              filters: [{ type: filter_type,
+                          user_names: names,
+                          paths: [path] }] }
+    });
 
     return operation.execute() != null;
   }
 
-  function checkFinished()
-  {
-    if (finish())
-    {
-      $(content).dialog("close");
-      location.reload();
-    }
-  }
-
-  function handleKeypress(ev)
-  {
-    if (ev.keyCode == 13)
-      checkFinished();
-  }
-
-  var buttons = { Add: function () { checkFinished(); },
-                  Cancel: function () { $(content).dialog("close"); } };
-
-  content.dialog({ width: 600, height: "auto",
-                   modal: true,
-                   buttons: buttons });
-
-  content.find("input.name").keypress(handleKeypress);
-  content.find("input.path").keypress(handleKeypress);
-
-  function enableAutoCompletion(result)
-  {
-    content.find("input.name").autocomplete({ source: AutoCompleteUsers(result.users) });
-    content.find("input.path").autocomplete({ source: AutoCompletePath(result.paths), html: true });
-  }
-
-  var operation = new Operation({ action: "get auto-complete data",
-                                  url: "getautocompletedata",
-                                  data: { values: ["users", "paths"],
-                                          review_id: review.id },
-                                  callback: enableAutoCompletion })
-
-  operation.execute();
+  addReviewFiltersDialog({
+    filter_type: filter_type,
+    callback: addFilters,
+    reload_page: true
+  });
 }
 
 function addReviewer()
