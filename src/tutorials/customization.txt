@@ -133,3 +133,45 @@ no branches are suggested to the user.  This doesn't leave the user entirely
 without guidance, however; the input field on the page where the user is asked
 to input the branch name will auto-complete input based on branches that exist
 in the other repository (also using <code>git ls-remote</code>.)
+
+Custom pre-receive Checks
+-------------------------
+
+It is entirely possible to install custom Git hooks in Critic's repositories,
+but doing so may conflict with the hooks that Critic installs and depends on for
+its interactions with the repositories.  Currently, Critic only installs a
+pre-receive hook, but other hooks may be installed in the future.
+
+If custom checks should be applied to ref updates, before Critic handles them,
+the preferred way is using Critic's customization mechanism.
+
+customization/githook.py
+------------------------
+This module should define an exception class, Reject, and a function, update():
+
+| class Reject(Exception):
+|   pass
+|
+| def update(repository_path, ref_name, old_value, new_value):
+|   if ref_name.startswith("refs/heads/reserved/"):
+|     raise Reject("Don't push reserved refs!")
+
+The function is called with the arguments 'repository_path', which is the
+(absolute) file-system path of the Git repository (any one of Critic's
+repositories on the system); 'ref_name', which is the full name of the reference
+being updated; 'old_value', which is the current SHA-1 of the reference, or
+None if the reference is being created; and 'new_value', which is the new
+SHA-1 of the reference, or None if the reference is being deleted.
+
+If a Reject exception (or sub-class thereof) is raised by update(), the update
+is rejected with an error message constructed by applying str() to the exception
+object.  For a sub-class of Exception created with a single argument, as in the
+example above, this means that argument is converted to a string and returned.
+
+If an exception of any other type is raised, it is ignored, and the update is
+processed by Critic (and either rejected or allowed, as usual.)
+
+If the update() function writes to stdout and the update is not rejected by
+either the update() function itself or Critic's normal handling of the update,
+the text written is sent to the Git client updating the reference, and included
+in its output, with each line prefixed by the string "remote: ".

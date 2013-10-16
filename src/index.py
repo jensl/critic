@@ -43,6 +43,14 @@ except ImportError:
     def getUserEmailAddress(_username):
         return None
 
+try:
+    from customization.githook import Reject, update
+except ImportError:
+    class Reject(Exception):
+        pass
+    def update(_repository, _ref, _old, _new):
+        pass
+
 def timestamp(time):
     return strftime("%Y-%m-%d %H:%M:%S", time)
 
@@ -221,6 +229,13 @@ def createBranches(user_name, repository_name, branches, flags):
 
 def createBranch(user, repository, name, head, flags):
     processCommits(repository.name, head)
+
+    try:
+        update(repository.path, "refs/heads/" + name, None, head)
+    except Reject as rejected:
+        raise IndexException(str(rejected))
+    except Exception:
+        pass
 
     cursor = db.cursor()
 
@@ -401,6 +416,13 @@ def updateBranch(user_name, repository_name, name, old, new, multiple, flags):
     repository = gitutils.Repository.fromName(db, repository_name)
 
     processCommits(repository_name, new)
+
+    try:
+        update(repository.path, "refs/heads/" + name, old, new)
+    except Reject as rejected:
+        raise IndexException(str(rejected))
+    except Exception:
+        pass
 
     try:
         branch = dbutils.Branch.fromName(db, repository, name)
@@ -789,8 +811,15 @@ Perhaps you should request a new review of the follow-up commits?""")
                                                gitutils.Commit.fromSHA1(db, repository, new),
                                                sys.stdout)
 
-def deleteBranch(repository_name, name):
+def deleteBranch(repository_name, name, old):
     repository = gitutils.Repository.fromName(db, repository_name)
+
+    try:
+        update(repository.path, "refs/heads/" + name, old, None)
+    except Reject as rejected:
+        raise IndexException(str(rejected))
+    except Exception:
+        pass
 
     branch = dbutils.Branch.fromName(db, repository, name)
 

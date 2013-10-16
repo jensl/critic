@@ -28,7 +28,7 @@ with repository.workcopy() as work:
     work.run(["push", "alice@%s:/var/git/critic.git" % instance.hostname, "HEAD"])
 
 instance.execute(
-    ["sudo", "mkdir", "/etc/critic/main/customization",
+    ["sudo", "mkdir", "-p", "/etc/critic/main/customization",
      "&&",
      "sudo", "touch", "/etc/critic/main/customization/__init__.py",
      "&&",

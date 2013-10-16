@@ -77,7 +77,7 @@ if "--slave" in sys.argv[1:]:
             if name.startswith("heads/"):
                 name = name[len("heads/"):]
                 if new_sha1 == '0000000000000000000000000000000000000000':
-                    delete_branches.append(name)
+                    delete_branches.append((name, old_sha1))
                 elif old_sha1 == '0000000000000000000000000000000000000000':
                     create_branches.append((name, new_sha1))
                 else:
@@ -106,8 +106,8 @@ if "--slave" in sys.argv[1:]:
         multiple = (len(delete_branches) + len(update_branches) + len(create_branches) + len(delete_tags) + len(update_tags) + len(create_tags)) > 1
         info = []
 
-        for name in delete_branches:
-            index.deleteBranch(repository_name, name)
+        for name, old in delete_branches:
+            index.deleteBranch(repository_name, name, old)
             info.append("branch deleted: %s" % name)
 
         for name, old, new in update_branches:
