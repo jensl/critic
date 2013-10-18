@@ -956,6 +956,9 @@ authentication in apache2, see:
 
             return [str(document)]
         except:
+            # crash might be psycopg2.ProgrammingError so rollback to avoid
+            # "InternalError: current transaction is aborted" inside handleException()
+            db.rollback()
             error_title, error_body = handleException(db, req, user)
             error_body = reflow("\n\n".join(error_body))
             error_message = "\n".join([error_title,
