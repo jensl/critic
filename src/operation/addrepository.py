@@ -22,13 +22,13 @@ import configuration
 
 import gitutils
 import htmlutils
-from operation import Operation, OperationResult, OperationFailure, Optional
+from operation import Operation, OperationResult, OperationFailure, Optional, RestrictedString
 
 class AddRepository(Operation):
     def __init__(self):
-        Operation.__init__(self, { "name": str,
+        Operation.__init__(self, { "name": RestrictedString(minlength=1, maxlength=64, ui_name="short name"),
                                    "path": str,
-                                   "remote": Optional({ "url": str,
+                                   "remote": Optional({ "url": RestrictedString(maxlength=256, ui_name="source repository"),
                                                         "branch": str }) })
 
     def process(self, db, user, name, path, remote=None):
@@ -36,15 +36,6 @@ class AddRepository(Operation):
             raise OperationFailure(code="notallowed",
                                    title="Not allowed!",
                                    message="Only users with the 'repositories' role can add new repositories.")
-
-        if remote and len(remote["url"]) > 256:
-            raise OperationFailure(code="invalidsourcerepository",
-                                   title="Invalid source repository",
-                                   message="The specified source repository URL is too long.")
-        if not name or len(name) > 64:
-            raise OperationFailure(code="invalidshortname",
-                                   title="Invalid repository short name",
-                                   message="The repository short name must be non-empty and may be at most 64 characters long.")
 
         path = path.strip("/").rsplit("/", 1)
 

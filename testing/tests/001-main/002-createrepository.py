@@ -91,10 +91,10 @@ with frontend.signin():
                        data={ "name": "a" * 65,
                               "path": "validpath2" },
                        expect={ "status": "failure",
-                                "code": "invalidshortname" })
+                                "code": "paramtoolong_name" })
 
     frontend.operation("addrepository",
                        data={ "name": "",
                               "path": "validpath1" },
                        expect={ "status": "failure",
-                                "code": "invalidshortname" })
+                                "code": "paramtooshort_name" })
