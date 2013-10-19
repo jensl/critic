@@ -45,6 +45,10 @@ class AddRepository(Operation):
             raise OperationFailure(code="invalidshortname",
                                    title="Invalid repository short name",
                                    message="The repository short name must be non-empty and may be at most 64 characters long.")
+        if name.endswith(".git"):
+            raise OperationFailure(code="badsuffix_name",
+                                   title="Invalid short name",
+                                   message="The short name must not end with .git")
 
         path = path.strip("/").rsplit("/", 1)
 
