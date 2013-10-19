@@ -98,3 +98,9 @@ with frontend.signin():
                               "path": "validpath1" },
                        expect={ "status": "failure",
                                 "code": "invalidshortname" })
+
+    frontend.operation("addrepository",
+                       data={ "name": "critic.git",
+                              "path": "validpath3" },
+                       expect={ "status": "failure",
+                                "code": "badsuffix_name" })
