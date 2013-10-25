@@ -535,10 +535,6 @@ class Instance(object):
         self.execute(["sudo", "service", "apache2", "restart"])
         self.execute(["sudo", "service", "critic-main", "restart"])
 
-        # Need to give the service manager a little bit of time to actually
-        # start all the background services.
-        time.sleep(2)
-
     def uninstall(self):
         self.execute(
             ["sudo", "python", "uninstall.py", "--headless", "--keep-going"],
