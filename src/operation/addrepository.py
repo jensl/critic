@@ -26,7 +26,7 @@ from operation import Operation, OperationResult, OperationFailure, Optional, Re
 
 class AddRepository(Operation):
     def __init__(self):
-        Operation.__init__(self, { "name": RestrictedString(minlength=1, maxlength=64, ui_name="short name"),
+        Operation.__init__(self, { "name": RestrictedString(allowed=lambda ch: ch != "/", minlength=1, maxlength=64, ui_name="short name"),
                                    "path": str,
                                    "remote": Optional({ "url": RestrictedString(maxlength=256, ui_name="source repository"),
                                                         "branch": str }) })
