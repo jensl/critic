@@ -46,6 +46,6 @@ $(document).ready(function ()
     if (confirmed)
     {
       var content = $("<div title='Merge Confirmed'><p>Please repeat the 'git push' command that failed and redirected you here.  It will now allow this merge commit, and the additional commits it contributes listed on this page, to be added to the review.</p></div>");
-      content.dialog({ width: 600, height: 200, modal: true, buttons: { OK: function () { content.dialog("close"); }}});
+      content.dialog({ width: 600, height: 225, modal: true, buttons: { OK: function () { content.dialog("close"); }}});
     }
   });
