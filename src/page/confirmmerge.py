@@ -72,8 +72,8 @@ def renderConfirmMerge(req, db, user):
 
     def renderButtons(target):
         if not do_confirm and not do_cancel:
-            target.button("confirmAll").text("Confirm (All)")
-            target.button("confirmNone").text("Confirm (None)")
+            target.button("confirmAll").text("Confirm (merge + contributed)")
+            target.button("confirmNone").text("Confirm (merge only)")
             target.button("cancel").text("Cancel")
 
     page.utils.generateHeader(body, db, user, renderButtons, extra_links=[("r/%d" % review.id, "Back to Review")])
