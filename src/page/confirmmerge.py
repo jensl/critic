@@ -105,8 +105,8 @@ def renderConfirmMerge(req, db, user):
     target = body.div("main")
 
     basic = target.table('confirm', align='center')
-    basic.col(width='10%')
-    basic.col(width='60%')
+    basic.col(width='15%')
+    basic.col(width='55%')
     basic.col(width='30%')
     h1 = basic.tr().td('h1', colspan=3).h1()
 
@@ -126,6 +126,20 @@ def renderConfirmMerge(req, db, user):
     row.td("heading").text("Message:")
     row.td("value").preformatted().text(merge.message)
     row.td().text()
+
+    if not do_confirm and not do_cancel:
+        row = basic.tr("instructions")
+        row.td("heading").text("Instructions:")
+        row.td("value").preformatted().text("""\
+Use the top right buttons to confirm the merge with or without the contributed commits that it brings.
+
+By clicking 'Confirm (merge + contributed)' you will bring the merge commit plus all commits that it contributes into the this code review.
+
+By clicking 'Confirm (merge only)' you will bring only the merge commit itself into the code review and not the contributed commits."
+
+By clicking 'Cancel' you will abort the merge. The code review will not be modified at all from its current state.""")
+        row.td().text()
+
 
     if merged:
         columns = [(10, log.html.WhenColumn()),
