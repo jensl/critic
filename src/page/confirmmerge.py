@@ -31,8 +31,10 @@ def renderConfirmMerge(req, db, user):
     cursor = db.cursor()
 
     cursor.execute("SELECT review, uid, merge, confirmed, tail FROM reviewmergeconfirmations WHERE id=%s", (confirmation_id,))
-
-    review_id, user_id, merge_id, confirmed, tail_id = cursor.fetchone()
+    row = cursor.fetchone()
+    if not row:
+        raise page.utils.DisplayMessage("No pending merge with that id.")
+    review_id, user_id, merge_id, confirmed, tail_id = row
 
     review = dbutils.Review.fromId(db, review_id)
     merge = gitutils.Commit.fromId(db, review.repository, merge_id)
