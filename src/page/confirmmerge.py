@@ -19,7 +19,6 @@ import htmlutils
 import gitutils
 
 import page.utils
-import reviewing.utils as review_utils
 import log.html
 import log.commitset
 
@@ -81,8 +80,8 @@ def renderConfirmMerge(req, db, user):
     document.addExternalStylesheet("resource/confirmmerge.css")
     document.addExternalScript("resource/log.js")
     document.addExternalScript("resource/confirmmerge.js")
-    document.addInternalScript(user.getJS());
-    document.addInternalScript(review.getJS());
+    document.addInternalScript(user.getJS())
+    document.addInternalScript(review.getJS())
     document.addInternalScript("var confirmation_id = %d;" % confirmation_id)
     document.addInternalScript("var merge_sha1 = %s;" % htmlutils.jsify(merge.sha1))
 
@@ -97,9 +96,9 @@ def renderConfirmMerge(req, db, user):
             document.addInternalScript("var automaticAnchorCommit = null;")
 
     if do_confirm:
-        document.addInternalScript("var confirmed = true;");
+        document.addInternalScript("var confirmed = true;")
     else:
-        document.addInternalScript("var confirmed = false;");
+        document.addInternalScript("var confirmed = false;")
 
     target = body.div("main")
 
