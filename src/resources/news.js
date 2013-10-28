@@ -66,7 +66,7 @@ function addOrEditNewsItem(edit_item_id, edit_text)
   if (edit_text)
     content.find("textarea").val(edit_text);
 
-  var buttons = { Save: function () { if (finish()) { $(content).dialog("close"); if (edit_item_id) location.reload(); } },
+  var buttons = { Save: function () { if (finish()) { $(content).dialog("close"); location.reload(); } },
                   Cancel: function () { $(content).dialog("close"); } };
 
   content.dialog({ width: 600, height: 250,
