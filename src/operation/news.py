@@ -14,8 +14,6 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-import dbutils
-
 from operation import Operation, OperationResult
 
 class AddNewsItem(Operation):
