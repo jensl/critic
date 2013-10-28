@@ -16,7 +16,7 @@
 
 import dbutils
 
-from operation import Operation, OperationResult, OperationFailure
+from operation import Operation, OperationResult
 
 class AddNewsItem(Operation):
     """Add news item."""
@@ -25,10 +25,7 @@ class AddNewsItem(Operation):
         Operation.__init__(self, { "text": str })
 
     def process(self, db, user, text):
-        if not user.hasRole(db, "newswriter"):
-            raise OperationFailure(code="notallowed",
-                                   title="Not allowed!",
-                                   message="Only users with the 'newswriter' role can add news items.")
+        Operation.requireRole(db, "newswriter", user)
 
         db.cursor().execute("INSERT INTO newsitems (text) VALUES (%s)", (text,))
         db.commit()
@@ -43,10 +40,7 @@ class EditNewsItem(Operation):
                                    "text": str })
 
     def process(self, db, user, item_id, text):
-        if not user.hasRole(db, "newswriter"):
-            raise OperationFailure(code="notallowed",
-                                   title="Not allowed!",
-                                   message="Only users with the 'newswriter' role can edit news items.")
+        Operation.requireRole(db, "newswriter", user)
 
         db.cursor().execute("UPDATE newsitems SET text=%s WHERE id=%s", (text, item_id))
         db.commit()
