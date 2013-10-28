@@ -16,9 +16,7 @@
 
 import page.utils
 import textformatting
-import dbutils
 import htmlutils
-import configuration
 
 def renderNewsItem(db, user, target, text, timestamp):
     table = target.table("paleyellow", align="center")
@@ -102,26 +100,3 @@ def renderNews(req, db, user):
         renderNewsItems(db, user, target, display in ("unread", "all"), display in ("read", "all"))
 
     return document
-
-def addNewsItem(req, db, user):
-    text = req.read()
-
-    if not user.hasRole(db, "newswriter"):
-        return "Sorry, you're not allowed to add news items."
-    else:
-        cursor = db.cursor()
-        cursor.execute("INSERT INTO newsitems (text) VALUES (%s)", (text,))
-        db.commit()
-        return "ok"
-
-def editNewsItem(req, db, user):
-    item = req.getParameter("item", filter=int)
-    text = req.read()
-
-    if not user.hasRole(db, "newswriter"):
-        return "Sorry, you're not allowed to add news items."
-    else:
-        cursor = db.cursor()
-        cursor.execute("UPDATE newsitems SET text=%s WHERE id=%s", (text, item))
-        db.commit()
-        return "ok"
