@@ -97,20 +97,13 @@ def install(data):
                   adapt(password),
                   adapt(fullname))))
 
-    installation.process.check_input(
-        ["su", "-s", "/bin/sh", "-c", "psql -q -v ON_ERROR_STOP=1 -f -", installation.system.username],
-        stdin=("""INSERT INTO userroles (uid, role)
-                       SELECT id, 'administrator'
-                         FROM users
-                        WHERE name=%s;"""
-               % adapt(username)))
-
-    installation.process.check_input(
-        ["su", "-s", "/bin/sh", "-c", "psql -q -v ON_ERROR_STOP=1 -f -", installation.system.username],
-        stdin=("""INSERT INTO userroles (uid, role)
-                       SELECT id, 'repositories'
-                         FROM users
-                        WHERE name=%s;"""
-               % adapt(username)))
+    for role in ["administrator", "repositories", "newswriter"]:
+        installation.process.check_input(
+            ["su", "-s", "/bin/sh", "-c", "psql -q -v ON_ERROR_STOP=1 -f -", installation.system.username],
+            stdin=("""INSERT INTO userroles (uid, role)
+                           SELECT id, %s
+                             FROM users
+                            WHERE name=%s;"""
+                   % (adapt(role), adapt(username))))
 
     return True
