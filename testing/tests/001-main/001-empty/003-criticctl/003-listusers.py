@@ -17,7 +17,8 @@ expected = """\
    3 |        bob |                bob@example.org | Bob von Testing                | current
    4 |       dave |               dave@example.org | Dave von Testing               | current
    5 |       erin |               erin@example.org | Erin von Testing               | current
-   6 |      extra |              extra@example.org | Extra von Testing              | retired
+   6 |     howard |             howard@example.org | Howard von Testing             | current
+   7 |      extra |              extra@example.org | Extra von Testing              | retired
 
 """
 
@@ -56,7 +57,8 @@ expected = """\
  (3, 'bob', 'bob@example.org', 'Bob von Testing', 'current'),
  (4, 'dave', 'dave@example.org', 'Dave von Testing', 'current'),
  (5, 'erin', 'erin@example.org', 'Erin von Testing', 'current'),
- (6, 'extra', 'extra@example.org', 'Extra von Testing', 'retired'),
+ (6, 'howard', 'howard@example.org', 'Howard von Testing', 'current'),
+ (7, 'extra', 'extra@example.org', 'Extra von Testing', 'retired'),
 ]
 """
 
@@ -86,7 +88,8 @@ expected = """\
  {'id': 3, 'name': 'bob', 'email': 'bob@example.org', 'fullname': 'Bob von Testing', 'status': 'current'},
  {'id': 4, 'name': 'dave', 'email': 'dave@example.org', 'fullname': 'Dave von Testing', 'status': 'current'},
  {'id': 5, 'name': 'erin', 'email': 'erin@example.org', 'fullname': 'Erin von Testing', 'status': 'current'},
- {'id': 6, 'name': 'extra', 'email': 'extra@example.org', 'fullname': 'Extra von Testing', 'status': 'retired'},
+ {'id': 6, 'name': 'howard', 'email': 'howard@example.org', 'fullname': 'Howard von Testing', 'status': 'current'},
+ {'id': 7, 'name': 'extra', 'email': 'extra@example.org', 'fullname': 'Extra von Testing', 'status': 'retired'},
 ]
 """
 

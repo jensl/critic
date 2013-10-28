@@ -27,10 +27,12 @@ class AddNewsItem(Operation):
     def process(self, db, user, text):
         Operation.requireRole(db, "newswriter", user)
 
-        db.cursor().execute("INSERT INTO newsitems (text) VALUES (%s)", (text,))
+        cursor = db.cursor()
+        cursor.execute("INSERT INTO newsitems (text) VALUES (%s) RETURNING id", (text,))
+        item_id = cursor.fetchone()[0]
         db.commit()
 
-        return OperationResult()
+        return OperationResult(item_id=item_id)
 
 class EditNewsItem(Operation):
     """Add news item."""

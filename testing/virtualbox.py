@@ -472,6 +472,11 @@ class Instance(object):
             for name in ("alice", "bob", "dave", "erin"):
                 self.adduser(name)
 
+            self.adduser("howard")
+            self.execute(["sudo", "criticctl", "addrole",
+                          "--name", "howard",
+                          "--role", "newswriter"])
+
             try:
                 self.frontend.run_basic_tests()
                 self.mailbox.check_empty()
@@ -543,6 +548,8 @@ class Instance(object):
         # Delete the regular users.
         for name in ("alice", "bob", "dave", "erin"):
             self.execute(["sudo", "deluser", "--remove-home", name])
+
+        self.execute(["sudo", "deluser", "--remove-home", "howard"])
 
     def finish(self):
         self.execute(["sudo", "service", "critic-main", "stop"])
