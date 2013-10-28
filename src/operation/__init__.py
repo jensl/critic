@@ -402,4 +402,4 @@ class Operation(object):
             raise OperationFailure(
                 code="notallowed",
                 title="Not allowed!",
-                message="Operation not permitted.")
+                message="Operation not permitted, user that lacks role '%s'." % role)
