@@ -56,6 +56,7 @@ import operation.news
 import operation.checkrebase
 import operation.applyfilters
 import operation.savesettings
+import operation.searchreview
 
 import page.utils
 import page.createreview
@@ -449,7 +450,8 @@ OPERATIONS = { "fetchlines": operation.fetchlines.FetchLines(),
                "getservicelog": operation.servicemanager.GetServiceLog(),
                "checkmergestatus": operation.checkrebase.CheckMergeStatus(),
                "checkconflictsstatus": operation.checkrebase.CheckConflictsStatus(),
-               "checkhistoryrewritestatus": operation.checkrebase.CheckHistoryRewriteStatus() }
+               "checkhistoryrewritestatus": operation.checkrebase.CheckHistoryRewriteStatus(),
+               "searchreview": operation.searchreview.SearchReview() }
 
 PAGES = { "showreview": page.showreview.renderShowReview,
           "showcommit": page.showcommit.renderShowCommit,

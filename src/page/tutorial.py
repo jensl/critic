@@ -64,6 +64,9 @@ Details on what kind of rebase operations are supported on review
 branches, how to convince Critic to accept non-fast-forward updates, and
 some things you really should make sure not to do.""")
 
+    section("search", "Review Quick Search", """\
+Information about the review search facility and the search query syntax.""")
+
     if configuration.extensions.ENABLED:
         section("extensions", "Critic Extensions", """\
 Description of the Critic Extensions mechanism.""")
@@ -105,7 +108,8 @@ def renderTutorial(req, db, user):
               "reconfigure": "reconfiguring",
               "checkbranch": "checkbranch",
               "administration": "administration",
-              "customization": "customization" }
+              "customization": "customization",
+              "search": "search" }
 
     if configuration.extensions.ENABLED:
         items.update({ "extensions": "extensions",

@@ -253,6 +253,27 @@ function handleKeyboardShortcut(key)
   return false;
 }
 
+$(document).ready(function ()
+  {
+    if (typeof keyboardShortcuts == "undefined" || keyboardShortcuts)
+      $(document).keypress(function (ev)
+        {
+          if (ev.ctrlKey || ev.shiftKey || ev.altKey || ev.metaKey)
+            return;
+
+          if (/^(?:input|textarea)$/i.test(ev.target.nodeName))
+            if (ev.which == 32 || /textarea/i.test(ev.target.nodeName) || !/^(?:checkbox|radio)$/i.test(ev.target.type))
+              return;
+
+          /* Handling non-printable keys. */
+          if (ev.which)
+          {
+            if (handleKeyboardShortcut(ev.which))
+              ev.preventDefault();
+          }
+        });
+  });
+
 if (!Object.create)
 {
   Object.create =
@@ -410,5 +431,112 @@ function showNotification(content, data)
 
   return { hide: hide, remove: remove };
 }
+
+var previous_query = "";
+
+if (typeof localStorage != "undefined")
+  previous_query = localStorage.getItem("previous_query");
+
+function quickSearch()
+{
+  function finish(result)
+  {
+    if (!result)
+      setTimeout(quickSearch, 0);
+
+    if (result.reviews.length == 0)
+    {
+      showMessage("Search results", "No reviews found!");
+      return;
+    }
+
+    var html = ("<div title='Search results'><table class=searchresults>" +
+                "<tr><th class=id>Review</th><th class=summary>Summary</th></tr>");
+
+    result.reviews.forEach(function (review, index)
+      {
+        html += ("<tr critic-review-id=" + review.id + ">" +
+                 "<td class=id>r/" + review.id + "</td>" +
+                 "<td class=summary><a href=/r/" + review.id + ">" + htmlify(review.summary) + "</a></td>" +
+                 "</tr>");
+      });
+
+    html += "</table></div>";
+
+    var content = $(html);
+
+    content.find("tr").click(function (ev)
+      {
+        var target = $(ev.target);
+        if (!target.is("a"))
+          target.parents("tr").find("a").get(0).click();
+      });
+
+    content.dialog({ width: 800,
+                     buttons: { "Close": function () { content.dialog("close"); }}});
+
+    if (content.closest(".ui-dialog").height() > innerHeight)
+      content.dialog("option", "height", innerHeight - 10);
+  }
+
+  function search(query)
+  {
+    var operation = new Operation({ action: "search",
+                                    url: "searchreview",
+                                    data: { query: query },
+                                    wait: "Searching...",
+                                    callback: finish });
+
+    operation.execute();
+  }
+
+  function start()
+  {
+    previous_query = content.find("input").val().trim();
+
+    if (typeof localStorage != "undefined")
+      localStorage.setItem("previous_query", previous_query);
+
+    content.dialog("close");
+
+    if (previous_query)
+      search(previous_query);
+  }
+
+  function cancel()
+  {
+    content.dialog("close");
+  }
+
+  function handleKeypress(ev)
+  {
+    if (ev.keyCode == 13)
+      start();
+  }
+
+  var content = $("<div title='Review Quick Search' class=searchdialog>" +
+                  "<div><b>Search query:</b>" +
+                  "<span class=help><a href=/tutorial?item=search>Help</a></span></div>" +
+                  "<div><input></div>" +
+                  "</div>");
+
+  content.find("input")
+    .val(previous_query)
+    .keypress(handleKeypress);
+
+  content.dialog({ width: 800,
+                   buttons: { "Search": start, "Cancel": cancel }});
+
+  setTimeout(function () { content.find("input").select(); content.find("input").focus(); }, 0);
+}
+
+keyboardShortcutHandlers.push(function (key)
+  {
+    if (key == "f".charCodeAt(0))
+    {
+      quickSearch();
+      return true;
+    }
+  });
 
 $(window).resize(repositionNotifications);

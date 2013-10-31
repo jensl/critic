@@ -104,6 +104,8 @@ def renderFormatted(db, user, table, lines, toc=False, title_right=None):
             return re.sub("CONFIG\\(([^)]+)\\)", linkify, text)
 
         def processText(lines):
+            if isinstance(lines, basestring):
+                lines = [lines]
             for index, line in enumerate(lines):
                 if line.startswith("  http"):
                     lines[index] = "<a href='%s'>%s</a>" % (line.strip(), line.strip())
@@ -139,8 +141,8 @@ def renderFormatted(db, user, table, lines, toc=False, title_right=None):
             for line in block:
                 if line[:2] == '? ':
                     if definition:
-                        items.dt().text(" ".join(term))
-                        items.dd().text(processText(definition))
+                        items.dt().text(processText(" ".join(term)), cdata=True)
+                        items.dd().text(processText(definition), cdata=True)
                         definition = None
                     term = [line[2:]]
                 elif line[:2] == '= ':
@@ -151,7 +153,7 @@ def renderFormatted(db, user, table, lines, toc=False, title_right=None):
                     term.append(line[2:])
                 else:
                     definition.append(line[2:])
-            items.dt().text(" ".join(term))
+            items.dt().text(processText(" ".join(term)), cdata=True)
             items.dd().text(processText(definition), cdata=True)
         elif block[0].startswith("  "):
             text_data = translateConfigLinks("\n".join(block))

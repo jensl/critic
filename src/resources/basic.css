@@ -289,3 +289,34 @@ select.repository {
     background-color: #dfd;
     text-align: left
 }
+
+table.searchresults {
+    width: 100%
+}
+
+table.searchresults .id {
+    text-align: right;
+    padding-right: 0.5em
+}
+
+table.searchresults .summary {
+    text-align: left;
+    padding-left: 0.5em
+}
+
+table.searchresults td {
+    font-family: monospace;
+    padding-top: 3px;
+    padding-bottom: 3px;
+    background-color: #fff
+}
+
+div.searchdialog .help {
+    float: right
+}
+
+div.searchdialog input {
+    width: 100%;
+    font-family: monospace;
+    margin-top: 0.5em
+}

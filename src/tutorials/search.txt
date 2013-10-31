@@ -1,0 +1,112 @@
+Review Quick Search
+===================
+
+Availability
+------------
+
+The review quick search feature is available on every Critic page, by pressing
+the <code>F</code> key.  This opens up a dialog where one enters a query string,
+and then searches by pressing the <code>ENTER</code> key (or clicking the
+"Search" button.)
+
+Query Syntax
+------------
+
+The query string is split into search terms, at white-space characters.  A term
+containing white-space characters can be achieved using quotes (either single or
+double.)  A search term can also be qualified by a <code>keyword:</code> prefix,
+where the supported keywords are:
+
+? <code>repository</code> (or <code>repo</code> or <code>r</code>)
+= Filter by repository.
+
+? <code>summary</code>
+= Filter by searching for sub-string in the review's summary.
+
+? <code>description</code>
+= Filter by searching for sub-string in the review's description.
+
+? <code>branch</code> (or <code>b</code>)
+= Filter by matching the review branch name.
+
+? <code>path</code> (or <code>p</code>)
+= Filter by matching the path of files touched by the review.
+
+? <code>user</code> (or <code>u</code>)
+= Filter by user associated with the review.
+
+? <code>owner</code> (or <code>o</code>)
+= Filter by user that owns the review.
+
+? <code>reviewer</code>
+= Filter by user that is assigned to review changes in the review.
+
+? <code>state</code> (or <code>s</code>)
+= Filter by review state: <code>open</code> (any open review),
+  <code>pending</code> (open and not accepted reviews), <code>accepted</code>
+  (open and accepted reviews), <code>closed</code> or <code>dropped</code>.
+
+Filter Value Syntax
+-------------------
+When matching against the review's summary or description, the search term's
+value is interpreted as a simple glob if it contains either a <code>*</code> or
+a <code>?</code> character, in which case it's matched against the whole summary
+or description.  Otherwise, it's interpreted as a plain sub-string and is
+searched for in the summary or description.  In other words, the search term
+"summary:foo" is the same as the term "summary:*foo*", but the term
+"summary:foo*" only matches reviews whose summaries start with the sub-string
+"foo".
+
+When matching against path or branch names, the search term's value is
+interpreted as a pattern similar to how paths are interpreted by Critic's filter
+mechanism: <code>**</code> matches zero or more path segments
+(<code>foo/</code>, <code>foo/bar/</code>, et c.), <code>*</code> matches zero
+or more characters except the path separator (<code>/</code>) and <code>?</code>
+matches exactly one character.  A path is only interpreted as absolute if it has
+a leading <code>/</code>.
+
+The other search term types require values that are valid repository names, user
+names or review states, respectively.
+
+Unqualified Search Terms
+------------------------
+A search term that is not qualified by <code>keyword:</code> is interpreted as
+follows:
+
+If the search term was quoted and contains at least one white-space character,
+it is interpreted as a text search, and is matched against review summaries and
+descriptions only.
+
+Otherwise, the search term is matched against review branch names, and in
+addition either against the paths of files touched by reviews, or against review
+summaries and descriptions, depending on whether the search term looks like a
+path or filename.  The term is considered to look like a path or filename if it
+contains a path separator or ends with a file name extension.
+
+Examples
+--------
+
+Example query strings:
+
+? <code>search example</code>
+= Finds reviews whose summary or description contains the sub-string "search"
+  and whose summary or description contains the sub-string "example".
+
+? <code>"search example"</code>
+= Finds reviews whose summary or description contains the sub-string "search
+  example".
+
+? <code>"search*example*"</code>
+= Finds reviews whose summary or description start with the sub-string "search"
+  and contains the sub-string "example".
+
+? <code>summary:"search example" state:open</code>
+= Finds open (accepted or not) reviews whose summary contains the sub-string
+  "search example".
+
+? <code>search_example.py</code>
+= Finds reviews that touch any file named <code>search_example.py</code>.
+
+? <code>owner:alice reviewer:bob</code>
+= Finds reviews owned by the user <code>alice</code> where the user
+  <code>bob</code> is assigned to review some or all changes.

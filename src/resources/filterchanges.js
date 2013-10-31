@@ -147,12 +147,3 @@ keyboardShortcutHandlers.push(function (key)
       return true;
     }
   });
-
-$(document).keypress(function (ev)
-  {
-    if (ev.ctrlKey || ev.shiftKey || ev.altKey || ev.metaKey || !ev.which)
-      return;
-
-    if (handleKeyboardShortcut(ev.keyCode))
-      ev.preventDefault();
-  });

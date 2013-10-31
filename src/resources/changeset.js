@@ -680,27 +680,6 @@ keyboardShortcutHandlers.push(function (key)
     }
   });
 
-$(document).ready(function ()
-  {
-    if (typeof keyboardShortcuts == "undefined" || keyboardShortcuts)
-      $(document).keypress(function (ev)
-        {
-          if (ev.ctrlKey || ev.shiftKey || ev.altKey || ev.metaKey)
-            return;
-
-          if (/^(?:input|textarea)$/i.test(ev.target.nodeName))
-            if (ev.which == 32 || /textarea/i.test(ev.target.nodeName) || !/^(?:checkbox|radio)$/i.test(ev.target.type))
-              return;
-
-          /* Handling non-printable keys. */
-          if (ev.which)
-          {
-            if (handleKeyboardShortcut(ev.which))
-              ev.preventDefault();
-          }
-        });
-  });
-
 function setSpacerContext(spacer, context)
 {
   var target = $(spacer).nextAll("tr.context").find("td");

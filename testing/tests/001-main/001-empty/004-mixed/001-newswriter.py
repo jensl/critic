@@ -10,6 +10,10 @@ def unread_news_count(document):
 
 NEWSTEXT = "I'm as mad as hell, and I'm not going to take this anymore."
 
+with frontend.signin("alice"):
+    dashboard = frontend.page("dashboard", expect={ "document_title": testing.expect.document_title(u"Dashboard") })
+    initial_unread = unread_news_count(dashboard)
+
 with frontend.signin("howard"):
     response = frontend.operation(
         "addnewsitem",
@@ -23,14 +27,14 @@ with frontend.signin("howard"):
 
 with frontend.signin("alice"):
     dashboard = frontend.page("dashboard", expect={ "document_title": testing.expect.document_title(u"Dashboard") })
-    testing.expect.check(1, unread_news_count(dashboard))
+    testing.expect.check(initial_unread + 1, unread_news_count(dashboard))
 
     newsitem = frontend.page("news", params={ "item": newsitem_id })
     newstext = newsitem.find("td", attrs={ "class": "text" })
     testing.expect.check(NEWSTEXT, testing.expect.extract_text(newstext).strip())
 
     dashboard = frontend.page("dashboard", expect={ "document_title": testing.expect.document_title(u"Dashboard") })
-    testing.expect.check(0, unread_news_count(dashboard))
+    testing.expect.check(initial_unread, unread_news_count(dashboard))
 
     frontend.operation(
         "addnewsitem",
@@ -48,7 +52,7 @@ with frontend.signin("alice"):
 with frontend.signin("bob"):
     # Howard's news item should still be unread by bob.
     dashboard = frontend.page("dashboard", expect={ "document_title": testing.expect.document_title(u"Dashboard") })
-    testing.expect.check(1, unread_news_count(dashboard))
+    testing.expect.check(initial_unread + 1, unread_news_count(dashboard))
 
 # Anonymous users should not be able to add or edit news items.
 frontend.operation(

@@ -34,16 +34,3 @@ keyboardShortcutHandlers.push(function (key)
     location.replace("/showcomment?chain=" + chain_id + "&context=" + contextLines);
     return true;
   });
-
-$(document).keypress(function (ev)
-  {
-    if (ev.ctrlKey || ev.shiftKey || ev.altKey || ev.metaKey || !ev.which || !keyboardShortcuts)
-      return;
-
-    if (/^(?:input|textarea)$/i.test(ev.target.nodeName))
-      if (ev.keyCode == 32 || /textarea/i.test(ev.target.nodeName) || !/^(?:checkbox|radio)$/i.test(ev.target.type))
-        return;
-
-    if (handleKeyboardShortcut(ev.keyCode))
-      ev.preventDefault();
-  });
