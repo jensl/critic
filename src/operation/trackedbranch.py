@@ -241,9 +241,11 @@ class AddTrackedBranch(Operation):
                                    "source_location": str,
                                    "source_name": str,
                                    "target_name": str,
-                                   "users": [str] })
+                                   "users": [str],
+                                   "forced": Optional(bool) })
 
-    def process(self, db, user, repository_id, source_location, source_name, target_name, users):
+    def process(self, db, user, repository_id, source_location, source_name,
+                target_name, users, forced=None):
         cursor = db.cursor()
         cursor.execute("""SELECT 1
                             FROM trackedbranches
@@ -255,7 +257,6 @@ class AddTrackedBranch(Operation):
             raise OperationError("branch '%s' already tracks another branch" % target_name)
 
         users = [dbutils.User.fromName(db, username) for username in users]
-        forced = True
 
         if target_name.startswith("r/"):
             cursor.execute("""SELECT 1
@@ -267,7 +268,10 @@ class AddTrackedBranch(Operation):
 
             if not cursor.fetchone():
                 raise OperationError("non-existing review branch can't track another branch")
-        else:
+
+            if forced is None:
+                forced = True
+        elif forced is None:
             forced = False
 
         cursor.execute("""SELECT 1
@@ -298,4 +302,4 @@ class AddTrackedBranch(Operation):
         pid = int(open(configuration.services.BRANCHTRACKER["pidfile_path"]).read().strip())
         os.kill(pid, signal.SIGHUP)
 
-        return OperationResult()
+        return OperationResult(branch_id=branch_id)

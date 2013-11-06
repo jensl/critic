@@ -57,6 +57,11 @@ class Repository(object):
         _git(["clone", "--bare", os.getcwd(), "critic.git"],
              cwd=self.base_path)
 
+        _git(["config", "receive.denyDeletes", "false"],
+             cwd=self.path)
+        _git(["config", "receive.denyNonFastforwards", "false"],
+             cwd=self.path)
+
         _git(["push", "--quiet", "--force", self.path,
               "%s:refs/heads/master" % tested_commit])
 
