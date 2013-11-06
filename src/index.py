@@ -489,7 +489,7 @@ Please don't push it manually to this repository.""" % (name, remote_name, remot
                     else:
                         output = "Non-fast-forward update detected; deleting and recreating branch."
 
-                        deleteBranch(repository.name, branch.name)
+                        deleteBranch(repository.name, branch.name, old)
                         createBranch(None, repository, branch.name, new, flags)
 
                         return output
