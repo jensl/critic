@@ -107,7 +107,7 @@ if "--slave" in sys.argv[1:]:
         info = []
 
         for name, old in delete_branches:
-            index.deleteBranch(repository_name, name, old)
+            index.deleteBranch(user_name, repository_name, name, old)
             info.append("branch deleted: %s" % name)
 
         for name, old, new in update_branches:

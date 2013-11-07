@@ -377,6 +377,14 @@ def createBranch(user, repository, name, head, flags):
             if stack: sha1 = stack.pop(0)
             else: break
 
+    if isinstance(user, dbutils.User):
+        # Push by regular user.
+        user_name = user.name
+    else:
+        # Push by the Critic system user, i.e. by the branch tracker service or
+        # other internal mechanism.
+        user_name = user
+
     if not base:
         cursor.execute("INSERT INTO branches (repository, name, head) VALUES (%s, %s, %s) RETURNING id", (repository.id, name, commit_id(head)))
         branch_id = cursor.fetchone()[0]
@@ -384,13 +392,12 @@ def createBranch(user, repository, name, head, flags):
         cursor.execute("INSERT INTO branches (repository, name, head, base, tail) VALUES (%s, %s, %s, %s, %s) RETURNING id", (repository.id, name, commit_id(head), base, commit_id(tail)))
         branch_id = cursor.fetchone()[0]
 
-        # If 'user' isn't a dbutils.User object, it means this push was made by
-        # the system (as the system user,) and in that case we're not really
-        # interested in this "user friendly" feedback.
+        # Suppress the "user friendly" feedback if the push is performed by the
+        # Critic system user, since there wouldn't be a human being reading it.
         #
         # Also, the calls to user.getCriticURLs() obvious don't work if 'user'
-        # isn't a dbutils.User object.
-        if isinstance(user, dbutils.User):
+        # isn't a dbutils.User object, which it isn't in that case.
+        if user_name != configuration.base.SYSTEM_USER_NAME:
             cursor.execute("SELECT name FROM branches WHERE id=%s", [base])
 
             print "Added branch based on %s containing %d commit%s:" % (cursor.fetchone()[0], len(commit_list), "s" if len(commit_list) > 1 else "")
@@ -405,9 +412,6 @@ def createBranch(user, repository, name, head, flags):
 
     reachable_values = [(branch_id, commit.sha1) for commit in commit_list]
     cursor.executemany("INSERT INTO reachable (branch, commit) SELECT %s, id FROM commits WHERE sha1=%s", reachable_values)
-
-    if isinstance(user, str): user_name = user
-    else: user_name = user.name
 
     if not repository.hasMainBranch() and user_name == configuration.base.SYSTEM_USER_NAME:
         cursor.execute("UPDATE repositories SET branch=%s WHERE id=%s", (branch_id, repository.id))
@@ -487,12 +491,12 @@ Please don't push it manually to this repository.""" % (name, remote_name, remot
                                                       AND commits.sha1=%s""",
                                            [(branch.id, sha1) for sha1 in conflicting])
                     else:
-                        output = "Non-fast-forward update detected; deleting and recreating branch."
+                        print "Non-fast-forward update detected; deleting and recreating branch."
 
-                        deleteBranch(repository.name, branch.name, old)
+                        deleteBranch(user_name, repository.name, branch.name, old)
                         createBranches(user_name, repository.name, [(branch.name, new)], flags)
 
-                        return output
+                        return
                 else:
                     raise IndexException("""\
 Rejecting non-fast-forward update of branch.  To perform the update, you
@@ -511,12 +515,14 @@ first, and then repeat this push.""" % name)
             cursor.execute("UPDATE branches SET head=%s WHERE id=%s",
                            (new_head.getId(db), branch.id))
 
-            output = ""
+            output = []
 
-            if conflicting: output += "Pruned %d conflicting commits." % len(conflicting)
-            if added: output += "\nAdded %d new commits." % len(added)
+            if conflicting:
+                output.append("Pruned %d conflicting commits." % len(conflicting))
+            if added:
+                output.append("Added %d new commits." % len(added))
 
-            return output.strip() if output else None
+            print "\n".join(output) if output else None
     else:
         tracked_branch = False
 
@@ -811,7 +817,7 @@ Perhaps you should request a new review of the follow-up commits?""")
                                                gitutils.Commit.fromSHA1(db, repository, new),
                                                sys.stdout)
 
-def deleteBranch(repository_name, name, old):
+def deleteBranch(user_name, repository_name, name, old):
     repository = gitutils.Repository.fromName(db, repository_name)
 
     try:
@@ -839,7 +845,10 @@ def deleteBranch(repository_name, name, old):
 
         cursor.execute("DELETE FROM branches WHERE id=%s", (branch.id,))
 
-        print "Deleted branch containing %d commit%s." % (ncommits, "s" if ncommits > 1 else "")
+        # Suppress the "user friendly" feedback if the push is performed by the
+        # Critic system user, since there wouldn't be a human being reading it.
+        if user_name != configuration.base.SYSTEM_USER_NAME:
+            print "Deleted branch containing %d commit%s." % (ncommits, "s" if ncommits > 1 else "")
 
 def createTag(repository_name, name, sha1):
     repository = gitutils.Repository.fromName(db, repository_name)
