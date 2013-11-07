@@ -40,7 +40,9 @@ class FailedCheck(testing.TestFailure):
         if message is None:
             message = "check failed"
         if location is not None:
-            message += ":\n At %s:%d" % location
+            message += ":\n At %s:%d" % location[0]
+            for filename, linenr in location[1:]:
+                message += ",\n   called from %s:%d" % (filename, linenr)
         super(FailedCheck, self).__init__("%s:\n  Expected: %r,\n  Actual:   %r"
                                           % (message, expected, actual))
         self.expected = expected
@@ -51,9 +53,11 @@ def simple_equal(expected, actual):
 
 def check(expected, actual, equal=simple_equal, message=None):
     if not equal(expected, actual):
+        location = []
         for filename, linenr, _, _ in reversed(traceback.extract_stack()):
             if filename.startswith("testing/tests/"):
-                location = (filename[len("testing/tests/"):], linenr)
+                location.append((filename[len("testing/tests/"):], linenr))
+            elif location:
                 break
         else:
             location = None
