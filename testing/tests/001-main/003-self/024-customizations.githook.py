@@ -78,6 +78,8 @@ with repository.workcopy() as work:
 
 # Remove the githook customization again.
 instance.execute(
-    ["sudo", "rm", "critic/testing/input/customization/githook.py"])
+    ["sudo", "rm", "-f",
+     "/etc/critic/main/customization/githook.py",
+     "/etc/critic/main/customization/githook.pyc"])
 
 # And again, no need to restart.
