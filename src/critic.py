@@ -14,6 +14,7 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
+import os
 import gitutils
 import time
 import re
@@ -97,15 +98,34 @@ if configuration.extensions.ENABLED:
 
 from operation import OperationResult, OperationError, OperationFailureMustLogin
 
-def download(req, db, user):
-    sha1 = req.getParameter("sha1")
-    repository = gitutils.Repository.fromParameter(db, req.getParameter("repository", user.getPreference(db, "defaultRepository")))
-
+def setContentTypeFromPath(req):
     match = re.search("\\.([a-z]+)", req.path)
     if match:
         req.setContentType(configuration.mimetypes.MIMETYPES.get(match.group(1), "text/plain"))
     else:
         req.setContentType("text/plain")
+
+def handleStaticResource(req):
+    resource_path = os.path.join(configuration.paths.INSTALL_DIR,
+                                 "resources",
+                                 req.path.split("/", 1)[1])
+    if os.path.abspath(resource_path) != resource_path:
+        raise OperationError("invalid path")
+    if not os.path.isfile(resource_path):
+        req.setStatus(404)
+        req.setContentType("text/plain")
+        req.start()
+        return ["No such resource!"]
+    setContentTypeFromPath(req)
+    req.start()
+    with open(resource_path, "r") as resource_file:
+        return [resource_file.read()]
+
+def download(req, db, user):
+    sha1 = req.getParameter("sha1")
+    repository = gitutils.Repository.fromParameter(db, req.getParameter("repository", user.getPreference(db, "defaultRepository")))
+
+    setContentTypeFromPath(req)
 
     return repository.fetch(sha1).data
 
@@ -647,7 +667,8 @@ def process_request(environ, start_response):
                         if req.cookies.get("has_sid") == "1":
                             req.ensureSecure()
                         if configuration.base.ALLOW_ANONYMOUS_USER \
-                                or req.path in ("login", "validatelogin"):
+                                or req.path in ("login", "validatelogin") \
+                                or req.path.startswith("static-resource/"):
                             user = dbutils.User.makeAnonymous()
                         elif req.method == "GET":
                             raise request.NeedLogin(req)
@@ -730,6 +751,9 @@ def process_request(environ, start_response):
                 if handled:
                     req.start()
                     return [handled]
+
+            if req.path.startswith("static-resource/"):
+                return handleStaticResource(req)
 
             if req.path.startswith("r/"):
                 req.query = "id=" + req.path[2:] + ("&" + req.query if req.query else "")
