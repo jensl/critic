@@ -437,12 +437,16 @@ var previous_query = "";
 if (typeof localStorage != "undefined")
   previous_query = localStorage.getItem("previous_query");
 
-function quickSearch()
+function quickSearch(external_query)
 {
   function finish(result)
   {
     if (!result)
-      setTimeout(quickSearch, 0);
+    {
+      if (external_query === void 0)
+        setTimeout(quickSearch, 0);
+      return;
+    }
 
     if (result.reviews.length == 0)
     {
@@ -488,6 +492,12 @@ function quickSearch()
                                     callback: finish });
 
     operation.execute();
+  }
+
+  if (external_query !== void 0)
+  {
+    search(external_query);
+    return;
   }
 
   function start()

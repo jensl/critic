@@ -14,19 +14,12 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-import dbutils
 import htmlutils
+import textutils
 import page.utils
 
 def renderSearch(req, db, user):
-    summary_value = req.getParameter("summary", None)
-    summary_mode_value = req.getParameter("summarymode", None)
-    branch_value = req.getParameter("branch", None)
-    owner_value = req.getParameter("owner", None)
-    path_value = req.getParameter("path", None)
-
     document = htmlutils.Document(req)
-    document.setTitle("Search")
 
     html = document.html()
     head = html.head()
@@ -36,113 +29,66 @@ def renderSearch(req, db, user):
 
     document.addExternalStylesheet("resource/search.css")
     document.addExternalScript("resource/search.js")
+    document.addExternalScript("resource/autocomplete.js")
     document.addInternalScript(user.getJS())
 
     cursor = db.cursor()
-    cursor.execute("SELECT DISTINCT name, fullname FROM users JOIN reviewusers ON (reviewusers.uid=users.id) WHERE reviewusers.owner")
+    cursor.execute("SELECT name, fullname FROM users")
 
-    users = [("{ label: %s, value: %s }" % (htmlutils.jsify("%s (%s)" % (fullname, name)),
-                                            htmlutils.jsify(name)))
-             for name, fullname in cursor]
+    users = dict(cursor)
 
-    document.addInternalScript("var users = [ %s ];" % ", ".join(users))
+    document.addInternalScript("var users = %s;" % textutils.json_encode(users))
 
-    search = page.utils.PaleYellowTable(body, "Search")
+    def renderQuickSearch(target):
+        table = target.div("quicksearch").table("quicksearch")
+        table.tr().th().text("Quick Search")
+        table.tr().td("text").text("""\
+Review search is also available from every Critic page via a keyboard
+short-cut; pressing the F key opens a review search dialog.""")
+        table.tr().td("link").a(href="/tutorial?item=search").text("More information")
 
     def renderSummary(target):
-        target.input(name="summary", value=summary_value or "")
-        summary_mode = target.select(name="summary_mode")
-        summary_mode.option(value="all", selected="selected" if summary_mode_value == "all" else None).text("All words")
-        summary_mode.option(value="any", selected="selected" if summary_mode_value == "any" else None).text("Any word")
-
+        target.input(name="summary")
+    def renderDescription(target):
+        target.input(name="description")
+    def renderRepository(target):
+        page.utils.generateRepositorySelect(
+            db, user, target, name="repository", selected=False,
+            none_label="Any repository", allow_selecting_none=True)
     def renderBranch(target):
-        target.input(name="branch", value=branch_value or "")
-
-    def renderOwner(target):
-        target.input(name="owner", value=owner_value or "")
-
+        target.input(name="branch")
     def renderPath(target):
-        target.input(name="path", value=path_value or "")
+        target.input(name="path")
+    def renderUser(target):
+        target.input(name="user")
+    def renderOwner(target):
+        target.input(name="owner")
+    def renderReviewer(target):
+        target.input(name="reviewer")
+    def renderState(target):
+        select = target.select(name="state")
+        select.option(value="-").text("Any state")
+        select.option(value="open").text("Open")
+        select.option(value="pending").text("Pending")
+        select.option(value="accepted").text("Accepted")
+        select.option(value="closed").text("Finished")
+        select.option(value="dropped").text("Dropped")
 
     def renderButton(target):
         target.button(onclick="search();").text("Search")
 
-    search.addItem("Summary", renderSummary, "Words occurring in the review's summary.")
-    search.addItem("Branch", renderBranch, "Name of review branch.")
-    search.addItem("Owner", renderOwner, "Owner of the review.")
-    search.addItem("Path", renderPath, "Path (file or directory) that the review contains changes in.")
+    search = page.utils.PaleYellowTable(body, "Review Search")
+    search.addCentered(renderQuickSearch)
+    search.addSeparator()
+    search.addItem("Summary", renderSummary)
+    search.addItem("Description", renderDescription)
+    search.addItem("Repository", renderRepository)
+    search.addItem("Branch", renderBranch)
+    search.addItem("Path", renderPath)
+    search.addItem("User", renderUser)
+    search.addItem("Owner", renderOwner)
+    search.addItem("Reviewer", renderReviewer)
+    search.addItem("State", renderState)
     search.addCentered(renderButton)
-
-    if summary_value is not None: summary_value = summary_value.strip()
-    if branch_value is not None: branch_value = branch_value.strip()
-    if owner_value is not None: owner_value = owner_value.strip()
-    if path_value is not None: path_value = path_value.strip()
-
-    if summary_value or branch_value or owner_value or path_value:
-        query = """SELECT DISTINCT reviews.id, reviews.summary, branches.name
-                     FROM %s
-                    WHERE %s"""
-
-        tables = ["reviews", "branches ON (branches.id=reviews.branch)"]
-        conditions = []
-        arguments = []
-
-        def globToSQLPattern(glob):
-            pattern = glob.replace("\\", "\\\\").replace("%", "\\%").replace("?", "_").replace("*", "%")
-            if pattern[-1] != "%": pattern = pattern + "%"
-            return pattern
-
-        if summary_value:
-            words = summary_value.split()
-            operator = " AND " if summary_mode_value == "all" else " OR "
-            conditions.append("(%s)" % operator.join(["reviews.summary ~* %s"] * len(words)))
-            arguments.extend([".*\\m" + word + "\\M.*" for word in words])
-
-        if branch_value:
-            conditions.append("branches.name LIKE %s")
-            pattern = globToSQLPattern(branch_value)
-            if pattern[0] != "%": pattern = "%" + pattern
-            arguments.append(pattern)
-
-        if owner_value:
-            owner = dbutils.User.fromName(db, owner_value)
-            tables.append("reviewusers ON (reviewusers.review=reviews.id)")
-            conditions.append("reviewusers.uid=%s")
-            conditions.append("reviewusers.owner")
-            arguments.append(owner.id)
-
-        if path_value:
-            tables.append("reviewfiles ON (reviewfiles.review=reviews.id)")
-            tables.append("files ON (files.id=reviewfiles.file)")
-
-            static_components = []
-            for component in path_value.split("/"):
-                if component and not ("*" in component or "?" in component):
-                    static_components.append(component)
-
-            if static_components:
-                conditions.append("%s <@ STRING_TO_ARRAY(path, '/')")
-                arguments.append(static_components)
-
-            conditions.append("files.path LIKE %s")
-            arguments.append(globToSQLPattern(path_value))
-
-        query = """SELECT DISTINCT reviews.id, reviews.summary, branches.name
-                     FROM %s
-                    WHERE %s
-                 ORDER BY reviews.id""" % (" JOIN ".join(tables), " AND ".join(conditions))
-
-        cursor.execute(query, arguments)
-
-        table = body.div("main").table("paleyellow reviews", align="center")
-        table.col(width="20%")
-        table.col(width="80%")
-        header = table.tr().td("h1", colspan=4).h1()
-        header.text("Reviews")
-
-        for review_id, summary, branch_name in cursor:
-            row = table.tr("review")
-            row.td("name").text(branch_name)
-            row.td("title").a(href="r/%d" % review_id).text(summary)
 
     return document

@@ -324,7 +324,7 @@ class PaleYellowTable:
         self.table.tr("separator").td(colspan=len(self.columns)).div()
 
 def generateRepositorySelect(db, user, target, allow_selecting_none=False,
-                             selected=None, **attributes):
+                             none_label=None, selected=None, **attributes):
     select = target.select("repository", **attributes)
 
     cursor = db.cursor()
@@ -347,7 +347,7 @@ def generateRepositorySelect(db, user, target, allow_selecting_none=False,
     if not selected or allow_selecting_none:
         if allow_selecting_none:
             disabled = None
-            label = "No repository"
+            label = none_label or "No repository"
         else:
             disabled = "disabled"
             label = "Select a repository"

@@ -22,33 +22,81 @@
 
 function search()
 {
-  var summary = document.getElementsByName("summary")[0].value;
-  var summary_mode = document.getElementsByName("summary_mode")[0].value;
-  var branch = document.getElementsByName("branch")[0].value;
-  var owner = document.getElementsByName("owner")[0].value;
-  var path = document.getElementsByName("path")[0].value;
-  var parameters = [];
-
-  if (summary)
+  function phrases(value)
   {
-    parameters.push("summary=" + encodeURIComponent(summary));
-    parameters.push("summarymode=" + encodeURIComponent(summary_mode));
+    return value.match(/"[^"]+"|'[^']+'|\S+/g).map(
+      function (phrase)
+      {
+        var match = /^'([^']+)'|"([^"]+)"$/.exec(phrase);
+        if (match)
+          return match[1] || match[2] || "";
+        else
+          return phrase;
+      });
   }
 
+  function tokens(value)
+  {
+    return value.split(/[\s,]+/g).map(
+      function (item)
+      {
+        return item.trim();
+      }).filter(
+        function (item)
+        {
+          return item;
+        });
+  }
+
+  function with_keyword(keyword)
+  {
+    return function (term) { return term ? keyword + ":'" + term + "'" : ""; };
+  }
+
+  var summary = $("input[name='summary']").val().trim();
+  var description = $("input[name='description']").val().trim();
+  var repository = $("select[name='repository']").val();
+  var branch = $("input[name='branch']").val().trim();
+  var paths = tokens($("input[name='path']").val().trim());
+  var users = tokens($("input[name='user']").val().trim());
+  var owners = tokens($("input[name='owner']").val().trim());
+  var reviewers = tokens($("input[name='reviewer']").val().trim());
+  var state = $("select[name='state']").val();
+
+  var terms = [];
+
+  if (summary)
+    terms.push.apply(terms, phrases(summary).map(with_keyword("summary")));
+
+  if (description)
+    terms.push.apply(terms, phrases(description).map(with_keyword("description")));
+
+  if (repository && repository != "-")
+    terms.push(with_keyword("repository")(repository));
+
   if (branch)
-    parameters.push("branch=" + encodeURIComponent(branch));
+    terms.push(with_keyword("branch")(branch));
 
-  if (owner)
-    parameters.push("owner=" + encodeURIComponent(owner));
+  terms.push.apply(terms, paths.map(with_keyword("path")));
+  terms.push.apply(terms, users.map(with_keyword("user")));
+  terms.push.apply(terms, owners.map(with_keyword("owner")));
+  terms.push.apply(terms, reviewers.map(with_keyword("reviewer")));
 
-  if (path)
-    parameters.push("path=" + encodeURIComponent(path));
+  if (state && state != "-")
+    terms.push(with_keyword("state")(state));
 
-  if (parameters.length)
-    location.search = parameters.join("&");
+  quickSearch(terms.join(" "));
 }
 
 $(function ()
   {
-    $("input[name='owner']").autocomplete({ source: users });
+    $("input").keypress(
+      function (ev)
+      {
+        if (ev.keyCode == 13)
+          search();
+      });
+
+    $("input[name='user'], input[name='owner'], input[name='reviewer']")
+      .autocomplete({ source: AutoCompleteUsers(users) });
   });
