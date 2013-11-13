@@ -233,11 +233,6 @@ deleted.
                     else: raise
                 shutil.copyfile(full_source_path, full_target_path)
                 created_file.append(full_target_path)
-                if target_path.startswith("hooks/"):
-                    mode = 0755
-                else:
-                    mode = 0644
-                os.chmod(full_target_path, mode)
             copied_files += 1
             if isResource(target_path):
                 resources_modified = True
@@ -300,11 +295,6 @@ Not installing the updated version can cause unpredictable results.
                         renamed.append((full_target_path, backup_path))
                         shutil.copyfile(full_source_path, full_target_path)
                         created_file.append(full_target_path)
-                        if target_path.startswith("hooks/"):
-                            mode = 0755
-                        else:
-                            mode = 0644
-                        os.chmod(full_target_path, mode)
                         if not compile_file(target_path):
                             compilation_failed.append(target_path)
                     modified_files += 1
@@ -312,6 +302,14 @@ Not installing the updated version can cause unpredictable results.
                         resources_modified = True
                     else:
                         sources_modified = True
+
+        if target_path.startswith("hooks/"):
+            mode = 0755
+        else:
+            mode = 0644
+        if not arguments.dry_run:
+            os.chmod(full_target_path, mode)
+            os.chown(full_target_path, installation.system.uid, installation.system.gid)
 
     differences = subprocess.check_output(
         [git, "diff", "--numstat", "%s..%s" % (old_sha1, new_sha1)],
