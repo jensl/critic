@@ -294,7 +294,7 @@ CREATE TABLE scheduledreviewbrancharchivals
     deadline TIMESTAMP NOT NULL );
 
 CREATE TABLE reviewfilters
-  ( id SERIAL NOT NULL PRIMARY KEY,
+  ( id SERIAL PRIMARY KEY,
 
     review INTEGER NOT NULL REFERENCES reviews ON DELETE CASCADE,
     uid INTEGER NOT NULL REFERENCES users ON DELETE CASCADE,
@@ -334,7 +334,7 @@ CREATE TABLE reviewchangesets
     PRIMARY KEY (review, changeset) );
 
 CREATE TABLE reviewrebases
-  ( id SERIAL NOT NULL PRIMARY KEY,
+  ( id SERIAL PRIMARY KEY,
     review INTEGER NOT NULL REFERENCES reviews ON DELETE CASCADE,
     old_head INTEGER NOT NULL REFERENCES commits,
     new_head INTEGER REFERENCES commits,
