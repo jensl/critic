@@ -309,7 +309,10 @@ $(document).ready(function ()
 
     function getCurrentRemote()
     {
-      return $("input.remote").val().trim();
+      var remote = $("input.remote").val();
+      if (!remote)
+        return undefined;
+      return remote.trim();
     }
 
     var input_workbranch = $("input.workbranch");
