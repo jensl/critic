@@ -358,9 +358,9 @@ def renderDashboard(req, db, user):
     def fetchWatchedAndClosed():
         if not other:
             if "watched" not in showset:
-                state_filter = " AND reviews.state='closed'"
+                state_filter = " WHERE reviews.state='closed'"
             elif "closed" not in showset:
-                state_filter = " AND reviews.state='open'"
+                state_filter = " WHERE reviews.state='open'"
             else:
                 state_filter = ""
 
@@ -374,8 +374,7 @@ def renderDashboard(req, db, user):
 
             cursor.execute("""SELECT reviews.id, reviews.summary, reviews.branch, reviews.state, reviewusers.owner, reviewusers.uid IS NULL
                                 FROM reviews
-                     LEFT OUTER JOIN reviewusers ON (reviewusers.review=reviews.id AND reviewusers.uid=%s)
-                               WHERE TRUE""" + state_filter,
+                     LEFT OUTER JOIN reviewusers ON (reviewusers.review=reviews.id AND reviewusers.uid=%s)""" + state_filter,
                            (user.id,))
 
             for review_id, summary, branch_id, review_state, is_owner, not_associated in cursor:
