@@ -196,28 +196,27 @@ Output from Critic's git hook
                                      SET previous=NOW(),
                                          next=NOW() + delay,
                                          updating=TRUE
-                                   WHERE repository=%s
-                                     AND local_name=%s
-                               RETURNING next::text""",
-                               (repository_id, local_name))
-                next_at = cursor.fetchone()[0]
+                                   WHERE id=%s""",
+                               (trackedbranch_id,))
 
                 self.db.commit()
 
                 if self.update(trackedbranch_id, repository_id, local_name, remote, remote_name, forced):
                     cursor.execute("""UPDATE trackedbranches
                                          SET updating=FALSE
-                                       WHERE repository=%s
-                                         AND local_name=%s""",
-                                   (repository_id, local_name))
-                    self.info("  next scheduled update at %s" % next_at)
+                                       WHERE id=%s""",
+                                   (trackedbranch_id,))
+                    cursor.execute("""SELECT next::text
+                                        FROM trackedbranches
+                                       WHERE id=%s""",
+                                   (trackedbranch_id,))
+                    self.info("  next scheduled update at %s" % cursor.fetchone())
                 else:
                     cursor.execute("""UPDATE trackedbranches
                                          SET updating=FALSE,
                                              disabled=TRUE
-                                       WHERE repository=%s
-                                         AND local_name=%s""",
-                                   (repository_id, local_name))
+                                       WHERE id=%s""",
+                                   (trackedbranch_id,))
                     self.info("  tracking disabled")
 
                 self.db.commit()
