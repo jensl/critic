@@ -41,6 +41,28 @@ REPOSITORY_WORKCOPY_DIR = os.path.join(configuration.paths.DATA_DIR, "temporary"
 def same_filesystem(pathA, pathB):
     return os.stat(pathA).st_dev == os.stat(pathB).st_dev
 
+def getGitEnvironment(author=True, committer=True):
+    env = {}
+    def name(parameter):
+        if parameter is True:
+            return "Critic System"
+        elif isinstance(parameter, CommitUserTime):
+            return parameter.name
+        else:
+            return parameter.fullname
+    def email(parameter):
+        if parameter is True or not parameter.email:
+            return configuration.base.SYSTEM_USER_EMAIL
+        else:
+            return parameter.email
+    if author:
+        env["GIT_AUTHOR_NAME"] = name(author)
+        env["GIT_AUTHOR_EMAIL"] = email(author)
+    if committer:
+        env["GIT_COMMITTER_NAME"] = name(committer)
+        env["GIT_COMMITTER_EMAIL"] = email(committer)
+    return env
+
 class GitError(base.Error):
     pass
 
@@ -537,10 +559,7 @@ class Repository:
 
             # Then perform the merge with the other parents.
             returncode, stdout, stderr = workcopy.run("merge", *parent_sha1s[1:],
-                env={ 'GIT_AUTHOR_NAME': commit.author.name,
-                      'GIT_AUTHOR_EMAIL': commit.author.email,
-                      'GIT_COMMITTER_NAME': "Critic System",
-                      'GIT_COMMITTER_EMAIL': configuration.base.SYSTEM_USER_EMAIL },
+                env=getGitEnvironment(author=commit.author),
                 check_errors=False)
 
             # If the merge produced conflicts, just stage and commit them:
@@ -555,10 +574,7 @@ class Repository:
 
                 # Then stage and commit the result, with conflict markers and all.
                 workcopy.run("commit", "--all", "--message=replay of merge that produced %s" % commit.sha1,
-                             env={ 'GIT_AUTHOR_NAME': commit.author.name,
-                                   'GIT_AUTHOR_EMAIL': commit.author.email,
-                                   'GIT_COMMITTER_NAME': "Critic System",
-                                   'GIT_COMMITTER_EMAIL': configuration.base.SYSTEM_USER_EMAIL })
+                             env=getGitEnvironment(author=commit.author))
 
 
             # Then push the branch to the main repository.
@@ -791,7 +807,7 @@ class Repository:
 
         return None
 
-class CommitUserTime:
+class CommitUserTime(object):
     def __init__(self, name, email, time):
         self.name = name
         self.email = email

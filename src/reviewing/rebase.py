@@ -48,10 +48,7 @@ onto the %(merged_thing)s.""" % { "merged_thing": merged_thing,
 
     merge_sha1 = repository.run('commit-tree', new_head.tree, '-p', old_head.sha1, '-p', new_upstream.sha1,
                                 input=commit_message,
-                                env={ 'GIT_AUTHOR_NAME': user.fullname,
-                                      'GIT_AUTHOR_EMAIL': user.email,
-                                      'GIT_COMMITTER_NAME': user.fullname,
-                                      'GIT_COMMITTER_EMAIL': user.email }).strip()
+                                env=gitutils.getGitEnvironment()).strip()
 
     merge = gitutils.Commit.fromSHA1(db, repository, merge_sha1)
     gituser_id = merge.author.getGitUserId(db)
@@ -99,10 +96,7 @@ onto the %(new_upstream_name)s.""" % { "review.branch.name": review.branch.name,
 
     original_sha1 = repository.run(
         'commit-tree', old_head.tree, '-p', old_upstream.sha1,
-        env={ 'GIT_AUTHOR_NAME': user.fullname,
-              'GIT_AUTHOR_EMAIL': user.email,
-              'GIT_COMMITTER_NAME': "Critic System",
-              'GIT_COMMITTER_EMAIL': configuration.base.SYSTEM_USER_EMAIL },
+        env=gitutils.getGitEnvironment(),
         input=commit_message).strip()
 
     repository.run("update-ref", "refs/commit/%s" % new_upstream.sha1, new_upstream.sha1)
@@ -117,8 +111,7 @@ onto the %(new_upstream_name)s.""" % { "review.branch.name": review.branch.name,
 
         returncode, stdout, stderr = workcopy.run(
             "cherry-pick", "refs/heads/original",
-            env={ "GIT_COMMITTER_NAME": "Critic System",
-                  "GIT_COMMITTER_EMAIL": configuration.base.SYSTEM_USER_EMAIL },
+            env=gitutils.getGitEnvironment(),
             check_errors=False)
 
         # If the rebase produced conflicts, just stage and commit them:
@@ -132,7 +125,8 @@ onto the %(new_upstream_name)s.""" % { "review.branch.name": review.branch.name,
                     workcopy.run("reset", "--", submodule_path, check_errors=False)
 
             # Then stage and commit the result, with conflict markers and all.
-            workcopy.run("commit", "--all", "--reuse-message=%s" % original_sha1)
+            workcopy.run("commit", "--all", "--reuse-message=%s" % original_sha1,
+                         env=gitutils.getGitEnvironment())
 
         rebased_sha1 = workcopy.run("rev-parse", "HEAD").strip()
 
