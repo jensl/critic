@@ -431,8 +431,8 @@ CREATE TABLE reviewfilechanges
 
     time TIMESTAMP NOT NULL DEFAULT NOW(),
     state reviewfilechangestate NOT NULL DEFAULT 'draft',
-    "from" reviewfilestate NOT NULL,
-    "to" reviewfilestate NOT NULL,
+    from_state reviewfilestate NOT NULL,
+    to_state reviewfilestate NOT NULL,
 
     FOREIGN KEY (file, uid) REFERENCES reviewuserfiles ON DELETE CASCADE );
 

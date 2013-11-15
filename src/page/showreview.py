@@ -102,7 +102,7 @@ class ApprovalColumn:
 
         profiler.check("fillCache: total")
 
-        cursor.execute("""SELECT child, COALESCE(reviewfilechanges.to, reviewfiles.state) AS effective_state, COUNT(*), SUM(deleted), SUM(inserted)
+        cursor.execute("""SELECT child, COALESCE(reviewfilechanges.to_state, reviewfiles.state) AS effective_state, COUNT(*), SUM(deleted), SUM(inserted)
                             FROM changesets
                             JOIN reviewfiles ON (changeset=changesets.id)
                             JOIN reviewuserfiles ON (reviewuserfiles.file=reviewfiles.id)
@@ -1086,12 +1086,12 @@ def renderShowReview(req, db, user):
     if rows:
         numbers = {}
 
-        cursor.execute("""SELECT batches.id, reviewfilechanges.to, SUM(deleted), SUM(inserted)
+        cursor.execute("""SELECT batches.id, reviewfilechanges.to_state, SUM(deleted), SUM(inserted)
                             FROM batches
                             JOIN reviewfilechanges ON (reviewfilechanges.batch=batches.id)
                             JOIN reviewfiles ON (reviewfiles.id=reviewfilechanges.file)
                            WHERE batches.review=%s
-                        GROUP BY batches.id, reviewfilechanges.to""",
+                        GROUP BY batches.id, reviewfilechanges.to_state""",
                        (review.id,))
 
         for batch_id, state, deleted, inserted in cursor:

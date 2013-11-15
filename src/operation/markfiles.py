@@ -48,7 +48,7 @@ class MarkFiles(Operation):
             from_state, to_state = 'reviewed', 'pending'
 
         # Insert draft changes for every file whose state would be updated.
-        cursor.execute("""INSERT INTO reviewfilechanges (file, uid, "from", "to")
+        cursor.execute("""INSERT INTO reviewfilechanges (file, uid, from_state, to_state)
                                SELECT reviewfiles.id, reviewuserfiles.uid, reviewfiles.state, %s
                                  FROM reviewfiles
                                  JOIN reviewuserfiles ON (reviewuserfiles.file=reviewfiles.id AND reviewuserfiles.uid=%s)

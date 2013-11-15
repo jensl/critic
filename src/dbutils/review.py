@@ -21,7 +21,14 @@ import base
 def countDraftItems(db, user, review):
     cursor = db.cursor()
 
-    cursor.execute("SELECT reviewfilechanges.to, SUM(deleted) + SUM(inserted) FROM reviewfiles JOIN reviewfilechanges ON (reviewfilechanges.file=reviewfiles.id) WHERE reviewfiles.review=%s AND reviewfilechanges.uid=%s AND reviewfilechanges.state='draft' GROUP BY reviewfilechanges.to", (review.id, user.id))
+    cursor.execute("""SELECT reviewfilechanges.to_state, SUM(deleted) + SUM(inserted)
+                        FROM reviewfiles
+                        JOIN reviewfilechanges ON (reviewfilechanges.file=reviewfiles.id)
+                       WHERE reviewfiles.review=%s
+                         AND reviewfilechanges.uid=%s
+                         AND reviewfilechanges.state='draft'
+                    GROUP BY reviewfilechanges.to_state""",
+                   (review.id, user.id))
 
     reviewed = unreviewed = 0
 
@@ -29,7 +36,16 @@ def countDraftItems(db, user, review):
         if to_state == "reviewed": reviewed = lines
         else: unreviewed = lines
 
-    cursor.execute("SELECT reviewfilechanges.to, COUNT(*) FROM reviewfiles JOIN reviewfilechanges ON (reviewfilechanges.file=reviewfiles.id) WHERE reviewfiles.review=%s AND reviewfiles.deleted=0 AND reviewfiles.inserted=0 AND reviewfilechanges.uid=%s AND reviewfilechanges.state='draft' GROUP BY reviewfilechanges.to", (review.id, user.id))
+    cursor.execute("""SELECT reviewfilechanges.to_state, COUNT(*)
+                        FROM reviewfiles
+                        JOIN reviewfilechanges ON (reviewfilechanges.file=reviewfiles.id)
+                       WHERE reviewfiles.review=%s
+                         AND reviewfiles.deleted=0
+                         AND reviewfiles.inserted=0
+                         AND reviewfilechanges.uid=%s
+                         AND reviewfilechanges.state='draft'
+                    GROUP BY reviewfilechanges.to_state""",
+                   (review.id, user.id))
 
     reviewedBinary = unreviewedBinary = 0
 

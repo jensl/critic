@@ -134,7 +134,7 @@ def renderShowBatch(req, db, user):
                         FROM reviewfiles
                         JOIN reviewfilechanges ON (reviewfilechanges.file=reviewfiles.id)
                        WHERE %s
-                         AND reviewfilechanges.to='reviewed'
+                         AND reviewfilechanges.to_state='reviewed'
                     GROUP BY reviewfiles.file""" % condition("reviewfilechanges"))
     renderFiles("Reviewed:", cursor)
 
@@ -142,7 +142,7 @@ def renderShowBatch(req, db, user):
                         FROM reviewfiles
                         JOIN reviewfilechanges ON (reviewfilechanges.file=reviewfiles.id)
                        WHERE %s
-                         AND reviewfilechanges.to='pending'
+                         AND reviewfilechanges.to_state='pending'
                     GROUP BY reviewfiles.file""" % condition("reviewfilechanges"))
     renderFiles("Unreviewed:", cursor)
 

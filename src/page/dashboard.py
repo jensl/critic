@@ -206,7 +206,7 @@ def renderDashboard(req, db, user):
                             JOIN reviewfiles ON (reviewfiles.review=reviews.id)
                             JOIN reviewfilechanges ON (reviewfilechanges.file=reviewfiles.id)
                            WHERE reviews.state='open'
-                             AND reviewfiles.state=reviewfilechanges.from
+                             AND reviewfiles.state=reviewfilechanges.from_state
                              AND reviewfilechanges.state='draft'
                              AND reviewfilechanges.uid=%s
                         GROUP BY reviews.id, reviews.summary, reviews.branch""",

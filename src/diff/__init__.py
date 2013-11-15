@@ -629,7 +629,7 @@ class Changeset:
 
         if self.type in ("merge", "conflicts"):
             cursor = db.cursor()
-            cursor.execute("""SELECT reviewfiles.file, reviewfiles.state, reviewfiles.reviewer, reviewuserfiles.uid IS NOT NULL, reviewfilechanges.from, reviewfilechanges.to
+            cursor.execute("""SELECT reviewfiles.file, reviewfiles.state, reviewfiles.reviewer, reviewuserfiles.uid IS NOT NULL, reviewfilechanges.from_state, reviewfilechanges.to_state
                                 FROM reviewfiles
                      LEFT OUTER JOIN reviewuserfiles ON (reviewuserfiles.file=reviewfiles.id AND reviewuserfiles.uid=%s)
                      LEFT OUTER JOIN reviewfilechanges ON (reviewfilechanges.file=reviewfiles.id AND reviewfilechanges.uid=%s AND reviewfilechanges.state='draft')
@@ -639,7 +639,7 @@ class Changeset:
             process(cursor)
         elif self.__commits:
             cursor = db.cursor()
-            cursor.execute("""SELECT reviewfiles.file, reviewfiles.state, reviewfiles.reviewer, reviewuserfiles.uid IS NOT NULL, reviewfilechanges.from, reviewfilechanges.to
+            cursor.execute("""SELECT reviewfiles.file, reviewfiles.state, reviewfiles.reviewer, reviewuserfiles.uid IS NOT NULL, reviewfilechanges.from_state, reviewfilechanges.to_state
                                 FROM reviewfiles
                                 JOIN changesets ON (changesets.id=reviewfiles.changeset)
                      LEFT OUTER JOIN reviewuserfiles ON (reviewuserfiles.file=reviewfiles.id AND reviewuserfiles.uid=%s)

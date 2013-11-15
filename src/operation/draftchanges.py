@@ -74,8 +74,8 @@ class ReviewStateChange(Operation):
                                WHERE reviewfiles.review=%s
                                  AND reviewfilechanges.uid=%s
                                  AND reviewfilechanges.state='draft'
-                                 AND reviewfilechanges.from=reviewfiles.state
-                                 AND reviewfilechanges.to='pending'""",
+                                 AND reviewfilechanges.from_state=reviewfiles.state
+                                 AND reviewfilechanges.to_state='pending'""",
                            (review_id, user.id))
             if cursor.fetchone(): return True
 
@@ -106,7 +106,7 @@ class ReviewStateChange(Operation):
                      LEFT OUTER JOIN reviewfilechanges ON (reviewfilechanges.file=reviewfiles.id
                                                        AND reviewfilechanges.uid=%s
                                                        AND reviewfilechanges.state='draft'
-                                                       AND reviewfilechanges.to='reviewed')
+                                                       AND reviewfilechanges.to_state='reviewed')
                                WHERE reviewfiles.review=%s
                                  AND reviewfiles.state='pending'
                                  AND reviewfilechanges.file IS NULL""",
@@ -162,7 +162,7 @@ class SubmitChanges(Operation):
                              AND reviewfiles.id=reviewfilechanges.file
                              AND reviewfilechanges.uid=%s
                              AND reviewfilechanges.state='draft'
-                             AND reviewfilechanges.from!=reviewfiles.state""",
+                             AND reviewfilechanges.from_state!=reviewfiles.state""",
                        (review.id, user.id))
 
         profiler.check("reviewfilechanges reject state changes")
@@ -178,8 +178,8 @@ class SubmitChanges(Operation):
                              AND reviewfilechanges.uid=%s
                              AND reviewfilechanges.state='draft'
                              AND reviewfilechanges.file=reviewfiles.id
-                             AND reviewfilechanges.from=reviewfiles.state
-                             AND reviewfilechanges.to='reviewed'""",
+                             AND reviewfilechanges.from_state=reviewfiles.state
+                             AND reviewfilechanges.to_state='reviewed'""",
                        (review.id, user.id))
 
         profiler.check("reviewfiles pending=>reviewed")
@@ -195,8 +195,8 @@ class SubmitChanges(Operation):
                              AND reviewfilechanges.uid=%s
                              AND reviewfilechanges.state='draft'
                              AND reviewfilechanges.file=reviewfiles.id
-                             AND reviewfilechanges.from=reviewfiles.state
-                             AND reviewfilechanges.to='pending'""",
+                             AND reviewfilechanges.from_state=reviewfiles.state
+                             AND reviewfilechanges.to_state='pending'""",
                        (review.id, user.id))
 
         profiler.check("reviewfiles reviewed=>pending")
@@ -212,7 +212,7 @@ class SubmitChanges(Operation):
                              AND reviewfiles.id=reviewfilechanges.file
                              AND reviewfilechanges.uid=%s
                              AND reviewfilechanges.state='draft'
-                             AND reviewfilechanges.to=reviewfiles.state""",
+                             AND reviewfilechanges.to_state=reviewfiles.state""",
                        (batch_id, review.id, user.id))
 
         profiler.check("reviewfilechanges draft=>performed")
