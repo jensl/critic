@@ -33,7 +33,7 @@ for linktype in ALL_LINKTYPES:
         fragments.append(linktype.fragment)
 re_linkify = re.compile("(?:^|\\b|(?=\\W))(" + "|".join(fragments) + ")([.,:;!?)]*(?:\\s|\\b|$))")
 
-re_simple = re.compile("^[^ \t\r\n&<>/=`]+$")
+re_simple = re.compile("^[^ \t\r\n&<>/=`'\"]+$")
 re_nonascii = re.compile("[^\t\n\r -\x7f]")
 re_control = re.compile("[\x01-\x1f\x7f]")
 
