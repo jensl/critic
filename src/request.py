@@ -173,6 +173,10 @@ class Request:
         self.__response_headers = []
         self.__started = False
 
+        content_length = environ.get("CONTENT_LENGTH")
+        self.__request_body_length = int(content_length) if content_length else 0
+        self.__request_body_read = 0
+
         self.server_name = \
             self.getRequestHeader("X-Forwarded-Host") \
             or environ.get("SERVER_NAME") \
@@ -348,13 +352,25 @@ class Request:
         try: return self.getRequestHeader("Referer")
         except: return "N/A"
 
-    def read(self, *args):
+    def read(self, bufsize=None):
         """\
         Return the HTTP request body, or an empty string if there is none.
         """
 
-        if "wsgi.input" not in self.__environ: return ""
-        return self.__environ["wsgi.input"].read(*args)
+        if self.__request_body_length:
+            max_bufsize = self.__request_body_length - self.__request_body_read
+
+            if bufsize is None:
+                bufsize = max_bufsize
+            else:
+                bufsize = min(bufsize, max_bufsize)
+
+        if "wsgi.input" not in self.__environ or not bufsize:
+            return ""
+
+        data = self.__environ["wsgi.input"].read(bufsize)
+        self.__request_body_read += len(data)
+        return data
 
     def write(self, data):
         """
