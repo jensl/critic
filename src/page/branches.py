@@ -64,7 +64,7 @@ def renderBranches(req, db, user):
         document.addInternalScript(repository.getJS())
 
         cursor.execute("""SELECT branches.id, branches.name, branches.base, branches.review,
-                                 branches.commit_time, COUNT(reachable.*)
+                                 branches.commit_time, COUNT(reachable.branch)
                             FROM (SELECT branches.id AS id, branches.name AS name, bases.name AS base,
                                          branches.review AS review, commits.commit_time AS commit_time
                                     FROM branches
