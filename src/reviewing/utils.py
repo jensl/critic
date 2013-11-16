@@ -996,8 +996,8 @@ def retireUser(db, user):
     # complicates a whole bunch of queries, so to keep things simple, we can
     # sacrifice a little history.
     cursor.execute("""DELETE FROM reviewuserfiles
-                            USING reviewfiles
-                            WHERE reviewuserfiles.uid=%s
-                              AND reviewuserfiles.file=reviewfiles.id
-                              AND reviewfiles.state='pending'""",
+                            WHERE uid=%s
+                              AND file IN (SELECT id
+                                             FROM reviewfiles
+                                            WHERE state='pending')""",
                    (user.id,))

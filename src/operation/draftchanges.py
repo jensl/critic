@@ -157,13 +157,16 @@ class SubmitChanges(Operation):
         cursor.execute("""UPDATE reviewfilechanges
                              SET state='rejected',
                                  time=now()
-                            FROM reviewfiles
-                           WHERE reviewfiles.review=%s
-                             AND reviewfiles.id=reviewfilechanges.file
-                             AND reviewfilechanges.uid=%s
-                             AND reviewfilechanges.state='draft'
-                             AND reviewfilechanges.from_state!=reviewfiles.state""",
-                       (review.id, user.id))
+                           WHERE uid=%s
+                             AND state='draft'
+                             AND file IN (SELECT id
+                                            FROM reviewfiles
+                                            JOIN reviewfilechanges ON (reviewfilechanges.file=reviewfiles.id)
+                                           WHERE reviewfiles.review=%s
+                                             AND reviewfilechanges.uid=%s
+                                             AND reviewfilechanges.state='draft'
+                                             AND reviewfilechanges.from_state!=reviewfiles.state)""",
+                       (user.id, review.id, user.id))
 
         profiler.check("reviewfilechanges reject state changes")
 
@@ -171,16 +174,15 @@ class SubmitChanges(Operation):
         # the corresponding review file.
         cursor.execute("""UPDATE reviewfiles
                              SET state='reviewed',
-                                 reviewer=reviewfilechanges.uid,
+                                 reviewer=%s,
                                  time=now()
-                            FROM reviewfilechanges
-                           WHERE reviewfiles.review=%s
-                             AND reviewfilechanges.uid=%s
-                             AND reviewfilechanges.state='draft'
-                             AND reviewfilechanges.file=reviewfiles.id
-                             AND reviewfilechanges.from_state=reviewfiles.state
-                             AND reviewfilechanges.to_state='reviewed'""",
-                       (review.id, user.id))
+                           WHERE review=%s
+                             AND id IN (SELECT file
+                                          FROM reviewfilechanges
+                                         WHERE uid=%s
+                                           AND state='draft'
+                                           AND to_state='reviewed')""",
+                       (user.id, review.id, user.id))
 
         profiler.check("reviewfiles pending=>reviewed")
 
@@ -190,13 +192,12 @@ class SubmitChanges(Operation):
                              SET state='pending',
                                  reviewer=NULL,
                                  time=now()
-                            FROM reviewfilechanges
-                           WHERE reviewfiles.review=%s
-                             AND reviewfilechanges.uid=%s
-                             AND reviewfilechanges.state='draft'
-                             AND reviewfilechanges.file=reviewfiles.id
-                             AND reviewfilechanges.from_state=reviewfiles.state
-                             AND reviewfilechanges.to_state='pending'""",
+                           WHERE review=%s
+                             AND id IN (SELECT file
+                                          FROM reviewfilechanges
+                                         WHERE uid=%s
+                                           AND state='draft'
+                                           AND to_state='pending')""",
                        (review.id, user.id))
 
         profiler.check("reviewfiles reviewed=>pending")
@@ -207,13 +208,12 @@ class SubmitChanges(Operation):
                              SET batch=%s,
                                  state='performed',
                                  time=now()
-                            FROM reviewfiles
-                           WHERE reviewfiles.review=%s
-                             AND reviewfiles.id=reviewfilechanges.file
-                             AND reviewfilechanges.uid=%s
-                             AND reviewfilechanges.state='draft'
-                             AND reviewfilechanges.to_state=reviewfiles.state""",
-                       (batch_id, review.id, user.id))
+                           WHERE uid=%s
+                             AND state='draft'
+                             AND file IN (SELECT id
+                                            FROM reviewfiles
+                                           WHERE reviewfiles.review=%s)""",
+                       (batch_id, user.id, review.id))
 
         profiler.check("reviewfilechanges draft=>performed")
 
@@ -285,16 +285,19 @@ class SubmitChanges(Operation):
         cursor.execute("""UPDATE commentchainchanges
                              SET state='rejected',
                                  time=now()
-                            FROM commentchains
-                           WHERE commentchains.review=%s
-                             AND commentchainchanges.chain=commentchains.id
-                             AND commentchainchanges.uid=%s
-                             AND commentchainchanges.state='draft'
-                             AND commentchainchanges.from_state IS NOT NULL
-                             AND (commentchainchanges.from_state!=commentchains.state
-                               OR commentchainchanges.from_last_commit!=commentchains.last_commit
-                               OR commentchains.type!='issue')""",
-                       (review.id, user.id))
+                           WHERE uid=%s
+                             AND state='draft'
+                             AND from_state IS NOT NULL
+                             AND chain IN (SELECT id
+                                             FROM commentchains
+                                             JOIN commentchainchanges ON (commentchainchanges.chain=commentchains.id
+                                                                      AND (commentchainchanges.from_state!=commentchains.state
+                                                                        OR commentchainchanges.from_last_commit!=commentchains.last_commit
+                                                                        OR commentchains.type!='issue'))
+                                            WHERE commentchains.review=%s
+                                              AND commentchainchanges.uid=%s
+                                              AND commentchainchanges.state='draft')""",
+                       (user.id, review.id, user.id))
 
         profiler.check("commentchainchanges reject state changes")
 
@@ -303,14 +306,17 @@ class SubmitChanges(Operation):
         cursor.execute("""UPDATE commentchainchanges
                              SET state='rejected',
                                  time=now()
-                            FROM commentchains
-                           WHERE commentchains.review=%s
-                             AND commentchainchanges.chain=commentchains.id
-                             AND commentchainchanges.uid=%s
-                             AND commentchainchanges.state='draft'
-                             AND commentchainchanges.from_type IS NOT NULL
-                             AND commentchainchanges.from_type!=commentchains.type""",
-                       (review.id, user.id))
+                           WHERE uid=%s
+                             AND state='draft'
+                             AND from_type IS NOT NULL
+                             AND chain IN (SELECT id
+                                             FROM commentchains
+                                             JOIN commentchainchanges ON (commentchainchanges.chain=commentchains.id
+                                                                      AND commentchainchanges.from_type!=commentchains.type)
+                                            WHERE commentchains.review=%s
+                                              AND commentchainchanges.uid=%s
+                                              AND commentchainchanges.state='draft')""",
+                       (user.id, review.id, user.id))
 
         profiler.check("commentchainchanges reject type changes")
 
@@ -319,14 +325,17 @@ class SubmitChanges(Operation):
         cursor.execute("""UPDATE commentchainchanges
                              SET state='rejected',
                                  time=now()
-                            FROM commentchains
-                           WHERE commentchains.review=%s
-                             AND commentchainchanges.chain=commentchains.id
-                             AND commentchainchanges.uid=%s
-                             AND commentchainchanges.state='draft'
-                             AND commentchainchanges.from_addressed_by IS NOT NULL
-                             AND commentchainchanges.from_addressed_by!=commentchains.addressed_by""",
-                       (review.id, user.id))
+                           WHERE uid=%s
+                             AND state='draft'
+                             AND from_addressed_by IS NOT NULL
+                             AND chain IN (SELECT id
+                                             FROM commentchains
+                                             JOIN commentchainchanges ON (commentchainchanges.chain=commentchains.id
+                                                                      AND commentchainchanges.from_addressed_by!=commentchains.addressed_by)
+                                            WHERE commentchains.review=%s
+                                              AND commentchainchanges.uid=%s
+                                              AND commentchainchanges.state='draft')""",
+                       (user.id, review.id, user.id))
 
         profiler.check("commentchainchanges reject addressed_by changes")
 
@@ -336,58 +345,66 @@ class SubmitChanges(Operation):
         # Perform open->closed changes, including setting 'closed_by'.
         cursor.execute("""UPDATE commentchains
                              SET state='closed',
-                                 closed_by=commentchainchanges.uid
-                            FROM commentchainchanges
-                           WHERE commentchains.review=%s
-                             AND commentchainchanges.chain=commentchains.id
-                             AND commentchainchanges.uid=%s
-                             AND commentchainchanges.state='draft'
-                             AND commentchainchanges.to_state='closed'""",
-                       (review.id, user.id))
+                                 closed_by=%s
+                           WHERE review=%s
+                             AND id IN (SELECT chain
+                                          FROM commentchainchanges
+                                         WHERE uid=%s
+                                           AND state='draft'
+                                           AND to_state='closed')""",
+                       (user.id, review.id, user.id))
 
         profiler.check("commentchains closed")
 
         # Perform (closed|addressed)->open changes, including resetting 'closed_by' and
         # 'addressed_by' to NULL.
-        cursor.execute("""UPDATE commentchains
-                             SET state='open',
-                                 last_commit=commentchainchanges.to_last_commit,
-                                 closed_by=NULL,
-                                 addressed_by=NULL
-                            FROM commentchainchanges
+        cursor.execute("""SELECT commentchainchanges.to_last_commit, commentchains.id
+                            FROM commentchains
+                            JOIN commentchainchanges ON (commentchainchanges.chain=commentchains.id)
                            WHERE commentchains.review=%s
-                             AND commentchainchanges.chain=commentchains.id
                              AND commentchainchanges.uid=%s
                              AND commentchainchanges.state='draft'
                              AND commentchainchanges.to_state='open'""",
                        (review.id, user.id))
+        cursor.executemany("""UPDATE commentchains
+                                 SET state='open',
+                                     last_commit=%s,
+                                     closed_by=NULL,
+                                     addressed_by=NULL
+                               WHERE id=%s""",
+                           cursor.fetchall())
 
         profiler.check("commentchains reopen")
 
         # Perform addressed->addressed changes, i.e. updating 'addressed_by'.
-        cursor.execute("""UPDATE commentchains
-                             SET addressed_by=commentchainchanges.to_addressed_by
-                            FROM commentchainchanges
+        cursor.execute("""SELECT commentchainchanges.to_addressed_by, commentchains.id
+                            FROM commentchains
+                            JOIN commentchainchanges ON (commentchainchanges.chain=commentchains.id)
                            WHERE commentchains.review=%s
-                             AND commentchainchanges.chain=commentchains.id
                              AND commentchainchanges.uid=%s
                              AND commentchainchanges.state='draft'
                              AND commentchainchanges.to_addressed_by IS NOT NULL""",
                        (review.id, user.id))
+        cursor.executemany("""UPDATE commentchains
+                                 SET addressed_by=%s
+                               WHERE id=%s""",
+                           cursor.fetchall())
 
         profiler.check("commentchains reopen (partial)")
 
         # Perform type changes.
-        cursor.execute("""UPDATE commentchains
-                             SET type=commentchainchanges.to_type
-                            FROM commentchainchanges
+        cursor.execute("""SELECT commentchainchanges.to_type, commentchains.id
+                            FROM commentchains
+                            JOIN commentchainchanges ON (commentchainchanges.chain=commentchains.id)
                            WHERE commentchains.review=%s
-                             AND commentchainchanges.chain=commentchains.id
                              AND commentchainchanges.uid=%s
                              AND commentchainchanges.state='draft'
-                             AND commentchainchanges.from_type=commentchains.type
                              AND commentchainchanges.to_type IS NOT NULL""",
                        (review.id, user.id))
+        cursor.executemany("""UPDATE commentchains
+                                 SET type=%s
+                               WHERE id=%s""",
+                           cursor.fetchall())
 
         profiler.check("commentchains type change")
 
@@ -397,12 +414,12 @@ class SubmitChanges(Operation):
                              SET batch=%s,
                                  state='performed',
                                  time=now()
-                            FROM commentchains
-                           WHERE commentchains.review=%s
-                             AND commentchainchanges.chain=commentchains.id
-                             AND commentchainchanges.uid=%s
-                             AND commentchainchanges.state='draft'""",
-                       (batch_id, review.id, user.id))
+                           WHERE uid=%s
+                             AND state='draft'
+                             AND chain IN (SELECT id
+                                             FROM commentchains
+                                            WHERE review=%s)""",
+                       (batch_id, user.id, review.id))
 
         profiler.check("commentchainchanges draft=>performed")
 
@@ -410,12 +427,12 @@ class SubmitChanges(Operation):
         cursor.execute("""UPDATE commentchainlines
                              SET state='current',
                                  time=now()
-                            FROM commentchains
-                           WHERE commentchains.review=%s
-                             AND commentchainlines.chain=commentchains.id
-                             AND commentchainlines.uid=%s
-                             AND commentchainlines.state='draft'""",
-                       (review.id, user.id))
+                           WHERE uid=%s
+                             AND state='draft'
+                             AND chain IN (SELECT id
+                                             FROM commentchains
+                                            WHERE review=%s)""",
+                       (user.id, review.id))
 
         profiler.check("commentchainlines draft=>current")
 
@@ -424,12 +441,12 @@ class SubmitChanges(Operation):
                              SET batch=%s,
                                  state='current',
                                  time=now()
-                            FROM commentchains
-                           WHERE commentchains.review=%s
-                             AND comments.chain=commentchains.id
-                             AND comments.uid=%s
-                             AND comments.state='draft'""",
-                       (batch_id, review.id, user.id))
+                           WHERE comments.uid=%s
+                             AND comments.state='draft'
+                             AND chain IN (SELECT id
+                                             FROM commentchains
+                                            WHERE review=%s)""",
+                       (batch_id, user.id, review.id))
 
         profiler.check("comments draft=>current")
 
@@ -475,60 +492,55 @@ class AbortChanges(Operation):
 
         if what["approval"]:
             # Delete all pending review file approvals.
-            cursor.execute("""DELETE
-                                FROM reviewfilechanges
-                               USING reviewfiles
-                               WHERE reviewfiles.review=%s
-                                 AND reviewfilechanges.file=reviewfiles.id
-                                 AND reviewfilechanges.uid=%s
-                                 AND reviewfilechanges.state='draft'""",
-                           (review_id, user.id))
+            cursor.execute("""DELETE FROM reviewfilechanges
+                                    WHERE uid=%s
+                                      AND state='draft'
+                                      AND file IN (SELECT id
+                                                     FROM reviewfiles
+                                                    WHERE review=%s)""",
+                           (user.id, review_id))
             profiler.check("approval")
 
         if what["comments"]:
             # Delete all pending comments chains.  This will, via ON DELETE CASCADE,
             # also delete all related comments and commentchainlines rows.
-            cursor.execute("""DELETE
-                                FROM commentchains
-                               WHERE commentchains.review=%s
-                                 AND commentchains.uid=%s
-                                 AND commentchains.state='draft'""",
+            cursor.execute("""DELETE FROM commentchains
+                                    WHERE review=%s
+                                      AND uid=%s
+                                      AND state='draft'""",
                            (review_id, user.id))
             profiler.check("chains")
 
             # Delete all still existing draft comments.
-            cursor.execute("""DELETE
-                                FROM comments
-                               USING commentchains
-                               WHERE commentchains.review=%s
-                                 AND commentchains.id=comments.chain
-                                 AND comments.uid=%s
-                                 AND comments.state='draft'""",
-                           (review_id, user.id))
+            cursor.execute("""DELETE FROM comments
+                                    WHERE uid=%s
+                                      AND state='draft'
+                                      AND chain IN (SELECT id
+                                                      FROM commentchains
+                                                     WHERE review=%s)""",
+                           (user.id, review_id))
             profiler.check("replies")
 
         if what["metacomments"]:
             # Delete all still existing draft comment lines.
-            cursor.execute("""DELETE
-                                FROM commentchainlines
-                               USING commentchains
-                               WHERE commentchains.review=%s
-                                 AND commentchainlines.chain=commentchains.id
-                                 AND commentchainlines.uid=%s
-                                 AND commentchainlines.state='draft'
-                                 AND commentchains.state!='draft'""",
-                           (review_id, user.id))
+            cursor.execute("""DELETE FROM commentchainlines
+                                    WHERE uid=%s
+                                      AND state='draft'
+                                      AND chain IN (SELECT id
+                                                      FROM commentchains
+                                                     WHERE review=%s
+                                                       AND state!='draft')""",
+                           (user.id, review_id))
             profiler.check("comment lines")
 
             # Delete all still existing draft comment state changes.
-            cursor.execute("""DELETE
-                                FROM commentchainchanges
-                               USING commentchains
-                               WHERE commentchains.review=%s
-                                 AND commentchainchanges.chain=commentchains.id
-                                 AND commentchainchanges.uid=%s
-                                 AND commentchainchanges.state='draft'""",
-                           (review_id, user.id))
+            cursor.execute("""DELETE FROM commentchainchanges
+                                    WHERE uid=%s
+                                      AND state='draft'
+                                      AND chain IN (SELECT id
+                                                      FROM commentchains
+                                                     WHERE review=%s)""",
+                           (user.id, review_id))
             profiler.check("comment state")
 
         db.commit()

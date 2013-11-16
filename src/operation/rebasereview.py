@@ -243,10 +243,10 @@ class RevertRebase(Operation):
                 # Delete the review changesets (and, via cascade, all related
                 # assignments.)
                 cursor.execute("""DELETE FROM reviewchangesets
-                                        USING changesets
-                                        WHERE reviewchangesets.review=%s
-                                          AND reviewchangesets.changeset=changesets.id
-                                          AND changesets.child=%s""",
+                                        WHERE review=%s
+                                          AND changeset IN (SELECT id
+                                                              FROM changesets
+                                                             WHERE child=%s)""",
                                (review.id, old_head_id))
 
                 old_head = gitutils.Commit.fromSHA1(db, review.repository, old_head.parents[0])
@@ -255,11 +255,11 @@ class RevertRebase(Operation):
                 # Delete the review changesets (and, via cascade, all related
                 # assignments.)
                 cursor.execute("""DELETE FROM reviewchangesets
-                                        USING changesets
-                                        WHERE reviewchangesets.review=%s
-                                          AND reviewchangesets.changeset=changesets.id
-                                          AND changesets.child=%s
-                                          AND changesets.type='conflicts'""",
+                                        WHERE review=%s
+                                          AND changeset IN (SELECT id
+                                                              FROM changesets
+                                                             WHERE child=%s
+                                                               AND type='conflicts')""",
                                (review.id, new_head_id))
 
         cursor.execute("UPDATE branches SET head=%s WHERE id=%s", (old_head_id, review.branch.id))

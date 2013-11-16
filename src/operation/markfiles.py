@@ -33,13 +33,13 @@ class MarkFiles(Operation):
         # Revert any draft changes the user has for the specified files in
         # the specified changesets.
         cursor.execute("""DELETE FROM reviewfilechanges
-                                USING reviewfiles
-                                WHERE reviewfilechanges.uid=%s
-                                  AND reviewfilechanges.state='draft'
-                                  AND reviewfilechanges.file=reviewfiles.id
-                                  AND reviewfiles.review=%s
-                                  AND reviewfiles.changeset=ANY (%s)
-                                  AND reviewfiles.file=ANY (%s)""",
+                                WHERE uid=%s
+                                  AND state='draft'
+                                  AND file IN (SELECT id
+                                                 FROM reviewfiles
+                                                WHERE review=%s
+                                                  AND changeset=ANY (%s)
+                                                  AND file=ANY (%s))""",
                        (user.id, review.id, changeset_ids, file_ids))
 
         if reviewed:
