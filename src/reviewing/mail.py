@@ -589,7 +589,7 @@ def sendReviewBatch(db, from_user, to_user, recipients, review, batch_id, was_ac
                        WHERE reviewfilechanges.batch=%s
                          AND reviewfilechanges.to_state='reviewed'""",
                        (batch_id,))
-    reviewed_commits = cursor.fetchall()
+    reviewed_commits = [commit_id for (commit_id,) in cursor]
 
     if profiler: profiler.check("generate mail: reviewed commits")
 
@@ -611,7 +611,7 @@ def sendReviewBatch(db, from_user, to_user, recipients, review, batch_id, was_ac
                        WHERE reviewfilechanges.batch=%s
                          AND reviewfilechanges.to_state='pending'""",
                        (batch_id,))
-    unreviewed_commits = cursor.fetchall()
+    unreviewed_commits = [commit_id for (commit_id,) in cursor]
 
     if profiler: profiler.check("generate mail: unreviewed commits")
 

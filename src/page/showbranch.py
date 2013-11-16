@@ -124,9 +124,7 @@ def renderShowBranch(req, db, user):
         if not bases and branch.base:
             cursor.execute("SELECT commit FROM reachable WHERE branch=%s", (branch.id,))
 
-            commit_ids = cursor.fetchall()
-
-            body.comment(repr(commit_ids))
+            commit_ids = [commit_id for (commit_id,) in cursor]
 
             for commit_id in commit_ids:
                 cursor.execute("SELECT 1 FROM reachable WHERE branch=%s AND commit=%s", (branch.base.id, commit_id))
