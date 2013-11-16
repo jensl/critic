@@ -211,7 +211,7 @@ class CommentChain:
                                  useremails.email, useremails.verified,
                                  commentchains.type, drafttype.to_type,
                                  commentchains.state, draftstate.to_state,
-                                 SUBSTRING(comments.comment FROM 1 FOR 81),
+                                 SUBSTR(comments.comment, 1, 81),
                                  chaincomments(commentchains.id),
                                  chainunread(commentchains.id, %s)
                             FROM commentchains
