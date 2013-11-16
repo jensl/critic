@@ -16,7 +16,7 @@ Host Setup
 Required software:
 
 * Python 2.7
-* Git
+* Git 1.8.5 or later (needs Git bugfix 37cb1dd671e5e22cee363f98637a5a58f16be054)
 * VirtualBox
 * Requests (Debian/Ubuntu package: python-requests)
 * BeautifulSoup 3.x (Debian/Ubuntu package: python-beautifulsoup)

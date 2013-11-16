@@ -96,6 +96,19 @@ def main():
         logger.error("Failed to import 'BeautifulSoup'!")
         import_errors = True
 
+    git_version = subprocess.check_output(["git", "--version"]).strip()
+    m = re.search("(\d+)\.(\d+)\.(\d+)(?:[^\d]+|$)", git_version)
+    if not m:
+        logger.warning("Failed to parse host-side git version number: '%s'" % git_version)
+    else:
+        version_tuple = tuple(map(int, m.groups()))
+        if version_tuple >= (1, 8, 5):
+            logger.debug("Using Git version %s on host." % git_version)
+        else:
+            logger.error("Git version on host machine must be version 1.8.5 or above (detected version %s)." % git_version)
+            logger.error("Earlier Git versions crashed with SIGBUS causing test suite flakiness.")
+            import_errors = True
+
     if import_errors:
         logger.error("Required software missing; see testing/USAGE.md for details.")
         return
