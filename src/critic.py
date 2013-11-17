@@ -112,6 +112,11 @@ def setContentTypeFromPath(req):
         req.setContentType("text/plain")
 
 def handleStaticResource(req):
+    if req.path == "static-resource/":
+        req.setStatus(403)
+        req.setContentType("text/plain")
+        req.start()
+        return ["Directory listing disabled!"]
     resource_path = os.path.join(configuration.paths.INSTALL_DIR,
                                  "resources",
                                  req.path.split("/", 1)[1])
