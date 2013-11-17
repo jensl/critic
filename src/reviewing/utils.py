@@ -260,6 +260,44 @@ def assignChanges(db, user, review, commits=None, changesets=None, update=False)
 
     return new_reviewers, new_watchers
 
+def createChangesetsForCommits(db, commits, silent_if_empty=set(), full_merges=set(), replayed_rebases={}):
+    repository = commits[0].repository
+    changesets = []
+    silent_commits = set()
+    silent_changesets = set()
+
+    simple_commits = []
+    for commit in commits:
+        if commit not in full_merges and commit not in replayed_rebases:
+            simple_commits.append(commit)
+    if simple_commits:
+        changeset_utils.createChangesets(db, repository, simple_commits)
+
+    for commit in commits:
+        if commit in full_merges:
+            commit_changesets = changeset_utils.createFullMergeChangeset(
+                db, user, repository, commit, do_highlight=False)
+        elif commit in replayed_rebases:
+            commit_changesets = changeset_utils.createChangeset(
+                db, user, repository,
+                from_commit=commit, to_commit=replayed_rebases[commit],
+                conflicts=True, do_highlight=False)
+        else:
+            commit_changesets = changeset_utils.createChangeset(
+                db, user, repository, commit, do_highlight=False)
+
+        if commit in silent_if_empty:
+            for commit_changeset in commit_changesets:
+                if commit_changeset.files:
+                    break
+            else:
+                silent_commits.add(commit)
+                silent_changesets.update(commit_changesets)
+
+        changesets.extend(commit_changesets)
+
+    return changesets, silent_commits, silent_changesets
+
 def addCommitsToReview(db, user, review, commits, new_review=False, commitset=None, pending_mails=None, silent_if_empty=set(), full_merges=set(), replayed_rebases={}, tracked_branch=False):
     cursor = db.cursor()
 
@@ -342,39 +380,8 @@ Please confirm that this is intended by loading:
             commitset &= set(new_commits)
             commits = [commit for commit in commits if commit in commitset]
 
-    changesets = []
-    silent_commits = set()
-    silent_changesets = set()
-
-    simple_commits = []
-    for commit in commits:
-        if commit not in full_merges and commit not in replayed_rebases:
-            simple_commits.append(commit)
-    if simple_commits:
-        changeset_utils.createChangesets(db, review.repository, simple_commits)
-
-    for commit in commits:
-        if commit in full_merges:
-            commit_changesets = changeset_utils.createFullMergeChangeset(
-                db, user, review.repository, commit, do_highlight=False)
-        elif commit in replayed_rebases:
-            commit_changesets = changeset_utils.createChangeset(
-                db, user, review.repository,
-                from_commit=commit, to_commit=replayed_rebases[commit],
-                conflicts=True, do_highlight=False)
-        else:
-            commit_changesets = changeset_utils.createChangeset(
-                db, user, review.repository, commit, do_highlight=False)
-
-        if commit in silent_if_empty:
-            for commit_changeset in commit_changesets:
-                if commit_changeset.files:
-                    break
-            else:
-                silent_commits.add(commit)
-                silent_changesets.update(commit_changesets)
-
-        changesets.extend(commit_changesets)
+    changesets, silent_commits, silent_changesets = \
+        createChangesetsForCommits(db, commits, silent_if_empty, full_merges, replayed_rebases)
 
     if not new_review:
         print "Adding %d commit%s to the review at:\n  %s" % (len(commits), len(commits) > 1 and "s" or "", review.getURL(db))
@@ -501,6 +508,8 @@ using the command<p>
                          "<code style='padding-left: 1em'>%s</code>"
                          % htmlutils.htmlify(error.output)),
                 is_html=True)
+
+    createChangesetsForCommits(db, commits)
 
     try:
         cursor.execute("INSERT INTO branches (repository, name, head, tail, type) VALUES (%s, %s, %s, %s, 'review') RETURNING id", [repository.id, branch_name, head.getId(db), tail_id])

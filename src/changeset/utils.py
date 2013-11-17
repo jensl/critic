@@ -181,6 +181,8 @@ def createChangeset(db, user, repository, commit=None, from_commit=None, to_comm
 
             request["repository_name"] = repository.name
 
+            db.commit()
+
             client.requestChangesets([request])
 
             db.commit()
