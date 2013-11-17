@@ -41,6 +41,11 @@ class AddRepository(Operation):
                                    title="Invalid short name",
                                    message="The short name must not end with .git")
 
+        if name == "r":
+            raise OperationFailure(code="invalid_name",
+                                   title="Invalid short name",
+                                   message="The short name 'r' is not allowed since corresponding /REPOSHORTNAME/{SHA1|BRANCH} URLs would conflict with r/REVIEW_ID URLs.")
+
         path = path.strip("/").rsplit("/", 1)
 
         if len(path) == 2: base, repository_name = path
