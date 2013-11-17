@@ -35,17 +35,17 @@ stop () {
 
     if test -f $pidfile
     then
-	pid=$(cat $pidfile)
+        pid=$(cat $pidfile)
 
-	if kill -TERM $pid
-	then
-	    while test -f $pidfile
-	    do
-		sleep 0.1
-	    done
-	else
-	    rm $pidfile
-	fi
+        if kill -TERM $pid
+        then
+            while test -f $pidfile
+            do
+                sleep 0.1
+            done
+        else
+            rm $pidfile
+        fi
     fi
 
     log_end_msg 0
@@ -53,17 +53,17 @@ stop () {
 
 case "$1" in
     start)
-	start
-	;;
+        start
+        ;;
 
     stop)
-	stop
-	;;
+        stop
+        ;;
 
     restart)
-	stop
-	start
-	;;
+        stop
+        start
+        ;;
 
     *)
         echo "Usage: $0 {start|stop|restart}"
