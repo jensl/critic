@@ -141,7 +141,7 @@ def renderSelectSource(req, db, user):
         cursor.execute("""SELECT repositories.id, repositories.name, repositories.path, branches.name
                             FROM repositories
                  LEFT OUTER JOIN branches ON (branches.id=repositories.branch)
-                        ORDER BY id""")
+                        ORDER BY repositories.id""")
 
         for repository_id, name, path, branch_name in cursor.fetchall():
             local_names = ["*"]
