@@ -86,16 +86,17 @@ class User(object):
     def loadPreferences(self, db):
         if not self.preferences:
             cursor = db.cursor()
-            cursor.execute("""SELECT item, type, integer, string
+            cursor.execute("""SELECT uid, item, type, integer, string
                                 FROM preferences
                                 JOIN userpreferences USING (item)
                                WHERE (uid=%s OR uid IS NULL)
                                  AND repository IS NULL
-                                 AND filter IS NULL
-                            ORDER BY uid NULLS LAST""",
+                                 AND filter IS NULL""",
                            (self.id,))
 
-            for item, preference_type, integer, string in cursor:
+            rows = sorted(cursor, key=lambda row: row[0], reverse=True)
+
+            for _, item, preference_type, integer, string in rows:
                 cache_key = _preferenceCacheKey(item, None, None)
                 if cache_key not in self.preferences:
                     if preference_type == "boolean":
@@ -116,52 +117,48 @@ class User(object):
 
         arguments = [item]
         where = ["item=%s"]
-        order_by = []
 
         if preference_type in ("boolean", "integer"):
-            value_column = "integer"
+            columns = ["integer"]
         else:
-            value_column = "string"
+            columns = ["string"]
 
         if user is not None and not user.isAnonymous():
             arguments.append(user.id)
             where.append("uid=%s OR uid IS NULL")
-            order_by.append("uid NULLS LAST")
+            columns.append("uid")
         else:
             where.append("uid IS NULL")
 
         if repository is not None:
             arguments.append(repository.id)
             where.append("repository=%s OR repository IS NULL")
-            order_by.append("repository NULLS LAST")
+            columns.append("repository")
         else:
             where.append("repository IS NULL")
 
         if filter_id is not None:
             arguments.append(filter_id)
             where.append("filter=%s OR filter IS NULL")
-            order_by.append("filter NULLS LAST")
+            columns.append("filter")
         else:
             where.append("filter IS NULL")
 
-        query = ("""SELECT %(value_column)s
+        query = ("""SELECT %(columns)s
                       FROM userpreferences
                      WHERE %(where)s"""
-                 % { "value_column": value_column,
+                 % { "columns": ", ".join(columns),
                      "where": " AND ".join("(%s)" % condition
                                            for condition in where) })
 
-        if order_by:
-            query += " ORDER BY " + ", ".join(order_by)
-
-        query += " LIMIT 1"
-
         cursor.execute(query, arguments)
-        row = cursor.fetchone()
-        if not row:
+
+        rows = cursor.fetchall()
+        if not rows:
             raise base.ImplementationError(
                 "invalid preference read: %s (no value found)" % item)
-        (value,) = row
+
+        value = sorted(rows, key=lambda row: row[1:])[-1][0]
         if preference_type == "boolean":
             return bool(value)
         return value
