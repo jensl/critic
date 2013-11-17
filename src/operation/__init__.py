@@ -144,6 +144,7 @@ class TypeChecker:
                 return EnumerationChecker(source)
             return VariantChecker(source)
         elif source is str: return StringChecker()
+        elif type(source) is RestrictedString: return RestrictedStringChecker(source)
         elif source is int: return IntegerChecker()
         elif source is bool: return BooleanChecker()
         else: raise base.ImplementationError("invalid source type")
@@ -155,6 +156,47 @@ class Optional:
     """
     def __init__(self, source):
         self.source = source
+
+class RestrictedString(object):
+    def __init__(self, allowed=None, minlength=0, maxlength=0, ui_name=None):
+        self.allowed = allowed
+        self.minlength = minlength
+        self.maxlength = maxlength
+        self.ui_name = ui_name
+
+class RestrictedStringChecker(object):
+    """\
+    Type checker for strings that may consist only of certain characters, and/or
+    must be of a certain min/max length.
+
+    """
+    def __init__(self, restricted_string):
+        self.restricted_string= restricted_string
+    def __call__(self, value, context=None):
+        if self.restricted_string.ui_name:
+            ui_name = self.restricted_string.ui_name
+        else:
+            ui_name = context
+        if not isinstance(value, str):
+            raise OperationFailure(code="notastring_%s" % context,
+                                   title="Invalid %s parameter" % ui_name,
+                                   message="invalid input: %s is not a string" % ui_name)
+        if self.restricted_string.minlength != 0 and len(value) < self.restricted_string.minlength:
+            raise OperationFailure(code="paramtooshort_%s" % context,
+                                   title="Invalid %s" % ui_name,
+                                   message="invalid input: %s must be at least %d characters long" % (ui_name, self.restricted_string
+                           .minlength))
+        if self.restricted_string.maxlength != 0 and len(value) > self.restricted_string.maxlength:
+            raise OperationFailure(code="paramtoolong_%s" % context,
+                                   title="Invalid %s" % ui_name,
+                                   message="invalid input: %s must be at most %d characters long" % (ui_name, self.restricted_string
+                           .maxlength))
+        if self.restricted_string.allowed:
+            for ch in value:
+                if not self.restricted_string.allowed(ch):
+                    raise OperationFailure(code="paramcontainsillegalchar_%s" % context,
+                                           title="Invalid %s" % ui_name,
+                                           message="invalid input: %s may not contain the character %s" % (ui_name, ch))
 
 class DictionaryChecker:
     """\
