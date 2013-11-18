@@ -860,10 +860,13 @@ class Repository:
             stderr=subprocess.PIPE, env=environ))
 
         def produceInput():
-            data = req.read(65536)
-            if not data:
+            if req.method not in ("POST", "PUT"):
                 return None
-            return data
+            else:
+                data = req.read(65536)
+                if not data:
+                    return None
+                return data
 
         def handleHeaderLine(line):
             line = line.strip()
