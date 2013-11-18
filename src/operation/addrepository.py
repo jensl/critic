@@ -114,6 +114,8 @@ class AddRepository(Operation):
                                    VALUES (%s, %s, %s, %s, true, '1 day')""",
                            (repository_id, mirror["local_branch"], mirror["remote_url"], mirror["remote_branch"]))
 
+            git(["symbolic-ref", "HEAD", "refs/heads/" + mirror["local_branch"]], cwd=main_path)
+
         db.commit()
 
         if mirror:
