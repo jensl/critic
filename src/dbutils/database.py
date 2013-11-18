@@ -155,6 +155,9 @@ class Database(Session):
             self.__connection.close()
             self.__connection = None
 
+    def closed(self):
+        return self.__connection is None
+
     def __enter__(self):
         return self
 

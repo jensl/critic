@@ -563,7 +563,7 @@ def handleException(db, req, user, as_html=False):
 
     environ["wsgi.errors"].write(error_message)
 
-    if not user or not user.hasRole(db, "developer"):
+    if not user or not db or not user.hasRole(db, "developer"):
         url = wsgiref.util.request_uri(environ)
 
         x_forwarded_host = req.getRequestHeader("X-Forwarded-Host")
@@ -584,7 +584,7 @@ def handleException(db, req, user, as_html=False):
     else:
         admin_message_sent = False
 
-    if not user or user.hasRole(db, "developer") \
+    if not user or not db or user.hasRole(db, "developer") \
             or configuration.debug.IS_DEVELOPMENT \
             or configuration.debug.IS_TESTING:
         error_title = "Unexpected error!"
@@ -1081,7 +1081,11 @@ authentication in apache2, see:
         except:
             # crash might be psycopg2.ProgrammingError so rollback to avoid
             # "InternalError: current transaction is aborted" inside handleException()
-            db.rollback()
+            if db and db.closed():
+                db = None
+            elif db:
+                db.rollback()
+
             error_title, error_body = handleException(db, req, user)
             error_body = reflow("\n\n".join(error_body))
             error_message = "\n".join([error_title,
