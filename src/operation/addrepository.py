@@ -28,10 +28,11 @@ class AddRepository(Operation):
     def __init__(self):
         Operation.__init__(self, { "name": RestrictedString(allowed=lambda ch: ch != "/", minlength=1, maxlength=64, ui_name="short name"),
                                    "path": RestrictedString(minlength=1, ui_name="path"),
-                                   "remote": Optional({ "url": RestrictedString(maxlength=256, ui_name="source repository"),
-                                                        "branch": str }) })
+                                   "mirror": Optional({ "remote_url": RestrictedString(maxlength=256, ui_name="source repository"),
+                                                        "remote_branch": str,
+                                                        "local_branch": str }) })
 
-    def process(self, db, user, name, path, remote=None):
+    def process(self, db, user, name, path, mirror=None):
         if not user.hasRole(db, "repositories"):
             raise OperationFailure(code="notallowed",
                                    title="Not allowed!",
@@ -82,9 +83,9 @@ class AddRepository(Operation):
             if git.returncode != 0:
                 raise gitutils.GitError("unexpected output from '%s': %s" % (" ".join(argv), stderr))
 
-        if remote:
+        if mirror:
             try:
-                subprocess.check_output([configuration.executables.GIT, "ls-remote", remote["url"]], stderr=subprocess.STDOUT)
+                subprocess.check_output([configuration.executables.GIT, "ls-remote", mirror["remote_url"]], stderr=subprocess.STDOUT)
             except subprocess.CalledProcessError as e:
                 raise OperationFailure(code="failedreadremote",
                                        title="Failed to read source repository",
@@ -104,17 +105,18 @@ class AddRepository(Operation):
                        (name, main_path))
         repository_id = cursor.fetchone()[0]
 
-        if remote:
+        if mirror:
             cursor.execute("""INSERT INTO trackedbranches (repository, local_name, remote, remote_name, forced, delay)
                                    VALUES (%s, '*', %s, '*', true, '1 day')""",
-                           (repository_id, remote["url"]))
+                           (repository_id, mirror["remote_url"]))
+
             cursor.execute("""INSERT INTO trackedbranches (repository, local_name, remote, remote_name, forced, delay)
                                    VALUES (%s, %s, %s, %s, true, '1 day')""",
-                           (repository_id, remote["branch"], remote["url"], remote["branch"]))
+                           (repository_id, mirror["local_branch"], mirror["remote_url"], mirror["remote_branch"]))
 
         db.commit()
 
-        if remote:
+        if mirror:
             pid = int(open(configuration.services.BRANCHTRACKER["pidfile_path"]).read().strip())
             os.kill(pid, signal.SIGHUP)
 

@@ -44,8 +44,9 @@ $(document).ready(
                      path: path };
 
         if (remote.trim())
-          data.remote = { url: remote,
-                          branch: branch };
+          data.mirror = { remote_url: remote,
+                          remote_branch: branch,
+                          local_branch: branch };
 
         var operation = new Operation({ action: "add repository",
                                         url: "addrepository",

@@ -1,0 +1,1 @@
+The /addrepository has a parameter named 'mirror' (instead of 'remote').
