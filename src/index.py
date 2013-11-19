@@ -523,7 +523,10 @@ first, and then repeat this push.""" % name)
             if added:
                 output.append("Added %d new commits." % len(added))
 
-            print "\n".join(output) if output else None
+            if output:
+                print "\n".join(output)
+
+            return
     else:
         tracked_branch = False
 
