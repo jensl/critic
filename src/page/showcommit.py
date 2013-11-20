@@ -1084,7 +1084,12 @@ def renderShowCommit(req, db, user):
         assert len(changesets) == 1
 
         if not conflicts:
-            if review and review_filter in ("reviewable", "relevant", "files"):
+            if review and (review_filter in ("reviewable", "relevant")
+                           or (review_filter == "files" and all_commits)):
+                # We're displaying the full changes in the review (possibly
+                # filtered by file) => include rebase information when rendering
+                # the "Squashed History" log.
+
                 cursor.execute("""SELECT old_head, new_head, new_upstream, uid, branch
                                     FROM reviewrebases
                                    WHERE review=%s AND new_head IS NOT NULL""",
