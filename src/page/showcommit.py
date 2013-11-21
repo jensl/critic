@@ -914,8 +914,21 @@ def getApproximativeCommitList(db, repository, from_commit, to_commit, paths):
 def renderShowCommit(req, db, user):
     profiler = profiling.Profiler()
 
-    file_ids = req.getParameter("file", None)
-    if file_ids: file_ids = set(map(int, filter(None, file_ids.split(","))))
+    files_arg = req.getParameter("file", None)
+    if files_arg is None:
+        file_ids = None
+    else:
+        file_ids = set()
+        for file_arg in files_arg.split(","):
+            try:
+                file_id = int(file_arg)
+            except ValueError:
+                try:
+                    file_id = dbutils.find_file(db, file_arg.strip(), insert=False)
+                except dbutils.InvalidPath:
+                    file_id = None
+            if file_id is not None:
+                file_ids.add(file_id)
 
     review_id = req.getParameter("review", None, filter=int)
     review_filter = req.getParameter("filter", None)

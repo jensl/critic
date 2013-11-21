@@ -14,10 +14,14 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-def find_file(db, path):
+class InvalidPath(Exception):
+    pass
+
+def find_file(db, path, insert=True):
     path = path.lstrip("/")
 
-    assert not path.endswith("/")
+    if path.endswith("/"):
+        raise InvalidPath("Trailing path separator: %r" % path)
 
     cursor = db.cursor()
     cursor.execute("SELECT id, path FROM files WHERE MD5(path)=MD5(%s)", (path,))
@@ -29,8 +33,11 @@ def find_file(db, path):
         assert path == found_path, "MD5 collision in files table: %r != %r" % (path, found_path)
         return file_id
 
-    cursor.execute("INSERT INTO files (path) VALUES (%s) RETURNING id", (path,))
-    return cursor.fetchone()[0]
+    if insert:
+        cursor.execute("INSERT INTO files (path) VALUES (%s) RETURNING id", (path,))
+        return cursor.fetchone()[0]
+
+    return None
 
 def find_files(db, files):
     for file in files:
