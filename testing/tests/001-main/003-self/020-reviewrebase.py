@@ -202,11 +202,13 @@ with work, signin:
                commits[2],
                commits[1],
                commits[0]])
-    commits.extend([commit("Test #1, commit 4", write, 4, 5),
-                    commit("Test #1, commit 5", write)])
+    commits.extend([commit("Test #1, commit 4", write, 3, 4, 5),
+                    commit("Test #1, commit 5", write, 4, 5),
+                    commit("Test #1, commit 6", write)])
     push(commits[-1])
     expectmail("Updated Review")
-    expectlog([commits[4],
+    expectlog([commits[5],
+               commits[4],
                commits[3],
                "history rewritten",
                commits[2],
@@ -214,6 +216,7 @@ with work, signin:
                commits[0]])
     historyrewrite(commits[0])
     expectlog(["history rewritten",
+               commits[5],
                commits[4],
                commits[3],
                "history rewritten",
@@ -221,12 +224,24 @@ with work, signin:
                commits[1],
                commits[0]])
     revertrebase()
-    expectlog([commits[4],
+    expectlog([commits[5],
+               commits[4],
                commits[3],
                "history rewritten",
                commits[2],
                commits[1],
                commits[0]])
+
+    # Random extra check for crash fixed in http://critic-review.org/r/207:
+    # Use the [partial] filter to look at the two last commits in the review.
+    # We're only interested in checking that the page loads successfully.
+    frontend.page(
+        "showcommit",
+        params={ "from": commits[3]["sha1"],
+                 "to": commits[5]["sha1"],
+                 "review": reviews[-1]["id"],
+                 "filter": "files",
+                 "file": FILENAME })
 
     # TEST #2: First, set up two different commits that we'll be basing our
     # review branch on.  Then create a review with three commits, move rebase
