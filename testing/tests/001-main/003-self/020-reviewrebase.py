@@ -126,30 +126,47 @@ with work, signin:
 
     def expectlog(expected):
         """Fetch the review front-page and check that the commit log contains
-           the expected lines."""
-        with_class = testing.expect.with_class
-        review = reviews[-1]
-        document = frontend.page("r/%d" % review["id"])
+           the expected lines.
+
+           Also fetch a /showcommit page whose 'Squashed History' log lists
+           everything in the review and check that it contains the same lines
+           too."""
+
         expected = [(item if isinstance(item, str) else item["summary"])
-                     for item in expected]
-        actual = []
-        for tr in document.findAll("tr"):
-            if not tr.has_key("class"):
-                continue
-            classes = tr["class"].split()
-            if "commit" in classes:
-                td = tr.find("td", attrs=with_class("summary"))
-                a = td.find("a", attrs=with_class("commit"))
-                actual.append(a.string)
-            elif "rebase" in classes:
-                td = tr.find("td")
-                if td.contents[0].startswith("Branch rebased"):
-                    a = td.find("a")
-                    sha1 = a["href"].split("/")[-1]
-                    actual.append("rebased onto " + sha1)
-                elif td.contents[0].startswith("History rewritten"):
-                    actual.append("history rewritten")
-        testing.expect.check(expected, actual)
+                    for item in expected]
+
+        def checklog(document):
+            with_class = testing.expect.with_class
+            actual = []
+            for tr in document.findAll("tr"):
+                if not tr.has_key("class"):
+                    continue
+                classes = tr["class"].split()
+                if "commit" in classes:
+                    td = tr.find("td", attrs=with_class("summary"))
+                    a = td.find("a", attrs=with_class("commit"))
+                    actual.append(a.string)
+                elif "rebase" in classes:
+                    td = tr.find("td")
+                    if td.contents[0].startswith("Branch rebased"):
+                        a = td.find("a")
+                        sha1 = a["href"].split("/")[-1]
+                        actual.append("rebased onto " + sha1)
+                    elif td.contents[0].startswith("History rewritten"):
+                        actual.append("history rewritten")
+            testing.expect.check(expected, actual)
+
+        review = reviews[-1]
+
+        frontend.page(
+            "r/%d" % review["id"],
+            expect={ "log": checklog })
+        frontend.page(
+            "showcommit",
+            params={ "review": review["id"],
+                     "filter": "files",
+                     "file": FILENAME },
+            expect={ "log": checklog })
 
     def revertrebase():
         """Revert the most recent rebase."""
