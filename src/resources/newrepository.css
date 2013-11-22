@@ -20,12 +20,12 @@ body { font-size: 12px; font-family: sans-serif }
 
 div.main { text-align: center }
 
-div.main table { background: #ffd; margin-top: 1em; padding: 1em; border: 3px solid #996 }
+div.main table { background: #ffffe6; margin-top: 1em; padding: 1em; border: 3px solid #cca }
 div.main table td { padding-left: 1em }
-div.main table td.h1 { text-align: left; border-bottom: 1px solid #996 }
+div.main table td.h1 { text-align: left; border-bottom: 1px solid #cca }
 div.main table td.h1 h1 { text-align: left; margin-top: 0; margin-bottom: 0.5em }
-div.main table td.repositories { text-align: right; border-bottom: 1px solid #996 }
-div.main table td.repositories select { background-color: #ffd }
+div.main table td.repositories { text-align: right; border-bottom: 1px solid #cca }
+div.main table td.repositories select { background-color: #ffffe6 }
 
 div.main table.information tr td { padding-top: 0.5em }
 div.main table.information td.heading { font-family: serif; font-weight: bold; text-align: right; width: 20% }
@@ -33,6 +33,6 @@ div.main table.information td.prefix { font-family: monospace; text-align: right
 div.main table.information td.value { font-family: monospace; text-align: left; padding-left: 5px }
 div.main table.information td.value input { font-family: monospace; width: 100% }
 div.main table.information td.suffix { font-family: monospace; text-align: left; padding-left: 5px }
-div.main table.information tr.help td { font-style: italic; text-align: right; border-bottom: 1px solid #996 }
+div.main table.information tr.help td { font-style: italic; text-align: right; border-bottom: 1px solid #cca }
 
 div.main table.information tr.buttons td { padding-top: 1em }

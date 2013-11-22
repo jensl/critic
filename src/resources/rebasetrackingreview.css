@@ -23,7 +23,7 @@ select, input {
 }
 
 span.value {
-    border: 1px solid #996;
-    background-color: #ffe;
+    border: 1px solid #cca;
+    background-color: #fffff4;
     padding: 2px 6px
 }

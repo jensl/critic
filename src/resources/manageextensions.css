@@ -17,7 +17,7 @@
 */
 
 tr.item > td.value > span.name {
-    border-bottom: 1px solid #996
+    border-bottom: 1px solid #cca
 }
 
 tr.item > td.value > span.installed {
@@ -30,7 +30,7 @@ tr.item > td.value > span.details {
 }
 
 tr.item > td.value > span.details > select {
-    background-color: #ffd
+    background-color: #ffffe6
 }
 
 tr.item > td.value > div.description {
@@ -51,7 +51,7 @@ table.roles {
 
 table.roles > tbody > tr > th {
     padding-top: 0.5em;
-    border-bottom: 1px solid #996;
+    border-bottom: 1px solid #cca;
     text-align: left
 }
 

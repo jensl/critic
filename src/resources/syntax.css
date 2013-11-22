@@ -47,12 +47,12 @@ td.line b.pp {
 td.line b.kw,
 td.line b.op {
     font-weight: bold;
-    color: black
+    color: #222
 }
 
 /* Identifiers. */
 td.line b.id {
-    color: black
+    color: #222
 }
 
 /* String and character literals. */

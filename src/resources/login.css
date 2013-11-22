@@ -19,12 +19,12 @@
 table.login {
     margin-top: 1em;
     padding: 1em;
-    border: 2px solid #996;
-    background-color: #ffe
+    border: 2px solid #cca;
+    background-color: #fffff4
 }
 
 table.login tr.separator1 td {
-    border-bottom: 1px solid #996;
+    border-bottom: 1px solid #cca;
     padding-top: 1em
 }
 
@@ -71,5 +71,5 @@ table.login tr.continue td {
 }
 
 table.login tr.continue a, table.login tr.continue a:visited {
-    color: black
+    color: #222
 }

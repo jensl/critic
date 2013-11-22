@@ -22,10 +22,10 @@ div.main {
 
 div.main table.edit {
     table-layout: fixed;
-    background: #ffd;
+    background: #ffffe6;
     margin-top: 1em;
     padding: 1em;
-    border: 3px solid #996
+    border: 3px solid #cca
 }
 
 div.main table.edit td {
@@ -34,7 +34,7 @@ div.main table.edit td {
 
 div.main table.edit td.h1 {
     text-align: left;
-    border-bottom: 1px solid #996
+    border-bottom: 1px solid #cca
 }
 
 div.main table.edit td.h1 h1 {
@@ -56,14 +56,14 @@ div.main table.edit tr.select td.value {
 }
 
 div.main table.edit tr.select td.value select {
-    background: #ffd;
+    background: #ffffe6;
     font-family: monospace
 }
 
 div.main table.edit tr.help td.help {
     font-style: italic;
     text-align: right;
-    border-bottom: 1px solid #996
+    border-bottom: 1px solid #cca
 }
 
 div.main table.edit tr.value td.value {

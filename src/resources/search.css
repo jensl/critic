@@ -30,7 +30,7 @@ table.paleyellow input {
 
 table.paleyellow select {
     font-family: monospace;
-    background-color: #ffd
+    background-color: #ffffe6
 }
 
 table.reviews td.name {
@@ -46,8 +46,8 @@ div.quicksearch {
 
 table.quicksearch {
     width: 100%;
-    border: 2px solid #bb8 !important;
-    background: #ffe !important;
+    border: 2px solid #cca !important;
+    background: #fffff4 !important;
     padding: 0.5em
 }
 

@@ -27,7 +27,7 @@ div.main table.manage {
 /*
 div.main table.manage td.h1 {
     text-align: left;
-    border-bottom: 1px solid #996
+    border-bottom: 1px solid #cca
 }
 
 div.main table.manage td.h1 h1 {
@@ -90,5 +90,5 @@ div.main table.manage tr td.right {
 div.main table.manage tr td.help {
     font-style: italic;
     text-align: right;
-    border-bottom: 1px solid #996
+    border-bottom: 1px solid #cca
 }
