@@ -22,10 +22,11 @@ div.main {
 
 div.main table.edit {
     table-layout: fixed;
-    background: #ffffe6;
     margin-top: 1em;
     padding: 1em;
-    border: 3px solid #cca
+    background: #ffffe6;
+    border: 1px solid #cca;
+    border-radius: 4px;
 }
 
 div.main table.edit td {

@@ -19,7 +19,8 @@
 table.repositories {
     margin-top: 1em;
     padding: 1em;
-    border: 2px solid #cca;
+    border: 1px solid #cca;
+    border-radius: 2px;
     background-color: #fffff4;
     font-family: monospace
 }

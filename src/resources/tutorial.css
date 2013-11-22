@@ -152,7 +152,8 @@ td.repositories {
 table.repositories {
     margin-top: 0;
     margin-bottom: 15px;
-    border: 2px solid #cca;
+    border: 1px solid #cca;
+    border-radius: 2px;
     background-color: #fffff4 !important;
     padding: 5px 10px
 }
@@ -187,7 +188,8 @@ table.repositories td.name {
 table.pre {
     margin-top: 1em;
     margin-bottom: 1em;
-    border: 2px solid #cca;
+    border: 1px solid #cca;
+    border-radius: 2px;
     background-color: #fffff4 !important;
     padding: 5px 10px;
     font-family: monospace
@@ -202,7 +204,8 @@ table.pre tr td {
 
 table.toc {
     width: 100%;
-    border: 2px solid #cca !important;
+    border: 1px solid #cca !important;
+    border-radius: 2px;
     background: #fffff4 !important;
     padding: 0.5em
 }

@@ -19,9 +19,10 @@
 .message {
     width: 50%;
     margin: 2em auto 0 auto;
-    border: 2px solid #aaa;
-    border-radius: 1em;
-    padding: 1em 2em
+    padding: 1em 2em;
+    background: #ffffe6;
+    border: 1px solid #cca;
+    border-radius: 4px;
 }
 
 .message h1 {

@@ -20,7 +20,13 @@ body { font-size: 12px; font-family: sans-serif }
 
 div.main { text-align: center }
 
-div.main table { background: #ffffe6; margin-top: 1em; padding: 1em; border: 3px solid #cca }
+div.main table {
+    margin-top: 1em;
+    padding: 1em;
+    background: #ffffe6;
+    border: 1px solid #cca;
+    border-radius: 4px;
+}
 div.main table td { padding-left: 1em }
 div.main table td.h1 { text-align: left; border-bottom: 1px solid #cca }
 div.main table td.h1 h1 { text-align: left; margin-top: 0; margin-bottom: 0.5em }

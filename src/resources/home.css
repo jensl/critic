@@ -33,7 +33,8 @@ div.main table.basic td.help { font-style: italic; text-align: right; border-bot
 
 table.filters {
     width: 90%;
-    border: 2px solid #cca;
+    border: 1px solid #cca;
+    border-radius: 2px;
     background: #fffff4;
     margin-top: 1em;
     margin-bottom: 1em;

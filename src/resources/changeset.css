@@ -66,7 +66,8 @@ table.commit-files > tbody > tr > td.parent.hover {
 }
 
 table.file {
-    border: 2px solid #cca;
+    border: 1px solid #cca;
+    border-radius: 2px;
     margin-bottom: 1em;
     table-layout: fixed
 }
@@ -124,7 +125,7 @@ table.file > tfoot > tr > td.right {
 
 table.file > thead + tbody > tr:first-child > td,
 table.file > tbody + tfoot > tr:first-child > td {
-    border-top: 2px solid #cca
+    border-top: 1px solid #cca
 }
 
 table.file thead td.left a.showtree,

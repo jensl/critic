@@ -122,8 +122,8 @@ table.paleyellow {
     margin-bottom: 2em;
     padding: 1em 1em 1.5em 1em;
     background: #ffffe6;
-    border: 3px solid #cca;
-    border-radius: 10px
+    border: 1px solid #cca;
+    border-radius: 4px;
 }
 
 table.paleyellow > tbody > tr > td {
