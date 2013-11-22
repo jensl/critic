@@ -31,6 +31,12 @@ import configuration
 config_dir = os.path.dirname(configuration.__file__)
 for entry in os.listdir(config_dir):
     if entry.endswith(".py"):
+        if entry.startswith("_") and os.path.exists(os.path.join(config_dir, entry[1:])):
+            # If the upgrade modifies a configuration file, say file.py, it
+            # will keep a backup of the file stored as _file.py (also in the
+            # configuration directory) and there won't be a pyc file for the
+            # backup, so skip ahead to avoid unnecessarily printing the below warning.
+            continue
         config_file = os.path.join(config_dir, entry)
         pyc_file = config_file + "c"
         try:
