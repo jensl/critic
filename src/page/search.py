@@ -40,12 +40,11 @@ def renderSearch(req, db, user):
     document.addInternalScript("var users = %s;" % textutils.json_encode(users))
 
     def renderQuickSearch(target):
-        table = target.div("quicksearch").table("quicksearch")
-        table.tr().th().text("Quick Search")
-        table.tr().td("text").text("""\
-Review search is also available from every Critic page via a keyboard
-short-cut; pressing the F key opens a review search dialog.""")
-        table.tr().td("link").a(href="/tutorial?item=search").text("More information")
+        container = target.div("quicksearch-callout")
+        container.p().text("""\
+A quick search dialog can be opened from all Critic pages using the F keyboard
+shortcut.""")
+        container.p().a(href="/tutorial?item=search").text("More information")
 
     def renderSummary(target):
         target.input(name="summary")
