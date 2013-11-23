@@ -131,14 +131,14 @@ table.paleyellow > tbody > tr > td {
 }
 
 table.paleyellow > * > tr > td.h1 {
-    text-align: left;
     border-bottom: 1px solid #cca
 }
 
 table.paleyellow > * > tr > td.h1 > h1 {
     text-align: left;
     margin-top: 0;
-    margin-bottom: 0.5em
+    margin-bottom: 0.5em;
+    font-weight: normal;
 }
 
 table.paleyellow > * > tr > td.h1 > h1 > * {

@@ -26,7 +26,7 @@
 }
 
 .message h1 {
-    text-decoration: underline
+    font-weight: normal;
 }
 
 .message h1.center {

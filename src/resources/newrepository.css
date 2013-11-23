@@ -28,8 +28,8 @@ div.main table {
     border-radius: 4px;
 }
 div.main table td { padding-left: 1em }
-div.main table td.h1 { text-align: left; border-bottom: 1px solid #cca }
-div.main table td.h1 h1 { text-align: left; margin-top: 0; margin-bottom: 0.5em }
+div.main table td.h1 { border-bottom: 1px solid #cca }
+div.main table td.h1 h1 { text-align: left; margin-top: 0; margin-bottom: 0.5em; font-weight: normal }
 div.main table td.repositories { text-align: right; border-bottom: 1px solid #cca }
 div.main table td.repositories select { background-color: #ffffe6 }
 
