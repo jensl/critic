@@ -48,6 +48,14 @@ ERROR: Failed to compile %s:\n%s
         created_file.append(path + "c")
         return True
 
+def copyfile(source, destination):
+    if os.path.islink(source):
+        if os.path.lexists(destination):
+            os.unlink(destination)
+        os.symlink(os.readlink(source), destination)
+    else:
+        shutil.copyfile(source, destination)
+
 def install(data):
     source_dir = os.path.join(installation.root_dir, "src")
     target_dir = installation.paths.install_dir
@@ -67,14 +75,15 @@ def install(data):
             created_dir.append(target)
             return True
         else:
-            shutil.copyfile(source, target)
+            copyfile(source, target)
             created_file.append(target)
-            if path.startswith("hooks/"):
-                mode = 0755
-            else:
-                mode = 0644
-            os.chmod(target, mode)
-            os.chown(target, installation.system.uid, installation.system.gid)
+            if not os.path.islink(target):
+                if path.startswith("hooks/"):
+                    mode = 0755
+                else:
+                    mode = 0644
+                os.chmod(target, mode)
+            os.lchown(target, installation.system.uid, installation.system.gid)
             copied_files += 1
             if not compile_file(path):
                 compilation_failed.append(path)
@@ -231,7 +240,7 @@ deleted.
                 except OSError as error:
                     if error.errno == errno.EEXIST: pass
                     else: raise
-                shutil.copyfile(full_source_path, full_target_path)
+                copyfile(full_source_path, full_target_path)
                 created_file.append(full_target_path)
             copied_files += 1
             if isResource(target_path):
@@ -260,8 +269,8 @@ deleted.
                             with open(full_target_path + ".org", "w") as target:
                                 target.write(source)
                         elif label == "updated":
-                            shutil.copyfile(full_source_path,
-                                            full_target_path + ".new")
+                            copyfile(full_source_path,
+                                     full_target_path + ".new")
 
                     update_query = installation.utils.UpdateModifiedFile(
                         arguments,
@@ -293,7 +302,7 @@ Not installing the updated version can cause unpredictable results.
                     if not arguments.dry_run:
                         os.rename(full_target_path, backup_path)
                         renamed.append((full_target_path, backup_path))
-                        shutil.copyfile(full_source_path, full_target_path)
+                        copyfile(full_source_path, full_target_path)
                         created_file.append(full_target_path)
                         if not compile_file(target_path):
                             compilation_failed.append(target_path)
@@ -308,8 +317,9 @@ Not installing the updated version can cause unpredictable results.
         else:
             mode = 0644
         if not arguments.dry_run:
-            os.chmod(full_target_path, mode)
-            os.chown(full_target_path, installation.system.uid, installation.system.gid)
+            if not os.path.islink(full_target_path):
+                os.chmod(full_target_path, mode)
+            os.lchown(full_target_path, installation.system.uid, installation.system.gid)
 
     differences = subprocess.check_output(
         [git, "diff", "--numstat", "%s..%s" % (old_sha1, new_sha1)],
