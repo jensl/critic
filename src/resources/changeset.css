@@ -284,22 +284,6 @@ tr.inserted > td.new b.t {
     color: #aca
 }
 
-/*
-table.file > tbody.lines > tr.commenthead > td.commenthead {
-    background-color: #ccf;
-    font-weight: bold;
-    border-top: 1px solid #99b;
-    border-bottom: 1px solid #99b;
-    text-align: center
-}
-
-table.file > tbody.lines > tr.commentchain > td.comment {
-    background-color: #ccf;
-    font-weight: bold;
-    border-bottom: 1px solid #99b
-}
-*/
-
 input.approve {
     background-color: #eec;
     font-weight: bold
@@ -334,10 +318,6 @@ table.commit-info tr.commit-msg > td {
 table.commit-msg tr.line:hover {
     background-color: #eee
 }
-
-/*table.commit-msg tr.line td {
-    line-height: 100%
-}*/
 
 table.commit-msg tr.line td.edge {
     padding: 0 1em 0 1em

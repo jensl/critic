@@ -24,19 +24,6 @@ div.main table.manage {
     table-layout: fixed;
 }
 
-/*
-div.main table.manage td.h1 {
-    text-align: left;
-    border-bottom: 1px solid #cca
-}
-
-div.main table.manage td.h1 h1 {
-    text-align: left;
-    margin-top: 0;
-    margin-bottom: 0.5em
-}
-*/
-
 div.main table.manage tr.current td.select,
 div.main table.manage tr.reviewer td.select,
 div.main table.manage tr.headings td {

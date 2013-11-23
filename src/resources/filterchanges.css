@@ -24,22 +24,6 @@ div.main table.filter {
     table-layout: fixed
 }
 
-/*
-div.main table.filter tr.header td.h1,
-div.main table.filter tr.header td.h1.button {
-    border-bottom: 1px solid #cca
-}
-
-div.main table.filter tr.header td.h1 {
-    text-align: left;
-}
-
-div.main table.filter td.h1 h1 {
-    text-align: left;
-    margin-top: 0
-}
-*/
-
 div.main table.filter tr.header td.button {
     vertical-align: top
 }

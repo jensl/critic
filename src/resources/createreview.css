@@ -22,13 +22,6 @@ input.submit { font-size: 20px; background-color: lime }
 
 div.main { text-align: center }
 
-/*
-div.main > table { background: #ffffe6; margin-top: 1em; padding: 1em; border: 3px solid #cca }
-div.main > table td { padding-left: 1em; vertical-align: top }
-div.main > table td.h1 { text-align: left; border-bottom: 1px solid #cca }
-div.main > table td.h1 h1 { text-align: left; margin-top: 0; margin-bottom: 0.5em }
-*/
-
 div.main > table td { vertical-align: top }
 
 div.main table.basic tr.line td { padding-top: 0.5em }

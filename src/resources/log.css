@@ -64,7 +64,6 @@ table.log tr.commit td.summary {
 table.log tr.commit:hover td.summary { background-color: #eed }
 table.log tr.commit.highlight td.summary { background-color: #dfd }
 table.log tr.commit td.summary.selected { background-color: #eed }
-/*table.log tr.commit td.summary:hover { background-color: #eed }*/
 table.log tr.commit:first-child td.summary { border-top: 1px dotted #cca }
 table.log tr.commit td.author { text-align: right; font-weight: bold }
 table.log tr.commit.selected { background: #ddb }
@@ -90,7 +89,7 @@ table.log.collapsable.collapsed > thead,
 table.log.collapsable.collapsed > tbody { display: none }
 
 tr.sublog > td { padding-bottom: 0.5em }
-tr.sublog > td > table.log { /*border-top: 1px solid #cca; border-bottom: 1px solid #cca;*/ padding-top: 0.5em; padding-bottom: 0.5em }
+tr.sublog > td > table.log { padding-top: 0.5em; padding-bottom: 0.5em }
 tr.sublog > td > table.log tr > td.when { border-left: 3px solid #cca; }
 
 div.main div.submit { margin-left: 30%; margin-right: 30%; background-color: #8f8; border: 3px solid #6b6; text-align: center; margin-top: 1em; margin-bottom: 1em; border-radius: 10px; color: #141 }
