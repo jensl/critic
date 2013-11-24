@@ -19,8 +19,9 @@
 table.services {
     margin-top: 1em;
     padding: 1em;
-    border: 2px solid #996;
-    background-color: #ffe;
+    border: 1px solid #cca;
+    border-radius: 2px;
+    background-color: #fffff4;
     font-family: monospace
 }
 
@@ -34,7 +35,7 @@ tr.spacer > td {
 }
 
 tr.headings > th {
-    border-bottom: 1px solid #996
+    border-bottom: 1px solid #cca
 }
 
 th.name, td.name {
@@ -86,7 +87,7 @@ tr.service:hover > td.commands a {
 }
 
 div.servicelog > pre {
-    border: 1px solid black;
+    border: 1px solid #222;
     padding: 0.5em;
     background: white;
     overflow: auto

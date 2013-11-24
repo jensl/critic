@@ -53,7 +53,7 @@ table.commit-files > tbody > tr > th.parent {
 }
 
 table.commit-files > tbody > tr > td > a {
-    color: black;
+    color: #222;
     text-decoration: none
 }
 
@@ -66,7 +66,8 @@ table.commit-files > tbody > tr > td.parent.hover {
 }
 
 table.file {
-    border: 2px solid #996;
+    border: 1px solid #cca;
+    border-radius: 2px;
     margin-bottom: 1em;
     table-layout: fixed
 }
@@ -107,7 +108,7 @@ table.file > thead > tr > td,
 table.file > tfoot > tr > td {
     padding: 3px 2em;
     width: 50%;
-    background-color: #ffd
+    background-color: #ffffe6
 }
 
 table.file > thead > tr > td.left,
@@ -124,13 +125,13 @@ table.file > tfoot > tr > td.right {
 
 table.file > thead + tbody > tr:first-child > td,
 table.file > tbody + tfoot > tr:first-child > td {
-    border-top: 2px solid #996
+    border-top: 1px solid #cca
 }
 
 table.file thead td.left a.showtree,
 table.file tfoot td.left a.showtree {
     text-decoration: none;
-    color: black
+    color: #222
 }
 table.file thead td.left a.showtree.root,
 table.file tfoot td.left a.showtree.root {
@@ -139,7 +140,7 @@ table.file tfoot td.left a.showtree.root {
 table.file thead td.left a.showtree:hover,
 table.file tfoot td.left a.showtree:hover {
     text-decoration: underline;
-    color: black
+    color: #222
 }
 
 table.file > tbody.spacer > tr > td {

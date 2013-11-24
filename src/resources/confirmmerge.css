@@ -22,15 +22,16 @@ div.main {
 
 div.main table.confirm {
     table-layout: fixed;
-    background: #ffd;
     margin-top: 1em;
     padding: 1em;
-    border: 3px solid #996
+    background: #ffffe6;
+    border: 1px solid #cca;
+    border-radius: 4px;
 }
 
 div.main table.confirm td.h1 {
     text-align: left;
-    border-bottom: 1px solid #996
+    border-bottom: 1px solid #cca
 }
 
 div.main table.confirm td.h1 h1 {

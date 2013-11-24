@@ -79,13 +79,13 @@ div.main table.preferences td.value span.also-configurable-per {
 div.main table.preferences td.help {
     font-style: italic;
     text-align: right;
-    border-bottom: 1px solid #996
+    border-bottom: 1px solid #cca
 }
 
 div.main table.preferences td.extension {
     text-align: left;
     padding-top: 1.5em;
-    border-bottom: 1px solid #996
+    border-bottom: 1px solid #cca
 }
 
 div.main table.preferences td.extension h2 span.name {

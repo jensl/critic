@@ -80,7 +80,7 @@ tr.line.replaced:hover > td.line.new {
 /* Yellowish background color on both sides of modified lines; and slightly
    darker yellowish when hovered. */
 tr.line.modified > td.line {
-    background-color: #ffd
+    background-color: #ffffe6
 }
 tr.line.modified:hover > td.line {
     background-color: #eec

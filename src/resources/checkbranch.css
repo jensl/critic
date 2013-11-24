@@ -145,7 +145,7 @@ div.main table.branchstatus tbody:hover tr td.edit a.edit {
     color: #cca
 }
 div.main table.branchstatus tbody tr:hover td.edit a.edit {
-    color: black
+    color: #222
 }
 div.main table.branchstatus tbody.unknown tr.commit.own td.edit a.edit {
     color: red;
@@ -228,7 +228,7 @@ div.comments > div.resolution {
 
 div.legend {
     margin-top: 10px;
-    border-top: 3px solid black;
+    border-top: 3px solid #222;
     text-align: right;
     padding-top: 10px;
     padding-right: 1em;

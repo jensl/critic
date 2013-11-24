@@ -26,15 +26,18 @@ div.main > table {
 }
 
 div.main table td.h2 {
-    padding-top: 1em;
-    padding-left: 2em;
+    border-bottom: 1px solid #cca
+}
+
+div.main table td.h2 h2 {
     text-align: left;
-    border-bottom: 1px solid #996
+    font-size: 1rem;
+    margin: 1.5rem 0 0.75rem;
 }
 
 div.main table td.h2 div {
     text-align: left;
-    margin: 0 auto 0.5em auto;
+    margin: 0 auto;
     width: 50em
 }
 
@@ -79,7 +82,7 @@ div.main table td.text div div.example {
 }
 
 div.main table td.text div h3 {
-    border-bottom: 1px solid #996
+    border-bottom: 1px solid #cca
 }
 
 div.main table td.text div.link {
@@ -90,7 +93,7 @@ div.main table td.text div.link {
 
 div.main table td.text a {
     text-decoration: underline;
-    color: black;
+    color: #222;
     white-space: nowrap
 }
 
@@ -142,7 +145,7 @@ div.main table td.back {
 
 div.main table td.back div {
     padding-top: 2em;
-    border-top: 1px solid #996
+    border-top: 1px solid #cca
 }
 
 td.repositories {
@@ -152,8 +155,9 @@ td.repositories {
 table.repositories {
     margin-top: 0;
     margin-bottom: 15px;
-    border: 2px solid #bb8;
-    background-color: #ffe !important;
+    border: 1px solid #cca;
+    border-radius: 2px;
+    background-color: #fffff4 !important;
     padding: 5px 10px
 }
 
@@ -169,7 +173,7 @@ table.repositories td.path {
 }
 
 table.repositories th {
-    border-bottom: 1px solid black
+    border-bottom: 1px solid #222
 }
 
 table.repositories tr.repository.first td {
@@ -187,8 +191,9 @@ table.repositories td.name {
 table.pre {
     margin-top: 1em;
     margin-bottom: 1em;
-    border: 2px solid #bb8;
-    background-color: #ffe !important;
+    border: 1px solid #cca;
+    border-radius: 2px;
+    background-color: #fffff4 !important;
     padding: 5px 10px;
     font-family: monospace
 }
@@ -202,8 +207,9 @@ table.pre tr td {
 
 table.toc {
     width: 100%;
-    border: 2px solid #bb8 !important;
-    background: #ffe !important;
+    border: 1px solid #cca !important;
+    border-radius: 2px;
+    background: #fffff4 !important;
     padding: 0.5em
 }
 
@@ -224,5 +230,5 @@ table.toc tr.h3 td {
 }
 
 table.toc a {
-    color: black
+    color: #222
 }

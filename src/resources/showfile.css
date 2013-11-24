@@ -26,10 +26,10 @@ div.main {
 
 div.main table.file {
     table-layout: fixed;
-    background: #ffd;
+    background: #ffffe6;
     margin-top: 1em;
     padding: 1em;
-    border: 3px solid #996
+    border: 3px solid #cca
 }
 
 div.main table td {
@@ -62,14 +62,14 @@ div.main table td.line {
 
 div.main table td.h1 h1 > a {
     text-decoration: none;
-    color: black
+    color: #222
 }
 div.main table td.h1 h1 > a.root {
     font-size: 80%
 }
 div.main table td.h1 h1 > a:hover {
     text-decoration: underline;
-    color: black
+    color: #222
 }
 div.main table td.h1 h1 span {
     padding-left: 3px;

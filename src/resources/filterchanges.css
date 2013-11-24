@@ -27,7 +27,7 @@ div.main table.filter {
 /*
 div.main table.filter tr.header td.h1,
 div.main table.filter tr.header td.h1.button {
-    border-bottom: 1px solid #996
+    border-bottom: 1px solid #cca
 }
 
 div.main table.filter tr.header td.h1 {
@@ -49,7 +49,7 @@ div.main table.filter tr.footer td.spacer {
 }
 
 div.main table.filter tr.footer td.button {
-    border-top: 1px solid #996
+    border-top: 1px solid #cca
 }
 
 div.main table.filter tr.footer td {
@@ -86,5 +86,5 @@ div.main table.filter tr td.right {
 div.main table.filter tr td.help {
     font-style: italic;
     text-align: right;
-    border-bottom: 1px solid #996
+    border-bottom: 1px solid #cca
 }

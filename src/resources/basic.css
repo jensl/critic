@@ -16,6 +16,10 @@
 
 */
 
+body {
+    color: #222;
+}
+
 h1.noscript {
     color: red;
     text-align: center
@@ -27,7 +31,7 @@ div.main > table {
 
 div.shortcuts {
     margin-top: 10px;
-    border-top: 3px solid black;
+    border-top: 3px solid #222;
     text-align: right;
     padding-top: 10px;
     padding-right: 1em
@@ -35,11 +39,11 @@ div.shortcuts {
 
 div.shortcuts a.shortcut {
     text-decoration: none;
-    color: black
+    color: #222
 }
 
 table.pageheader {
-    border-bottom: 3px solid black
+    border-bottom: 3px solid #222
 }
 
 table.pageheader td.left {
@@ -58,7 +62,7 @@ table.pageheader td.left b.opera {
 }
 
 table.pageheader td.left b.opera.development {
-    color: black
+    color: #222
 }
 
 table.pageheader td.left b.critic {
@@ -74,7 +78,7 @@ table.pageheader td.left span.link {
 
 table.pageheader td.left span.link a {
     text-decoration: none;
-    color: black
+    color: #222
 }
 
 table.pageheader td.right {
@@ -93,7 +97,7 @@ table.pageheader td.right div span.buttonscope-global > :first-child {
 
 table.pagefooter {
     margin-top: 10px;
-    border-top: 3px solid black
+    border-top: 3px solid #222
 }
 
 table.pagefooter td.left {
@@ -117,9 +121,9 @@ table.paleyellow {
     margin-top: 1.5em;
     margin-bottom: 2em;
     padding: 1em 1em 1.5em 1em;
-    background: #ffd;
-    border: 3px solid #996;
-    border-radius: 10px
+    background: #ffffe6;
+    border: 1px solid #cca;
+    border-radius: 4px;
 }
 
 table.paleyellow > tbody > tr > td {
@@ -127,14 +131,14 @@ table.paleyellow > tbody > tr > td {
 }
 
 table.paleyellow > * > tr > td.h1 {
-    text-align: left;
-    border-bottom: 1px solid #996
+    border-bottom: 1px solid #cca
 }
 
 table.paleyellow > * > tr > td.h1 > h1 {
+    margin: 0 0 0.75rem;
     text-align: left;
-    margin-top: 0;
-    margin-bottom: 0.5em
+    font-size: 1.9rem;
+    font-weight: normal;
 }
 
 table.paleyellow > * > tr > td.h1 > h1 > * {
@@ -147,16 +151,13 @@ table.paleyellow > * > tr > td.h1 > h1 > span.right {
 }
 
 table.paleyellow > tbody > tr > td.h2 {
-    text-align: left;
-    padding-top: 1em;
-    padding-left: 2em;
-    border-bottom: 1px solid #996
+    border-bottom: 1px solid #cca
 }
 
 table.paleyellow > tbody > tr > td.h2 > h2 {
     text-align: left;
-    margin-top: 0;
-    margin-bottom: 0.5em
+    font-size: 1rem;
+    margin: 0.75rem 0;
 }
 
 table.paleyellow > tbody > tr > td.h2 > h2 > span {
@@ -198,7 +199,7 @@ table.paleyellow > tbody > tr.item > td.value > div.buttons button {
 table.paleyellow > tbody > tr.help > td {
     font-style: italic;
     text-align: right;
-    border-bottom: 1px solid #996
+    border-bottom: 1px solid #cca
 }
 
 table.paleyellow > tbody > tr.spacer > td {
@@ -210,7 +211,7 @@ table.paleyellow > tbody > tr.separator > td {
 }
 
 table.paleyellow > tbody > tr.separator > td > div {
-    border-bottom: 1px solid #996
+    border-bottom: 1px solid #cca
 }
 
 table.paleyellow > tbody > tr.centered > td {
@@ -248,7 +249,7 @@ table.pageheader td.left > ul > li {
 
 table.pageheader td.left > ul > li > a {
   text-decoration: none;
-  color: black
+  color: #222
 }
 
 table.pageheader td.left > ul > li:before {
@@ -265,7 +266,7 @@ table.pageheader td.left > ul > li:first-child:before {
 
 .error-dialog code, .message-dialog code {
     display: inline-block;
-    border: 1px solid #996;
+    border: 1px solid #cca;
     background-color: #fff;
     padding: 2px 4px
 }
