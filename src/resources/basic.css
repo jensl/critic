@@ -135,9 +135,9 @@ table.paleyellow > * > tr > td.h1 {
 }
 
 table.paleyellow > * > tr > td.h1 > h1 {
+    margin: 0 0 0.75rem;
     text-align: left;
-    margin-top: 0;
-    margin-bottom: 0.5em;
+    font-size: 1.9rem;
     font-weight: normal;
 }
 
@@ -151,16 +151,13 @@ table.paleyellow > * > tr > td.h1 > h1 > span.right {
 }
 
 table.paleyellow > tbody > tr > td.h2 {
-    text-align: left;
-    padding-top: 1em;
-    padding-left: 2em;
     border-bottom: 1px solid #cca
 }
 
 table.paleyellow > tbody > tr > td.h2 > h2 {
     text-align: left;
-    margin-top: 0;
-    margin-bottom: 0.5em
+    font-size: 1rem;
+    margin: 0.75rem 0;
 }
 
 table.paleyellow > tbody > tr > td.h2 > h2 > span {
