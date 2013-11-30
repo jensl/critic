@@ -231,17 +231,12 @@ class SearchReview(Operation):
                     term = term[1:-1]
 
                 auto_filters = []
-
-                if re.search(r"\s", term):
-                    auto_filters.append(SummaryFilter(db, term))
-                    auto_filters.append(DescriptionFilter(db, term))
-                else:
+                auto_filters.append(SummaryFilter(db, term))
+                auto_filters.append(DescriptionFilter(db, term))
+                if not re.search(r"\s", term):
+                    auto_filters.append(BranchFilter(db, term))
                     if re.search(r"\w/\w|\w\.\w+$", term):
                         auto_filters.append(PathFilter(db, term))
-                    else:
-                        auto_filters.append(SummaryFilter(db, term))
-                        auto_filters.append(DescriptionFilter(db, term))
-                    auto_filters.append(BranchFilter(db, term))
 
                 filters.append(OrFilter(auto_filters))
 

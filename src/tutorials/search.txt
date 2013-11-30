@@ -73,20 +73,21 @@ Unqualified Search Terms
 A search term that is not qualified by <code>keyword:</code> is interpreted as
 follows:
 
-If the search term was quoted and contains at least one white-space character,
-it is interpreted as a text search, and is matched against review summaries and
-descriptions only.
-
-Otherwise, the search term is matched against review branch names, and in
-addition either against the paths of files touched by reviews, or against review
-summaries and descriptions, depending on whether the search term looks like a
-path or filename.  The term is considered to look like a path or filename if it
+Review summaries and descriptions will always be searched. If the search term
+doesn't contain any white-space characters, review branch names are also
+searched. If the search term looks like a file path, the search term is also
+matched against files touched by the review. The term is considered to look
+like a path if it does not contain any white-space characters, and either
 contains a path separator or ends with a file name extension.
 
 Examples
 --------
 
 Example query strings:
+
+? <code>example</code>
+= Finds reviews whose summary, description or branch name contains the
+  sub-string "example".
 
 ? <code>search example</code>
 = Finds reviews whose summary or description contains the sub-string "search"
