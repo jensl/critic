@@ -194,14 +194,12 @@ table.paleyellow > tbody > tr.item > td.name {
     font-family: serif;
     font-weight: bold;
     text-align: right;
-    vertical-align: top
 }
 
 table.paleyellow > tbody > tr.item > td.value {
     font-family: monospace;
     white-space: pre-wrap;
     text-align: left;
-    vertical-align: top;
     padding-left: 1em
 }
 
