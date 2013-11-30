@@ -42,7 +42,7 @@ def renderLogin(req, db, user):
 
     def render(target):
         form = target.form(name="login", method="POST", action="redirect?" + urllib.urlencode({ "target": target_url }))
-        table = form.table("login", align="center")
+        table = form.table("login callout", align="center")
 
         row = table.tr("status disabled")
         row.td(colspan=2).text()

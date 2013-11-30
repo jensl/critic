@@ -32,19 +32,12 @@ div.main table.basic td.help { font-style: italic; text-align: right; border-bot
 
 table.filters {
     width: 90%;
-    border: 1px solid #cca;
-    border-radius: 2px;
-    background: #fffff4;
-    margin-top: 1em;
-    margin-bottom: 1em;
-    padding: 0.5em
+    margin: 1rem auto;
 }
 
 table.filters th {
     border-bottom: 1px solid #cca;
     text-align: left;
-    padding-top: 1em;
-    padding-left: 1em
 }
 
 table.filters tbody:first-child th {

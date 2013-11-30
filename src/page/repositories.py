@@ -62,7 +62,7 @@ def renderRepositories(req, db, user):
     repository_by_id = dict((repository.id, repository) for repository in repositories)
 
     def render(target):
-        table = target.table("repositories", cellspacing=0, align="center")
+        table = target.table("repositories callout", cellspacing=0, align="center")
 
         headings = table.tr("headings")
         headings.th("name").text("Short name")

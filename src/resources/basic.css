@@ -416,3 +416,12 @@ fieldset {
 .checkbox-group label:last-child {
     padding-right: 0;
 }
+
+.callout {
+    padding: 0.75rem;
+    background: #fffff4;
+    border: 1px solid #ddb;
+    border-bottom-color: #cca;
+    border-right-color: #cca;
+    border-radius: 4px;
+}

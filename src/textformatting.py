@@ -63,7 +63,7 @@ def renderFormatted(db, user, table, lines, toc=False, title_right=None):
                         span_right.text(title_right)
                 text = None
                 if toc:
-                    toc = table.tr("toc").td("toc").div().table("toc")
+                    toc = table.tr("toc").td("toc").div().table("toc callout")
                     toc.tr("heading").th().text("Table of contents")
                 continue
             elif re_h2.match(block[1]):
@@ -75,7 +75,7 @@ def renderFormatted(db, user, table, lines, toc=False, title_right=None):
         if len(block) == 1 and block[0] == "[repositories]":
             text = None
 
-            repositories = table.tr("repositories").td("repositories").table("repositories", align="center", cellspacing=0)
+            repositories = table.tr("repositories").td("repositories").table("repositories callout", align="center", cellspacing=0)
             headings = repositories.tr("headings")
             headings.th("name").text("Short name")
             headings.th("path").text("Repository path")
@@ -118,7 +118,7 @@ def renderFormatted(db, user, table, lines, toc=False, title_right=None):
             block = block[2:]
 
         if block[0].startswith("|"):
-            pre = text.div().table("pre").tr().td().preformatted()
+            pre = text.div().table("pre callout").tr().td().preformatted()
             pre.text("\n".join([line[2:] for line in block]))
         elif block[0].startswith("* ") or block[0].startswith("1 "):
             if block[0].startswith("* "):
