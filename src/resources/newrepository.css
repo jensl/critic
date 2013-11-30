@@ -31,7 +31,6 @@ div.main table td { padding-left: 1em }
 div.main table td.h1 { border-bottom: 1px solid #cca }
 div.main table td.h1 h1 { text-align: left; margin-top: 0; margin-bottom: 0.5em; font-weight: normal }
 div.main table td.repositories { text-align: right; border-bottom: 1px solid #cca }
-div.main table td.repositories select { background-color: #ffffe6 }
 
 div.main table.information tr td { padding-top: 0.5em }
 div.main table.information td.heading { font-family: serif; font-weight: bold; text-align: right; width: 20% }

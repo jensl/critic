@@ -56,11 +56,6 @@ div.main table.edit tr.select td.value {
     vertical-align: top
 }
 
-div.main table.edit tr.select td.value select {
-    background: #ffffe6;
-    font-family: monospace
-}
-
 div.main table.edit tr.help td.help {
     font-style: italic;
     text-align: right;

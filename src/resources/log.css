@@ -115,11 +115,6 @@ div.marker.left {
     border-bottom-left-radius: 10px;
 }
 
-select.base {
-    background-color: #ffffe6;
-    font-family: monospace
-}
-
 select.base option.base {
     font-weight: bold
 }

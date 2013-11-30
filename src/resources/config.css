@@ -54,8 +54,6 @@ div.main table.preferences td.value input.setting[type=text] {
 }
 
 div.main table.preferences td.value select.setting {
-    font-family: monospace;
-    background-color: white;
     min-width: 30%
 }
 

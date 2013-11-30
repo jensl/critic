@@ -87,8 +87,6 @@ div#recipients .key {
 }
 
 div#recipients select {
-    font-family: monospace;
-    background-color: transparent;
     width: 100%
 }
 
@@ -107,8 +105,6 @@ p.remotepath {
 }
 
 select.repository {
-    font-family: monospace;
-    background-color: white;
     width: 40em
 }
 

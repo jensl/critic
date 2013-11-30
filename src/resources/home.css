@@ -21,7 +21,6 @@ body { font-size: 12px; font-family: sans-serif }
 div.main { text-align: center }
 
 div.main table td.repositories { text-align: right; border-bottom: 1px solid #cca }
-div.main table td.repositories select { background-color: #ffffe6 }
 
 div.main table.basic tr.line td { padding-top: 0.5em; vertical-align: top }
 div.main table.basic td.heading { font-family: serif; font-weight: bold; text-align: right; width: 20% }
@@ -91,7 +90,6 @@ div.main table.filters td.help p strong { font-weight: bold; font-style: normal 
 div.main table.filters td.help p code { font-style: normal }
 div.main table.filters td.filter.empty { text-align: left; font-weight: bold; padding-top: 0.5em }
 div.main table.filters td.filter.type { text-align: right; width: 10%; font-weight: bold }
-div.main table.filters td.filter.type select { background-color: #ffffe6 }
 div.main table.filters td.filter.path { text-align: left; width: 50%; font-family: monospace }
 div.main table.filters td.filter.path input { font-family: monospace; width: 90% }
 div.main table.filters td.filter.delegate { text-align: left; width: 20%; font-family: monospace }
@@ -108,7 +106,6 @@ div.main table.filters td.heading.buttons { text-align: right; width: 10% }
 
 div.password input {
     width: 100%;
-    font-family: monospace
 }
 
 div.filterdialog select {
@@ -155,6 +152,5 @@ div.reapplyresult tr.first td.summary {
 }
 
 div.matchedfiles select {
-    font-family: monospace;
     width: 99%
 }

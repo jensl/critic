@@ -396,8 +396,6 @@ div.specifyupstream input[name='sha1'] {
 }
 
 div.specifyupstream select {
-    font-family: monospace;
-    background-color: white;
     width: 100%
 }
 

@@ -177,8 +177,6 @@ div.comment > p > span.review-id {
 }
 
 div.comment > p > select {
-    font-family: monospace;
-    background-color: white;
     width: 100%
 }
 

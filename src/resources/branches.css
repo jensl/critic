@@ -22,7 +22,6 @@ div.main { text-align: center }
 
 div.main table tr.title td.description { text-align: right; border-bottom: 1px solid #cca; margin-left: 0; margin-top: 0; margin-bottom: 0.5em; font-style: italic }
 div.main table tr.title td.repositories { text-align: right; border-bottom: 1px solid #cca }
-div.main table tr.title td.repositories select { background-color: #ffffe6 }
 
 div.main table.branches tr.headings td { padding-top: 0.5em; font-weight: bold; text-decoration: underline }
 div.main table.branches tr.headings td.when { text-align: right; width: 10% }

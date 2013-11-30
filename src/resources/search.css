@@ -28,11 +28,6 @@ table.paleyellow input {
     font-family: monospace;
 }
 
-table.paleyellow select {
-    font-family: monospace;
-    background-color: #ffffe6
-}
-
 table.reviews td.name {
     font-weight: bold
 }

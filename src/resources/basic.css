@@ -271,11 +271,6 @@ table.pageheader td.left > ul > li:first-child:before {
     padding: 2px 4px
 }
 
-select.repository {
-    font-family: monospace;
-    background-color: white
-}
-
 .notifications {
     position: fixed;
     width: 400px;
@@ -320,4 +315,54 @@ div.searchdialog input {
     width: 100%;
     font-family: monospace;
     margin-top: 0.5em
+}
+
+input:not([type]),
+input[type="text"],
+input[type="password"],
+input[type="date"],
+input[type="email"],
+input[type="number"],
+input[type="search"],
+input[type="tel"],
+input[type="time"],
+input[type="url"],
+textarea {
+    margin: 0;
+    box-sizing: border-box;
+    padding: .3rem;
+    background: #fff;
+    opacity: .95;
+    border: 1px solid #efefcf;
+    border-top-color: #e5e6b3;
+    border-left-color: #e5e6b3;
+    border-radius: 2px;
+    font-size: inherit;
+}
+input:not([type]):focus,
+input[type="text"]:focus,
+input[type="password"]:focus,
+input[type="date"]:focus,
+input[type="email"]:focus,
+input[type="number"]:focus,
+input[type="search"]:focus,
+input[type="tel"]:focus,
+input[type="time"]:focus,
+input[type="url"]:focus,
+textarea:focus {
+    outline: none;
+    opacity: 1;
+    border-color: #ddb;
+    border-top-color: #cca;
+    border-left-color: #cca;
+    box-shadow: 0 0 1px 1px #fff;
+}
+
+select {
+    font-size: inherit;
+}
+
+input:disabled,
+select:disabled {
+    opacity: .8;
 }

@@ -29,10 +29,6 @@ tr.item > td.value > span.details {
     float: right
 }
 
-tr.item > td.value > span.details > select {
-    background-color: #ffffe6
-}
-
 tr.item > td.value > div.description {
     padding-top: 1em;
     padding-bottom: 1em;

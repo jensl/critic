@@ -17,9 +17,11 @@
 */
 
 select, input {
-    background: white;
-    font-family: monospace;
     width: 50%
+}
+
+input {
+    font-family: monospace;
 }
 
 span.value {
