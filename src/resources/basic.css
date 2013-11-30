@@ -117,13 +117,30 @@ div.paleyellow {
     text-align: center
 }
 
+.paleyellow {
+    margin: 1rem auto;
+    padding: 1rem;
+    box-sizing: border-box;
+    background: #ffffe6;
+    border: 1px solid #cca;
+    border-bottom-color: #bb9;
+    border-right-color: #bb9;
+    border-radius: 4px;
+}
+
+.paleyellow > h1 {
+    margin: 0;
+    padding: .25rem .5rem .5rem;
+    border-bottom: 1px solid #cca;
+    font-size: 1.9rem;
+    font-weight: normal;
+}
+
+
 table.paleyellow {
     margin-top: 1.5em;
     margin-bottom: 2em;
     padding: 1em 1em 1.5em 1em;
-    background: #ffffe6;
-    border: 1px solid #cca;
-    border-radius: 4px;
 }
 
 table.paleyellow > tbody > tr > td {
@@ -227,10 +244,20 @@ table.paleyellow > tbody > tr.html > td {
 }
 
 @media (min-width: 1348px) {
+    .section,
     div.main > table,
     table.paleyellow {
         width: 1280px
     }
+}
+
+.callout {
+    padding: 0 0.75rem;
+    background: #fffff4;
+    border: 1px solid #ddb;
+    border-bottom-color: #cca;
+    border-right-color: #cca;
+    border-radius: 4px;
 }
 
 .ui-dialog { box-shadow: 0 5px 5px rgba(0, 0, 0, 0.5), 0 7px 25px rgba(0, 0, 0, 0.5) }
@@ -317,6 +344,12 @@ div.searchdialog input {
     margin-top: 0.5em
 }
 
+.flex {
+    display: -ms-flexbox;
+    display: -webkit-flex;
+    display: flex;
+}
+
 input:not([type]),
 input[type="text"],
 input[type="password"],
@@ -329,6 +362,7 @@ input[type="time"],
 input[type="url"],
 textarea {
     margin: 0;
+    -moz-box-sizing: border-box;
     box-sizing: border-box;
     padding: .3rem;
     background: #fff;
@@ -364,5 +398,23 @@ select {
 
 input:disabled,
 select:disabled {
-    opacity: .8;
+    opacity: .7;
+}
+
+fieldset {
+    border: 0;
+    padding: 0;
+}
+
+.input-label {
+    font-size: .9rem;
+    font-weight: bold;
+}
+
+.checkbox-group label {
+    padding-right: .5rem;
+    white-space: nowrap;
+}
+.checkbox-group label:last-child {
+    padding-right: 0;
 }

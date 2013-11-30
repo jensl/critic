@@ -75,12 +75,11 @@ def with_class(*names):
     return { "class": check }
 
 def find_paleyellow(document, index):
-    """Find index:th <table class="paleyellow"> in the document."""
-    tables = document.findAll(
-        "table", attrs=with_class("paleyellow"))
+    """Find index:th ".paleyellow" in the document."""
+    tables = document.findAll(attrs=with_class("paleyellow"))
     if index >= len(tables):
-        raise FailedCheck("<table: index=%d>" % index,
-                          "<no table: count=%d>" % len(tables))
+        raise FailedCheck("<paleyellow: index=%d>" % index,
+                          "<no paleyellow: count=%d>" % len(tables))
     return tables[index]
 
 def document_title(expected):
@@ -88,7 +87,7 @@ def document_title(expected):
     return lambda document: check(expected, document.title.string)
 
 def paleyellow_title(index, expected):
-    """Return index:th <table class="paleyellow"> title checker."""
+    """Return index:th ".paleyellow" title checker."""
     def checker(document):
         table = find_paleyellow(document, index)
         actual = "<no title found>"

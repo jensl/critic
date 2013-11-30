@@ -20,83 +20,98 @@
 
 "use strict";
 
-function search()
-{
-  function phrases(value)
-  {
-    return value.match(/"[^"]+"|'[^']+'|\S+/g).map(
-      function (phrase)
-      {
-        var match = /^'([^']+)'|"([^"]+)"$/.exec(phrase);
-        if (match)
-          return match[1] || match[2] || "";
-        else
-          return phrase;
-      });
-  }
+$(function () {
+  var searchForm = document.forms.search;
 
-  function tokens(value)
-  {
-    return value.split(/[\s,]+/g).map(
-      function (item)
-      {
-        return item.trim();
-      }).filter(
+  // Disable the freetext input if none of its checkboxes are checked
+  [ searchForm.freetextSummary, searchForm.freetextDescription ].forEach(
+    function (checkbox, idx, checkboxes) {
+      checkbox.addEventListener('click', function () {
+        var someChecked = checkboxes.some(
+          function (cbox) { return cbox.checked; }
+        );
+        if (searchForm.freetext.disabled === someChecked) {
+          searchForm.freetext.disabled = !someChecked;
+        }
+      });
+    });
+
+  searchForm.addEventListener('submit', function (evt) {
+    evt.preventDefault();
+    var form = this;
+    function phrases(value)
+    {
+      return value.match(/"[^"]+"|'[^']+'|\S+/g).map(
+        function (phrase)
+        {
+          var match = /^'([^']+)'|"([^"]+)"$/.exec(phrase);
+          if (match)
+            return match[1] || match[2] || "";
+          else
+            return phrase;
+        });
+    }
+
+    function tokens(value)
+    {
+      return value.split(/[\s,]+/g).map(
         function (item)
         {
-          return item;
-        });
-  }
+          return item.trim();
+        }).filter(
+          Boolean
+        );
+    }
 
-  function with_keyword(keyword)
-  {
-    return function (term) { return term ? keyword + ":'" + term + "'" : ""; };
-  }
+    function with_keyword(keyword)
+    {
+      return function (term) { return term ? keyword + ":'" + term + "'" : ""; };
+    }
 
-  var summary = $("input[name='summary']").val().trim();
-  var description = $("input[name='description']").val().trim();
-  var repository = $("select[name='repository']").val();
-  var branch = $("input[name='branch']").val().trim();
-  var paths = tokens($("input[name='path']").val().trim());
-  var users = tokens($("input[name='user']").val().trim());
-  var owners = tokens($("input[name='owner']").val().trim());
-  var reviewers = tokens($("input[name='reviewer']").val().trim());
-  var state = $("select[name='state']").val();
+    var terms = [];
 
-  var terms = [];
+    var freetext = form.freetext.value.trim();
+    if (freetext) {
+      var textphrases = phrases(freetext);
+      if (form.freetextSummary.checked && form.freetextDescription.checked) {
+        terms.push.apply(terms, textphrases);
+      } else if (form.freetextSummary.checked) {
+        terms.push.apply(terms, textphrases.map(with_keyword("summary")));
+      } else if (form.freetextDescription.checked) {
+        terms.push.apply(terms, textphrases.map(with_keyword("description")));
+      }
+    }
 
-  if (summary)
-    terms.push.apply(terms, phrases(summary).map(with_keyword("summary")));
+    var users = tokens(form.user.value.trim());
+    if (form.userOwner.checked && form.userReviewer.checked) {
+      terms.push.apply(terms, users.map(with_keyword("user")));
+    } else if (form.userOwner.checked) {
+      terms.push.apply(terms, users.map(with_keyword("owner")));
+    } else if (form.userReviewer.checked) {
+      terms.push.apply(terms, users.map(with_keyword("reviewer")));
+    }
 
-  if (description)
-    terms.push.apply(terms, phrases(description).map(with_keyword("description")));
+    var repository = form.repository.value;
+    if (repository && repository !== "-") {
+      terms.push(with_keyword("repository")(repository));
+    }
 
-  if (repository && repository != "-")
-    terms.push(with_keyword("repository")(repository));
+    var branch = form.branch.value.trim();
+    if (branch) {
+      terms.push(with_keyword("branch")(branch));
+    }
 
-  if (branch)
-    terms.push(with_keyword("branch")(branch));
+    var paths = tokens(form.path.value.trim());
+    terms.push.apply(terms, paths.map(with_keyword("path")));
 
-  terms.push.apply(terms, paths.map(with_keyword("path")));
-  terms.push.apply(terms, users.map(with_keyword("user")));
-  terms.push.apply(terms, owners.map(with_keyword("owner")));
-  terms.push.apply(terms, reviewers.map(with_keyword("reviewer")));
+    var state = form.state.value;
+    if (state && state !== "-") {
+      terms.push(with_keyword("state")(state));
+    }
 
-  if (state && state != "-")
-    terms.push(with_keyword("state")(state));
+    quickSearch(terms.join(" "));
+  });
 
-  quickSearch(terms.join(" "));
-}
-
-$(function ()
-  {
-    $("input").keypress(
-      function (ev)
-      {
-        if (ev.keyCode == 13)
-          search();
-      });
-
-    $("input[name='user'], input[name='owner'], input[name='reviewer']")
+    $(document.forms.search.user)
       .autocomplete({ source: AutoCompleteUsers(users) });
   });

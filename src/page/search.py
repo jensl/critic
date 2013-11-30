@@ -20,6 +20,7 @@ import page.utils
 
 def renderSearch(req, db, user):
     document = htmlutils.Document(req)
+    document.setTitle("Review Search")
 
     html = document.html()
     head = html.head()
@@ -40,54 +41,79 @@ def renderSearch(req, db, user):
     document.addInternalScript("var users = %s;" % textutils.json_encode(users))
 
     def renderQuickSearch(target):
-        container = target.div("quicksearch-callout")
-        container.p().text("""\
-A quick search dialog can be opened from all Critic pages using the F keyboard
-shortcut.""")
-        container.p().a(href="/tutorial?item=search").text("More information")
+        wrap = target.div("quicksearch callout")
+        wrap.p().text("""A Quick Search dialog can be opened from any page
+                         using the "F" keyboard shortcut.""")
+        wrap.p().a(href="/tutorial?item=search").text("More information")
 
-    def renderSummary(target):
-        target.input(name="summary")
-    def renderDescription(target):
-        target.input(name="description")
-    def renderRepository(target):
-        page.utils.generateRepositorySelect(
-            db, user, target, name="repository", selected=False,
-            none_label="Any repository", allow_selecting_none=True)
-    def renderBranch(target):
-        target.input(name="branch")
-    def renderPath(target):
-        target.input(name="path")
-    def renderUser(target):
-        target.input(name="user")
-    def renderOwner(target):
-        target.input(name="owner")
-    def renderReviewer(target):
-        target.input(name="reviewer")
+    def renderInput(target, label, name, placeholder=""):
+        fieldset = target.fieldset("search-" + name)
+        fieldset.label("input-label").text(label)
+        fieldset.input(type="text", name=name, placeholder=placeholder)
+
+    def renderInputWithOptions(target, label, name, options, placeholder=""):
+        fieldset = target.fieldset("search-" + name)
+        fieldset.label("input-label").text(label)
+        checkGroup = fieldset.div("input-options checkbox-group")
+        for option in options:
+            opt_label = checkGroup.label()
+            opt_label.input(type="checkbox", name=option["name"],
+                            checked="checked" if "checked" in option else None)
+            opt_label.text(option["label"])
+        fieldset.input(type="text", name=name, placeholder=placeholder)
+
+    def renderFreetext(target):
+        options=[{ "name": "freetextSummary", "label": "Summary",
+                   "checked": True },
+                 { "name": "freetextDescription", "label": "Description",
+                   "checked": True }]
+        renderInputWithOptions(target, label="Search term", name="freetext",
+                               placeholder="free text search", options=options)
+
     def renderState(target):
-        select = target.select(name="state")
-        select.option(value="-").text("Any state")
+        state = target.fieldset("search-state")
+        state.label("input-label").text("State")
+        select = state.select(name="state")
+        select.option(value="-", selected="selected").text("Any state")
         select.option(value="open").text("Open")
         select.option(value="pending").text("Pending")
         select.option(value="accepted").text("Accepted")
         select.option(value="closed").text("Finished")
         select.option(value="dropped").text("Dropped")
 
-    def renderButton(target):
-        target.button(onclick="search();").text("Search")
+    def renderUser(target):
+        options=[{ "name": "userOwner", "label": "Owner", "checked": True },
+                 { "name": "userReviewer", "label": "Reviewer" }]
+        renderInputWithOptions(target, label="User", name="user",
+                               placeholder="user name(s)", options=options)
 
-    search = page.utils.PaleYellowTable(body, "Review Search")
-    search.addCentered(renderQuickSearch)
-    search.addSeparator()
-    search.addItem("Summary", renderSummary)
-    search.addItem("Description", renderDescription)
-    search.addItem("Repository", renderRepository)
-    search.addItem("Branch", renderBranch)
-    search.addItem("Path", renderPath)
-    search.addItem("User", renderUser)
-    search.addItem("Owner", renderOwner)
-    search.addItem("Reviewer", renderReviewer)
-    search.addItem("State", renderState)
-    search.addCentered(renderButton)
+    def renderRepository(target):
+        fieldset = target.fieldset("search-repository")
+        fieldset.label("input-label").text("Repository")
+        page.utils.generateRepositorySelect(
+            db, user, fieldset, name="repository", selected=False,
+            none_label="Any repository", allow_selecting_none=True)
+
+    section = body.section("paleyellow section")
+    section.h1("section-heading").text("Review Search")
+
+    wrap = section.div("flex")
+    search = wrap.form("search", name="search")
+
+    row = search.div("flex")
+    renderFreetext(row)
+    renderState(row)
+
+    renderUser(search)
+
+    row = search.div("flex")
+    renderRepository(row)
+    renderInput(row, "Branch", "branch")
+
+    renderInput(search, "Path", "path")
+
+    search.button(type="submit").text("Search")
+
+    renderQuickSearch(wrap)
 
     return document

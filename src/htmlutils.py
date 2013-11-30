@@ -91,7 +91,7 @@ def tabify(line, tabwidth=8, indenttabsmode=True):
 
     return result
 
-BLOCK_ELEMENTS = set(["html", "head", "body", "table", "thead", "tbody", "tfoot", "tr", "td", "th", "div", "p", "ol", "li", "select", "option", "link", "script"])
+BLOCK_ELEMENTS = set(["html", "head", "body", "section", "table", "thead", "tbody", "tfoot", "tr", "td", "th", "div", "p", "ol", "li", "label", "select", "option", "link", "script"])
 EMPTY_ELEMENTS = set(["br", "hr", "input", "link", "base", "col"])
 
 def isBlockElement(name):

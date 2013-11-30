@@ -16,28 +16,60 @@
 
 */
 
-table.paleyellow input {
-    width: 80%
+.search,
+.callout.quicksearch {
+    -ms-flex: 1;
+    -webkit-flex: 1;
+    flex: 1;
+}
+.callout.quicksearch {
+    -ms-flex-item-align: start;
+    -webkit-align-self: flex-start;
+    align-self: flex-start;
+    max-width: 19rem;
+    margin: 1.5rem .5rem 0 1.5rem;
+}
+.search {
+    max-width: 50em;
+    margin: 1.5rem .5rem;
 }
 
-table.paleyellow tr.item > td.name {
-    vertical-align: middle !important
+.search > * {
+    margin-bottom: 1.5rem;
+}
+.search > *:last-child {
+    margin-bottom: 0;
 }
 
-table.paleyellow input {
-    font-family: monospace;
+.input-options {
+    float: right;
+    font-size: .8em;
 }
 
-table.reviews td.name {
-    font-weight: bold
+.search input[type=text],
+.search select {
+    margin-top: .25rem;
+    width: 100%;
 }
 
-.quicksearch-callout {
-    width: 35%;
-    margin: 0 auto;
-    padding: 0 0.75rem;
-    text-align: left;
-    background: #fffff4;
-    border: 1px solid #cca;
-    border-radius: 2px;
+.search-freetext,
+.search-repository {
+    margin-right: 1.5rem;
+}
+
+.search-repository,
+.search-branch {
+    -ms-flex: 1;
+    -webkit-flex: 1;
+    flex: 1;
+}
+.search-freetext {
+    -ms-flex: 5;
+    -webkit-flex: 5;
+    flex: 5;
+}
+.search-state {
+    -ms-flex: 2;
+    -webkit-flex: 2;
+    flex: 2;
 }
