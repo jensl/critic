@@ -26,6 +26,9 @@ where the supported keywords are:
 ? <code>description</code>
 = Filter by searching for sub-string in the review's description.
 
+? <code>text</code>
+= Filter by searching for sub-string in the review's summary and/or description.
+
 ? <code>branch</code> (or <code>b</code>)
 = Filter by matching the review branch name.
 

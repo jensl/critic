@@ -178,37 +178,44 @@ class SearchReview(Operation):
         for term in terms:
             if re.match("[a-z]+:", term):
                 keyword, _, value = term.partition(":")
-
                 if keyword == "summary":
-                    filter_class = SummaryFilter
+                    filter_classes = [SummaryFilter]
                 elif keyword == "description":
-                    filter_class = DescriptionFilter
+                    filter_classes = [DescriptionFilter]
+                elif keyword == "text":
+                    filter_classes = [SummaryFilter, DescriptionFilter]
                 elif keyword in ("branch", "b"):
-                    filter_class = BranchFilter
+                    filter_classes = [BranchFilter]
                 elif keyword in ("path", "p"):
-                    filter_class = PathFilter
+                    filter_classes = [PathFilter]
                 elif keyword in ("user", "u"):
-                    filter_class = UserFilter
+                    filter_classes = [UserFilter]
                 elif keyword in ("owner", "o"):
-                    filter_class = OwnerFilter
+                    filter_classes = [OwnerFilter]
                 elif keyword == "reviewer":
-                    filter_class = ReviewerFilter
+                    filter_classes = [ReviewerFilter]
                 elif keyword in ("state", "s"):
-                    filter_class = StateFilter
+                    filter_classes = [StateFilter]
                 elif keyword in ("repository", "repo", "r"):
-                    filter_class = RepositoryFilter
+                    filter_classes = [RepositoryFilter]
                 else:
                     raise OperationFailure(
                         code="invalidkeyword",
                         title="Invalid keyword: %r" % keyword,
                         message=("Supported keywords are summary, description, "
-                                 "branch, path, user, owner and reviewer."))
+                                 "text, branch, path, user, owner and reviewer."))
 
                 if re.match("([\"']).*\\1$", value):
                     value = value[1:-1]
 
                 try:
-                    filters.append(filter_class(db, value))
+                    if len(filter_classes) > 1:
+                        keyword_filters = [filter_class(db, value)
+                                           for filter_class in filter_classes]
+                        filters.append(OrFilter(keyword_filters))
+                    else:
+                        filters.append(filter_classes[0](db, value))
+
                 except InvalidFilter as error:
                     raise OperationFailure(
                         code="invalidterm",

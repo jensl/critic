@@ -74,7 +74,7 @@ $(function () {
     if (freetext) {
       var textphrases = phrases(freetext);
       if (form.freetextSummary.checked && form.freetextDescription.checked) {
-        terms.push.apply(terms, textphrases);
+        terms.push.apply(terms, textphrases.map(with_keyword("text")));
       } else if (form.freetextSummary.checked) {
         terms.push.apply(terms, textphrases.map(with_keyword("summary")));
       } else if (form.freetextDescription.checked) {
