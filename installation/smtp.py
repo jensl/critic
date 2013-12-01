@@ -72,11 +72,19 @@ well as to the system administrator to alert about problems.
             except ValueError:
                 return "must be a valid TCP port number"
 
-        first = True
 
-        if arguments.smtp_use_ssl and arguments.smtp_use_starttls:
-            print "Invalid arguments: only one of --smtp-ssl and --smtp-starttls can be enabled."
-            return False
+        if mode == "install":
+            if arguments.smtp_use_ssl and arguments.smtp_use_starttls:
+                print "Invalid arguments: only one of --smtp-ssl and --smtp-starttls can be enabled."
+                return False
+            first = True
+        else:
+            # This case, an upgrade where installation.smtp.host is not recorded
+            # in "data"; happens when upgrading from a pre-5f0389f commit to
+            # 5f0389f or later.  Since upgrade.py doesn't have --smtp-* command
+            # line arguments, ignore "arguments" variable and go straight to
+            # manual input.
+            first = False
 
         while True:
             if first and arguments.smtp_use_ssl is not None:
@@ -114,7 +122,7 @@ well as to the system administrator to alert about problems.
             if first and arguments.smtp_username:
                 username = arguments.smtp_username
                 need_password = True
-            elif not arguments.smtp_no_auth \
+            elif (not first or not arguments.smtp_no_auth) \
                     and installation.input.yes_or_no("Does the SMTP server require authentication?",
                                                      default=username is not None):
                 username = installation.input.string("SMTP username:", default=username)
@@ -128,8 +136,9 @@ well as to the system administrator to alert about problems.
 
             print
 
-            if not arguments.skip_testmail and installation.input.yes_or_no("Do you want to send a test email to verify the SMTP configuration?",
-                                            default=True if first else None):
+            if (not first or not arguments.skip_testmail) \
+                    and installation.input.yes_or_no("Do you want to send a test email to verify the SMTP configuration?",
+                                                     default=True if first else None):
                 import smtplib
                 import email.mime.text
                 import email.header
@@ -195,7 +204,7 @@ Couldn't send the test email:
 
 Please check the configuration!
 """ % failed
-                elif arguments.skip_testmail_check \
+                elif (first and arguments.skip_testmail_check) \
                          or installation.input.yes_or_no("Did the test email arrive correctly?") \
                          or not installation.input.yes_or_no("Do you want to modify the configuration?", default=True):
                     break
