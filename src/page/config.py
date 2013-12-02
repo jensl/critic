@@ -447,6 +447,6 @@ def renderConfig(req, db, user):
     critic_installed_sha1 = dbutils.getInstalledSHA1(db)
     div = body.div("installed_sha1")
     div.text("Critic version: ")
-    div.a(href="http://critic-review.org/critic/%s" % critic_installed_sha1).text(critic_installed_sha1)
+    div.a(href="https://critic-review.org/critic/%s" % critic_installed_sha1).text(critic_installed_sha1)
 
     return document
