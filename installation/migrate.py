@@ -40,7 +40,12 @@ def scripts_to_run(data):
                 # and there's thus no point in running it now.
                 continue
 
-            scripts.append(script)
+            date_added = installation.utils.get_intial_commit_date(git, script_path)
+
+            scripts.append((date_added, script))
+
+    scripts.sort()
+    scripts = [script for (date_added, script) in scripts]
 
     return scripts
 
