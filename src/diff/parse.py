@@ -221,8 +221,8 @@ def parseDifferences(repository, commit=None, from_commit=None, to_commit=None, 
     re_chunk = re.compile('^@@ -(\\d+)(?:,\\d+)? \\+(\\d+)(?:,\\d+)? @@')
     re_binary = re.compile('^Binary files (?:a/(.+)|/dev/null) and (?:b/(.+)|/dev/null) differ')
     re_diff = re.compile("^diff --git ([\"']?)a/(.*)\\1 ([\"']?)b/(.*)\\3$")
-    re_old_path = re.compile("--- ([\"']?)a/(.*)\\1\\s*$")
-    re_new_path = re.compile("\\+\\+\\+ ([\"']?)b/(.*)\\1\\s*$")
+    re_old_path = re.compile("--- ([\"']?)a/(.*?)\\1\t?$")
+    re_new_path = re.compile("\\+\\+\\+ ([\"']?)b/(.*?)\\1\t?$")
 
     def isplitlines(text):
         start = 0
