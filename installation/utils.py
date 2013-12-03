@@ -19,6 +19,7 @@ import textwrap
 import subprocess
 import tempfile
 import datetime
+import hashlib
 
 import installation
 
@@ -187,8 +188,12 @@ def copy_file(source_path, target_path):
             os.fchown(target.fileno(), stat.st_uid, stat.st_gid)
 
 def hash_file(git, path):
-    return subprocess.check_output([git, "hash-object", path],
-                                   cwd=installation.root_dir).strip()
+    if os.path.islink(path):
+        value = os.readlink(path)
+    else:
+        with open(path) as file:
+            value = file.read()
+    return hashlib.sha1("blob %d\0%s" % (len(value), value)).hexdigest()
 
 def get_entry_sha1(git, commit_sha1, path, entry_type):
     lstree = subprocess.check_output([git, "ls-tree", commit_sha1, path],
