@@ -31,7 +31,7 @@ div.main > table {
 
 div.shortcuts {
     margin-top: 10px;
-    border-top: 3px solid #222;
+    border-top: 2px solid #A0A092;
     text-align: right;
     padding-top: 10px;
     padding-right: 1em
@@ -43,7 +43,7 @@ div.shortcuts a.shortcut {
 }
 
 table.pageheader {
-    border-bottom: 3px solid #222
+    border-bottom: 2px solid #A0A092;
 }
 
 table.pageheader td.left {
@@ -97,7 +97,7 @@ table.pageheader td.right div span.buttonscope-global > :first-child {
 
 table.pagefooter {
     margin-top: 10px;
-    border-top: 3px solid #222
+    border-top: 2px solid #A0A092;
 }
 
 table.pagefooter td.left {

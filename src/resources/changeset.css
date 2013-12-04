@@ -16,6 +16,12 @@
 
 */
 
+div.main {
+    margin-bottom: 20px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid #A0A092;
+}
+
 table.commit-files {
     margin-left: 0.5em;
     margin-bottom: 15px

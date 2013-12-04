@@ -134,7 +134,7 @@ div.main table.branchstatus tbody:hover tr.note {
 }
 
 div.main table.branchstatus tbody tr.commit:hover {
-    background-color: #ddb
+    background-color: #998;
 }
 
 div.main table.branchstatus tbody tr td.edit a.edit {
@@ -226,7 +226,7 @@ div.comments > div.resolution {
 
 div.legend {
     margin-top: 10px;
-    border-top: 3px solid #222;
+    border-top: 2px solid #A0A092;
     text-align: right;
     padding-top: 10px;
     padding-right: 1em;

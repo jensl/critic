@@ -467,7 +467,7 @@ def renderCommitFiles(db, target, user, repository, review, changeset=None, chan
 def render(db, target, user, repository, review, changesets, commits, listed_commits=None, context_lines=3, is_merge=False, conflicts=False, moves=False, compact=False, wrap=True, tabify=False, profiler=None, rebases=None):
     cursor = db.cursor()
 
-    main = target.div("main", style="border-bottom: 3px solid black; margin-bottom: 20px; padding-bottom: 10px")
+    main = target.div("main")
 
     options = {}
 
