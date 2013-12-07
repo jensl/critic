@@ -245,7 +245,8 @@ try:
         db = dbaccess.connect()
         cursor = db.cursor()
         cursor.execute("UPDATE systemidentities SET installed_sha1=%s, installed_at=NOW() WHERE name=%s", (new_critic_sha1, arguments.identity))
-        db.commit()
+        if not arguments.dry_run:
+            db.commit()
 
     if not arguments.dry_run:
         with open(install_data_path, "w") as install_data:
