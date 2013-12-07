@@ -78,20 +78,15 @@ CommitMarkers.prototype.remove = function ()
 
 function rebase(name, base, newBaseBase, oldCount, newCount, baseOldCount, baseNewCount)
 {
-  function proceed()
+  function finish()
   {
-    var success = false;
-
     $.ajax({ async: false,
              url: "/rebasebranch?repository=" + repository.id + "&name=" + name + "&base=" + base,
              dataType: "text",
              success: function (data)
                {
                  if (data == "ok")
-                 {
-                   $("button.perform").remove();
-                   success = true;
-                 }
+                   location.replace("/log?repository=" + repository.id + "&branch=" + name);
                  else
                    reportError("update base branch", "Server reply: <i style='white-space: pre'>" + htmlify(data) + "</i>");
                },
@@ -100,12 +95,10 @@ function rebase(name, base, newBaseBase, oldCount, newCount, baseOldCount, baseN
                  reportError("update base branch", "Request failed.");
                }
            });
-
-    return success;
   }
 
   var content = $("<div title=Please Confirm'><p>You are about to update Critic's record of the branch <b>" + htmlify(name) + "</b>.  It used to contain " + oldCount + " commits and will now contain these " + newCount + " commits instead.</p>" + (typeof baseOldCount == "number" ? "<p>In addition, the branch <b>" + htmlify(base) + "</b> will be modified to have <b>" + htmlify(newBaseBase) + "</b> as its new base branch instead of <b>" + htmlify(name) + "</b>, and will contain " + baseNewCount + " commits instead of " + baseOldCount + " commits.</p>" : "") + "<p><b>Note:</b> The git repository will not be affected at all by this.</p><p>Are you sure you want to do this?</p></div>");
-  content.dialog({ width: 400, modal: true, buttons: { "Perform Rebase": function () { if (proceed()) content.dialog("close"); }, "Do Nothing": function () { content.dialog("close"); }}});
+  content.dialog({ width: 400, modal: true, buttons: { "Perform Rebase": finish, "Do Nothing": function () { content.dialog("close"); }}});
 }
 
 function showRelevantMerges(ev)
