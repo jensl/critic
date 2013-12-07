@@ -345,7 +345,7 @@ so you might just need to restart this script."""
         if install_passlib and not passlib_available:
             success = False
 
-    if all_ok: print "All okay."
+    if all_ok: print "All prerequisites available."
 
     return success
 
