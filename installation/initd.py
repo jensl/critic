@@ -27,13 +27,23 @@ renamed = []
 
 rclinks_added = False
 servicemanager_started = False
+servicemanager_stopped = False
 
-def restart(identity="main"):
+def stop(identity="main"):
+    global servicemanager_stopped
+    servicemanager_stopped = True
     print
-    print "Restarting service manager ..."
-
     try:
-        subprocess.check_call(["service", "critic-%s" % identity, "restart"])
+        subprocess.check_call(["service", "critic-%s" % identity, "stop"])
+    except subprocess.CalledProcessError:
+        return False
+
+    return True
+
+def start(identity="main"):
+    print
+    try:
+        subprocess.check_call(["service", "critic-%s" % identity, "start"])
     except subprocess.CalledProcessError:
         return False
 
@@ -114,21 +124,6 @@ likely to break.
                 os.chmod(target_path, 0755)
                 os.chown(target_path, system_uid, system_gid)
                 target.write(source.encode("utf-8"))
-
-    if write_target or installation.files.sources_modified or installation.config.modified_files:
-        if not arguments.dry_run:
-            # Due to a Critic bug (see fix: "Fix recreation of /var/run/critic/IDENTITY after reboot")
-            # it was possible that /var/run/critic/IDENTITY was accidentally recreated owned by root:root
-            # instead of critic:critic (on reboot). If this had happened the service manager restart that
-            # is done during upgrade would fail so upgrades always failed. Further, it was not possible
-            # to write a migration script for this because migrations execute after the service manager
-            # restart. Because of this the following 3 line workaround was necessary:
-            import configuration
-            if os.path.exists(configuration.paths.RUN_DIR):
-                os.chown(configuration.paths.RUN_DIR, installation.system.uid, installation.system.gid)
-
-            if not restart():
-                return False
 
     return True
 

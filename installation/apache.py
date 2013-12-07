@@ -23,6 +23,7 @@ import installation
 pass_auth = "Off"
 site_suffix = ".conf"
 default_site = "000-default"
+apache_stopped = False
 
 def get_apache2_version():
     output = subprocess.check_output([installation.prereqs.apache2ctl, "-v"])
@@ -31,29 +32,38 @@ def get_apache2_version():
         return None
     return match.group(1)
 
-def restart():
+def start():
+    global apache_stopped
     print
-    print "Restarting Apache ..."
-
     try:
-        subprocess.check_call(["service", "apache2", "restart"])
+        subprocess.check_call(["service", "apache2", "start"])
     except subprocess.CalledProcessError:
         print """
-WARNING: Apache failed to restart.
+WARNING: Apache failed to start.
 
 You can now either abort this Critic installation/upgrade, or you can
 go ahead anyway, fix the Apache configuration problem manually (now or
-later), and then restart Apache yourself using the command
+later), and then start Apache yourself using the command
 
-  service apache2 restart
+  service apache2 start
 
 Note that if you don't abort, the Critic system will most likely not
 be accessible until the Apache configuration has been fixed.
 """
         return not installation.input.yes_or_no(
             "Do you want to abort this Critic installation/upgrade?")
-    else:
-        return True
+    apache_stopped = False
+    return True
+
+def stop():
+    global apache_stopped
+    apache_stopped = True
+    print
+    try:
+        subprocess.check_call(["service", "apache2", "stop"])
+    except subprocess.CalledProcessError:
+        return False
+    return True
 
 def prepare(mode, arguments, data):
     global pass_auth, site_suffix, default_site
@@ -105,7 +115,7 @@ def install(data):
         if "Site default disabled." in output:
             default_site_disabled = True
 
-    return restart()
+    return stop() and start()
 
 def upgrade(arguments, data):
     site = "site.%s" % installation.config.access_scheme
@@ -157,10 +167,6 @@ likely to break.
                 created_file.append(target_path)
                 os.chmod(target_path, 0640)
                 target.write(source.encode("utf-8"))
-
-    if write_target or installation.files.sources_modified or installation.config.modified_files:
-        if not arguments.dry_run and not restart():
-            return False
 
     return True
 

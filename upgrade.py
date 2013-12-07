@@ -71,6 +71,11 @@ def abort():
             print >>sys.stderr, "FAILED: %s.undo()" % module.__name__
             traceback.print_exc()
 
+    if installation.initd.servicemanager_stopped and not installation.initd.start():
+        print "WARNING: Undo failed to start Critic background services again..."
+    if installation.apache.apache_stopped and not installation.apache.start():
+        print "WARNING: Undo failed to start Apache again..."
+
     sys.exit(1)
 
 etc_path = os.path.join(arguments.etc_dir, arguments.identity)
@@ -225,6 +230,12 @@ try:
             traceback.print_exc()
             abort()
 
+    if not arguments.dry_run:
+        if not installation.apache.stop():
+            abort()
+        if not installation.initd.stop():
+            abort()
+
     for module in installation.modules:
         try:
             if hasattr(module, "upgrade") and not module.upgrade(arguments, data):
@@ -236,6 +247,24 @@ try:
         except:
             print >>sys.stderr, "FAILED: %s.upgrade()" % module.__name__
             traceback.print_exc()
+            abort()
+
+    if not arguments.dry_run:
+        # Before bugfix "Fix recreation of /var/run/critic/IDENTITY after reboot"
+        # it was possible that /var/run/critic/IDENTITY was accidentally
+        # recreated owned by root:root instead of critic:critic (on reboot).
+        # If this had happened the service manager restart that is done during
+        # upgrade would fail so upgrades always failed. Further, it was not
+        # possible to write a migration script for this because migrations
+        # execute after the service manager restart. Because of this the
+        # following 3 line workaround was necessary:
+        import configuration
+        if os.path.exists(configuration.paths.RUN_DIR):
+            os.chown(configuration.paths.RUN_DIR, installation.system.uid, installation.system.gid)
+
+        if not installation.initd.start():
+            abort()
+        if not installation.apache.start():
             abort()
 
     data["sha1"] = new_critic_sha1
