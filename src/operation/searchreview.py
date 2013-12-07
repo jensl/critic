@@ -176,7 +176,7 @@ class SearchReview(Operation):
         filters = []
 
         for term in terms:
-            if re.match("[a-z]+:", term):
+            if re.match("[a-z\-]+:", term):
                 keyword, _, value = term.partition(":")
                 if keyword == "summary":
                     filter_classes = [SummaryFilter]
@@ -194,6 +194,8 @@ class SearchReview(Operation):
                     filter_classes = [OwnerFilter]
                 elif keyword == "reviewer":
                     filter_classes = [ReviewerFilter]
+                elif keyword == "owner-or-reviewer":
+                    filter_classes = [OwnerFilter, ReviewerFilter]
                 elif keyword in ("state", "s"):
                     filter_classes = [StateFilter]
                 elif keyword in ("repository", "repo", "r"):

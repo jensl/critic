@@ -82,14 +82,17 @@ $(function () {
       }
     }
 
-    var users = tokens(form.user.value.trim());
+    var users = tokens(form.user.value.trim()), usersKey;
     if (form.userOwner.checked && form.userReviewer.checked) {
-      terms.push.apply(terms, users.map(with_keyword("user")));
+      usersKey = "owner-or-reviewer";
     } else if (form.userOwner.checked) {
-      terms.push.apply(terms, users.map(with_keyword("owner")));
+      usersKey = "owner";
     } else if (form.userReviewer.checked) {
-      terms.push.apply(terms, users.map(with_keyword("reviewer")));
+      usersKey = "reviewer";
+    } else {
+      usersKey = "user";
     }
+    terms.push.apply(terms, users.map(with_keyword(usersKey)));
 
     var repository = form.repository.value;
     if (repository && repository !== "-") {
