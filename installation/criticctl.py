@@ -17,7 +17,6 @@
 import installation
 import os
 import os.path
-import json
 
 created_file = []
 renamed = []

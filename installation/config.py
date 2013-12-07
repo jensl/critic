@@ -17,7 +17,6 @@
 import sys
 import os
 import os.path
-import json
 import pwd
 import grp
 import py_compile
