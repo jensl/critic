@@ -220,6 +220,7 @@ def renderShortcuts(target, page, **kwargs):
         addShortcut(ord("l"), "l", "show less context")
 
     if page == "filterchanges":
+        addShortcut(ord("a"), "a", "select everything")
         addShortcut(ord("g"), "g", "go / display diff")
 
     container = target.div("shortcuts")
