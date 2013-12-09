@@ -35,6 +35,7 @@ import diff
 import mailutils
 import configuration
 import auth
+import htmlutils
 
 import operation.createcomment
 import operation.createreview
@@ -127,6 +128,12 @@ def handleStaticResource(req):
         req.setContentType("text/plain")
         req.start()
         return ["No such resource!"]
+    last_modified = htmlutils.mtime(resource_path)
+    if req.query and req.query == htmlutils.base36(last_modified):
+        HTTP_DATE = "%a, %d %b %Y %H:%M:%S GMT"
+        req.addResponseHeader("Last-Modified", time.strftime(HTTP_DATE, time.gmtime(last_modified)))
+        req.addResponseHeader("Expires", time.strftime(HTTP_DATE, time.gmtime(time.time() + 2592000)))
+        req.addResponseHeader("Cache-Control", "max-age=2592000")
     setContentTypeFromPath(req)
     req.start()
     with open(resource_path, "r") as resource_file:
