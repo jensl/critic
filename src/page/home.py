@@ -52,14 +52,23 @@ def renderHome(req, db, user):
     head = html.head()
     body = html.body()
 
-    page.utils.generateHeader(body, db, user, current_page="home")
+    if user.name == req.user:
+        actual_user = None
+    else:
+        actual_user = req.getUser(db)
+
+    def renderHeaderItems(target):
+        if readonly and actual_user and actual_user.hasRole(db, "administrator"):
+            target.a("button", href="/home?user=%s&readonly=no" % user.name).text("Edit")
+
+    page.utils.generateHeader(body, db, user, generate_right=renderHeaderItems, current_page="home")
 
     document.addExternalStylesheet("resource/home.css")
     document.addExternalScript("resource/home.js")
     document.addExternalScript("resource/autocomplete.js")
     if repository: document.addInternalScript(repository.getJS())
     else: document.addInternalScript("var repository = null;")
-    if user.name != req.user and req.getUser(db).hasRole(db, "administrator"):
+    if actual_user and actual_user.hasRole(db, "administrator"):
         document.addInternalScript("var administrator = true;")
     else:
         document.addInternalScript("var administrator = false;")
@@ -72,8 +81,12 @@ def renderHome(req, db, user):
     basic = target.table('paleyellow basic', align='center')
     basic.tr().td('h1', colspan=3).h1().text("%s Home" % title_fullname)
 
-    def row(heading, value, help=None, status_id=None):
-        main_row = basic.tr('line')
+    def row(heading, value, help=None, extra_class=None):
+        if extra_class:
+            row_class = "line " + extra_class
+        else:
+            row_class = "line"
+        main_row = basic.tr(row_class)
         main_row.td('heading').text("%s:" % heading)
         value_cell = main_row.td('value', colspan=2)
         if callable(value): value(value_cell)
@@ -105,18 +118,26 @@ def renderHome(req, db, user):
             target.button(onclick="resetGitEmails();").text("Reset")
 
     def renderPassword(target):
-        target.text("****")
+        cursor.execute("SELECT password IS NOT NULL FROM users WHERE id=%s", (user.id,))
+        has_password = cursor.fetchone()[0]
+        if not has_password:
+            target.text("not set")
+        else:
+            target.text("****")
         if not readonly:
-            target.button(onclick="changePassword();").text("Change")
+            if not has_password or (actual_user and actual_user.hasRole(db, "administrator")):
+                target.button(onclick="setPassword();").text("Set password")
+            else:
+                target.button(onclick="changePassword();").text("Change password")
 
     row("User ID", str(user.id))
     row("User Name", user.name)
-    row("Display Name", renderFullname, "This is the name used when displaying commits or comments.", status_id="status_fullname")
-    row("Email", renderEmail, "This is the primary email address, to which emails are sent.", status_id="status_email")
-    row("Git Emails", renderGitEmails, "These email addresses are used to map Git commits to the user.", status_id="status_gitemails")
+    row("Display Name", renderFullname, "This is the name used when displaying commits or comments.")
+    row("Email", renderEmail, "This is the primary email address, to which emails are sent.")
+    row("Git Emails", renderGitEmails, "These email addresses are used to map Git commits to the user.")
 
     if configuration.base.AUTHENTICATION_MODE == "critic":
-        row("Password", renderPassword)
+        row("Password", renderPassword, extra_class="password")
 
     profiler.check("user information")
 

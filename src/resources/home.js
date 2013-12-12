@@ -136,47 +136,99 @@ function resetGitEmails()
   status.text("");
 }
 
-function changePassword()
+function setPassword()
 {
-  var dialog;
-
-  if (administrator)
-    dialog = $("<div class=password title='Change password'>"
+  var dialog = $("<div class=password title='Set password'>"
                +   "<p><b>New password:</b><br>"
-               +     "<input class=new1 type=password><br>"
-               +     "<input class=new2 type=password>"
+               +     "<input id=newpw1 type=password>"
                +   "</p>"
-               + "</div>");
-  else
-    dialog = $("<div class=password title='Change password'>"
-               +   "<p><b>Current password:</b><br>"
-               +     "<input class=current type=password>"
-               +   "</p>"
-               +   "<p><b>New password:</b><br>"
-               +     "<input class=new1 type=password><br>"
-               +     "<input class=new2 type=password>"
+               +   "<p><b>New password, again:</b><br>"
+               +     "<input id=newpw2 type=password>"
                +   "</p>"
                + "</div>");
 
   function save()
   {
-    var new1 = dialog.find("input.new1").val();
-    var new2 = dialog.find("input.new2").val();
+    var newpw1 = $("#newpw1").val();
+    var newpw2 = $("#newpw2").val();
 
-    if (new1 != new2)
+    if (newpw1 != newpw2)
     {
-      showMessage("Invalid input", "New password mismatch!", "The new password must be input twice.");
+      showMessage("Invalid input",
+                  "New password mismatch!",
+                  "The new password must be input twice.");
       return;
     }
 
-    var data = { subject: user.id, new_pw: new1 };
+    var operation = new Operation({ action: "set password",
+                                    url: "changepassword",
+                                    data: { subject: user.id,
+                                            new_pw: newpw1 }});
 
-    if (!administrator)
-      data.current_pw = dialog.find("input.current").val();
+    if (operation.execute())
+    {
+      dialog.dialog("close");
+      showMessage("Success", "Password set!", null, function () { location.reload(); });
+    }
+  }
+
+  function cancel()
+  {
+    dialog.dialog("close");
+  }
+
+  dialog.find("input").keypress(
+    function (ev)
+    {
+      if (ev.keyCode == 13)
+      {
+        if ($("#newpw1").is(":focus"))
+          $("#newpw2").focus();
+        else if ($("#newpw2").is(":focus"))
+          save();
+      }
+    });
+
+  dialog.dialog({ width: 400,
+                  modal: true,
+                  buttons: { "Save": save, "Cancel": cancel }});
+
+  $("newpw1").focus();
+}
+
+function changePassword()
+{
+  var dialog = $("<div class=password title='Change password'>"
+               +   "<p><b>Current password:</b><br>"
+               +     "<input id=currentpw type=password>"
+               +   "</p>"
+               +   "<p><b>New password:</b><br>"
+               +     "<input id=newpw1 type=password>"
+               +   "</p>"
+               +   "<p><b>New password, again:</b><br>"
+               +     "<input id=newpw2 type=password>"
+               +   "</p>"
+               + "</div>");
+
+  function save()
+  {
+    var currentpw = $("#currentpw").val();
+    var newpw1 = $("#newpw1").val();
+    var newpw2 = $("#newpw2").val();
+
+    if (newpw1 != newpw2)
+    {
+      showMessage("Invalid input",
+                  "New password mismatch!",
+                  "The new password must be input twice.");
+      return;
+    }
 
     var operation = new Operation({ action: "change password",
                                     url: "changepassword",
-                                    data: data });
+                                    data: { subject: user.id,
+                                            current_pw: currentpw,
+                                            new_pw: newpw1 } });
 
     if (operation.execute())
     {
@@ -190,30 +242,25 @@ function changePassword()
     dialog.dialog("close");
   }
 
-  current = dialog.find("input.current");
-  new1 = dialog.find("input.new1");
-  new2 = dialog.find("input.new2");
-
-  function handleKeypress(ev)
-  {
-    if (ev.keyCode == 13)
+  dialog.find("input").keypress(
+    function (ev)
     {
-      if ($(".current").is(":focus"))
-        new1.focus();
-      else if ($(".new1").is(":focus"))
-        new2.focus();
-      else if ($(".new2").is(":focus"))
-        save();
-    }
-  }
-
-  current.keypress(handleKeypress);
-  new1.keypress(handleKeypress);
-  new2.keypress(handleKeypress);
+      if (ev.keyCode == 13)
+      {
+        if ($("#currentpw").is(":focus"))
+          $("#newpw1").focus();
+        else if ($("#newpw1").is(":focus"))
+          $("#newpw2").focus();
+        else if ($("#newpw2").is(":focus"))
+          save();
+      }
+    });
 
   dialog.dialog({ width: 400,
                   modal: true,
                   buttons: { "Save": save, "Cancel": cancel }});
+
+  $("#currentpw").focus();
 }
 
 function ModificationChecker(current, input, status)

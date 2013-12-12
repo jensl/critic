@@ -101,8 +101,21 @@ class ChangePassword(Operation):
         else:
             user_id = subject
 
-        if user.id != user_id or current_pw is None:
+        cursor = db.cursor()
+
+        if user.id != user_id:
             Operation.requireRole(db, "administrator", user)
+        elif current_pw is None:
+            cursor.execute("SELECT password FROM users WHERE id=%s", (user_id,))
+            if cursor.fetchone()[0] is not None:
+                # This is mostly a sanity check; the only way to trigger this is
+                # if the user has no password when he loads /home, sets a
+                # password in another tab or using another browser, and then
+                # tries to set (rather than change) the password using the old
+                # stale /home.
+                raise OperationFailure(code="wrongpassword",
+                                       title="Wrong password!",
+                                       message="No current password provided.")
 
         subject = dbutils.User.fromId(db, user_id)
 
@@ -118,7 +131,6 @@ class ChangePassword(Operation):
                                    title="Empty password!",
                                    message="Setting an empty password is not allowed.")
 
-        cursor = db.cursor()
         cursor.execute("UPDATE users SET password=%s WHERE id=%s", (auth.hashPassword(new_pw), user_id))
 
         db.commit()
