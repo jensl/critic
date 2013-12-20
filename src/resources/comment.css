@@ -51,6 +51,7 @@ div.comment > div.text {
 }
 
 div.comment > div.text > textarea {
+    padding: 0;
     font-family: monospace;
     font-size: 11px;
     background-color: #fff;
