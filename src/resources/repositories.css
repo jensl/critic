@@ -17,47 +17,19 @@
 */
 
 table.repositories {
-    margin-top: 1em;
-    font-family: monospace
-}
-
-table.repositories tr.repository td {
-    padding-top: 2px;
-    padding-bottom: 2px
+    min-width: 60%;
+    margin-top: 1rem;
+    font-family: monospace;
 }
 
 table.repositories tr.repository:hover {
     background-color: #eed;
-    cursor: pointer
-}
-
-table.repositories tr.spacer td {
-    padding-top: 0.5em
-}
-
-table.repositories .name,
-table.repositories .location {
-    text-align: left;
-    padding-right: 4em
-}
-
-table.repositories .upstream {
-    text-align: right
-}
-
-table.repositories > tbody > tr.headings > th {
-    border-bottom: 1px solid #cca
+    cursor: pointer;
 }
 
 table.repositories .details {
     display: none
 }
-
-table.repositories .details > td {
-    padding-top: 0.5em;
-    padding-bottom: 1em
-}
-
 table.repositories .details.show {
     display: table-row
 }
@@ -66,11 +38,20 @@ table.repositories .details .buttons {
     text-align: right;
     padding-top: 0.5em
 }
+table.repositories .details > td {
+    padding: 0.25rem 0 0;
+}
+table.repositories .upstream {
+    text-align: right;
+}
 
 table.trackedbranches {
     width: 100%
 }
 
+table.trackedbranches .title {
+    text-align: center;
+}
 table.trackedbranches th {
     border-bottom: 1px solid #222;
     font-family: serif

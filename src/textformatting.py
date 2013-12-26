@@ -75,21 +75,20 @@ def renderFormatted(db, user, table, lines, toc=False, title_right=None):
         if len(block) == 1 and block[0] == "[repositories]":
             text = None
 
-            repositories = table.tr("repositories").td("repositories").table("repositories callout", align="center", cellspacing=0)
-            headings = repositories.tr("headings")
+            repositories = table.tr().td().table("repositories callout")
+            headings = repositories.thead().tr()
             headings.th("name").text("Short name")
             headings.th("path").text("Repository path")
+
+            repositories.tr().td(colspan=2)
 
             cursor = db.cursor()
             cursor.execute("SELECT name, path FROM repositories ORDER BY id ASC")
 
-            first = " first"
-
             for name, path in cursor:
-                row = repositories.tr("repository" + first)
+                row = repositories.tr("repository")
                 row.td("name").text(name)
                 row.td("path").text(gitutils.Repository.constructURL(db, user, path))
-                first = ""
 
             continue
 

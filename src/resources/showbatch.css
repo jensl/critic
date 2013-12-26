@@ -16,36 +16,13 @@
 
 */
 
-table.basic tr.line td.heading {
-    vertical-align: top;
-}
-
 table.files {
-    margin-top: 0;
-    margin-bottom: 15px;
-    background-color: #fffff4;
-    border: 1px solid #222;
-    padding: 5px 10px
+    margin: 0;
 }
-
-table.files > thead > tr > th {
-    text-align: left;
-    padding-left: 10px;
-    padding-right: 10px
-}
-
-table.files > thead > tr > th.path {
-    padding-left: 0
-}
-
-table.files > tbody > tr > td {
+table.files tbody {
     font-family: monospace;
     white-space: pre;
-    padding-left: 10px;
-    padding-right: 10px
 }
-
-table.files > tbody > tr > td.path {
-    padding-left: 0;
-    text-align: left
+table.files .path {
+    padding-right: 1em;
 }

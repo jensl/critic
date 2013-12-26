@@ -148,40 +148,8 @@ div.main table td.back div {
     border-top: 1px solid #cca
 }
 
-td.repositories {
-    text-align: center
-}
-
 table.repositories {
-    margin-top: 0;
-    margin-bottom: 15px;
-}
-
-table.repositories th.name,
-table.repositories td.name {
-    text-align: right
-}
-
-table.repositories th.path,
-table.repositories td.path {
-    text-align: left;
-    padding-left: 10px
-}
-
-table.repositories th {
-    border-bottom: 1px solid #222
-}
-
-table.repositories tr.repository.first td {
-    padding-top: 10px
-}
-
-table.repositories td {
-    font-family: monospace
-}
-
-table.repositories td.name {
-    font-weight: bold
+    font-family: monospace;
 }
 
 table.pre {

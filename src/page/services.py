@@ -82,7 +82,7 @@ def renderServices(req, db, user):
     paleyellow = page.utils.PaleYellowTable(body, "Services")
 
     def render(target):
-        table = target.table("services callout", cellspacing=0, align="center")
+        table = target.table("services callout")
 
         headings = table.tr("headings")
         headings.th("name").text("Name")

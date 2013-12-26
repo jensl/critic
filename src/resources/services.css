@@ -17,69 +17,27 @@
 */
 
 table.services {
-    margin-top: 1em;
+    margin-top: 1rem;
     font-family: monospace
-}
-
-th, td {
-    padding-left: 0.5em;
-    padding-right: 0.5em
-}
-
-tr.spacer > td {
-    padding-top: 0.5em
-}
-
-tr.headings > th {
-    border-bottom: 1px solid #cca
-}
-
-th.name, td.name {
-    text-align: left
-}
-
-th.module, td.module {
-    text-align: left
-}
-
-th.uptime, td.uptime {
-    text-align: right
-}
-
-th.pid, td.pid {
-    text-align: right
-}
-
-th.rss, td.rss {
-    text-align: right
-}
-
-th.cpu, td.cpu {
-    text-align: right
-}
-
-th.commands, td.commands {
-    text-align: right
-}
-
-tr.service > td {
-    font-family: monospace;
-    padding-top: 2px;
-    padding-bottom: 2px
 }
 
 tr.service:hover {
     background-color: #eed;
-    cursor: pointer
 }
 
 tr.service > td.commands a {
     visibility: hidden;
     text-decoration: none
 }
-
 tr.service:hover > td.commands a {
     visibility: visible
+}
+
+table.services .pid,
+table.services .rss,
+table.services .cpu,
+table.services .uptime {
+    text-align: right;
 }
 
 div.servicelog > pre {

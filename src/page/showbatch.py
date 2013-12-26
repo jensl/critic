@@ -110,7 +110,7 @@ def renderShowBatch(req, db, user):
             row = basic.tr("line")
             row.td("heading").text(title)
 
-            table = row.td("files").table("files")
+            table = row.td().table("files callout")
             headers = table.thead().tr()
             headers.th("path").text("Changed Files")
             headers.th(colspan=2).text("Lines")

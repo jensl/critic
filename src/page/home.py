@@ -148,7 +148,7 @@ def renderHome(req, db, user):
                 repository = gitutils.Repository.fromId(db, repository_id)
                 repository_url = repository.getURL(db, user)
                 filters.addSection(repository_name, repository_url)
-                repository_filters = filters.addCentered().table("filters callout", align="center")
+                repository_filters = filters.addCentered().table("filters callout")
                 tbody_reviewer = tbody_watcher = tbody_ignored = None
 
             if filter_type == "reviewer":

@@ -258,6 +258,21 @@ table.paleyellow > tbody > tr.html > td {
     border-radius: 4px;
 }
 
+table.callout {
+    margin: 0 auto;
+    padding-top: 0.75rem;
+    padding-bottom: 0.75rem;
+    border-spacing: 0;
+}
+table.callout th {
+    border-bottom: 1px solid #cca;
+}
+table.callout th,
+table.callout td {
+    padding: 0.25em 0.5em;
+    text-align: left;
+}
+
 .ui-dialog { box-shadow: 0 5px 5px rgba(0, 0, 0, 0.5), 0 7px 25px rgba(0, 0, 0, 0.5) }
 
 table.pageheader td.left > ul {
@@ -415,13 +430,4 @@ fieldset {
 }
 .checkbox-group label:last-child {
     padding-right: 0;
-}
-
-.callout {
-    padding: 0.75rem;
-    background: #fffff4;
-    border: 1px solid #ddb;
-    border-bottom-color: #cca;
-    border-right-color: #cca;
-    border-radius: 4px;
 }

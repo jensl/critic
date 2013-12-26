@@ -32,70 +32,38 @@ div.main table.basic td.help { font-style: italic; text-align: right; border-bot
 
 table.filters {
     width: 90%;
-    margin: 1rem auto;
+    margin-top: 1rem;
 }
 
-table.filters th {
-    border-bottom: 1px solid #cca;
-    text-align: left;
-}
+table.filters tbody th { padding-top: 1em; }
+table.filters tbody:first-child th { padding-top: 0; }
 
-table.filters tbody:first-child th {
-    padding-top: 0
-}
-
-table.filters td.path {
-    width: 35%;
-    font-family: monospace;
-    text-align: left
-}
-table.filters td.delegates {
-    width: 25%;
-    font-family: monospace;
-    text-align: left
-}
+table.filters td.path,
+table.filters td.delegates,
 table.filters td.files {
-    width: 15%;
     font-family: monospace;
-    text-align: right
 }
+table.filters td.files,
 table.filters td.links {
-    width: 25%;
-    font-weight: bold;
-    text-align: right
-}
-table.filters td.links a {
-    margin-left: 0.5em
+    text-align: right;
 }
 
+table.filters td.path { width: 35%; }
+table.filters td.delegates { width: 25%; }
+table.filters td.files { width: 15%; }
+table.filters td.links { width: 25%; }
+
+table.filters td.links a {
+    margin-left: 0.5em;
+    font-weight: bold;
+}
 table.filters a {
     color: #222;
     text-decoration: none
 }
-
 table.filters a:hover {
     text-decoration: underline
 }
-
-div.main table.filters td.help { font-style: italic; text-align: left; padding-top: 1em; border-bottom: 1px solid #cca }
-div.main table.filters td.help p { margin-left: 10%; margin-top: 0; width: 60em }
-div.main table.filters td.help p strong { font-weight: bold; font-style: normal }
-div.main table.filters td.help p code { font-style: normal }
-div.main table.filters td.filter.empty { text-align: left; font-weight: bold; padding-top: 0.5em }
-div.main table.filters td.filter.type { text-align: right; width: 10%; font-weight: bold }
-div.main table.filters td.filter.path { text-align: left; width: 50%; font-family: monospace }
-div.main table.filters td.filter.path input { font-family: monospace; width: 90% }
-div.main table.filters td.filter.delegate { text-align: left; width: 20%; font-family: monospace }
-div.main table.filters td.filter.delegate input { font-family: monospace; width: 95% }
-div.main table.filters td.filter.buttons { text-align: right; width: 20%; white-space: pre }
-div.main table.filters tr.buttons td.buttons { text-align: right; padding-top: 0.5em }
-
-div.main table.filters tr.filter:hover { background: #eec }
-
-div.main table.filters td.heading.type { text-align: right; width: 10%; font-weight: bold; text-decoration: underline }
-div.main table.filters td.heading.path { text-align: left; width: 50%; font-weight: bold; text-decoration: underline }
-div.main table.filters td.heading.delegate { text-align: left; width: 30%; font-weight: bold; text-decoration: underline }
-div.main table.filters td.heading.buttons { text-align: right; width: 10% }
 
 div.password input {
     width: 100%;
