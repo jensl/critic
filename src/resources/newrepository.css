@@ -18,26 +18,14 @@
 
 body { font-size: 12px; font-family: sans-serif }
 
-div.main { text-align: center }
-
-div.main table {
-    margin-top: 1em;
-    padding: 1em;
-    background: #ffffe6;
-    border: 1px solid #cca;
-    border-radius: 4px;
+div.main {
+    text-align: center;
 }
-div.main table td { padding-left: 1em }
-div.main table td.h1 { border-bottom: 1px solid #cca }
-div.main table td.h1 h1 { text-align: left; margin-top: 0; margin-bottom: 0.5em; font-weight: normal }
-div.main table td.repositories { text-align: right; border-bottom: 1px solid #cca }
+div.main table.paleyellow td.heading { font-family: serif; font-weight: bold; text-align: right; width: 20% }
+div.main table.paleyellow td.prefix { font-family: monospace; text-align: right; white-space: nowrap }
+div.main table.paleyellow td.value { font-family: monospace; text-align: left; padding-left: 5px }
+div.main table.paleyellow td.value input { font-family: monospace; width: 100% }
+div.main table.paleyellow td.suffix { font-family: monospace; text-align: left; padding-left: 5px }
+div.main table.paleyellow tr.help td { font-style: italic; text-align: right; border-bottom: 1px solid #cca }
 
-div.main table.information tr td { padding-top: 0.5em }
-div.main table.information td.heading { font-family: serif; font-weight: bold; text-align: right; width: 20% }
-div.main table.information td.prefix { font-family: monospace; text-align: right; white-space: nowrap }
-div.main table.information td.value { font-family: monospace; text-align: left; padding-left: 5px }
-div.main table.information td.value input { font-family: monospace; width: 100% }
-div.main table.information td.suffix { font-family: monospace; text-align: left; padding-left: 5px }
-div.main table.information tr.help td { font-style: italic; text-align: right; border-bottom: 1px solid #cca }
-
-div.main table.information tr.buttons td { padding-top: 1em }
+div.main table.paleyellow tr.buttons td { padding-top: 1em }

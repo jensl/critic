@@ -18,21 +18,15 @@
 
 .message {
     width: 50%;
-    margin: 2em auto 0 auto;
-    padding: 1em 2em;
-    background: #ffffe6;
-    border: 1px solid #cca;
-    border-radius: 4px;
-}
-
-.message h1 {
-    font-weight: normal;
 }
 
 .message h1.center {
-    text-align: center
+    text-align: center;
+    border-bottom: 0;
 }
 
-.message h3 {
-    padding-top: 1em
+.message > p {
+    margin-left: 0.5rem;
+    margin-right: 0.5rem;
+    font-size: 1rem;
 }

@@ -35,7 +35,7 @@ def renderEditResource(req, db, user):
 
     target = body.div("main")
 
-    table = target.table('edit', align='center')
+    table = target.table('paleyellow', align='center')
     table.col(width='10%')
     table.col(width='60%')
     table.tr().td('h1', colspan=2).h1().text("Resource Editor")

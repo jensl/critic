@@ -36,7 +36,7 @@ def renderNewRepository(req, db, user):
 
     target = body.div("main")
 
-    basic = target.table('information', align='center')
+    basic = target.table("paleyellow")
     basic.col(width='20%')
     basic.col(width='0')
     basic.col(width='40%')

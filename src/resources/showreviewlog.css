@@ -18,20 +18,11 @@
 
 body { font-size: 12px; font-family: sans-serif }
 
-div.main table {
-    margin-top: 1em;
-    padding: 1em;
-    background: #ffffe6;
-    border: 1px solid #cca;
-    border-radius: 4px;
-}
-div.main > table td { padding-left: 1em; vertical-align: top }
-div.main > table td.h1 { text-align: left; border-bottom: 1px solid #cca }
-div.main > table td.h1 h1 { text-align: left; margin-top: 0; margin-bottom: 0.5em }
+div.main > table td { vertical-align: top }
 
-div.main table.changes tr.reviewers td { padding-top: 0.5em }
-div.main table.changes tr.reviewers td.reviewers { font-weight: bold; text-align: right }
-div.main table.changes tr.reviewers td.willreview { text-align: center }
-div.main table.changes tr.reviewers td.files { font-family: monospace; text-align: left }
-div.main table.changes tr.reviewers td.files span.file { white-space: pre }
-div.main table.changes tr.reviewers td.no-one { text-align: right; color: red; font-weight: bold }
+div.main > table tr.reviewers td { padding-top: 0.5em }
+div.main > table tr.reviewers td.reviewers { font-weight: bold; text-align: right }
+div.main > table tr.reviewers td.willreview { text-align: center }
+div.main > table tr.reviewers td.files { font-family: monospace; text-align: left }
+div.main > table tr.reviewers td.files span.file { white-space: pre }
+div.main > table tr.reviewers td.no-one { text-align: right; color: red; font-weight: bold }

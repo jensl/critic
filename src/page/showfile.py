@@ -58,8 +58,9 @@ def renderShowFile(req, db, user):
     compact = req.getParameter("compact", default_compact) == "yes"
 
     if len(path) == 0 or path[-1:] == "/":
-        raise page.utils.DisplayMessage(title="Invalid path parameter",
-            body="The path must be non-empty and must not end with a <code>/</code>.",
+        raise page.utils.DisplayMessage(
+            title="Invalid path parameter",
+            body="<p>The path must be non-empty and must not end with a <code>/</code>.</p>",
             html=True)
     if path[0] == '/':
         full_path = path

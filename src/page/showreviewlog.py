@@ -67,7 +67,7 @@ def renderShowReviewLog(req, db, user):
             return sorted(modules) + diff.File.eliminateCommonPrefixes(files)
 
     if reviewed_reviewers and not unassigned:
-        reviewed = target.table('changes', align='center')
+        reviewed = target.table("paleyellow")
         reviewed.col(width="30%")
         reviewed.col(width="10%")
         reviewed.col(width="60%")
@@ -90,7 +90,7 @@ def renderShowReviewLog(req, db, user):
     pending_reviewers = review_utils.getPendingReviewers(db, review)
 
     if pending_reviewers:
-        pending = target.table('changes', align='center')
+        pending = target.table("paleyellow")
         pending.col(width="30%")
         pending.col(width="10%")
         pending.col(width="60%")

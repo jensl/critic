@@ -20,53 +20,29 @@ div.main {
     text-align: center
 }
 
-div.main table.edit {
-    table-layout: fixed;
-    margin-top: 1em;
-    padding: 1em;
-    background: #ffffe6;
-    border: 1px solid #cca;
-    border-radius: 4px;
-}
-
-div.main table.edit td {
-    padding-left: 1em
-}
-
-div.main table.edit td.h1 {
-    text-align: left;
-    border-bottom: 1px solid #cca
-}
-
-div.main table.edit td.h1 h1 {
-    text-align: left;
-    margin-top: 0;
-    margin-bottom: 0.5em
-}
-
-div.main table.edit tr.select td.heading {
+div.main table.paleyellow tr.select td.heading {
     font-family: serif;
     font-weight: bold;
     text-align: right;
     vertical-align: top
 }
 
-div.main table.edit tr.select td.value {
+div.main table.paleyellow tr.select td.value {
     text-align: left;
     vertical-align: top
 }
 
-div.main table.edit tr.help td.help {
+div.main table.paleyellow tr.help td.help {
     font-style: italic;
     text-align: right;
     border-bottom: 1px solid #cca
 }
 
-div.main table.edit tr.value td.value {
+div.main table.paleyellow tr.value td.value {
     padding-top: 1em;
     padding-bottom: 1em
 }
 
-div.main table.edit tr.value td.value textarea {
+div.main table.paleyellow tr.value td.value textarea {
     width: 100%
 }

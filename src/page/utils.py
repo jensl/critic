@@ -266,14 +266,14 @@ def displayMessage(db, req, user, title, review=None, message=None, page_title=N
     else:
         generateHeader(body, db, user)
 
-    target = body.div("message")
+    target = body.div("message paleyellow")
 
     if message:
         target.h1("title").text(title)
 
         if callable(message): message(target)
         elif is_html: target.innerHTML(message)
-        else: target.h3().text(message)
+        else: target.p().text(message)
     else:
         target.h1("center").text(title)
 

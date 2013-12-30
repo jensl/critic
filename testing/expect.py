@@ -108,12 +108,8 @@ def message(expected_title, expected_body):
             title = message.find("h1")
             actual_title = extract_text(title)
             if expected_body is not None:
-                body = title.nextSibling
-                actual_body = ""
-                while body is not None:
-                    if body:
-                        actual_body += extract_text(body)
-                    body = body.nextSibling
+                body = message.find("p")
+                actual_body = extract_text(body)
         if not actual_title:
             actual_title = "<no message title found>"
         check(expected_title, actual_title, message="title check failed")

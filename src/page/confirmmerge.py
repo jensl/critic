@@ -104,7 +104,7 @@ def renderConfirmMerge(req, db, user):
 
     target = body.div("main")
 
-    basic = target.table('confirm', align='center')
+    basic = target.table("paleyellow")
     basic.col(width='15%')
     basic.col(width='55%')
     basic.col(width='30%')
