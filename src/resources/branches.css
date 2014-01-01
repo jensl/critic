@@ -38,7 +38,3 @@ div.main table.branches tr.branch td.name span.review { padding-left: 1em; font-
 div.main table.branches tr.branch td.name span.check { padding-left: 1em; font-size: smaller }
 div.main table.branches tr.branch td.base { text-align: left; font-family: monospace; font-size: 10pt }
 div.main table.branches tr.branch td.commits { text-align: right; font-weight: bold }
-
-div.main div.submit { margin-left: 30%; margin-right: 30%; background-color: #8f8; border: 3px solid #6b6; text-align: center; margin-top: 1em; margin-bottom: 1em; border-radius: 10px; color: #141 }
-div.main div.submit:hover { background-color: #7e7; border-color: #5a5; cursor: hand }
-div.main div.submit:active { background-color: #6d6; border-color: #494; cursor: hand }

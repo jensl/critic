@@ -37,7 +37,6 @@ table.log table.log { width: 98% }
 table.log tr.title td { padding-left: 1em }
 table.log tr.title td { text-align: left; border-bottom: 1px solid #cca }
 table.log tr.title td h1 { text-align: left; margin-top: 0; margin-bottom: 0.5em }
-table.log tr.title td h1 span.right { font-size: 50%; float: right }
 
 table.log tr.headings td { padding-left: 1em; font-weight: bold; text-decoration: underline }
 table.log tr.headings td.when { text-align: right; padding-right: 1em }

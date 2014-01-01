@@ -29,11 +29,6 @@ div.main table.basic td.h1 h1 a.edit {
     padding-left: 1em
 }
 
-div.main table.progress td.h1 span.right {
-    font-size: 50%;
-    float: right
-}
-
 div.main table.basic tr.line > td {
     padding-top: 0.5em
 }

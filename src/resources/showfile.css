@@ -44,11 +44,6 @@ div.main table td.h1 h1 span {
     padding-right: 3px;
 }
 
-div.main table td.h1 h1 span.right {
-    font-size: 50%;
-    float: right
-}
-
 table.file col.edge {
     width: 1em
 }

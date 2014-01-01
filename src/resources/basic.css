@@ -71,16 +71,6 @@ table.pageheader td.left b.critic {
     cursor: pointer
 }
 
-table.pageheader td.left span.link {
-    font-weight: bold;
-    margin-left: 1.5em
-}
-
-table.pageheader td.left span.link a {
-    text-decoration: none;
-    color: #222
-}
-
 table.pageheader td.right {
     padding-bottom: 10px;
     text-align: right;
@@ -93,20 +83,6 @@ table.pageheader td.right div {
 
 table.pageheader td.right div span.buttonscope-global > :first-child {
     margin-left: 0.5em
-}
-
-table.pagefooter {
-    margin-top: 10px;
-    border-top: 2px solid #A0A092;
-}
-
-table.pagefooter td.left {
-    color: #666666;
-    padding-top: 10px
-}
-
-table.pagefooter td.right {
-    text-align: right
 }
 
 div.fatal pre {
@@ -231,10 +207,6 @@ table.paleyellow > tbody > tr.centered > td {
 
 table.paleyellow > tbody > tr.centered > td > button {
     margin-top: 1em
-}
-
-table.paleyellow > tbody > tr.html > td {
-    text-align: left
 }
 
 @media (min-width: 1348px) {
