@@ -349,11 +349,11 @@ def renderShowReview(req, db, user):
         if help: basic.tr('help').td('help', colspan=3).text(help)
 
     def renderBranchName(target):
-        target.code("branch").text(review.branch.name, linkify=linkify.Context())
+        target.code("branch inset").text(review.branch.name, linkify=linkify.Context())
 
         if repository.name != user.getPreference(db, "defaultRepository"):
             target.text(" in ")
-            target.code("repository").text(repository.getURL(db, user))
+            target.code("repository inset").text(repository.getURL(db, user))
 
         cursor.execute("""SELECT id, remote, remote_name, disabled, previous
                             FROM trackedbranches
@@ -367,9 +367,9 @@ def renderShowReview(req, db, user):
 
             target.p("tracking disabled" if disabled else "tracking").text("tracking")
 
-            target.code("branch").text(remote_name, linkify=linkify.Context(remote=remote))
+            target.code("branch inset").text(remote_name, linkify=linkify.Context(remote=remote))
             target.text(" in ")
-            target.code("repository").text(remote, linkify=linkify.Context())
+            target.code("repository inset").text(remote, linkify=linkify.Context())
 
             if previous:
                 target.span("lastupdate").script(type="text/javascript").text("document.write('(last fetched: ' + shortDate(new Date(%d)) + ')');" % (calendar.timegm(previous.utctimetuple()) * 1000))

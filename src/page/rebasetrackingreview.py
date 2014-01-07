@@ -59,9 +59,9 @@ class RebaseTrackingReview(page.Page):
             table = page.utils.PaleYellowTable(self.body, "Rebase tracking review")
 
             def renderRemote(target):
-                target.span("value", id="remote").text(trackedbranch.remote)
+                target.span("value inset", id="remote").text(trackedbranch.remote)
             def renderCurrentBranch(target):
-                target.span("value", id="currentbranch").text("refs/heads/" + trackedbranch.name)
+                target.span("value inset", id="currentbranch").text("refs/heads/" + trackedbranch.name)
 
             table.addItem("Remote", renderRemote)
             table.addItem("Current branch", renderCurrentBranch)
@@ -112,13 +112,13 @@ class RebaseTrackingReview(page.Page):
                                                    htmlutils.jsify(self.newbranch[len("refs/heads/"):])))
 
                 def renderNewBranch(target):
-                    target.span("value", id="newbranch").text(self.newbranch)
+                    target.span("value inset", id="newbranch").text(self.newbranch)
                     target.text(" @ ")
-                    target.span("value").text(new_head.sha1[:8] + " " + new_head.niceSummary())
+                    target.span("value inset").text(new_head.sha1[:8] + " " + new_head.niceSummary())
                 def renderUpstream(target):
-                    target.span("value", id="upstream").text(self.upstream)
+                    target.span("value inset", id="upstream").text(self.upstream)
                     target.text(" @ ")
-                    target.span("value").text(new_upstream.sha1[:8] + " " + new_upstream.niceSummary())
+                    target.span("value inset").text(new_upstream.sha1[:8] + " " + new_upstream.niceSummary())
 
                 table.addItem("New branch", renderNewBranch)
 

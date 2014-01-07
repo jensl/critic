@@ -106,14 +106,13 @@ p.remotepath {
     margin-bottom: 0
 }
 
-code.branch, code.remote {
-    border: 1px solid #cca;
-    background-color: #fffff4;
-    padding: 2px 4px
-}
 
-code.branch > a, code.remote > a {
+code.inset > a {
     color: #222
+}
+code.inset > a:hover {
+    color: blue;
+    text-decoration: underline
 }
 
 select.repository-select, input.remote, input.workbranch, input.upstreamcommit {

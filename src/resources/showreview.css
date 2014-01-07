@@ -421,18 +421,11 @@ div.main > div.error > h1 {
     text-decoration: underline
 }
 
-code.branch, code.repository {
-    border: 1px solid #cca;
-    background-color: #fffff4;
-    padding: 2px 6px
-}
-
-code.branch > a, code.repository > a {
+code.inset > a {
     color: #222;
     text-decoration: none
 }
-
-code.branch > a:hover, code.repository > a:hover {
+code.inset > a:hover {
     color: blue;
     text-decoration: underline
 }

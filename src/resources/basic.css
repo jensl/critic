@@ -241,6 +241,12 @@ table.callout td {
     text-align: left;
 }
 
+.inset {
+    padding: 0.25em 0.5em;
+    background: #fffff0;
+    border: 1px solid #ddb;
+}
+
 .ui-dialog { box-shadow: 0 5px 5px rgba(0, 0, 0, 0.5), 0 7px 25px rgba(0, 0, 0, 0.5) }
 
 table.pageheader td.left > ul {

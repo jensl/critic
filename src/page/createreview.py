@@ -342,9 +342,9 @@ repository to contain the commits below, and reviewers can fetch it from there."
         row = table.tr("line")
         row.td("heading").text("Tracked Branch:")
         value = row.td("value")
-        value.code("branch").text(branch_name, linkify=linkify.Context(remote=remote))
+        value.code("branch inset").text(branch_name, linkify=linkify.Context(remote=remote))
         value.text(" in ")
-        value.code("remote").text(remote, linkify=linkify.Context())
+        value.code("remote inset").text(remote, linkify=linkify.Context())
         row.td("status")
 
         row = table.tr()

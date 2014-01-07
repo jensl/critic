@@ -23,9 +23,3 @@ select, input {
 input {
     font-family: monospace;
 }
-
-span.value {
-    border: 1px solid #cca;
-    background-color: #fffff4;
-    padding: 2px 6px
-}
