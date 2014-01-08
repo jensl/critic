@@ -52,10 +52,6 @@ table.login td.value {
     padding-right: 2em
 }
 
-table.login td.value input {
-    text-align: left
-}
-
 table.login tr.login td {
     text-align: center;
     padding-top: 1em

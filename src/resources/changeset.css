@@ -193,7 +193,6 @@ table.file > tbody.lines > tr > td.linenr.old {
 }
 
 table.file > tbody.lines > tr > td.linenr.new {
-    text-align: left;
     padding-left: 3px
 }
 

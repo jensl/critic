@@ -35,21 +35,19 @@ tbody.content table.log > thead > tr.headings > td {
 table.log table.log { width: 98% }
 
 table.log tr.title td { padding-left: 1em }
-table.log tr.title td { text-align: left; border-bottom: 1px solid #cca }
-table.log tr.title td h1 { text-align: left; margin-top: 0; margin-bottom: 0.5em }
+table.log tr.title td { border-bottom: 1px solid #cca }
+table.log tr.title td h1 { margin-top: 0; margin-bottom: 0.5em }
 
 table.log tr.headings td { padding-left: 1em; font-weight: bold; text-decoration: underline }
 table.log tr.headings td.when { text-align: right; padding-right: 1em }
-table.log tr.headings td.type { text-align: left; text-decoration: none }
-table.log tr.headings td.summary { text-align: left }
+table.log tr.headings td.type { text-decoration: none }
 table.log tr.headings td.author { text-align: right }
 
 table.log tr.commit:hover { background: #eec }
 table.log tr.commit td { padding-left: 1em; padding-top: 3px; padding-bottom: 3px }
 table.log tr.commit td.when { text-align: right; font-weight: bold; padding-right: 1em }
-table.log tr.commit td.type { text-align: left; font-weight: bold }
+table.log tr.commit td.type { font-weight: bold }
 table.log tr.commit td.summary {
-    text-align: left;
     font-family: monospace;
     font-size: 10pt;
     background-color: #fffff4;

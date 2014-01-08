@@ -18,10 +18,6 @@
 
 body { font-size: 12px; font-family: sans-serif }
 
-div.main {
-    text-align: center
-}
-
 div.main table.branchstatus,
 div.main table.data {
     table-layout: fixed
@@ -104,12 +100,10 @@ div.main table.branchstatus tbody tr.commit td.sha1 {
 div.main table.branchstatus tbody tr.commit td.user {
     font-family: monospace;
     font-weight: bold;
-    text-align: left;
     vertical-align: top
 }
 div.main table.branchstatus tbody tr.commit td.summary {
     font-family: monospace;
-    text-align: left
 }
 div.main table.branchstatus tbody tr.commit td.review {
     vertical-align: top;

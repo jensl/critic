@@ -16,10 +16,6 @@
 
 */
 
-div.main {
-    text-align: center
-}
-
 div.main table.filter {
     table-layout: fixed
 }
@@ -58,7 +54,6 @@ div.main table.filter tr td.select {
 }
 
 div.main table.filter tr td.path {
-    text-align: left;
     white-space: pre;
     font-family: monospace
 }

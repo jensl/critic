@@ -18,13 +18,11 @@
 
 body { font-size: 12px; font-family: sans-serif }
 
-div.main { text-align: center }
-
 div.main table td.repositories { text-align: right; border-bottom: 1px solid #cca }
 
 div.main table.basic tr.line td { padding-top: 0.5em; vertical-align: baseline }
 div.main table.basic td.heading { font-family: serif; font-weight: bold; text-align: right; width: 20% }
-div.main table.basic td.value { font-family: monospace; text-align: left }
+div.main table.basic td.value { font-family: monospace; }
 div.main table.basic td.value input.value { font-family: monospace; width: 32em }
 div.main table.basic td.value button { float: right }
 div.main table.basic td.value span.status { padding-left: 1em; font-weight: bold }
@@ -99,7 +97,6 @@ div.reapplyresult td.id {
 }
 
 div.reapplyresult td.summary {
-    text-align: left;
     font-family: monospace;
     background-color: #fffff4;
     padding: 3px 1em 3px 1em;

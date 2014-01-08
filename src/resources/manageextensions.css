@@ -48,7 +48,6 @@ table.roles {
 table.roles > tbody > tr > th {
     padding-top: 0.5em;
     border-bottom: 1px solid #cca;
-    text-align: left
 }
 
 table.roles > tbody > tr > td.description {

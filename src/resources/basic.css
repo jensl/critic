@@ -47,7 +47,6 @@ table.pageheader {
 }
 
 table.pageheader td.left {
-    text-align: left;
     vertical-align: bottom
 }
 
@@ -83,10 +82,6 @@ table.pageheader td.right div {
 
 table.pageheader td.right div span.buttonscope-global > :first-child {
     margin-left: 0.5em
-}
-
-div.fatal pre {
-    text-align: left
 }
 
 .paleyellow {
@@ -125,7 +120,6 @@ table.paleyellow > * > tr > td.h1 {
 
 table.paleyellow > * > tr > td.h1 > h1 {
     margin: 0 0 0.75rem;
-    text-align: left;
     font-size: 1.9rem;
     font-weight: normal;
 }
@@ -144,7 +138,6 @@ table.paleyellow > tbody > tr > td.h2 {
 }
 
 table.paleyellow > tbody > tr > td.h2 > h2 {
-    text-align: left;
     font-size: 1rem;
     margin: 0.75rem 0;
 }
@@ -171,7 +164,6 @@ table.paleyellow > tbody > tr.item > td.name {
 table.paleyellow > tbody > tr.item > td.value {
     font-family: monospace;
     white-space: pre-wrap;
-    text-align: left;
     padding-left: 1em
 }
 
@@ -317,7 +309,6 @@ table.pageheader td.left > ul > li:first-child:before {
     margin: 10px auto;
     padding: 5px 2em;
     background-color: #dfd;
-    text-align: left
 }
 
 table.searchresults {
@@ -330,7 +321,6 @@ table.searchresults .id {
 }
 
 table.searchresults .summary {
-    text-align: left;
     padding-left: 0.5em
 }
 

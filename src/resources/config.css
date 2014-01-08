@@ -31,7 +31,6 @@ div.main table.preferences tr.line td {
 
 div.main table.preferences td.heading {
     font-family: serif;
-    text-align: left;
     vertical-align: top
 }
 
@@ -42,7 +41,6 @@ div.main table.preferences tr.customized td.heading {
 div.main table.preferences td.value {
     font-family: monospace;
     white-space: pre-wrap;
-    text-align: left
 }
 
 div.main table.preferences td.value div.text {
@@ -81,7 +79,6 @@ div.main table.preferences td.help {
 }
 
 div.main table.preferences td.extension {
-    text-align: left;
     padding-top: 1.5em;
     border-bottom: 1px solid #cca
 }

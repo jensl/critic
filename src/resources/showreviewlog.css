@@ -23,6 +23,6 @@ div.main > table td { vertical-align: top }
 div.main > table tr.reviewers td { padding-top: 0.5em }
 div.main > table tr.reviewers td.reviewers { font-weight: bold; text-align: right }
 div.main > table tr.reviewers td.willreview { text-align: center }
-div.main > table tr.reviewers td.files { font-family: monospace; text-align: left }
+div.main > table tr.reviewers td.files { font-family: monospace; }
 div.main > table tr.reviewers td.files span.file { white-space: pre }
 div.main > table tr.reviewers td.no-one { text-align: right; color: red; font-weight: bold }

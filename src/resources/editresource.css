@@ -16,10 +16,6 @@
 
 */
 
-div.main {
-    text-align: center
-}
-
 div.main table.paleyellow tr.select td.heading {
     font-family: serif;
     font-weight: bold;
@@ -28,7 +24,6 @@ div.main table.paleyellow tr.select td.heading {
 }
 
 div.main table.paleyellow tr.select td.value {
-    text-align: left;
     vertical-align: top
 }
 

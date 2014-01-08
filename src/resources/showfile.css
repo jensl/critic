@@ -114,13 +114,11 @@ table.file > tbody.lines > tr > td.linenr.old {
 }
 
 table.file > tbody.lines > tr > td.linenr.new {
-    text-align: left;
     padding-left: 3px
 }
 
 table.file > tbody.lines > tr > td.line {
     background-color: white;
-    text-align: left;
     font-family: monospace;
     border-left: 1px solid #888;
     border-right: 1px solid #888;

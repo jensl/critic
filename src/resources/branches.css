@@ -18,23 +18,21 @@
 
 body { font-size: 12px; font-family: sans-serif }
 
-div.main { text-align: center }
-
 div.main table tr.title td.description { text-align: right; border-bottom: 1px solid #cca; margin-left: 0; margin-top: 0; margin-bottom: 0.5em; font-style: italic }
 div.main table tr.title td.repositories { text-align: right; border-bottom: 1px solid #cca }
 
 div.main table.branches tr.headings td { padding-top: 0.5em; font-weight: bold; text-decoration: underline }
 div.main table.branches tr.headings td.when { text-align: right; width: 10% }
-div.main table.branches tr.headings td.name { text-align: left; width: 40% }
-div.main table.branches tr.headings td.base { text-align: left; width: 40% }
+div.main table.branches tr.headings td.name { width: 40% }
+div.main table.branches tr.headings td.base { width: 40% }
 div.main table.branches tr.headings td.commits { text-align: right; width: 10% }
 
 div.main table.branches tr.nothing td.nothing { text-align: center; font-weight: bold; padding-top: 1em }
 
 div.main table.branches tr.branch:hover { background: #eec }
 div.main table.branches tr.branch td.when { text-align: right; font-weight: bold }
-div.main table.branches tr.branch td.name { text-align: left; font-family: monospace; font-size: 10pt }
+div.main table.branches tr.branch td.name { font-family: monospace; font-size: 10pt }
 div.main table.branches tr.branch td.name span.review { padding-left: 1em; font-size: smaller }
 div.main table.branches tr.branch td.name span.check { padding-left: 1em; font-size: smaller }
-div.main table.branches tr.branch td.base { text-align: left; font-family: monospace; font-size: 10pt }
+div.main table.branches tr.branch td.base { font-family: monospace; font-size: 10pt }
 div.main table.branches tr.branch td.commits { text-align: right; font-weight: bold }

@@ -53,11 +53,9 @@ div.main table.tree tbody td {
 }
 
 div.main table.tree td.mode {
-    text-align: left;
     font-family: monospace
 }
 div.main table.tree td.name {
-    text-align: left;
     font-family: monospace
 }
 div.main table.tree td.name a {
@@ -73,7 +71,6 @@ div.main table.tree tr.tree td.name {
 }
 
 div.main table.tree td.link {
-    text-align: left;
     font-family: monospace;
     color: gray
 }

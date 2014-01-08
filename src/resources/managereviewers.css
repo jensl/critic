@@ -16,10 +16,6 @@
 
 */
 
-div.main {
-    text-align: center
-}
-
 div.main table.manage {
     table-layout: fixed;
 }
@@ -34,10 +30,6 @@ div.main table.manage tr.current td,
 div.main table.manage tr.reviewer td,
 div.main table.manage tr.headings td {
     padding-top: 1em
-}
-
-div.main table.manage tr.reviewer td.value {
-    text-align: left
 }
 
 div.main table.manage tr.reviewer span.message {
@@ -60,12 +52,10 @@ div.main table.manage tr.current td.select {
 }
 
 div.main table.manage tr.current td.value {
-    text-align: left;
     font-family: monospace
 }
 
 div.main table.manage tr td.path {
-    text-align: left;
     white-space: pre;
     font-family: monospace
 }

@@ -16,10 +16,6 @@
 
 */
 
-div.main {
-    text-align: center
-}
-
 div.main table.basic td.h1 h1 a.edit,
 div.main table.progress td.h1 h1 a {
     font-size: 12px
@@ -51,7 +47,6 @@ div.main table.basic td.heading {
 div.main table.basic td.value {
     font-family: monospace;
     white-space: pre-wrap;
-    text-align: left;
     vertical-align: top
 }
 
@@ -79,7 +74,6 @@ div.main table.basic table.reviewfilters tfoot tr td {
 div.main table.basic table.reviewfilters tr.h1 th.h1 {
     font-family: serif;
     font-weight: bold;
-    text-align: left;
     border-bottom: 1px solid #222
 }
 
@@ -100,7 +94,6 @@ div.main table.basic table.reviewfilters td.reviews {
 }
 
 div.main table.basic table.reviewfilters td.path {
-    text-align: left;
     white-space: pre
 }
 
@@ -143,6 +136,14 @@ div.main table.basic td.help {
 
 div.main table.basic td.value span.mode {
     font-style: italic
+}
+
+div.main table.progress {
+    text-align: center;
+}
+
+div.main table.progress .h1 h1 {
+    text-align: left;
 }
 
 div.main table.progress td.percent h1 {
@@ -221,7 +222,6 @@ div.main table.shared tr.reviewers td.reviewers
 div.main table.shared tr.reviewers td.files
 {
     font-family: monospace;
-    text-align: left;
     width: 40%
 }
 
@@ -233,10 +233,6 @@ div.main table.shared tr.reviewers td.files span.file
 div.main table.shared tr.reviewers td.files
 {
     width: 30%
-}
-
-div.main table.log td.when {
-    text-align: left
 }
 
 div.main table.log td.approval,
@@ -277,13 +273,11 @@ div.main table.batches td {
 
 div.main table.comments td.h1,
 div.main table.batches td.h1 {
-    text-align: left;
     border-bottom: 1px solid #cca
 }
 
 div.main table.comments td.h1 h1,
 div.main table.batches td.h1 h1 {
-    text-align: left;
     margin-top: 0;
     margin-bottom: 0.5em
 }
@@ -296,12 +290,10 @@ div.main table.comments td.h1 h1 a {
 div.main table.comments td.h2 {
     padding-top: 1em;
     padding-left: 2em;
-    text-align: left;
     border-bottom: 1px solid #cca
 }
 
 div.main table.comments td.h2 h2 {
-    text-align: left;
     margin-top: 0;
     margin-bottom: 0.5em
 }
@@ -325,7 +317,6 @@ div.main table.batches tr.batch:hover {
 div.main table.comments td.author,
 div.main table.batches td.author {
     font-weight: bold;
-    text-align: left;
     white-space: pre
 }
 
@@ -335,7 +326,6 @@ div.main table.batches td.title {
     white-space: nowrap;
     text-overflow: ellipsis;
     overflow: hidden;
-    text-align: left;
     width: 70%
 }
 
@@ -407,7 +397,6 @@ div.removefilter .path {
 }
 
 div.main > div.error {
-    text-align: left;
     width: 50%;
     margin-left: auto;
     margin-right: auto;
