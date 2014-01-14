@@ -100,6 +100,12 @@
     "default": 0,
     "description": "Default number of context lines added to code excerpts when displaying comment threads in emails."
   },
+  "email.enableAssociationRecipients": {
+    "type": "boolean",
+    "default": false,
+    "description": "Add phony recipients to review emails representing your associations with the review.",
+    "relevance": { "repository": true }
+  },
   "email.ignoreOwnChanges": {
     "type": "boolean",
     "default": false,

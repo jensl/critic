@@ -368,11 +368,20 @@ def renderConfig(req, db, user):
 
         cell = table.tr(help_class_name).td("help", colspan=3)
 
-        index = description.find("format string for subject line")
-        if index != -1:
-            cell.text(description[:index])
-            cell.a(href="/tutorial?item=reconfigure#subject_line_formats").text("format string for subject line")
-            cell.text(description[index + len("format string for subject line"):])
+        magic_description_links = {
+            "format string for subject line":
+                "/tutorial?item=reconfigure#subject_line_formats",
+            "phony recipients":
+                "/tutorial?item=reconfigure#review_association_recipients"
+            }
+
+        for link_text, link_href in magic_description_links.items():
+            prefix, link_text, suffix = description.partition(link_text)
+            if link_text:
+                cell.text(prefix)
+                cell.a(href=link_href).text(link_text)
+                cell.text(suffix)
+                break
         else:
             cell.text(description)
 

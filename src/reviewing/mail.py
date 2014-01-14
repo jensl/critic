@@ -19,7 +19,8 @@ import gitutils
 import configuration
 import textutils
 import diff
-from mailutils import queueMail, sendPendingMails, generateMessageId
+import mailutils
+from mailutils import sendPendingMails, generateMessageId
 
 import changeset.text as changeset_text
 import changeset.utils as changeset_utils
@@ -46,10 +47,22 @@ def sendMail(db, review, message_id, from_user, to_user, recipients, subject, bo
     if list_id:
         headers["List-Id"] = "<%s.%s>" % (list_id, configuration.base.HOSTNAME)
 
-    return queueMail(from_user, to_user, recipients, subject, body,
-                     message_id=message_id,
-                     parent_message_id=parent_message_id,
-                     headers=headers)
+    recipients = list(recipients)
+    review_association = review.getUserAssociation(db, to_user)
+
+    if to_user.getPreference(db, "email.enableAssociationRecipients", repository=review.repository):
+        system_user, _, system_domain = configuration.base.SYSTEM_USER_EMAIL.partition("@")
+        for association in review_association.split(", "):
+            recipients.append(mailutils.User(
+                    "is-%(association)s <%(user)s+%(association)s@%(hostname)s>"
+                    % { "association": association,
+                        "user": system_user,
+                        "hostname": system_domain }))
+
+    return mailutils.queueMail(from_user, to_user, recipients, subject, body,
+                               message_id=message_id,
+                               parent_message_id=parent_message_id,
+                               headers=headers)
 
 def generateSubjectLine(db, user, review, item):
     format = user.getPreference(db, "email.subjectLine.%s" % item)

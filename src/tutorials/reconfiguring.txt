@@ -40,3 +40,31 @@ The following keys can be used in conversion specifiers:
 = The current progress of the review in "NN %% and N issues" format.
 ? branch
 = The name of the review branch.
+
+Review Association Recipients
+-----------------------------
+Critic always adds a custom header <code>OperaCritic-Association</code> to all
+emails sent about a review, containing a comma-separated list of tokens identifying
+how the user to whom the email is sent is associated with the review.
+
+The set of possible tokens are
+  <code>owner</code>,
+  <code>author</code>,
+  <code>reviewer</code>,
+  <code>watcher</code> and
+  <code>none</code>.
+
+The purpose of this email header is to allow for client-side filtering of emails
+from Critic according to relevance or importance.  Some email systems, for
+instance Gmail, doesn't support filtering based on custom headers.  To support
+the same type of filtering in such limited email systems, Critic can optionally
+be configured to add phony recipients to the email's <code>To</code> header
+instead.  These recipients are constructed by taking the email address used as
+<code>Sender</code> (not <code>From</code>) -- usually something like
+<code>critic@example.com</code> -- and appending <code>+token</code> to the user
+name part.  In other words, if the user owns the review, all emails about it
+would include <code>critic+owner@example.com</code> in the <code>To</code>
+header.
+
+This workaround is enabled by the CONFIG(email.enableAssociationRecipients)
+setting.
