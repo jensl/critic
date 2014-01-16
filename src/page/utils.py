@@ -16,7 +16,6 @@
 
 import re
 
-import gitutils
 import htmlutils
 import configuration
 
@@ -44,14 +43,16 @@ def generateEmpty(target):
     pass
 
 def generateHeader(target, db, user, generate_right=None, current_page=None, extra_links=[], profiler=None):
-    target.addExternalStylesheet("resource/jquery-ui.css")
-    target.addExternalStylesheet("resource/jquery-ui-overrides.css")
+    target.addExternalStylesheet("resource/third-party/jquery-ui.css")
+    target.addExternalStylesheet("resource/third-party/chosen.css")
+    target.addExternalStylesheet("resource/overrides.css")
     target.addExternalStylesheet("resource/basic.css")
     target.addInternalStylesheet(".defaultfont, body { %s }" % user.getPreference(db, "style.defaultFont"))
     target.addInternalStylesheet(".sourcefont { %s }" % user.getPreference(db, "style.sourceFont"))
-    target.addExternalScript("resource/jquery.js")
-    target.addExternalScript("resource/jquery-ui.js")
-    target.addExternalScript("resource/jquery-ui-autocomplete-html.js")
+    target.addExternalScript("resource/third-party/jquery.js")
+    target.addExternalScript("resource/third-party/jquery-ui.js")
+    target.addExternalScript("resource/third-party/jquery-ui-autocomplete-html.js")
+    target.addExternalScript("resource/third-party/chosen.js")
     target.addExternalScript("resource/basic.js")
 
     target.noscript().h1("noscript").blink().text("Please enable scripting support!")
@@ -325,8 +326,8 @@ class PaleYellowTable:
         self.table.tr("separator").td(colspan=len(self.columns)).div()
 
 def generateRepositorySelect(db, user, target, allow_selecting_none=False,
-                             none_label=None, selected=None, **attributes):
-    select = target.select("repository", **attributes)
+                             placeholder_text=None, selected=None, **attributes):
+    select = target.select("repository-select", **attributes)
 
     cursor = db.cursor()
     cursor.execute("""SELECT id, name, path
@@ -336,25 +337,20 @@ def generateRepositorySelect(db, user, target, allow_selecting_none=False,
     rows = cursor.fetchall()
 
     if not rows:
-        select.option(value="-", disabled="disabled").text("No repositories")
+        # Note: not honoring 'placeholder_text' here; callers typically don't
+        # take into account the possibility that there are no repositories.
+        select.setAttribute("data-placeholder", "No repositories")
+        select.option(value="", selected="selected")
         return
 
     if selected is None:
-        if len(rows) == 1:
-            selected = rows[0][0]
-        else:
-            selected = user.getPreference(db, "defaultRepository")
+        selected = user.getPreference(db, "defaultRepository")
 
     if not selected or allow_selecting_none:
-        if allow_selecting_none:
-            disabled = None
-            label = none_label or "No repository"
-        else:
-            disabled = "disabled"
-            label = "Select a repository"
-
-        option = select.option(value="-", selected="selected", disabled=disabled)
-        option.text(label)
+        if placeholder_text is None:
+            placeholder_text = "Select a repository"
+        select.setAttribute("data-placeholder", placeholder_text)
+        select.option(value="", selected="selected")
 
     highlighted_ids = set()
 
@@ -381,9 +377,8 @@ def generateRepositorySelect(db, user, target, allow_selecting_none=False,
         highlighted = select.optgroup(label="Highlighted")
         other = select.optgroup(label="Other")
 
-    name_width = max(len(name) for (_, name, _) in rows)
-    url_width = max(len(gitutils.Repository.constructURL(db, user, path)) for (_, _, path) in rows)
-    label_format = "%-{0}s %{1}s".format(name_width, url_width)
+    html_format = ("<span class=repository-name>%s</span>"
+                   "<span class=repository-path>%s</span>")
 
     for repository_id, name, path in rows:
         if repository_id in highlighted_ids:
@@ -391,11 +386,14 @@ def generateRepositorySelect(db, user, target, allow_selecting_none=False,
         else:
             optgroup = other
 
-        url = gitutils.Repository.constructURL(db, user, path)
-
         if repository_id == selected or name == selected:
             is_selected = "selected"
         else:
             is_selected = None
 
-        optgroup.option(value=name, selected=is_selected).text(label_format % (name, url))
+        html = html_format % (name, path)
+
+        option = optgroup.option("repository flex",
+                                 value=name, selected=is_selected,
+                                 data_text=name, data_html=html)
+        option.text(name)

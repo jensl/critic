@@ -295,17 +295,19 @@ $(document).ready(function ()
   {
     connectApplyFilters();
 
-    $("select.repository").change(
-      function ()
-      {
-        var name = $(this).val();
+    $(".repository-select")
+      .change(
+        function ()
+        {
+          var name = $(this).val();
 
-        if (default_remotes[name])
-          $("input.remote").val(default_remotes[name]);
+          if (default_remotes[name])
+            $("input.remote").val(default_remotes[name]);
 
-        if (default_branches[name])
-          $("input.upstreamcommit").val(default_branches[name] ? "refs/heads/" + default_branches[name] : "");
-      });
+          if (default_branches[name])
+            $("input.upstreamcommit").val(default_branches[name] ? "refs/heads/" + default_branches[name] : "");
+        })
+      .chosen({ inherit_select_classes: true });
 
     function getCurrentRemote()
     {
@@ -351,7 +353,7 @@ $(document).ready(function ()
         {
           if (result)
             location.href = ("/createreview" +
-                             "?repository=" + encodeURIComponent($("select.repository").val().trim()) +
+                             "?repository=" + encodeURIComponent($("select.repository-select").val().trim()) +
                              "&commits=" + encodeURIComponent(result.commit_ids) +
                              "&remote=" + encodeURIComponent(getCurrentRemote()) +
                              "&branch=" + encodeURIComponent(branch) +
@@ -361,7 +363,7 @@ $(document).ready(function ()
 
         var operation = new Operation({ action: "fetch remote branch",
                                         url: "fetchremotebranch",
-                                        data: { repository_name: $("select.repository").val().trim(),
+                                        data: { repository_name: $("select.repository-select").val().trim(),
                                                 remote: getCurrentRemote(),
                                                 branch: branch,
                                                 upstream: upstream },

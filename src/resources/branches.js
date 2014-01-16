@@ -16,11 +16,21 @@
 
 */
 
-$(document).ready(function ()
+$(function ()
   {
     $("td.repositories select").change(function (ev)
       {
         if (typeof repository == "undefined" || ev.target.value != repository.id)
           location.href = "/branches?repository=" + encodeURIComponent(ev.target.value);
       });
+
+    $(".repository-select").chosen({
+      inherit_select_classes: true,
+      generate_selected_value: function (item)
+        {
+          return { html: "Repository: <b>" + htmlify(item.text) + "</b>" };
+        },
+      collapsed_width: "auto",
+      expanded_width: "600px"
+    });
   });

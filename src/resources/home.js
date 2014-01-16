@@ -269,7 +269,7 @@ function editFilter(repository_name, filter_id, filter_type, filter_path, filter
   {
     var repository_name = repository.val();
 
-    if (repository_name && repository_name != "-")
+    if (repository_name)
     {
       var operation = new Operation({ action: "fetch path suggestions",
                                       url: "getrepositorypaths",
@@ -329,7 +329,7 @@ function editFilter(repository_name, filter_id, filter_type, filter_path, filter
 
   function updateMatchedFiles()
   {
-    if (!repository.val() || repository.val() == "-")
+    if (!repository.val())
       return;
 
     var repository_value = repository.val();
@@ -415,7 +415,7 @@ function editFilter(repository_name, filter_id, filter_type, filter_path, filter
     else
       delegates_value = [];
 
-    if (repository.val() == "-")
+    if (!repository.val())
     {
       showMessage("Invalid input", "No repository selected!", "Please select a repository.",
                   function () { repository.focus(); });
@@ -476,7 +476,10 @@ function editFilter(repository_name, filter_id, filter_type, filter_path, filter
                   modal: true,
                   buttons: buttons });
 
-  if (repository.val() == "-")
+  dialog.find(".repository-select").chosen({ inherit_select_classes: true });
+  dialog.find("select[name='type']").chosen({ disable_search: true });
+
+  if (!repository.val())
     repository.focus();
   else
     path.focus();

@@ -311,6 +311,26 @@ table.pageheader td.left > ul > li:first-child:before {
     padding: 2px 4px
 }
 
+.repository-select {
+    background-color: white;
+    text-align: left;
+    white-space: nowrap
+}
+
+.repository-select .repository {
+    flex-flow: row wrap;
+}
+
+.repository-select .repository .repository-name {
+    font-weight: bold
+}
+
+.repository-select .repository .repository-path {
+    font-family: monospace;
+    padding-left: 0.5rem;
+    margin-left: auto;
+}
+
 .notifications {
     position: fixed;
     width: 400px;
@@ -358,9 +378,9 @@ div.searchdialog input {
 }
 
 .flex {
-    display: -ms-flexbox;
-    display: -webkit-flex;
-    display: flex;
+    display: -ms-flexbox !important;
+    display: -webkit-flex !important;
+    display: flex !important;
 }
 
 input:not([type]),

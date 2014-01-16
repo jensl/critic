@@ -136,7 +136,7 @@ def renderSelectSource(req, db, user):
     default_branches = {}
 
     def renderLocalRepository(target):
-        repositories = target.select("repository")
+        page.utils.generateRepositorySelect(db, user, target)
 
         cursor.execute("""SELECT repositories.id, repositories.name, repositories.path, branches.name
                             FROM repositories
@@ -144,9 +144,6 @@ def renderSelectSource(req, db, user):
                         ORDER BY id""")
 
         for repository_id, name, path, branch_name in cursor.fetchall():
-            option = repositories.option("repository", value=name, selected="selected" if name == default_repository else None)
-            option.text("%s [%s]" % (name, gitutils.Repository.constructURL(db, user, path)))
-
             local_names = ["*"]
 
             if branch_name:

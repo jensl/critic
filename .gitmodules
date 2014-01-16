@@ -1,0 +1,3 @@
+[submodule "installation/externals/chosen"]
+	path = installation/externals/chosen
+	url = ../chosen.git

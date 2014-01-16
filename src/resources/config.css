@@ -111,3 +111,17 @@ div.installed_sha1 a:hover {
 .notification.saved pre {
     margin: 5px 0 3px 1em
 }
+
+.url-type {
+    flex-flow: row wrap;
+}
+
+.url-type .label {
+    font-weight: bold
+}
+
+.url-type .prefix {
+    font-family: monospace;
+    padding-left: 0.5rem;
+    margin-left: auto;
+}

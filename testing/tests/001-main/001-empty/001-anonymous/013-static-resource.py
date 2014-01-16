@@ -21,7 +21,7 @@ frontend.page(
 
 # Test jquery.js, which is a symlink to the current version.
 frontend.page(
-    "static-resource/jquery.js",
+    "static-resource/third-party/jquery.js",
     expect={ "jquery_foundation": check_jquery_foundation })
 
 # Test a non-existing file.

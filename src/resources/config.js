@@ -135,13 +135,20 @@ function saveSettings(reset_item)
     if (element.type == "checkbox")
       element.checked = default_value;
     else
+    {
       element.value = default_value;
+      if (element instanceof HTMLSelectElement)
+        $(element).trigger("chosen:updated");
+    }
 
     $(element).parents("tr.line").removeClass("customized");
     element.setAttribute("critic-current", JSON.stringify(default_value));
   }
   else
-    $("td.value > .setting").each(processElement);
+  {
+    $("td.value > input.setting, td.value > select.setting")
+      .each(processElement);
+  }
 
   function builtInSaved(result)
   {
@@ -220,26 +227,44 @@ $(document).ready(function ()
           showMessage("Important Note!", "Important Note!", "<p>Please note that when creating a review by pushing a branch whose name starts with <code>r/</code>, only the first (head) commit on the branch will be added to the review, and you will not be able to add its ancestor commits later.</p><p><strong>This feature cannot be used to create a review of multiple commits!</strong></p>");
       });
 
-    $("select.repository").change(function (ev)
-      {
-        var repository = ev.target.value;
-        var params = {};
+    $("td.h1 .repository-select")
+      .change(function (ev)
+        {
+          var repository = ev.target.value;
+          var params = {};
 
-        if (repository != "-")
-          params.repository = repository;
+          if (repository)
+            params.repository = repository;
 
-        if (defaults)
-          params.defaults = "yes";
+          if (defaults)
+            params.defaults = "yes";
 
-        var url = "/config";
+          var url = "/config";
 
-        if (Object.keys(params).length)
-          url += "?" + Object.keys(params).map(function (name) { return name + "=" + encodeURIComponent(params[name]); }).join("&");
+          if (Object.keys(params).length)
+            url += "?" + Object.keys(params).map(function (name) { return name + "=" + encodeURIComponent(params[name]); }).join("&");
 
-        location.assign(url);
-      });
+          location.assign(url);
+        })
+      .chosen({ inherit_select_classes: true,
+                allow_single_deselect: true,
+                collapsed_width: "auto",
+                expanded_width: "600px" });
 
-    $("select, input").bind("change input", scheduleSaveSettings);
+    $("td.value > select.setting")
+      .chosen({ inherit_select_classes: true,
+                disable_search: true,
+                collapsed_width: "auto",
+                expanded_width: "30em" });
+
+    $("td.value > .repository-select")
+      .chosen({ inherit_select_classes: true,
+                allow_single_deselect: true,
+                collapsed_width: "auto",
+                expanded_width: "40em" })
+      .addClass("setting");
+
+    $(".setting").bind("change input", scheduleSaveSettings);
 
     window.addEventListener("beforeunload", function (ev)
       {

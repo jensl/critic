@@ -1,15 +1,27 @@
-Copyright 2012 Jens Lindström, Opera Software ASA
+Copyright 2012-2014 the Critic contributors, Opera Software ASA
 
-The Critic code review system is licensed under the Apache License, version
-2.0, with exceptions noted below.  You may obtain a copy of the License at
+The Critic code review system is licensed under the Apache License, version 2.0,
+with exceptions noted below.  You may obtain a copy of the License at
 
   http://www.apache.org/licenses/LICENSE-2.0
 
+An list of contributors can be found in the CONTRIBUTORS file.
+
+
+Third-party software
+====================
+
+The following third-party software is distributed with Critic (checked into
+Critic's Git repository.)
+
+jQuery
+------
 
 The jQuery library is licensed under the MIT License, available in the file
-MIT-LICENSE.txt.  These files distributed with Critic are part of jQuery:
+installation/externals/MIT-LICENSE.jQuery.txt.  These files distributed with
+Critic are part of jQuery:
 
-  MIT-LICENSE.txt
+  installation/externals/MIT-LICENSE.jQuery.txt
   resources/jquery-2.0.0.min.js
   resources/jquery-ui-1.10.2.custom.css
   resources/jquery-ui-1.10.2.custom.min.js
@@ -18,3 +30,24 @@ MIT-LICENSE.txt.  These files distributed with Critic are part of jQuery:
 For more information, see:
 
   http://jquery.org/
+
+Chosen
+------
+
+The Chosen library is licensed under the MIT License, available in the file
+installation/externals/MIT-LICENSE.Chosen.md.  These files distributed with
+Critic are part of Chosen:
+
+  installation/externals/MIT-LICENSE.Chosen.md
+  resources/chosen*.js
+  resources/chosen*.css
+  resources/chosen-*.png
+
+For more information, see:
+
+  http://harvesthq.github.io/chosen/
+
+Critic's version of Chosen is built from slightly modified fork of the main
+GitHub repository:
+
+  https://github.com/jensl/chosen

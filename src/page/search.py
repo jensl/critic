@@ -74,7 +74,7 @@ def renderSearch(req, db, user):
         state = target.fieldset("search-state")
         state.label("input-label").text("State")
         select = state.select(name="state")
-        select.option(value="-", selected="selected").text("Any state")
+        select.option(value="", selected="selected").text("Any state")
         select.option(value="open").text("Open")
         select.option(value="pending").text("Pending")
         select.option(value="accepted").text("Accepted")
@@ -92,7 +92,7 @@ def renderSearch(req, db, user):
         fieldset.label("input-label").text("Repository")
         page.utils.generateRepositorySelect(
             db, user, fieldset, name="repository", selected=False,
-            none_label="Any repository", allow_selecting_none=True)
+            placeholder_text="Any repository", allow_selecting_none=True)
 
     section = body.section("paleyellow section")
     section.h1("section-heading").text("Review Search")

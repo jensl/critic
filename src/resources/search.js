@@ -16,8 +16,6 @@
 
 */
 
-/* -*- Mode: text; indent-tabs-mode: nil -*- */
-
 "use strict";
 
 $(function () {
@@ -95,7 +93,7 @@ $(function () {
     terms.push.apply(terms, users.map(with_keyword(usersKey)));
 
     var repository = form.repository.value;
-    if (repository && repository !== "-") {
+    if (repository) {
       terms.push(with_keyword("repository")(repository));
     }
 
@@ -108,13 +106,21 @@ $(function () {
     terms.push.apply(terms, paths.map(with_keyword("path")));
 
     var state = form.state.value;
-    if (state && state !== "-") {
+    if (state) {
       terms.push(with_keyword("state")(state));
     }
 
     quickSearch(terms.join(" "));
   });
 
-    $(document.forms.search.user)
-      .autocomplete({ source: AutoCompleteUsers(users) });
-  });
+  $(document.forms.search.user)
+    .autocomplete({ source: AutoCompleteUsers(users) });
+
+  $("select[name='state']").chosen();
+
+  $(".repository-select")
+    .chosen({ inherit_select_classes: true,
+              allow_single_deselect: true,
+              collapsed_width: "100%",
+              expanded_width: "40em" });
+});

@@ -865,10 +865,11 @@ function fetchFile(file_id, side, replace_tbody)
 
 function detectMoves()
 {
-  var content = $("<div title='Detect Moved Code' class='detectmoves'><p>Source file:<br><select class='source'><option value='any'>Any</option></select></p><p>Target file:<br><select class='target'><option value='any'>Any</option></select></p></div>");
+  var content = $("<div title='Detect Moved Code' class='detectmoves'><p>Source file:<br><select class='source'><option value='any'></option></select></p><p>Target file:<br><select class='target'><option value='any'></option></select></p></div>");
 
-  var source = content.find("select.source");
-  var target = content.find("select.target");
+  var selects = content.find("select");
+  var source = selects.filter(".source");
+  var target = selects.filter(".target");
   var fileids = {};
   var paths = [];
   var expanded_files = [];
@@ -899,8 +900,7 @@ function detectMoves()
     else
       selected = "";
 
-    source.append("<option value='" + fileid + "'" + selected + ">" + htmlify(path) + "</option>");
-    target.append("<option value='" + fileid + "'" + selected + ">" + htmlify(path) + "</option>");
+    selects.append("<option value='" + fileid + "'" + selected + ">" + htmlify(path) + "</option>");
   }
 
   function finish()
@@ -917,6 +917,9 @@ function detectMoves()
   content.dialog({ width: 600,
                    buttons: { Search: function () { finish(); content.dialog("close"); },
                               Cancel: function () { content.dialog("close"); } } });
+
+  selects.chosen({ placeholder_text: "Any",
+                   allow_single_deselect: true });
 }
 
 var BLAME = null;

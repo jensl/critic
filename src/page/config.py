@@ -242,8 +242,10 @@ def renderConfig(req, db, user):
 
         options = None
         optgroup = None
-        def addOption(value, name, selected=lambda value: value==current_value):
-            (optgroup or options).option(value=value, selected="selected" if selected(value) else None).text(name)
+        def addOption(value, name, selected=lambda value: value==current_value, **attributes):
+            (optgroup or options).option(
+                value=value, selected="selected" if selected(value) else None,
+                **attributes).text(name)
 
         if preference_type == "boolean":
             value.input(
@@ -258,17 +260,12 @@ def renderConfig(req, db, user):
                 critic_current=htmlutils.jsify(current_value),
                 critic_default=htmlutils.jsify(default_value))
         elif item == "defaultRepository":
-            options = value.select(
-                "setting", id=input_id, name=item, disabled=disabled,
+            page.utils.generateRepositorySelect(
+                db, user, value, allow_selecting_none=True,
+                placeholder_text="No default repository", selected=current_value,
+                id=input_id, name=item, disabled=disabled,
                 critic_current=htmlutils.jsify(current_value),
                 critic_default=htmlutils.jsify(default_value))
-
-            addOption("", "(no default repository)")
-
-            cursor2 = db.cursor()
-            cursor2.execute("SELECT name FROM repositories ORDER BY id ASC")
-            for (name,) in cursor2:
-                addOption(name, name)
         elif item == "defaultPage":
             options = value.select(
                 "setting", id=input_id, name=item, disabled=disabled,
@@ -282,7 +279,9 @@ def renderConfig(req, db, user):
             addOption("tutorial", "Tutorial")
         elif item == "email.urlType":
             cursor2 = db.cursor()
-            cursor2.execute("SELECT key, description FROM systemidentities")
+            cursor2.execute("""SELECT key, description, authenticated_scheme, hostname
+                                 FROM systemidentities
+                             ORDER BY description ASC""")
 
             identities = cursor2.fetchall()
             selected = set(current_value.split(","))
@@ -293,8 +292,16 @@ def renderConfig(req, db, user):
                 critic_current=htmlutils.jsify(current_value),
                 critic_default=htmlutils.jsify(default_value))
 
-            for key, description in identities:
-                addOption(key, description, selected=lambda value: value in selected)
+            for key, label, authenticated_scheme, hostname in identities:
+                prefix = "%s://%s/" % (authenticated_scheme, hostname)
+                addOption(key, label, selected=lambda value: value in selected,
+                          class_="url-type flex",
+                          data_text=label,
+                          data_html=("<span class=label>%s</span>"
+                                     "<span class=prefix>%s</span>"
+                                     % (htmlutils.htmlify(label),
+                                        htmlutils.htmlify(prefix))))
+
         elif item == "email.updatedReview.quotedComments":
             options = value.select(
                 "setting", id=input_id, name=item, disabled=disabled,
