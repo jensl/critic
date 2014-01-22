@@ -151,9 +151,7 @@ CommentChain.create = function (type_or_markers)
 
     function totalAdditionalHeight(element)
     {
-      return parseInt(element.css("margin-top")) + parseInt(element.css("margin-bottom")) +
-             parseInt(element.css("border-top-width")) + parseInt(element.css("border-bottom-width")) +
-             parseInt(element.css("padding-top")) + parseInt(element.css("padding-bottom"));
+      return element.outerHeight(true) - element.height();
     }
 
     function resize()
@@ -166,10 +164,7 @@ CommentChain.create = function (type_or_markers)
       available -= parseInt(content.css("padding-top")) + parseInt(content.css("padding-bottom"));
       available -= totalAdditionalHeight(text);
       available -= totalAdditionalHeight(textarea);
-      available -= message.height();
-
-      // Quirk to prevent vertical scrollbar in dialog client area when resizing it in chromium.
-      available -= 3;
+      available -= message.outerHeight(true);
 
       textarea.height(available);
     }
@@ -214,7 +209,7 @@ CommentChain.create = function (type_or_markers)
 
         if (side == 'o' && markers.linesModified())
         {
-          message = "<p style='margin: 0'>"
+          message = "<p>"
                   +   "<b>Warning:</b> An issue raised against the old version of "
                   +   "modified lines will never be marked as addressed, and "
                   +   "will thus need to be resolved manually."
@@ -259,7 +254,7 @@ CommentChain.create = function (type_or_markers)
           }
           else if (result.verdict == "transferred")
           {
-            message = "<p style='margin: 0'>"
+            message = "<p>"
                     +   "<b>Note:</b> This file is modified by "
                     +     (result.count > 1 ? result.count + " later commits " : "a later commit ")
                     +   "in this review, without affecting the commented lines.  "

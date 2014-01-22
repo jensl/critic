@@ -45,25 +45,6 @@ table tr.nothing td.nothing {
     padding-top: 1em
 }
 
-div.additem > div.text {
-    font-family: monospace;
-    font-size: 11px;
-    background-color: #fff;
-    border: 1px solid #bbb;
-    margin-top: 3px;
-    padding: 5px;
-    white-space: pre-wrap
-}
-
-div.additem > div.text > textarea {
-    font-family: monospace;
-    font-size: 11px;
-    background-color: #fff;
-    border: none;
-    width: 100%;
-    resize: none
-}
-
 div.main table td.show {
     text-align: center;
     padding-left: 0;

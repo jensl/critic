@@ -229,9 +229,7 @@ function submitChanges()
 
     function totalAdditionalHeight(element)
     {
-      return parseInt(element.css("margin-top")) + parseInt(element.css("margin-bottom")) +
-             parseInt(element.css("border-top-width")) + parseInt(element.css("border-bottom-width")) +
-             parseInt(element.css("padding-top")) + parseInt(element.css("padding-bottom"));
+      return element.outerHeight(true) - element.height();
     }
 
     function resize()
@@ -245,12 +243,8 @@ function submitChanges()
       available -= parseInt(content.css("padding-top")) + parseInt(content.css("padding-bottom"));
       available -= totalAdditionalHeight(text);
       available -= totalAdditionalHeight(textarea);
-      if (state.size())
-        available -= state.height() + 10;
-      available -= message.height();
-
-      // Quirk to prevent vertical scrollbar in dialog client area when resizing it in chromium.
-      available -= 3;
+      available -= state.outerHeight(true);
+      available -= message.outerHeight(true);
 
       textarea.height(available);
     }
@@ -263,9 +257,9 @@ function submitChanges()
 
     if (result)
       if (result.current_state == "open" && result.new_state == "accepted")
-        state_change = "<p class='state' style='margin: 0; margin-bottom: 5px; padding-bottom: 5px; border-bottom: 1px solid black; font-weight: bold'>With these changes, the review will be ACCEPTED.</p>";
+        state_change = "<p class='state'>With these changes, the review will be ACCEPTED.</p>";
       else if (result.current_state == "accepted" && result.new_state == "open")
-        state_change = "<p class='state' style='margin: 0; padding-bottom: 3px; border-bottom: 1px solid black; font-weight: bold'>With these changes, the review will NO LONGER be ACCEPTED.</p>";
+        state_change = "<p class='state'>With these changes, the review will NO LONGER be ACCEPTED.</p>";
 
     var content = $("<div class='comment' title='Submit Changes'>" + state_change + "<p class='message' style='margin: 0'>Additional note (optional):</p><div class='text'><textarea></textarea></div></div>");
 

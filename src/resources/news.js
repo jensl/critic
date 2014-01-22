@@ -35,9 +35,6 @@ function addOrEditNewsItem(edit_item_id, edit_text)
     available -= totalAdditionalHeight(text);
     available -= totalAdditionalHeight(textarea);
 
-    // Quirk to prevent vertical scrollbar in dialog client area when resizing it in chromium.
-    available -= 3;
-
     textarea.height(available);
   }
 
@@ -61,7 +58,7 @@ function addOrEditNewsItem(edit_item_id, edit_text)
 
   var verb = edit_item_id ? "Edit" : "Create"
 
-  var content = $("<div class='additem' title='" + verb + " News Item'><div class='text'><textarea></textarea></div></div>");
+  var content = $("<div class='comment' title='" + verb + " News Item'><div class='text'><textarea></textarea></div></div>");
 
   if (edit_text)
     content.find("textarea").val(edit_text);

@@ -27,6 +27,18 @@ span.draft {
     color: #f00
 }
 
+div.comment > p {
+    margin: 0
+}
+
+div.comment > p.state {
+    margin: 0;
+    margin-bottom: 5px;
+    padding-bottom: 5px;
+    border-bottom: 1px solid black;
+    font-weight: bold
+}
+
 div.comment > div.warning {
     font-weight: bold;
     color: #f00
@@ -57,7 +69,10 @@ div.comment > div.text > textarea {
     background-color: #fff;
     border: none;
     width: 100%;
-    resize: none
+    resize: none;
+    margin: 0;
+    display: block;
+    outline: 0
 }
 
 div.comment-dialog > div.resolution,

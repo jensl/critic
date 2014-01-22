@@ -75,6 +75,7 @@ def renderNews(req, db, user):
     page.utils.generateHeader(body, db, user, current_page="news", generate_right=renderButtons)
 
     document.addExternalStylesheet("resource/tutorial.css")
+    document.addExternalStylesheet("resource/comment.css")
     document.addExternalStylesheet("resource/news.css")
     document.addExternalScript("resource/news.js")
     document.addInternalStylesheet("div.main table td.text { %s }" % user.getPreference(db, "style.tutorialFont"))
