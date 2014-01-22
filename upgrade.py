@@ -194,6 +194,10 @@ Previously installed version: %s
 Will now upgrade to version:  %s
 """ % (old_critic_sha1, new_critic_sha1)
 
+if old_critic_sha1 == new_critic_sha1:
+    print "Old and new commit are the same, nothing to do."
+    sys.exit(0)
+
 if subprocess.check_output([git, "status", "--porcelain"],
                            cwd=installation.root_dir).strip():
     print """
