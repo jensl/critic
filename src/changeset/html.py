@@ -473,7 +473,12 @@ def renderFile(db, target, user, review, file, first_file=False, options={}, con
         if not file.isEmptyChanges():
             row = tbody.tr('deleted')
             row.td(colspan=2).text()
-            row.td(colspan=4).button(onclick="fetchFile(%d, '%s', event.currentTarget.parentNode.parentNode.parentNode);" % (file.id, side)).text("Fetch %d %s Lines" % (count, verb.capitalize()))
+            parent_index = options.get("parent_index", -1)
+            if parent_index != -1:
+                fileset = "files[%d]" % parent_index
+            else:
+                fileset = "files"
+            row.td(colspan=4).button(onclick="fetchFile(%s, %d, '%s', event.currentTarget.parentNode.parentNode.parentNode);" % (fileset, file.id, side)).text("Fetch %d %s Lines" % (count, verb.capitalize()))
             row.td(colspan=2).text()
 
         table.tbody('spacer').tr('spacer').td(colspan=8).text()

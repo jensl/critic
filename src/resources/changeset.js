@@ -816,11 +816,11 @@ function customProcessCommits()
   location.href = "/processcommits?review=" + review.id + "&commits=" + changeset.commits.join(",");
 }
 
-function fetchFile(file_id, side, replace_tbody)
+function fetchFile(fileset, file_id, side, replace_tbody)
 {
   var data = { repository_id: repository.id,
-               path: files[file_id].path,
-               sha1: files[file_id][side + "_sha1"],
+               path: fileset[file_id].path,
+               sha1: fileset[file_id][side + "_sha1"],
                ranges: [{ offset: 1, count: -1, context: false }],
                tabify: typeof tabified != "undefined" };
 
