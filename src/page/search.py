@@ -14,6 +14,8 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
+import urlparse
+
 import htmlutils
 import textutils
 import page.utils
@@ -97,22 +99,46 @@ def renderSearch(req, db, user):
     section = body.section("paleyellow section")
     section.h1("section-heading").text("Review Search")
 
+    url_terms = []
+
+    for name, value in urlparse.parse_qsl(req.query):
+        if name == "q":
+            url_terms.append(value)
+        elif name.startswith("q"):
+            url_terms.append("%s:%s" % (name[1:], value))
+
     wrap = section.div("flex")
     search = wrap.form("search", name="search")
 
-    row = search.div("flex")
-    renderFreetext(row)
-    renderState(row)
+    if url_terms:
+        row = search.div("flex")
+        query = row.fieldset("search-query")
+        query.label("input-label").text("Search query")
+        query.input(type="text", name="query", value=" ".join(url_terms))
 
-    renderUser(search)
+        result = section.div("search-result", style="display: none")
+        result.h2().text("Search result")
+        result.div("callout")
+    else:
+        row = search.div("flex")
+        renderFreetext(row)
+        renderState(row)
 
-    row = search.div("flex")
-    renderRepository(row)
-    renderInput(row, "Branch", "branch")
+        renderUser(search)
 
-    renderInput(search, "Path", "path")
+        row = search.div("flex")
+        renderRepository(row)
+        renderInput(row, "Branch", "branch")
 
-    search.button(type="submit").text("Search")
+        renderInput(search, "Path", "path")
+
+    buttons = search.div("search-buttons")
+
+    if url_terms:
+        buttons.button(type="submit").text("Search again")
+        buttons.a("button", href="/search").text("Show full search form")
+    else:
+        buttons.button(type="submit").text("Search")
 
     renderQuickSearch(wrap)
 

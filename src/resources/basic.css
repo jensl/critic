@@ -360,7 +360,12 @@ table.searchresults .summary {
     padding-left: 0.5em
 }
 
-table.searchresults td {
+table.searchresults td.link {
+    text-align: right;
+    vertical-align: top;
+}
+
+table.searchresults tr.review td {
     font-family: monospace;
     padding-top: 3px;
     padding-bottom: 3px;

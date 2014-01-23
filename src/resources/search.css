@@ -52,6 +52,10 @@
     width: 100%;
 }
 
+.search-query {
+    width: 100%;
+}
+
 .search-freetext,
 .search-repository {
     margin-right: 1.5rem;
@@ -72,4 +76,22 @@
     -ms-flex: 2;
     -webkit-flex: 2;
     flex: 2;
+}
+
+.search-buttons > * {
+    margin-right: 0.5rem
+}
+
+.search-result {
+    margin: 0 20%
+}
+
+.search-result h2 {
+    font-weight: normal;
+    font-size: 1.4rem;
+    margin: 1rem 0 0.5rem 0
+}
+
+.search-result tr.review td {
+    background-color: inherit !important
 }

@@ -437,7 +437,7 @@ var previous_query = "";
 if (typeof localStorage != "undefined")
   previous_query = localStorage.getItem("previous_query");
 
-function quickSearch(external_query)
+function quickSearch(external_query, callback)
 {
   function finish(result)
   {
@@ -454,12 +454,14 @@ function quickSearch(external_query)
       return;
     }
 
-    var html = ("<div title='Search results'><table class=searchresults>" +
-                "<tr><th class=id>Review</th><th class=summary>Summary</th></tr>");
+    var html = ("<table class=searchresults>" +
+                "<tr><th class=id>Review</th><th class=summary>Summary</th>");
+
+    html += "</tr>";
 
     result.reviews.forEach(function (review, index)
       {
-        html += ("<tr critic-review-id=" + review.id + ">" +
+        html += ("<tr class=review critic-review-id=" + review.id + ">" +
                  "<td class=id>r/" + review.id + "</td>" +
                  "<td class=summary><a href=/r/" + review.id + ">" + htmlify(review.summary) + "</a></td>" +
                  "</tr>");
@@ -476,11 +478,24 @@ function quickSearch(external_query)
           target.parents("tr").find("a").get(0).click();
       });
 
-    content.dialog({ width: 800,
-                     buttons: { "Close": function () { content.dialog("close"); }}});
+    if (callback)
+      callback(content, result);
+    else
+    {
+      content.wrap("<div title='Search results'></div>");
+      content.find("tr").first().append(
+        "<td class=link><a>Link to this search</a></td>");
+      content.find("a").attr("href", "/search?" + result.query_string);
+      content.find("td.summary").attr("colspan", "2");
 
-    if (content.closest(".ui-dialog").height() > innerHeight)
-      content.dialog("option", "height", innerHeight - 10);
+      content = content.parent();
+      content.dialog(
+        { width: 800,
+          buttons: { "Close": function () { content.dialog("close"); }}});
+
+      if (content.closest(".ui-dialog").height() > innerHeight)
+        content.dialog("option", "height", innerHeight - 10);
+    }
   }
 
   function search(query)

@@ -15,6 +15,7 @@
 # the License.
 
 import re
+import urllib
 
 import dbutils
 import gitutils
@@ -173,11 +174,15 @@ class SearchReview(Operation):
 
     def process(req, db, user, query):
         terms = re.findall("""((?:"[^"]*"|'[^']*'|[^ "']+)+)""", query)
+        url_terms = []
         filters = []
 
         for term in terms:
             if re.match("[a-z\-]+:", term):
                 keyword, _, value = term.partition(":")
+
+                url_terms.append(("q" + keyword, value))
+
                 if keyword == "summary":
                     filter_classes = [SummaryFilter]
                 elif keyword == "description":
@@ -236,6 +241,8 @@ class SearchReview(Operation):
                         message=("The search term following %r must be a valid repository name."
                                  % (keyword + ":")))
             else:
+                url_terms.append(("q", term))
+
                 if re.match("([\"']).*\\1$", term):
                     term = term[1:-1]
 
@@ -279,4 +286,6 @@ class SearchReview(Operation):
         for search_filter in filters:
             reviews = filter(lambda review: search_filter.filter(db, review), reviews)
 
-        return OperationResult(reviews=map(Review.json, reviews))
+        return OperationResult(
+            reviews=map(Review.json, reviews),
+            query_string=urllib.urlencode(url_terms))

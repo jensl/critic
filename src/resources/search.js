@@ -21,18 +21,31 @@
 $(function () {
   var searchForm = document.forms.search;
 
-  // Disable the freetext input if none of its checkboxes are checked
-  [ searchForm.freetextSummary, searchForm.freetextDescription ].forEach(
-    function (checkbox, idx, checkboxes) {
-      checkbox.addEventListener('click', function () {
-        var someChecked = checkboxes.some(
-          function (cbox) { return cbox.checked; }
-        );
-        if (searchForm.freetext.disabled === someChecked) {
-          searchForm.freetext.disabled = !someChecked;
-        }
+  function doSearch(query) {
+    function handleResult(table, result) {
+      $(".search-result")
+        .css({ display: "block" })
+        .children(".callout").empty().append(table);
+      history.replaceState(null, null, "/search?" + result.query_string);
+    }
+
+    quickSearch(query, searchForm.query ? handleResult : null);
+  }
+
+  if (!searchForm.query) {
+    // Disable the freetext input if none of its checkboxes are checked
+    [ searchForm.freetextSummary, searchForm.freetextDescription ].forEach(
+      function (checkbox, idx, checkboxes) {
+        checkbox.addEventListener('click', function () {
+          var someChecked = checkboxes.some(
+            function (cbox) { return cbox.checked; }
+          );
+          if (searchForm.freetext.disabled === someChecked) {
+            searchForm.freetext.disabled = !someChecked;
+          }
+        });
       });
-    });
+  }
 
   searchForm.addEventListener('submit', function (evt) {
     evt.preventDefault();
@@ -66,51 +79,59 @@ $(function () {
       return function (term) { return term ? keyword + ":'" + term + "'" : ""; };
     }
 
-    var terms = [];
+    var query;
 
-    var freetext = form.freetext.value.trim();
-    if (freetext) {
-      var textphrases = phrases(freetext);
-      if (form.freetextSummary.checked && form.freetextDescription.checked) {
-        terms.push.apply(terms, textphrases.map(with_keyword("text")));
-      } else if (form.freetextSummary.checked) {
-        terms.push.apply(terms, textphrases.map(with_keyword("summary")));
-      } else if (form.freetextDescription.checked) {
-        terms.push.apply(terms, textphrases.map(with_keyword("description")));
-      }
-    }
-
-    var users = tokens(form.user.value.trim()), usersKey;
-    if (form.userOwner.checked && form.userReviewer.checked) {
-      usersKey = "owner-or-reviewer";
-    } else if (form.userOwner.checked) {
-      usersKey = "owner";
-    } else if (form.userReviewer.checked) {
-      usersKey = "reviewer";
+    if (form.query) {
+      query = form.query.value.trim();
     } else {
-      usersKey = "user";
+      var terms = [];
+
+      var freetext = form.freetext.value.trim();
+      if (freetext) {
+        var textphrases = phrases(freetext);
+        if (form.freetextSummary.checked && form.freetextDescription.checked) {
+          terms.push.apply(terms, textphrases.map(with_keyword("text")));
+        } else if (form.freetextSummary.checked) {
+          terms.push.apply(terms, textphrases.map(with_keyword("summary")));
+        } else if (form.freetextDescription.checked) {
+          terms.push.apply(terms, textphrases.map(with_keyword("description")));
+        }
+      }
+
+      var users = tokens(form.user.value.trim()), usersKey;
+      if (form.userOwner.checked && form.userReviewer.checked) {
+        usersKey = "owner-or-reviewer";
+      } else if (form.userOwner.checked) {
+        usersKey = "owner";
+      } else if (form.userReviewer.checked) {
+        usersKey = "reviewer";
+      } else {
+        usersKey = "user";
+      }
+      terms.push.apply(terms, users.map(with_keyword(usersKey)));
+
+      var repository = form.repository.value;
+      if (repository) {
+        terms.push(with_keyword("repository")(repository));
+      }
+
+      var branch = form.branch.value.trim();
+      if (branch) {
+        terms.push(with_keyword("branch")(branch));
+      }
+
+      var paths = tokens(form.path.value.trim());
+      terms.push.apply(terms, paths.map(with_keyword("path")));
+
+      var state = form.state.value;
+      if (state) {
+        terms.push(with_keyword("state")(state));
+      }
+
+      query = terms.join(" ");
     }
-    terms.push.apply(terms, users.map(with_keyword(usersKey)));
 
-    var repository = form.repository.value;
-    if (repository) {
-      terms.push(with_keyword("repository")(repository));
-    }
-
-    var branch = form.branch.value.trim();
-    if (branch) {
-      terms.push(with_keyword("branch")(branch));
-    }
-
-    var paths = tokens(form.path.value.trim());
-    terms.push.apply(terms, paths.map(with_keyword("path")));
-
-    var state = form.state.value;
-    if (state) {
-      terms.push(with_keyword("state")(state));
-    }
-
-    quickSearch(terms.join(" "));
+    doSearch(query);
   });
 
   $(document.forms.search.user)
@@ -123,4 +144,8 @@ $(function () {
               allow_single_deselect: true,
               collapsed_width: "100%",
               expanded_width: "40em" });
+
+  if (searchForm.query && searchForm.query.value.trim()) {
+    doSearch(searchForm.query.value.trim());
+  }
 });
