@@ -43,6 +43,8 @@ def main():
     parser.add_argument("--pause-before", help="Pause testing before specified test(s)", action="append")
     parser.add_argument("--pause-after", help="Pause testing before specified test(s)", action="append")
     parser.add_argument("--pause-on-failure", help="Pause testing after each failed test", action="store_true")
+    parser.add_argument("--pause-upgrade-loop", help="Support upgrading the tested system while paused", action="store_true")
+    parser.add_argument("--pause-upgrade-hook", help="Command to run (locally) before upgrading", action="append")
     parser.add_argument("test", help="Specific tests to run [default=all]", nargs="*")
 
     arguments = parser.parse_args()
@@ -243,7 +245,22 @@ def main():
             return True
 
     def pause():
-        testing.pause("Testing paused.  Press ENTER to continue: ")
+        if arguments.pause_upgrade_loop:
+            print "Testing paused."
+
+            while True:
+                testing.pause("Press ENTER to upgrade (to HEAD), CTRL-c to stop: ")
+
+                for command in arguments.pause_upgrade_hook:
+                    subprocess.check_call(command, shell=True)
+
+                repository.push("HEAD")
+
+                instance.execute(["git", "fetch", "origin", "master"], cwd="critic")
+                instance.upgrade_commit = "FETCH_HEAD"
+                instance.upgrade()
+        else:
+            testing.pause("Testing paused.  Press ENTER to continue: ")
 
     pause_before = set(arguments.pause_before or [])
     pause_after = set(arguments.pause_after or [])

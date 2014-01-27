@@ -62,8 +62,11 @@ class Repository(object):
         _git(["config", "receive.denyNonFastforwards", "false"],
              cwd=self.path)
 
+        self.push(tested_commit)
+
+    def push(self, commit):
         _git(["push", "--quiet", "--force", self.path,
-              "%s:refs/heads/master" % tested_commit])
+              "%s:refs/heads/master" % commit])
 
     def export(self):
         argv = ["git", "daemon", "--reuseaddr", "--export-all",
