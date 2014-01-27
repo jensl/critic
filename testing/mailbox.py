@@ -66,12 +66,13 @@ class ParseError(Error):
         self.line = line
 
 class Client(threading.Thread):
-    def __init__(self, mailbox, client):
+    def __init__(self, mailbox, client, debug_mails):
         super(Client, self).__init__()
         self.mailbox = mailbox
         self.credentials = mailbox.credentials
         self.client = client
         self.client.settimeout(None)
+        self.debug_mails = debug_mails
         self.buffered = ""
         self.start()
 
@@ -190,6 +191,16 @@ class Client(threading.Thread):
         testing.logger.debug("Received mail to: <%s> \"%s\""
                              % (mail.recipient, mail.header("Subject")))
 
+        if self.debug_mails:
+            source = "--------------------------------------------------\n"
+            for name, value in message.items():
+                source += "%s: %s\n" % (name, value)
+            source += "\n"
+            for line in mail.lines:
+                source += line + "\n"
+            source += "--------------------------------------------------"
+            testing.logger.debug(source)
+
         self.mailbox.add(mail)
         self.sendline("250 OK")
 
@@ -217,10 +228,11 @@ class Client(threading.Thread):
             pass
 
 class Listener(threading.Thread):
-    def __init__(self, mailbox):
+    def __init__(self, mailbox, debug_mails):
         super(Listener, self).__init__()
         self.daemon = True
         self.mailbox = mailbox
+        self.debug_mails = debug_mails
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.socket.settimeout(0.1)
         self.socket.bind(("", 0))
@@ -235,18 +247,18 @@ class Listener(threading.Thread):
             except socket.timeout:
                 pass
             else:
-                Client(self.mailbox, client)
+                Client(self.mailbox, client, self.debug_mails)
 
     def stop(self):
         self.stopped = True
 
 class Mailbox(object):
-    def __init__(self, credentials=None):
+    def __init__(self, credentials=None, debug_mails=False):
         self.credentials = credentials
         self.queued = []
         self.errors = []
         self.condition = threading.Condition()
-        self.listener = Listener(self)
+        self.listener = Listener(self, debug_mails)
 
     def add(self, mail):
         with self.condition:

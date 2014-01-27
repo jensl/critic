@@ -27,6 +27,7 @@ import testing
 def main():
     parser = argparse.ArgumentParser(description="Critic testing framework")
     parser.add_argument("--debug", help="Enable DEBUG level logging", action="store_true")
+    parser.add_argument("--debug-mails", help="Log every mail sent by the tested system", action="store_true")
     parser.add_argument("--quiet", help="Disable INFO level logging", action="store_true")
     parser.add_argument("--coverage", help="Enable coverage measurement mode", action="store_true")
     parser.add_argument("--commit", help="Commit (symbolic ref or SHA-1) to test [default=HEAD]", default="HEAD")
@@ -354,7 +355,8 @@ def main():
             tested_commit,
             arguments.vm_hostname)
         mailbox = testing.mailbox.Mailbox({ "username": "smtp_username",
-                                            "password": "SmTp_PaSsWoRd" })
+                                            "password": "SmTp_PaSsWoRd" },
+                                          arguments.debug_mails)
 
         with repository:
             with mailbox:
