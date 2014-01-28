@@ -14,9 +14,7 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-import sys
 import subprocess
-import os
 
 import installation
 
@@ -70,40 +68,20 @@ This user does not need to match a system user on this machine.
 def install(data):
     global password
 
-    import psycopg2
+    try:
+        subprocess.check_output(
+            [installation.criticctl.criticctl_path, "adduser",
+             "--name", username,
+             "--email", email,
+             "--fullname", fullname,
+             "--password", password])
 
-    def adapt(value):
-        return psycopg2.extensions.adapt(value).getquoted()
-
-    if password is not None:
-        try:
-            import auth
-        except ImportError:
-            password = installation.process.check_input(
-                [sys.executable, "-c",
-                 "import sys, auth; sys.stdout.write(auth.hashPassword(sys.stdin.read()))"],
-                stdin=password, stdout=subprocess.PIPE,
-                env={ "PYTHONPATH": ":".join([os.path.join(installation.paths.etc_dir, "main"),
-                                              installation.paths.install_dir]) })
-        else:
-            password = auth.hashPassword(password)
-
-    installation.process.check_input(
-        ["su", "-s", "/bin/sh", "-c", "psql -q -v ON_ERROR_STOP=1 -f -", installation.system.username],
-        stdin=("""INSERT INTO users (name, email, password, fullname, status)
-                       VALUES (%s, %s, %s, %s, 'current');"""
-               % (adapt(username),
-                  adapt(email),
-                  adapt(password),
-                  adapt(fullname))))
-
-    for role in ["administrator", "repositories", "newswriter"]:
-        installation.process.check_input(
-            ["su", "-s", "/bin/sh", "-c", "psql -q -v ON_ERROR_STOP=1 -f -", installation.system.username],
-            stdin=("""INSERT INTO userroles (uid, role)
-                           SELECT id, %s
-                             FROM users
-                            WHERE name=%s;"""
-                   % (adapt(role), adapt(username))))
+        for role in ["administrator", "repositories", "newswriter"]:
+            subprocess.check_output(
+                [installation.criticctl.criticctl_path, "addrole",
+                 "--name", username,
+                 "--role", role])
+    except subprocess.CalledProcessError:
+        return False
 
     return True

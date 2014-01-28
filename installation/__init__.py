@@ -37,11 +37,11 @@ import database
 import smtp
 import config
 import apache
+import criticctl
 import admin
 import initd
 import prefs
 import git
-import criticctl
 import migrate
 
 modules = [prereqs,
@@ -51,10 +51,10 @@ modules = [prereqs,
            database,
            config,
            apache,
+           criticctl,
            admin,
            smtp,
            initd,
            git,
-           criticctl,
            migrate,
            prefs]

@@ -18,12 +18,15 @@ import installation
 import os
 import os.path
 
+criticctl_path = None
 created_file = []
 renamed = []
 
 def install(data):
+    global criticctl_path
+
     source_path = os.path.join(installation.root_dir, "installation", "templates", "criticctl")
-    target_path = os.path.join("/usr", "bin", "criticctl")
+    target_path = criticctl_path = os.path.join("/usr", "bin", "criticctl")
 
     with open(target_path, "w") as target:
         created_file.append(target_path)
