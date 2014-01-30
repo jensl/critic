@@ -7,6 +7,9 @@ import os
 import pwd
 import grp
 
+# To avoid accidentally creating files owned by root.
+sys.dont_write_bytecode = True
+
 system_user_uid = pwd.getpwnam("%(installation.system.username)s").pw_uid
 system_user_gid = grp.getgrnam("%(installation.system.groupname)s").gr_gid
 

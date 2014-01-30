@@ -41,6 +41,9 @@ ERROR: Please run this script without -O or -OO options.
 """
     sys.exit(1)
 
+# To avoid accidentally creating files owned by root.
+sys.dont_write_bytecode = True
+
 import json
 import argparse
 import installation
