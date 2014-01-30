@@ -17,19 +17,14 @@ try:
     os.setgid(system_user_gid)
     os.setuid(system_user_uid)
 except OSError:
-    print "ERROR: Failed to set UID = %(installation.system.username)s. Run as root?"
+    print >>sys.stderr, "ERROR: Failed to set UID = %(installation.system.username)s. Run as root?"
     sys.exit(1)
 
 argv = sys.argv[1:]
+
+global_argv = []
 command = None
 command_argv = []
-
-for index, argument in enumerate(argv):
-    if not argument[0] == "-":
-        command = argument
-        command_argv = argv[index + 1:]
-        argv = argv[1:index]
-        break
 
 parser = argparse.ArgumentParser(
     description="Critic administration interface",
@@ -39,11 +34,40 @@ parser = argparse.ArgumentParser(
 parser.add_argument("--help", "-h", action="store_true",
                     help="show this help message and exit")
 parser.add_argument("--etc-dir", "-e", default="%(installation.paths.etc_dir)s",
-                    help="Critic configuration directory [default=%(installation.paths.etc_dir)s")
+                    help="Critic configuration directory [default=%(installation.paths.etc_dir)s]")
 parser.add_argument("--identity", "-i", default="main",
                     help="system identity to manage [default=main]")
 
-arguments = parser.parse_args(argv)
+while argv:
+    argument = argv[0]
+    if argument in ("--help", "-h"):
+        global_argv.append(argument)
+        del argv[0]
+        continue
+    elif argument in ("--etc-dir", "-e",
+                      "--identity", "-i"):
+        global_argv.extend(argv[:2])
+        del argv[:2]
+        continue
+    elif argument.startswith("--etc-dir=") \
+            or argument.startswith("-e") \
+            or argument.startswith("--identity=") \
+            or argument.startswith("-i"):
+        global_argv.append(argument)
+        del argv[0]
+        continue
+    elif argument.startswith("-"):
+        # Invalid argument; add it to global_argv so that parser.parse_args()
+        # below fails.
+        global_argv.append(argument)
+
+    break
+
+if argv:
+    command = argv[0]
+    command_argv = argv[1:]
+
+arguments = parser.parse_args(global_argv)
 
 etc_path = os.path.join(arguments.etc_dir, arguments.identity)
 

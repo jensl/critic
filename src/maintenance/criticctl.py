@@ -190,18 +190,18 @@ def main(parser, show_help, command, argv):
     else:
         if command == "listusers":
             listusers(argv)
-            return
+            return 0
         elif command == "adduser":
             adduser(argv)
-            return
+            return 0
         elif command == "deluser":
             deluser(argv)
-            return
+            return 0
         elif command in ("addrole", "delrole"):
             role(command, argv)
-            return
+            return 0
         else:
-            print "ERROR: Invalid command: %s" % command
+            print >>sys.stderr, "ERROR: Invalid command: %s" % command
             returncode = 1
 
     print """
