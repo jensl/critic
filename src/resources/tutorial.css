@@ -153,8 +153,8 @@ table.repositories {
 }
 
 table.pre {
-    margin-top: 1em;
-    margin-bottom: 1em;
+    margin: 1em;
+    margin-right: auto;
     font-family: monospace
 }
 
