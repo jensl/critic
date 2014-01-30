@@ -357,6 +357,67 @@ def connect(command, argv):
 
     return 0
 
+def configtest(command, argv):
+    parser = argparse.ArgumentParser(
+        description="Critic administration interface: configtest",
+        prog="criticctl [options] configtest")
+
+    parser.add_argument("--quiet", "-q", action="store_true",
+                        help="Suppress non-error/warning output")
+
+    arguments = parser.parse_args(argv)
+
+    import maintenance.configtest
+
+    errors, warnings = maintenance.configtest.testConfiguration()
+
+    def printIssue(issue):
+        print str(issue)
+        print
+
+    for error in errors:
+        printIssue(error)
+    for warning in warnings:
+        printIssue(warning)
+
+    if not errors:
+        if not arguments.quiet:
+            print "System configuration valid."
+        return 0
+    else:
+        return 1
+
+def restart(command, argv):
+    parser = argparse.ArgumentParser(
+        description="Critic administration interface: restart",
+        prog="criticctl [options] restart")
+
+    parser.parse_args(argv)
+
+    result = configtest("configtest", ["--quiet"])
+
+    if result != 0:
+        print >>sys.stderr, "ERROR: System configuration is not valid."
+        return result
+
+    import os
+    import subprocess
+
+    system_identity = configuration.base.SYSTEM_IDENTITY
+
+    try:
+        os.seteuid(0)
+        os.setegid(0)
+    except OSError:
+        print >>sys.stderr, "ERROR: 'criticctl restart' must be run as root."
+        return 1
+
+    subprocess.check_call(["service", "apache2", "stop"])
+    subprocess.check_call(["service", "critic-" + system_identity, "restart"])
+    subprocess.check_call(["service", "apache2", "start"])
+
+    return 0
+
 def main(parser, show_help, command, argv):
     returncode = 0
 
@@ -380,6 +441,10 @@ def main(parser, show_help, command, argv):
             return 0
         elif command in ("connect", "disconnect"):
             return connect(command, argv)
+        elif command == "configtest":
+            return configtest(command, argv)
+        elif command == "restart":
+            return restart(command, argv)
         else:
             print >>sys.stderr, "ERROR: Invalid command: %s" % command
             returncode = 1
@@ -397,6 +462,9 @@ Available commands are:
   connect    Set up connection between user and external authentication
              provider.
   disconnect Remove such connection.
+
+  configtest Test system configuration.
+  restart    Restart host web server and Critic's background services.
 
 Use 'criticctl COMMAND --help' to see per command options."""
 

@@ -14,8 +14,8 @@ system_user_uid = pwd.getpwnam("%(installation.system.username)s").pw_uid
 system_user_gid = grp.getgrnam("%(installation.system.groupname)s").gr_gid
 
 try:
-    os.setgid(system_user_gid)
-    os.setuid(system_user_uid)
+    os.setegid(system_user_gid)
+    os.seteuid(system_user_uid)
 except OSError:
     print >>sys.stderr, "ERROR: Failed to set UID = %(installation.system.username)s. Run as root?"
     sys.exit(1)

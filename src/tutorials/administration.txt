@@ -65,6 +65,38 @@ otherwise has.  It is strongly recommended that the offer is accepted, since the
 changes made by such a migration script are generally not reversible in any
 other than to restore an earlier backup copy of the database.
 
+Configuring Critic
+------------------
+
+The installation and upgrading procedure will produce a fully configured Critic
+system.  Not all details can be controlled, however, and sometimes it may be
+necessary to change the installed configuration later on.  To do this, one needs
+to edit the configuration files under
+  <code>%(configuration.paths.CONFIG_DIR)s/</code>
+and restart the host web server (to reload the web front-end) and Critic's
+background services.  The best way to restart Critic is using the
+  <code>criticctl</code>
+utility:
+
+| criticctl restart
+
+Before restarting, it will run a basic configuration test to make sure the
+configuration isn't obviously invalid.  This will not catch all possible errors,
+but helps to prevent putting the Critic system in an unusable state.
+
+It is also possible to just run the configuration test:
+
+| criticctl configtest
+
+Do note that while it is necessary to manually restart to immediately make
+changes effective, some background services spawns child processes to do the
+actual work, and they will pick up changes right away, without an explicit
+restart.  Likewise, the host web server may spawn additional web front-end child
+processes, or stop and restart existing ones, thus picking up changes before
+being explicitly restarted.  Due to this fact, it's best to explicitly restart
+immediately after making a change, so that any problems are detected and can be
+addressed.
+
 Git Repository Access
 ---------------------
 

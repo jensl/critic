@@ -15,17 +15,50 @@
 # the License.
 
 try:
-    import critic
-
-    def application(environ, start_response):
-        return critic.main(environ, start_response)
-except:
+    import maintenance.configtest
+except ImportError:
     import traceback
     import sys
 
     exc_info = sys.exc_info()
 
     def application(environ, start_response):
-        start_response("500 Internal Server Error", [("Content-Type", "text/plain")])
-        header = "Failed to import 'critic' module"
-        return ["%s\n%s\n\n" % (header, "=" * len(header))] + traceback.format_exception(*exc_info)
+        start_response("500 Internal Server Error",
+                       [("Content-Type", "text/plain")])
+        header = "Failed to import 'maintenance.configtest' module"
+        return (["%s\n%s\n\n" % (header, "=" * len(header))] +
+                traceback.format_exception(*exc_info))
+else:
+    errors, warnings = maintenance.configtest.testConfiguration()
+
+    if errors:
+        def application(environ, start_response):
+            start_response("500 Internal Server Error",
+                           [("Content-Type", "text/plain")])
+
+            header = "Invalid system configuration"
+            result = "%s\n%s\n\n" % (header, "=" * len(header))
+            for error in errors:
+                result += str(error) + "\n\n"
+            for warning in warnings:
+                result += str(warning) + "\n\n"
+
+            return [result]
+    else:
+        try:
+            import critic
+        except ImportError:
+            import traceback
+            import sys
+
+            exc_info = sys.exc_info()
+
+            def application(environ, start_response):
+                start_response("500 Internal Server Error",
+                               [("Content-Type", "text/plain")])
+                header = "Failed to import 'critic' module"
+                return (["%s\n%s\n\n" % (header, "=" * len(header))] +
+                        traceback.format_exception(*exc_info))
+        else:
+            def application(environ, start_response):
+                return critic.main(environ, start_response)
