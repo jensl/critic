@@ -55,21 +55,6 @@ function editCommit(sha1, commit_id, has_note, old_review_id)
   var row = $("tr.commit#" + sha1);
   var text = row.parent("tbody.note").find("span.text").text();
 
-  function resize()
-  {
-    var textarea = content.find("textarea");
-    var text = content.find(".text");
-    var paragraphs = content.find("p");
-    var available = content.innerHeight();
-
-    available -= parseInt(content.css("padding-top")) + parseInt(content.css("padding-bottom"));
-    available -= parseInt(text.css("margin-top")) + parseInt(text.css("padding-top")) + parseInt(text.css("padding-bottom")) + parseInt(text.css("margin-bottom"));
-
-    paragraphs.each(function (index, paragraph) { paragraph = $(paragraph); available -= parseInt(paragraph.css("margin-top")) + paragraph.height() + parseInt(paragraph.css("margin-bottom")); });
-
-    content.find("textarea").height(available);
-  }
-
   var suggestions = "";
   var abort = false;
 
@@ -189,10 +174,11 @@ function editCommit(sha1, commit_id, has_note, old_review_id)
   if (old_review_id === void 0)
     old_review_id = "";
 
-  var content = $("<div class='comment' title='Edit Commit Meta-Data'>" +
+  var content = $("<div class='comment flex' title='Edit Commit Meta-Data'>" +
                     "<p><b>Review ID:</b> <span class='review-id'>r/<input type='text' value='" + old_review_id + "'></span>" +
                     suggestions +
-                    "<p><b>Comment:</b></p><div class='text'><textarea>" + htmlify(text) + "</textarea></div>" +
+                    "<p><b>Comment:</b></p>" +
+                    "<textarea class='text flexible' rows=5>" + htmlify(text) + "</textarea>" +
                   "</div>");
 
   content.find("select").change(function () { content.find("input[type=text]").val(content.find("select").val()); });
@@ -206,9 +192,7 @@ function editCommit(sha1, commit_id, has_note, old_review_id)
   buttons["Save"] = function () { finish(); };
   buttons["Cancel"] = function () { content.dialog("close"); };
 
-  content.dialog({ width: 600, height: 300, modal: true, resize: resize, buttons: buttons });
-
-  resize();
+  content.dialog({ width: 600, modal: true, buttons: buttons });
 }
 
 $(document).ready(function ()

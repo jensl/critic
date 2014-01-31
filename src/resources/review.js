@@ -227,28 +227,6 @@ function submitChanges()
         return false;
     }
 
-    function totalAdditionalHeight(element)
-    {
-      return element.outerHeight(true) - element.height();
-    }
-
-    function resize()
-    {
-      var textarea = content.find("textarea");
-      var text = content.find(".text");
-      var state = content.find("p.state");
-      var message = content.find("p.message");
-      var available = content.innerHeight();
-
-      available -= parseInt(content.css("padding-top")) + parseInt(content.css("padding-bottom"));
-      available -= totalAdditionalHeight(text);
-      available -= totalAdditionalHeight(textarea);
-      available -= state.outerHeight(true);
-      available -= message.outerHeight(true);
-
-      textarea.height(available);
-    }
-
     var operation = new Operation({ action: "determine review state change",
                                     url: "reviewstatechange",
                                     data: { review_id: review.id }});
@@ -261,20 +239,20 @@ function submitChanges()
       else if (result.current_state == "accepted" && result.new_state == "open")
         state_change = "<p class='state'>With these changes, the review will NO LONGER be ACCEPTED.</p>";
 
-    var content = $("<div class='comment' title='Submit Changes'>" + state_change + "<p class='message' style='margin: 0'>Additional note (optional):</p><div class='text'><textarea></textarea></div></div>");
+    var content = $("<div class='comment flex' title='Submit Changes'>" +
+                    state_change +
+                    "<p class='message' style='margin: 0'>Additional note (optional):</p>" +
+                    "<textarea class='text flexible' rows=8></textarea></div>");
 
     var buttons;
 
     buttons = {
-                Submit: function () { if (finish(content.find("textarea").val())) { $(content).dialog("close"); location.reload(); } },
-                Cancel: function () { $(content).dialog("close"); }
-              };
+      Submit: function () { if (finish(content.find("textarea").val())) { $(content).dialog("close"); location.reload(); } },
+      Cancel: function () { $(content).dialog("close"); }
+    };
 
-    content.dialog({ width: 600, height: 250,
-                     buttons: buttons,
-                     resize: resize });
-
-    resize();
+    content.dialog({ width: 600,
+                     buttons: buttons });
   }
 
   Operation.whenIdle(start);
@@ -381,21 +359,8 @@ function reopenReview()
 
 function pingReview()
 {
-  function resize()
-  {
-    var textarea = content.find("textarea");
-    var text = content.find(".text");
-    var message = content.find("p");
-    var available = content.innerHeight();
-
-    available -= parseInt(content.css("padding-top")) + parseInt(content.css("padding-bottom"));
-    available -= parseInt(text.css("margin-top")) + parseInt(text.css("padding-top")) + parseInt(text.css("padding-bottom")) + parseInt(text.css("margin-bottom"));
-    available -= message.height();
-
-    content.find("textarea").height(available);
-  }
-
-  var content = $("<div class='comment' title='Ping Review'><div class='text'><textarea></textarea></div></div>");
+  var content = $("<div class='comment flex' title='Ping Review'>" +
+                  "<textarea class='text flexible' rows=8></textarea></div>");
 
   function finish(type)
   {
@@ -410,12 +375,9 @@ function pingReview()
   var buttons = { "Send Ping": function () { if (finish()) { $(content).dialog("close"); } },
                   "Cancel": function () { $(content).dialog("close"); } };
 
-  content.dialog({ width: 600, height: 250,
+  content.dialog({ width: 600,
                    buttons: buttons,
-                   closeOnEscape: false,
-                   resize: resize });
-
-  resize();
+                   closeOnEscape: false });
 }
 
 function editSummary()
@@ -457,11 +419,6 @@ function editSummary()
 
 function editDescription()
 {
-  function resize()
-  {
-    content.find("textarea").height(content.innerHeight() - 30);
-  }
-
   function finish(type)
   {
     var operation = new Operation({ action: "update review",
@@ -473,7 +430,8 @@ function editDescription()
   }
 
   var self = this;
-  var content = $("<div class='comment' title='Edit Description'><div class='text'><textarea rows=8></textarea></div></div>");
+  var content = $("<div class='comment flex' title='Edit Description'>" +
+                  "<textarea class='text flexible' rows=8></textarea></div>");
 
   content.find("textarea").val($("#description").text());
 
@@ -484,8 +442,7 @@ function editDescription()
 
   content.dialog({ width: 600,
                    buttons: buttons,
-                   closeOnEscape: false,
-                   resize: resize });
+                   closeOnEscape: false });
 }
 
 function editOwners()

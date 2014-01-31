@@ -52,7 +52,7 @@ div.comment > div.header > span.author {
     font-weight: bold
 }
 
-div.comment > div.text {
+div.comment > .text {
     font-family: monospace;
     font-size: 11px;
     background-color: #fff;
@@ -62,15 +62,9 @@ div.comment > div.text {
     white-space: pre-wrap
 }
 
-div.comment > div.text > textarea {
-    padding: 0;
-    font-family: monospace;
-    font-size: 11px;
-    background-color: #fff;
-    border: none;
+div.comment > textarea {
     width: 100%;
     resize: none;
-    margin: 0;
     display: block;
     outline: 0
 }

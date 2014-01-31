@@ -358,6 +358,24 @@ div.searchdialog input {
     display: flex !important;
 }
 
+.ui-dialog > .flex {
+    -ms-flex-direction: column;
+    -webkit-flex-direction: column;
+    flex-direction: column;
+}
+
+.ui-dialog > .flex > * {
+    -ms-flex: none;
+    -webkit-flex: none;
+    flex: none;
+}
+.ui-dialog > .flex > .flexible {
+    -ms-flex: auto;
+    -webkit-flex: auto;
+    flex: auto;
+    min-height: 0;
+}
+
 input:not([type]),
 input[type="text"],
 input[type="password"],

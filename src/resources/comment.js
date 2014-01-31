@@ -149,26 +149,6 @@ CommentChain.create = function (type_or_markers)
     else
       markers = type_or_markers;
 
-    function totalAdditionalHeight(element)
-    {
-      return element.outerHeight(true) - element.height();
-    }
-
-    function resize()
-    {
-      var textarea = content.find("textarea");
-      var text = content.find(".text");
-      var message = content.find("p");
-      var available = content.innerHeight();
-
-      available -= parseInt(content.css("padding-top")) + parseInt(content.css("padding-bottom"));
-      available -= totalAdditionalHeight(text);
-      available -= totalAdditionalHeight(textarea);
-      available -= message.outerHeight(true);
-
-      textarea.height(available);
-    }
-
     var message = "";
 
     function abort()
@@ -394,7 +374,9 @@ CommentChain.create = function (type_or_markers)
 
     function start()
     {
-      content = $("<div class='comment' title='Create Comment'>" + message + "<div class='text'><textarea></textarea></div></div>");
+      content = $("<div class='comment flex' title='Create Comment'>" +
+                  message +
+                  "<textarea class='text flexible' rows=8></textarea></div>");
 
       var buttons;
 
@@ -466,13 +448,10 @@ CommentChain.create = function (type_or_markers)
         currentMarkers = null;
       }
 
-      content.dialog({ width: 600, height: 250,
+      content.dialog({ width: 600,
                        buttons: buttons,
                        closeOnEscape: false,
-                       resize: resize,
                        close: close });
-
-      resize();
     }
 
     if (!paused)
@@ -644,12 +623,8 @@ CommentChain.prototype.display = function ()
 CommentChain.prototype.reply = function (parentDialog)
   {
     var self = this;
-    var content = $("<div class='comment' title='Write Reply'><div class='text'><textarea></textarea></div></div>");
-
-    function resize()
-    {
-      content.find("textarea").height(content.innerHeight() - 30);
-    }
+    var content = $("<div class='comment flex' title='Write Reply'>" +
+                    "<textarea class='text flexible' rows=8></textarea></div>");
 
     function finish()
     {
@@ -693,14 +668,11 @@ CommentChain.prototype.reply = function (parentDialog)
         return false;
     }
 
-    content.dialog({ width: 600, height: 250,
+    content.dialog({ width: 600,
                      buttons: { Save: function () { if (finish()) { content.dialog("close"); if (parentDialog) parentDialog.dialog("close"); } },
                                 Cancel: function () { content.dialog("close"); }},
                      closeOnEscape: false,
-                     resize: resize,
                      modal: true });
-
-    resize();
   };
 
 CommentChain.prototype.reopen = function (from_showcomment, from_onload)
@@ -917,16 +889,15 @@ CommentChain.prototype.morph = function (dialog, button)
 CommentChain.prototype.editComment = function (comment, parentDialog)
   {
     var self = this;
-    var content = $("<div class='comment' title='Edit Comment'><div class='text'><textarea>" + htmlify(comment.text) + "</textarea></div></div>");
+    var content = $("<div class='comment flex' title='Edit Comment'>" +
+                    "<textarea class='text flexible' rows=8></textarea></div>");
+    var textarea = content.find("textarea");
 
-    function resize()
-    {
-      content.find("textarea").height(content.innerHeight() - 30);
-    }
+    textarea.val(comment.text);
 
     function finish()
     {
-      var new_text = content.find("textarea").val();
+      var new_text = textarea.val();
 
       var operation = new Operation({ action: "update comment",
                                       url: "updatecomment",
@@ -947,14 +918,11 @@ CommentChain.prototype.editComment = function (comment, parentDialog)
         return false;
     }
 
-    content.dialog({ width: 600, height: 250,
+    content.dialog({ width: 600,
                      buttons: { Save: function () { if (finish()) { content.dialog("close"); if (parentDialog) parentDialog.dialog("close"); } },
                                 Cancel: function () { content.dialog("close"); }},
                      closeOnEscape: false,
-                     resize: resize,
                      modal: true });
-
-    resize();
   };
 
 CommentChain.prototype.deleteComment = function (comment, parentDialog)

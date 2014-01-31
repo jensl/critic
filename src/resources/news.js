@@ -18,26 +18,6 @@
 
 function addOrEditNewsItem(edit_item_id, edit_text)
 {
-  function totalAdditionalHeight(element)
-  {
-    return parseInt(element.css("margin-top")) + parseInt(element.css("margin-bottom")) +
-           parseInt(element.css("border-top-width")) + parseInt(element.css("border-bottom-width")) +
-           parseInt(element.css("padding-top")) + parseInt(element.css("padding-bottom"));
-  }
-
-  function resize()
-  {
-    var textarea = content.find("textarea");
-    var text = content.find(".text");
-    var available = content.innerHeight();
-
-    available -= parseInt(content.css("padding-top")) + parseInt(content.css("padding-bottom"));
-    available -= totalAdditionalHeight(text);
-    available -= totalAdditionalHeight(textarea);
-
-    textarea.height(available);
-  }
-
   function finish()
   {
     var text = content.find("textarea").val();
@@ -58,7 +38,8 @@ function addOrEditNewsItem(edit_item_id, edit_text)
 
   var verb = edit_item_id ? "Edit" : "Create"
 
-  var content = $("<div class='comment' title='" + verb + " News Item'><div class='text'><textarea></textarea></div></div>");
+  var content = $("<div class='comment flex' title='" + verb + " News Item'>" +
+                  "<textarea class='text flexible' rows=8></textarea></div>");
 
   if (edit_text)
     content.find("textarea").val(edit_text);
@@ -66,12 +47,9 @@ function addOrEditNewsItem(edit_item_id, edit_text)
   var buttons = { Save: function () { if (finish()) { $(content).dialog("close"); location.reload(); } },
                   Cancel: function () { $(content).dialog("close"); } };
 
-  content.dialog({ width: 600, height: 250,
+  content.dialog({ width: 600,
                    buttons: buttons,
-                   closeOnEscape: false,
-                   resize: resize });
-
-  resize();
+                   closeOnEscape: false });
 }
 
 $(document).ready(function ()

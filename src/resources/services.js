@@ -33,18 +33,6 @@ function getServiceLog(service_name)
 {
   var content;
 
-  function resize()
-  {
-    var pre = content.find("pre");
-    var available = content.innerHeight();
-
-    available -= parseInt(content.css("padding-top")) + parseInt(content.css("padding-bottom"));
-    available -= parseInt(pre.css("margin-top")) + parseInt(pre.css("margin-bottom"));
-    available -= parseInt(pre.css("border-top")) + parseInt(pre.css("border-bottom"));
-
-    pre.height(available);
-  }
-
   var operation = new Operation({ action: "fetch service log",
                                   url: "getservicelog",
                                   data: { service_name: service_name },
@@ -53,12 +41,10 @@ function getServiceLog(service_name)
 
   if (result)
   {
-    content = $("<div class='servicelog' title='Service Log'><pre>" + htmlify(result.lines.join("\n")) + "</pre></div>");
-
+    content = $("<div class='servicelog flex' title='Service Log'>" +
+                "<pre class=flexible></pre></div>");
+    content.find("pre").text(result.lines.join("\n"));
     content.dialog({ width: Math.min($(document).width() - 100, 1024),
-                     buttons: { Close: function () { content.dialog("close"); }},
-                     resize: resize });
-
-    resize();
+                     buttons: { Close: function () { content.dialog("close"); }} });
   }
 }
