@@ -74,30 +74,39 @@ def calibrate_minimum_rounds():
     minimum_rounds[default_password_hash_scheme] = min_rounds_value
 
 def add_arguments(mode, parser):
-    if mode == "install":
-        parser.add_argument(
-            "--auth-mode", choices=["host", "critic"],
-            help="user authentication mode")
-        parser.add_argument(
-            "--session-type", choices=["httpauth", "cookie"],
-            help="session type")
-        parser.add_argument(
-            "--allow-anonymous-user", dest="anonymous", action="store_const",
-            const=True, help="allow limited unauthenticated access")
-        parser.add_argument(
-            "--no-allow-anonymous-user", dest="anonymous", action="store_const",
-            const=False, help="do not allow unauthenticated access")
-        parser.add_argument(
-            "--access-scheme", choices=["http", "https", "both"],
-            help="scheme used to access Critic")
-        parser.add_argument(
-            "--repository-url-types", default="http",
-            help=("comma-separated list of supported repository URL types "
-                  "(valid types: git, http, ssh and host)"))
+    def H(help_string):
+        # Wrapper to hide arguments when upgrading, but still supporting them.
+        # Primarily we need to support arguments on upgrade for testing, which
+        # might upgrade from a commit that doesn't support an argument, and thus
+        # needs to provide the argument when upgrading to the tested commit.
+        if mode == "install":
+            return help_string
+        else:
+            return argparse.SUPPRESS
+
+    parser.add_argument(
+        "--auth-mode", choices=["host", "critic"],
+        help=H("user authentication mode"))
+    parser.add_argument(
+        "--session-type", choices=["httpauth", "cookie"],
+        help=H("session type"))
+    parser.add_argument(
+        "--allow-anonymous-user", dest="anonymous", action="store_const",
+        const=True, help=H("allow limited unauthenticated access"))
+    parser.add_argument(
+        "--no-allow-anonymous-user", dest="anonymous", action="store_const",
+        const=False, help=H("do not allow unauthenticated access"))
+    parser.add_argument(
+        "--access-scheme", choices=["http", "https", "both"],
+        help=H("scheme used to access Critic"))
+    parser.add_argument(
+        "--repository-url-types", default="http",
+        help=H("comma-separated list of supported repository URL types "
+               "(valid types: git, http, ssh and host)"))
 
     parser.add_argument(
         "--minimum-password-hash-time",
-        help="approximate minimum time to spend hashing a single password")
+        help=H("approximate minimum time to spend hashing a single password"))
 
     # Using argparse.SUPPRESS to not include these in --help output; they are
     # not something a typical installer ought to want to use.
@@ -117,15 +126,15 @@ def prepare(mode, arguments, data):
 
     header_printed = False
 
-    if arguments.minimum_password_hash_time is not None:
-        try:
-            minimum_password_hash_time = float(arguments.minimum_password_hash_time)
-        except ValueError:
-            print ("Invalid --minimum-password-hash-time argument: %s (must be a number)."
-                   % arguments.minimum_password_hash_time)
-            return False
-
     if mode == "install":
+        if arguments.minimum_password_hash_time is not None:
+            try:
+                minimum_password_hash_time = float(arguments.minimum_password_hash_time)
+            except ValueError:
+                print ("Invalid --minimum-password-hash-time argument: %s (must be a number)."
+                       % arguments.minimum_password_hash_time)
+                return False
+
         if arguments.repository_url_types:
             repository_url_types = filter(
                 None, arguments.repository_url_types.split(","))
@@ -221,7 +230,7 @@ the Web front-end.  This can be handled in two different ways:
                 if value.strip() not in ("httpauth", "cookie"):
                     return "must be one of 'http' and 'cookie'"
 
-            if mode == "install" and arguments.session_type:
+            if arguments.session_type:
                 error = check_session_type(arguments.session_type)
                 if error:
                     print "Invalid --session_type argument: %s." % arguments.session_type
@@ -252,7 +261,7 @@ other type of authentication supports limited anonymous access.
         if allow_anonymous_user is None:
             if session_type == "httpauth":
                 allow_anonymous_user = False
-            elif mode == "install" and arguments.anonymous is not None:
+            elif arguments.anonymous is not None:
                 allow_anonymous_user = arguments.anonymous
             else:
                 if not header_printed:
@@ -275,7 +284,7 @@ in the system without signin in.
         session_type = "cookie"
 
     if access_scheme is None:
-        if mode == "install" and arguments.access_scheme:
+        if arguments.access_scheme:
             access_scheme = arguments.access_scheme
         else:
             print """
