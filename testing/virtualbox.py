@@ -101,6 +101,9 @@ class Instance(object):
         elif count > 1:
             raise testing.Error("Invalid VM snapshot: %s (matches multiple snapshots)" % snapshot)
 
+        self.__users = ["admin"]
+        self.__user_ids = { "admin": 1 }
+
     def __enter__(self):
         return self
 
@@ -343,6 +346,12 @@ class Instance(object):
             "sudo", "-H", "-u", name, "git", "config", "--global", "user.email",
             email],
                      cwd="/home/%s" % name)
+
+        self.__users.append(name)
+        self.__user_ids[name] = len(self.__users)
+
+    def userid(self, name):
+        return self.__user_ids.get(name)
 
     def restrict_access(self):
         if not self.strict_fs_permissions:

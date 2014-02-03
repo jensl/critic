@@ -196,27 +196,28 @@ class ReapplyFilters(Operation):
             else:
                 filters.load(db, review=review, user=user)
 
-            cursor.execute("""SELECT commits.id, usergitemails.uid, reviewfiles.file, reviewfiles.id
+            cursor.execute("""SELECT commits.id, reviewfiles.file, reviewfiles.id
                                 FROM commits
                                 JOIN gitusers ON (gitusers.id=commits.author_gituser)
-                     LEFT OUTER JOIN usergitemails ON (usergitemails.email=gitusers.email)
+                     LEFT OUTER JOIN usergitemails ON (usergitemails.email=gitusers.email
+                                                   AND usergitemails.uid=%s)
                                 JOIN changesets ON (changesets.child=commits.id)
                                 JOIN reviewfiles ON (reviewfiles.changeset=changesets.id)
                      LEFT OUTER JOIN reviewuserfiles ON (reviewuserfiles.file=reviewfiles.id
                                                      AND reviewuserfiles.uid=%s)
                                WHERE reviewfiles.review=%s
+                                 AND usergitemails.uid IS NULL
                                  AND reviewuserfiles.uid IS NULL""",
-                            (user.id, review_id))
+                            (user.id, user.id, review_id))
 
-            for commit_id, author_id, file_id, review_file_id in cursor.fetchall():
-                if author_id != user.id:
-                    association = filters.getUserFileAssociation(user.id, file_id)
+            for commit_id, file_id, review_file_id in cursor.fetchall():
+                association = filters.getUserFileAssociation(user.id, file_id)
 
-                    if association == 'reviewer':
-                        assign_changes.append(review_file_id)
-                        assigned_reviews.add(review_id)
-                    elif association == 'watcher':
-                        watched_reviews.add(review_id)
+                if association == 'reviewer':
+                    assign_changes.append(review_file_id)
+                    assigned_reviews.add(review_id)
+                elif association == 'watcher':
+                    watched_reviews.add(review_id)
 
         cursor.execute("""SELECT reviews.id
                             FROM reviews

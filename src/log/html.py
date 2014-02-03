@@ -20,7 +20,6 @@ from profiling import Profiler
 from time import time, mktime, strftime, localtime
 
 import re
-import dbutils
 import log.commitset
 
 def formatWhen(when):
@@ -101,18 +100,10 @@ class AuthorColumn:
         target.text("Author")
     def render(self, db, commit, target, overrides={}):
         if "author" in overrides:
-            user = overrides["author"]
+            fullname = overrides["author"].fullname
         else:
-            email = commit.author.email
-            user = self.cache.get(email)
-        if not user:
-            user_id = commit.author.getUserId(db)
-            if user_id is None:
-                target.text(commit.author.name)
-                return
-            else:
-                user = self.cache[email] = dbutils.User.fromId(db, user_id)
-        target.text(user.fullname)
+            fullname = commit.author.getFullname(db)
+        target.text(fullname)
 
 DEFAULT_COLUMNS = [(10, WhenColumn()),
                    (5, TypeColumn()),

@@ -32,8 +32,6 @@ import configuration
 import profiling
 import re
 
-from time import strftime
-
 def renderCommitInfo(db, target, user, repository, review, commit, conflicts=False, minimal=False):
     cursor = db.cursor()
 
@@ -110,33 +108,18 @@ def renderCommitInfo(db, target, user, repository, review, commit, conflicts=Fal
         outputTags(cell.span("tags"), commit)
 
     if minimal or commit.author.email != commit.committer.email or commit.author.time != commit.committer.time:
-        user_id = commit.author.getUserId(db)
-
-        if user_id: fullname = dbutils.User.fromId(db, user_id).fullname
-        else: fullname = commit.author.name
-
         row = commit_info.tr("commit-info")
         row.th(align='right').text("Author:")
-        row.td(align='left').text("%s <%s> at %s" % (fullname, commit.author.email, strftime("%Y-%m-%d %H:%M:%S", commit.author.time)))
+        row.td(align='left').text(str(commit.author))
 
         if not minimal:
-            user_id = commit.committer.getUserId(db)
-
-            if user_id: fullname = dbutils.User.fromId(db, user_id).fullname
-            else: fullname = commit.committer.name
-
             row = commit_info.tr("commit-info")
             row.th(align='right').text("Commit:")
-            row.td(align='left').text("%s <%s> at %s" % (fullname, commit.committer.email, strftime("%Y-%m-%d %H:%M:%S", commit.committer.time)))
+            row.td(align='left').text(str(commit.committer))
     else:
-        user_id = commit.author.getUserId(db)
-
-        if user_id: fullname = dbutils.User.fromId(db, user_id).fullname
-        else: fullname = commit.author.name
-
         row = commit_info.tr("commit-info")
         row.th(align='right').text("Author/Commit:")
-        row.td(align='left').text("%s <%s> at %s" % (fullname, commit.author.email, strftime("%Y-%m-%d %H:%M:%S", commit.author.time)))
+        row.td(align='left').text(str(commit.author))
 
     if not minimal:
         if review: review_url_contribution = "?review=%d" % review.id

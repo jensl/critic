@@ -65,8 +65,11 @@ CREATE TABLE gitusers
     UNIQUE (email, fullname) );
 
 CREATE TABLE usergitemails
-  ( email VARCHAR(256) PRIMARY KEY,
-    uid INTEGER REFERENCES users ON DELETE CASCADE );
+  ( email VARCHAR(256),
+    uid INTEGER REFERENCES users ON DELETE CASCADE,
+
+    PRIMARY KEY (email, uid) );
+CREATE INDEX usergitemails_uid ON usergitemails (uid);
 
 CREATE TABLE userabsence
   ( uid INTEGER NOT NULL REFERENCES users,

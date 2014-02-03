@@ -815,41 +815,51 @@ class CommitUserTime(object):
 
     def __getIds(self, db):
         cache = db.storage["CommitUserTime"]
-        cached = cache.get((self.name, self.email))
-        if cached: return cached
+        cache_key = (self.name, self.email)
 
-        cursor = db.cursor()
-        cursor.execute("""SELECT usergitemails.uid, gitusers.id
-                            FROM gitusers
-                 LEFT OUTER JOIN usergitemails USING (email)
-                           WHERE gitusers.fullname=%s
-                             AND gitusers.email=%s""",
-                       (self.name, self.email))
-        row = cursor.fetchone()
-        if row:
-            user_id, gituser_id = row
-        else:
-            cursor.execute("INSERT INTO gitusers (fullname, email) VALUES (%s, %s) RETURNING id", (self.name, self.email))
-            gituser_id = cursor.fetchone()[0]
-            cursor.execute("SELECT uid FROM usergitemails WHERE email=%s", (self.email,))
+        if cache_key not in cache:
+            cursor = db.cursor()
+            cursor.execute("""SELECT id
+                                FROM gitusers
+                               WHERE fullname=%s
+                                 AND email=%s""",
+                           (self.name, self.email))
             row = cursor.fetchone()
-            user_id = row[0] if row else None
-        cache[(self.name, self.email)] = user_id, gituser_id
+            if not row:
+                cursor.execute("""INSERT INTO gitusers (fullname, email)
+                                       VALUES (%s, %s)
+                                    RETURNING id""",
+                               (self.name, self.email))
+                row = cursor.fetchone()
+            gituser_id, = row
 
-        return user_id, gituser_id
+            cursor.execute("""SELECT uid
+                                FROM usergitemails
+                               WHERE email=%s""",
+                           (self.email,))
+            user_ids = frozenset(user_id for user_id, in cursor)
 
-    def getUserId(self, db):
+            cache[cache_key] = user_ids, gituser_id
+
+        return cache.get(cache_key)
+
+    def getUserIds(self, db):
         return self.__getIds(db)[0]
 
     def getGitUserId(self, db):
         return self.__getIds(db)[1]
 
     def getFullname(self, db):
-        user_id = self.getUserId(db)
-        if user_id is None: return self.name
-        else:
+        user_ids = self.getUserIds(db)
+        if len(user_ids) == 1:
             import dbutils
-            return dbutils.User.fromId(db, user_id).fullname
+            return dbutils.User.fromId(db, tuple(user_ids)[0]).fullname
+        else:
+            return self.name
+
+    def __str__(self):
+        timestamp = time.strftime("%Y-%m-%d %H:%M:%S", self.time)
+        return "%s <%s> at %s" % (self.name, self.email, timestamp)
 
     @staticmethod
     def fromValue(value):

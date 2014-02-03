@@ -67,7 +67,7 @@ is used as a key in the dictionary instead of a real user ID."""
     watchers = {}
 
     for changeset in changesets:
-        author_user_id = changeset.child.author.getUserId(db) if changeset.child else None
+        author_user_ids = changeset.child.author.getUserIds(db) if changeset.child else set()
 
         cursor.execute("SELECT DISTINCT file FROM fileversions WHERE changeset=%s", (changeset.id,))
 
@@ -76,7 +76,7 @@ is used as a key in the dictionary instead of a real user ID."""
 
             for user_id, (filter_type, delegate) in filters.listUsers(file_id).items():
                 if filter_type == 'reviewer':
-                    if author_user_id != user_id:
+                    if user_id not in author_user_ids:
                         reviewer_user_ids = [user_id]
                     elif delegate:
                         reviewer_user_ids = []
@@ -765,12 +765,14 @@ def addReviewFilters(db, creator, user, review, reviewer_paths, watcher_paths):
                             JOIN changesets ON (changesets.id=reviewfiles.changeset)
                             JOIN commits ON (commits.id=changesets.child)
                             JOIN gitusers ON (gitusers.id=commits.author_gituser)
-                 LEFT OUTER JOIN usergitemails USING (email)
-                 LEFT OUTER JOIN reviewuserfiles ON (reviewuserfiles.file=reviewfiles.id AND reviewuserfiles.uid=%s)
+                 LEFT OUTER JOIN usergitemails ON (usergitemails.email=gitusers.email
+                                               AND usergitemails.uid=%s)
+                 LEFT OUTER JOIN reviewuserfiles ON (reviewuserfiles.file=reviewfiles.id
+                                                 AND reviewuserfiles.uid=%s)
                            WHERE reviewfiles.review=%s
-                             AND (usergitemails.uid IS NULL OR usergitemails.uid!=%s)
+                             AND usergitemails.uid IS NULL
                              AND reviewuserfiles.uid IS NULL""",
-                       (user.id, review.id, user.id))
+                       (user.id, user.id, review.id))
 
         for review_file_id, file_id in cursor:
             if filters.isReviewer(user.id, file_id):
