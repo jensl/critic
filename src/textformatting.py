@@ -19,6 +19,7 @@ import re
 import configuration
 import dbutils
 import gitutils
+import htmlutils
 
 def renderFormatted(db, user, table, lines, toc=False, title_right=None):
     re_h1 = re.compile("^=+$")
@@ -31,10 +32,17 @@ def renderFormatted(db, user, table, lines, toc=False, title_right=None):
              "configuration.paths.INSTALL_DIR": configuration.paths.INSTALL_DIR,
              "configuration.paths.GIT_DIR": configuration.paths.GIT_DIR }
 
+    references = {}
     blocks = []
     block = []
 
     for line in lines:
+        match = re.match(r'\[(.*?)\]: (.*?)(?: "(.*?)")?$', line)
+        if match:
+            name, url, title = match.groups()
+            references[name] = (url, title)
+            continue
+
         if line.strip():
             block.append(line % data)
         elif block:
@@ -95,12 +103,28 @@ def renderFormatted(db, user, table, lines, toc=False, title_right=None):
         if not text:
             text = table.tr("text").td("text")
 
-        def translateConfigLinks(text):
+        def translateLinks(text):
             def linkify(match):
-                item = match.group(1)
-                return "<a href='config?highlight=%s'>%s</a>" % (item, item)
+                config_item, reference_text, reference_name = match.groups()
 
-            return re.sub("CONFIG\\(([^)]+)\\)", linkify, text)
+                if config_item:
+                    url = "/config?highlight=%s" % config_item
+                    text = config_item
+                    title = None
+                else:
+                    reference_name = re.sub(r"\s+", " ", reference_name)
+                    assert reference_name in references, reference_name
+                    url, title = references[reference_name]
+                    text = reference_text
+
+                link = "<a href=%s" % htmlutils.htmlify(url, True)
+
+                if title:
+                    link += " title=%s" % htmlutils.htmlify(title, True)
+
+                return link + ">%s</a>" % htmlutils.htmlify(text)
+
+            return re.sub(r"CONFIG\(([^)]+)\)|\[(.*?)\]\n?\[(.*?)\]", linkify, text, flags=re.DOTALL)
 
         def processText(lines):
             if isinstance(lines, basestring):
@@ -108,7 +132,7 @@ def renderFormatted(db, user, table, lines, toc=False, title_right=None):
             for index, line in enumerate(lines):
                 if line.startswith("  http"):
                     lines[index] = "<a href='%s'>%s</a>" % (line.strip(), line.strip())
-            return translateConfigLinks("\n".join(lines)).replace("--", "&mdash;")
+            return translateLinks("\n".join(lines)).replace("--", "&mdash;")
 
         if len(block) > 2 and re_h2.match(block[1]):
             if toc: toc.tr("h3").td().a(href="#" + textToId(block[0])).text(block[0])
@@ -127,12 +151,14 @@ def renderFormatted(db, user, table, lines, toc=False, title_right=None):
             item = []
             for line in block:
                 if line[:2] != '  ':
-                    if item: items.li().text("\n".join(item), cdata=True)
+                    if item:
+                        items.li().text(processText(item), cdata=True)
                     item = []
                 else:
                     assert line[:2] == "  "
                 item.append(line[2:])
-            if item: items.li().text("\n".join(item), cdata=True)
+            if item:
+                items.li().text(processText(item), cdata=True)
         elif block[0].startswith("? "):
             items = text.div().dl()
             term = []
@@ -155,7 +181,7 @@ def renderFormatted(db, user, table, lines, toc=False, title_right=None):
             items.dt().text(processText(" ".join(term)), cdata=True)
             items.dd().text(processText(definition), cdata=True)
         elif block[0].startswith("  "):
-            text_data = translateConfigLinks("\n".join(block))
+            text_data = translateLinks("\n".join(block))
             if block[0].startswith("  <code>"):
                 className = "example"
             else:
