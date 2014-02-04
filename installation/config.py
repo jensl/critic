@@ -384,7 +384,7 @@ def install(data):
                 os.chown(target_path, installation.system.uid, installation.system.gid)
 
                 with open(source_path, "r") as source:
-                    target.write((source.read().decode("utf-8") % data).encode("utf-8"))
+                    target.write(source.read() % data)
 
             path = os.path.join("configuration", entry)
             if not compile_file(path):
