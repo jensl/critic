@@ -22,6 +22,11 @@ import wsgiref.util
 import base
 import configuration
 
+# Paths to which access should be allowed without authentication even if
+# anonymous users are not allowed in general.
+INSECURE_PATHS = set(["login", "validatelogin",
+                      "createuser", "registeruser"])
+
 def decodeURIComponent(text):
     """\
     Replace %HH escape sequences and return the resulting string.
@@ -48,15 +53,24 @@ class MovedTemporarily(Exception):
 class NeedLogin(MovedTemporarily):
     def __init__(self, source, optional=False):
         if isinstance(source, Request):
-            target = "/" + source.path
-            if source.query:
-                target += "?" + source.query
+            target = source.getTargetURL()
         else:
             target = str(source)
         location = "/login?target=%s" % urllib.quote(target)
         if optional:
             location += "&optional=yes"
         super(NeedLogin, self).__init__(location, no_cache=True)
+
+class DoExternalAuthentication(Exception):
+    def __init__(self, provider_name, target_url=None):
+        self.provider_name = provider_name
+        self.target_url = target_url
+    def execute(self, db, req):
+        import auth
+        provider = auth.PROVIDERS[self.provider_name]
+        if not provider.start(db, req, self.target_url):
+            req.setStatus(403)
+            req.start()
 
 class DisplayMessage(base.Error):
     """\
@@ -181,7 +195,7 @@ class Request:
                 self.user = self.__environ["REMOTE_USER"]
             except KeyError:
                 raise MissingWSGIRemoteUser
-        elif configuration.base.AUTHENTICATION_MODE == "critic":
+        else:
             session_type = configuration.base.SESSION_TYPE
 
             authorization_header = self.getRequestHeader("Authorization")
@@ -202,15 +216,17 @@ class Request:
                                    WHERE key=%s""",
                                (sid,))
 
-                try:
-                    user, session_age = cursor.fetchone()
-                except:
+                row = cursor.fetchone()
+
+                if not row:
                     if self.path != "validatelogin":
                         cookie = "sid=invalid; Expires=Thursday 01-Jan-1970 00:00:00 GMT"
                         self.addResponseHeader("Set-Cookie", cookie)
-                    if self.path in ("login", "validatelogin"):
+                    if self.path in INSECURE_PATHS:
                         return
                     raise NeedLogin(self, optional=True)
+
+                user, session_age = row
 
                 if configuration.base.SESSION_MAX_AGE == 0 \
                         or session_age < configuration.base.SESSION_MAX_AGE:
@@ -243,6 +259,12 @@ class Request:
                         self.user = username
                         return
                     except auth.CheckFailed: pass
+
+    def getTargetURL(self):
+        target = "/" + self.path
+        if self.query:
+            target += "?" + self.query
+        return target
 
     def getRequestURI(self):
         return wsgiref.util.request_uri(self.__environ)
@@ -394,6 +416,19 @@ class Request:
         assert not self.__started, "Response already started!"
         assert name.lower() != "content-type", "Use Request.setContentType() instead!"
         self.__response_headers.append((name, value))
+
+    def setCookie(self, name, value, secure=False):
+        if secure and configuration.base.ACCESS_SCHEME != "http":
+            modifier = "Secure"
+        else:
+            modifier = "HttpOnly"
+        self.addResponseHeader("Set-Cookie",
+                               "%s=%s; Path=/; %s" % (name, value, modifier))
+
+    def deleteCookie(self, name):
+        self.addResponseHeader(
+            "Set-Cookie",
+            "%s=invalid; Path=/; Expires=Thursday 01-Jan-1970 00:00:00 GMT" % name)
 
     def start(self):
         """\

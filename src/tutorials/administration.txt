@@ -151,9 +151,12 @@ name (which is what is normally displayed) and the user's email address, which
 is used when the system sends notifications to the user.
 
 The user database is populated in different ways depending on how Critic was
-configured to identify and authenticate users.  If Critic was configured to
-authenticate users itself, then users must be added to the database manually by
-a system administrator.  This can be done using the
+configured to identify and authenticate users.
+
+Authentication mode: Critic
+---------------------------
+If Critic was configured to authenticate users itself, then users can be added
+to the database manually by a system administrator.  This can be done using the
   <code>criticctl</code>
 utility (installed as
   <code>/usr/bin/criticctl</code>
@@ -164,8 +167,25 @@ by Critic's installation script):
   Note: The program will prompt for the user's password.  If any of the options
   are omitted, it will also prompt for that information.
 
-If Critic was configured to let the Web server authenticate users, it instead
-assumes that the
+It is also possible to let new users create user records in Critic themselves,
+by changing the system setting
+  <code>ALLOW_USER_REGISTRATION</code>
+in
+  <code>%(configuration.paths.CONFIG_DIR)s/configuration/base.py</code>.
+When enabled, a link is added on the sign-in page to a separate page where users
+can input the necessary information to create a user record.
+
+Is is also possible to let users sign in, and optionally create user records, by
+authenticating via an external system, such as GitHub or Google, using the OAuth
+2.0 protocol.  For more information about this mechanism, see the [tutorial on
+external authentication][extauth].
+
+[extauth]: /tutorial?item=external-authentication
+
+Authentication mode: Host
+-------------------------
+If Critic was configured to let the host Web server authenticate
+users, it instead assumes that the
   <code>REMOTE_USER</code>
 WSGI environment variable is set to the name of the accessing user, and
 automatically creates a user record in its database if one doesn't already

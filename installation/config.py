@@ -24,11 +24,15 @@ import argparse
 
 import installation
 
+SENSITIVE_FILES = ("database.py", "smtp.py", "auth.py")
+
 auth_mode = "host"
 session_type = None
 allow_anonymous_user = None
 access_scheme = None
 repository_url_types = ["http"]
+allow_user_registration = None
+verify_email_addresses = True
 
 password_hash_schemes = ["pbkdf2_sha256", "bcrypt"]
 default_password_hash_scheme = "pbkdf2_sha256"
@@ -38,6 +42,68 @@ minimum_rounds = {}
 is_development = False
 is_testing = False
 coverage_dir = None
+
+class Provider(object):
+    def __init__(self, name):
+        self.name = name
+        self.enabled = False
+        self.allow_user_registration = False
+        self.verify_email_addresses = False
+        self.client_id = None
+        self.client_secret = None
+        self.redirect_uri = None
+        self.bypass_createuser = False
+
+    def load(self, settings):
+        if self.name not in settings:
+            return
+        settings = settings[self.name]
+        self.enabled = settings.get("enabled", self.enabled)
+        self.allow_user_registration = settings.get("allow_user_registration",
+                                                    self.allow_user_registration)
+        self.verify_email_addresses = settings.get("verify_email_addresses",
+                                                   self.verify_email_addresses)
+        self.client_id = settings.get("client_id", self.client_id)
+        self.client_secret = settings.get("client_secret", self.client_secret)
+        self.redirect_uri = settings.get("redirect_uri", self.redirect_uri)
+        self.bypass_createuser = settings.get("bypass_createuser",
+                                              self.bypass_createuser)
+
+    def readargs(self, arguments):
+        def getarg(name, default):
+            value = getattr(arguments, name, None)
+            if value is None:
+                return default
+            return value
+
+        self.enabled = getarg(
+            "provider_%s_enabled" % self.name, self.enabled)
+        self.allow_user_registration = getarg(
+            "provider_%s_user_registration" % self.name,
+            self.allow_user_registration)
+        self.verify_email_addresses = getarg(
+            "provider_%s_verify_email_addresses" % self.name,
+            self.verify_email_addresses)
+        self.client_id = getarg(
+            "provider_%s_client_id" % self.name, self.client_id)
+        self.client_secret = getarg(
+            "provider_%s_client_secret" % self.name, self.client_secret)
+        self.redirect_uri = getarg(
+            "provider_%s_redirect_uri" % self.name, self.redirect_uri)
+
+    def store(self, data):
+        base = "installation.config.provider_%s." % self.name
+
+        data[base + "enabled"] = self.enabled
+        data[base + "allow_user_registration"] = self.allow_user_registration
+        data[base + "verify_email_addresses"] = self.verify_email_addresses
+        data[base + "client_id"] = self.client_id
+        data[base + "client_secret"] = self.client_secret
+        data[base + "redirect_uri"] = self.redirect_uri
+        data[base + "bypass_createuser"] = self.bypass_createuser
+
+providers = []
+default_provider_names = ["github", "google"]
 
 def calibrate_minimum_rounds():
     import time
@@ -98,12 +164,53 @@ def add_arguments(mode, parser):
         "--no-allow-anonymous-user", dest="anonymous", action="store_const",
         const=False, help=H("do not allow unauthenticated access"))
     parser.add_argument(
+        "--allow-user-registration", dest="user_registration",
+        action="store_const", const=True,
+        help=H("allow unattended user registration"))
+    parser.add_argument(
+        "--no-allow-user-registration", dest="user_registration",
+        action="store_const", const=False,
+        help=H("do not allow unattended user registration"))
+    parser.add_argument(
         "--access-scheme", choices=["http", "https", "both"],
         help=H("scheme used to access Critic"))
     parser.add_argument(
         "--repository-url-types", default="http",
         help=H("comma-separated list of supported repository URL types "
                "(valid types: git, http, ssh and host)"))
+
+    for provider_name in default_provider_names:
+        if mode == "install":
+            group = parser.add_argument_group(
+                "'%s' authentication provider" % provider_name)
+        else:
+            group = parser
+
+        group.add_argument(
+            "--provider-%s-enabled" % provider_name, action="store_const",
+            const=True, help=H("enable authentication provider"))
+        group.add_argument(
+            "--provider-%s-disabled" % provider_name, action="store_const",
+            const=False, dest="provider_%s_enabled" % provider_name,
+            help=H("disable authentication provider"))
+        group.add_argument(
+            "--provider-%s-user-registration" % provider_name,
+            action="store_const", const=True,
+            help=H("enable new user registration"))
+        group.add_argument(
+            "--provider-%s-no-user-registration" % provider_name,
+            action="store_const", const=False,
+            dest="provider_%s_user_registration" % provider_name,
+            help=H("disable new user registration"))
+        group.add_argument(
+            "--provider-%s-client-id" % provider_name, action="store",
+            help=H("OAuth2 client id"))
+        group.add_argument(
+            "--provider-%s-client-secret" % provider_name, action="store",
+            help=H("OAuth2 client secret"))
+        group.add_argument(
+            "--provider-%s-redirect-uri" % provider_name, action="store",
+            help=H("OAuth2 authentication callback URI"))
 
     parser.add_argument(
         "--minimum-password-hash-time",
@@ -122,7 +229,8 @@ default_encodings = ["utf-8", "latin-1"]
 
 def prepare(mode, arguments, data):
     global auth_mode, session_type, allow_anonymous_user, access_scheme
-    global repository_url_types, default_encodings
+    global repository_url_types, default_encodings, allow_user_registration
+    global verify_email_addresses
     global password_hash_schemes, default_password_hash_scheme
     global minimum_password_hash_time, minimum_rounds
     global is_development, is_testing, coverage_dir
@@ -231,6 +339,12 @@ the Web front-end.  This can be handled in two different ways:
         try: coverage_dir = configuration.debug.COVERAGE_DIR
         except AttributeError: pass
 
+        try: allow_user_registration = configuration.base.ALLOW_USER_REGISTRATION
+        except AttributeError: pass
+
+        try: verify_email_addresses = configuration.base.VERIFY_EMAIL_ADDRESSES
+        except AttributeError: pass
+
     if auth_mode == "critic":
         if session_type is None:
             def check_session_type(value):
@@ -287,6 +401,27 @@ in the system without signin in.
                 allow_anonymous_user = installation.input.yes_or_no(
                     "Do you want to allow anonymous access?", default=True)
 
+        if allow_user_registration is None:
+            if session_type == "httpauth":
+                allow_user_registration = False
+            elif arguments.user_registration is not None:
+                allow_user_registration = arguments.user_registration
+            else:
+                if not header_printed:
+                    header_printed = True
+                    print """
+Critic Installation: Authentication
+==================================="""
+
+                print """
+With cookie based authentication, Critic can support unattended user
+registration.  With this enabled, the "Sign in" page has a link to a
+page where a new user can register a Critic user without needing to
+contact the system administrator(s).
+"""
+
+                allow_user_registration = installation.input.yes_or_no(
+                    "Do you want to allow user registration?", default=False)
     else:
         session_type = "cookie"
 
@@ -332,12 +467,37 @@ web server to redirect all HTTP accesses to HTTPS.
                 "How will Critic be accessed?", default="http",
                 check=check_access_scheme)
 
+    if mode == "upgrade" \
+           and hasattr(configuration, "auth") \
+           and hasattr(configuration.auth, "PROVIDERS"):
+        for provider_name in configuration.auth.PROVIDERS:
+            provider = Provider(provider_name)
+            provider.load(configuration.auth.PROVIDERS)
+            providers.append(provider)
+    else:
+        providers.extend(Provider(provider_name)
+                         for provider_name in default_provider_names)
+
+    if access_scheme == "http":
+        base_url = "http"
+    else:
+        base_url = "https"
+
+    base_url += "://%s/oauth/" % installation.system.hostname
+
+    for provider in providers:
+        provider.readargs(arguments)
+        if provider.redirect_uri is None:
+            provider.redirect_uri = base_url + provider.name
+
     data["installation.config.auth_mode"] = auth_mode
     data["installation.config.session_type"] = session_type
     data["installation.config.allow_anonymous_user"] = allow_anonymous_user
     data["installation.config.access_scheme"] = access_scheme
     data["installation.config.repository_url_types"] = repository_url_types
     data["installation.config.default_encodings"] = default_encodings
+    data["installation.config.allow_user_registration"] = allow_user_registration
+    data["installation.config.verify_email_addresses"] = verify_email_addresses
 
     calibrate_minimum_rounds()
 
@@ -349,6 +509,9 @@ web server to redirect all HTTP accesses to HTTPS.
     data["installation.config.is_development"] = is_development
     data["installation.config.is_testing"] = is_testing
     data["installation.config.coverage_dir"] = coverage_dir
+
+    for provider in providers:
+        provider.store(data)
 
     return True
 
@@ -390,7 +553,7 @@ def install(data):
             with open(target_path, "w") as target:
                 created_file.append(target_path)
 
-                if entry in ("database.py", "smtp.py"):
+                if entry in SENSITIVE_FILES:
                     # May contain secrets (passwords.)
                     mode = 0600
                 else:
@@ -485,7 +648,7 @@ configuration options to the existing version.
 
                 with open(target_path, "w") as target:
                     created_file.append(target_path)
-                    if entry in ("database.py", "smtp.py"):
+                    if entry in SENSITIVE_FILES:
                         # May contain secrets (passwords.)
                         mode = 0600
                     else:

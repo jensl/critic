@@ -259,6 +259,11 @@ class Element(Fragment):
     def setAttribute(self, name, value):
         self.__attributes[name] = value
 
+    def addClass(self, *names):
+        classes = set(self.__attributes.get("class").split())
+        classes.update(names)
+        self.setAttribute("class", " ".join(classes))
+
     def setPreFormatted(self):
         self.__preformatted = True
 
@@ -493,6 +498,10 @@ class Generator(object):
 
     def setAttribute(self, name, value):
         self.__target.setAttribute(name, value)
+        return self
+
+    def addClass(self, *names):
+        self.__target.addClass(*names)
         return self
 
     def render(self, output, level=0, stop=None, pretty=True):

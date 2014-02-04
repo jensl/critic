@@ -109,7 +109,8 @@ def renderTutorial(req, db, user):
               "checkbranch": "checkbranch",
               "administration": "administration",
               "customization": "customization",
-              "search": "search" }
+              "search": "search",
+              "external-authentication": "external-authentication" }
 
     if configuration.extensions.ENABLED:
         items.update({ "extensions": "extensions",

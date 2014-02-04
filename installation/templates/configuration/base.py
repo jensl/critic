@@ -32,25 +32,26 @@ ADMINISTRATORS = [{ "name": "%(installation.admin.username)s",
                     "email": "%(installation.admin.email)s",
                     "fullname": "%(installation.admin.fullname)s" }]
 
-# The primary FQDN of the server.  This is used when generating
-# message IDs for emails, and should *not* be different in different
-# system identities, since then email threading will not work
-# properly.
+# The primary FQDN of the server.  This is used when generating message IDs for
+# emails, and should *not* be different in different system identities, since
+# then email threading will not work properly.
 HOSTNAME = "%(installation.system.hostname)s"
 
-# The way Critic identifies/authenticates users: "host" or "critic"
+# The way Critic identifies/authenticates users: "host", "critic" or the name of
+# one of the supported external authentication providers.
 AUTHENTICATION_MODE = "%(installation.config.auth_mode)s"
 
-# If AUTHENTICATION_MODE="critic", type of session: "httpauth" or "cookie"
+# If AUTHENTICATION_MODE="critic", type of session: "httpauth" or "cookie".  If
+# AUTHENTICATION_MODE=<external>, this must be "cookie".
 SESSION_TYPE = "%(installation.config.session_type)s"
 
-# If AUTHENTICATION_MODE="critic" and SESSION_TYPE="cookie", maximum
-# age of session in seconds.  Zero means no maximum age; session is
-# valid until user logs out.
+# If AUTHENTICATION_MODE!="host" and SESSION_TYPE="cookie", maximum age of
+# session in seconds.  Zero means no maximum age; session is valid until user
+# logs out.
 SESSION_MAX_AGE = 0
 
 # Allow (restricted) anonymous access to the system.  Only supported if
-# AUTHENTICATION_MODE="critic" and SESSION_TYPE="cookie".
+# AUTHENTICATION_MODE!="host" and SESSION_TYPE="cookie".
 ALLOW_ANONYMOUS_USER = %(installation.config.allow_anonymous_user)r
 
 # Access scheme: "http", "https" or "both".
@@ -81,3 +82,28 @@ REPOSITORY_URL_TYPES = %(installation.config.repository_url_types)r
 # valid for use as the encoding argument to Python's str.decode()
 # function.
 DEFAULT_ENCODINGS = %(installation.config.default_encodings)r
+
+# Allow (unattended) user registration.  If False, user registration can still
+# be enabled for a specific external user authentication provider; see auth.py.
+ALLOW_USER_REGISTRATION = %(installation.config.allow_user_registration)r
+
+# Regular expression (source) that user names provided by new users must match.
+# A None value is equivalent to a pattern that matches all strings.  Empty user
+# names or user names containing only white-space characters are not allowed,
+# regardless this setting.
+#
+# Note that users created by the system administrator using criticctl are
+# not subjected to this restriction.
+USER_NAME_PATTERN = r"^\w[-\._\w]*\w$"
+
+# Description of above pattern, shown to the user if a provided user name fails
+# to match the pattern.
+USER_NAME_PATTERN_DESCRIPTION = (
+    "Must contain only alpha-numerics, periods, underscores or dashes, and "
+    "must start and end with alpha-numerics, and be at least two characters "
+    "long.")
+
+# Require verification of email addresses provided by users before sending
+# emails to them.  This does not affect email addresses set by the system
+# administrator via the 'criticctl' utility or via the web interface.
+VERIFY_EMAIL_ADDRESSES = %(installation.config.verify_email_addresses)r

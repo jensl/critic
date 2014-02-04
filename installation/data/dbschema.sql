@@ -38,9 +38,19 @@ CREATE TABLE users
     name VARCHAR(64) NOT NULL UNIQUE,
     fullname VARCHAR(256),
     password VARCHAR(256),
-    email VARCHAR(256),
+    email INTEGER, -- Foreign key constraint "REFERENCES users" set up later.
     status userstatus NOT NULL DEFAULT 'unknown' );
-CREATE INDEX users_email ON users (email);
+
+CREATE TABLE useremails
+  ( id SERIAL PRIMARY KEY,
+    uid INTEGER NOT NULL REFERENCES users ON DELETE CASCADE,
+    email VARCHAR(256) NOT NULL,
+    verified BOOLEAN,
+    verification_token VARCHAR(256),
+
+    UNIQUE (uid, email) );
+
+ALTER TABLE users ADD CONSTRAINT users_email_fkey FOREIGN KEY (email) REFERENCES useremails;
 
 CREATE TABLE usersessions
   ( key CHAR(28) PRIMARY KEY,
@@ -53,7 +63,6 @@ CREATE TABLE gitusers
     fullname VARCHAR(256) NOT NULL,
 
     UNIQUE (email, fullname) );
-CREATE INDEX gitusers_email ON users (email);
 
 CREATE TABLE usergitemails
   ( email VARCHAR(256) PRIMARY KEY,
@@ -574,3 +583,18 @@ CREATE UNIQUE INDEX userpreferences_item_uid_filter
               WHERE uid IS NOT NULL
                 AND repository IS NULL
                 AND filter IS NOT NULL;
+
+CREATE TABLE externalusers
+  ( id SERIAL PRIMARY KEY,
+    uid INTEGER REFERENCES users,
+    provider VARCHAR(16) NOT NULL,
+    account VARCHAR(256) NOT NULL,
+    email VARCHAR(256),
+    token VARCHAR(256),
+
+    UNIQUE (provider, account) );
+
+CREATE TABLE oauthstates
+  ( state VARCHAR(64) PRIMARY KEY,
+    url TEXT,
+    time TIMESTAMP NOT NULL DEFAULT NOW() );

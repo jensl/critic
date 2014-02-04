@@ -207,7 +207,8 @@ class CommentChain:
     def fromReview(db, review, user):
         cursor = db.cursor()
         cursor.execute("""SELECT commentchains.id, commentchains.batch,
-                                 users.id, users.name, users.email, users.fullname, users.status,
+                                 users.id, users.name, users.fullname, users.status,
+                                 useremails.email, useremails.verified,
                                  commentchains.type, drafttype.to_type,
                                  commentchains.state, draftstate.to_state,
                                  SUBSTRING(comments.comment FROM 1 FOR 81),
@@ -215,6 +216,7 @@ class CommentChain:
                                  chainunread(commentchains.id, %s)
                             FROM commentchains
                             JOIN users ON (users.id=commentchains.uid)
+                            JOIN useremails ON (useremails.id=users.email)
                             JOIN comments ON (comments.id=commentchains.first_comment)
                  LEFT OUTER JOIN commentchainchanges AS drafttype ON (drafttype.chain=commentchains.id
                                                                   AND drafttype.uid=%s
@@ -229,13 +231,13 @@ class CommentChain:
                         ORDER BY commentchains.id ASC""",
                        (user.id, user.id, user.id, review.id, user.id,))
         chains = []
-        for chain_id, batch_id, user_id, user_name, user_email, user_fullname, user_status, chain_type, draft_type, chain_state, draft_state, leader, count, unread in cursor:
+        for chain_id, batch_id, user_id, user_name, user_fullname, user_status, user_email, user_email_verified, chain_type, draft_type, chain_state, draft_state, leader, count, unread in cursor:
             if draft_type is not None: chain_type = draft_type
             if draft_state is not None: chain_state = draft_state
 
             if "\n" in leader: leader = leader[:leader.index("\n")]
 
-            chains.append(CommentChain(chain_id, dbutils.User(user_id, user_name, user_email, user_fullname, user_status), review, batch_id, chain_type, chain_state, leader=leader, count=count, unread=unread))
+            chains.append(CommentChain(chain_id, dbutils.User(user_id, user_name, user_fullname, user_status, user_email, user_email_verified), review, batch_id, chain_type, chain_state, leader=leader, count=count, unread=unread))
 
         return chains
 

@@ -239,6 +239,12 @@ table.callout td {
     border: 1px solid #ddb;
 }
 
+.ui-dialog .inset {
+    padding: 0.1rem 0.5rem;
+    background: #fbfaf9;
+    border: 1px solid #e0cfc2;
+}
+
 .ui-dialog { box-shadow: 0 5px 5px rgba(0, 0, 0, 0.5), 0 7px 25px rgba(0, 0, 0, 0.5) }
 
 table.pageheader td.left > ul {

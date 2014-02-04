@@ -124,7 +124,8 @@ def generateHeader(target, db, user, generate_right=None, current_page=None, ext
 
     req = target.getRequest()
 
-    if configuration.base.AUTHENTICATION_MODE == "critic" and configuration.base.SESSION_TYPE == "cookie":
+    if configuration.base.AUTHENTICATION_MODE != "host" \
+           and configuration.base.SESSION_TYPE == "cookie":
         if user.isAnonymous():
             links.append(["javascript:void(location.href='/login?target='+encodeURIComponent(location.href));", "Sign in", None, None])
         elif not req or req.user == user.name:

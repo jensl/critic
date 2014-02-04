@@ -30,3 +30,8 @@
     margin-right: 0.5rem;
     font-size: 1rem;
 }
+
+.message > .pre {
+    white-space: pre;
+    font-family: monospace;
+}

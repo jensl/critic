@@ -15,6 +15,8 @@
 # the License.
 
 import json
+import contextlib
+
 import testing
 
 try:
@@ -64,7 +66,8 @@ class Frontend(object):
         self.http_port = http_port
         self.session_id = None
 
-    def page(self, url, params={}, expect={}, expected_http_status=200):
+    def page(self, url, params={}, expect={}, expected_http_status=200,
+             disable_redirects=False):
         full_url = "http://%s:%d/%s" % (self.hostname, self.http_port, url)
 
         testing.logger.debug("Fetching page: %s ..." % full_url)
@@ -76,7 +79,12 @@ class Frontend(object):
 
         response = requests.get(full_url,
                                 params=params,
-                                headers=headers)
+                                headers=headers,
+                                allow_redirects=not disable_redirects)
+
+        if "sid" in response.cookies:
+            testing.logger.debug("Cookie: sid=%s" % response.cookies["sid"])
+            self.session_id = response.cookies["sid"]
 
         def text(response):
             if hasattr(response, "text"):
@@ -105,6 +113,12 @@ class Frontend(object):
             # The caller expected a successful load or an error.  Signal errors
             # by returning None.
             return None
+
+        if response.status_code >= 300 and response.status_code < 400 \
+                and disable_redirects:
+            # Redirection, and the caller disabled following it.  The caller is
+            # interested in the redirect itself, so return the whole response.
+            return response
 
         testing.logger.debug("Fetched page: %s" % full_url)
 
@@ -239,13 +253,13 @@ class Frontend(object):
 
         return result
 
+    @contextlib.contextmanager
     def signin(self, username="admin", password="testing"):
-        def start():
+        if username is not None:
             self.operation("validatelogin", data={ "username": username,
                                                    "password": password })
-        def finish():
-            self.signout()
-        return testing.Context(start, finish)
+        yield
+        self.signout()
 
     def signout(self):
         try:

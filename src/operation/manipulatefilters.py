@@ -382,12 +382,15 @@ class AddReviewFilters(Operation):
         pending_mails = []
 
         for user_id, (reviewer_paths, watcher_paths) in by_user.items():
-            user = dbutils.User.fromId(db, user_id)
-            if not user:
-                raise OperationFailure(code="invaliduserid",
-                                       title="Invalid user ID",
-                                       message="At least one of the specified user IDs was invalid.")
-            pending_mails.extend(reviewing.utils.addReviewFilters(db, creator, user, review, reviewer_paths, watcher_paths))
+            try:
+                user = dbutils.User.fromId(db, user_id)
+            except dbutils.InvalidUserId:
+                raise OperationFailure(
+                    code="invaliduserid",
+                    title="Invalid user ID",
+                    message="At least one of the specified user IDs was invalid.")
+            pending_mails.extend(reviewing.utils.addReviewFilters(
+                    db, creator, user, review, reviewer_paths, watcher_paths))
 
         review = dbutils.Review.fromId(db, review_id)
         review.incrementSerial(db)

@@ -21,6 +21,7 @@ import gitutils
 import configuration
 import reviewing.filters
 import profiling
+import auth
 
 from htmlutils import jsify
 from textutils import json_encode
@@ -34,6 +35,7 @@ def renderHome(req, db, user):
 
     readonly = req.getParameter("readonly", "yes" if user.name != req.user else "no") == "yes"
     repository = req.getParameter("repository", None, gitutils.Repository.FromParameter(db))
+    verified_email_id = req.getParameter("email_verified", None, int)
 
     if not repository:
         repository = user.getDefaultRepository(db)
@@ -74,6 +76,8 @@ def renderHome(req, db, user):
         document.addInternalScript("var administrator = false;")
     document.addInternalScript(user.getJS())
     document.addInternalScript("user.gitEmails = %s;" % jsify(gitemails))
+    document.addInternalScript("var verifyEmailAddresses = %s;"
+                               % jsify(configuration.base.VERIFY_EMAIL_ADDRESSES))
     document.setTitle("%s Home" % title_fullname)
 
     target = body.div("main")
@@ -98,24 +102,60 @@ def renderHome(req, db, user):
         else:
             target.input("value", id="user_fullname", value=user.fullname)
             target.span("status", id="status_fullname")
-            target.button(onclick="saveFullname();").text("Save")
-            target.button(onclick="resetFullname();").text("Reset")
+            buttons = target.span("buttons")
+            buttons.button(onclick="saveFullname();").text("Save")
+            buttons.button(onclick="resetFullname();").text("Reset")
 
     def renderEmail(target):
-        if readonly: target.text(user.email)
+        if not actual_user or actual_user.hasRole(db, "administrator"):
+            cursor.execute("""SELECT id, email, verified
+                                FROM useremails
+                               WHERE uid=%s
+                            ORDER BY id ASC""",
+                           (user.id,))
+            rows = cursor.fetchall()
+            if rows:
+                if len(rows) > 1:
+                    target.addClass("multiple")
+                addresses = target.div("addresses")
+                for email_id, email, verified in rows:
+                    checked = "checked" if email == user.email else None
+                    selected = " selected" if email == user.email else ""
+
+                    label = addresses.label("address inset flex" + selected,
+                                            data_email_id=email_id)
+                    if len(rows) > 1:
+                        label.input(name="email", type="radio", value=email,
+                                    checked=checked)
+                    label.span("value").text(email)
+                    actions = label.span("actions")
+
+                    if verified is False:
+                        actions.a("action unverified", href="#").text("[unverified]")
+                    elif verified is True:
+                        now = " now" if email_id == verified_email_id else ""
+                        actions.span("action verified" + now).text("[verified]")
+                    actions.a("action delete", href="#").text("[delete]")
+            else:
+                target.i().text("No email address")
+            target.span("buttons").button("addemail").text(
+                "Add email address")
+        elif user.email is None:
+            target.i().text("No email address")
+        elif user.email_verified is False:
+            # Pending verification: don't show to other users.
+            target.i().text("Email address not verified")
         else:
-            target.input("value", id="user_email", value=user.email)
-            target.span("status", id="status_email")
-            target.button(onclick="saveEmail();").text("Save")
-            target.button(onclick="resetEmail();").text("Reset")
+            target.span("inset").text(user.email)
 
     def renderGitEmails(target):
         if readonly: target.text(gitemails)
         else:
             target.input("value", id="user_gitemails", value=gitemails)
             target.span("status", id="status_gitemails")
-            target.button(onclick="saveGitEmails();").text("Save")
-            target.button(onclick="resetGitEmails();").text("Reset")
+            buttons = target.span("buttons")
+            buttons.button(onclick="saveGitEmails();").text("Save")
+            buttons.button(onclick="resetGitEmails();").text("Reset")
 
     def renderPassword(target):
         cursor.execute("SELECT password IS NOT NULL FROM users WHERE id=%s", (user.id,))
@@ -126,18 +166,37 @@ def renderHome(req, db, user):
             target.text("****")
         if not readonly:
             if not has_password or (actual_user and actual_user.hasRole(db, "administrator")):
-                target.button(onclick="setPassword();").text("Set password")
+                target.span("buttons").button(onclick="setPassword();").text("Set password")
             else:
-                target.button(onclick="changePassword();").text("Change password")
+                target.span("buttons").button(onclick="changePassword();").text("Change password")
 
     row("User ID", str(user.id))
     row("User Name", user.name)
     row("Display Name", renderFullname, "This is the name used when displaying commits or comments.")
-    row("Email", renderEmail, "This is the primary email address, to which emails are sent.")
+    row("Primary Email", renderEmail, "This is the primary email address, to which emails are sent.", extra_class="email")
     row("Git Emails", renderGitEmails, "These email addresses are used to map Git commits to the user.")
 
     if configuration.base.AUTHENTICATION_MODE == "critic":
         row("Password", renderPassword, extra_class="password")
+
+    cursor.execute("""SELECT provider, account
+                        FROM externalusers
+                       WHERE uid=%s""",
+                   (user.id,))
+
+    external_accounts = [(auth.PROVIDERS[provider_name], account)
+                         for provider_name, account in cursor
+                         if provider_name in auth.PROVIDERS]
+
+    if external_accounts:
+        basic.tr().td('h2', colspan=3).h2().text("External Accounts")
+
+        for provider, account in external_accounts:
+            def renderExternalAccount(target):
+                url = provider.getAccountURL(account)
+                target.a("external", href=url).text(account)
+
+            row(provider.getTitle(), renderExternalAccount)
 
     profiler.check("user information")
 

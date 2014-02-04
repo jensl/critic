@@ -7,7 +7,7 @@ try:
          "--fullname", "'Alice von Testing'",
          "--password", "testing"])
 except testing.virtualbox.GuestCommandError as error:
-    if "alice: user exists" not in error.stdout.splitlines():
+    if "alice: user exists" not in error.stderr.splitlines():
         logger.error("criticctl failed with unexpected error message:\n%s"
                      % error.stdout)
 else:
@@ -19,7 +19,7 @@ try:
         ["sudo", "criticctl", "deluser",
          "--name", "nosuchuser"])
 except testing.virtualbox.GuestCommandError as error:
-    if "nosuchuser: no such user" not in error.stdout.splitlines():
+    if "nosuchuser: no such user" not in error.stderr.splitlines():
         logger.error("criticctl failed with unexpected error message:\n%s"
                      % error.stdout)
 else:

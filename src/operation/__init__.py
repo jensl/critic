@@ -46,20 +46,6 @@ class OperationResult:
         return json_encode(self.__value)
     def set(self, key, value):
         self.__value[key] = value
-    def setCookie(self, name, value=None, secure=False):
-        self.__cookies[name] = (value, secure)
-        return self
-    def addResponseHeaders(self, req):
-        for name, (value, secure) in self.__cookies.items():
-            if value:
-                if secure and configuration.base.ACCESS_SCHEME != "http":
-                    modifier = "Secure"
-                else:
-                    modifier = "HttpOnly"
-                cookie = "%s=%s; Max-Age=31536000; %s" % (name, value, modifier)
-            else:
-                cookie = "%s=invalid; Expires=Thursday 01-Jan-1970 00:00:00 GMT" % name
-            req.addResponseHeader("Set-Cookie", cookie)
 
 class OperationError(Exception):
     """\
@@ -355,7 +341,8 @@ class Operation(object):
     converted to OperationError objects.
 
     """
-    def __init__(self, parameter_types, accept_anonymous_user=False):
+    def __init__(self, parameter_types, accept_anonymous_user=False,
+                 pass_request=False):
         """\
         Initialize input data type checker.
 
@@ -380,6 +367,7 @@ class Operation(object):
             raise base.ImplementationError("invalid source type")
         self.__checker = TypeChecker.make(parameter_types)
         self.__accept_anonymous_user = accept_anonymous_user
+        self.__pass_request = pass_request
 
     def __call__(self, req, db, user):
         if user.isAnonymous() and not self.__accept_anonymous_user:
@@ -395,7 +383,13 @@ class Operation(object):
 
         try:
             self.__checker(value)
-            return self.process(db, user, **value)
+
+            if self.__pass_request:
+                args = (db, req, user)
+            else:
+                args = (db, user)
+
+            return self.process(*args, **value)
         except OperationError as error:
             return error
         except OperationFailure as failure:
@@ -431,7 +425,7 @@ class Operation(object):
                                       "A message has been sent to the system administrator(s) " +
                                       "with details about the problem.")
 
-    def process(self, db, user, **kwargs):
+    def process(self, *args, **kwargs):
         raise OperationError("not implemented!?!")
 
     def sanitize(self, value):

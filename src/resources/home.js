@@ -66,41 +66,6 @@ function resetFullname()
   status.text("");
 }
 
-function saveEmail()
-{
-  var input = $("#user_email");
-  var status = $("#status_email");
-
-  var value = input.val().trim();
-
-  if (value == user.email)
-    status.text("Value not changed");
-  else if (!value)
-    status.text("Empty name not saved");
-  else
-  {
-    var operation = new Operation({ action: "save changes",
-                                    url: "setemail",
-                                    data: { user_id: user.id,
-                                            value: value }});
-
-    if (operation.execute())
-    {
-      status.text("Value saved");
-      user.email = value;
-    }
-  }
-}
-
-function resetEmail()
-{
-  var input = $("#user_email");
-  var status = $("#status_email");
-
-  input.val(user.email);
-  status.text("");
-}
-
 function saveGitEmails()
 {
   var input = $("#user_gitemails");
@@ -280,6 +245,214 @@ function ModificationChecker(current, input, status)
     }, 100);
 }
 
+function showUnverifiedAddressDialog(ev) {
+  ev.preventDefault();
+
+  var context = $(this).closest(".address");
+  var address = context.find(".value").text();
+  var content = $("<div class='unverified-dialog' title='Unverified email address'>" +
+                  "<p>The address <span class='address inset'>" + htmlify(address) +
+                  "</span> needs to be verified as valid and in your control. " +
+                  "A verification email has been sent to the address already " +
+                  "and should arrive shortly.</p>" +
+                  "<p>If you suspect it has been lost in transit, you can " +
+                  "request another one.</p>" +
+                  "</div>");
+
+  function sendVerificationEmail() {
+    var operation = new Operation({
+      action: "request verification email",
+      url: "requestverificationemail",
+      data: {
+        email_id: context.data("email-id")
+      }
+    });
+
+    if (operation.execute())
+      content.dialog("close");
+  }
+
+  function close() {
+    content.dialog("close");
+  }
+
+  content.dialog({
+    modal: true,
+    width: 600,
+    buttons: {
+      "Send verification email": sendVerificationEmail,
+      "Close": close
+    }
+  });
+}
+
+function showDeleteAddressDialog(ev) {
+  ev.preventDefault();
+
+  var context = $(this).closest(".address");
+  var is_current = context.is(".selected");
+
+  function deleteAddress(dialog) {
+    var operation = new Operation({
+      action: "delete address",
+      url: "deleteemailaddress",
+      data: {
+        email_id: context.data("email-id")
+      }
+    });
+
+    if (operation.execute()) {
+      if (dialog)
+        dialog.dialog("close");
+      location.reload();
+    }
+  }
+
+  if (is_current) {
+    if (context.closest(".addresses").children(".address").size() > 1) {
+      showMessage("Not allowed", "Will not delete current address",
+                  "This email address is your current address.  Please select " +
+                  "one of the other addresses as your current address before " +
+                  "deleting it.");
+      return;
+    } else {
+      var content =
+        $("<div class='delete-current-dialog' title='Delete current address?'>" +
+          "<p>Deleting your current email address means Critic will " +
+          "stop sending emails to you.  Are you sure you want that?</p>" +
+          "</div>");
+
+      content.dialog({
+        modal: true,
+        width: 600,
+        buttons: {
+          "Delete address": function () {
+            deleteAddress(content);
+          },
+          "Do nothing": function () {
+            content.dialog("close");
+          }
+        }
+      });
+    }
+  } else {
+    deleteAddress();
+  }
+}
+
+function showSelectEmailAddressDialog(ev) {
+  var context = $(this).closest(".address");
+  var is_unverified = context.find(".unverified").size() != 0;
+
+  function selectAddress(dialog) {
+    var operation = new Operation({
+      action: "select address",
+      url: "selectemailaddress",
+      data: {
+        email_id: context.data("email-id")
+      }
+    });
+
+    if (operation.execute()) {
+      context.closest(".addresses")
+        .find(".address").not(context).removeClass("selected");
+      context.addClass("selected");
+      context.find("input").prop("checked", true);
+
+      if (dialog)
+        dialog.dialog("close");
+    }
+  }
+
+  if (is_unverified) {
+    var content =
+      $("<div class='select-unverified-dialog' title='Select unverified address?'>" +
+        "<p>Selecting an unverified email address means Critic will stop " +
+        "sending emails to you until the address has been verified.  Are you " +
+        "sure you want that?</p>" +
+        "</div>");
+
+    content.dialog({
+      modal: true,
+      width: 600,
+      buttons: {
+        "Select address": function () {
+          selectAddress(content);
+        },
+        "Do nothing": function () {
+          $(".address.selected input").prop("checked", true);
+          content.dialog("close");
+        }
+      }
+    });
+
+    ev.preventDefault();
+  } else {
+    selectAddress();
+  }
+}
+
+function showAddEmailAddressDialog() {
+  var content =
+    $("<div class='add-email-dialog' title='Add primary address'>" +
+      "<p>Add a primary email address.  You can have several addresses registered, " +
+      "but emails will only be sent to the one that is selected.</p>" +
+      "</div>");
+
+  if (verifyEmailAddresses) {
+    content.append("<p>Note that a verification email will be sent to the added " +
+                   "email address, containing a link that must be followed before " +
+                   "Critic will send any other emails to the address.</p>");
+  }
+
+  content.append("<p><b>Email address:</b><br><input placeholder='user@domain'></p>");
+
+  function isValidAddress() {
+    var address = content.find("input").val().trim();
+    return /^[^@]+@[^.]+(?:\.[^.]+)*$/.test(address);
+  }
+
+  function addAddress() {
+    if (!isValidAddress()) {
+      showMessage("Invalid email address", "Invalid email address",
+                  "That does not look like a valid email address. " +
+                  "Please try again.");
+    } else {
+      var operation = new Operation({
+        action: "add email address",
+        url: "addemailaddress",
+        data: {
+          subject_id: user.id,
+          email: content.find("input").val().trim()
+        }
+      });
+
+      if (operation.execute()) {
+        content.dialog("close");
+        location.reload();
+      }
+    }
+  }
+
+  content.dialog({
+    modal: true,
+    width: 600,
+    buttons: {
+      "Add address": function () {
+        addAddress();
+      },
+      "Do nothing": function () {
+        content.dialog("close");
+      }
+    }
+  });
+
+  content.find("input").keypress(function (ev) {
+    if (ev.keyCode == 13 && isValidAddress())
+      addAddress();
+  });
+}
+
 $(function ()
   {
     var fullname_input = $("#user_fullname");
@@ -288,11 +461,20 @@ $(function ()
     if (fullname_input.size() && fullname_status.size())
       new ModificationChecker(function () { return user.displayName; }, fullname_input, fullname_status);
 
-    var email_input = $("#user_email");
-    var email_status = $("#status_email");
+    $(".unverified").click(showUnverifiedAddressDialog);
+    $(".delete").click(showDeleteAddressDialog);
+    $(".address input").click(showSelectEmailAddressDialog);
+    $(".addemail").click(showAddEmailAddressDialog);
 
-    if (email_input.size() && email_status.size())
-      new ModificationChecker(function () { return user.email; }, email_input, email_status);
+    if (/^\?email_verified=\d+/.test(location.search)) {
+      if (typeof history.replaceState == "function") {
+        var new_url = "/home";
+        var match = /&(.+)$/.exec(location.search);
+        if (match)
+          new_url += "?" + match[1];
+        history.replaceState(null, document.title, new_url);
+      }
+    }
 
     var gitemails_input = $("#user_gitemails");
     var gitemails_status = $("#status_gitemails");

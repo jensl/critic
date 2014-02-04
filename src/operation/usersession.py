@@ -19,51 +19,33 @@ from operation import Operation, OperationResult, OperationError
 import dbutils
 import configuration
 import auth
-import os
-import base64
-import hashlib
 
 class ValidateLogin(Operation):
     def __init__(self):
         Operation.__init__(self, { "username": str,
                                    "password": str },
-                           accept_anonymous_user=True)
+                           accept_anonymous_user=True,
+                           pass_request=True)
 
-    def process(self, db, user, username, password):
+    def process(self, db, req, user, username, password):
         if not user.isAnonymous():
             if user.name == username:
                 return OperationResult()
             else:
                 return OperationResult(message="Already signed as '%s'!" % user.name)
 
-        try: auth.checkPassword(db, username, password)
-        except auth.NoSuchUser: return OperationResult(message="No such user!")
-        except auth.WrongPassword: return OperationResult(message="Wrong password!")
+        try:
+            user = auth.checkPassword(db, username, password)
+        except auth.NoSuchUser:
+            return OperationResult(message="No such user!")
+        except auth.WrongPassword:
+            return OperationResult(message="Wrong password!")
 
-        sid = base64.b64encode(hashlib.sha1(os.urandom(20)).digest())
-
-        cursor = db.cursor()
-        cursor.execute("""INSERT INTO usersessions (key, uid)
-                               SELECT %s, id
-                                 FROM users
-                                WHERE name=%s""",
-                       (sid, username))
+        auth.startSession(db, req, user)
 
         db.commit()
 
-        # Set 'sid' and 'has_sid' cookies.
-        #
-        # The 'has_sid' cookie is significant if the system is accessible over
-        # both HTTP and HTTPS.  In that case, the 'sid' cookie is set with the
-        # "secure" flag, so is only sent over HTTPS.  The 'has_sid' cookie is
-        # then used to detect that an HTTP client would have sent a 'sid' cookie
-        # if the request instead had been made over HTTPS, in which case we
-        # redirect the client to HTTPS automatically.
-
-        result = OperationResult()
-        result.setCookie("sid", sid, secure=True)
-        result.setCookie("has_sid", "1")
-        return result
+        return OperationResult()
 
     def sanitize(self, value):
         sanitized = value.copy()
@@ -72,12 +54,15 @@ class ValidateLogin(Operation):
 
 class EndSession(Operation):
     def __init__(self):
-        Operation.__init__(self, {})
+        Operation.__init__(self, {}, pass_request=True)
 
-    def process(self, db, user):
+    def process(self, db, req, user):
         cursor = db.cursor()
         cursor.execute("DELETE FROM usersessions WHERE uid=%s", (user.id,))
 
         db.commit()
 
-        return OperationResult().setCookie("sid").setCookie("has_sid")
+        req.deleteCookie("sid")
+        req.deleteCookie("has_sid")
+
+        return OperationResult()

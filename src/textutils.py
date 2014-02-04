@@ -128,3 +128,8 @@ def decode(text):
             return re.sub(u"[\ud800-\udfff]", "\ufffd", decoded)
 
     return text.decode("ascii", errors="replace")
+
+def encode(text):
+    if isinstance(text, unicode):
+        return text.encode("utf-8")
+    return str(text)

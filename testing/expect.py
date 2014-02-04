@@ -97,7 +97,8 @@ def paleyellow_title(index, expected):
         return check(expected, actual)
     return checker
 
-def message(expected_title, expected_body):
+def message(expected_title, expected_body, title_equal=simple_equal,
+            body_equal=simple_equal):
     """Return <div class="message"> title checker."""
     def checker(document):
         message = document.find(
@@ -112,11 +113,13 @@ def message(expected_title, expected_body):
                 actual_body = extract_text(body)
         if not actual_title:
             actual_title = "<no message title found>"
-        check(expected_title, actual_title, message="title check failed")
+        check(expected_title, actual_title, equal=title_equal,
+              message="title check failed")
         if expected_body is not None:
             if not actual_body:
                 actual_body = "<no message body found>"
-            check(expected_body, actual_body, message="body check failed")
+            check(expected_body, actual_body, equal=body_equal,
+                  message="body check failed")
     return checker
 
 def message_title(expected_title):

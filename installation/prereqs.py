@@ -40,6 +40,7 @@ a2dissite = None
 psycopg2_available = False
 pygments_available = False
 passlib_available = False
+requests_available = False
 
 aptget = None
 aptget_approved = False
@@ -56,7 +57,8 @@ def blankline():
 def check(mode, arguments):
     global git, tar, psql, passlib_available, aptget, apache2ctl, a2enmod, a2ensite, a2dissite
 
-    print """
+    if mode == "install":
+        print """
 Critic Installation: Prerequisites
 ==================================
 """
@@ -345,7 +347,34 @@ so you might just need to restart this script."""
         if install_passlib and not passlib_available:
             success = False
 
-    if all_ok: print "All prerequisites available."
+    def check_requests():
+        global requests_available
+        try:
+            import requests
+            requests_available = True
+        except ImportError: pass
+
+    check_requests()
+    if not requests_available:
+        if aptget_approved and install("python-requests"):
+            check_requests()
+        if not requests_available:
+            blankline()
+            all_ok = False
+            print """\
+Failed to import the 'requests' module, which is used to perform URL requests.
+In Debian/Ubuntu, the module is provided by the 'python-requests' package.  The
+source code can be downloaded here:
+
+  https://github.com/kennethreitz/requests
+"""
+        if not aptget_approved and install("python-requests"):
+            check_requests()
+        if not requests_available:
+            success = False
+
+    if mode == "install" and all_ok:
+        print "All prerequisites available."
 
     return success
 

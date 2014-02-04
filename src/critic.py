@@ -34,6 +34,7 @@ import log.commitset as log_commitset
 import diff
 import mailutils
 import configuration
+import auth
 
 import operation.createcomment
 import operation.createreview
@@ -58,6 +59,7 @@ import operation.checkrebase
 import operation.applyfilters
 import operation.savesettings
 import operation.searchreview
+import operation.registeruser
 
 import page.utils
 import page.createreview
@@ -86,6 +88,8 @@ import page.search
 import page.repositories
 import page.services
 import page.rebasetrackingreview
+import page.createuser
+import page.verifyemail
 
 try:
     from customization.email import getUserEmailAddress
@@ -414,9 +418,12 @@ OPERATIONS = { "fetchlines": operation.fetchlines.FetchLines(),
                "pingreview": operation.manipulatereview.PingReview(),
                "updatereview": operation.manipulatereview.UpdateReview(),
                "setfullname": operation.manipulateuser.SetFullname(),
-               "setemail": operation.manipulateuser.SetEmail(),
                "setgitemails": operation.manipulateuser.SetGitEmails(),
                "changepassword": operation.manipulateuser.ChangePassword(),
+               "requestverificationemail": operation.manipulateuser.RequestVerificationEmail(),
+               "deleteemailaddress": operation.manipulateuser.DeleteEmailAddress(),
+               "selectemailaddress": operation.manipulateuser.SelectEmailAddress(),
+               "addemailaddress": operation.manipulateuser.AddEmailAddress(),
                "getassignedchanges": operation.manipulateassignments.GetAssignedChanges(),
                "setassignedchanges": operation.manipulateassignments.SetAssignedChanges(),
                "watchreview": watchreview,
@@ -471,7 +478,8 @@ OPERATIONS = { "fetchlines": operation.fetchlines.FetchLines(),
                "checkmergestatus": operation.checkrebase.CheckMergeStatus(),
                "checkconflictsstatus": operation.checkrebase.CheckConflictsStatus(),
                "checkhistoryrewritestatus": operation.checkrebase.CheckHistoryRewriteStatus(),
-               "searchreview": operation.searchreview.SearchReview() }
+               "searchreview": operation.searchreview.SearchReview(),
+               "registeruser": operation.registeruser.RegisterUser() }
 
 PAGES = { "showreview": page.showreview.renderShowReview,
           "showcommit": page.showcommit.renderShowCommit,
@@ -500,7 +508,9 @@ PAGES = { "showreview": page.showreview.renderShowReview,
           "search": page.search.renderSearch,
           "repositories": page.repositories.renderRepositories,
           "services": page.services.renderServices,
-          "rebasetrackingreview": page.rebasetrackingreview.RebaseTrackingReview() }
+          "rebasetrackingreview": page.rebasetrackingreview.RebaseTrackingReview(),
+          "createuser": page.createuser.CreateUser(),
+          "verifyemail": page.verifyemail.renderVerifyEmail }
 
 if configuration.extensions.ENABLED:
     import extensions
@@ -516,15 +526,17 @@ if configuration.extensions.ENABLED:
     OPERATIONS["processcommits"] = processcommits
     PAGES["manageextensions"] = page.manageextensions.renderManageExtensions
 
-if configuration.base.AUTHENTICATION_MODE == "critic" and configuration.base.SESSION_TYPE == "cookie":
+if configuration.base.AUTHENTICATION_MODE != "host" and configuration.base.SESSION_TYPE == "cookie":
     import operation.usersession
     import page.login
 
-    OPERATIONS["validatelogin"] = operation.usersession.ValidateLogin()
-    OPERATIONS["endsession"] = operation.usersession.EndSession()
-    PAGES["login"] = page.login.renderLogin
+    if configuration.base.AUTHENTICATION_MODE == "critic":
+        OPERATIONS["validatelogin"] = operation.usersession.ValidateLogin()
 
-def handleException(db, req, user):
+    OPERATIONS["endsession"] = operation.usersession.EndSession()
+    PAGES["login"] = page.login.Login()
+
+def handleException(db, req, user, as_html=False):
     error_message = traceback.format_exc()
     environ = req.getEnvironment()
 
@@ -555,16 +567,27 @@ def handleException(db, req, user):
             or configuration.debug.IS_DEVELOPMENT \
             or configuration.debug.IS_TESTING:
         error_title = "Unexpected error!"
-        error_body = [error_message.strip()]
+        error_message = error_message.strip()
+        if as_html:
+            error_message = "<p class='pre inset'>%s</p>" % htmlify(error_message)
+        error_body = [error_message]
         if admin_message_sent:
-            error_body.append("A message has been sent to the system "
-                              "administrator(s) with details about the problem.")
+            admin_message_sent = ("A message has been sent to the system "
+                                  "administrator(s) with details about the "
+                                  "problem.")
+            if as_html:
+                admin_message_sent = "<p>%s</p>" % admin_message_sent
+            error_body.append(admin_message_sent)
     else:
         error_title = "Request failed!"
-        error_body = ["An unexpected error occurred while handling the request.  "
-                      "A message has been sent to the system administrator(s) "
-                      "with details about the problem.  Please contact them for "
-                      "further information and/or assistance."]
+        error_message = ("An unexpected error occurred while handling the "
+                         "request.  A message has been sent to the system "
+                         "administrator(s) with details about the problem.  "
+                         "Please contact them for further information and/or "
+                         "assistance.")
+        if as_html:
+            error_message = "<p>%s</p>" % error_message
+        error_body = [error_message]
 
     return error_title, error_body
 
@@ -649,6 +672,17 @@ def handleRepositoryPath(db, req, user, suffix):
 
     return False
 
+def finishOAuth(db, req, provider):
+    try:
+        return provider.finish(db, req)
+    except (auth.InvalidRequest, auth.Failure):
+        _, error_body = handleException(
+            db, req, dbutils.User.makeAnonymous(), as_html=True)
+        raise page.utils.DisplayMessage(
+            title="Authentication failed",
+            body="".join(error_body),
+            html=True)
+
 def process_request(environ, start_response):
     request_start = time.time()
 
@@ -661,31 +695,51 @@ def process_request(environ, start_response):
             req.setUser(db)
 
             if req.user is None:
-                if configuration.base.AUTHENTICATION_MODE == "critic":
+                if configuration.base.AUTHENTICATION_MODE != "host":
                     if configuration.base.SESSION_TYPE == "httpauth":
                         req.requestHTTPAuthentication()
                         return []
+                    elif req.path.startswith("externalauth/"):
+                        provider_name = req.path[len("externalauth/"):]
+                        raise request.DoExternalAuthentication(provider_name)
+                    elif req.path.startswith("oauth/"):
+                        provider_name = req.path[len("oauth/"):]
+                        if provider_name in auth.PROVIDERS:
+                            provider = auth.PROVIDERS[provider_name]
+                            if isinstance(provider, auth.OAuthProvider):
+                                if finishOAuth(db, req, provider):
+                                    return []
                     elif configuration.base.SESSION_TYPE == "cookie":
                         if req.cookies.get("has_sid") == "1":
                             req.ensureSecure()
                         if configuration.base.ALLOW_ANONYMOUS_USER \
-                                or req.path in ("login", "validatelogin") \
+                                or req.path in request.INSECURE_PATHS \
                                 or req.path.startswith("static-resource/"):
                             user = dbutils.User.makeAnonymous()
+                        # Don't try to redirect POST requests to the login page.
                         elif req.method == "GET":
-                            raise request.NeedLogin(req)
-                        else:
-                            # Don't try to redirect POST requests to the login page.
-                            req.setStatus(403)
-                            req.start()
-                            return []
+                            if configuration.base.AUTHENTICATION_MODE == "critic":
+                                raise request.NeedLogin(req)
+                            else:
+                                raise request.DoExternalAuthentication(
+                                    configuration.base.AUTHENTICATION_MODE,
+                                    req.getTargetURL())
+                if not user:
+                    req.setStatus(403)
+                    req.start()
+                    return []
             else:
                 try:
                     user = dbutils.User.fromName(db, req.user)
                 except dbutils.NoSuchUser:
-                    user = dbutils.User.create(db, req.user, req.user,
-                                               getUserEmailAddress(req.user))
-                    db.commit()
+                    if configuration.base.AUTHENTICATION_MODE == "host":
+                        email = getUserEmailAddress(req.user)
+                        user = dbutils.User.create(
+                            db, req.user, req.user, email, email_verified=None)
+                        db.commit()
+                    else:
+                        # This can't really happen.
+                        raise
 
             user.loadPreferences(db)
 
@@ -789,7 +843,6 @@ def process_request(environ, start_response):
                         if db.profiling:
                             result.set("__profiling__", formatDBProfiling(db))
                             result.set("__time__", time.time() - request_start)
-                        result.addResponseHeaders(req)
                 elif not req.hasContentType():
                     req.setContentType("text/plain")
 
@@ -946,6 +999,9 @@ def process_request(environ, start_response):
                 req.addResponseHeader("Cache-Control", "no-cache")
             req.start()
             return []
+        except request.DoExternalAuthentication as command:
+            command.execute(db, req)
+            return []
         except request.MissingWSGIRemoteUser as error:
             # req object is not initialized yet.
             start_response("200 OK", [("Content-Type", "text/html")])
@@ -975,6 +1031,9 @@ authentication in apache2, see:
 
   <a href="%(url)s">%(url)s</a></pre>""" % { "url": "http://code.google.com/p/modwsgi/wiki/AccessControlMechanisms#Apache_Authentication_Provider" }]
         except page.utils.DisplayMessage as message:
+            if user is None:
+                user = dbutils.User.makeAnonymous()
+
             document = page.utils.displayMessage(
                 db, req, user, title=message.title, message=message.body,
                 review=message.review, is_html=message.html)

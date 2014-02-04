@@ -74,7 +74,7 @@ class Page(object):
         def generate(self, page, req, db, user):
             self.setup(page, req, db, user)
 
-            self.document = htmlutils.Document()
+            self.document = htmlutils.Document(req)
             self.html = self.document.html()
             self.head = self.html.head()
             self.body = self.html.body()

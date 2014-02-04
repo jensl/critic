@@ -18,7 +18,7 @@ from dbaccess import IntegrityError, ProgrammingError, TransactionRollbackError
 
 from dbutils.session import Session
 from dbutils.database import Database
-from dbutils.user import NoSuchUser, User
+from dbutils.user import InvalidUserId, NoSuchUser, User
 from dbutils.review import NoSuchReview, ReviewState, Review
 from dbutils.branch import Branch
 from dbutils.paths import InvalidPath, find_file, find_files, describe_file

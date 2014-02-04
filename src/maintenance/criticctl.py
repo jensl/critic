@@ -46,13 +46,16 @@ def invalid_user(name):
     except dbutils.NoSuchUser:
         pass
 
+def check_argument(argument, check):
+    if argument and check:
+        error = check(argument)
+        if error:
+            print >>sys.stderr, "%s: %s" % (argument, error)
+            sys.exit(-1)
+
 def use_argument_or_ask(argument, prompt, check=None):
     if argument:
-        if check:
-            error = check(argument)
-            if error:
-                print "%s: %s" % (argument, error)
-                sys.exit(-1)
+        check_argument(argument, check)
         return argument
     else:
         return inpututils.string(prompt, check=check)
@@ -86,13 +89,19 @@ def listusers(argv):
 
     arguments = parser.parse_args(argv)
 
-    cursor.execute("""SELECT id, name, email, fullname, status FROM users ORDER BY id""")
+    cursor.execute("""SELECT users.id, name, useremails.email, fullname, status
+                        FROM users
+             LEFT OUTER JOIN useremails ON (useremails.id=users.email)
+                    ORDER BY users.id""")
+
     print formats[arguments.format]["pre"]
     for row in cursor:
         print formats[arguments.format]["row"] % row
     print formats[arguments.format]["post"]
 
 def adduser(argv):
+    class NoEmail:
+        pass
     class NoPassword:
         pass
 
@@ -102,6 +111,8 @@ def adduser(argv):
 
     parser.add_argument("--name", help="user name")
     parser.add_argument("--email", "-e", help="email address")
+    parser.add_argument("--no-email", dest="email", action="store_const",
+                        const=NoEmail, help="create user without email address")
     parser.add_argument("--fullname", "-f", help="full name")
     parser.add_argument("--password", "-p", help="password")
     parser.add_argument("--no-password", dest="password", action="store_const",
@@ -111,7 +122,13 @@ def adduser(argv):
 
     name = use_argument_or_ask(arguments.name, "Username:", check=invalid_user)
     fullname = use_argument_or_ask(arguments.fullname, "Full name:")
-    email = use_argument_or_ask(arguments.email, "Email address:")
+
+    if arguments.email is NoEmail:
+        email = None
+    else:
+        email = use_argument_or_ask(arguments.email, "Email address:")
+        if not email.strip():
+            email = None
 
     if arguments.password is NoPassword:
         hashed_password = None
@@ -122,7 +139,8 @@ def adduser(argv):
             password = arguments.password
         hashed_password = auth.hashPassword(password)
 
-    dbutils.User.create(db, name, fullname, email, password=hashed_password)
+    dbutils.User.create(db, name, fullname, email, email_verified=None,
+                        password=hashed_password)
 
     db.commit()
 
@@ -229,6 +247,116 @@ def passwd(argv):
     else:
         print "%s: password deleted" % name
 
+def connect(command, argv):
+    parser = argparse.ArgumentParser(
+        description="Critic administration interface: %s" % command,
+        prog="criticctl [options] %s" % command)
+
+    providers = sorted(provider_name for provider_name, provider
+                       in configuration.auth.PROVIDERS.items()
+                       if command == "disconnect" or provider.get("enabled"))
+
+    if len(providers) == 0:
+        print >>sys.stderr, "No external authentication providers configured!"
+        return 1
+
+    parser.add_argument("--name", help="user name")
+    parser.add_argument("--provider", choices=providers,
+                        help="external authentication provider name")
+
+    if command == "connect":
+        parser.add_argument("--account", help="external account identifier")
+
+    arguments = parser.parse_args(argv)
+
+    def valid_provider(provider):
+        if provider not in providers:
+            return ("invalid authentication provider; must be one of %s"
+                    % ", ".join(providers))
+
+    name = use_argument_or_ask(arguments.name, "Username:", check=valid_user)
+
+    if len(providers) == 1:
+        check_argument(arguments.provider, check=valid_provider)
+        provider = providers[0]
+    else:
+        provider = use_argument_or_ask(
+            arguments.provider, "Authentication provider:", check=valid_provider)
+
+    user = dbutils.User.fromName(db, name)
+    provider = auth.PROVIDERS[provider]
+
+    if command == "connect":
+        cursor.execute("""SELECT 1
+                            FROM externalusers
+                           WHERE uid=%s
+                             AND provider=%s""",
+                       (user.id, provider.name))
+
+        if cursor.fetchone():
+            print >>sys.stderr, ("%s: user already connected to a %s"
+                                 % (user.name, provider.getTitle()))
+            return 1
+
+        account = use_argument_or_ask(
+            arguments.account, provider.getAccountIdDescription() + ":")
+
+        cursor.execute("""SELECT id, uid
+                            FROM externalusers
+                           WHERE provider=%s
+                             AND account=%s""",
+                       (provider.name, account))
+
+        row = cursor.fetchone()
+
+        if row:
+            external_id, user_id = row
+
+            if user_id is not None:
+                user = dbutils.User.fromId(db, user_id)
+
+                print >>sys.stderr, ("%s %r: already connected to local user %s"
+                                     % (provider.getTitle(), account, user.name))
+                return 1
+
+            cursor.execute("""UPDATE externalusers
+                                 SET uid=%s
+                               WHERE id=%s""",
+                           (user.id, external_id))
+        else:
+            cursor.execute("""INSERT INTO externalusers (uid, provider, account)
+                                   VALUES (%s, %s, %s)""",
+                           (user.id, provider.name, account))
+
+        print "%s: connected to %s %r" % (name, provider.getTitle(), account)
+    else:
+        cursor.execute("""SELECT account
+                            FROM externalusers
+                           WHERE uid=%s
+                             AND provider=%s""",
+                       (user.id, provider.name))
+
+        row = cursor.fetchone()
+
+        if not row:
+            print >>sys.stderr, ("%s: user not connected to a %s"
+                                 % (name, provider.getTitle()))
+            return 1
+
+        account, = row
+
+        cursor.execute("""DELETE FROM externalusers
+                                WHERE uid=%s
+                                  AND provider=%s""",
+                       (user.id, provider.name))
+
+        print ("%s: disconnected from %s %r"
+               % (name, provider.getTitle(), account))
+
+    db.commit()
+
+    return 0
+
 def main(parser, show_help, command, argv):
     returncode = 0
 
@@ -250,6 +378,8 @@ def main(parser, show_help, command, argv):
         elif command == "passwd":
             passwd(argv)
             return 0
+        elif command in ("connect", "disconnect"):
+            return connect(command, argv)
         else:
             print >>sys.stderr, "ERROR: Invalid command: %s" % command
             returncode = 1
@@ -263,6 +393,10 @@ Available commands are:
   addrole   Add a role to a user.
   delrole   Remove a role from a user.
   passwd    Set or delete a user's password.
+
+  connect    Set up connection between user and external authentication
+             provider.
+  disconnect Remove such connection.
 
 Use 'criticctl COMMAND --help' to see per command options."""
 

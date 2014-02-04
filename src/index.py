@@ -61,8 +61,9 @@ def getUser(db, user_name):
         return dbutils.User.fromName(db, user_name)
     except dbutils.NoSuchUser:
         if configuration.base.AUTHENTICATION_MODE == "host":
-            user = dbutils.User.create(db, user_name, user_name,
-                                       getUserEmailAddress(user_name))
+            email = getUserEmailAddress(user_name)
+            user = dbutils.User.create(
+                db, user_name, user_name, email, email_verified=None)
             db.commit()
             return user
         raise
@@ -529,11 +530,9 @@ first, and then repeat this push.""" % name)
     user = getUser(db, user_name)
 
     if isinstance(user, str):
-        if not tracked_branch:
-            commit = gitutils.Commit.fromSHA1(db, repository, new)
-            user = dbutils.User.fromId(db, commit.committer.getUserId(db))
-        else:
-            user = dbutils.User(0, configuration.base.SYSTEM_USER_NAME, configuration.base.SYSTEM_USER_EMAIL, "Critic System", "current")
+        user = dbutils.User(
+            0, configuration.base.SYSTEM_USER_NAME, "Critic System", "current",
+            configuration.base.SYSTEM_USER_EMAIL, None)
 
     cursor.execute("SELECT id FROM reviews WHERE branch=%s", (branch.id,))
     row = cursor.fetchone()

@@ -57,6 +57,8 @@ table.login tr.login td {
     padding-top: 1em
 }
 
+table.login tr.external td div,
+table.login tr.register td,
 table.login tr.continue td {
     text-align: right;
     font-weight: bold

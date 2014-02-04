@@ -35,7 +35,7 @@ try:
          "--name", "nosuchuser",
          "--role", "administrator"])
 except testing.virtualbox.GuestCommandError as error:
-    if "nosuchuser: no such user" not in error.stdout.splitlines():
+    if "nosuchuser: no such user" not in error.stderr.splitlines():
         logger.error("criticctl failed with unexpected error message:\n%s"
                      % error.stdout)
 else:
@@ -49,7 +49,7 @@ try:
          "--name", "nosuchuser",
          "--role", "administrator"])
 except testing.virtualbox.GuestCommandError as error:
-    if "nosuchuser: no such user" not in error.stdout.splitlines():
+    if "nosuchuser: no such user" not in error.stderr.splitlines():
         logger.error("criticctl failed with unexpected error message:\n%s"
                      % error.stdout)
 else:

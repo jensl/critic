@@ -25,16 +25,22 @@ def _preferenceCacheKey(item, repository, filter_id):
         cache_key += ":r%d" % repository.id
     return cache_key
 
+class InvalidUserId(base.Error):
+    def __init__(self, user_id):
+        super(InvalidUserId, self).__init__("Invalid user id: %d" % user_id)
+        self.user_id = user_id
+
 class NoSuchUser(base.Error):
     def __init__(self, name):
         super(NoSuchUser, self).__init__("No such user: %s" % name)
         self.name = name
 
 class User(object):
-    def __init__(self, user_id, name, email, fullname, status):
+    def __init__(self, user_id, name, fullname, status, email, email_verified):
         self.id = user_id
         self.name = name
         self.email = email
+        self.email_verified = email_verified
         self.fullname = fullname
         self.status = status
         self.preferences = {}
@@ -357,19 +363,29 @@ class User(object):
 
     @staticmethod
     def makeAnonymous():
-        return User(None, None, None, None, 'anonymous')
+        return User(None, None, None, 'anonymous', None, None)
+
+    @staticmethod
+    def _fromQuery(db, where, *values):
+        cursor = db.cursor()
+        cursor.execute("""SELECT users.id, name, fullname, status,
+                                 useremails.email, verified
+                            FROM users
+                 LEFT OUTER JOIN useremails ON (useremails.id=users.email)
+                           """ + where,
+                       values)
+        return [User.cache(db, User(*row)) for row in cursor]
 
     @staticmethod
     def fromId(db, user_id):
         cached_user = db.storage["User"].get(user_id)
-        if cached_user: return cached_user
+        if cached_user:
+            return cached_user
         else:
-            cursor = db.cursor()
-            cursor.execute("SELECT name, email, fullname, status FROM users WHERE id=%s", (user_id,))
-            row = cursor.fetchone()
-            if not row: return None
-            name, email, fullname, status = row
-            return User.cache(db, User(user_id, name, email, fullname, status))
+            found = User._fromQuery(db, "WHERE users.id=%s", user_id)
+            if not found:
+                raise InvalidUserId(user_id)
+            return found[0]
 
     @staticmethod
     def fromIds(db, user_ids):
@@ -379,46 +395,74 @@ class User(object):
             if user_id not in cache:
                 need_fetch.append(user_id)
         if need_fetch:
-            cursor = db.cursor()
-            cursor.execute("SELECT id, name, email, fullname, status FROM users WHERE id=ANY (%s)", (need_fetch,))
-            for user_id, name, email, fullname, status in cursor:
-                User.cache(db, User(user_id, name, email, fullname, status))
+            User._fromQuery(db, "WHERE users.id=ANY (%s)", need_fetch)
         return [cache.get(user_id) for user_id in user_ids]
-
-    @staticmethod
-    def fromEmail(db, email):
-        cached_user = db.storage["User"].get("e:" + email)
-        if cached_user: return cached_user
-        else:
-            cursor = db.cursor()
-            cursor.execute("SELECT id, name, fullname, status FROM users WHERE email=%s", (email,))
-            row = cursor.fetchone()
-            if not row: return None
-            user_id, name, fullname, status = row
-            return User.cache(db, User(user_id, name, email, fullname, status))
 
     @staticmethod
     def fromName(db, name):
         cached_user = db.storage["User"].get("n:" + name)
-        if cached_user: return cached_user
+        if cached_user:
+            return cached_user
         else:
-            cursor = db.cursor()
-            cursor.execute("SELECT id, email, fullname, status FROM users WHERE name=%s", (name,))
-            row = cursor.fetchone()
-            if not row: raise NoSuchUser(name)
-            user_id, email, fullname, status = row
-            return User.cache(db, User(user_id, name, email, fullname, status))
+            found = User._fromQuery(db, "WHERE users.name=%s", name)
+            if not found:
+                raise NoSuchUser(name)
+            return found[0]
 
     @staticmethod
-    def create(db, name, fullname, email, password=None, status="current"):
+    def create(db, name, fullname, email, email_verified, password=None, status="current"):
         cursor = db.cursor()
-        cursor.execute("""INSERT INTO users (name, fullname, email, password, status)
-                               VALUES (%s, %s, %s, %s, %s)
+        cursor.execute("""INSERT INTO users (name, fullname, password, status)
+                               VALUES (%s, %s, %s, %s)
                             RETURNING id""",
-                       (name, fullname, email, password, status))
-        user = User.fromId(db, cursor.fetchone()[0])
-        if email:
+                       (name, fullname, password, status))
+        user_id = cursor.fetchone()[0]
+        if email is not None:
+            cursor.execute("""INSERT INTO useremails (uid, email, verified)
+                                   VALUES (%s, %s, %s)
+                                RETURNING id""",
+                           (user_id, email, email_verified))
+            email_id = cursor.fetchone()[0]
+            cursor.execute("UPDATE users SET email=%s WHERE id=%s",
+                           (email_id, user_id))
             cursor.execute("""INSERT INTO usergitemails (email, uid)
                                    VALUES (%s, %s)""",
-                           (email, user.id))
-        return user
+                           (email, user_id))
+        return User.fromId(db, user_id)
+
+    def sendUserCreatedMail(self, source, external=None):
+        import mailutils
+
+        if self.email_verified is False:
+            email_status = " (pending verification)"
+        else:
+            email_status = ""
+
+        message = """\
+A new user has been created:
+
+User name: %(username)r
+Full name: %(fullname)r
+Email:     %(email)r%(email_status)s
+""" % { "username": self.name,
+        "fullname": self.fullname,
+        "email": self.email,
+        "email_status": email_status }
+
+        if external:
+            import auth
+
+            provider = auth.PROVIDERS[external["provider"]]
+            message += """\
+
+External:  %(provider)s %(account)r
+""" % { "provider": provider.getTitle(),
+        "account": external["account"] }
+
+        message += """\
+
+-- critic
+"""
+
+        mailutils.sendAdministratorMessage(
+            source, "User '%s' registered" % self.name, message)
