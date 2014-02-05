@@ -25,10 +25,16 @@ import datetime
 
 import testing
 
-def flag_pwd_independence(commit_sha1):
+def flag(commit_sha1, name):
     lstree = subprocess.check_output(
-        ["git", "ls-tree", commit_sha1, "testing/flags/pwd-independence.flag"])
+        ["git", "ls-tree", commit_sha1, "testing/flags/%s.flag" % name])
     return bool(lstree.strip())
+
+def flag_pwd_independence(commit_sha1):
+    return flag(commit_sha1, "pwd-independence")
+
+def flag_is_testing(commit_sha1):
+    return flag(commit_sha1, "is-testing")
 
 def flag_minimum_password_hash_time(commit_sha1):
     try:
@@ -383,6 +389,9 @@ class Instance(object):
         if flag_minimum_password_hash_time(self.install_commit):
             use_arguments["--minimum-password-hash-time"] = "0.01"
 
+        if flag_is_testing(self.install_commit):
+            use_arguments["--is-testing"] = True
+
         for name, value in override_arguments.items():
             if value is None:
                 if name in use_arguments:
@@ -504,6 +513,9 @@ class Instance(object):
 
             if not flag_minimum_password_hash_time(self.install_commit):
                 use_arguments["--minimum-password-hash-time"] = "0.01"
+
+            if not flag_is_testing(self.install_commit):
+                use_arguments["--is-testing"] = True
 
             for name, value in override_arguments.items():
                 if value is None:

@@ -551,7 +551,9 @@ def handleException(db, req, user):
     else:
         admin_message_sent = False
 
-    if not user or user.hasRole(db, "developer") or configuration.debug.IS_DEVELOPMENT:
+    if not user or user.hasRole(db, "developer") \
+            or configuration.debug.IS_DEVELOPMENT \
+            or configuration.debug.IS_TESTING:
         error_title = "Unexpected error!"
         error_body = [error_message.strip()]
         if admin_message_sent:

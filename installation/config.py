@@ -36,6 +36,7 @@ minimum_password_hash_time = 0.25
 minimum_rounds = {}
 
 is_development = False
+is_testing = False
 coverage_dir = None
 
 def calibrate_minimum_rounds():
@@ -113,6 +114,8 @@ def add_arguments(mode, parser):
     parser.add_argument(
         "--is-development", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument(
+        "--is-testing", action="store_true", help=argparse.SUPPRESS)
+    parser.add_argument(
         "--coverage-dir", help=argparse.SUPPRESS)
 
 default_encodings = ["utf-8", "latin-1"]
@@ -122,7 +125,7 @@ def prepare(mode, arguments, data):
     global repository_url_types, default_encodings
     global password_hash_schemes, default_password_hash_scheme
     global minimum_password_hash_time, minimum_rounds
-    global is_development, coverage_dir
+    global is_development, is_testing, coverage_dir
 
     header_printed = False
 
@@ -186,6 +189,7 @@ the Web front-end.  This can be handled in two different ways:
                     default="critic", check=check_auth_mode)
 
         is_development = arguments.is_development
+        is_testing = arguments.is_testing
         coverage_dir = arguments.coverage_dir
     else:
         import configuration
@@ -220,6 +224,9 @@ the Web front-end.  This can be handled in two different ways:
             # Was moved from configuration.base to configuration.debug.
             try: is_development = configuration.base.IS_DEVELOPMENT
             except AttributeError: pass
+
+        try: is_testing = configuration.debug.IS_TESTING
+        except AttributeError: is_testing = arguments.is_testing
 
         try: coverage_dir = configuration.debug.COVERAGE_DIR
         except AttributeError: pass
@@ -340,6 +347,7 @@ web server to redirect all HTTP accesses to HTTPS.
     data["installation.config.minimum_rounds"] = minimum_rounds
 
     data["installation.config.is_development"] = is_development
+    data["installation.config.is_testing"] = is_testing
     data["installation.config.coverage_dir"] = coverage_dir
 
     return True
