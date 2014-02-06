@@ -21,12 +21,13 @@ import os.path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(sys.argv[0]), "..")))
 
 import configuration
+import background.utils
 
 from textutils import json_decode, json_encode
 
 sys_stdout = sys.stdout
 
-if "--slave" in sys.argv[1:]:
+def slave():
     import StringIO
     import traceback
 
@@ -151,78 +152,90 @@ Request:
         sys_stdout.write(json_encode({ "status": "error", "error": message }))
     finally:
         index.abort()
-else:
-    from background.utils import PeerServer, indent
 
-    class GitHookServer(PeerServer):
-        class ChildProcess(PeerServer.ChildProcess):
-            def __init__(self, server, client):
-                super(GitHookServer.ChildProcess, self).__init__(server, [sys.executable, sys.argv[0], "--slave"])
-                self.__client = client
+class GitHookServer(background.utils.PeerServer):
+    class ChildProcess(background.utils.PeerServer.ChildProcess):
+        def __init__(self, server, client):
+            super(GitHookServer.ChildProcess, self).__init__(server, [sys.executable, sys.argv[0], "--slave"])
+            self.__client = client
 
-            def handle_input(self, data):
-                try: result = json_decode(data)
-                except ValueError: result = { "status": "error", "error": "invalid response:\n" + indent(data) }
-                if result["status"] == "ok":
-                    for item in result["info"]:
-                        self.server.info(item)
-                    if result["output"]:
-                        self.__client.write(result["output"].strip() + "\n")
-                    if result["accept"]:
-                        self.__client.write("ok\n")
-                elif result["status"] == "reject":
-                    self.server.warning(result["message"])
-                    self.__client.write(result["message"].strip() + "\n")
-                else:
-                    self.server.error(result["error"])
-                    self.__client.write("""\
+        def handle_input(self, data):
+            try:
+                result = json_decode(data)
+            except ValueError:
+                result = { "status": "error",
+                           "error": ("invalid response:\n" +
+                                     background.utils.indent(data)) }
+            if result["status"] == "ok":
+                for item in result["info"]:
+                    self.server.info(item)
+                if result["output"]:
+                    self.__client.write(result["output"].strip() + "\n")
+                if result["accept"]:
+                    self.__client.write("ok\n")
+            elif result["status"] == "reject":
+                self.server.warning(result["message"])
+                self.__client.write(result["message"].strip() + "\n")
+            else:
+                self.server.error(result["error"])
+                self.__client.write("""\
 An exception was raised while processing the request.  A message has
 been sent to the system administrator(s).
 """)
-                self.__client.close()
+            self.__client.close()
 
-        class Client(PeerServer.SocketPeer):
-            def handle_input(self, data):
-                lines = data.splitlines()
+    class Client(background.utils.PeerServer.SocketPeer):
+        def handle_input(self, data):
+            lines = data.splitlines()
 
-                user_name = lines[0]
+            user_name = lines[0]
 
-                # The second line is the value of the REMOTE_USER environment
-                # variable (from the environment with which the git hook ran.)
-                #
-                # We use it as the actual user only if the actual user was the
-                # Critic system user, meaning the push was performed by the
-                # branch tracker service, the web front-end (for instance via
-                # 'git http-backend') or an extension.
-                if user_name == configuration.base.SYSTEM_USER_NAME and lines[1]:
-                    user_name = lines[1]
+            # The second line is the value of the REMOTE_USER environment
+            # variable (from the environment with which the git hook ran.)
+            #
+            # We use it as the actual user only if the actual user was the
+            # Critic system user, meaning the push was performed by the
+            # branch tracker service, the web front-end (for instance via
+            # 'git http-backend') or an extension.
+            if user_name == configuration.base.SYSTEM_USER_NAME and lines[1]:
+                user_name = lines[1]
 
-                self.__request = { "user_name": user_name,
-                                   "repository_name": lines[2],
-                                   "flags": lines[3],
-                                   "refs": [{ "name": name,
-                                              "old_sha1": old_sha1,
-                                              "new_sha1": new_sha1 }
-                                            for old_sha1, new_sha1, name
-                                            in map(str.split, lines[4:])] }
+            self.__request = { "user_name": user_name,
+                               "repository_name": lines[2],
+                               "flags": lines[3],
+                               "refs": [{ "name": name,
+                                          "old_sha1": old_sha1,
+                                          "new_sha1": new_sha1 }
+                                        for old_sha1, new_sha1, name
+                                        in map(str.split, lines[4:])] }
 
-                self.server.info("session started: %s / %s" % (self.__request["user_name"], self.__request["repository_name"]))
+            self.server.info("session started: %s / %s"
+                             % (self.__request["user_name"],
+                                self.__request["repository_name"]))
 
-                child_process = GitHookServer.ChildProcess(self.server, self)
-                child_process.write(json_encode(self.__request))
-                child_process.close()
-                self.server.add_peer(child_process)
+            child_process = GitHookServer.ChildProcess(self.server, self)
+            child_process.write(json_encode(self.__request))
+            child_process.close()
+            self.server.add_peer(child_process)
 
-            def destroy(self):
-                self.server.info("session ended: %s / %s" % (self.__request["user_name"], self.__request["repository_name"]))
+        def destroy(self):
+            self.server.info("session ended: %s / %s"
+                             % (self.__request["user_name"],
+                                self.__request["repository_name"]))
 
-        def __init__(self):
-            super(GitHookServer, self).__init__(service=configuration.services.GITHOOK)
+    def __init__(self):
+        super(GitHookServer, self).__init__(service=configuration.services.GITHOOK)
 
-            os.chmod(configuration.services.GITHOOK["address"], 0770)
+        os.chmod(configuration.services.GITHOOK["address"], 0770)
 
-        def handle_peer(self, peersocket, peeraddress):
-            return GitHookServer.Client(self, peersocket)
+    def handle_peer(self, peersocket, peeraddress):
+        return GitHookServer.Client(self, peersocket)
 
+def start_service():
     server = GitHookServer()
     server.run()
+
+if "--slave" in sys.argv[1:]:
+    background.utils.call("githook", slave)
+else:
+    background.utils.call("githook", start_service)
