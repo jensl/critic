@@ -17,6 +17,8 @@
 import sys
 import argparse
 
+import auth
+import configuration
 import dbutils
 import inpututils
 
@@ -91,7 +93,8 @@ def listusers(argv):
     print formats[arguments.format]["post"]
 
 def adduser(argv):
-    import auth
+    class NoPassword:
+        pass
 
     parser = argparse.ArgumentParser(
         description="Critic administration interface: adduser",
@@ -101,6 +104,8 @@ def adduser(argv):
     parser.add_argument("--email", "-e", help="email address")
     parser.add_argument("--fullname", "-f", help="full name")
     parser.add_argument("--password", "-p", help="password")
+    parser.add_argument("--no-password", dest="password", action="store_const",
+                        const=NoPassword, help="create user without password")
 
     arguments = parser.parse_args(argv)
 
@@ -108,12 +113,16 @@ def adduser(argv):
     fullname = use_argument_or_ask(arguments.fullname, "Full name:")
     email = use_argument_or_ask(arguments.email, "Email address:")
 
-    if arguments.password is None:
-        password = inpututils.password("Password:")
+    if arguments.password is NoPassword:
+        hashed_password = None
     else:
-        password = arguments.password
+        if arguments.password is None:
+            password = inpututils.password("Password:")
+        else:
+            password = arguments.password
+        hashed_password = auth.hashPassword(password)
 
-    dbutils.User.create(db, name, fullname, email, auth.hashPassword(password))
+    dbutils.User.create(db, name, fullname, email, password=hashed_password)
 
     db.commit()
 
@@ -182,6 +191,44 @@ def role(command, argv):
 
             print "%s: role '%s' removed" % (name, role)
 
+def passwd(argv):
+    parser = argparse.ArgumentParser(
+        description="Critic administration interface: passwd",
+        prog="criticctl [options] passwd")
+
+    class NoPassword:
+        pass
+
+    parser.add_argument("--name", help="user name")
+    parser.add_argument("--password", help="password")
+    parser.add_argument("--no-password", dest="password", action="store_const",
+                        const=NoPassword, help="delete the user's password")
+
+    arguments = parser.parse_args(argv)
+
+    name = use_argument_or_ask(arguments.name, "Username:", check=valid_user)
+
+    if arguments.password is NoPassword:
+        hashed_password = None
+    else:
+        if arguments.password is None:
+            password = inpututils.password("Password:")
+        else:
+            password = arguments.password
+        hashed_password = auth.hashPassword(password)
+
+    cursor.execute("""UPDATE users
+                         SET password=%s
+                       WHERE name=%s""",
+                   (hashed_password, name))
+
+    db.commit()
+
+    if hashed_password:
+        print "%s: password changed" % name
+    else:
+        print "%s: password deleted" % name
+
 def main(parser, show_help, command, argv):
     returncode = 0
 
@@ -200,6 +247,9 @@ def main(parser, show_help, command, argv):
         elif command in ("addrole", "delrole"):
             role(command, argv)
             return 0
+        elif command == "passwd":
+            passwd(argv)
+            return 0
         else:
             print >>sys.stderr, "ERROR: Invalid command: %s" % command
             returncode = 1
@@ -212,6 +262,7 @@ Available commands are:
   deluser   Retire a user.
   addrole   Add a role to a user.
   delrole   Remove a role from a user.
+  passwd    Set or delete a user's password.
 
 Use 'criticctl COMMAND --help' to see per command options."""
 
