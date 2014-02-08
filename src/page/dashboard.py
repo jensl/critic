@@ -527,7 +527,7 @@ def renderDashboard(req, db, user):
 
     if empty:
         document.addExternalStylesheet("resource/message.css")
-        body.div("message").h1("center").text("No reviews!")
+        body.div("message paleyellow").h1("center").text("No reviews!")
 
     profiler.output(db=db, user=user, target=document)
 
