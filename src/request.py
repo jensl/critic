@@ -422,8 +422,9 @@ class Request:
             modifier = "Secure"
         else:
             modifier = "HttpOnly"
-        self.addResponseHeader("Set-Cookie",
-                               "%s=%s; Path=/; %s" % (name, value, modifier))
+        self.addResponseHeader(
+            "Set-Cookie",
+            "%s=%s; Max-Age=31536000; Path=/; %s" % (name, value, modifier))
 
     def deleteCookie(self, name):
         self.addResponseHeader(
