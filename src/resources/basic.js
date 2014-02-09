@@ -485,7 +485,7 @@ function quickSearch(external_query, callback)
       content.wrap("<div title='Search results'></div>");
       content.find("tr").first().append(
         "<td class=link><a>Link to this search</a></td>");
-      content.find("a").attr("href", "/search?" + result.query_string);
+      content.find("td.link a").attr("href", "/search?" + result.query_string);
       content.find("td.summary").attr("colspan", "2");
 
       content = content.parent();
