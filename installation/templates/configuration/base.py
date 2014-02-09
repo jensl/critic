@@ -28,9 +28,9 @@ SYSTEM_USER_EMAIL = "%(installation.system.email)s"
 # The name of the system group that Critic runs as.
 SYSTEM_GROUP_NAME = "%(installation.system.groupname)s"
 
-ADMINISTRATORS = [{ "name": "%(installation.admin.username)s",
-                    "email": "%(installation.admin.email)s",
-                    "fullname": "%(installation.admin.fullname)s" }]
+# List of recipients of system messages such as automatic error
+# reports generated when unexpected errors occur.
+SYSTEM_RECIPIENTS = %(installation.system.recipients)r
 
 # The primary FQDN of the server.  This is used when generating message IDs for
 # emails, and should *not* be different in different system identities, since

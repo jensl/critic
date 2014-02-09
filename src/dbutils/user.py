@@ -419,6 +419,15 @@ class User(object):
             return found[0]
 
     @staticmethod
+    def withRole(db, role):
+        cursor = db.cursor()
+        cursor.execute("""SELECT uid
+                            FROM userroles
+                           WHERE role=%s""",
+                       (role,))
+        return User.fromIds(db, [user_id for user_id, in cursor])
+
+    @staticmethod
     def create(db, name, fullname, email, email_verified, password=None, status="current"):
         cursor = db.cursor()
         cursor.execute("""INSERT INTO users (name, fullname, password, status)

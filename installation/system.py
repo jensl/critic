@@ -17,6 +17,7 @@
 import pwd
 import grp
 import subprocess
+import argparse
 
 import installation
 
@@ -38,6 +39,31 @@ def fetch_uid_gid():
 
     uid = pwd.getpwnam(username).pw_uid
     gid = grp.getgrnam(groupname).gr_gid
+
+def add_arguments(mode, parser):
+    if mode != "install":
+        parser.add_argument("--system-recipient", action="append",
+                            dest="system_recipients", help=argparse.SUPPRESS)
+        return
+
+    parser.add_argument("--system-hostname", action="store",
+                        help="FQDN of the system")
+    parser.add_argument("--system-username", action="store",
+                        help="name of system user to run as")
+    parser.add_argument("--force-create-system-user", action="store_true",
+                        help=("don't prompt for permission to create a new "
+                              "system user if doesn't exist"))
+    parser.add_argument("--system-email", action="store",
+                        help="address used as sender of emails")
+    parser.add_argument("--system-groupname", action="store",
+                        help="name of system group to run as")
+    parser.add_argument("--force-create-system-group", action="store_true",
+                        help=("don't prompt for permission to create a new "
+                              "system group if it doesn't exist"))
+    parser.add_argument("--system-recipient", action="append",
+                        dest="system_recipients", metavar="SYSTEM_RECIPIENT",
+                        help=("email recipient of automatic messages from "
+                              "the system"))
 
 def prepare(mode, arguments, data):
     global hostname, username, email, create_system_user

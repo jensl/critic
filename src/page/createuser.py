@@ -57,22 +57,14 @@ class CreateUserHandler(page.Page.Handler):
             allow_user_registration = configuration.base.ALLOW_USER_REGISTRATION
 
         if not allow_user_registration:
-            administrators = \
-                ["<a href='mailto:%(email)s'>%(fullname)s</a>" % user
-                 for user in configuration.base.ADMINISTRATORS]
-
-            if len(administrators) == 1:
-                administrators = administrators[0]
-            else:
-                administrators = \
-                    ("one of %s or %s" % (", ".join(administrators[:-1]),
-                                          administrators[-1]))
-
+            administrators = dbutils.getAdministratorContacts(
+                self.db, as_html=True)
             raise page.utils.DisplayMessage(
                 title="User registration not enabled",
-                body=(("The administrator of this system has not enabled "
-                       "registration of new users.  Contact %s if you want "
-                       "to use this system.") % administrators),
+                body=(("<p>The administrator of this system has not enabled "
+                       "registration of new users.</p>"
+                       "<p>Contact %s if you want to use this system.</p>")
+                      % administrators),
                 html=True)
 
         def render(target):

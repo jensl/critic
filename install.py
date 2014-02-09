@@ -54,18 +54,6 @@ parser.add_argument("--git-dir", help="directory where the main Git repositories
 parser.add_argument("--log-dir", help="directory where Critic's log files are stored", action="store")
 parser.add_argument("--run-dir", help="directory where Critic's runtime files are stored", action="store")
 
-parser.add_argument("--system-hostname", help="FQDN of the system", action="store")
-parser.add_argument("--system-username", help="name of system user to run as", action="store")
-parser.add_argument("--force-create-system-user", help="don't prompt for permission to create a new system user if doesn't exist", action="store_true")
-parser.add_argument("--system-email", help="address used as sender of emails", action="store")
-parser.add_argument("--system-groupname", help="name of system group to run as", action="store")
-parser.add_argument("--force-create-system-group", help="don't prompt for permission to create a new system group if it doesn't exist", action="store_true")
-
-parser.add_argument("--admin-username", help="name of Critic administrator user", action="store")
-parser.add_argument("--admin-email", help="email address to Critic administrator user", action="store")
-parser.add_argument("--admin-fullname", help="Critic administrator user's full name", action="store")
-parser.add_argument("--admin-password", help="Critic administrator user's password", action="store")
-
 for module in installation.modules:
     if hasattr(module, "add_arguments"):
         module.add_arguments("install", parser)

@@ -12,9 +12,9 @@ def isprefix(expected, actual):
 def issuffix(expected, actual):
     return actual.endswith(expected)
 
-def expect_admin_mail(subject):
-    admin_mail = mailbox.pop(testing.mailbox.ToRecipient("admin@example.org"))
-    testing.expect.check(subject, admin_mail.headers["subject"][0]["value"])
+def expect_system_mail(subject):
+    system_mail = mailbox.pop(testing.mailbox.ToRecipient("system@example.org"))
+    testing.expect.check(subject, system_mail.headers["subject"][0]["value"])
 
 def start_externalauth(name):
     response = frontend.page(
@@ -96,7 +96,7 @@ frontend.page(
     expect={ "message": testing.expect.message("Authentication failed",
                                                "Invalid OAuth state",
                                                body_equal=re.search) })
-expect_admin_mail(
+expect_system_mail(
     "wsgi: InvalidRequest: Invalid OAuth state: not the right state")
 
 # Try with the wrong code (the right code is always "correct".)
@@ -107,7 +107,7 @@ frontend.page(
     expect={ "message": testing.expect.message("Authentication failed",
                                                "Incorrect code",
                                                body_equal=re.search) })
-expect_admin_mail("wsgi: Failure: Incorrect code")
+expect_system_mail("wsgi: Failure: Incorrect code")
 
 redirect_url = finish_externalauth("alice", state)
 message_check = testing.expect.message("User registration not enabled", None)
@@ -216,7 +216,7 @@ with frontend.signin(username=None):
         expect={ "document title": document_title_check,
                  "email not unverified": email_not_unverified })
 
-    expect_admin_mail("wsgi[registeruser]: User 'carol' registered")
+    expect_system_mail("wsgi[registeruser]: User 'carol' registered")
 
 #
 # Create user 'felix' by signin in using the 'felix' provider, which
@@ -240,7 +240,7 @@ with frontend.signin(username=None):
         expect={ "document title": document_title_check,
                  "email not unverified": email_not_unverified })
 
-    expect_admin_mail("wsgi[oauth/felix]: User 'felix' registered")
+    expect_system_mail("wsgi[oauth/felix]: User 'felix' registered")
 
 #
 # Create user 'gina' by signin in using the 'gina' provider, which
@@ -288,7 +288,7 @@ with frontend.signin(username=None):
         expect={ "document title": document_title_check,
                  "email unverified": email_unverified })
 
-    expect_admin_mail("wsgi[registeruser]: User 'gina' registered")
+    expect_system_mail("wsgi[registeruser]: User 'gina' registered")
 
     subject = r"\[Critic\] Please verify your email: gina@example\.org"
 

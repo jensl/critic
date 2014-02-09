@@ -22,7 +22,6 @@ def getInstalledSHA1(db):
     return cursor.fetchone()[0]
 
 def getURLPrefix(db, user=None):
-    import configuration
     cursor = db.cursor()
     cursor.execute("""SELECT anonymous_scheme, authenticated_scheme, hostname
                         FROM systemidentities
@@ -34,3 +33,46 @@ def getURLPrefix(db, user=None):
     else:
         scheme = anonymous_scheme
     return "%s://%s" % (scheme, hostname)
+
+def getAdministratorContacts(db, indent=0, as_html=False):
+    import dbutils
+    administrators = dbutils.User.withRole(db, "administrator")
+
+    # Sort by id, IOW, by user creation time.  Probably gives "primary"
+    # administrator first and auxillary administrators second, but might also
+    # just be arbitrary.  If nothing else, it makes the order stable.
+    administrators = sorted(administrators, key=lambda user: user.id)
+
+    # Skip administrators with no email addresses, since those are unhelpful in
+    # this context.
+    administrators = filter(lambda user: user.email, administrators)
+
+    if as_html:
+        result = "the system administrator"
+
+        if not administrators:
+            return result
+        if len(administrators) > 1:
+            result += "s"
+
+        result += " (%s)"
+
+        mailto_links = \
+            [("<a href='mailto:%(email)s'>%(fullname)s</a>"
+              % { "email": user.email, "fullname": user.fullname })
+             for user in administrators]
+
+        if len(mailto_links) == 1:
+            return result % mailto_links[0]
+        else:
+            return result % ("one of %s or %s" % (", ".join(mailto_links[:-1]),
+                                                  mailto_links[-1]))
+    else:
+        if not administrators:
+            return ""
+
+        administrators = ["%s <%s>" % (user.fullname, user.email)
+                          for user in administrators]
+
+        prefix = " " * indent
+        return prefix + ("\n" + prefix).join(administrators)

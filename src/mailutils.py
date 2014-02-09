@@ -14,11 +14,13 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-import configuration
-import dbutils
 import time
 import os
 import signal
+import email.utils
+
+import configuration
+import dbutils
 
 def generateMessageId(index=1):
     now = time.time()
@@ -58,13 +60,15 @@ def queueMail(from_user, to_user, recipients, subject, body, message_id=None,
     return filename
 
 class User:
-    def __init__(self, name, email, fullname):
-        self.name = name
-        self.email = email
-        self.fullname = fullname
+    def __init__(self, *args):
+        if len(args) == 1:
+            self.name = configuration.base.SYSTEM_USER_NAME
+            self.fullname, self.email = email.utils.parseaddr(args[0])
+        else:
+            self.name, self.email, self.fullname = args
 
     def __repr__(self):
-        return "User(None, %r, %r, %r)" % (self.name, self.email, self.fullname)
+        return "User(%r, %r)" % (self.email, self.fullname)
 
 def sendMessage(recipients, subject, body):
     from_user = User(configuration.base.SYSTEM_USER_NAME, configuration.base.SYSTEM_USER_EMAIL, "Critic System")
@@ -78,8 +82,8 @@ def sendMessage(recipients, subject, body):
 def sendAdministratorMessage(source, summary, message):
     recipients = []
 
-    for administrator in configuration.base.ADMINISTRATORS:
-        recipients.append(User(**administrator))
+    for recipient in configuration.base.SYSTEM_RECIPIENTS:
+        recipients.append(User(recipient))
 
     sendMessage(recipients, "%s: %s" % (source, summary), message)
 

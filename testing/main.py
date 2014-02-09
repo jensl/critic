@@ -361,12 +361,12 @@ first or run this script without --test-extensions.""")
                         while True:
                             try:
                                 mail = mailbox.pop(
-                                    accept=testing.mailbox.ToRecipient("admin@example.org"),
+                                    accept=testing.mailbox.ToRecipient("system@example.org"),
                                     timeout=1)
                             except testing.mailbox.MissingMail:
                                 break
                             else:
-                                logger.error("Administrator message: %s\n  %s"
+                                logger.error("System message: %s\n  %s"
                                              % (mail.header("Subject"),
                                                 "\n  ".join(mail.lines)))
                         if arguments.pause_on_failure:

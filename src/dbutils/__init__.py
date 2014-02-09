@@ -24,4 +24,5 @@ from dbutils.branch import Branch
 from dbutils.paths import InvalidPath, find_file, find_files, describe_file
 from dbutils.timezones import loadTimezones, updateTimezones, sortedTimezones, \
                               adjustTimestamp
-from dbutils.system import getInstalledSHA1, getURLPrefix
+from dbutils.system import getInstalledSHA1, getURLPrefix, \
+                           getAdministratorContacts

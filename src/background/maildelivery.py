@@ -22,18 +22,19 @@ import json
 import smtplib
 import email.mime.text
 import email.header
+import email.utils
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(sys.argv[0]), "..")))
 
 import configuration
 import background.utils
 
-class User():
-    def __init__(self, id, name, email, fullname):
-        self.id = id
-        self.name = name
-        self.email = email
-        self.fullname = fullname
+class User:
+    def __init__(self, *args):
+        if len(args) > 1:
+            self.email, self.fullname = args[-2:]
+        else:
+            self.fullname, self.email = email.utils.parseaddr(args[0])
 
 class MailDelivery(background.utils.PeerServer):
     def __init__(self, credentials):
@@ -65,17 +66,11 @@ class MailDelivery(background.utils.PeerServer):
         self.register_maintenance(hour=3, minute=45, callback=self.__cleanup)
 
     def __sendAdministratorMessage(self):
-        class User:
-            def __init__(self, name, email, fullname):
-                self.name = name
-                self.email = email
-                self.fullname = fullname
-
-        from_user = User(configuration.base.SYSTEM_USER_NAME, configuration.base.SYSTEM_USER_EMAIL, "Critic System")
+        from_user = User(configuration.base.SYSTEM_USER_EMAIL, "Critic System")
         recipients = []
 
-        for administrator in configuration.base.ADMINISTRATORS:
-            recipients.append(User(**administrator))
+        for recipient in configuration.base.SYSTEM_RECIPIENTS:
+            recipients.append(User(recipient))
 
         if self.__has_logged_warning and self.__has_logged_error:
             what = "%d warning%s and %d error%s" % (self.__has_logged_warning,

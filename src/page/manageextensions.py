@@ -24,13 +24,15 @@ from extensions.manifest import ManifestError, PageRole, InjectRole, ProcessComm
 
 def renderManageExtensions(req, db, user):
     if not configuration.extensions.ENABLED:
+        administrators = dbutils.getAdministratorContacts(db, as_html=True)
         raise page.utils.DisplayMessage(
             title="Extension support not enabled",
-            body=("This Critic system does not support extensions.  "
-                  "Contact the system administrator to have it enabled, or see "
-                  "the <a href='/tutorial?item=administration#extensions'>"
-                  "section on extensions</a> in the system administration "
-                  "tutorial for more information."),
+            body=(("<p>This Critic system does not support extensions.</p>"
+                   "<p>Contact %s to have it enabled, or see the "
+                   "<a href='/tutorial?item=administration#extensions'>"
+                   "section on extensions</a> in the system administration "
+                   "tutorial for more information.</p>")
+                  % administrators),
             html=True)
 
     cursor = db.cursor()

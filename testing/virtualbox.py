@@ -36,6 +36,9 @@ def flag_pwd_independence(commit_sha1):
 def flag_is_testing(commit_sha1):
     return flag(commit_sha1, "is-testing")
 
+def flag_system_recipients(commit_sha1):
+    return flag(commit_sha1, "system-recipients")
+
 def flag_minimum_password_hash_time(commit_sha1):
     try:
         subprocess.check_call(
@@ -419,6 +422,9 @@ class Instance(object):
 
             if self.coverage:
                 use_arguments["--coverage-dir"] = COVERAGE_DIR
+
+            if flag_system_recipients(self.install_commit):
+                use_arguments["--system-recipient"] = "system@example.org"
         else:
             use_arguments = { "--admin-password": "testing" }
 
@@ -552,6 +558,9 @@ class Instance(object):
 
             if not flag_is_testing(self.install_commit):
                 use_arguments["--is-testing"] = True
+
+            if not flag_system_recipients(self.install_commit):
+                use_arguments["--system-recipient"] = "system@example.org"
 
             for name, value in override_arguments.items():
                 if value is None:

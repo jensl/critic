@@ -23,6 +23,21 @@ email = None
 fullname = None
 password = None
 
+system_recipients = None
+
+def add_arguments(mode, parser):
+    if mode != "install":
+        return
+
+    parser.add_argument("--admin-username", action="store",
+                        help="name of Critic administrator user")
+    parser.add_argument("--admin-email", action="store",
+                        help="email address to Critic administrator user")
+    parser.add_argument("--admin-fullname", action="store",
+                        help="Critic administrator user's full name")
+    parser.add_argument("--admin-password", action="store",
+                        help="Critic administrator user's password")
+
 def prepare(mode, arguments, data):
     global username, email, fullname, password
 
@@ -31,9 +46,10 @@ def prepare(mode, arguments, data):
 Critic Installation: Administrator
 ==================================
 
-The administrator user receives email notifications about unexpected
-errors that occur.  He/she can also do various things using the Web
-interface that most users are not allowed to do.
+An administrator user is a Critic user with some special privileges;
+they can do various things using the Web interface that other users
+are not allowed to do.  Additional administrator users can be added
+post-installation using the 'criticctl' utility.
 
 This user does not need to match a system user on this machine.
 """
@@ -50,18 +66,41 @@ This user does not need to match a system user on this machine.
         if installation.config.auth_mode == "critic":
             if arguments.admin_password: password = arguments.admin_password
             else: password = installation.input.password("Password for '%s':" % username)
+
+        print """
+Critic Installation: System Messages
+====================================
+
+Critic sends out email notifications when unexpected errors (crashes)
+occur, and in various other cases when things happen that the system
+administrators might need to know about right away.
+"""
+
+        if arguments.system_recipients:
+            system_recipients = arguments.system_recipients
+        else:
+            system_recipient = installation.input.string(
+                prompt="Where should system messages be sent?",
+                default="%s <%s>" % (fullname, email))
+            system_recipients = [system_recipient]
     else:
         import configuration
 
-        admin = configuration.base.ADMINISTRATORS[0]
+        try:
+            system_recipients = configuration.base.SYSTEM_RECIPIENTS
+        except AttributeError:
+            system_recipients = ["%(fullname)s <%(email)s>" % admin
+                                 for admin in configuration.base.ADMINISTRATORS]
 
-        username = admin["name"]
-        email = admin["email"]
-        fullname = admin["fullname"]
+        # The --system-recipients argument, on upgrade, is mostly intended to be
+        # used by the testing framework.  It is checked after the code above has
+        # run for testing purpose; making sure the code above ever runs while
+        # testing is meaningful.
+        if arguments.system_recipients:
+            system_recipients = arguments.system_recipients
 
-    data["installation.admin.username"] = username
     data["installation.admin.email"] = email
-    data["installation.admin.fullname"] = fullname
+    data["installation.system.recipients"] = system_recipients
 
     return True
 

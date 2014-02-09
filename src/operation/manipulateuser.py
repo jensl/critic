@@ -164,6 +164,13 @@ def sendVerificationMail(db, user, email_id=None):
     else:
         protocol = "https"
 
+    administrators = dbutils.getAdministratorContacts(db, indent=2)
+
+    if administrators:
+        administrators = ":\n\n%s" % administrators
+    else:
+        administrators = "."
+
     recipients = [mailutils.User(user.name, email, user.fullname)]
     subject = "[Critic] Please verify your email: %s" % email
     body = textutils.reflow("""
@@ -174,16 +181,13 @@ If this is you, please confirm this by following this link:
   %(url_prefix)s/verifyemail?email=%(email)s&token=%(verification_token)s
 
 If this is not you, you can safely ignore this email.  If you wish to report
-abuse, please contact the Critic system's administrators:
-
-  %(admin.fullname)s <%(admin.email)s>
+abuse, please contact the Critic system's administrators%(administrators)s
 """ % { "hostname": configuration.base.HOSTNAME,
         "username": user.name,
         "email": email,
         "url_prefix": "%s://%s" % (protocol, configuration.base.HOSTNAME),
         "verification_token": verification_token,
-        "admin.fullname": configuration.base.ADMINISTRATORS[0]["fullname"],
-        "admin.email": configuration.base.ADMINISTRATORS[0]["email"] })
+        "administrators": administrators })
 
     mailutils.sendMessage(recipients, subject, body)
 
