@@ -20,6 +20,7 @@ import subprocess
 import tempfile
 import datetime
 import hashlib
+import contextlib
 
 import installation
 
@@ -107,12 +108,17 @@ class UpdateModifiedFile:
             for path in self.__generated:
                 os.unlink(path)
 
+def run_git(args, **kwargs):
+    with installation.utils.as_effective_user_from_path(
+            os.path.join(installation.root_dir, ".git")):
+        return subprocess.check_output(args, **kwargs)
+
 def update_from_template(arguments, data, template_path, target_path, message):
     git = data["installation.prereqs.git"]
 
     old_commit_sha1 = data["sha1"]
-    new_commit_sha1 = subprocess.check_output([git, "rev-parse", "HEAD"],
-                                              cwd=installation.root_dir).strip()
+    new_commit_sha1 = run_git([git, "rev-parse", "HEAD"],
+                              cwd=installation.root_dir).strip()
 
     old_template = read_file(git, old_commit_sha1, template_path)
     new_template = read_file(git, new_commit_sha1, template_path)
@@ -196,8 +202,8 @@ def hash_file(git, path):
     return hashlib.sha1("blob %d\0%s" % (len(value), value)).hexdigest()
 
 def get_entry_sha1(git, commit_sha1, path, entry_type):
-    lstree = subprocess.check_output([git, "ls-tree", commit_sha1, path],
-                                     cwd=installation.root_dir).strip()
+    lstree = run_git([git, "ls-tree", commit_sha1, path],
+                     cwd=installation.root_dir).strip()
 
     if lstree:
         lstree_mode, lstree_type, lstree_sha1, lstree_path = lstree.split()
@@ -219,14 +225,13 @@ def read_file(git, commit_sha1, path):
     file_sha1 = get_file_sha1(git, commit_sha1, path)
     if file_sha1 is None:
         return None
-    return subprocess.check_output([git, "cat-file", "blob", file_sha1],
-                                   cwd=installation.root_dir)
+    return run_git([git, "cat-file", "blob", file_sha1],
+                   cwd=installation.root_dir)
 
 def get_intial_commit_date(git, path):
-    initial_commit_timestamp = subprocess.check_output([git, "log", "--oneline",
+    initial_commit_timestamp = run_git([git, "log", "--oneline",
             "--format=%ct", "--", path], cwd=installation.root_dir).splitlines()[-1]
     return datetime.datetime.fromtimestamp(int(initial_commit_timestamp))
-
 
 def clean_root_pyc_files():
     print "Cleaning up .pyc files owned by root ..."
@@ -236,24 +241,26 @@ def clean_root_pyc_files():
             if file.endswith(".pyc") and os.stat(file).st_uid == 0:
                 os.unlink(file)
 
+@contextlib.contextmanager
 def as_critic_system_user():
-    class Context:
-        def __init__(self):
-            self.__uid = os.getuid()
-            self.__gid = os.getgid()
-            self.__cwd = os.getcwd()
-        def __enter__(self):
-            return self
-        def __exit__(self, *args):
-            os.seteuid(self.__uid)
-            os.seteuid(self.__gid)
-            os.chdir(self.__cwd)
-            return False
-
-    context = Context()
-
+    saved_cwd = os.getcwd()
     os.chdir(tempfile.gettempdir())
     os.setegid(installation.system.gid)
     os.seteuid(installation.system.uid)
+    try:
+        yield
+    finally:
+        os.seteuid(os.getresuid()[0])
+        os.setegid(os.getresgid()[0])
+        os.chdir(saved_cwd)
 
-    return context
+@contextlib.contextmanager
+def as_effective_user_from_path(path):
+    stat = os.stat(path)
+    os.setegid(stat.st_gid)
+    os.seteuid(stat.st_uid)
+    try:
+        yield
+    finally:
+        os.seteuid(os.getresuid()[0])
+        os.setegid(os.getresgid()[0])

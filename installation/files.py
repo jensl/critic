@@ -19,7 +19,6 @@ import os
 import shutil
 import errno
 import py_compile
-import subprocess
 
 import installation
 
@@ -132,8 +131,8 @@ def upgrade(arguments, data):
     git = data["installation.prereqs.git"]
 
     old_sha1 = data["sha1"]
-    new_sha1 = subprocess.check_output([git, "rev-parse", "HEAD"],
-                                       cwd=installation.root_dir).strip()
+    new_sha1 = installation.utils.run_git([git, "rev-parse", "HEAD"],
+                                          cwd=installation.root_dir).strip()
 
     old_has_src = installation.utils.get_tree_sha1(git, old_sha1, "src")
 
@@ -158,7 +157,7 @@ def upgrade(arguments, data):
         if old_file_sha1 != current_file_sha1:
             def generateVersion(label, path):
                 if label == "installed":
-                    source = subprocess.check_output(
+                    source = installation.utils.run_git(
                         [git, "cat-file", "blob", old_file_sha1],
                         cwd=installation.root_dir)
                     with open(path, "w") as target:
@@ -263,7 +262,7 @@ deleted.
                 if current_file_sha1 != old_file_sha1:
                     def generateVersion(label, path):
                         if label == "installed":
-                            source = subprocess.check_output(
+                            source = installation.utils.run_git(
                                 [git, "cat-file", "blob", old_file_sha1],
                                 cwd=installation.root_dir)
                             with open(full_target_path + ".org", "w") as target:
@@ -321,7 +320,7 @@ Not installing the updated version can cause unpredictable results.
                 os.chmod(full_target_path, mode)
             os.lchown(full_target_path, installation.system.uid, installation.system.gid)
 
-    differences = subprocess.check_output(
+    differences = installation.utils.run_git(
         [git, "diff", "--numstat", "%s..%s" % (old_sha1, new_sha1)],
         cwd=installation.root_dir)
 

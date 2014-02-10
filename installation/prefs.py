@@ -139,13 +139,13 @@ def upgrade(arguments, data):
     old_sha1 = data["sha1"]
     old_file_sha1 = installation.utils.get_file_sha1(git, old_sha1, path)
 
-    new_sha1 = subprocess.check_output([git, "rev-parse", "HEAD"],
-                                       cwd=installation.root_dir).strip()
+    new_sha1 = installation.utils.run_git([git, "rev-parse", "HEAD"],
+                                          cwd=installation.root_dir).strip()
     new_file_sha1 = installation.utils.get_file_sha1(git, new_sha1, path)
 
     if old_file_sha1:
-        old_source = subprocess.check_output([git, "cat-file", "blob", old_file_sha1],
-                                             cwd=installation.root_dir)
+        old_source = installation.utils.run_git([git, "cat-file", "blob", old_file_sha1],
+                                                cwd=installation.root_dir)
         old_preferences = json.loads(old_source)
     else:
         old_preferences = {}

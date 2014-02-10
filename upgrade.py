@@ -137,8 +137,8 @@ git = data["installation.prereqs.git"]
 
 if "sha1" not in data:
     try:
-        guess_sha1 = subprocess.check_output([git, "rev-parse", "HEAD@{1}"],
-                                             cwd=installation.root_dir).strip()
+        guess_sha1 = installation.utils.run_git([git, "rev-parse", "HEAD@{1}"],
+                                                cwd=installation.root_dir).strip()
     except:
         guess_sha1 = None
 
@@ -168,8 +168,8 @@ by "git rev-parse".
 """
 
     def revparse(value):
-        return subprocess.check_output([git, "rev-parse", "--verify", value],
-                                       cwd=installation.root_dir).strip()
+        return installation.utils.run_git([git, "rev-parse", "--verify", value],
+                                          cwd=installation.root_dir).strip()
 
     def valid_commit(value):
         try:
@@ -178,8 +178,8 @@ by "git rev-parse".
             return "not a valid ref (checked with \"git rev-parse --verify\")"
 
         try:
-            subprocess.check_output([git, "cat-file", "commit", sha1],
-                                    cwd=installation.root_dir)
+            installation.utils.run_git([git, "cat-file", "commit", sha1],
+                                       cwd=installation.root_dir)
         except subprocess.CalledProcessError:
             return "not a commit"
 
@@ -190,8 +190,8 @@ by "git rev-parse".
     data["sha1"] = sha1
 
 old_critic_sha1 = data["sha1"]
-new_critic_sha1 = subprocess.check_output([git, "rev-parse", "HEAD"],
-                                          cwd=installation.root_dir).strip()
+new_critic_sha1 = installation.utils.run_git([git, "rev-parse", "HEAD"],
+                                             cwd=installation.root_dir).strip()
 print """
 Previously installed version: %s
 Will now upgrade to version:  %s
@@ -201,8 +201,8 @@ if old_critic_sha1 == new_critic_sha1:
     print "Old and new commit are the same, nothing to do."
     sys.exit(0)
 
-if subprocess.check_output([git, "status", "--porcelain"],
-                           cwd=installation.root_dir).strip():
+if installation.utils.run_git([git, "status", "--porcelain"],
+                              cwd=installation.root_dir).strip():
     print """
 ERROR: This Git repository has local modifications.
 
