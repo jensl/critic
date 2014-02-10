@@ -1010,7 +1010,16 @@ CommentChain.prototype.deleteComment = function (comment, parentDialog)
 CommentChain.prototype.toolTip = function ()
   {
     var html = "<div class='tooltip'>";
-    html += "<div class='header'>" + (this.type == "issue" ? "Issue raised" : "Note") + " by " + htmlify(this.comments[0].author.displayName) + "</div>";
+    html += "<div class='header'>";
+    html += (this.type == "issue" ? "Issue raised" : "Note");
+    html += " by ";
+    html += htmlify(this.comments[0].author.displayName);
+    if (this.closed_by) {
+      html += " (closed by " + this.closed_by + ")";
+    } else if (this.addressed_by) {
+      html += " (addressed by " + this.addressed_by.substring(0, 7) + ")";
+    }
+    html += "</div>";
     html += "<div class='text sourcefont'>" + htmlify(this.comments[0].text) + "</div>";
     html += "</div>";
     return html;
