@@ -99,6 +99,7 @@ frontend.page(
 # Load /checkbranchtext checking the first branch.
 document = frontend.page(
     url="checkbranchtext",
+    expected_content_type="text/plain",
     params={ "repository": "critic",
              "commit": "005-checkbranch-1",
              "upstream": "master" })

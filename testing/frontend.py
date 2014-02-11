@@ -66,7 +66,9 @@ class Frontend(object):
         self.http_port = http_port
         self.session_id = None
 
-    def page(self, url, params={}, expect={}, expected_http_status=200,
+    def page(self, url, params={}, expect={},
+             expected_content_type="text/html",
+             expected_http_status=200,
              disable_redirects=False):
         full_url = "http://%s:%d/%s" % (self.hostname, self.http_port, url)
 
@@ -124,7 +126,15 @@ class Frontend(object):
 
         document = text(response)
 
-        if response.headers["content-type"].startswith("text/html"):
+        content_type, _, _ = response.headers["content-type"].partition(";")
+
+        if response.status_code == 200:
+            if content_type != expected_content_type:
+                testing.logger.error(
+                    "Page '%s': wrong content type: %s" % (url, content_type))
+                raise testing.TestFailure
+
+        if content_type == "text/html":
             document = BeautifulSoup.BeautifulSoup(document)
 
             div_fatal = document.find("div", attrs={ "class": "fatal" })
