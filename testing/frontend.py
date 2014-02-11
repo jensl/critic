@@ -258,8 +258,10 @@ class Frontend(object):
         if username is not None:
             self.operation("validatelogin", data={ "username": username,
                                                    "password": password })
-        yield
-        self.signout()
+        try:
+            yield
+        finally:
+            self.signout()
 
     def signout(self):
         try:

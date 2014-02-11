@@ -72,8 +72,10 @@ def doTestConfiguration():
         if not hasattr(module, name):
             error("Configuration value missing: %s.%s" % (module.__name__, name))
             raise MissingValue
-        yield getattr(module, name)
-        del values[-1]
+        try:
+            yield getattr(module, name)
+        finally:
+            del values[-1]
 
     def checkProvider(providers, name):
         provider = providers[name]
