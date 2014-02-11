@@ -328,7 +328,7 @@ Not installing the updated version can cause unpredictable results.
     changed_paths = set()
 
     for line in differences.splitlines():
-        _, _, path = map(str.strip, line.split(None, 3))
+        _, _, path = map(str.strip, line.split(None, 2))
         if path.startswith("src/"):
             changed_paths.add(path[len("src/"):])
         elif not old_has_src:
