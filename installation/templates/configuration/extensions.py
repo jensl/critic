@@ -19,24 +19,28 @@ import os.path
 
 # Whether extension support is enabled.  If False, the rest of the
 # configuration in this file is irrelevant.
-ENABLED = False
+ENABLED = %(installation.extensions.enabled)s
 
-# Where to search for extensions.
-SEARCH_ROOT = "/home"
+# Where to search for system extensions.
+SYSTEM_EXTENSIONS_DIR = os.path.join(configuration.paths.DATA_DIR, "extensions")
+
+# Name of directory under users' $HOME in which to search for user extensions.
+# If set to None, user extensions support is disabled.
+USER_EXTENSIONS_DIR = "CriticExtensions"
 
 FLAVORS = {
     "js/v8":
-        { "executable": "/usr/bin/critic-v8-jsshell",
+        { "executable": "%(installation.extensions.critic_v8_jsshell)s",
           "library": os.path.join(configuration.paths.INSTALL_DIR, "library", "js", "v8") }
     }
 
-DEFAULT_FLAVOR = "js/v8"
-
-# Directory where the Javascript extension library is installed.
-JS_LIBRARY_DIR = os.path.join(configuration.paths.INSTALL_DIR, "library", "js")
+DEFAULT_FLAVOR = "%(installation.extensions.default_flavor)s"
 
 # Directory into which extension version snapshots are installed.
-INSTALL_DIR = os.path.join(configuration.paths.DATA_DIR, "extensions")
+INSTALL_DIR = os.path.join(configuration.paths.DATA_DIR, "extension-snapshots")
+
+# Directory into which extension repository work copies are created.
+WORKCOPY_DIR = os.path.join(configuration.paths.DATA_DIR, "temporary", "EXTENSIONS")
 
 # Long timeout, in seconds.  Used for extension "Page" roles.
 LONG_TIMEOUT = 300

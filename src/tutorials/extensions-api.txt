@@ -1,0 +1,1124 @@
+Critic Extensions API
+=====================
+
+Basic Usage
+-----------
+
+This API is available to extension scripts as the module "critic" on which
+constructors and interface objects are exposed as properties.  The constructor
+for the User interface is accessible to extension scripts as "critic.User", for
+instance.
+
+Basic Data Types
+----------------
+
+CriticError
+-----------
+| exception CriticError : Error {
+| };
+
+Thrown by other functions when called with incorrect arguments or similar.
+Native ECMAScript exceptions such as TypeError or ReferenceError may also be
+thrown.
+
+User
+----
+| interface Filter {
+|   long       id;
+|   User       user;
+|   Repository repository;
+|   string     path;
+|   string     type;
+|   User[]     delegates;
+| };
+|
+| interface User {
+|   dictionary UserData {
+|     long   id;
+|     string name;
+|     string email;
+|   };
+|
+|   constructor User(UserData data);
+|   constructor User(string name);
+|   constructor User(long id);
+|
+|   readonly attribute long   id;
+|   readonly attribute string name;
+|   readonly attribute string email;
+|   readonly attribute string fullname;
+|
+|   static readonly attribute User current;
+|
+|   boolean|long|string getPreference(string name);
+|
+|   Filter[] getFilters(Repository repository);
+|   Filter addFilter(Repository repository, string path, string type, string? delegates);
+| };
+
+Simple object representing a Critic user.  The getPreference method can be used
+to access the user's preferences; it returns a value of type boolean, long or
+string depending on the preference.  The getFilters method can be used to list
+the user's global filters for a given repository and the addFilter method can be
+used to add a new global filter for a user.  Note: adding a new filter does not
+cause changes in existing reviews to be assigned to the user.
+
+An extension can fetch user records from the database simply by constructing
+User objects, supplying either the user name or a user ID number; "new
+critic.User('jl')" or "new critic.User(18)".
+
+The current user (the user who installed the extension and is currently loading
+a page, pushing changes or whatever triggered the extension) is always
+accessible as "critic.User.current".
+
+File
+------------------
+| interface File {
+|   readonly attribute long      id;
+|   readonly attribute string    path;
+|
+|   string toString();
+|   long valueOf();
+|
+|   static File find(string path);
+|   static File find(long id);
+| };
+
+Object representing a file.  Exist in Critic primarily as a means to assign
+system-wide ID numbers to paths, and are used throughout the Critic extensions
+API for representing paths.  The toString() methods return the value of the
+'path' attribute, and the valueOf() methods return the value of the 'id'
+attribute.
+
+The 'path' attribute of a File object has no leading forward slash (and of
+course no trailing one either.)
+
+The find() methods will return the same object if called multiple times to find
+the same object (whether via path or ID.)
+
+Git Repository Access
+---------------------
+
+GitObject
+---------
+| interface GitObject {
+|   readonly attribute string     sha1;
+|   readonly attribute string     type;
+|   readonly attribute Uint8Array data;
+| };
+
+Raw representation of an object fetched from the Git repository.
+
+GitUserTime
+-----------
+| interface GitUserTime {
+|   readonly attribute string fullname;
+|   readonly attribute string email;
+|   readonly attribute Date   time;
+|   readonly attribute User?  user;
+| };
+
+Representation of the information in the "author" and "committer" fields in a
+Git commit object.
+
+Repository
+----------
+| interface Repository {
+|   constructor Repository(string name);
+|   constructor Repository(long id);
+|
+|   readonly attribute long   id;
+|   readonly attribute string name;
+|   readonly attribute string path;
+|
+|   interface Filter {
+|     readonly attribute User       user;
+|     readonly attribute string     path;
+|     readonly attribute string     type;
+|     readonly attribute User[]     delegates;
+|   };
+|
+|   readonly attribute Filter[] filters;
+|
+|   GitObject fetch(string sha1);
+|   string    revparse(string ref);
+|
+|   Commit    getCommit(string ref);
+|   Commit    getCommit(long id);
+|
+|   Branch    getBranch(string name);
+|
+|   Changeset getChangeset(string ref);
+|   Changeset getChangeset(Commit commit);
+|   Changeset getChangeset(string a, string b);
+|   Changeset getChangeset(Commit a, Commit b);
+|   Changeset getChangeset(long id);
+|
+|   RepositoryWorkCopy
+|             getWorkCopy();
+| };
+
+Representation of one of Critic's repositories.  Can be constructed supplying
+either the repository's "short name" or its ID.
+
+The 'filters' attribute returns an array of all user filters registered for the
+repository.  The array object also has the properties 'users' and 'paths', that
+returns dictionaries mapping user names and paths to filtered arrays of filters,
+respectively.  The full array and all the filtered arrays combined contain the
+same set of filters.  The 'path' attribute on filter objects define what set of
+the tree is being filtered.  The value of the 'type' attribute on filter objects
+is one of the strings "reviewer" and "watcher".
+
+The fetch() method can be used to read low-level objects from the Git
+repository.  Using this function is usually not necessary.  Its argument must be
+a full 40 character SHA-1 sum.
+
+The revparse() method can be used to interpret a Git ref name and convert it to
+a full 40 character SHA-1 sum.  This function runs the command "git rev-parse
+--verify --quiet <ref>" and will thus fail for any argument that isn't "usable
+as a single, valid object name" according to Git.
+
+The getCommit() method can be used to fetch Commit objects, either specifying a
+string (which is interpreted using revparse()) or a Critic commit ID.
+
+The getBranch() method can be used to fetch Branch objects, either specifying a
+string (which must be the exact ref name, minus the "refs/heads/" prefix) or a
+Critic branch ID.
+
+The getChangeset() method can be used to fetch an object representing the diff
+between two commits.  The arguments can be one commit, two commits or a Critic
+changeset ID.  Commit arguments can be specified either as strings (which are
+interpreted using revparse()) or as Commit objects.
+
+The getWorkCopy() method can be used to create or access a work-copy clone of
+this repository.
+
+RepositoryWorkCopy
+------------------
+| interface RepositoryWorkCopy {
+|   readonly attribute Repository repository;
+|   readonly attribute string     path;
+|
+|   string run(string command, ..., Object? environment);
+| };
+
+Representation of a work-copy clone of a repository.  Work-copys are
+semi-persistent and can be reused by different invokations of an extension, but
+are never shared between users or between extensions.  An extension should not
+depend on changes made in a work-copy remaining for more than 24 hours, and if
+possible, shouldn't depend on them to remain between invokations of the
+extension at all.
+
+The "path" attribute is the absolute file system path of the repository, without
+a trailing slash.
+
+The run() method can be used to execute arbitrary git commands in the
+repository.  The first argument should be the name of the git command, such as
+"status" or "commit".  Additional arguments are passed as options to the git
+command.  If the last argument to the function is an object, it is not passed as
+an regular argument to the git command, instead its enumerable properties are
+set as environment variables for the git command.  Input can be passed to the
+git command's stdin by setting the special environment variable "stdin" (which
+is not actually set as an environment variable.)
+
+When a work-copy clone is reused, it's always cleaned up by running "git clean
+-x -d -f -f" and "git reset --hard HEAD" in it.
+
+Commit
+------
+| interface Commit {
+|   readonly attribute Repository  repository;
+|   readonly attribute long        id;
+|   readonly attribute string      sha1;
+|   readonly attribute string      tree;
+|   readonly attribute GitUserTime author;
+|   readonly attribute GitUserTime committer;
+|   readonly attribute string      message;
+|   readonly attribute string      summary;
+|   readonly attribute Commit[]    parents;
+|
+|   CommitFileVersion getFile(string path);
+| };
+
+Representation of a Git commit.
+
+The "tree" attribute contains the SHA-1 sum of the tree object that the commit
+references.
+
+The "summary" attribute contains either the first line of the commit message,
+or, if that line starts with either "fixup!" or "squash!" and is followed by at
+least one non-empty line, the first non-empty line following the first line.
+
+The getFile() method can be used to access an arbitrary file as it appears in
+the commit.  The file need not have been modified in the commit.
+
+FileVersion
+-----------
+| interface FileVersion : File {
+|   readonly Repository repository;
+|   readonly string     mode;
+|   readonly long       size;
+|   readonly string     sha1;
+|
+|   readonly Uint8Array bytes;
+|   readonly string[]?  lines;
+| };
+|
+| interface CommitFileVersion : FileVersion {
+|   readonly Commit     commit;
+| };
+
+Representation of a version of a certain file in a repository.  The "mode"
+attribute is a string containing 6 digits, usually "100644".  The three last
+digits represent the access bits (R, W and X) for user, group and others,
+respectively.  The "size" attribute is the size of the file in bytes.  The
+"sha1" attribute is the SHA-1 sum of the blob object in the repository.
+
+The "bytes" attribute contains the file version's contents as an Uint8Array
+object.  The "lines" attribute contains the file version's contents as an array
+of lines, or null if the file is heuristically determined to contain binary data
+(the heuristics are the same as git uses.)  The raw contents of the file are
+interpreted as UTF-8 and if that does not work, as ISO-8859-1.
+
+CommitSet
+---------
+| interface CommitSet : Array {
+|   constructor CommitSet(Commit[] commits);
+|
+|   readonly attribute long     length;
+|   readonly attribute Object   parents;
+|   readonly attribute Object   children;
+|   readonly attribute Commit[] heads;
+|   readonly attribute Commit[] tails;
+|   readonly attribute Commit[] upstreams;
+| };
+
+Representation of a set of commits.  The object is first of all an array of
+Commit objects, in depth-first first-parent-first order, starting from the head
+commits of the set in unspecified order.  (In sets with multiple heads, parents
+can occur before their children, so in such sets, the order should not be relied
+upon to be strictly topological.)  For each commit in the set, the object also
+has a non-enumerable property whose name is the SHA-1 sum of the commit and
+whose value is the Commit object.
+
+The parents and children attributes are objects with one property per commit in
+the set whose name is the SHA-1 sum of the commit and whose value is an array of
+Commit objects, containing the parents and children of the commit in the set,
+respectively.  (IOW, if a commit has multiple parents, some included in the set
+and some not included in the set, this array contains only those parents that
+are in the set.  The commit object's parents attribute returns an array
+containing the commit's full set of parents.)
+
+The heads attribute is an array of Commit objects that contains all commits in
+the set that has no descendants in the set.  The array also has a
+non-enumerable property per such commit whose name is the SHA-1 sum of the
+commit and whose value is the Commit object.
+
+The tails attribute is an array of Commit objects that contains all commits that
+are parents of commits included in the commit-set but are not included in the
+commit-set themselves.  The array also has a non-enumerable property per such
+commit whose name is the SHA-1 sum of the commit and whose value is the Commit
+object.
+
+The upstreams attribute is an array of Commit objects that contains all commits
+in the tails array that aren't ancestors of another commit in the tails array.
+If the commit-set contains the commits on a branch, and the branch has been
+merged with its upstream branch (e.g. 'master') a number of times, the tails
+array would contain each commit from the upstream branch that was merged in,
+whereas the upstreams array would only contain one -- the commit that was merged
+in most recently.
+
+Note: A commit-set representing a simple branch of commits without any merges
+will have a heads array containing a single commit and a tails array containing
+a single commit.  Multiple tails indicate that the commit-set includes merges
+that merge in commits that are not included in the commit-set.  Multiple heads
+typically indicate that the commit-set consists of multiple disconnected
+sub-trees of commits, such as the commits that make up a review that has been
+rebased one or more times.
+
+Branch
+------
+| dictionary BranchData {
+|   long id;
+|
+|   Repository repository;
+|   string     name;
+| };
+|
+| interface Branch {
+|   constructor Branch(BranchData data);
+|
+|   readonly attribute Repository repository;
+|   readonly attribute long       id;
+|   readonly attribute string     name;
+|   readonly attribute Commit     head;
+|   readonly attribute Branch?    base;
+|   readonly attribute Review?    review;
+|   readonly attribute CommitSet  commits;
+|
+|   RepositoryWorkCopy getWorkCopy();
+| };
+
+Representation of Critic's view of a branch.  This is somewhat different from
+Git's normal view of a branch in that a branch is considered to be based on
+(branched from) another branch, and doesn't contain commits it has in common
+with its base branch.  For each repository, however, there is a root branch
+(typically 'master') that contains the same set of commits in Critic's view of
+it as in Git's normal view.  This root branch has no base branch.
+
+The review attribute returns a Review object representing the review associated
+with this branch.  If this branch is a review branch, the associated review is
+the review whose review branch this is.  Otherwise, the associated review is the
+latest review created from this branch, if any.  If there is no associated
+review, the attribute is null.
+
+The commits attribute returns a CommitSet object containing all commits that
+Critic considers part of the branch.  This set's heads array contains a single
+commit which is the same as the commit returned from the Branch object's head
+attribute.  The set's tails array may contain multiple commits, if the branch
+contains merges.
+
+The getWorkCopy() method can be used to create a work-copy of the repository
+containing this branch.  The work-copy's "origin" remote will be the repository
+containing this branch.  The work-copy's current branch will have the same name
+as this branch, and will be set up to track this branch in "origin".
+
+Changesets
+----------
+
+Changeset
+---------
+| interface Changeset {
+|   readonly attribute Repository      repository;
+|   readonly attribute Review?         review;
+|   readonly attribute long            id;
+|   readonly attribute Commit          parent;
+|   readonly attribute Commit          child;
+|   readonly attribute ChangesetFile[] files;
+|   readonly attribute Commit[]        commits;
+| };
+
+Represents the collection of changes to files between two commits; parent and
+child.  The files attribute is an array containing all changed files.
+
+MergeChangeset
+--------------
+| interface MergeChangeset {
+|   readonly attribute Repository  repository;
+|   readonly attribute Review?     review;
+|   readonly attribute Commit      commit;
+|   readonly attribute Changeset[] changesets;
+| };
+
+Represents the relevance-filtered changes in a merge commit.  The changesets
+attribute is an array of Changeset objects, one for each parent of the commit
+returned by the commit attribute.  Note that these changesets do not contain the
+full set of changes between the merge commit and its parents; they only contain
+changes that are deemed likely to have caused conflicts.
+
+ChangesetFile
+-------------
+| interface ChangesetFile : File {
+|   readonly attribute Changeset             changeset;
+|   readonly attribute ChangesetFileVersion? oldVersion;
+|   readonly attribute ChangesetFileVersion? newVersion;
+|   readonly attribute ChangesetChunk[]?     chunks;
+|   readonly attribute long                  deleteCount;
+|   readonly attribute long                  insertCount;
+|
+|   readonly attribute boolean?              isReviewed;
+|   readonly attribute User?                 reviewedBy;
+| };
+
+Represents a file changed in a changeset.  The chunks attribute is an array of
+chunks, each representing a sequence of changed lines.  If a file was added or
+removed in the changeset, oldVersion or newVersion is null, respectively, and
+the chunks attribute is null.
+
+The deleteCount and insertCount attributes are the total number of lines deleted
+and inserted in the file in the changeset, respectively.
+
+If the parent Changeset object (returned by the changeset attribute) was fetched
+from a Review object (using the Review.getChangeset method), the attribute
+isReviewed is set to true if these changes in this file have been marked as
+reviewed, and the reviewedBy attribute is set to the user who (most recently)
+marked the file as reviewed.  If the parent Changeset object was not fetched
+from a Review object, both properties are null.
+
+ChangesetFileVersion
+--------------------
+| interface ChangesetFileVersion : FileVersion {
+|   readonly attribute Changeset     changeset;
+|   readonly attribute ChangesetFile file;
+| };
+
+Represents a single version of a file changed in the changeset.
+
+ChangesetChunk
+--------------
+| interface ChangesetChunk {
+|   readonly attribute Changeset       changeset;
+|   readonly attribute ChangesetFile   file;
+|   readonly attribute long            deleteOffset;
+|   readonly attribute long            deleteCount;
+|   readonly attribute long            insertOffset;
+|   readonly attribute long            insertCount;
+|   readonly attribute ChangesetLine[] lines;
+| };
+
+Represents a continuous set of changed lines.
+
+The offset attributes deleteOffset and insertOffset represent the start line
+(zero-based) of the modification; either the first deleted or first inserted
+line.  If deleteCount or insertCount is zero, the line specified by the
+corresponding offset is the first line after the changes.  A zero deleteCount
+means lines were only inserted and a zero insertCount means lines were only
+deleted; both counts will never be zero.
+
+The lines attribute is an array of lines from a hypothetical side-by-side diff.
+It is possible for this array to contain more elements than deleteCount or
+insertCount.  The maximum possible number of elements is
+deleteCount+insertCount, and the minimum possible number of elements is
+MAX(deleteCount,insertCount).
+
+ChangesetLine
+-------------
+| interface ChangesetLine {
+|   const long TYPE_CONTEXT    = 0;
+|   const long TYPE_WHITESPACE = 1;
+|   const long TYPE_REPLACED   = 2;
+|   const long TYPE_MODIFIED   = 3;
+|   const long TYPE_DELETED    = 4;
+|   const long TYPE_INSERTED   = 5;
+|
+|   const long OPERATION_REPLACE = 0;
+|   const long OPERATION_DELETE  = 1;
+|   const long OPERATION_INSERT  = 2;
+|
+|   readonly attribute long     type;
+|   readonly attribute long     oldIndex;
+|   readonly attribute string?  oldText;
+|   readonly attribute long     newIndex;
+|   readonly attribute string?  newText;
+|   readonly attribute Array[]? operations;
+| };
+
+Representation of a line in a hypothetical side-by-side diff.  The type of the
+line represents the line's role in the diff.  Context lines aren't changed at
+all, whitespace lines have only whitespace changes, replaced lines are lines
+where there are few similarities between the old and new versions, modified
+lines are lines where there are enough similarities between the old and new
+version to assume the line was edited (in which case the operations attribute
+contains an analysis of how the line was edited), and deleted and inserted lines
+are lines that are only present in the old or new version, respectively.
+(Technically, a replaced line is really just a deleted line and an inserted line
+collapsed together.)
+
+The operations attribute returns an array of arrays.  Each array represents a
+modification of the line.  The first element of each array is the modification
+type; replace, delete or insert.  In the case of replace, the array contains an
+additional four elements; deleteStart, deleteEnd, insertStart and insertEnd; and
+the meaning is that the characters [deleteStart,deleteEnd) in the old version of
+the line (oldText) were replaced by the characters [insertStart,insertEnd) in
+the new version of the line (newText).  In the case of delete or insert, the
+array contains an additional two elements; start and end; and the meaning is
+that the characters [start,end) were deleted from the old version (delete) or
+inserted into the new version (insert).
+
+Reviews
+-------
+
+Review
+------
+| interface Review {
+|   constructor Review(long id);
+|
+|   readonly attribute long           id;
+|   readonly attribute string         state;
+|   readonly attribute User           owner;
+|   readonly attribute User?          closedBy;
+|   readonly attribute User?          droppedBy;
+|   readonly attribute string         summary;
+|   readonly attribute string         description;
+|   readonly attribute Repository     repository;
+|   readonly attribute Branch         branch;
+|   readonly attribute CommitSet      commits;
+|   readonly attribute User[]         users;
+|   readonly attribute Object         reviewers;
+|   readonly attribute Object         watchers;
+|   readonly attribute CommentChain[] commentChains;
+|   readonly attribute OldBatch[]     batches;
+|   readonly attribute ReviewFilter[] filters;
+|   readonly attribute ReviewProgress progress;
+|
+|   OldBatch getBatch(long id);
+|
+|   CommentChain getCommentChain(long id);
+|   Comment getComment(long id);
+|
+|   Changeset|MergeChangeset getChangeset(Commit commit);
+|
+|   NewBatch startBatch(User acting_user);
+|
+|   dictionary PrepareRebaseData {
+|     boolean historyRewrite;
+|     boolean singleCommit;
+|     Commit newUpstream;
+|
+|     string branch;
+|   };
+|
+|   void prepareRebase(PrepareRebaseData data);
+|   void cancelRebase();
+| };
+
+The prepareRebase() method prepares the review to rebased.  This is the same
+operation as is performed using the "Prepare Rebase" button on the review
+front-page.  Exactly one of data.historyRewrite, data.singleCommit and
+data.newUpstream needs to be set (true / non-null) to indicate the type of
+rebase.  A history rewrite rebase is only allowed to change the commit history,
+not the tree.  A move rebase, indicated by data.singleCommit or
+data.newUpstream, is allowed to change the tree as well.  If data.singleCommit
+is true, the new upstream is implicitly the parent commit of the new head of the
+branch, otherwise data.newUpstream must be set accordingly.  (See the tutorial
+on review rebasing for more details.)
+
+The cancelRebase() method cancels a previous prepared (but not yet performed)
+rebase.  While a rebase is prepared, no-one but the user who prepared the rebase
+is allowed to push to the review branch, and no other user can prepare a rebase
+of the review.  Thus, if a rebase is prepared but won't be performed, it should
+be cancelled instead.
+
+ReviewFilter
+------------
+| interface ReviewFilter {
+|   readonly attribute Review     review;
+|   readonly attribute string     type;
+|   readonly attribute User       user;
+|   readonly attribute string     path;
+|   readonly attribute User       creator;
+| };
+
+Representation of a review filter.  The value of the type attribute will be
+either "reviewer" or "watcher".
+
+ReviewProgress
+--------------
+| interface ReviewProgress {
+|   readonly attribute boolean accepted;
+|   readonly attribute boolean finished;
+|   readonly attribute boolean dropped;
+|   readonly attribute long    pendingLines;
+|   readonly attribute long    reviewedLines;
+|   readonly attribute long    openIssues;
+|
+|   string toString();
+| };
+
+CommentChain
+------------
+| interface CommentChain {
+|   const long TYPE_ISSUE = 0;
+|   const long TYPE_NOTE  = 1;
+|
+|   const long STATE_OPEN      = 0;
+|   const long STATE_RESOLVED  = 0;
+|   const long STATE_ADDRESSED = 0;
+|
+|   readonly attribute Review    review;
+|   readonly attribute Batch     batch;
+|   readonly attribute long      id;
+|   readonly attribute User      user;
+|   readonly attribute User?     closedBy;
+|   readonly attribute long      type;
+|   readonly attribute long      state;
+|   readonly attribute Comment[] comments;
+|
+|   Comment getComment(long id);
+| };
+
+FileCommentChain
+----------------
+| interface FileCommentChain : CommentChain {
+|   const long ORIGIN_OLD = 0;
+|   const long ORIGIN_NEW = 1;
+|
+|   readonly attribute Changeset     changeset;
+|   readonly attribute Commit?       addressedBy;
+|   readonly attribute ChangesetFile file;
+|   readonly attribute long          origin;
+|   readonly attribute Object        lines;
+|   readonly attribute string        context;
+|   readonly attribute string        minimizedContext;
+| };
+
+CommitCommentChain
+------------------
+| interface CommitCommentChain : CommentChain {
+|   readonly attribute Commit commit;
+|   readonly attribute long   firstLine;
+|   readonly attribute long   lastLine;
+| };
+
+Comment
+-------
+| interface Comment {
+|   readonly attribute CommentChain chain;
+|   readonly attribute Batch        batch;
+|   readonly attribute long         id;
+|   readonly attribute User         user;
+|   readonly attribute Date         time;
+|   readonly attribute string       text;
+| };
+
+Batch
+-----
+| interface Batch {
+|   readonly attribute Review review;
+|   readonly attribute User   user;
+| };
+
+OldBatch
+--------
+| interface OldBatch : Batch {
+|   readonly attribute long           id;
+|   readonly attribute Date           time;
+|   readonly attribute CommentChain?  commentChain;
+|   readonly attribute CommentChain[] issues;
+|   readonly attribute CommentChain[] notes;
+|   readonly attribute Comment[]      replies;
+| };
+
+Object representing a batch of changes submitted earlier.
+
+NewBatch
+--------
+| interface NewBatch : Batch {
+|   readonly attribute long? id;
+|
+|   dictionary Location {
+|     long lineIndex;
+|     long lineCount;
+|   };
+|   dictionary FileLocation : Location {
+|     ChangesetFileVersion fileVersion;
+|   };
+|   dictionary CommitLocation : Location {
+|     Commit commit;
+|   };
+|
+|   void raiseIssue(string text, FileLocation data);
+|   void raiseIssue(string text, CommitLocation data);
+|   void raiseIssue(string text);
+|
+|   void writeNote(string text, FileLocation data);
+|   void writeNote(string text, CommitLocation data);
+|   void writeNote(string text);
+|
+|   void addReply(CommentChain chain, string text);
+|   void resolveIssue(CommentChain chain);
+|   void markIssueAddressedBy(CommentChain chain, Commit commit);
+|
+|   void assignChanges(User assignee, Changeset changeset);
+|   void assignChanges(User assignee, ChangesetFile changeset);
+|
+|   void unassignChanges(User assignee, Changeset changeset);
+|   void unassignChanges(User assignee, ChangesetFile changeset);
+|
+|   void addReviewFilter(User user, string type, string path);
+|   void removeReviewFilter(User user, string type, string path);
+|
+|   dictionary FinishData {
+|     string text;
+|     boolean silent;
+|   };
+|
+|   void finish(FinishData? data);
+| };
+
+Object used to collect changes to submit to a review, and then submit them.
+Each batch can only manipulate one review on behalf of one user, and is started
+using the method Review.startBatch().  Until finish() is called, nothing is
+added to the database at all.  When finish() is called, everything is added to
+the database, and mails are sent to relevant users.
+
+ReviewSet
+---------
+| interface ReviewSet {
+| };
+
+The ReviewSet interface is a small utility interface used by the Dashboard
+interface to represent a set of reviews.  For each review in the set, the
+ReviewSet object has one enumerable property whose name is the review ID and
+whose value is the Review object.
+
+Dashboard
+---------
+| interface Dashboard {
+|   readonly attribute User user;
+|
+|   interface Owned {
+|     readonly attribute Review[] finished;
+|     readonly attribute Review[] accepted;
+|     readonly attribute Review[] pending;
+|     readonly attribute Review[] dropped;
+|   };
+|
+|   interface Active : Review[] {
+|     readonly attribute ReviewSet hasPendingChanges;
+|     readonly attribute ReviewSet hasUnreadComments;
+|     readonly attribute ReviewSet isReviewer;
+|     readonly attribute ReviewSet isWatcher;
+|   };
+|
+|   interface Inactive : Review[] {
+|     readonly attribute ReviewSet isReviewer;
+|     readonly attribute ReviewSet isWatcher;
+|   };
+|
+|   readonly attribute Owned    owned;
+|   readonly attribute Active   active;
+|   readonly attribute Inactive inactive;
+| };
+
+The Dashboard interface exposes various sets of reviews with which the user is
+associated, roughly corresponding to those displayed on the built-in dashboard
+page.
+
+The owned attribute returns a sub-object containing four arrays of reviews owned
+by the user, one array per review state: finished, accepted, pending and
+dropped.  These arrays are non-overlapping.  (The reviews in the finished and
+dropped arrays are not displayed on the built-in dashboard page.)
+
+The active attribute returns an array of open (accepted or pending) reviews that
+are "active," which actually rather means the user ought to be active; that is,
+in which there is work for the user to do.  This array can contain reviews owned
+by the user.  The array also has four additional attributes that return
+ReviewSet objects containing sub-sets of the array.  The hasPendingChanges set
+contains reviews in which there are unreviewed changes assigned to the user.
+The hasUnreadComments set contains reviews in which the user has unread
+comments.  These sets can overlap.  The isReviewer and isWatcher sets contain
+reviews in which the user is a reviewer (has changes assigned to him, already
+reviewed or not) and those in which the user is not a reviewer.  These sets
+don't overlap, and together they contain all reviews in the array.
+
+The inactive attribute returns an array of all open reviews with which the user
+is associated that were not included in the array returned by the active
+attribute.  The isReviewer and isWatcher attributes work the same way as the
+corresponding attributes on the array return by the active attribute.
+
+Filters
+-------
+| interface Filters {
+|   dictionary FiltersInit {
+|     Repository   repository;
+|     Review       review;
+|     User         user;
+|   };
+|
+|   constructor Filters(FiltersInit data);
+|
+|   readonly attribute Repository repository;
+|   readonly attribute Review?    review;
+|
+|   boolean isReviewer(User user, File file);
+|   boolean isWatcher(User user, File file);
+|   boolean isRelevant(User user, File file);
+|
+|   Object listUsers(File file);
+| };
+
+The Filters interface provides easy access to Critic's filtering system,
+applying global filters, inherited global filters and review filters.
+
+If FiltersInit.review is set, FiltersInit.repository is ignored (the repository
+is inferred from the review instead.)  If FiltersInit.review is not set,
+FiltersInit.repository must be set.
+
+If FiltersInit.user is set, only filters relating to that user are loaded.  This
+is an optimization for the case that only a single user's filters is of
+interest.
+
+The isReviewer() and isWatcher() functions return true if the provided user is a
+reviewer or watcher, respectively, of the provided file.  The isRelevant()
+function returns true if the provided user is either a reviewer or a watcher of
+the provided file.
+
+The listUsers() function returns the set of users that either review or watch
+the provided file.  The returned object has one enumerable property per user in
+the set whose name is the user ID and whose value is a User object.
+
+Per-user Data Storage
+---------------------
+
+Storage
+-------
+| interface Storage {
+|   constructor Storage(User user);
+|
+|   string get(string key);
+|   void set(string key, string value);
+| };
+
+The Storage interface provides a simple key/value storage.  The length of the
+key is limited to 64 characters, the value can be an arbitrarily long string.
+To store more complex data, the builtin JSON encoder (JSON.stringify()) and JSON
+decoder (JSON.parse()) can be used.
+
+A storage object accessing data for the current extension and current user is
+available as "critic.storage".  Storage objects accessing data for the current
+extension and an arbitrary user can be constructed using "new
+critic.Storage(user)".
+
+Per-user Log
+------------
+
+Log
+---
+| interface Log {
+|   constructor Log(User user);
+|
+|   dictionary WriteData {
+|     string category;
+|   };
+|
+|   void write(...[, WriteData data]);
+|
+|   dictionary SearchData {
+|     Date|string timeStart;
+|     Date|string timeEnd;
+|     string category;
+|   };
+|
+|   interface Entry {
+|     User user;
+|     Date time;
+|     string category;
+|     string text;
+|   };
+|
+|   Entry[] fetch(SearchData data);
+|   void remove(SearchData data);
+| };
+
+The Log interface provides a simple per-extension and per-user logging facility.
+Each log entry consists of a timestamp, a category (an arbitrary string of no
+more than 64 characters) and the text (an arbitrarily long string.)
+
+Entries are added to the log using the write() method.  If the last parameter to
+it is an object, it is used as a WriteData dictionary instance, and does not
+contribute to the text logged.  The dictionary can be used to set the category
+of the log entry.  If not set, the category defaults to "default".  The rest of
+the arguments are passed to the built-in format() function.
+
+Entries from the log can be fetched using the fetch() method and removed using
+the remove() function.  Both functions take an optional SearchData dictionary
+argument, which can be used to select specific entries.  If the timeStart member
+is specified, only entries written since the specified point in time are
+selected.  If the timeEnd member is specified, only entries written before the
+specified point in time are selected.  Both members can be either a Date object
+for an absolute time or a string on the form "N unit(s)", such as "1 month" or
+"5 hours", for a relative time.  If the category member is specified, only
+entries with that category are selected.
+
+A log object logging for the current extension and current user is available as
+"critic.log".  Log objects logging for the current extension and an arbitrary
+user can be constructed using "new critic.Log(user)".
+
+Statistics
+----------
+
+Statistics
+----------
+| interface Statistics {
+|   constructor Statistics();
+|
+|   void setReview(Review review);
+|
+|   void setInterval(Date start[, Date end]);
+|   void setInterval(string start[, string end]);
+|
+|   void setUser(User user);
+|
+|   void addDirectory(string path);
+|   void addFile(string path);
+|
+|   Object getReviewedLines();
+|   Object getWrittenComments();
+| };
+
+The Statistics interface allows extraction of simply statistics data.  The
+database queries issued by this interface can take a long time to complete,
+especially when not filtering per review or user, and if the time interval is
+large.  It may take 30 seconds or more for getReviewedLines() to return.
+
+The setReview() method restricts the query to a single review.  If no review is
+set, the query applies to all reviews (in all repositories.)
+
+The setInterval() method restricts the query to a certain period of time.  Start
+and end points are specified as Date objects, or as strings on the form "N
+unit(s)", such as "1 month", "2 weeks" or "12 hours".  Supported units are
+seconds, minutes, hours, days, weeks, months and years.  The end point is
+optional; if not set, it defaults to the current time.
+
+The setUser() method restricts the query to a certain user.
+
+The addDirectory() method restricts the query to files under one or more
+directories.
+
+The getReviewedLines() method executes a query counting the number of lines
+marked as reviewed by each user.  The returned object has one property per user
+in the query result whose name is the user ID and whose value is an object with
+the properties deleteCount and insertCount.  A simple enumeration of the query
+results could look something like
+
+| var data = statistics.getReviewedLines();
+| for (var user_id in data)
+| {
+|   var user = new critic.User({ id: user_id });
+|   var lines = data[user_id];
+|   writeln("%%s has reviewed %%d lines", user.fullname, lines.deleteCount + lines.insertCount);
+| }
+
+Note: the user_id variable in this code contains the user ID, which is really an
+integer, but since it comes from a property enumeration, the variable's type is
+string.  Calling critic.User(user_id) directly would not work, since it will
+interpret its argument as a user name when it's a string, hence the variant
+critic.User({ id: user_id }).  Using parseInt(user_id) to convert the user ID to
+a number would have worked too, of course.
+
+The getWrittenComments() method executes a query counting the number of comments
+written by each user.  It's similar to getReviewedLines(), except the per-user
+data objects have the properties raisedIssues, writtenNotes, totalComments and
+totalCharacters.  The totalComments property is the sum of raisedIssues and
+writtenNotes, plus the number of replies written.  The totalCharacters property
+is the sum of the lengths of each comment counted by totalComments.
+
+HTML Utilities
+--------------
+
+Utilities for generating pages that look like other Critic pages are available
+in a sub-module accessible as "critic.html", for instancce
+"critic.html.writeStandardHeader()" and "new critic.html.PaleYellowTable()".
+
+writeStandardHeader()
+---------------------
+| dictionary HeaderData {
+|   User   user;
+|   Array  stylesheets;
+|   Array  scripts;
+|   Object links;
+|   Review review;
+| };
+|
+| void writeStandardHeader(string title, HeaderData? data);
+
+Writes a document header.  This will write a DOCTYPE, start the HTML element,
+write a HEAD element with TITLE, default external stylesheets and scripts,
+additional external stylesheets and scripts specified in the data argument, and
+then start the BODY element and write a TABLE element containing the visible
+page header (the Critic logo and navigation links.)  Additional content written
+after the call to this function will be parsed into the BODY element.
+
+The data.user attribute controls which user's preferences and other state (such
+as unread news items) is used to render the page header.  If not specified, it
+defaults to the user loading the page being generated.
+
+The data.stylesheets and data.scripts arrays should contain URLs as strings.
+
+The data.links object is enumerated and one link is added for every enumerable
+property.  If the name of the property starts with "rel=", a LINK element is
+added to the HEAD element, otherwise a regular link whose title is the name of
+the property is added to the page header (next to the "Home", "Dashboard",
+"Branches" et c. links).  The value of the property is used as the link's HREF
+in both cases.
+
+The data.review object, if set, adds a standard "Back To Review" link, and adds
+draft changes summary and Submit/Preview/Abort buttons to the right side of the
+header, if the user has any unsubmitted changes in the review.
+
+A call to writeStandardHeader() might look something like
+
+| critic.html.writeStandardHeader("Page Title", {
+|     links: { "rel=up": "/dashboard",
+|              "BTS": "https://bugs.opera.com/" }
+|     stylesheets: ["/extension-resource/HelloWorld/custom.css"],
+|     scripts: ["/extension-resource/HelloWorld/custom.js"]
+|   });
+
+writeStandardFooter()
+---------------------
+| dictionary FooterData {
+|   User user;
+| };
+|
+| void writeStandardFooter(FooterData? data);
+
+Writes a document footer that adds a little bit of content and closes the BODY
+and HTML elements.
+
+escape()
+--------
+| string escape(string text);
+
+Replaces all characters in the argument string that have special meaning in HTML
+with HTML entity references, so that it can safely be written as text or in an
+attribute value.  (This is a trivial conversion, of course, and is exposed
+merely as convenience.)
+
+PaleYellowTable
+---------------
+| interface PaleYellowTable {
+|   constructor PaleYellowTable(string title);
+|
+|   void addHeading(string heading);
+|
+|   dictionary StandardItem {
+|     string name;
+|     string value;
+|     string description;
+|     Object buttons;
+|   };
+|   dictionary ButtonsItem {
+|     Object buttons;
+|   };
+|   dictionary CustomItem {
+|     string html;
+|   };
+|
+|   void addItem(StandardItem item);
+|   void addItem(ButtonsItem item);
+|   void addItem(CustomItem item);
+|
+|   void write();
+| };
+
+The PaleYellowTable interface can be used to generate typical Critic "pale
+yellow tables."  The title argument to the constructor is the main title of the
+table.  Additional headings can be added using the addHeading() methods.
+Regular content in the table is added using the addItem() method.
+
+When the addItem() method is called with an argument matching the StandardItem
+dictionary, a fixed-form item is added, which produces a result similar to the
+first table on a review front-page, containing basic information about the
+review.  The buttons attribute in the dictionary is optional; if present, the
+object's properties are enumerated and a button is added for each, whose title
+is the name of the property, and whose onclick attribute value is the value of
+the property.  All strings except the value (name, description, and button title
+and onclick handler) will have characters with special meaning in HTML replaced
+by entity references, and thus can't contain HTML styling.  The value string is
+output as-is, and should be escaped using critic.html.escape() (or similar) if
+its content is unknown and shouldn't be interpreted as HTML.
+
+When the addItem() method is called with an argument matching the ButtonsItem
+dictionary, a row of buttons is added.  The object is handled the same way as
+StandardItem.buttons described above.
+
+When the addItem() method is called with an argument matching the CustomItem
+dictionary, the value of the html attribute is output as-is (without escaping)
+inside a full-width table cell.
+
+The write() method writes all HTML for the whole table to stdout using the
+built-in (global) write() function.  This means several PaleYellowTable objects
+can be constructed and populated in parallel, and then all written (in some
+order) at the end.

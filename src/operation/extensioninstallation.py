@@ -14,23 +14,47 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-from operation import Operation, OperationResult, OperationError, Optional
-from extensions.installation import installExtension, uninstallExtension, reinstallExtension
+from operation import Operation, OperationResult, OperationFailure, \
+                      OperationError, Optional
+from extensions.installation import installExtension, uninstallExtension, \
+                                    reinstallExtension, InstallationError, \
+                                    getExtension
 
 class ExtensionOperation(Operation):
     def __init__(self, perform):
-        Operation.__init__(self, { "author_name": str,
-                                   "extension_name": str,
-                                   "version": Optional(str) })
+        Operation.__init__(self, { "extension_name": str,
+                                   "author_name": Optional(str),
+                                   "version": Optional(str),
+                                   "universal": Optional(bool) })
         self.perform = perform
 
-    def process(self, db, user, author_name, extension_name, version=None):
-        if version is not None:
-            if version == "live": version = None
-            elif version.startswith("version/"): version = version[8:]
-            else: raise OperationError, "invalid version, got '%s', expected 'live' or 'version/*'" % version
+    def process(self, db, user, extension_name, author_name=None, version=None,
+                universal=False):
+        if universal:
+            if not user.hasRole(db, "administrator"):
+                raise OperationFailure(code="notallowed",
+                                       title="Not allowed!",
+                                       message="Operation not permitted.")
+            user = None
 
-        self.perform(db, user, author_name, extension_name, version)
+        if version is not None:
+            if version == "live":
+                version = None
+            elif version.startswith("version/"):
+                version = version[8:]
+            else:
+                raise OperationError(
+                    "invalid version, got '%s', expected 'live' or 'version/*'"
+                    % version)
+
+        try:
+            self.perform(db, user, author_name, extension_name, version)
+        except InstallationError as error:
+            raise OperationFailure(code="installationerror",
+                                   title=error.title,
+                                   message=error.message,
+                                   is_html=error.is_html)
+
         return OperationResult()
 
 class InstallExtension(ExtensionOperation):
@@ -44,3 +68,22 @@ class UninstallExtension(ExtensionOperation):
 class ReinstallExtension(ExtensionOperation):
     def __init__(self):
         ExtensionOperation.__init__(self, reinstallExtension)
+
+class ClearExtensionStorage(Operation):
+    def __init__(self):
+        Operation.__init__(self, { "extension_name": str,
+                                   "author_name": Optional(str) })
+
+    def process(self, db, user, extension_name, author_name=None):
+        extension = getExtension(author_name, extension_name)
+        extension_id = extension.getExtensionID(db, create=False)
+
+        if extension_id is not None:
+            cursor = db.cursor()
+            cursor.execute("""DELETE FROM extensionstorage
+                                    WHERE extension=%s
+                                      AND uid=%s""",
+                           (extension_id, user.id))
+            db.commit()
+
+        return OperationResult()

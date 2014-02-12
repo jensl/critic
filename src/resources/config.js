@@ -154,27 +154,35 @@ function saveSettings(reset_item)
   {
     --saves_in_progress;
 
+    function showSavedNotification(title, details)
+    {
+      var html = "<b>" + title + "</b>";
+
+      if (details)
+        html += "<pre>" + details + "</pre>";
+
+      if (notifications[html])
+        notifications[html].remove();
+
+      notifications[html] = showNotification(
+        html, { className: "saved",
+                callback: function () { notifications[html] = null; }});
+    }
+
     if (result)
     {
       if (result.saved_settings.length)
       {
-        var title = reset_item ? "Reset to default" : "Saved settings";
-        var html = "<b>" + title + ":</b><pre>";
+        var title = reset_item ? "Reset to default:" : "Saved settings:";
+        var details = "";
 
         result.saved_settings.forEach(
           function (item)
           {
-            html += htmlify(item) + "\n";
+            details += htmlify(item) + "\n";
           });
 
-        html += "</pre>";
-
-        if (notifications[html])
-          notifications[html].remove();
-
-        notifications[html] = showNotification(
-          html, { className: "saved",
-                  callback: function () { notifications[html] = null; }});
+        showSavedNotification(title, details);
       }
     }
 
@@ -191,7 +199,7 @@ function saveSettings(reset_item)
                success: function ()
                {
                  --saves_in_progress;
-                 showNotification("saved", "<b>Saved settings for extension " + htmlify(items["CRITIC-EXTENSION"]) + ".</b>");
+                 showSavedNotification("Saved settings for extension " + htmlify(items["CRITIC-EXTENSION"]) + ".");
                },
                error: function (xhr)
                {

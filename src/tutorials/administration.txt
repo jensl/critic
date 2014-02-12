@@ -511,3 +511,58 @@ The load average limit settings defines the limit at which to start warning
 about high system load.  Any one, or all three, can be set to different values.
 Note: the configured value is multiplied by the number of CPUs in the system
 before being compared to the actual system load.
+
+Extensions
+----------
+
+Critic supports an extension mechanism that allows users of the system to extend
+Critic's functionality in various ways.  Extensions are written in ECMAScript
+(executed in a custom interpreter based on the V8 ECMAScript engine) and have
+access to a high-level API exposing most information in Critic's database.
+Extensions can for instance be used to integrate Critic and other systems, such
+as build servers or issue tracking systems.
+
+The extension mechanism is not enabled in a newly installed Critic system.  The
+system administrator needs to use the <code>extend.py</code> script to prepare
+and enable the extension mechanism.  This script installs additional required
+software, downloads (from GitHub) the source code used to build the ECMAScript
+interpreter, builds and installs it, and finally modifies Critic's configuration
+to enable the extension mechanism.
+
+To enable the extension mechanism, simply run this command as root:
+
+| python extend.py
+
+For general information about the extension mechanism and how to create
+extensions, see the
+  <a href="/tutorial?item=extensions">extensions tutorial</a>
+and the
+  <a href="/tutorial?item=extensions-api">extensions API tutorial</a>.
+
+Security considerations
+-----------------------
+Extensions are scripts running as the Critic system user, and effectively has
+access to all information in Critic's database and Git repositories, and to all
+files in the system's file systems that the Critic system user has access to.
+In addition, they can start child processes, and thus do essentially anything
+the Critic system user can do.  Untrusted users should obviously not be allowed
+to add extensions to a Critic system.
+
+To add extensions to a Critic system, a user needs shell access to the system,
+or at least some way to create directories and files in their $HOME directory.
+Typically, an untrusted user should not be given shell access to the system
+anyway, so not allowing them to add extensions is somewhat a secondary concern.
+
+  Hint: As mentioned above, users can be given access to Git repositories over
+  SSH without giving them shell access, by setting the system users' shell to
+  <code>git-shell</code>.
+
+If users must be given shell access to the system, but not be allowed to add
+extensions to it, it is possible to disable "user extensions" -- extensions
+added by regular users -- by setting the configuration option
+<code>USER_EXTENSIONS_DIR</code> in
+  <code>%(configuration.paths.CONFIG_DIR)s/configuration/extensions.py</code>
+to the value <code>None</code>.  With that configuration, only users with write
+access to the directory
+  <code>%(configuration.paths.DATA_DIR)s/extensions/</code>
+can add extensions to the system.

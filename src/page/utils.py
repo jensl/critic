@@ -139,7 +139,7 @@ def generateHeader(target, db, user, generate_right=None, current_page=None, ext
 
         injected = {}
 
-        extensions.role.inject.execute(db, getPath(req, db, user), req.query, user, target, links, injected, profiler=profiler)
+        extensions.role.inject.execute(db, req, user, target, links, injected, profiler=profiler)
 
         for url in injected.get("stylesheets", []):
             target.addExternalStylesheet(url, use_static=False, order=1)
@@ -169,13 +169,6 @@ def generateHeader(target, db, user, generate_right=None, current_page=None, ext
         profiler.check("generateHeader (finish)")
 
     return injected
-
-def getPath(req, db=None, user=None):
-    path = req.path
-
-    if db and user and not path: return [user.getPreference(db, "defaultPage")]
-    elif req.original_path != path: return [req.original_path, path]
-    else: return [path]
 
 def getParameter(req, name, default=NoDefault(), filter=lambda value: value):
     match = re.search("(?:^|&)" + name + "=([^&]*)", str(req.query))
@@ -225,7 +218,7 @@ def renderShortcuts(target, page, **kwargs):
         addShortcut(ord("a"), "a", "select everything")
         addShortcut(ord("g"), "g", "go / display diff")
 
-    container = target.div("shortcuts")
+    container = target.div("pagefooter shortcuts")
 
     if shortcuts:
         container.text("Shortcuts: ")

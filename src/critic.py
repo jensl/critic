@@ -90,6 +90,7 @@ import page.services
 import page.rebasetrackingreview
 import page.createuser
 import page.verifyemail
+import page.manageextensions
 
 try:
     from customization.email import getUserEmailAddress
@@ -363,11 +364,20 @@ def suggestreview(req, db, _user):
     return json_encode(suggestions)
 
 def loadmanifest(req, _db, _user):
-    author = req.getParameter("author")
-    name = req.getParameter("name")
+    key = req.getParameter("key")
+
+    if "/" in key:
+        author_name, extension_name = key.split("/", 1)
+    else:
+        author_name, extension_name = None, key
 
     try:
-        extensions.manifest.Manifest.load(extensions.getExtensionPath(author, name))
+        extension = extensions.extension.Extension(author_name, extension_name)
+    except extensions.extension.ExtensionError as error:
+        return str(error)
+
+    try:
+        extension.getManifest()
         return "That's a valid manifest, friend."
     except extensions.manifest.ManifestError as error:
         return str(error)
@@ -510,21 +520,21 @@ PAGES = { "showreview": page.showreview.renderShowReview,
           "services": page.services.renderServices,
           "rebasetrackingreview": page.rebasetrackingreview.RebaseTrackingReview(),
           "createuser": page.createuser.CreateUser(),
-          "verifyemail": page.verifyemail.renderVerifyEmail }
+          "verifyemail": page.verifyemail.renderVerifyEmail,
+          "manageextensions": page.manageextensions.renderManageExtensions }
 
 if configuration.extensions.ENABLED:
     import extensions
     import extensions.role.page
     import extensions.role.processcommits
     import operation.extensioninstallation
-    import page.manageextensions
 
     OPERATIONS["installextension"] = operation.extensioninstallation.InstallExtension()
     OPERATIONS["uninstallextension"] = operation.extensioninstallation.UninstallExtension()
     OPERATIONS["reinstallextension"] = operation.extensioninstallation.ReinstallExtension()
+    OPERATIONS["clearextensionstorage"] = operation.extensioninstallation.ClearExtensionStorage()
     OPERATIONS["loadmanifest"] = loadmanifest
     OPERATIONS["processcommits"] = processcommits
-    PAGES["manageextensions"] = page.manageextensions.renderManageExtensions
 
 if configuration.base.AUTHENTICATION_MODE != "host" and configuration.base.SESSION_TYPE == "cookie":
     import operation.usersession
@@ -966,15 +976,20 @@ def process_request(environ, start_response):
                 if repository:
                     try:
                         items = filter(None, map(revparse, path.split("..")))
+                        query = None
 
                         if len(items) == 1:
-                            req.query = ("repository=%d&sha1=%s&%s"
-                                         % (repository.id, items[0], req.query))
-                            req.path = "showcommit"
-                            continue
+                            query = ("repository=%d&sha1=%s"
+                                     % (repository.id, items[0]))
                         elif len(items) == 2:
-                            req.query = ("repository=%d&from=%s&to=%s&%s"
-                                         % (repository.id, items[0], items[1], req.query))
+                            query = ("repository=%d&from=%s&to=%s"
+                                     % (repository.id, items[0], items[1]))
+
+                        if query:
+                            if req.query:
+                                query += "&" + req.query
+
+                            req.query = query
                             req.path = "showcommit"
                             continue
                     except gitutils.GitReferenceError:

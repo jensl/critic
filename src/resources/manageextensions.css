@@ -35,10 +35,21 @@ tr.item > td.value > div.description {
     font-family: serif
 }
 
-tr.item > td.value > div.description.broken > a {
+tr.item > td.value > div.description.broken {
     font-weight: bold;
-    color: red;
+    color: red
+}
+
+tr.item > td.value > div.description.broken > a {
     text-decoration: none
+}
+
+tr.item > td.value > div.description.broken > a:hover {
+    text-decoration: underline
+}
+
+tr.item > td.value > div.authors > b {
+    padding-right: 1em
 }
 
 table.roles {

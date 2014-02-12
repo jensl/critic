@@ -15,10 +15,8 @@
 # the License.
 
 import re
-import signal
 
 import configuration
-import dbutils
 import gitutils
 
 import log.commitset
@@ -26,68 +24,82 @@ import changeset.utils
 
 from communicate import ProcessTimeout, ProcessError
 
-from extensions import getExtensionPath, getExtensionInstallPath
+from extensions import getExtensionInstallPath
+from extensions.extension import Extension
 from extensions.execute import executeProcess
 from extensions.manifest import Manifest, ManifestError, ProcessCommitsRole
 
 def execute(db, user, review, all_commits, old_head, new_head, output):
     cursor = db.cursor()
-    cursor.execute("""SELECT extensions.id, extensions.author, extensions.name, extensionversions.sha1, roles.script, roles.function
-                        FROM extensions
-                        JOIN extensionversions ON (extensionversions.extension=extensions.id)
-                        JOIN extensionroles_processcommits AS roles ON (roles.version=extensionversions.id)
-                       WHERE uid=%s
-                         AND filter IS NULL""", (user.id,))
 
-    rows = cursor.fetchall()
+    installs = Extension.getInstalls(db, user)
 
-    if rows:
-        commitset = log.commitset.CommitSet(all_commits)
+    data = None
 
-        assert old_head is None or old_head in commitset.getTails()
-        assert new_head in commitset.getHeads()
-        assert len(commitset.getHeads()) == 1
+    for extension_id, version_id, version_sha1, is_universal in installs:
+        handlers = []
 
-        tails = commitset.getFilteredTails(review.repository)
-        if len(tails) == 1:
-            tail = gitutils.Commit.fromSHA1(db, review.repository, tails.pop())
-            changeset_id = changeset.utils.createChangeset(db, user, review.repository, from_commit=tail, to_commit=new_head)[0].id
-            changeset_arg = "repository.getChangeset(%d)" % changeset_id
-            db.commit()
+        if version_id is not None:
+            cursor.execute("""SELECT script, function
+                                FROM extensionroles
+                                JOIN extensionprocesscommitsroles ON (role=id)
+                               WHERE version=%s
+                            ORDER BY id ASC""",
+                           (version_id,))
+
+            handlers.extend(cursor)
+
+            if not handlers:
+                continue
+
+            extension_path = getExtensionInstallPath(version_sha1)
+            manifest = Manifest.load(extension_path)
         else:
-            changeset_arg = "null"
+            extension = Extension.fromId(db, extension_id)
+            manifest = Manifest.load(extension.getPath())
 
-        commits = "[%s]" % ",".join([("repository.getCommit(%d)" % commit.getId(db)) for commit in all_commits])
+            for role in manifest.roles:
+                if isinstance(role, ProcessCommitsRole):
+                    handlers.append((role.script, role.function))
 
-        data = { "review_id": review.id,
-                 "changeset": changeset_arg,
-                 "commits": commits }
+            if not handlers:
+                continue
 
-        for extension_id, author_id, extension_name, sha1, script, function in rows:
-            author = dbutils.User.fromId(db, author_id)
+        if data is None:
+            commitset = log.commitset.CommitSet(all_commits)
 
-            if sha1 is None: extension_path = getExtensionPath(author.name, extension_name)
-            else: extension_path = getExtensionInstallPath(sha1)
+            assert old_head is None or old_head in commitset.getTails()
+            assert new_head in commitset.getHeads()
+            assert len(commitset.getHeads()) == 1
 
+            tails = commitset.getFilteredTails(review.repository)
+            if len(tails) == 1:
+                tail = gitutils.Commit.fromSHA1(db, review.repository, tails.pop())
+                changeset_id = changeset.utils.createChangeset(
+                    db, user, review.repository, from_commit=tail, to_commit=new_head)[0].id
+                changeset_arg = "repository.getChangeset(%d)" % changeset_id
+            else:
+                changeset_arg = "null"
+
+            commits_arg = "[%s]" % ",".join(
+                [("repository.getCommit(%d)" % commit.getId(db))
+                 for commit in all_commits])
+
+            data = { "review_id": review.id,
+                     "changeset": changeset_arg,
+                     "commits": commits_arg }
+
+        for script, function in handlers:
             class Error(Exception):
                 pass
 
             def print_header():
                 header = "%s::%s()" % (script, function)
-                print >>output, "\n[%s] %s\n[%s] %s" % (extension_name, header, extension_name, "=" * len(header))
+                print >>output, ("\n[%s] %s\n[%s] %s"
+                                 % (extension.getName(), header,
+                                    extension.getName(), "=" * len(header)))
 
             try:
-                try:
-                    manifest = Manifest.load(extension_path)
-                except ManifestError, error:
-                    raise Error("Invalid MANIFEST:\n%s" % error.message)
-
-                for role in manifest.roles:
-                    if isinstance(role, ProcessCommitsRole) and role.script == script and role.function == function:
-                        break
-                else:
-                    continue
-
                 argv = """
 
 (function ()
@@ -104,22 +116,21 @@ def execute(db, user, review, all_commits, old_head, new_head, output):
                 argv = re.sub("[ \n]+", " ", argv.strip())
 
                 try:
-                    stdout_data = executeProcess(manifest, role, extension_id, user.id, argv, configuration.extensions.SHORT_TIMEOUT)
+                    stdout_data = executeProcess(
+                        manifest, "processcommits", script, function, extension_id, user.id,
+                        argv, configuration.extensions.SHORT_TIMEOUT)
                 except ProcessTimeout:
                     raise Error("Timeout after %d seconds." % configuration.extensions.SHORT_TIMEOUT)
-                except ProcessError, error:
+                except ProcessError as error:
                     if error.returncode < 0:
-                        if -error.returncode == signal.SIGXCPU:
-                            raise Error("CPU time limit (5 seconds) exceeded.")
-                        else:
-                            raise Error("Process terminated by signal %d." % -error.returncode)
+                        raise Error("Process terminated by signal %d." % -error.returncode)
                     else:
                         raise Error("Process returned %d.\n%s" % (error.returncode, error.stderr))
 
                 if stdout_data.strip():
                     print_header()
                     for line in stdout_data.splitlines():
-                        print >>output, "[%s] %s" % (extension_name, line)
-            except Error, error:
+                        print >>output, "[%s] %s" % (extension.getName(), line)
+            except Error as error:
                 print_header()
-                print >>output, "[%s] Extension error: %s" % (extension_name, error.message)
+                print >>output, "[%s] Extension error: %s" % (extension.getName(), error.message)

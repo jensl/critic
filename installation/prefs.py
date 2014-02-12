@@ -90,6 +90,7 @@ def update_preference(db, item, data, type_changed):
 
 def remove_preference(db, item):
     cursor = db.cursor()
+    cursor.execute("DELETE FROM userpreferences WHERE item=%s", (item,))
     cursor.execute("DELETE FROM preferences WHERE item=%s", (item,))
 
 def load_preferences(db):

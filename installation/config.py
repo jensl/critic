@@ -587,6 +587,97 @@ def install(data):
 
     return True
 
+def update_file(target_dir, entry, data, arguments, compilation_failed):
+    global modified_files
+
+    import configuration
+
+    source_dir = os.path.join(installation.root_dir, "installation", "templates", "configuration")
+    compilation_failed = False
+
+    system_uid = pwd.getpwnam(data["installation.system.username"]).pw_uid
+    system_gid = grp.getgrnam(data["installation.system.groupname"]).gr_gid
+
+    source_path = os.path.join(source_dir, entry)
+    target_path = os.path.join(target_dir, entry)
+    backup_path = os.path.join(target_dir, "_" + entry)
+
+    source = open(source_path, "r").read().decode("utf-8") % data
+
+    if not os.path.isfile(target_path):
+        write_target = True
+    else:
+        if open(target_path).read().decode("utf-8") == source:
+            return False
+
+        def generateVersion(label, path):
+            if label == "updated":
+                with open(path, "w") as target:
+                    target.write(source.encode("utf-8"))
+
+        update_query = installation.utils.UpdateModifiedFile(
+            arguments,
+            message="""\
+A configuration file is about to be updated.  Please check that no
+local modifications are being overwritten.
+
+Current version: %(current)s
+Updated version: %(updated)s
+
+Please note that if any configuration options were added in the
+updated version, the system will most likely break if you do not
+either install the updated version or manually transfer the new
+configuration options to the existing version.
+""",
+            versions={ "current": target_path,
+                       "updated": target_path + ".new" },
+            options=[ ("i", "install the updated version"),
+                      ("k", "keep the current version"),
+                      ("d", ("current", "updated")) ],
+            generateVersion=generateVersion)
+
+        write_target = update_query.prompt() == "i"
+
+    if write_target:
+        print "Updated file: %s" % target_path
+
+        if not arguments.dry_run:
+            if os.path.isfile(target_path):
+                os.rename(target_path, backup_path)
+                renamed.append((target_path, backup_path))
+
+            with open(target_path, "w") as target:
+                created_file.append(target_path)
+                if entry in SENSITIVE_FILES:
+                    # May contain secrets (passwords.)
+                    mode = 0600
+                else:
+                    # Won't contain secrets.
+                    mode = 0640
+                os.chmod(target_path, mode)
+                os.chown(target_path, system_uid, system_gid)
+                target.write(source.encode("utf-8"))
+
+            path = os.path.join("configuration", entry)
+            if not compile_file(path):
+                compilation_failed.append(path)
+            else:
+                # The module's name (relative the 'configuration' package)
+                # is the base name minus the trailing ".py".
+                module_name = os.path.basename(target_path)[:-3]
+
+                if module_name != "__init__" \
+                        and hasattr(configuration, module_name):
+                    # Reload the updated module so that code executing later
+                    # sees added configuration options.  (It will also see
+                    # removed configuration options, but that is unlikely to
+                    # be a problem.)
+                    reload(getattr(configuration, module_name))
+
+        modified_files += 1
+
+    return True
+
 def upgrade(arguments, data):
     global modified_files
 
@@ -594,95 +685,13 @@ def upgrade(arguments, data):
 
     source_dir = os.path.join(installation.root_dir, "installation", "templates", "configuration")
     target_dir = os.path.join(data["installation.paths.etc_dir"], arguments.identity, "configuration")
-    compilation_failed = False
-
-    system_uid = pwd.getpwnam(data["installation.system.username"]).pw_uid
-    system_gid = grp.getgrnam(data["installation.system.groupname"]).gr_gid
+    compilation_failed = []
 
     no_changes = True
 
     for entry in os.listdir(source_dir):
-        source_path = os.path.join(source_dir, entry)
-        target_path = os.path.join(target_dir, entry)
-        backup_path = os.path.join(target_dir, "_" + entry)
-
-        source = open(source_path, "r").read().decode("utf-8") % data
-
-        if not os.path.isfile(target_path):
-            write_target = True
+        if update_file(target_dir, entry, data, arguments, compilation_failed):
             no_changes = False
-        else:
-            if open(target_path).read().decode("utf-8") == source: continue
-
-            no_changes = False
-
-            def generateVersion(label, path):
-                if label == "updated":
-                    with open(path, "w") as target:
-                        target.write(source.encode("utf-8"))
-
-            update_query = installation.utils.UpdateModifiedFile(
-                arguments,
-                message="""\
-A configuration file is about to be updated.  Please check that no
-local modifications are being overwritten.
-
-  Current version: %(current)s
-  Updated version: %(updated)s
-
-Please note that if any configuration options were added in the
-updated version, the system will most likely break if you do not
-either install the updated version or manually transfer the new
-configuration options to the existing version.
-""",
-                versions={ "current": target_path,
-                           "updated": target_path + ".new" },
-                options=[ ("i", "install the updated version"),
-                          ("k", "keep the current version"),
-                          ("d", ("current", "updated")) ],
-                generateVersion=generateVersion)
-
-            write_target = update_query.prompt() == "i"
-
-        if write_target:
-            print "Updated file: %s" % target_path
-
-            if not arguments.dry_run:
-                if os.path.isfile(target_path):
-                    os.rename(target_path, backup_path)
-                    renamed.append((target_path, backup_path))
-
-                with open(target_path, "w") as target:
-                    created_file.append(target_path)
-                    if entry in SENSITIVE_FILES:
-                        # May contain secrets (passwords.)
-                        mode = 0600
-                    else:
-                        # Won't contain secrets.
-                        mode = 0640
-                    os.chmod(target_path, mode)
-                    os.chown(target_path, system_uid, system_gid)
-                    target.write(source.encode("utf-8"))
-
-                path = os.path.join("configuration", entry)
-                if not compile_file(path):
-                    compilation_failed = True
-                else:
-                    # The module's name (relative the 'configuration' package)
-                    # is the base name minus the trailing ".py".
-                    module_name = os.path.basename(target_path)[:-3]
-
-                    if module_name != "__init__" \
-                            and hasattr(configuration, module_name):
-                        # Reload the updated module so that code executing later
-                        # sees added configuration options.  (It will also see
-                        # removed configuration options, but that is unlikely to
-                        # be a problem.)
-                        reload(getattr(configuration, module_name))
-
-                os.chmod(target_path + "c", mode)
-
-            modified_files += 1
 
     if compilation_failed:
         return False

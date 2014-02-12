@@ -113,6 +113,7 @@ div.main table td.text dl dd {
 }
 
 div.main table td.text code {
+    white-space: nowrap;
     font-style: normal;
     background-color: #eec;
     padding: 0 2px

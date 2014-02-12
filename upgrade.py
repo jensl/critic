@@ -19,14 +19,19 @@ import sys
 import traceback
 import subprocess
 
+# To avoid accidentally creating files owned by root.
+sys.dont_write_bytecode = True
+
+# Python version check is done before imports below so
+# that python 2.6/2.5 users can see the error message.
+import pythonversion
+pythonversion.check()
+
 if sys.flags.optimize > 0:
     print """
 ERROR: Please run this script without -O or -OO options.
 """
     sys.exit(1)
-
-# To avoid accidentally creating files owned by root.
-sys.dont_write_bytecode = True
 
 import argparse
 
@@ -155,11 +160,19 @@ if old_critic_sha1 == new_critic_sha1:
     print "Old and new commit are the same, nothing to do."
     sys.exit(0)
 
-if installation.utils.run_git([git, "status", "--porcelain"],
-                              cwd=installation.root_dir).strip():
-    print """
-ERROR: This Git repository has local modifications.
+status_output = installation.utils.run_git([git, "status", "--porcelain"],
+                                           cwd=installation.root_dir).strip()
 
+if status_output:
+    print """\
+ERROR: This Git repository has local modifications."""
+
+    if len(status_output.splitlines()) \
+            and "installation/externals/v8-jsshell" in status_output:
+        print """\
+HINT: You might just need to run "git submodule update --recursive"."""
+
+    print """
 Installing from a Git repository with local changes is not supported.
 Please commit or stash the changes and then try again.
 """
@@ -210,6 +223,8 @@ try:
             traceback.print_exc()
             abort()
 
+    import configuration
+
     if not arguments.dry_run:
         # Before bugfix "Fix recreation of /var/run/critic/IDENTITY after reboot"
         # it was possible that /var/run/critic/IDENTITY was accidentally
@@ -219,7 +234,7 @@ try:
         # possible to write a migration script for this because migrations
         # execute after the service manager restart. Because of this the
         # following 3 line workaround was necessary:
-        import configuration
+
         if os.path.exists(configuration.paths.RUN_DIR):
             os.chown(configuration.paths.RUN_DIR, installation.system.uid, installation.system.gid)
 
@@ -252,6 +267,39 @@ try:
     print
     print "SUCCESS: Upgrade complete!"
     print
+
+    if configuration.extensions.ENABLED:
+        try:
+            installation.utils.run_git(
+                [git, "diff", "--quiet",
+                 "%s..%s" % (old_critic_sha1, new_critic_sha1),
+                 "--", "installation/externals/v8-jsshell"])
+        except subprocess.CalledProcessError:
+            # Non-zero exit status means there were changes.
+            print """
+Updated v8-jsshell submodule
+============================
+
+The v8-jsshell program used to run extensions has been updated and needs to be
+rebuilt.  If this is not done, the extensions mechanism may malfunction.  It can
+be done manually later by running this command as root:
+
+  python extend.py
+"""
+
+            rebuild_v8_jsshell = installation.input.yes_or_no(
+                "Do you want to rebuild the v8-jsshell program now?",
+                default=True)
+
+            if rebuild_v8_jsshell:
+                try:
+                    subprocess.check_call([sys.executable, "extend.py"])
+                except subprocess.CalledProcessError:
+                    # We have already finished the main upgrade, so just
+                    # propagate the exit status if extend.py failed.  It will
+                    # have output enough error messages, for sure.
+                    sys.exit(1)
+
 except SystemExit:
     raise
 except:

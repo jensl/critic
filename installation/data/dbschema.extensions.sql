@@ -14,23 +14,37 @@
 -- License for the specific language governing permissions and limitations under
 -- the License.
 
+-- Disable notices about implicitly created indexes and sequences.
+SET client_min_messages TO WARNING;
+
 CREATE TABLE extensions
   ( id SERIAL PRIMARY KEY,
-    author INTEGER NOT NULL REFERENCES users,
-    name VARCHAR(64),
+    author INTEGER REFERENCES users, -- NULL means system extension
+    name VARCHAR(64) NOT NULL,
 
     UNIQUE (author, name) );
 
 CREATE TABLE extensionversions
   ( id SERIAL PRIMARY KEY,
-    sha1 CHAR(40),
     extension INTEGER NOT NULL REFERENCES extensions,
+    name VARCHAR(256) NOT NULL,
+    sha1 CHAR(40) NOT NULL,
 
     UNIQUE (sha1) );
 
+-- Installed extensions.
+-- If uid=NULL, it is a "universal install" (affecting all users.)
+-- If version=NULL, the "LIVE" version is installed.
+CREATE TABLE extensioninstalls
+  ( id SERIAL PRIMARY KEY,
+    uid INTEGER REFERENCES users,
+    extension INTEGER NOT NULL REFERENCES extensions,
+    version INTEGER REFERENCES extensionversions,
+
+    UNIQUE (uid, extension) );
+
 CREATE TABLE extensionroles
   ( id SERIAL PRIMARY KEY,
-    uid INTEGER NOT NULL REFERENCES users,
     version INTEGER NOT NULL REFERENCES extensionversions,
     script VARCHAR(64) NOT NULL,
     function VARCHAR(64) NOT NULL );
@@ -40,7 +54,7 @@ CREATE TABLE extensionpageroles
     path VARCHAR(64) NOT NULL );
 
 CREATE VIEW extensionroles_page AS
-  SELECT uid, version, path, script, function
+  SELECT version, path, script, function
     FROM extensionroles
     JOIN extensionpageroles ON (role=id);
 
@@ -49,33 +63,12 @@ CREATE TABLE extensioninjectroles
     path VARCHAR(64) NOT NULL );
 
 CREATE VIEW extensionroles_inject AS
-  SELECT uid, version, path, script, function
+  SELECT version, path, script, function
     FROM extensionroles
     JOIN extensioninjectroles ON (role=id);
 
 CREATE TABLE extensionprocesscommitsroles
-  ( role INTEGER NOT NULL REFERENCES extensionroles ON DELETE CASCADE,
-    filter INTEGER REFERENCES filters );
-
-CREATE VIEW extensionroles_processcommits AS
-  SELECT uid, version, filter, script, function
-    FROM extensionroles
-    JOIN extensionprocesscommitsroles ON (role=id);
-
-CREATE TABLE extensionprocesschangesroles
-  ( role INTEGER NOT NULL REFERENCES extensionroles ON DELETE CASCADE,
-    skip INTEGER NOT NULL REFERENCES batches );
-
-CREATE VIEW extensionroles_processchanges AS
-  SELECT id, skip, uid, version, script, function
-    FROM extensionroles
-    JOIN extensionprocesschangesroles ON (role=id);
-
-CREATE TABLE extensionprocessedbatches
-  ( role INTEGER NOT NULL REFERENCES extensionroles,
-    batch INTEGER NOT NULL REFERENCES batches,
-
-    PRIMARY KEY (batch, role) );
+  ( role INTEGER NOT NULL REFERENCES extensionroles ON DELETE CASCADE );
 
 CREATE TABLE extensionstorage
   ( extension INTEGER NOT NULL REFERENCES extensions,

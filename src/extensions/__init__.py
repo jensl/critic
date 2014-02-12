@@ -19,7 +19,7 @@ import os
 import configuration
 
 def getExtensionPath(author_name, extension_name):
-    return os.path.join(configuration.extensions.SEARCH_ROOT, author_name, "CriticExtensions", extension_name)
+    return extension.Extension(author_name, extension_name).getPath()
 
 def getExtensionInstallPath(sha1):
     return os.path.join(configuration.extensions.INSTALL_DIR, sha1)

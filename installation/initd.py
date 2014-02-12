@@ -49,6 +49,15 @@ def start(identity="main"):
 
     return True
 
+def restart(identity="main"):
+    print
+    try:
+        subprocess.check_call(["service", "critic-%s" % identity, "restart"])
+    except subprocess.CalledProcessError:
+        return False
+
+    return True
+
 def install(data):
     global servicemanager_started, rclinks_added
 

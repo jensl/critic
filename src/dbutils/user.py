@@ -353,6 +353,15 @@ class User(object):
         else:
             return "absent until %04d-%02d-%02d" % (row[0].year, row[0].month, row[0].day)
 
+    def hasGitEmail(self, db, address):
+        cursor = db.cursor()
+        cursor.execute("""SELECT 1
+                            FROM usergitemails
+                           WHERE email=%s
+                             AND uid=%s""",
+                       (address, self.id))
+        return bool(cursor.fetchone())
+
     @staticmethod
     def cache(db, user):
         storage = db.storage["User"]

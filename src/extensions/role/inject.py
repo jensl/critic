@@ -14,203 +14,259 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-import os
 import re
-import signal
+import urlparse
 
 import configuration
-import dbutils
 
 from communicate import ProcessTimeout, ProcessError
 from htmlutils import jsify
 from request import decodeURIComponent
-from textutils import json_decode
+from textutils import json_decode, json_encode
 
 from extensions import getExtensionInstallPath
-from extensions.extension import Extension
+from extensions.extension import Extension, ExtensionError
 from extensions.execute import executeProcess
 from extensions.manifest import Manifest, ManifestError, InjectRole
 
-def execute(db, paths, args, user, document, links, injected, profiler=None):
+class InjectError(Exception):
+    pass
+
+def processLine(paths, line):
+    try:
+        command, value = line.split(" ", 1)
+    except ValueError:
+        raise InjectError("Invalid line in output: %r" % line)
+
+    if command not in ("link", "script", "stylesheet", "preference"):
+        raise InjectError("Invalid command: %r" % command)
+
+    value = value.strip()
+
+    try:
+        value = json_decode(value)
+    except ValueError:
+        raise InjectError("Invalid JSON: %r" % value)
+
+    def is_string(value):
+        return isinstance(value, basestring)
+
+    if command in ("script", "stylesheet") and not is_string(value):
+        raise InjectError("Invalid value for %r: %r (expected string)"
+                          % (command, value))
+    elif command == "link":
+        if isinstance(value, dict):
+            if "label" not in value or not is_string(value["label"]):
+                raise InjectError("Invalid value for %r: %r (expected attribute 'label' of type string)"
+                                  % (command, value))
+            elif "url" not in value or not is_string(value["url"]) or value["url"] is None:
+                raise InjectError("Invalid value for %r: %r (expected attribute 'url' of type string or null)"
+                                  % (command, value))
+        # Alternatively support [label, url] (backwards compatibility).
+        elif not isinstance(value, list) or len(value) != 2:
+            raise InjectError("Invalid value for %r: %r (expected object { \"label\": LABEL, \"url\": URL })"
+                              % (command, value))
+        elif not is_string(value[0]):
+            raise InjectError("Invalid value for %r: %r (expected string at array[0])"
+                              % (command, value))
+        elif not (is_string(value[1]) or value[1] is None):
+            raise InjectError("Invalid value for %r: %r (expected string or null at array[1])"
+                              % (command, value))
+        else:
+            value = { "label": value[0], "url": value[1] }
+    elif command == "preference":
+        if "config" not in paths:
+            raise InjectError("Invalid command: %r only valid on /config page"
+                              % command)
+        elif not isinstance(value, dict):
+            raise InjectError("Invalid value for %r: %r (expected object)"
+                              % (command, value))
+
+        for name in ("url", "name", "type", "value", "default", "description"):
+            if name not in value:
+                raise InjectError("Invalid value for %r: %r (missing attribute %r)"
+                                  % (command, value, name))
+
+        preference_url = value["url"]
+        preference_name = value["name"]
+        preference_type = value["type"]
+        preference_value = value["value"]
+        preference_default = value["default"]
+        preference_description = value["description"]
+
+        if not is_string(preference_url):
+            raise InjectError("Invalid value for %r: %r (expected attribute 'url' of type string)"
+                              % (command, value))
+        elif not is_string(preference_name):
+            raise InjectError("Invalid value for %r: %r (expected attribute 'name' of type string)"
+                              % (command, value))
+        elif not is_string(preference_description):
+            raise InjectError("Invalid value for %r: %r (expected attribute 'description' of type string)"
+                              % (command, value))
+
+        if is_string(preference_type):
+            if preference_type not in ("boolean", "integer", "string"):
+                raise InjectError("Invalid value for %r: %r (unsupported preference type)"
+                                  % (command, value))
+
+            if preference_type == "boolean":
+                type_check = lambda value: isinstance(value, bool)
+            elif preference_type == "integer":
+                type_check = lambda value: isinstance(value, int)
+            else:
+                type_check = is_string
+
+            if not type_check(preference_value):
+                raise InjectError("Invalid value for %r: %r (type mismatch between 'value' and 'type')"
+                                  % (command, value))
+
+            if not type_check(preference_default):
+                raise InjectError("Invalid value for %r: %r (type mismatch between 'default' and 'type')"
+                                  % (command, value))
+        else:
+            if not isinstance(preference_type, list):
+                raise InjectError("Invalid value for %r: %r (invalid 'type', expected string or array)"
+                                  % (command, value))
+
+            for index, choice in enumerate(preference_type):
+                if not isinstance(choice, dict) \
+                        or not isinstance(choice.get("value"), basestring) \
+                        or not isinstance(choice.get("title"), basestring):
+                    raise InjectError("Invalid value for %r: %r (invalid preference choice: %r)"
+                                      % (command, value, choice))
+
+            choices = set([choice["value"] for choice in preference_type])
+
+            if not is_string(preference_value) or preference_value not in choices:
+                raise InjectError("Invalid value for %r: %r ('value' not among valid choices)"
+                                  % (command, value))
+
+            if not is_string(preference_default) or preference_default not in choices:
+                raise InjectError("Invalid value for %r: %r ('default' not among valid choices)"
+                                  % (command, value))
+
+    return (command, value)
+
+def execute(db, req, user, document, links, injected, profiler=None):
     cursor = db.cursor()
 
-    cursor.execute("""SELECT extensions.id, extensions.author, extensions.name, extensionversions.sha1, roles.path, roles.script, roles.function
-                        FROM extensions
-                        JOIN extensionversions ON (extensionversions.extension=extensions.id)
-                        JOIN extensionroles_inject AS roles ON (roles.version=extensionversions.id)
-                       WHERE uid=%s""", (user.id,))
+    installs = Extension.getInstalls(db, user)
 
-    for extension_id, author_id, extension_name, sha1, regexp, script, function in cursor:
-        for path in paths:
-            match = re.match(regexp, path)
-            if match: break
+    def get_matching_path(path_regexp):
+        if re.match(path_regexp, req.path):
+            return (req.path, req.query)
+        elif re.match(path_regexp, req.original_path):
+            return (req.original_path, req.original_query)
+        else:
+            return None, None
 
-        if match:
-            def param(raw):
-                parts = raw.split("=", 1)
-                if len(parts) == 1: return "%s: null" % jsify(decodeURIComponent(raw))
-                else: return "%s: %s" % (jsify(decodeURIComponent(parts[0])), jsify(decodeURIComponent(parts[1])))
+    query = None
 
-            if args:
-                query = "Object.freeze({ raw: %s, params: Object.freeze({ %s }) })" % (jsify(args), ", ".join(map(param, args.split("&"))))
-            else:
-                query = "null"
+    for extension_id, version_id, version_sha1, is_universal in installs:
+        handlers = []
 
-            author = dbutils.User.fromId(db, author_id)
+        try:
+            if version_id is not None:
+                cursor.execute("""SELECT script, function, path
+                                    FROM extensionroles
+                                    JOIN extensioninjectroles ON (role=id)
+                                   WHERE version=%s
+                                ORDER BY id ASC""",
+                               (version_id,))
 
-            if sha1 is None:
-                extension_path = os.path.join(configuration.extensions.SEARCH_ROOT, author.name, "CriticExtensions", extension_name)
-            else:
-                extension_path = os.path.join(configuration.extensions.INSTALL_DIR, sha1)
+                for script, function, path_regexp in cursor:
+                    path, query = get_matching_path(path_regexp)
+                    if path is not None:
+                        handlers.append((path, query, script, function))
 
-            class Error(Exception):
-                pass
-
-            try:
-                try:
-                    manifest = Manifest.load(extension_path)
-                except ManifestError, error:
-                    raise Error("Invalid MANIFEST:\n%s" % error.message)
-
-                for role in manifest.roles:
-                    if isinstance(role, InjectRole) and role.regexp == regexp and role.script == script and role.function == function:
-                        break
-                else:
+                if not handlers:
                     continue
 
-                argv = "[%(path)s, %(query)s]" % { 'path': jsify(path), 'query': query }
+                extension = Extension.fromId(db, extension_id)
+                manifest = Manifest.load(getExtensionInstallPath(version_sha1))
+            else:
+                extension = Extension.fromId(db, extension_id)
+                manifest = Manifest.load(extension.getPath())
+
+                for role in manifest.roles:
+                    if isinstance(role, InjectRole):
+                        path, query = get_matching_path(role.regexp)
+                        if path is not None:
+                            handlers.append((path, query, role.script, role.function))
+
+                if not handlers:
+                    continue
+
+            def construct_query(query):
+                if not query:
+                    return "null"
+
+                params = urlparse.parse_qs(query, keep_blank_values=True)
+
+                for key in params:
+                    values = params[key]
+                    if len(values) == 1:
+                        if not values[0]:
+                            params[key] = None
+                        else:
+                            params[key] = values[0]
+
+                return ("Object.freeze({ raw: %s, params: Object.freeze(%s) })"
+                        % (json_encode(query), json_encode(params)))
+
+            preferences = None
+            commands = []
+
+            for path, query, script, function in handlers:
+                argv = "[%s, %s]" % (jsify(path), construct_query(query))
 
                 try:
-                    stdout_data = executeProcess(manifest, role, extension_id, user.id, argv, configuration.extensions.SHORT_TIMEOUT)
+                    stdout_data = executeProcess(
+                        manifest, "inject", script, function, extension_id, user.id, argv,
+                        configuration.extensions.SHORT_TIMEOUT)
                 except ProcessTimeout:
-                    raise Error("Timeout after %d seconds." % configuration.extensions.SHORT_TIMEOUT)
-                except ProcessError, error:
+                    raise InjectError("Timeout after %d seconds." % configuration.extensions.SHORT_TIMEOUT)
+                except ProcessError as error:
                     if error.returncode < 0:
-                        if -error.returncode == signal.SIGXCPU:
-                            raise Error("CPU time limit (5 seconds) exceeded.")
-                        else:
-                            raise Error("Process terminated by signal %d." % -error.returncode)
+                        raise InjectError("Process terminated by signal %d." % -error.returncode)
                     else:
-                        raise Error("Process returned %d.\n%s" % (error.returncode, error.stderr))
-
-                commands = []
-
-                def processLine(line):
-                    try:
-                        command, value = line.split(" ", 1)
-                    except ValueError:
-                        raise Error("Invalid line in output: %r" % line)
-
-                    if command not in ("link", "script", "stylesheet", "preference"):
-                        raise Error("Invalid command: %r" % command)
-
-                    try:
-                        value = json_decode(value.strip())
-                    except ValueError:
-                        raise Error("Invalid JSON: %r" % value.strip())
-
-                    def is_string(value):
-                        return isinstance(value, basestring)
-
-                    if command in ("script", "stylesheet") and not is_string(value):
-                        raise Error("Invalid value for %r: %r (expected string)" % (command, value))
-                    elif command == "link":
-                        if not isinstance(value, list) or len(value) != 2:
-                            raise Error("Invalid value for %r: %r (expected array of length two)" % (command, value))
-                        elif not is_string(value[0]):
-                            raise Error("Invalid value for %r: %r (expected string at array[0])" % (command, value))
-                        elif not (is_string(value[1]) or value[1] is None):
-                            raise Error("Invalid value for %r: %r (expected string or null at array[1])" % (command, value))
-                    elif command == "preference":
-                        if path != "config":
-                            raise Error("Invalid command: %r only valid on /config page" % command)
-                        elif not isinstance(value, dict):
-                            raise Error("Invalid value for %r: %r (expected object)" % (command, value))
-
-                        for name in ("url", "name", "type", "value", "default", "description"):
-                            if name not in value:
-                                raise Error("Invalid value for %r: %r (missing property: %r)" % (command, value, name))
-
-                        preference_url = value["url"]
-                        preference_name = value["name"]
-                        preference_type = value["type"]
-                        preference_value = value["value"]
-                        preference_default = value["default"]
-                        preference_description = value["description"]
-
-                        if not is_string(preference_url):
-                            raise Error("Invalid value for %r: %r (expected string as %r)" % (command, value, "url"))
-                        elif not is_string(preference_name):
-                            raise Error("Invalid value for %r: %r (expected string as %r)" % (command, value, "name"))
-                        elif not is_string(preference_description):
-                            raise Error("Invalid value for %r: %r (expected string as %r)" % (command, value, "description"))
-
-                        if is_string(preference_type):
-                            if preference_type not in ("boolean", "integer", "string"):
-                                raise Error("Invalid value for %r: %r (unsupported preference type)" % (command, value))
-
-                            if preference_type == "boolean": type_check = lambda value: isinstance(value, bool)
-                            elif preference_type == "integer": type_check = lambda value: isinstance(value, int)
-                            else: type_check = is_string
-
-                            if not type_check(preference_value):
-                                raise Error("Invalid value for %r: %r (type mismatch between %r and %r)" % (command, value, "value", "type"))
-
-                            if not type_check(preference_default):
-                                raise Error("Invalid value for %r: %r (type mismatch between %r and %r)" % (command, value, "default", "type"))
-                        else:
-                            if not isinstance(preference_type, list):
-                                raise Error("Invalid value for %r: %r (invalid %r, expected string or array)" % (command, value, "type"))
-
-                            for index, choice in enumerate(preference_type):
-                                if not isinstance(choice, dict) \
-                                        or not isinstance(choice.get("value"), basestring) \
-                                        or not isinstance(choice.get("title"), basestring):
-                                    raise Error("Invalid value for %r: %r (invalid preference choice: %r)" % (command, value, choice))
-
-                            choices = set([choice["value"] for choice in preference_type])
-
-                            if not is_string(preference_value) or preference_value not in choices:
-                                raise Error("Invalid value for %r: %r (%r not among valid choices)" % (command, value, "value"))
-
-                            if not is_string(preference_default) or preference_default not in choices:
-                                raise Error("Invalid value for %r: %r (%r not among valid choices)" % (command, value, "default"))
-
-                    commands.append((command, value))
-                    return True
-
-                failed = False
+                        raise InjectError("Process returned %d.\n%s" % (error.returncode, error.stderr))
 
                 for line in stdout_data.splitlines():
                     if line.strip():
-                        if not processLine(line.strip()):
-                            failed = True
-                            break
+                        commands.append(processLine(path, line.strip()))
 
-                if not failed:
-                    preferences = None
-
-                    for command, value in commands:
-                        if command == "script":
-                            document.addExternalScript(value, use_static=False, order=1)
-                        elif command == "stylesheet":
-                            document.addExternalStylesheet(value, use_static=False, order=1)
-                        elif command == "link":
-                            for index, (url, label, not_current, style, title) in enumerate(links):
-                                if label == value[0]:
-                                    if value[1] is None: del links[index]
-                                    else: links[index][0] = value[0]
-                                    break
+            for command, value in commands:
+                if command == "script":
+                    document.addExternalScript(value, use_static=False, order=1)
+                elif command == "stylesheet":
+                    document.addExternalStylesheet(value, use_static=False, order=1)
+                elif command == "link":
+                    for index, (_, label, _, _) in enumerate(links):
+                        if label == value["label"]:
+                            if value["url"] is None:
+                                del links[index]
                             else:
-                                if value[1] is not None:
-                                    links.append([value[1], value[0], True, None, None])
-                        elif command == "preference":
-                            if not preferences:
-                                preferences = []
-                                injected.setdefault("preferences", []).append((extension_name, author, preferences))
-                            preferences.append(value)
-            except Error, error:
-                document.comment("\n\n[%s/%s] Extension error:\n%s\n\n" % (author.name, extension_name, error.message))
+                                links[index][0] = value["url"]
+                            break
+                    else:
+                        if value["url"] is not None:
+                            links.append([value["url"], value["label"], None, None])
+                elif command == "preference":
+                    if not preferences:
+                        preferences = []
+                        injected.setdefault("preferences", []).append(
+                            (extension.getName(), extension.getAuthor(db), preferences))
+                    preferences.append(value)
 
             if profiler:
-                profiler.check("inject: %s/%s" % (author.name, extension_name))
+                profiler.check("inject: %s" % extension.getKey())
+        except ExtensionError as error:
+            document.comment("\n\n[%s] Extension error:\nInvalid extension:\n%s\n\n"
+                             % (error.extension.getKey(), error.message))
+        except ManifestError as error:
+            document.comment("\n\n[%s] Extension error:\nInvalid MANIFEST:\n%s\n\n"
+                             % (extension.getKey(), error.message))
+        except InjectError as error:
+            document.comment("\n\n[%s] Extension error:\n%s\n\n"
+                             % (extension.getKey(), error.message))

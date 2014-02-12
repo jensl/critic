@@ -150,11 +150,6 @@
     "default": 250,
     "description": "Maximum number of lines of commit stats to include in the email sent when a review is submitted.  If exceeded, no stats are included at all."
   },
-  "email.subjectLine.extensionOutput": {
-    "type": "string",
-    "default": "Extension Output: %(summary)s",
-    "description": "Python format string for subject line of email sent when an extension's ProcessChanges hook produces output (or fails.)"
-  },
   "email.subjectLine.newReview": {
     "type": "string",
     "default": "New Review: %(summary)s",

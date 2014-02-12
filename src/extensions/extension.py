@@ -16,77 +16,194 @@
 
 import os
 import subprocess
+import pwd
 
-import base
 import configuration
 import dbutils
+import htmlutils
 
-from extensions.manifest import Manifest, PageRole, InjectRole, ProcessChangesRole, ProcessCommitsRole
+from extensions.manifest import Manifest, ManifestError
+from extensions import getExtensionInstallPath
 
-class Extension:
+class ExtensionError(Exception):
+    def __init__(self, message, extension=None):
+        super(ExtensionError, self).__init__(message)
+        self.extension = extension
+
+class Extension(object):
     def __init__(self, author_name, extension_name):
+        if os.path.sep in extension_name:
+            raise ExtensionError(
+                "Invalid extension name: %s" % extension_name)
+
         self.__author_name = author_name
         self.__extension_name = extension_name
-        self.__path = os.path.join(configuration.extensions.SEARCH_ROOT, author_name, "CriticExtensions", extension_name)
+        self.__manifest = {}
+
+        if author_name:
+            try:
+                user_home_dir = pwd.getpwnam(author_name).pw_dir
+            except KeyError:
+                raise ExtensionError(
+                    "No such system user: %s" % author_name,
+                    extension=self)
+
+            self.__path = os.path.join(
+                user_home_dir,
+                configuration.extensions.USER_EXTENSIONS_DIR,
+                extension_name)
+        else:
+            self.__path = os.path.join(
+                configuration.extensions.SYSTEM_EXTENSIONS_DIR,
+                extension_name)
+
+        if not (os.path.isdir(self.__path) and
+                os.access(self.__path, os.R_OK | os.X_OK)):
+            raise ExtensionError(
+                "Invalid or inaccessible extension dir: %s" % self.__path,
+                extension=self)
+
+    def isSystemExtension(self):
+        return self.__author_name is None
 
     def getAuthorName(self):
+        if self.isSystemExtension():
+            return None
         return self.__author_name
 
     def getName(self):
         return self.__extension_name
 
+    def getTitle(self, db, html=False):
+        if html:
+            title = "<b>%s</b>" % htmlutils.htmlify(self.getName())
+        else:
+            title = self.getName()
+
+        if not self.isSystemExtension():
+            author = self.getAuthor(db)
+
+            try:
+                manifest = self.getManifest()
+            except ManifestError:
+                # Can't access information from the manifest, so assume "yes".
+                is_author = True
+            else:
+                is_author = manifest.isAuthor(db, author)
+
+            if is_author:
+                title += " by "
+            else:
+                title += " hosted by "
+
+            if html:
+                title += htmlutils.htmlify(author.fullname)
+            else:
+                title += author.fullname
+
+        return title
+
     def getKey(self):
-        return "%s/%s" % (self.__author_name, self.__extension_name)
+        if self.isSystemExtension():
+            return self.__extension_name
+        else:
+            return "%s/%s" % (self.__author_name, self.__extension_name)
 
     def getPath(self):
         return self.__path
 
     def getVersions(self):
         try:
-            branches = subprocess.check_output([configuration.executables.GIT, "branch"], cwd=self.__path).splitlines()
-            return [branch[10:].strip() for branch in branches if branch[2:].startswith("version/")]
+            output = subprocess.check_output(
+                [configuration.executables.GIT, "for-each-ref",
+                 "--format=%(refname)", "refs/heads/version/"],
+                stderr=subprocess.STDOUT, cwd=self.__path)
         except subprocess.CalledProcessError:
             # Not a git repository => no versions (except "Live").
             return []
 
-    def readManifest(self, version=None):
-        if version is None:
-            source = None
-        else:
-            source = subprocess.check_output([configuration.executables.GIT, "cat-file", "blob", "version/%s:MANIFEST" % version],
-                                             cwd=self.__path)
+        versions = []
+        for ref in output.splitlines():
+            if ref.startswith("refs/heads/version/"):
+                versions.append(ref[len("refs/heads/version/"):])
+        return versions
 
-        manifest = Manifest(self.__path, source)
+    def getManifest(self, version=None, sha1=None):
+        path = self.__path
+        source = None
+
+        if sha1 is not None:
+            if sha1 in self.__manifest:
+                return self.__manifest[sha1]
+
+            install_path = getExtensionInstallPath(sha1)
+            with open(os.path.join(install_path, "MANIFEST")) as manifest_file:
+                source = manifest_file.read()
+
+            path = "<snapshot of commit %s>" % sha1[:8]
+        elif version in self.__manifest:
+            return self.__manifest[version]
+
+        if source is None and version is not None:
+            source = subprocess.check_output(
+                [configuration.executables.GIT, "cat-file", "blob",
+                 "version/%s:MANIFEST" % version],
+                cwd=self.__path)
+
+        manifest = Manifest(path, source)
         manifest.read()
+
+        if sha1 is not None:
+            self.__manifest[sha1] = manifest
+        else:
+            self.__manifest[version] = manifest
+
         return manifest
 
     def getCurrentSHA1(self, version):
-        return subprocess.check_output([configuration.executables.GIT, "rev-parse", "--verify", "version/%s" % version],
-                                       cwd=self.__path).strip()
+        return subprocess.check_output(
+            [configuration.executables.GIT, "rev-parse", "--verify",
+             "version/%s" % version],
+            cwd=self.__path).strip()
 
     def prepareVersionSnapshot(self, version):
         sha1 = self.getCurrentSHA1(version)
 
-        if not os.path.isdir(os.path.join(configuration.extensions.INSTALL_DIR, sha1)):
-            git_archive = subprocess.Popen([configuration.executables.GIT, "archive", "--format=tar", "--prefix=%s/" % sha1, sha1],
-                                           stdout=subprocess.PIPE, cwd=self.__path)
-            subprocess.check_call([configuration.executables.TAR, "x"], stdin=git_archive.stdout,
-                                  cwd=configuration.extensions.INSTALL_DIR)
+        if not os.path.isdir(getExtensionInstallPath(sha1)):
+            git_archive = subprocess.Popen(
+                [configuration.executables.GIT, "archive", "--format=tar",
+                 "--prefix=%s/" % sha1, sha1],
+                stdout=subprocess.PIPE, cwd=self.__path)
+            subprocess.check_call(
+                [configuration.executables.TAR, "x"],
+                stdin=git_archive.stdout,
+                cwd=configuration.extensions.INSTALL_DIR)
 
         return sha1
 
     def getAuthor(self, db):
-        return dbutils.User.fromName(db, self.__author_name)
+        if self.isSystemExtension():
+            return None
+        return dbutils.User.fromName(db, self.getAuthorName())
 
     def getExtensionID(self, db, create=False):
-        author_id = self.getAuthor(db).id
-
         cursor = db.cursor()
-        cursor.execute("""SELECT extensions.id
-                            FROM extensions
-                           WHERE extensions.author=%s
-                             AND extensions.name=%s""",
-                       (author_id, self.__extension_name))
+
+        if self.isSystemExtension():
+            author_id = None
+            cursor.execute("""SELECT extensions.id
+                                FROM extensions
+                               WHERE extensions.author IS NULL
+                                 AND extensions.name=%s""",
+                           (self.__extension_name,))
+        else:
+            author_id = self.getAuthor(db).id
+            cursor.execute("""SELECT extensions.id
+                                FROM extensions
+                               WHERE extensions.author=%s
+                                 AND extensions.name=%s""",
+                           (author_id, self.__extension_name))
+
         row = cursor.fetchone()
 
         if row:
@@ -116,132 +233,143 @@ class Extension:
             return (False, False)
 
         cursor = db.cursor()
-        cursor.execute("""SELECT DISTINCT extensionversions.sha1, extensionversions.name
-                            FROM extensionversions
-                            JOIN extensionroles ON (extensionroles.version=extensionversions.id)
-                           WHERE extensionversions.extension=%s
-                             AND extensionroles.uid=%s""",
-                       (extension_id, user.id))
-        versions = set(cursor)
 
-        if len(versions) > 1:
-            raise base.ImplementationError(
-                "multiple extension versions installed (should not happen)")
+        if user is None:
+            cursor.execute("""SELECT extensionversions.sha1, extensionversions.name
+                                FROM extensioninstalls
+                     LEFT OUTER JOIN extensionversions ON (extensionversions.id=extensioninstalls.version)
+                               WHERE extensioninstalls.uid IS NULL
+                                 AND extensioninstalls.extension=%s""",
+                           (extension_id,))
+        else:
+            cursor.execute("""SELECT extensionversions.sha1, extensionversions.name
+                                FROM extensioninstalls
+                     LEFT OUTER JOIN extensionversions ON (extensionversions.id=extensioninstalls.version)
+                               WHERE extensioninstalls.uid=%s
+                                 AND extensioninstalls.extension=%s""",
+                           (user.id, extension_id))
 
-        if versions:
-            return versions.pop()
+        row = cursor.fetchone()
+
+        if row:
+            return row
         else:
             return (False, False)
 
-    def getInstallationStatus(self, db, user, version=None):
-        author = self.getAuthor(db)
-        manifest = self.readManifest(version)
+    @staticmethod
+    def fromId(db, extension_id):
+        cursor = db.cursor()
+        cursor.execute("""SELECT users.name, extensions.name
+                            FROM extensions
+                 LEFT OUTER JOIN users ON (users.id=extensions.author)
+                           WHERE extensions.id=%s""",
+                       (extension_id,))
+        author_name, extension_name = cursor.fetchone()
+        return Extension(author_name, extension_name)
+
+    @staticmethod
+    def getInstalls(db, user):
+        """
+        Return a list of extension installs in effect for the specified user
+
+        If 'user' is None, all universal extension installs are listed.
+
+        Each install is returned as a tuple containing four elements, the
+        extension id, the version id, the version SHA-1 and a boolean which is
+        true if the install is universal.  For a LIVE version, the version id
+        and the version SHA-1 are None.
+
+        The list of installs is ordered by precedence; most significant install
+        first, least significant install last.
+        """
 
         cursor = db.cursor()
-        version_ids = set()
-        installed_roles = 0
+        cursor.execute("""SELECT extensioninstalls.id, extensioninstalls.extension,
+                                 extensionversions.id, extensionversions.sha1,
+                                 extensioninstalls.uid IS NULL
+                            FROM extensioninstalls
+                 LEFT OUTER JOIN extensionversions ON (extensionversions.id=extensioninstalls.version)
+                           WHERE uid=%s OR uid IS NULL
+                        ORDER BY uid NULLS FIRST""",
+                       (user.id if user else None,))
 
-        for role in manifest.roles:
-            if isinstance(role, PageRole):
-                cursor.execute("""SELECT extensionversions.id
-                                    FROM extensions
-                                    JOIN extensionversions ON (extensionversions.extension=extensions.id)
-                                    JOIN extensionroles_page ON (extensionroles_page.version=extensionversions.id)
-                                   WHERE extensions.author=%s
-                                     AND extensions.name=%s
-                                     AND extensionroles_page.uid=%s
-                                     AND extensionroles_page.path=%s
-                                     AND extensionroles_page.script=%s
-                                     AND extensionroles_page.function=%s""",
-                               (author.id, self.__extension_name, user.id, role.regexp, role.script, role.function))
-            elif isinstance(role, InjectRole):
-                cursor.execute("""SELECT extensionversions.id
-                                    FROM extensions
-                                    JOIN extensionversions ON (extensionversions.extension=extensions.id)
-                                    JOIN extensionroles_inject ON (extensionroles_inject.version=extensionversions.id)
-                                   WHERE extensions.author=%s
-                                     AND extensions.name=%s
-                                     AND extensionroles_inject.uid=%s
-                                     AND extensionroles_inject.path=%s
-                                     AND extensionroles_inject.script=%s
-                                     AND extensionroles_inject.function=%s""",
-                               (author.id, self.__extension_name, user.id, role.regexp, role.script, role.function))
-            elif isinstance(role, ProcessCommitsRole):
-                cursor.execute("""SELECT extensionversions.id
-                                    FROM extensions
-                                    JOIN extensionversions ON (extensionversions.extension=extensions.id)
-                                    JOIN extensionroles_processcommits ON (extensionroles_processcommits.version=extensionversions.id)
-                                   WHERE extensions.author=%s
-                                     AND extensions.name=%s
-                                     AND extensionroles_processcommits.uid=%s
-                                     AND extensionroles_processcommits.script=%s
-                                     AND extensionroles_processcommits.function=%s""",
-                               (author.id, self.__extension_name, user.id, role.script, role.function))
-            elif isinstance(role, ProcessChangesRole):
-                cursor.execute("""SELECT extensionversions.id
-                                    FROM extensions
-                                    JOIN extensionversions ON (extensionversions.extension=extensions.id)
-                                    JOIN extensionroles_processchanges ON (extensionroles_processchanges.version=extensionversions.id)
-                                   WHERE extensions.author=%s
-                                     AND extensions.name=%s
-                                     AND extensionroles_processchanges.uid=%s
-                                     AND extensionroles_processchanges.script=%s
-                                     AND extensionroles_processchanges.function=%s""",
-                               (author.id, self.__extension_name, user.id, role.script, role.function))
-            else:
-                continue
+        install_per_extension = {}
 
-            row = cursor.fetchone()
-            if row:
-                version_ids.add(row[0])
-                installed_roles += 1
-                role.installed = True
-            else:
-                role.installed = False
+        # Since we ordered by 'uid' with nulls ("universal installs") first,
+        # we'll overwrite universal installs with per-user installs, as intended.
+        for install_id, extension_id, version_id, version_sha1, is_universal in cursor:
+            install_per_extension[extension_id] = (install_id, version_id,
+                                                   version_sha1, is_universal)
 
-        if installed_roles == 0:
-            manifest.status = "none"
-        elif installed_roles < len(manifest.roles) or len(version_ids) != 1:
-            manifest.status = "partial"
-        else:
-            manifest.status = "installed"
+        installs = [(install_id, extension_id, version_id, version_sha1, is_universal)
+                    for extension_id, (install_id, version_id, version_sha1, is_universal)
+                    in install_per_extension.items()]
 
-        return manifest
+        # Sort installs by install id, higher first.  This means a later install
+        # takes precedence over an earlier, if they both handle the same path.
+        installs.sort(reverse=True)
+
+        # Drop the install_id; it is not relevant past this point.
+        return [(extension_id, version_id, version_sha1, is_universal)
+                for _, extension_id, version_id, version_sha1, is_universal
+                in installs]
 
     @staticmethod
     def getUpdatedExtensions(db, user):
         cursor = db.cursor()
-        cursor.execute("""SELECT DISTINCT users.name, users.fullname, extensions.name, extensionversions.name, extensionversions.sha1
+        cursor.execute("""SELECT users.name, users.fullname, extensions.name,
+                                 extensionversions.name, extensionversions.sha1
                             FROM users
                             JOIN extensions ON (extensions.author=users.id)
                             JOIN extensionversions ON (extensionversions.extension=extensions.id)
-                            JOIN extensionroles ON (extensionroles.version=extensionversions.id)
-                           WHERE extensionroles.uid=%s
-                             AND extensionversions.sha1 IS NOT NULL""",
+                            JOIN extensioninstalls ON (extensioninstalls.version=extensionversions.id)
+                           WHERE extensioninstalls.uid=%s""",
                        (user.id,))
 
         updated = []
-        for author_name, author_fullname, extension_name, version_name, sha1 in cursor:
+        for author_name, author_fullname, extension_name, version_name, version_sha1 in cursor:
             extension = Extension(author_name, extension_name)
-            if extension.getCurrentSHA1(version_name) != sha1:
+            if extension.getCurrentSHA1(version_name) != version_sha1:
                 updated.append((author_fullname, extension_name))
         return updated
 
     @staticmethod
-    def find():
-        extensions = []
+    def find(db):
+        def search(user_name, search_dir):
+            if not (os.path.isdir(search_dir) and
+                    os.access(search_dir, os.X_OK | os.R_OK)):
+                return []
 
-        for user_directory in os.listdir(configuration.extensions.SEARCH_ROOT):
-            try:
-                for extension_directory in os.listdir(os.path.join(configuration.extensions.SEARCH_ROOT, user_directory, "CriticExtensions")):
-                    extension_path = os.path.join(configuration.extensions.SEARCH_ROOT, user_directory, "CriticExtensions", extension_directory)
+            extensions = []
 
-                    if os.path.isdir(extension_path) and os.access(extension_path, os.X_OK | os.R_OK):
-                        manifest_path = os.path.join(extension_path, "MANIFEST")
+            for extension_name in os.listdir(search_dir):
+                extension_dir = os.path.join(search_dir, extension_name)
+                manifest_path = os.path.join(extension_dir, "MANIFEST")
 
-                        if os.path.isfile(manifest_path) and os.access(manifest_path, os.R_OK):
-                            extensions.append(Extension(user_directory, extension_directory))
-            except OSError:
-                pass
+                if not (os.path.isdir(extension_dir) and
+                        os.access(extension_dir, os.X_OK | os.R_OK) and
+                        os.access(manifest_path, os.R_OK)):
+                    continue
+
+                extensions.append(Extension(user_name, extension_name))
+
+            return extensions
+
+        extensions = search(None, configuration.extensions.SYSTEM_EXTENSIONS_DIR)
+
+        if configuration.extensions.USER_EXTENSIONS_DIR:
+            cursor = db.cursor()
+            cursor.execute("SELECT name FROM users ORDER BY name ASC")
+
+            for (user_name,) in cursor:
+                try:
+                    pwd_entry = pwd.getpwnam(user_name)
+                except KeyError:
+                    continue
+
+                user_dir = os.path.join(
+                    pwd_entry.pw_dir, configuration.extensions.USER_EXTENSIONS_DIR)
+
+                extensions.extend(search(user_name, user_dir))
 
         return extensions

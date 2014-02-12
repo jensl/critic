@@ -14,59 +14,92 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-import os
 import time
 import re
-import signal
 
 import configuration
-import dbutils
 
 from communicate import ProcessTimeout, ProcessError
 from htmlutils import jsify
 from request import decodeURIComponent
 
 from extensions import getExtensionInstallPath
-from extensions.extension import Extension
+from extensions.extension import Extension, ExtensionError
 from extensions.execute import executeProcess
-from extensions.manifest import Manifest, PageRole
+from extensions.manifest import Manifest, ManifestError, PageRole
 from extensions.utils import renderTutorial
 
 def execute(db, req, user):
     cursor = db.cursor()
 
-    cursor.execute("""SELECT extensions.id, extensions.author, extensions.name, extensionversions.sha1, roles.path, roles.script, roles.function
-                        FROM extensions
-                        JOIN extensionversions ON (extensionversions.extension=extensions.id)
-                        JOIN extensionroles_page AS roles ON (roles.version=extensionversions.id)
-                       WHERE uid=%s""", (user.id,))
+    installs = Extension.getInstalls(db, user)
 
-    for extension_id, author_id, extension_name, sha1, regexp, script, function in cursor:
-        if re.match(regexp, req.path):
+    argv = None
+    stdin_data = None
+
+    for extension_id, version_id, version_sha1, is_universal in installs:
+        handlers = []
+
+        if version_id is not None:
+            cursor.execute("""SELECT script, function, path
+                                FROM extensionroles
+                                JOIN extensionpageroles ON (role=id)
+                               WHERE version=%s
+                            ORDER BY id ASC""",
+                           (version_id,))
+
+            for script, function, path_regexp in cursor:
+                if re.match(path_regexp, req.path):
+                    handlers.append((script, function))
+
+            if not handlers:
+                continue
+
+            extension_path = getExtensionInstallPath(version_sha1)
+            manifest = Manifest.load(extension_path)
+        else:
+            try:
+                extension = Extension.fromId(db, extension_id)
+            except ExtensionError:
+                # If the author/hosting user no longer exists, or the extension
+                # directory no longer exists or is inaccessible, ignore the
+                # extension.
+                continue
+
+            try:
+                manifest = Manifest.load(extension.getPath())
+            except ManifestError:
+                # If the MANIFEST is missing or invalid, we can't know whether
+                # the extension has a page role handling the path, so assume it
+                # doesn't and ignore it.
+                continue
+
+            for role in manifest.roles:
+                if isinstance(role, PageRole) and re.match(role.regexp, req.path):
+                    handlers.append((role.script, role.function))
+
+            if not handlers:
+                continue
+
+        if argv is None:
             def param(raw):
                 parts = raw.split("=", 1)
-                if len(parts) == 1: return "%s: null" % jsify(decodeURIComponent(raw))
-                else: return "%s: %s" % (jsify(decodeURIComponent(parts[0])), jsify(decodeURIComponent(parts[1])))
+                if len(parts) == 1:
+                    return "%s: null" % jsify(decodeURIComponent(raw))
+                else:
+                    return "%s: %s" % (jsify(decodeURIComponent(parts[0])),
+                                       jsify(decodeURIComponent(parts[1])))
 
             if req.query:
-                query = "Object.freeze({ raw: %s, params: Object.freeze({ %s }) })" % (jsify(req.query), ", ".join(map(param, req.query.split("&"))))
+                query = ("Object.freeze({ raw: %s, params: Object.freeze({ %s }) })"
+                         % (jsify(req.query),
+                            ", ".join(map(param, req.query.split("&")))))
             else:
                 query = "null"
 
-            headers = "Object.create(null, { %s })" % ", ".join(["%s: { value: %s, enumerable: true }" % (jsify(name), jsify(value)) for name, value in req.getRequestHeaders().items()])
-
-            author = dbutils.User.fromId(db, author_id)
-
-            if sha1 is None: extension_path = os.path.join(configuration.extensions.SEARCH_ROOT, author.name, "CriticExtensions", extension_name)
-            else: extension_path = os.path.join(configuration.extensions.INSTALL_DIR, sha1)
-
-            manifest = Manifest.load(extension_path)
-
-            for role in manifest.roles:
-                if isinstance(role, PageRole) and role.regexp == regexp and role.script == script and role.function == function:
-                    break
-            else:
-                continue
+            headers = ("Object.freeze({ %s })"
+                       % ", ".join(("%s: %s" % (jsify(name), jsify(value)))
+                                   for name, value in req.getRequestHeaders().items()))
 
             argv = ("[%(method)s, %(path)s, %(query)s, %(headers)s]"
                     % { 'method': jsify(req.method),
@@ -74,28 +107,28 @@ def execute(db, req, user):
                         'query': query,
                         'headers': headers })
 
-            if req.method == "POST":
+        if req.method == "POST":
+            if stdin_data is None:
                 stdin_data = req.read()
-            else:
-                stdin_data = None
 
+        for script, function in handlers:
             before = time.time()
 
             try:
-                stdout_data = executeProcess(manifest, role, extension_id, user.id, argv, configuration.extensions.LONG_TIMEOUT,
-                                             stdin=stdin_data, rlimit_cpu=60)
+                stdout_data = executeProcess(
+                    manifest, "page", script, function, extension_id, user.id,
+                    argv, configuration.extensions.LONG_TIMEOUT, stdin=stdin_data)
             except ProcessTimeout:
                 req.setStatus(500, "Extension Timeout")
                 return "Extension timed out!"
             except ProcessError as error:
                 req.setStatus(500, "Extension Failure")
                 if error.returncode < 0:
-                    if -error.returncode == signal.SIGXCPU:
-                        return "Extension failure: time limit (5 CPU seconds) exceeded\n"
-                    else:
-                        return "Extension failure: terminated by signal %d\n" % -error.returncode
+                    return ("Extension failure: terminated by signal %d\n"
+                            % -error.returncode)
                 else:
-                    return "Extension failure: returned %d\n%s" % (error.returncode, error.stderr)
+                    return ("Extension failure: returned %d\n%s"
+                            % (error.returncode, error.stderr))
 
             after = time.time()
 

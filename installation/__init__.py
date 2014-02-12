@@ -43,12 +43,14 @@ import initd
 import prefs
 import git
 import migrate
+import extensions
 
 modules = [prereqs,
            system,
            paths,
            files,
            database,
+           extensions,
            config,
            apache,
            criticctl,

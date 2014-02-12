@@ -23,22 +23,24 @@ from textutils import json_decode
 RE_ROLE_Page = re.compile(r"^\[Page (.*)\]$", re.IGNORECASE)
 RE_ROLE_Inject = re.compile(r"^\[Inject (.*)\]$", re.IGNORECASE)
 RE_ROLE_ProcessCommits = re.compile(r"^\[ProcessCommits\]$", re.IGNORECASE)
-RE_ROLE_ProcessChanges = re.compile(r"^\[ProcessChanges\]$", re.IGNORECASE)
 RE_ROLE_Scheduled = re.compile(r"^\[Scheduled\]$", re.IGNORECASE)
 
 class ManifestError(Exception):
     pass
 
 class Role:
-    def __init__(self):
+    def __init__(self, location):
         self.script = None
         self.function = None
         self.description = None
-        self.installed = None
+        self.location = location
 
-    def install(self, cursor, version_id, user):
-        cursor.execute("INSERT INTO extensionroles (uid, version, script, function) VALUES (%s, %s, %s, %s) RETURNING id",
-                       (user.id, version_id, self.script, self.function))
+    def install(self, db, version_id):
+        cursor = db.cursor()
+        cursor.execute("""INSERT INTO extensionroles (version, script, function)
+                               VALUES (%s, %s, %s)
+                            RETURNING id""",
+                       (version_id, self.script, self.function))
         return cursor.fetchone()[0]
 
     def process(self, name, value, location):
@@ -54,86 +56,94 @@ class Role:
         else:
             return False
 
-    def check(self, location):
+    def check(self):
         if not self.description:
-            raise ManifestError("%s:%d: manifest error: expected role description" % location)
+            raise ManifestError("%s: manifest error: expected role description" % self.location)
         elif not self.script:
-            raise ManifestError("%s:%d: manifest error: expected role script" % location)
+            raise ManifestError("%s: manifest error: expected role script" % self.location)
         elif not self.function:
-            raise ManifestError("%s:%d: manifest error: expected role function" % location)
+            raise ManifestError("%s: manifest error: expected role function" % self.location)
 
 class URLRole(Role):
-    def __init__(self, pattern):
-        Role.__init__(self)
+    def __init__(self, location, pattern):
+        Role.__init__(self, location)
         self.pattern = pattern
         self.regexp = "^" + re.sub(r"[\|\[\](){}^$+]",
                                    lambda match: '\\' + match.group(0),
                                    pattern.replace('.', '\\.').replace('?', '.').replace('*', '.*')) + "$"
 
+    def check(self):
+        Role.check(self)
+        if self.pattern.startswith("/"):
+            raise ManifestError("%s: manifest error: path pattern should not start with a '/'" % self.location)
+
 class PageRole(URLRole):
-    def __init__(self, pattern):
-        URLRole.__init__(self, pattern)
+    def __init__(self, location, pattern):
+        URLRole.__init__(self, location, pattern)
 
     def name(self):
         return "Page"
 
-    def install(self, cursor, version_id, user):
-        role_id = Role.install(self, cursor, version_id, user)
-        cursor.execute("INSERT INTO extensionpageroles (role, path) VALUES (%s, %s)",
+    def install(self, db, version_id):
+        role_id = Role.install(self, db, version_id)
+        cursor = db.cursor()
+        cursor.execute("""INSERT INTO extensionpageroles (role, path)
+                               VALUES (%s, %s)""",
                        (role_id, self.regexp))
         return role_id
 
 class InjectRole(URLRole):
-    def __init__(self, pattern):
-        URLRole.__init__(self, pattern)
+    def __init__(self, location, pattern):
+        URLRole.__init__(self, location, pattern)
 
     def name(self):
         return "Inject"
 
-    def install(self, cursor, version_id, user):
-        role_id = Role.install(self, cursor, version_id, user)
-        cursor.execute("INSERT INTO extensioninjectroles (role, path) VALUES (%s, %s)",
+    def process(self, name, value, location):
+        if Role.process(self, name, value, location):
+            return True
+        if name == "cached":
+            # Ignored for compatibility with extensions that use it.
+            return True
+        return False
+
+    def install(self, db, version_id):
+        role_id = Role.install(self, db, version_id)
+        cursor = db.cursor()
+        cursor.execute("""INSERT INTO extensioninjectroles (role, path)
+                               VALUES (%s, %s)""",
                        (role_id, self.regexp))
         return role_id
 
 class ProcessCommitsRole(Role):
-    def __init__(self):
-        Role.__init__(self)
+    def __init__(self, location):
+        Role.__init__(self, location)
 
     def name(self):
         return "ProcessCommits"
 
-    def install(self, cursor, version_id, user):
-        role_id = Role.install(self, cursor, version_id, user)
-        cursor.execute("INSERT INTO extensionprocesscommitsroles (role) VALUES (%s)",
-                       (role_id,))
-        return role_id
-
-class ProcessChangesRole(Role):
-    def __init__(self):
-        Role.__init__(self)
-
-    def name(self):
-        return "ProcessChanges"
-
-    def install(self, cursor, version_id, user):
-        role_id = Role.install(self, cursor, version_id, user)
-        cursor.execute("INSERT INTO extensionprocesschangesroles (role, skip) SELECT %s, MAX(id) FROM batches",
+    def install(self, db, version_id):
+        role_id = Role.install(self, db, version_id)
+        cursor = db.cursor()
+        cursor.execute("""INSERT INTO extensionprocesscommitsroles (role)
+                               VALUES (%s)""",
                        (role_id,))
         return role_id
 
 class ScheduledRole(Role):
-    def __init__(self):
-        Role.__init__(self)
+    def __init__(self, location):
+        Role.__init__(self, location)
         self.frequency = None
         self.at = None
 
     def name(self):
         return "Scheduled"
 
-    def install(self, cursor, version_id, user):
-        role_id = Role.install(self, cursor, version_id, user)
-        cursor.execute("INSERT INTO extensionscheduledroles (role, frequency, at) VALUES (%s, %s, %s)",
+    def install(self, db, version_id):
+        role_id = Role.install(self, db, version_id)
+        cursor = db.cursor()
+        cursor.execute("""INSERT INTO extensionscheduledroles (role, frequency, at)
+                               VALUES (%s, %s, %s)""",
                        (role_id, self.frequency, self.at))
         return role_id
 
@@ -144,20 +154,20 @@ class ScheduledRole(Role):
             if value in ("monthly", "weekly", "daily", "hourly"):
                 self.frequency = value.lower()
             else:
-                raise ManifestError("%s:%d: invalid frequency: must be one of 'monthly', 'weekly', 'daily' and 'hourly'" % location)
+                raise ManifestError("%s: invalid frequency: must be one of 'monthly', 'weekly', 'daily' and 'hourly'" % location)
         elif name == "at":
             self.at = value.lower()
         else:
             return False
         return True
 
-    def check(self, location):
-        Role.check(self, location)
+    def check(self):
+        Role.check(self)
 
         if not self.frequency:
-            raise ManifestError("%s:%d: manifest error: expected role parameter 'frequency'" % location)
+            raise ManifestError("%s: manifest error: expected role parameter 'frequency'" % self.location)
         if not self.at:
-            raise ManifestError("%s:%d: manifest error: expected role parameter 'at'" % location)
+            raise ManifestError("%s: manifest error: expected role parameter 'at'" % self.location)
 
         if self.frequency == "monthly":
             match = re.match("(\d+) (\d{2}):(\d{2})$", self.at)
@@ -192,22 +202,46 @@ class ScheduledRole(Role):
                     return
             raise ManifestError("invalid at specification for hourly trigger, must be 'MM'")
 
-class Manifest:
+class Author(object):
+    def __init__(self, value):
+        match = re.match(r"\s*(.*?)\s+<(.+?)>\s*$", value)
+        if match:
+            self.name, self.email = match.groups()
+        else:
+            self.name = value.strip()
+            self.email = None
+
+class Manifest(object):
     def __init__(self, path, source=None):
         self.path = path
         self.source = source
-        self.author = []
+        self.authors = []
         self.description = None
         self.flavor = configuration.extensions.DEFAULT_FLAVOR
         self.roles = []
         self.status = None
         self.hidden = False
 
+    def isAuthor(self, db, user):
+        for author in self.authors:
+            if author.name in (user.name, user.fullname) \
+                    or user.hasGitEmail(db, author.email):
+                return True
+        return False
+
+    def getAuthors(self):
+        return self.authors
+
     def read(self):
         path = os.path.join(self.path, "MANIFEST")
 
-        if self.source: lines = self.source.splitlines()
-        else: lines = open(path).readlines()
+        if self.source:
+            lines = self.source.splitlines()
+        else:
+            try:
+                lines = open(path).readlines()
+            except IOError:
+                raise ManifestError("%s: file not found" % path)
 
         lines = map(str.strip, lines)
 
@@ -229,7 +263,8 @@ class Manifest:
                 try:
                     name, value = line.split("=", 1)
                     if name.strip().lower() == "author":
-                        self.author.append(process(value))
+                        for value in process(value).split(","):
+                            self.authors.append(Author(value))
                         continue
                     elif name.strip().lower() == "description":
                         self.description = process(value)
@@ -250,7 +285,7 @@ class Manifest:
                 except:
                     pass
 
-                if not self.author:
+                if not self.authors:
                     raise ManifestError("%s: manifest error: expected extension author" % location)
                 elif not self.description:
                     raise ManifestError("%s: manifest error: expected extension description" % location)
@@ -261,51 +296,40 @@ class Manifest:
                     if role.process(name.strip().lower(), process(value), location):
                         continue
 
-                role.check(location)
+                role.check()
 
                 self.roles.append(role)
 
             match = RE_ROLE_Page.match(line)
             if match:
-                role = PageRole(match.group(1))
+                role = PageRole(location, match.group(1))
                 continue
 
             match = RE_ROLE_Inject.match(line)
             if match:
-                role = InjectRole(match.group(1))
+                role = InjectRole(location, match.group(1))
                 continue
 
             match = RE_ROLE_ProcessCommits.match(line)
             if match:
-                role = ProcessCommitsRole()
-                continue
-
-            match = RE_ROLE_ProcessChanges.match(line)
-            if match:
-                role = ProcessChangesRole()
+                role = ProcessCommitsRole(location)
                 continue
 
             match = RE_ROLE_Scheduled.match(line)
             if match:
-                role = ScheduledRole()
+                role = ScheduledRole(location)
                 continue
 
             raise ManifestError("%s: manifest error: unexpected line: %r" % (location, line))
 
-        if not self.author:
+        if not self.authors:
             raise ManifestError("%s: manifest error: expected extension author" % path)
         elif not self.description:
             raise ManifestError("%s: manifest error: expected extension description" % path)
 
         if role:
-            if not role.description:
-                raise ManifestError("%s: manifest error: expected role description" % path)
-            elif not role.script:
-                raise ManifestError("%s: manifest error: expected role script" % path)
-            elif not role.function:
-                raise ManifestError("%s: manifest error: expected role function" % path)
-            else:
-                self.roles.append(role)
+            role.check()
+            self.roles.append(role)
 
         if not self.roles:
             raise ManifestError("%s: manifest error: no roles defined" % path)

@@ -16,6 +16,8 @@
 
 import sys
 import os
+import time
+import shutil
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(sys.argv[0]), "..")))
 
@@ -75,6 +77,29 @@ class Maintenance(background.utils.BackgroundProcess):
 
                 if self.terminated:
                     return
+
+            if configuration.extensions.ENABLED:
+                now = time.time()
+                max_age = 7 * 24 * 60 * 60
+
+                base_path = os.path.join(configuration.paths.DATA_DIR,
+                                         "temporary", "EXTENSIONS")
+
+                for user_name in os.listdir(base_path):
+                    user_dir = os.path.join(base_path, user_name)
+
+                    for extension_id in os.listdir(user_dir):
+                        extension_dir = os.path.join(user_dir, extension_id)
+
+                        for repository_name in os.listdir(extension_dir):
+                            repository_dir = os.path.join(extension_dir,
+                                                          repository_name)
+                            age = now - os.stat(repository_dir).st_mtime
+
+                            if age > max_age:
+                                self.info("Removing repository work copy: %s"
+                                          % repository_dir)
+                                shutil.rmtree(repository_dir)
 
 def start_service():
     maintenance = Maintenance()

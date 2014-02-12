@@ -21,7 +21,8 @@ import configuration
 from textutils import json_encode
 from communicate import Communicate
 
-def executeProcess(manifest, role, extension_id, user_id, argv, timeout, stdin=None, rlimit_cpu=5, rlimit_rss=256):
+def executeProcess(manifest, role_name, script, function, extension_id, user_id,
+                   argv, timeout, stdin=None, rlimit_rss=256):
     flavor = manifest.flavor
 
     if manifest.flavor not in configuration.extensions.FLAVORS:
@@ -30,32 +31,29 @@ def executeProcess(manifest, role, extension_id, user_id, argv, timeout, stdin=N
     executable = configuration.extensions.FLAVORS[flavor]["executable"]
     library = configuration.extensions.FLAVORS[flavor]["library"]
 
-    process_argv = [executable,
-                    "--rlimit-cpu=%ds" % rlimit_cpu,
-                    "--rlimit-rss=%dm" % rlimit_rss,
-                    os.path.join(library, "critic-launcher.js")]
+    process_argv = [executable, os.path.join(library, "critic-launcher.js")]
 
-    stdin_data = "%s\n" % json_encode({ "criticjs_path": os.path.join(library, "critic2.js"),
-                                        "rlimit": { "cpu": rlimit_cpu,
-                                                    "rss": rlimit_rss },
-                                        "hostname": configuration.base.HOSTNAME,
-                                        "dbname": configuration.database.PARAMETERS["database"],
-                                        "dbuser": configuration.database.PARAMETERS["user"],
-                                        "git": configuration.executables.GIT,
-                                        "python": configuration.executables.PYTHON,
-                                        "python_path": "%s:%s" % (configuration.paths.CONFIG_DIR,
-                                                                  configuration.paths.INSTALL_DIR),
-                                        "repository_work_copy_path": os.path.join(configuration.paths.DATA_DIR, "temporary", "EXTENSIONS"),
-                                        "changeset_address": configuration.services.CHANGESET["address"],
-                                        "maildelivery_pid_path": configuration.services.MAILDELIVERY["pidfile_path"],
-                                        "is_development": configuration.debug.IS_DEVELOPMENT,
-                                        "extension_path": manifest.path,
-                                        "extension_id": extension_id,
-                                        "user_id": user_id,
-                                        "role": role.name(),
-                                        "script_path": role.script,
-                                        "fn": role.function,
-                                        "argv": argv })
+    stdin_data = "%s\n" % json_encode({
+            "criticjs_path": os.path.join(library, "critic.js"),
+            "rlimit": { "rss": rlimit_rss },
+            "hostname": configuration.base.HOSTNAME,
+            "dbname": configuration.database.PARAMETERS["database"],
+            "dbuser": configuration.database.PARAMETERS["user"],
+            "git": configuration.executables.GIT,
+            "python": configuration.executables.PYTHON,
+            "python_path": "%s:%s" % (configuration.paths.CONFIG_DIR,
+                                      configuration.paths.INSTALL_DIR),
+            "repository_work_copy_path": configuration.extensions.WORKCOPY_DIR,
+            "changeset_address": configuration.services.CHANGESET["address"],
+            "maildelivery_pid_path": configuration.services.MAILDELIVERY["pidfile_path"],
+            "is_development": configuration.debug.IS_DEVELOPMENT,
+            "extension_path": manifest.path,
+            "extension_id": extension_id,
+            "user_id": user_id,
+            "role": role_name,
+            "script_path": script,
+            "fn": function,
+            "argv": argv })
 
     if stdin is not None:
         stdin_data += stdin
@@ -64,6 +62,6 @@ def executeProcess(manifest, role, extension_id, user_id, argv, timeout, stdin=N
 
     communicate = Communicate(process)
     communicate.setInput(stdin_data)
-    communicate.setTimout(timeout)
+    communicate.setTimeout(timeout)
 
     return communicate.run()[0]

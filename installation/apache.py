@@ -65,6 +65,14 @@ def stop():
         return False
     return True
 
+def restart():
+    print
+    try:
+        subprocess.check_call(["service", "apache2", "restart"])
+    except subprocess.CalledProcessError:
+        return False
+    return True
+
 def prepare(mode, arguments, data):
     global pass_auth, site_suffix, default_site
 

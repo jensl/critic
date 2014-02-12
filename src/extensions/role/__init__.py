@@ -16,6 +16,5 @@
 
 import page
 import inject
-import processchanges
 import processcommits
 

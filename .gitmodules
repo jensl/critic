@@ -1,3 +1,7 @@
 [submodule "installation/externals/chosen"]
 	path = installation/externals/chosen
 	url = ../chosen.git
+
+[submodule "installation/externals/v8-jsshell"]
+	path = installation/externals/v8-jsshell
+	url = ../v8-jsshell.git

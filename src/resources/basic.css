@@ -29,12 +29,14 @@ div.main > table {
     width: 95%
 }
 
-div.shortcuts {
+.pagefooter {
     margin-top: 10px;
     border-top: 2px solid #A0A092;
+    padding: 10px 1em 0 1em;
+}
+
+div.shortcuts {
     text-align: right;
-    padding-top: 10px;
-    padding-right: 1em
 }
 
 div.shortcuts a.shortcut {

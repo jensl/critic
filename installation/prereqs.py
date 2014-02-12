@@ -54,8 +54,45 @@ def blankline():
         print
         need_blankline = False
 
+def install_packages(arguments, *packages):
+    global aptget, aptget_approved, aptget_updated, need_blankline, all_ok
+    if aptget is None:
+        aptget = find_executable("apt-get")
+    if aptget and not aptget_approved:
+        all_ok = False
+        print """\
+Found 'apt-get' executable in your $PATH.  This script can attempt to install
+missing software using it.
+"""
+        aptget_approved = installation.input.yes_or_no(
+            prompt="Do you want to use 'apt-get' to install missing packages?",
+            default=True)
+        if not aptget_approved: aptget = False
+    if aptget:
+        installed_anything = False
+        aptget_env = os.environ.copy()
+        if arguments.headless:
+            aptget_env["DEBIAN_FRONTEND"] = "noninteractive"
+        if not aptget_updated:
+            subprocess.check_output(
+                [aptget, "-qq", "update"],
+                env=aptget_env)
+            aptget_updated = True
+        aptget_output = subprocess.check_output(
+            [aptget, "-qq", "-y", "install"] + list(packages),
+            env=aptget_env)
+        for line in aptget_output.splitlines():
+            match = re.search(r"([^ ]+) \(.* \.\.\./([^)]+\.deb)\) \.\.\.", line)
+            if match:
+                need_blankline = True
+                installed_anything = True
+                print "Installed: %s (%s)" % (match.group(1), match.group(2))
+        return installed_anything
+    else:
+        return False
+
 def check(mode, arguments):
-    global git, tar, psql, passlib_available, aptget, apache2ctl, a2enmod, a2ensite, a2dissite
+    global git, tar, psql, passlib_available, apache2ctl, a2enmod, a2ensite, a2dissite
 
     if mode == "install":
         print """
@@ -66,46 +103,9 @@ Critic Installation: Prerequisites
     success = True
     all_ok = True
 
-    aptget = find_executable("apt-get")
-
-    def install(*packages):
-        global aptget, aptget_approved, aptget_updated, need_blankline, all_ok
-        if aptget and not aptget_approved:
-            all_ok = False
-            print """\
-Found 'apt-get' executable in your $PATH.  This script can attempt to install
-missing software using it.
-"""
-            aptget_approved = installation.input.yes_or_no(
-                prompt="Do you want to use 'apt-get' to install missing packages?",
-                default=True)
-            if not aptget_approved: aptget = None
-        if aptget:
-            installed_anything = False
-            aptget_env = os.environ.copy()
-            if arguments.headless:
-                aptget_env["DEBIAN_FRONTEND"] = "noninteractive"
-            if not aptget_updated:
-                subprocess.check_output(
-                    [aptget, "-qq", "update"],
-                    env=aptget_env)
-                aptget_updated = True
-            aptget_output = subprocess.check_output(
-                [aptget, "-qq", "-y", "install"] + list(packages),
-                env=aptget_env)
-            for line in aptget_output.splitlines():
-                match = re.search(r"([^ ]+) \(.* \.\.\./([^)]+\.deb)\) \.\.\.", line)
-                if match:
-                    need_blankline = True
-                    installed_anything = True
-                    print "Installed: %s (%s)" % (match.group(1), match.group(2))
-            return installed_anything
-        else:
-            return False
-
     git = find_executable("git")
     if not git:
-        if aptget_approved and install("git-core"):
+        if aptget_approved and install_packages(arguments, "git-core"):
             git = find_executable("git")
         if not git:
             blankline()
@@ -118,7 +118,7 @@ code can be downloaded here:
 
   https://github.com/git/git
 """
-            if not aptget_approved and install("git-core"):
+            if not aptget_approved and install_packages(arguments, "git-core"):
                 git = find_executable("git")
             if not git: success = False
 
@@ -127,7 +127,7 @@ code can be downloaded here:
 
     psql = find_executable("psql")
     if not psql:
-        if aptget_approved and install("postgresql", "postgresql-client"):
+        if aptget_approved and install_packages(arguments, "postgresql", "postgresql-client"):
             psql = find_executable("psql")
         if not psql:
             blankline()
@@ -137,7 +137,7 @@ No 'psql' executable found in $PATH.  Make sure the PostgreSQL database server
 and its client utilities are installed.  In Debian/Ubuntu, the packages you need
 to install are 'postgresql' and 'postgresql-client'.
 """
-            if not aptget_approved and install("postgresql", "postgresql-client"):
+            if not aptget_approved and install_packages(arguments, "postgresql", "postgresql-client"):
                 psql = find_executable("psql")
             if not psql: success = False
 
@@ -157,7 +157,7 @@ Unsupported PostgreSQL version!  Critic requires PostgreSQL 9.1.x or later.
 
     apache2ctl = find_executable("apache2ctl")
     if not apache2ctl:
-        if aptget_approved and install("apache2"):
+        if aptget_approved and install_packages(arguments, "apache2"):
             apache2ctl = find_executable("apache2ctl")
         if not apache2ctl:
             blankline()
@@ -166,13 +166,13 @@ Unsupported PostgreSQL version!  Critic requires PostgreSQL 9.1.x or later.
 No 'apache2ctl' executable found in $PATH.  Make sure the Apache web server is
 installed.  In Debian/Ubuntu, the package you need to install is 'apache2'.
 """
-            if not aptget_approved and install("apache2"):
+            if not aptget_approved and install_packages(arguments, "apache2"):
                 apache2ctl = find_executable("apache2ctl")
             if not apache2ctl: success = False
 
     a2enmod = find_executable("a2enmod")
     if not a2enmod:
-        if aptget_approved and install("apache2"):
+        if aptget_approved and install_packages(arguments, "apache2"):
             a2enmod = find_executable("a2enmod")
         if not a2enmod:
             blankline()
@@ -181,13 +181,13 @@ installed.  In Debian/Ubuntu, the package you need to install is 'apache2'.
 No 'a2enmod' executable found in $PATH.  Make sure the Apache web server is
 installed.  In Debian/Ubuntu, the package you need to install is 'apache2'.
 """
-            if not aptget_approved and install("apache2"):
+            if not aptget_approved and install_packages(arguments, "apache2"):
                 a2enmod = find_executable("a2enmod")
             if not a2enmod: success = False
 
     a2ensite = find_executable("a2ensite")
     if not a2ensite:
-        if aptget_approved and install("apache2"):
+        if aptget_approved and install_packages(arguments, "apache2"):
             a2ensite = find_executable("a2ensite")
         if not a2ensite:
             blankline()
@@ -196,13 +196,13 @@ installed.  In Debian/Ubuntu, the package you need to install is 'apache2'.
 No 'a2ensite' executable found in $PATH.  Make sure the Apache web server is
 installed.  In Debian/Ubuntu, the package you need to install is 'apache2'.
 """
-            if not aptget_approved and install("apache2"):
+            if not aptget_approved and install_packages(arguments, "apache2"):
                 a2ensite = find_executable("a2ensite")
             if not a2ensite: success = False
 
     a2dissite = find_executable("a2dissite")
     if not a2dissite:
-        if aptget_approved and install("apache2"):
+        if aptget_approved and install_packages(arguments, "apache2"):
             a2dissite = find_executable("a2dissite")
         if not a2dissite:
             blankline()
@@ -211,7 +211,7 @@ installed.  In Debian/Ubuntu, the package you need to install is 'apache2'.
 No 'a2dissite' executable found in $PATH.  Make sure the Apache web server is
 installed.  In Debian/Ubuntu, the package you need to install is 'apache2'.
 """
-            if not aptget_approved and install("apache2"):
+            if not aptget_approved and install_packages(arguments, "apache2"):
                 a2dissite = find_executable("a2dissite")
             if not a2dissite: success = False
 
@@ -231,7 +231,7 @@ abort this script now.
         mod_wsgi_available_path = os.path.join("/etc", "apache2", "mods-available", "wsgi.load")
         mod_wsgi_available = os.path.isfile(mod_wsgi_available_path)
         if not mod_wsgi_available:
-            if aptget_approved and install("libapache2-mod-wsgi"):
+            if aptget_approved and install_packages(arguments, "libapache2-mod-wsgi"):
                 mod_wsgi_available = os.path.isfile(mod_wsgi_available_path)
             if not mod_wsgi_available:
                 blankline()
@@ -243,7 +243,7 @@ it's installed.  In Debian/Ubuntu, the package you need to install is
 
   http://code.google.com/p/modwsgi/wiki/DownloadTheSoftware?tm=2
 """
-                if not aptget_approved and install("libapache2-mod-wsgi"):
+                if not aptget_approved and install_packages(arguments, "libapache2-mod-wsgi"):
                     mod_wsgi_available = os.path.isfile(mod_wsgi_available_path)
                 if not mod_wsgi_available: success = False
 
@@ -256,7 +256,7 @@ it's installed.  In Debian/Ubuntu, the package you need to install is
 
     check_psycopg2()
     if not psycopg2_available:
-        if aptget_approved and install("python-psycopg2"):
+        if aptget_approved and install_packages(arguments, "python-psycopg2"):
             check_psycopg2()
         if not psycopg2_available:
             blankline()
@@ -268,7 +268,7 @@ database from Python.  In Debian/Ubuntu, the module is provided by the
 
   http://www.initd.org/psycopg/download/
 """
-        if not aptget_approved and install("python-psycopg2"):
+        if not aptget_approved and install_packages(arguments, "python-psycopg2"):
             check_psycopg2()
         if not psycopg2_available:
             success = False
@@ -282,7 +282,7 @@ database from Python.  In Debian/Ubuntu, the module is provided by the
 
     check_pygments()
     if not pygments_available:
-        if aptget_approved and install("python-pygments"):
+        if aptget_approved and install_packages(arguments, "python-pygments"):
             check_pygments()
         if not pygments_available:
             blankline()
@@ -294,7 +294,7 @@ source code can be downloaded here:
 
   http://pygments.org/download/
 """
-        if not aptget_approved and install("python-pygments"):
+        if not aptget_approved and install_packages(arguments, "python-pygments"):
             check_pygments()
         if not pygments_available:
             success = False
@@ -338,7 +338,7 @@ source code can be downloaded here:
                 "Do you want to install the 'passlib' module?",
                 default=False)
         if install_passlib:
-            if install("python-passlib"):
+            if install_packages(arguments, "python-passlib"):
                 check_passlib()
                 if not passlib_available:
                     print """
@@ -356,7 +356,7 @@ so you might just need to restart this script."""
 
     check_requests()
     if not requests_available:
-        if aptget_approved and install("python-requests"):
+        if aptget_approved and install_packages(arguments, "python-requests"):
             check_requests()
         if not requests_available:
             blankline()
@@ -368,7 +368,7 @@ source code can be downloaded here:
 
   https://github.com/kennethreitz/requests
 """
-        if not aptget_approved and install("python-requests"):
+        if not aptget_approved and install_packages(arguments, "python-requests"):
             check_requests()
         if not requests_available:
             success = False

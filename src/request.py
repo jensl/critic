@@ -137,6 +137,9 @@ class Request:
     original_path -- same as 'path', unless the path is a short-hand for another
                      path, in which case 'path' is the resolved path
     query -- URI query component
+    original_query == same as 'query', unless the path is a short-hand for
+                      another path, in which case 'query' is typically extended
+                      with parameters derived from the short-hand path
 
     Primary methods:
 
@@ -179,6 +182,7 @@ class Request:
         self.path = environ.get("PATH_INFO", "").lstrip("/")
         self.original_path = self.path
         self.query = environ.get("QUERY_STRING", "")
+        self.original_query = self.query
         self.user = None
         self.cookies = {}
 

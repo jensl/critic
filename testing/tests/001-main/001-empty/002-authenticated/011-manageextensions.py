@@ -1,3 +1,8 @@
+# Only available if extension support has been enabled.  (The body of the
+# message is quite long, and particularly interesting to check here.)
+expected_message = testing.expect.message("Extension support not enabled", None)
+
 with frontend.signin():
-    # Only available if extension support has been enabled.
-    frontend.page("manageextensions", expected_http_status=404)
+    frontend.page(
+        "manageextensions",
+        expect={ "message": expected_message })

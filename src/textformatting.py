@@ -30,6 +30,7 @@ def renderFormatted(db, user, table, lines, toc=False, title_right=None):
              "configuration.base.SYSTEM_GROUP_NAME": configuration.base.SYSTEM_GROUP_NAME,
              "configuration.paths.CONFIG_DIR": configuration.paths.CONFIG_DIR,
              "configuration.paths.INSTALL_DIR": configuration.paths.INSTALL_DIR,
+             "configuration.paths.DATA_DIR": configuration.paths.DATA_DIR,
              "configuration.paths.GIT_DIR": configuration.paths.GIT_DIR }
 
     references = {}
@@ -132,7 +133,17 @@ def renderFormatted(db, user, table, lines, toc=False, title_right=None):
             for index, line in enumerate(lines):
                 if line.startswith("  http"):
                     lines[index] = "<a href='%s'>%s</a>" % (line.strip(), line.strip())
-            return translateLinks("\n".join(lines)).replace("--", "&mdash;")
+            text = translateLinks("\n".join(lines))
+
+            # Replace double dashes with &mdash;, but only if they are
+            # surrounded by either spaces or word characters on both sides.
+            #
+            # We don't want to translate the double dashes in a
+            # --command-line-argument used in the text.
+            text = re.sub(r"(^| )--( |$)", r"\1&mdash;\2", text, flags=re.MULTILINE)
+            text = re.sub(r"(\w)--(\w)", r"\1&mdash;\2", text)
+
+            return text
 
         if len(block) > 2 and re_h2.match(block[1]):
             if toc: toc.tr("h3").td().a(href="#" + textToId(block[0])).text(block[0])

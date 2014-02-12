@@ -33,6 +33,12 @@ created_system_user = False
 create_system_group = None
 created_system_group = False
 
+def fetch_uid_gid():
+    global uid, gid
+
+    uid = pwd.getpwnam(username).pw_uid
+    gid = grp.getgrnam(groupname).gr_gid
+
 def prepare(mode, arguments, data):
     global hostname, username, email, create_system_user
     global groupname, create_system_group
@@ -128,8 +134,7 @@ The system group '%s' doesn't exists.
         try: groupname = configuration.base.SYSTEM_GROUP_NAME
         except AttributeError: groupname = data["installation.system.groupname"]
 
-        uid = pwd.getpwnam(username).pw_uid
-        gid = grp.getgrnam(groupname).gr_gid
+        fetch_uid_gid()
 
     data["installation.system.hostname"] = hostname
     data["installation.system.username"] = username

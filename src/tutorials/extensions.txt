@@ -1,0 +1,269 @@
+Critic Extensions
+=================
+
+Creating an Extension
+---------------------
+
+To create a Critic extension, you log into the server running Critic using SSH,
+and create a directory named <code>CriticExtensions</code> in your home
+directory.  Under this directory, you create a sub-directory with the same name
+as your extension.  Under this directory, you create a file named
+<code>MANIFEST</code>.  You will also need to make sure the directory and all
+files under it are accessible to the system group
+  <code>%(configuration.base.SYSTEM_GROUP_NAME)s</code>,
+for instance by running these commands:
+
+| chmod a+x $HOME
+| chmod --recursive a+rX $HOME/CriticExtensions
+
+Once the <code>MANIFEST</code> file exists, Critic will consider this extension
+to exist, and it will show up on the extension management page.  Naturally, the
+contents of the <code>MANIFEST</code> file must follow certain rules, and if it
+doesn't, the extension management page will simply state that the extension has
+a broken manifest.  Extensions with broken manifests are only displayed to the
+author.
+
+  Hint: The red text that says the extension has a broken manifest is a link to
+  a page that shows what's wrong with the manifest.
+
+Critic extensions are written in ECMAScript, and executed by a standalone
+ECMAScript interpreter.  An ECMAScript API for accessing much of the data in
+Critic's database, as well as for performing operations such as raising issues
+and assigning changes to reviewers, is available to the extension script.  See
+the [extensions API tutorial][api-tutorial] for details on the API.
+
+[api-tutorial]: /tutorial?item=extensions-api
+
+Installing an Extension
+-----------------------
+
+Extensions won't run just because they are created; they need to be installed to
+become active.  To install an extension, a user simply goes to the [extension
+management page][manageextensions], selects a version of the extension to
+install, and clicks the "Install" button.  Alternatively, a system administrator
+can install an extension "universally", which activates the extension for all
+users.
+
+For an extension to have one or more "official" versions, the extension's
+directory should be a Git repository, and this repository should have one or
+more branches named "version/*".  For instance, to have a version named
+"stable", the repository should contain a branch named "version/stable".  When a
+user installs an official version of an extension, the commit currently
+referenced by the version's branch is checked out into a directory outside the
+author's home directory, and the extension is run from there instead.  If the
+branch changes, the user can update his installation of the extension via the
+[extension management page][manageextensions].  (This may be automated in the
+future.)
+
+In addition to official versions, every extension can be installed in "live"
+mode, which means that the extension runs directly from the extension's
+directory in the author's home directory.  This is typically the most convenient
+mode for the author of the extension to use while developing.  Regular users
+would typically be better off installing an official version, to avoid temporary
+breakage while the author is developing the extension.
+
+If the extension's directory isn't a Git repository, or if the repository has no
+branches named "version/*", only the "live" mode is available.
+
+[manageextensions]: /manageextensions
+
+The MANIFEST
+------------
+
+The format of the MANIFEST file is similar to that of a traditional INI file.
+Sections are started by "[heading]" lines and key-value pairs are specified by
+"key=value" lines.  In the MANIFEST file, the values are interpreted either as
+plain strings (no escapes, no line-breaks) or, if the value starts and ends with
+double quotes, as a JSON string literal (note: not a string containing an
+arbitrary JSON-formatted value.)
+
+The beginning of the file is an implicit top-level section (without header.)
+This section must specify two keys: "Author" and "Description".  "Author" can be
+specified multiple times to specify multiple authors.  Additionally, the key
+"Hidden", with the value "true" or "yes", can be used to hide the extension from
+other users; useful for extensions that are too unfinished to be of much
+interest to anyone but the author.
+
+Other sections in the MANIFEST file defines "roles" in which the extension
+executes.  At least one role must be defined for the MANIFEST file to be
+considered valid.  (If no roles are defined, the extension won't do anything, so
+that'd be rather pointless.)
+
+The manifest for a simple extension could look something like
+
+| Author = "Jens Lindstr\u00f6m"
+| Description = A simple extension.
+|
+| [Page simplified/r/*]
+| Description = Simplified review front-page: http://critic.example.com/simplified/r/1234
+| Script = main.js
+| Function = pageReviewFrontPage
+|
+| [ProcessCommits]
+| Description = Automatically process commits.
+| Script = main.js
+| Function = processCommits
+
+Roles
+-----
+
+Currently there are three supported roles: Page, Inject and ProcessCommits.
+Each role is defined with a separate section.  Every such section must specify
+three keys, "Description", "Script" and "Function".  The "Description" should
+simply describe what the extension does in this role; the "Script" is a path
+specifying the .js file to load (the path is relative the extension's directory)
+and "Function" is the name of the script function to call.
+
+Page
+----
+A "Page" role simply lets the extension handle URLs loaded from Critic.  It can
+either define new URLs, or override existing ones.  (Hint: If an extension
+overrides a built-in URL, and you want to access the built-in one, add "!/" to
+the beginning of the URL path to disable all extension URLs.)
+
+The section header for a page role is "[Page &lt;glob&gt;]" where &lt;glob&gt;
+is matched against the path of the URL.  The path has no leading slash, and does
+not contain the query path.  For instance, if the full URL is
+"http://host/a/b?d=e", then the string that the glob should match is "a/b".
+
+The script function specified for the role will be called with three arguments:
+
+1 A string containing the HTTP method ("GET" or "POST",)
+2 a string containing the path (what the glob was matched against) and
+3 an object representing the query part of the URL.
+
+The query object is null if no query part was present in the URL.  Otherwise, it
+has two properties: "raw", whose value is the query part as a string, completely
+uninterpreted (without a leading question mark,) and "params", whose value is an
+object with one property for every query parameter, whose values are the decoded
+values the parameters, or null if the parameter did not include a "=value" part.
+
+Example: the URL "http://host/path?foo=10&bar=hi%%20ho&damer" would produce the
+query object
+
+| {
+|   raw: "foo=10&bar=hi%%20ho&damer",
+|   params: {
+|     foo: "10",
+|     bar: "hi ho",
+|     damer: null
+|   }
+| }
+
+The script function generates the URL response by writing to stdout, using the
+built-in functions "write" and/or "writeln".  The first line of output must
+contain only an HTTP response code as a decimal number, typically "200".  The
+following lines define HTTP response headers, for instance "Content-Type:
+text/html".  (The content type defaults to "text/plain", and "; charset=utf-8"
+is appended to it automatically if no charset is specified.)  The response
+header list is terminated by writing an empty line.
+
+Everything after the first empty line is forwarded as-is to the client.
+
+If the script function returns without writing a single byte of output, the
+behavior is as if the page role hadn't existed in the first place.  For a custom
+URL, this means the request fails, since the URL isn't handled.  If the page
+role was invoked to override a built-in page, the built-in page is rendered
+instead, thus allowing a page role to conditionally override a built-in page.
+
+Additional static resources, such as images and external stylesheets or scripts,
+that are put in a sub-directory named "resources" are automatically available
+via the URL "/extension-resource/&lt;extension&gt;/&lt;path&gt;" (for users that
+have installed the extension.)  For instance, the URL
+%(configuration.URL)s/extension-resource/HelloWorld/hello.txt would return the
+file /home/&lt;author&gt;/CriticExtensions/HelloWorld/resources/hello.txt for users
+that have installed the extension named HelloWorld.
+
+Inject
+------
+An "Inject" role is similar to a "Page" role in form, but instead of handling
+the URL completely, it can issue simple commands to inject some content onto
+built-in pages.
+
+The section header for an inject role is "[Inject &lt;glob&gt;]" where
+&lt;glob&gt; is matched against the path of the URL, exactly like for a page
+role.  If the URL is not handled at all by Critic, or if it is one that doesn't
+produce an HTML document, the role will not be invoked.
+
+The script function specified for the role will be called with two arguments:
+
+1 A string containing the path (what the glob was matched against) and
+2 an object representing the query part of the URL.
+
+These arguments are the same as the arguments to the script function specified
+for a page role, except that the method argument is missing.  It's missing
+because the role can only be invoked on URLs loaded using the GET method, and
+thus wouldn't be very interesting.
+
+The script function injects content by writing lines to its standard output
+using the write() or writeln() functions.  Each line represents one injection.
+Each line must be on the format "&lt;command&gt; &lt;JSON&gt;".  The command is
+a simple keyword specifying the type of injection.  The parameters to the
+command is encoded as JSON and is different to different commands.
+
+Three commands are currently supported:
+
+? script
+= Injects <script src="url"></script> into the page's HEAD element.
+  It will be injected after all other scripts on the page.  The JSON encoded
+  value should be a string containing the URL.
+? stylesheet
+= Injects <link type="text/css" href="url"> into the page's HEAD element.
+  It will be injected after all other stylesheets on the page.  The JSON encoded
+  value should be a string containing the URL.
+? link
+= Controls the set of links in the page header ("Home", "Dashboard", "Branches"
+  et c.)  The JSON encoded value should be an array containing two elements, the
+  title of the link, and the URL it points to or null.  If the title matches one
+  of the built-in links (or, technically, one added by another extension whose
+  inject role was invoked first) the existing link's URL is changed, or the
+  existing link is removed, if the URL was specified as null.  Otherwise, if the
+  URL was not specified as null, a new link is added to the set of links.
+
+For example, to inject a custom script and a custom stylesheet, remove the
+built-in "Branches" link and add a link to http://www.opera.com/, the script
+function could write something like this:
+
+| script "/extension-resource/HelloWorld/custom.js"
+| stylesheet "/extension-resource/HelloWorld/custom.css"
+| link ["Branches", null]
+| link ["Opera.com", "http://www.opera.com/"]
+
+  Hint: If an inject role fails to execute when loading a page, an error message
+  is inserted into the loaded page as an HTML comment.  So if your injection
+  doesn't seem to happen, check if there are any HTML comments mentioning your
+  extension!
+
+ProcessCommits
+--------------
+A "ProcessCommits" role lets the extension process commits immediately when they
+are added to a review.  The extension can for instance do pattern-based
+detection of problems, and raise issues about them automatically.  A
+"ProcessCommits" role is invoked when a user that has installed the extension
+creates a review (via push or the web interface) or pushes additional commits to
+the review branch.  If the extension is universally installed, the role is
+invoked whenever any user creates a review or pushes additional commits to a
+review branch.
+
+A "ProcessCommits" role has no addition parameters in the MANIFEST; only the
+"Script" and "Function" keys are necessary (and, of course, the "Description".)
+
+The script function specified for the role will be called with three arguments:
+
+1 A [Review object][review] representing the review being modified,
+2 a [Changeset object][changeset] representing the collected changes being added
+  to the review and
+3 a [CommitSet object][commitset] containing the added commits.
+
+The changeset argument is null if it isn't possible to describe the added
+changes as a single diff.  This happens when the added commits include a merge
+with a different branch, in which case a simple diff would include all the
+merged in changes, even though those changes aren't added to the review.
+
+If the script function writes to its standard output, the written text will be
+shown to the user, either as output from the "git push" command, or in a dialog
+in the web interface.
+
+[review]: /tutorial?item=extensions-api#review
+[changeset]: /tutorial?item=extensions-api#changeset
+[commitset]: /tutorial?item=extensions-api#commitset

@@ -15,35 +15,38 @@
 # the License.
 
 import os
+import errno
 
 import configuration
-import dbutils
 
 from extensions import getExtensionPath, getExtensionInstallPath
 
 def get(req, db, user, path):
-    cursor = db.cursor()
-
     extension_name, resource_path = path.split("/", 1)
 
-    cursor.execute("""SELECT extensions.author, extensionversions.sha1
+    cursor = db.cursor()
+    cursor.execute("""SELECT users.name, extensionversions.sha1
                         FROM extensions
-                        JOIN extensionversions ON (extensionversions.extension=extensions.id)
-                        JOIN extensionroles ON (extensionroles.version=extensionversions.id)
+                        JOIN extensioninstalls ON (extensioninstalls.extension=extensions.id)
+             LEFT OUTER JOIN extensionversions ON (extensionversions.id=extensioninstalls.version)
+             LEFT OUTER JOIN users ON (users.id=extensions.author)
                        WHERE extensions.name=%s
-                         AND extensionroles.uid=%s
-                       LIMIT 1""", (extension_name, user.id))
+                         AND (extensioninstalls.uid=%s OR extensioninstalls.uid IS NULL)
+                    ORDER BY extensioninstalls.uid ASC NULLS LAST
+                       LIMIT 1""",
+                   (extension_name, user.id))
 
     row = cursor.fetchone()
-    if not row: return None, None
 
-    author_id, sha1 = row
+    if not row:
+        return None, None
 
-    if sha1 is None:
-        author = dbutils.User.fromId(db, author_id)
-        extension_path = getExtensionPath(author.name, extension_name)
+    author_name, version_sha1 = row
+
+    if version_sha1 is None:
+        extension_path = getExtensionPath(author_name, extension_name)
     else:
-        extension_path = getExtensionInstallPath(sha1)
+        extension_path = getExtensionInstallPath(version_sha1)
 
     resource_path = os.path.join(extension_path, "resources", resource_path)
 
@@ -54,7 +57,12 @@ def get(req, db, user, path):
         except:
             return "application/octet-stream"
 
-    if os.path.isfile(resource_path) and os.access(resource_path, os.R_OK):
-        return guessContentType(resource_path), open(resource_path).read()
+    try:
+        with open(resource_path) as resource_file:
+            resource = resource_file.read()
+    except IOError as error:
+        if error.errno in (errno.ENOENT, errno.EACCES):
+            return None, None
+        raise
     else:
-        return None, None
+        return guessContentType(resource_path), resource

@@ -16,51 +16,107 @@
 
 */
 
-/* -*- mode: js; indent-tabs-mode: nil -*- */
-
-function installExtension(author_name, extension_name, version)
+function installExtension(author_name, extension_name, version, universal)
 {
-  $("button").each(function (index, button) { button.disabled = true; });
+  $("button").prop("disabled", true);
+
+  var data = { extension_name: extension_name,
+               version: version,
+               universal: Boolean(universal) };
+
+  if (author_name)
+    data.author_name = author_name;
 
   var operation = new Operation({ action: "install extension",
                                   url: "installextension",
-                                  data: { author_name: author_name,
-                                          extension_name: extension_name,
-                                          version: version }});
+                                  data: data });
   var result = operation.execute();
 
   if (result)
-    showMessage("Extension installed!", extension_name + " installed!", "The extension was installed successfully.", function () { location.reload(); });
+    showMessage("Extension installed!",
+                extension_name + " installed!",
+                "The extension was installed successfully.",
+                function () { location.reload(); });
 }
 
-function uninstallExtension(author_name, extension_name)
+function uninstallExtension(author_name, extension_name, universal)
 {
-  $("button").each(function (index, button) { button.disabled = true; });
+  $("button").prop("disabled", true);
+
+  var data = { extension_name: extension_name,
+               universal: Boolean(universal) };
+
+  if (author_name)
+    data.author_name = author_name;
 
   var operation = new Operation({ action: "uninstall extension",
                                   url: "uninstallextension",
-                                  data: { author_name: author_name,
-                                          extension_name: extension_name }});
+                                  data: data });
   var result = operation.execute();
 
   if (result)
     location.reload();
 }
 
-function reinstallExtension(author_name, extension_name, version)
+function reinstallExtension(author_name, extension_name, version, universal)
 {
-  $("button").each(function (index, button) { button.disabled = true; });
+  $("button").prop("disabled", true);
 
+  var data = { extension_name: extension_name,
+               version: version,
+               universal: Boolean(universal) };
+
+  if (author_name)
+    data.author_name = author_name;
 
   var operation = new Operation({ action: "reinstall extension",
                                   url: "reinstallextension",
-                                  data: { author_name: author_name,
-                                          extension_name: extension_name,
-                                          version: version }});
+                                  data: data });
   var result = operation.execute();
 
   if (result)
     location.reload();
+}
+
+function clearExtensionStorage(author_name, extension_name)
+{
+  function clear()
+  {
+    var data = { extension_name: extension_name };
+
+    if (author_name)
+      data.author_name = author_name;
+
+    var operation = new Operation({ action: "clear extension storage",
+                                    url: "clearextensionstorage",
+                                    data: data });
+
+    if (operation.execute()) {
+      close();
+      location.reload();
+    }
+  }
+
+  function close()
+  {
+    dialog.dialog("close");
+  }
+
+  var dialog = $(
+    "<div title='Please confirm'>" +
+    "<p>Clearing an extension's storage deletes whatever state the extension " +
+    "has stored about your use of it since you first installed it.  The " +
+    "state can not be restored!</p><p><b>Are you sure?</b></p>" +
+    "</div>");
+
+  dialog.dialog({
+    width: 600,
+    modal: true,
+    buttons: {
+      "Clear storage": clear,
+      "Do nothing": close
+    }
+  });
 }
 
 $(function ()
@@ -72,7 +128,14 @@ $(function ()
         var select = $(ev.currentTarget);
         var previous = JSON.stringify(selected_versions);
         var value = select.val();
-        var key = select.attr("critic-author") + "/" + select.attr("critic-extension");
+        var author_name = select.attr("critic-author");
+        var extension_name = select.attr("critic-extension");
+        var key;
+
+        if (author_name)
+          key = author_name + "/" + extension_name;
+        else
+          key = extension_name;
 
         if (!value)
           delete selected_version[key];

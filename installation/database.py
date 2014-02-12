@@ -27,12 +27,15 @@ user_created = False
 database_created = False
 language_created = False
 
-def psql_import(sql_file):
+def psql_import(sql_file, as_user=None):
+    if as_user is None:
+        as_user = installation.system.username
     temp_file = tempfile.mkstemp()[1]
-    shutil.copy(sql_file, temp_file)
+    shutil.copy(os.path.join(installation.root_dir, sql_file), temp_file)
     # Make sure file is readable by postgres user
     os.chmod(temp_file, 0644)
-    subprocess.check_output(["su", "-s", "/bin/sh", "-c", "psql -v ON_ERROR_STOP=1 -f %s" % temp_file, installation.system.username])
+    subprocess.check_output(
+        ["su", "-s", "/bin/sh", "-c", "psql -v ON_ERROR_STOP=1 -f %s" % temp_file, as_user])
     os.unlink(temp_file)
 
 def add_arguments(mode, parser):
@@ -125,12 +128,11 @@ def install(data):
 
         subprocess.check_output(["su", "-c", "psql -v ON_ERROR_STOP=1 -c 'GRANT ALL ON DATABASE \"critic\" TO \"%s\";'" % installation.system.username, "postgres"])
 
-        data_dir = os.path.join(installation.root_dir, "installation/data")
-
-        psql_import(os.path.join(data_dir, "dbschema.sql"))
-        psql_import(os.path.join(data_dir, "dbschema.comments.sql"))
-        psql_import(os.path.join(data_dir, "comments.pgsql"))
-        psql_import(os.path.join(data_dir, "roles.sql"))
+        psql_import("installation/data/dbschema.sql")
+        psql_import("installation/data/dbschema.comments.sql")
+        psql_import("installation/data/dbschema.extensions.sql")
+        psql_import("installation/data/comments.pgsql")
+        psql_import("installation/data/roles.sql")
 
         import psycopg2
 

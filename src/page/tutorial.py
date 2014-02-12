@@ -110,11 +110,9 @@ def renderTutorial(req, db, user):
               "administration": "administration",
               "customization": "customization",
               "search": "search",
-              "external-authentication": "external-authentication" }
-
-    if configuration.extensions.ENABLED:
-        items.update({ "extensions": "extensions",
-                       "extensions-api": "extensions-api" })
+              "external-authentication": "external-authentication",
+              "extensions": "extensions",
+              "extensions-api": "extensions-api" }
 
     if item in items:
         renderFromFile(db, user, target, items[item])
