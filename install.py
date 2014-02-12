@@ -43,7 +43,6 @@ ERROR: Please run this script without -O or -OO options.
 # To avoid accidentally creating files owned by root.
 sys.dont_write_bytecode = True
 
-import json
 import argparse
 import installation
 
@@ -171,20 +170,15 @@ Please commit or stash the changes and then try again.
             traceback.print_exc()
             abort()
 
-    install_data_path = os.path.join(installation.paths.install_dir, ".install.data")
-    with open(install_data_path, "w") as install_data_file:
-        json.dump(data, install_data_file)
-    # May contain SMTP password etc.
-    os.chmod(install_data_path, 0600)
-
     for module in installation.modules:
         try:
             if hasattr(module, "finish"):
-                module.finish()
+                module.finish("install", arguments, data)
         except:
             print >>sys.stderr, "WARNING: %s.finish() failed" % module.__name__
             traceback.print_exc()
 
+    installation.utils.write_install_data(arguments, data)
     installation.utils.clean_root_pyc_files()
 
     print

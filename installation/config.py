@@ -102,6 +102,12 @@ class Provider(object):
         data[base + "redirect_uri"] = self.redirect_uri
         data[base + "bypass_createuser"] = self.bypass_createuser
 
+    def scrub(self, data):
+        base = "installation.config.provider_%s." % self.name
+
+        del data[base + "client_id"]
+        del data[base + "client_secret"]
+
 providers = []
 default_provider_names = ["github", "google"]
 
@@ -695,5 +701,8 @@ def undo():
 
     for target, backup in renamed: os.rename(backup, target)
 
-def finish():
+def finish(mode, arguments, data):
     for target, backup in renamed: os.unlink(backup)
+
+    for provider in providers:
+        provider.scrub(data)

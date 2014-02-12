@@ -138,5 +138,5 @@ def undo():
     if rclinks_added:
         subprocess.check_call(["update-rc.d", "critic-main", "remove"])
 
-def finish():
+def finish(mode, arguments, data):
     for target, backup in renamed: os.unlink(backup)

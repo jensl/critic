@@ -230,3 +230,4 @@ Please check the configuration!
         use_starttls = data["installation.smtp.use_starttls"]
 
     return True
+

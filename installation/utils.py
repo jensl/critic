@@ -15,12 +15,14 @@
 # the License.
 
 import os
+import sys
 import textwrap
 import subprocess
 import tempfile
 import datetime
 import hashlib
 import contextlib
+import json
 
 import installation
 
@@ -264,3 +266,70 @@ def as_effective_user_from_path(path):
     finally:
         os.seteuid(os.getresuid()[0])
         os.setegid(os.getresgid()[0])
+
+def deunicode(v):
+    if type(v) == unicode: return v.encode("utf-8")
+    elif type(v) == list: return map(deunicode, v)
+    elif type(v) == dict: return dict([(deunicode(a), deunicode(b)) for a, b in v.items()])
+    else: return v
+
+def read_install_data(arguments, fail_softly=False):
+    etc_path = os.path.join(arguments.etc_dir, arguments.identity)
+
+    if not os.path.isdir(etc_path):
+        if fail_softly:
+            return None
+        print """
+ERROR: %s: no such directory
+HINT: Make sure the --etc-dir[=%s] and --identity[=%s] options
+      correctly define where the installed system's configuration is stored.""" % (etc_path, arguments.etc_dir, arguments.identity)
+        sys.exit(1)
+
+    sys.path.insert(0, etc_path)
+
+    try:
+        import configuration
+    except ImportError:
+        if fail_softly:
+            return None
+        print """
+ERROR: Failed to import 'configuration' module.
+HINT: Make sure the --etc-dir[=%s] and --identity[=%s] options
+      correctly define where the installed system's configuration is stored.""" % (arguments.etc_dir, arguments.identity)
+        sys.exit(1)
+
+    install_data_path = os.path.join(configuration.paths.INSTALL_DIR, ".install.data")
+
+    if not os.path.isfile(install_data_path):
+        if fail_softly:
+            return None
+        print """\
+%s: no such file
+
+This installation of Critic appears to be incomplete or corrupt.""" % install_data_path
+        sys.exit(1)
+
+    try:
+        with open(install_data_path, "r") as install_data_file:
+            install_data = deunicode(json.load(install_data_file))
+            if not isinstance(install_data, dict): raise ValueError
+    except ValueError:
+        if fail_softly:
+            return None
+        print """\
+%s: failed to parse JSON object to dictionary
+
+This installation of Critic appears to be incomplete or corrupt.""" % install_data_path
+        sys.exit(1)
+
+    return install_data
+
+def write_install_data(arguments, install_data):
+    install_data_path = os.path.join(installation.paths.install_dir, ".install.data")
+
+    if not getattr(arguments, "dry_run", False):
+        with open(install_data_path, "w") as install_data_file:
+            json.dump(install_data, install_data_file)
+
+        os.chown(install_data_path, installation.system.uid, installation.system.gid)
+        os.chmod(install_data_path, 0640)

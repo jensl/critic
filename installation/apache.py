@@ -184,5 +184,5 @@ def undo():
 
     for target, backup in renamed: os.rename(backup, target)
 
-def finish():
+def finish(mode, arguments, data):
     for target, backup in renamed: os.unlink(backup)
