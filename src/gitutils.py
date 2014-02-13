@@ -878,6 +878,7 @@ class Commit:
         self.committer = committer
         self.message = message
         self.tree = tree
+        self.__treeCache = {}
 
     def __cache(self, db):
         cache = db.storage["Commit"]
@@ -1008,8 +1009,14 @@ class Commit:
         else:
             return mergebase_sha1 == self.sha1
 
+    def getTree(self, path):
+        path = "/" + path.lstrip("/")
+        if path not in self.__treeCache:
+            self.__treeCache[path] = Tree.fromPath(self, path)
+        return self.__treeCache[path]
+
     def getFileEntry(self, path):
-        tree = Tree.fromPath(self, "/" + os.path.dirname(path).lstrip("/"))
+        tree = self.getTree(os.path.dirname(path))
         if tree is None:
             return None
         return tree.get(os.path.basename(path))
@@ -1021,7 +1028,7 @@ class Commit:
         return entry.sha1
 
     def isDirectory(self, path):
-        return Tree.fromPath(self, "/" + path.lstrip("/")) is not None
+        return self.getTree(path) is not None
 
 RE_LSTREE_LINE = re.compile(
     "(?P<mode>[0-9]{6}) (?P<type>blob|tree|commit) (?P<sha1>[0-9a-f]{40}) +"
