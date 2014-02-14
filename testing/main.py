@@ -21,6 +21,8 @@ import logging
 import re
 import subprocess
 import traceback
+import time
+import datetime
 
 import testing
 
@@ -358,6 +360,7 @@ def main():
         else:
             return True
 
+    start_time = time.time()
     for group_name in sorted(os.listdir("testing/tests")):
         if not re.match("\d{3}-", group_name):
             continue
@@ -386,17 +389,20 @@ def main():
 
                 mailbox.check_empty()
 
+    time_taken = str(datetime.timedelta(seconds=round(time.time() - start_time)))
     logger.info("""
 Test summary
 ============
-Tests run:       %3d
-Tests failed:    %3d
-Errors logged:   %3d
-Warnings logged: %3d
+Tests run:       %9d
+Tests failed:    %9d
+Errors logged:   %9d
+Warnings logged: %9d
+Time taken:      %9s
 """ % (counters.tests_run,
        counters.tests_failed,
        counters.errors_logged,
-       counters.warnings_logged))
+       counters.warnings_logged,
+       time_taken))
 
 if __name__ == "__main__":
     main()
