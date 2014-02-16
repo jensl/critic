@@ -26,6 +26,9 @@ import json
 def call(context, fn, *args, **kwargs):
     import configuration
 
+    if not configuration.debug.COVERAGE_DIR:
+        return fn(*args, **kwargs)
+
     context_dir = os.path.join(configuration.debug.COVERAGE_DIR, context)
 
     try:

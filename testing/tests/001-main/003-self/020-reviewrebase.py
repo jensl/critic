@@ -278,21 +278,6 @@ with work, settings, signin:
                commits[2],
                commits[1],
                commits[0]])
-    revertrebase()
-    expectlog(["history rewritten",
-               "rebased onto " + base_commits[1]["sha1"],
-               commits[2],
-               commits[1],
-               commits[0]])
-    revertrebase()
-    expectlog(["rebased onto " + base_commits[1]["sha1"],
-               commits[2],
-               commits[1],
-               commits[0]])
-    revertrebase()
-    expectlog([commits[2],
-               commits[1],
-               commits[0]])
 
     # TEST #3: Like test #2, but the base commits have changes that trigger
     # "conflicts" and thus equivalent merge commits.
@@ -369,11 +354,6 @@ with work, settings, signin:
                commits[2],
                commits[1],
                commits[0]])
-    revertrebase()
-    expectlog([commits[3],
-               commits[2],
-               commits[1],
-               commits[0]])
 
     # TEST #5: First, set up two different commits that we'll be basing our
     # review branch on.  Then create a review with three commits, then history
@@ -396,6 +376,31 @@ with work, settings, signin:
                commits[0]])
     work.run(["reset", "--hard", base_commits[0]["sha1"]])
     commits.append(commit("Test #5, commit 4", write, 4))
+    moverebase(base_commits[0], commits[-1])
+    expectlog(["rebased onto " + base_commits[0]["sha1"],
+               "history rewritten",
+               commits[2],
+               commits[1],
+               commits[0]])
+
+    # TEST #6: Like test #5, but we revert the rebases afterwards.
+
+    work.run(["checkout", "-b", "020-reviewrebase-6-base", start_sha1])
+    base_commits = [commit("Test #6 base, commit 1", write, filename=FILENAME_BASE),
+                    commit("Test #6 base, commit 2", write, 0, filename=FILENAME_BASE)]
+    work.run(["push", "critic", "020-reviewrebase-6-base"])
+    work.run(["checkout", "-b", "020-reviewrebase-6", base_commits[1]["sha1"]])
+    commits = [commit("Test #6, commit 1", write, 4),
+               commit("Test #6, commit 2", write, 4, 5),
+               commit("Test #6, commit 3", write, 4)]
+    createreview(commits)
+    historyrewrite(commits[0])
+    expectlog(["history rewritten",
+               commits[2],
+               commits[1],
+               commits[0]])
+    work.run(["reset", "--hard", base_commits[0]["sha1"]])
+    commits.append(commit("Test #6, commit 4", write, 4))
     moverebase(base_commits[0], commits[-1])
     expectlog(["rebased onto " + base_commits[0]["sha1"],
                "history rewritten",
