@@ -27,6 +27,7 @@ import traceback
 import signal
 import fcntl
 import time
+import datetime
 
 import configuration
 from textutils import json_encode, json_decode, indent
@@ -134,36 +135,50 @@ class BackgroundProcess(object):
         self.__logger.error(message + "\n" + indent(backtrace))
 
     def register_maintenance(self, hour, minute, callback):
-        now = time.localtime()
-        since_last = (now[3] * 3600 + now[4] * 60) - (hour * 3600 + minute * 60)
-        if since_last < 0: since_last += 86400
-        self.__maintenance_hooks.append([hour, minute, callback, time.time() - since_last])
+        self.__maintenance_hooks.append(
+            [hour, minute, callback, datetime.datetime.now()])
 
     def run_maintenance(self):
         if self.__maintenance_hooks:
-            now = time.localtime()
-            timeout = 86400
+            sleep_seconds = 86400
 
             for hook in self.__maintenance_hooks:
                 hour, minute, callback, last = hook
-                since_last = time.time() - last
+                now = datetime.datetime.now()
 
                 if hour is None:
-                    if since_last > 59 * 60 and now[4] >= minute:
-                        self.debug("performing hourly maintenance task")
-                        callback()
-                        hook[3] = time.time()
-                    else:
-                        timeout = min(timeout, max(3600 - since_last - 60, 1))
+                    scheduled_at = datetime.time(now.hour, minute)
+                    interval = datetime.timedelta(seconds=3600)
+                    interval_type = "hourly"
                 else:
-                    if since_last > 23 * 60 * 60 and now[3] >= hour and now[4] >= minute:
-                        self.debug("performing daily maintenance task")
-                        callback()
-                        hook[3] = time.time()
-                    else:
-                        timeout = min(timeout, max(86400 - since_last - 3600, 60))
+                    scheduled_at = datetime.time(hour, minute)
+                    interval = datetime.timedelta(days=1)
+                    interval_type = "daily"
 
-            return timeout
+                scheduled_at = datetime.datetime.combine(datetime.date.today(),
+                                                         scheduled_at)
+
+                while scheduled_at <= last:
+                    # We already ran the callback this hour/day.
+                    scheduled_at += interval
+
+                if scheduled_at <= now:
+                    self.debug("performing %s maintenance task" % interval_type)
+                    callback()
+                    hook[3] = scheduled_at
+                    scheduled_at += interval
+
+                now = datetime.datetime.now()
+                seconds_remaining = (scheduled_at - now).total_seconds()
+
+                # Wait at least 60 seconds, even if that would make us over-
+                # shoot the deadline slightly.  Maintenance tasks are not really
+                # that sensitive.
+                seconds_remaining = max(seconds_remaining, 60)
+
+                sleep_seconds = min(sleep_seconds, seconds_remaining)
+
+            return sleep_seconds
 
     def run(self):
         while not self.terminated:
