@@ -344,6 +344,7 @@ first or run this script without --test-extensions.""")
                     logger.info("Running: %s%s" % (path, mode))
                     counters.tests_run += 1
                     try:
+                        errors_before = counters.errors_logged
                         execfile(os.path.join("testing/tests", path),
                                  { "testing": testing,
                                    "logger": logger,
@@ -351,6 +352,8 @@ first or run this script without --test-extensions.""")
                                    "frontend": frontend,
                                    "repository": repository,
                                    "mailbox": mailbox })
+                        if errors_before < counters.errors_logged:
+                            raise testing.TestFailure
                     except testing.TestFailure as failure:
                         counters.tests_failed += 1
                         if failure.message:
