@@ -14,6 +14,8 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
+import os
+
 class Error(Exception):
     pass
 
@@ -29,11 +31,32 @@ class NotSupported(Error):
     """Error raised when a test (and its dependencies) are unsupported."""
     pass
 
+class Instance(object):
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        return False
+
+    def translateUnittestPath(self, module):
+        path = module.split(".")
+        if path[0] == "api":
+            # API unittests are under api/impl/.
+            path.insert(1, "impl")
+        path = os.path.join(*path)
+        if os.path.isdir(os.path.join("src", path)):
+            path = os.path.join(path, "unittest.py")
+        else:
+            path += "_unittest.py"
+        return path
+
+import local
 import virtualbox
 import frontend
 import expect
 import repository
 import mailbox
+import findtests
 
 logger = None
 

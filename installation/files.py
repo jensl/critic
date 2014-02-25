@@ -55,6 +55,12 @@ def copyfile(source, destination):
     else:
         shutil.copyfile(source, destination)
 
+def skip(path):
+    filename = os.path.basename(path)
+    if filename == "unittest.py" or filename.endswith("_unittest.py"):
+        return not installation.config.is_testing
+    return False
+
 def install(data):
     source_dir = os.path.join(installation.root_dir, "src")
     target_dir = installation.paths.install_dir
@@ -91,6 +97,9 @@ def install(data):
     def process(path=""):
         for entry in os.listdir(os.path.join(source_dir, path)):
             name = os.path.join(path, entry)
+
+            if skip(name):
+                continue
 
             if copy(name):
                 process(name)
@@ -209,7 +218,7 @@ Not removing the file can cause unpredictable results.
         backup_path = os.path.join(os.path.dirname(full_target_path),
                                    "_" + os.path.basename(target_path))
 
-        if not os.path.isfile(full_source_path):
+        if skip(new_source_path) or not os.path.isfile(full_source_path):
             remove(old_source_path, target_path)
             return
 

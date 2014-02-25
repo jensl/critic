@@ -72,7 +72,7 @@ class GuestCommandError(testing.InstanceError):
         self.stdout = stdout
         self.stderr = stderr
 
-class Instance(object):
+class Instance(testing.Instance):
     def __init__(self, arguments, install_commit=None, upgrade_commit=None,
                  frontend=None):
         self.arguments = arguments
@@ -229,7 +229,7 @@ class Instance(object):
         self.__vmcommand("snapshot", "edit", temporary_name, "--name", name)
 
     def execute(self, argv, cwd=None, timeout=None, interactive=False,
-                as_user=None):
+                as_user=None, log_stdout=True, log_stderr=True):
         guest_argv = list(argv)
         if cwd is not None:
             guest_argv[:0] = ["cd", cwd, "&&"]
@@ -308,7 +308,8 @@ class Instance(object):
                         break
                     else:
                         stdout_data += line
-                        testing.logger.log(testing.STDOUT, line.rstrip("\n"))
+                        if log_stdout:
+                            testing.logger.log(testing.STDOUT, line.rstrip("\n"))
 
                 while not stderr_done:
                     line = stderr_reader.readline()
@@ -320,7 +321,8 @@ class Instance(object):
                         break
                     else:
                         stderr_data += line
-                        testing.logger.log(testing.STDERR, line.rstrip("\n"))
+                        if log_stderr:
+                            testing.logger.log(testing.STDERR, line.rstrip("\n"))
 
         process.wait()
 
@@ -713,3 +715,21 @@ class Instance(object):
         # directory we installed from.
         self.execute(["chmod", "-R", "a+r", "critic"])
         self.execute(["rm", "-r", "critic"])
+
+    def unittest(self, module, tests, args=None):
+        testing.logger.info("Running unit tests: %s (%s)"
+                            % (module, ",".join(tests)))
+        path = self.translateUnittestPath(module)
+        if not args:
+            args = []
+        for test in tests:
+            try:
+                self.execute(["cd", "/usr/share/critic", "&&",
+                              "sudo", "-H", "-u", "critic",
+                              "PYTHONPATH=/etc/critic/main:/usr/share/critic",
+                              "python", path, test] + args,
+                             log_stderr=False)
+            except GuestCommandError as error:
+                output = "\n  ".join(error.stderr.splitlines())
+                testing.logger.error("Unit tests failed: %s: %s\nOutput:\n  %s"
+                                     % (module, test, output))

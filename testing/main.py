@@ -26,7 +26,19 @@ import datetime
 
 import testing
 
-def main():
+class Counters:
+    def __init__(self):
+        self.tests_run = 0
+        self.tests_failed = 0
+        self.errors_logged = 0
+        self.warnings_logged = 0
+
+counters = Counters()
+logger = None
+
+def run():
+    global logger
+
     parser = argparse.ArgumentParser(description="Critic testing framework")
 
     parser.add_argument("--debug", action="store_true",
@@ -38,7 +50,7 @@ def main():
 
     parser.add_argument("--coverage", action="store_true",
                         help="Enable coverage measurement mode")
-    parser.add_argument("--commit", default="HEAD",
+    parser.add_argument("--commit",
                         help="Commit (symbolic ref or SHA-1) to test [default=HEAD]")
     parser.add_argument("--upgrade-from",
                         help="Commit (symbolic ref or SHA-1) to install first and upgrade from")
@@ -47,9 +59,12 @@ def main():
     parser.add_argument("--test-extensions", action="store_true",
                         help="Test extensions")
 
+    parser.add_argument("--local", action="store_true",
+                        help="Run local standalone tests only")
+
     parser.add_argument("--vbox-host", default="host",
                         help="Host that's running VirtualBox [default=host]")
-    parser.add_argument("--vm-identifier", required=True,
+    parser.add_argument("--vm-identifier",
                         help="VirtualBox instance name or UUID")
     parser.add_argument("--vm-hostname",
                         help="VirtualBox instance hostname [default=VM_IDENTIFIER")
@@ -81,15 +96,6 @@ def main():
 
     arguments = parser.parse_args()
 
-    class Counters:
-        def __init__(self):
-            self.tests_run = 0
-            self.tests_failed = 0
-            self.errors_logged = 0
-            self.warnings_logged = 0
-
-    counters = Counters()
-
     class CountingLogger(object):
         def __init__(self, real, counters):
             self.real = real
@@ -115,7 +121,38 @@ def main():
 
     logger = testing.configureLogging(
         arguments, wrap=lambda logger: CountingLogger(logger, counters))
-    logger.info("Critic Testing Framework")
+    logger.info("""\
+Critic Testing Framework
+========================
+
+""")
+
+    if not arguments.local and not arguments.vm_identifier:
+        logger.error("Must specify one of --local and --vm-identifier!")
+        return
+
+    if arguments.local:
+        incompatible_arguments = []
+
+        # This is not a complete list; just those that are most significantly
+        # incompatible or irrelevant with --local.
+        if arguments.commit:
+            incompatible_arguments.append("--commit")
+        if arguments.upgrade_from:
+            incompatible_arguments.append("--upgrade-from")
+        if arguments.coverage:
+            incompatible_arguments.append("--coverage")
+        if arguments.test_extensions:
+            incompatible_arguments.append("--strict-fs-permissions")
+        if arguments.test_extensions:
+            incompatible_arguments.append("--test-extensions")
+        if arguments.vm_identifier:
+            incompatible_arguments.append("--vm-identifier")
+
+        if incompatible_arguments:
+            logger.error("These arguments can't be combined with --local:\n  " +
+                         "\n  ".join(incompatible_arguments))
+            return
 
     import_errors = False
 
@@ -160,44 +197,49 @@ The v8-jsshell submodule must be checked for extension testing.  Please run
 first or run this script without --test-extensions.""")
             return
 
-    # Note: we are not ignoring typical temporary editor files such as the
-    # ".#<name>" files created by Emacs when a buffer has unsaved changes.  This
-    # is because unsaved changes in an editor is probably also something you
-    # don't want to test with.
+    if not arguments.local:
+        # Note: we are not ignoring typical temporary editor files such as the
+        # ".#<name>" files created by Emacs when a buffer has unsaved changes.
+        # This is because unsaved changes in an editor is probably also
+        # something you don't want to test with.
 
-    locally_modified_paths = []
+        locally_modified_paths = []
 
-    status_output = subprocess.check_output(
-        ["git", "status", "--porcelain"])
+        status_output = subprocess.check_output(
+            ["git", "status", "--porcelain"])
 
-    for line in status_output.splitlines():
-        locally_modified_paths.extend(line[3:].split(" -> "))
+        for line in status_output.splitlines():
+            locally_modified_paths.extend(line[3:].split(" -> "))
 
-    tests_modified = []
-    input_modified = []
-    other_modified = []
+        tests_modified = []
+        input_modified = []
+        other_modified = []
 
-    for path in locally_modified_paths:
-        if path.startswith("testing/input/"):
-            input_modified.append(path)
-        elif path.startswith("testing/"):
-            tests_modified.append(path)
-        else:
-            other_modified.append(path)
+        for path in locally_modified_paths:
+            if path.startswith("testing/input/"):
+                input_modified.append(path)
+            elif path.startswith("testing/"):
+                tests_modified.append(path)
+            else:
+                other_modified.append(path)
 
-    if input_modified:
-        logger.error("Test input files locally modified:\n  " + "\n  ".join(input_modified))
-    if other_modified:
-        logger.error("Critic files locally modified:\n  " + "\n  ".join(other_modified))
-    if input_modified or other_modified:
-        logger.error("Please commit or stash local modifications before running tests.")
-        return
+        if input_modified:
+            logger.error("Test input files locally modified:\n  " +
+                         "\n  ".join(input_modified))
+        if other_modified:
+            logger.error("Critic files locally modified:\n  " +
+                         "\n  ".join(other_modified))
+        if input_modified or other_modified:
+            logger.error("Please commit or stash local modifications before "
+                         "running tests.")
+            return
 
-    if tests_modified:
-        logger.warning("Running tests using locally modified files:\n  " + "\n  ".join(tests_modified))
+        if tests_modified:
+            logger.warning("Running tests using locally modified files:\n  " +
+                           "\n  ".join(tests_modified))
 
     tested_commit = subprocess.check_output(
-        ["git", "rev-parse", "--verify", arguments.commit]).strip()
+        ["git", "rev-parse", "--verify", arguments.commit or "HEAD"]).strip()
 
     if arguments.upgrade_from:
         install_commit = subprocess.check_output(
@@ -216,71 +258,34 @@ first or run this script without --test-extensions.""")
     else:
         upgrade_commit_description = None
 
-    try:
-        frontend = testing.frontend.Frontend(
-            hostname=arguments.vm_hostname or arguments.vm_identifier,
-            http_port=arguments.vm_http_port)
+    flags_on = set()
+    flags_off = set()
 
-        instance = testing.virtualbox.Instance(
-            arguments,
-            install_commit=(install_commit, install_commit_description),
-            upgrade_commit=(upgrade_commit, upgrade_commit_description),
-            frontend=frontend)
+    try:
+        if arguments.local:
+            frontend = None
+            instance = testing.local.Instance()
+            flags_on.add("local")
+        else:
+            frontend = testing.frontend.Frontend(
+                hostname=arguments.vm_hostname or arguments.vm_identifier,
+                http_port=arguments.vm_http_port)
+
+            instance = testing.virtualbox.Instance(
+                arguments,
+                install_commit=(install_commit, install_commit_description),
+                upgrade_commit=(upgrade_commit, upgrade_commit_description),
+                frontend=frontend)
     except testing.Error as error:
         logger.error(error.message)
         return
 
-    if arguments.test:
-        tests = set(test.strip("/") for test in arguments.test)
-        groups = {}
+    tests, dependencies = testing.findtests.selectTests(
+        arguments.test, strict=False, flags_on=flags_on, flags_off=flags_off)
 
-        for test in sorted(tests):
-            components = test.split("/")
-            if test.endswith(".py"):
-                del components[-1]
-            else:
-                test += "/"
-            for index in range(len(components)):
-                groups.setdefault("/".join(components[:index + 1]), set()).add(test)
-
-        def directory_enabled(path):
-            if path in groups:
-                # Directory (or sub-directory of or file in it) was directly named.
-                return True
-            # Check if an ancestor directory was directly name:
-            directory = path.rpartition("/")[0]
-            while directory:
-                if directory in groups and directory + "/" in groups[directory]:
-                    return True
-                directory = directory.rpartition("/")[0]
-            return False
-
-        def file_enabled(path):
-            if path in tests:
-                # File was directly named.
-                return True
-            directory, _, name = path.rpartition("/")
-            if directory in groups:
-                # Loop over all enabled items in the same directory as 'path':
-                for item in groups[directory]:
-                    if item != directory:
-                        local, slash, _ = item[len(directory + "/"):].partition("/")
-                        if local > name and (slash or "/" not in directory):
-                            # A file in a later sub-directory is enabled; this
-                            # means 'path' is a dependency of the other file.
-                            return "dependency"
-            # Check if the file's directory or an ancestor directory thereof was
-            # directly name:
-            while directory:
-                if directory in groups and directory + "/" in groups[directory]:
-                    return True
-                directory = directory.rpartition("/")[0]
-            return False
-    else:
-        def directory_enabled(path):
-            return True
-        def file_enabled(path):
-            return True
+    if not tests:
+        logger.error("No tests selected!")
+        return
 
     def pause():
         if arguments.pause_upgrade_loop:
@@ -300,68 +305,111 @@ first or run this script without --test-extensions.""")
         else:
             testing.pause("Testing paused.  Press ENTER to continue: ")
 
-    pause_before = set(arguments.pause_before or [])
-    pause_after = set(arguments.pause_after or [])
+    pause_before = pause_after = set()
 
-    def run_group(group_name):
+    if arguments.pause_before:
+        pause_before = testing.findtests.filterPatterns(arguments.pause_before)
+        pause_before_tests, _ = testing.findtests.selectTests(pause_before,
+                                                              strict=True)
+        pause_before_tests = set(pause_before_tests)
+        pause_before_groups = set(pause_before)
+
+        def maybe_pause_before(test):
+            def do_pause(what):
+                logger.info("Pausing before: %s" % what)
+                pause()
+
+            if test in pause_before_tests:
+                do_pause(test)
+            else:
+                for group in test.groups:
+                    if group in pause_before_groups \
+                            and test == all_groups[group][0]:
+                        do_pause(group)
+                        break
+    else:
+        def maybe_pause_before(test):
+            pass
+
+    if arguments.pause_after:
+        pause_after = testing.findtests.filterPatterns(arguments.pause_after)
+        pause_after_tests, _ = testing.findtests.selectTests(pause_after,
+                                                             strict=True)
+        pause_after_tests = set(pause_after_tests)
+        pause_after_groups = set(pause_after)
+
+        def maybe_pause_after(test):
+            def do_pause(what):
+                logger.info("Pausing after: %s" % what)
+                pause()
+
+            if test in pause_after_tests:
+                do_pause(test)
+            else:
+                for group in test.groups:
+                    if group in pause_after_groups \
+                            and test == all_groups[group][-1]:
+                        do_pause(group)
+                        break
+    else:
+        def maybe_pause_after(test):
+            pass
+
+    root_groups = {}
+    all_groups = {}
+
+    for test in tests:
+        for group in test.groups:
+            all_groups.setdefault(group, []).append(test)
+        root_groups.setdefault(test.groups[0], []).append(test)
+
+    failed_tests = set()
+
+    def run_group(group_name, tests):
+        scope = { "testing": testing,
+                  "logger": logger,
+                  "instance": instance }
+
+        if not arguments.local:
+            scope.update({ "frontend": frontend,
+                           "repository": repository,
+                           "mailbox": mailbox })
+
         try:
-            instance.mailbox = mailbox
+            for test in tests:
+                if test.dependencies & failed_tests:
+                    logger.info("Skipping %s (failed dependency)" % test)
+                    continue
 
-            def run_tests(directory):
-                has_failed = False
+                maybe_pause_before(test)
 
-                if directory in pause_before:
-                    pause()
+                if test in dependencies:
+                    logger.info("Running: %s (dependency)" % test)
+                else:
+                    logger.info("Running: %s" % test)
 
-                for name in sorted(os.listdir(os.path.join("testing/tests", directory))):
-                    if not re.match("\d{3}-", name):
-                        continue
+                counters.tests_run += 1
 
-                    path = os.path.join(directory, name)
+                try:
+                    errors_before = counters.errors_logged
+                    execfile(os.path.join("testing/tests", test.filename),
+                             scope.copy())
+                    if errors_before < counters.errors_logged:
+                        raise testing.TestFailure
+                except testing.TestFailure as failure:
+                    counters.tests_failed += 1
 
-                    if os.path.isdir(os.path.join("testing/tests", path)):
-                        if not directory_enabled(path):
-                            logger.debug("Skipping: %s/" % path)
-                        elif has_failed:
-                            logger.info("Skipping: %s/ (failed dependency)" % path)
-                        else:
-                            run_tests(path)
-                        continue
-                    elif not re.search("\\.py$", name):
-                        continue
+                    failed_tests.add(test)
 
-                    enabled = file_enabled(path)
-                    if not enabled:
-                        logger.debug("Skipping: %s" % path)
-                        continue
+                    if failure.message:
+                        logger.error(failure.message)
 
-                    if path in pause_before:
-                        pause()
-                    if enabled is True:
-                        mode = ""
-                    else:
-                        mode = " (%s)" % enabled
-                    logger.info("Running: %s%s" % (path, mode))
-                    counters.tests_run += 1
-                    try:
-                        errors_before = counters.errors_logged
-                        execfile(os.path.join("testing/tests", path),
-                                 { "testing": testing,
-                                   "logger": logger,
-                                   "instance": instance,
-                                   "frontend": frontend,
-                                   "repository": repository,
-                                   "mailbox": mailbox })
-                        if errors_before < counters.errors_logged:
-                            raise testing.TestFailure
-                    except testing.TestFailure as failure:
-                        counters.tests_failed += 1
-                        if failure.message:
-                            logger.error(failure.message)
+                    if mailbox:
                         while True:
                             try:
                                 mail = mailbox.pop(
-                                    accept=testing.mailbox.ToRecipient("system@example.org"),
+                                    accept=testing.mailbox.ToRecipient(
+                                        "system@example.org"),
                                     timeout=1)
                             except testing.mailbox.MissingMail:
                                 break
@@ -369,26 +417,14 @@ first or run this script without --test-extensions.""")
                                 logger.error("System message: %s\n  %s"
                                              % (mail.header("Subject"),
                                                 "\n  ".join(mail.lines)))
-                        if arguments.pause_on_failure:
-                            pause()
-                        if "/" in directory:
-                            has_failed = True
-                        else:
-                            return
-                    except testing.NotSupported as not_supported:
-                        logger.info("Test not supported: %s" % not_supported.message)
-                        if "/" in directory:
-                            has_failed = True
-                        else:
-                            return
-                    else:
-                        if path in pause_after:
-                            pause()
 
-                if directory in pause_after:
-                    pause()
-
-            run_tests(group_name)
+                    if arguments.pause_on_failure:
+                        pause()
+                except testing.NotSupported as not_supported:
+                    failed_tests.add(test)
+                    logger.info("Test not supported: %s" % not_supported.message)
+                else:
+                    maybe_pause_after(test)
         except KeyboardInterrupt:
             logger.error("Testing aborted.")
             return False
@@ -406,36 +442,42 @@ first or run this script without --test-extensions.""")
         else:
             return True
 
+    for group_name in sorted(root_groups.keys()):
+        if arguments.local:
+            repository = None
+            mailbox = None
+
+            run_group(group_name, all_groups[group_name])
+        else:
+            repository = testing.repository.Repository(
+                arguments.vbox_host,
+                arguments.git_daemon_port,
+                tested_commit,
+                arguments.vm_hostname)
+            mailbox = testing.mailbox.Mailbox({ "username": "smtp_username",
+                                                "password": "SmTp_PaSsWoRd" },
+                                              arguments.debug_mails)
+
+            with repository:
+                with mailbox:
+                    if not repository.export():
+                        return
+
+                    with instance:
+                        instance.mailbox = mailbox
+
+                        if run_group(group_name, all_groups[group_name]):
+                            instance.finish()
+
+                    mailbox.check_empty()
+
+def main():
     start_time = time.time()
-    for group_name in sorted(os.listdir("testing/tests")):
-        if not re.match("\d{3}-", group_name):
-            continue
 
-        if not directory_enabled(group_name):
-            logger.debug("Skipping: %s/" % group_name)
-            continue
-
-        repository = testing.repository.Repository(
-            arguments.vbox_host,
-            arguments.git_daemon_port,
-            tested_commit,
-            arguments.vm_hostname)
-        mailbox = testing.mailbox.Mailbox({ "username": "smtp_username",
-                                            "password": "SmTp_PaSsWoRd" },
-                                          arguments.debug_mails)
-
-        with repository:
-            with mailbox:
-                if not repository.export():
-                    return
-
-                with instance:
-                    if run_group(group_name):
-                        instance.finish()
-
-                mailbox.check_empty()
+    run()
 
     time_taken = str(datetime.timedelta(seconds=round(time.time() - start_time)))
+
     logger.info("""
 Test summary
 ============
@@ -449,6 +491,9 @@ Time taken:      %9s
        counters.errors_logged,
        counters.warnings_logged,
        time_taken))
+
+    if counters.tests_failed or counters.errors_logged:
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()
