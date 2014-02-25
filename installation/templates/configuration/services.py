@@ -16,7 +16,6 @@
 
 import configuration
 import os.path
-import socket
 
 def service(name, address=0, module=0, pidfile_path=0, logfile_path=0, loglevel=0):
     if address      == 0: address      = os.path.join(configuration.paths.SOCKETS_DIR, name + ".unix")
