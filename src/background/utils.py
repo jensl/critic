@@ -163,7 +163,7 @@ class BackgroundProcess(object):
                     scheduled_at += interval
 
                 if scheduled_at <= now:
-                    self.debug("performing %s maintenance task" % interval_type)
+                    self.info("performing %s maintenance task" % interval_type)
                     callback()
                     hook[3] = scheduled_at
                     scheduled_at += interval
