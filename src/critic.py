@@ -832,6 +832,8 @@ def process_request(environ, start_response):
                     content_type, resource = extensions.resource.get(req, db, user, match.group(1))
                     if resource:
                         req.setContentType(content_type)
+                        if content_type.startswith("image/"):
+                            req.addResponseHeader("Cache-Control", "max-age=3600")
                         req.start()
                         return [resource]
                     else:
