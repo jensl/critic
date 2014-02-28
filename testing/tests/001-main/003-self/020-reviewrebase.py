@@ -1,6 +1,8 @@
 import os
 
 FILENAME = "020-reviewrebase.txt"
+FILENAME_BASE = "020-reviewrebase.base.txt"
+
 NONSENSE = """\
 Lorem ipsum dolor sit amet, consectetur adipiscing
 elit. Donec ut enim sit amet purus ultricies
@@ -36,17 +38,18 @@ with work, signin:
     work.run(["remote", "add", "critic",
               "alice@%s:/var/git/critic.git" % instance.hostname])
 
-    def write(*args):
+    def write(*args, **kwargs):
         """Write the file<tm>, optionally with lines upper-cased."""
-        with open(os.path.join(work.path, FILENAME), "w") as target:
+        filename = kwargs.get("filename", FILENAME)
+        with open(os.path.join(work.path, filename), "w") as target:
             print >>target, lines(*args)
 
-    def commit(message_or_ref="HEAD", generate=None, *args):
+    def commit(message_or_ref="HEAD", generate=None, *args, **kwargs):
         """If called with two or more arguments, create a commit and return,
            otherwise return commit referenced by first argument."""
         if generate is not None:
-            generate(*args)
-            work.run(["add", FILENAME])
+            generate(*args, **kwargs)
+            work.run(["add", kwargs.get("filename", FILENAME)])
             work.run(["commit", "-m", message_or_ref])
             message_or_ref = "HEAD"
 
@@ -372,5 +375,42 @@ with work, signin:
     revertrebase()
     expectlog([commits[3],
                commits[2],
+               commits[1],
+               commits[0]])
+
+    # TEST #5: First, set up two different commits that we'll be basing our
+    # review branch on.  Then create a review with three commits, then history
+    # rewrite so that the branch points to the first commit (i.e. remove the
+    # second and third commit.)  Then non-ff move-rebase the review.
+
+    work.run(["checkout", "-b", "020-reviewrebase-5-base", start_sha1])
+    base_commits = [commit("Test #5 base, commit 1", write, filename=FILENAME_BASE),
+                    commit("Test #5 base, commit 2", write, 0, filename=FILENAME_BASE)]
+    work.run(["push", "critic", "020-reviewrebase-5-base"])
+    work.run(["checkout", "-b", "020-reviewrebase-5", base_commits[1]["sha1"]])
+    commits = [commit("Test #5, commit 1", write, 4),
+               commit("Test #5, commit 2", write, 4, 5),
+               commit("Test #5, commit 3", write, 4)]
+    createreview(commits)
+    historyrewrite(commits[0])
+    expectlog(["history rewritten",
+               commits[2],
+               commits[1],
+               commits[0]])
+    work.run(["reset", "--hard", base_commits[0]["sha1"]])
+    commits.append(commit("Test #5, commit 4", write, 4))
+    moverebase(base_commits[0], commits[-1])
+    expectlog(["rebased onto " + base_commits[0]["sha1"],
+               "history rewritten",
+               commits[2],
+               commits[1],
+               commits[0]])
+    revertrebase()
+    expectlog(["history rewritten",
+               commits[2],
+               commits[1],
+               commits[0]])
+    revertrebase()
+    expectlog([commits[2],
                commits[1],
                commits[0]])

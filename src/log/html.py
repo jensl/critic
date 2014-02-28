@@ -484,12 +484,10 @@ def render(db, target, title, branch=None, commits=None, columns=DEFAULT_COLUMNS
 
         top_rebases = []
 
-        while head == rebases[-1].new_head:
+        while rebases and head == rebases[-1].new_head:
             rebase = rebases.pop()
             top_rebases.append((head, rebase))
             head = rebase.old_head
-            if head in commit_set:
-                break
 
         for rebase_head, rebase in top_rebases:
             thead = table.thead("rebase")
