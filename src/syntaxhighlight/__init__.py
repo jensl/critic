@@ -48,7 +48,7 @@ def readHighlight(repository, sha1, path, language, request=False):
     if not source:
         source = htmlutils.htmlify(repository.fetch(sha1)[2])
 
-    return source.replace("\r", "")
+    return source
 
 # Import for side-effects: these modules add strings to the LANGUAGES set to
 # indicate which languages they support highlighting.
