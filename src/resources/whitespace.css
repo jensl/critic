@@ -26,6 +26,14 @@ tr.line td i.cr {
 tr.line td i.cr:before {
     content: "^M"
 }
+
+tr.line td i.bom {
+    color: #888
+}
+tr.line td i.bom:before {
+    content: "BOM"
+}
+
 tr.line td > i.tailws i.cr {
     color: white
 }

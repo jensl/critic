@@ -584,8 +584,14 @@ def renderFile(db, target, user, review, file, first_file=False, options={}, con
 
                 if line.old_value:
                     line.old_value = line.old_value.replace("\r", "<i class='cr'></i>")
+                    if line.old_offset == 1:
+                        line.old_value = line.old_value.replace(
+                            "&#65279;", "<i class='bom'></i>", 1)
                 if line.new_value:
                     line.new_value = line.new_value.replace("\r", "<i class='cr'></i>")
+                    if line.new_offset == 1:
+                        line.new_value = line.new_value.replace(
+                            "&#65279;", "<i class='bom'></i>", 1)
 
             if collapse_simple_hunks:
                 if local_display_type == "both":
