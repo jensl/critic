@@ -123,10 +123,8 @@ class DeleteFilter(Operation):
 
         row = cursor.fetchone()
         if row:
-            if user.id != row[0] and not user.hasRole(db, "administrator"):
-                raise OperationFailure(code="notallowed",
-                                       title="Not allowed!",
-                                       message="Operation not permitted.")
+            if user.id != row[0]:
+                Operation.requireAdministratorRole(db, user)
 
             cursor.execute("""DELETE
                                 FROM filters
