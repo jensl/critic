@@ -69,7 +69,7 @@ def expandHTML(db, file, old_offset, new_offset, lines, target):
     elif old_offset + lines - 1 == file.oldCount(): where = 'bottom'
     else: where = 'middle'
 
-    select = target.select(onchange=('expand(this, %d, %r, %r, %d, %d, %d);' % (file.id, file.new_sha1, where, old_offset, new_offset, lines)))
+    select = target.select(onchange=('expand(this, %d, %r, %r, %r, %d, %d, %d);' % (file.id, file.path, file.new_sha1, where, old_offset, new_offset, lines)))
     select.option(value='none').text("%s lines not shown" % lines)
 
     if where == 'middle': actualLines = lines

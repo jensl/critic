@@ -692,7 +692,7 @@ function setSpacerContext(spacer, context)
   target.text(context);
 }
 
-function expand(select, file_id, sha1, where, oldOffset, newOffset, total)
+function expand(select, file_id, path, sha1, where, oldOffset, newOffset, total)
 {
   if (select.value == "none")
     return;
@@ -721,7 +721,7 @@ function expand(select, file_id, sha1, where, oldOffset, newOffset, total)
 
     var newTotal = total - deltaTotal;
 
-    select.onchange = function () { expand(this, file_id, sha1, where, oldOffset + deltaOffset, newOffset + deltaOffset, total - deltaTotal); };
+    select.onchange = function () { expand(this, file_id, path, sha1, where, oldOffset + deltaOffset, newOffset + deltaOffset, total - deltaTotal); };
     select.options[0].textContent = (total - deltaTotal) + ' lines not shown';
     select.lastChild.value = newTotal;
 
@@ -746,7 +746,7 @@ function expand(select, file_id, sha1, where, oldOffset, newOffset, total)
     ranges.push({ offset: newOffset + total - count, count: count, context: true });
 
   var data = { repository_id: repository.id,
-               path: files[file_id].path,
+               path: path,
                sha1: sha1,
                ranges: ranges,
                tabify: typeof tabified != "undefined" };
