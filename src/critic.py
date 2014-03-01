@@ -879,6 +879,13 @@ def process_request(environ, start_response):
 
                         result = pagefn(req, db, user)
 
+                        if db.profiling and not (isinstance(result, str) or
+                                                 isinstance(result, Document)):
+                            source = ""
+                            for fragment in result:
+                                source += fragment
+                            result = source
+
                         if isinstance(result, str) or isinstance(result, Document):
                             req.start()
                             result = str(result)
