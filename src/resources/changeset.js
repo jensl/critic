@@ -1119,6 +1119,7 @@ function registerPathHandlers()
       }
 
       ev.preventDefault();
+      ev.target.blur();
     });
 }
 
