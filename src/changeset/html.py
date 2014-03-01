@@ -514,12 +514,9 @@ def renderFile(db, target, user, review, file, first_file=False, options={}, con
             def linkToFile(target, file, sha1):
                 is_image = False
 
-                try:
-                    base, extension = file.path.rsplit(".")
-                    if configuration.mimetypes.MIMETYPES.get(extension, "").startswith("image/"):
-                        is_image = True
-                except:
-                    pass
+                base, _, extension = file.path.rpartition(".")
+                if base and configuration.mimetypes.MIMETYPES.get(extension, "").startswith("image/"):
+                    is_image = True
 
                 url = "/download/%s?sha1=%s&repository=%d" % (file.path, sha1, file.repository.id)
                 link = target.a(href=url)
