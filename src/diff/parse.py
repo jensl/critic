@@ -297,8 +297,9 @@ def parseDifferences(repository, commit=None, from_commit=None, to_commit=None, 
             except:
                 old_sha1, new_sha1 = line[6:].split(' ', 1)[0].split("..")
 
-            try: line = lines.next()
-            except:
+            try:
+                line = lines.next()
+            except StopIteration:
                 if old_mode is not None or new_mode is not None:
                     assert names[0] == names[1]
 
@@ -307,6 +308,7 @@ def parseDifferences(repository, commit=None, from_commit=None, to_commit=None, 
                                       chunks=[diff.Chunk(0, 0, 0, 0)]))
 
                     old_mode = new_mode = None
+                raise
 
             if re_diff.match(line):
                 new_file = diff.File(None, names[0] or names[1], old_sha1, new_sha1, repository, old_mode=old_mode, new_mode=new_mode)
