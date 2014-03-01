@@ -266,8 +266,10 @@ class Propagation:
                             parents.add(rebase.old_head)
 
             for parent in parents - processed:
-                changes = self.__getChanges(parent, commit)
-                if changes:
+                changes, removed, added = self.__getChanges(parent, commit)
+                if added:
+                    pass
+                elif changes:
                     parent_location = location.copy()
                     if parent_location.apply(changes, BACKWARD):
                         file_sha1 = parent.getFileSHA1(self.file_path)
@@ -298,8 +300,10 @@ class Propagation:
                 assert not commits or commit in commits.getHeads() or self.rebases.fromNewHead(commit)
 
             for child in children - processed:
-                changes = self.__getChanges(commit, child)
-                if changes:
+                changes, removed, added = self.__getChanges(commit, child)
+                if removed:
+                    self.addressed_by.append(AddressedBy(commit, child, location))
+                elif changes:
                     child_location = location.copy()
                     if child_location.apply(changes, FORWARD):
                         file_sha1 = child.getFileSHA1(self.file_path)
@@ -344,10 +348,13 @@ class Propagation:
         assert len(changesets) == 1
 
         if changesets[0].files:
-            assert changesets[0].files[0].id == self.file_id
-            return changesets[0].files[0].chunks
+            changed_file = changesets[0].files[0]
+            assert changed_file.id == self.file_id
+            removed = changed_file.new_sha1 == "0" * 40
+            added = changed_file.old_sha1 == "0" * 40
+            return changesets[0].files[0].chunks, removed, added
         else:
-            return None
+            return None, False, False
 
     def __setLines(self, file_sha1, lines):
         if file_sha1 not in self.all_lines:
