@@ -848,7 +848,25 @@ including the unrelated changes.</p>
     tail_to_return = tail.sha1 if tail is not None else None
     return tail_to_return, head.sha1, commits, listed_commits
 
-def getCommitList(db, repository, from_commit, to_commit):
+def getCommitList(db, repository,
+                  from_commit=None, to_commit=None,
+                  first_commit=None, last_commit=None):
+    # This function should be called with either from_commit/to_commit *or*
+    # first_commit/last_commit.  The other two should be None.  When called
+    # for a range that starts with a root commit, from_commit will be None
+    # (and to_commit not.)
+    assert (from_commit is None) or (to_commit is not None)
+    assert (first_commit is None) == (last_commit is None)
+    assert (to_commit is None) != (last_commit is None)
+
+    if first_commit is not None:
+        sha1s = repository.revlist(
+            [last_commit], [first_commit], "--ancestry-path")
+        commits = [first_commit]
+        commits.extend(gitutils.Commit.fromSHA1(db, repository, sha1)
+                       for sha1 in sha1s)
+        return commits
+
     commits = set()
 
     class NotPossible(Exception): pass
@@ -860,11 +878,15 @@ def getCommitList(db, repository, from_commit, to_commit):
             if len(iter_commit.parents) > 1:
                 try:
                     mergebase = repository.mergebase(iter_commit)
-                    is_ancestor = from_commit.isAncestorOf(mergebase)
+                    # Include the parents of the merge commit (and their
+                    # ancestors) if 'from_commit' is an ancestor of the merge
+                    # base (but isn't the merge base.)
+                    include_parents = (from_commit != mergebase and
+                                       from_commit.isAncestorOf(mergebase))
                 except gitutils.GitCommandError:
                     raise NotPossible
 
-                if is_ancestor:
+                if include_parents:
                     map(process, [gitutils.Commit.fromSHA1(db, repository, sha1) for sha1 in iter_commit.parents])
                     return
                 else:
@@ -1103,7 +1125,13 @@ def renderShowCommit(req, db, user):
             if all_commits:
                 commits = all_commits
             else:
-                commits = getCommitList(db, repository, from_commit, to_commit)
+                if first_sha1:
+                    commits = getCommitList(
+                        db, repository, first_commit=first_commit, last_commit=to_commit)
+                else:
+                    commits = getCommitList(
+                        db, repository, from_commit=from_commit, to_commit=to_commit)
+
                 if not commits and not review:
                     paths = [changed_file.path for changed_file in changesets[0].files]
                     commits, listed_commits = getApproximativeCommitList(db, repository, from_commit, to_commit, paths)
