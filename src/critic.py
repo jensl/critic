@@ -104,7 +104,7 @@ if configuration.extensions.ENABLED:
 from operation import OperationResult, OperationError, OperationFailureMustLogin
 
 def setContentTypeFromPath(req):
-    match = re.search("\\.([a-z]+)", req.path)
+    match = re.search("\\.([a-z]+)$", req.path)
     if match:
         req.setContentType(configuration.mimetypes.MIMETYPES.get(match.group(1), "text/plain"))
     else:
