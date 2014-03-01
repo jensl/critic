@@ -39,7 +39,7 @@ def getAdministratorContacts(db, indent=0, as_html=False):
     administrators = dbutils.User.withRole(db, "administrator")
 
     # Sort by id, IOW, by user creation time.  Probably gives "primary"
-    # administrator first and auxillary administrators second, but might also
+    # administrator first and auxiliary administrators second, but might also
     # just be arbitrary.  If nothing else, it makes the order stable.
     administrators = sorted(administrators, key=lambda user: user.id)
 
