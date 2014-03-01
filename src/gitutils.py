@@ -742,6 +742,8 @@ class Repository:
             except GitCommandError as error:
                 if error.output.startswith("fatal: Couldn't find remote ref "):
                     raise GitReferenceError("Couldn't find ref %s in %s." % (ref, remote), ref=ref, repository=remote)
+                elif error.output.startswith("fatal: Invalid refspec "):
+                    raise GitReferenceError("Invalid ref %r." % ref, ref=ref)
                 raise
 
             sha1 = relay.run("rev-parse", "--verify", "FETCH_HEAD").strip()

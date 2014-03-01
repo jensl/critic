@@ -237,13 +237,21 @@ class FetchRemoteBranch(Operation):
         try:
             with repository.fetchTemporaryFromRemote(remote, branch) as sha1:
                 head_sha1 = repository.keepalive(sha1)
-        except gitutils.GitReferenceError:
-            raise OperationFailure(
-                code="refnotfound",
-                title="Remote ref not found!",
-                message=("Could not find the ref <code>%s</code> in the repository <code>%s</code>."
-                         % (htmlutils.htmlify(branch), htmlutils.htmlify(remote))),
-                is_html=True)
+        except gitutils.GitReferenceError as error:
+            if error.repository:
+                raise OperationFailure(
+                    code="refnotfound",
+                    title="Remote ref not found!",
+                    message=("Could not find the ref <code>%s</code> in the repository <code>%s</code>."
+                             % (htmlutils.htmlify(error.ref), htmlutils.htmlify(error.repository))),
+                    is_html=True)
+            else:
+                raise OperationFailure(
+                    code="invalidref",
+                    title="Invalid ref!",
+                    message=("The specified ref is invalid: <code>%s</code>."
+                             % htmlutils.htmlify(error.ref)),
+                    is_html=True)
         except gitutils.GitCommandError as error:
             if error.output.splitlines()[0].endswith("does not appear to be a git repository"):
                 raise OperationFailure(
