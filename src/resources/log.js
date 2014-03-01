@@ -240,11 +240,22 @@ $(document).ready(function ()
           location.replace("/log?repository=" + repository.id + "&branch=" + encodeURIComponent(branch.name) + "&base=" + encodeURIComponent(ev.target.value));
       });
 
-    $("span.squash, span.fixup").each(function (index, element)
-      {
-        var what = $(element).attr("class");
-        $(element).tooltip({ fade: 250, bodyHandler: function () { return $("<div class='tooltip " + what + "'>" + (what == "fixup" ? "Fixup of" : "Squash into") + " <b>" + htmlify($(element).attr("critic-ref")) + "</b></div>"); }, showURL: false });
-      });
+    $("span.squash, span.fixup").tooltip({
+      items: "span.fixup, span.fixup",
+      content: function ()
+        {
+          var element = $(this);
+
+          return $("<table class='tooltip'><tr><td class=header>" +
+                   (element.hasClass("squash") ? "Squash into" : "Fixup of") +
+                   "</td><td class=summary>" +
+                   htmlify(element.attr("critic-ref")) +
+                   "</td></tr></table>");
+        },
+      track: true,
+      hide: false,
+      tooltipClass: "followup-tooltip"
+    });
 
     resetSelection();
 

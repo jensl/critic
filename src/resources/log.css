@@ -120,3 +120,19 @@ table.log.relevant td h1 a {
     font-size: 12px;
     margin-left: 1em
 }
+
+.followup-tooltip {
+    max-width: 600px
+}
+
+.followup-tooltip .header {
+    vertical-align: top;
+    font-style: italic;
+    white-space: nowrap;
+    padding-right: 0.5em
+}
+
+.followup-tooltip .summary {
+    font-style: normal;
+    font-family: monospace
+}
