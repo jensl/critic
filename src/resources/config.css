@@ -20,11 +20,6 @@ div.main table.preferences {
     table-layout: fixed
 }
 
-div.main table.preferences tr.line.highlight,
-div.main table.preferences tr.help.highlight {
-    background: #eec
-}
-
 div.main table.preferences tr.line td {
     padding-top: 1em
 }

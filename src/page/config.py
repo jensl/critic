@@ -15,6 +15,7 @@
 # the License.
 
 import os
+import fnmatch
 
 import configuration
 import dbutils
@@ -210,9 +211,6 @@ def renderConfig(req, db, user):
 
     debug_enabled = user.getPreference(db, "debug.enabled")
 
-    if highlight:
-        document.addInternalScript("$(document).ready(function () { location.hash = 'go'; $('#highlight').focus().select(); });")
-
     for item, (preference_type, description, default_value, current_value, per_repository, per_filter) in sorted(preferences.items()):
         if item.startswith("debug.") and item != "debug.enabled" and not debug_enabled:
             continue
@@ -220,13 +218,8 @@ def renderConfig(req, db, user):
         line_class_name = "line"
         help_class_name = "help"
 
-        highlight_this = highlight == item
-        if highlight_this:
-            line_class_name += " highlight"
-            help_class_name += " highlight"
-            input_id = "highlight"
-        else:
-            input_id = None
+        if highlight is not None and not fnmatch.fnmatch(item, highlight):
+            continue
 
         if current_value is None:
             current_value = default_value
@@ -235,7 +228,6 @@ def renderConfig(req, db, user):
 
         row = table.tr(line_class_name)
         heading = row.td("heading")
-        if highlight_this: heading = heading.a(name="go")
         heading.text("%s:" % item)
         value = row.td("value", colspan=2)
         value.preformatted()
@@ -249,13 +241,13 @@ def renderConfig(req, db, user):
 
         if preference_type == "boolean":
             value.input(
-                "setting", id=input_id, type="checkbox", name=item,
+                "setting", type="checkbox", name=item,
                 checked="checked" if current_value else None, disabled=disabled,
                 critic_current=htmlutils.jsify(current_value),
                 critic_default=htmlutils.jsify(default_value))
         elif preference_type == "integer":
             value.input(
-                "setting", id=input_id, type="number", min=0, max=2**31 - 1,
+                "setting", type="number", min=0, max=2**31 - 1,
                 name=item, value=current_value, disabled=disabled,
                 critic_current=htmlutils.jsify(current_value),
                 critic_default=htmlutils.jsify(default_value))
@@ -263,12 +255,12 @@ def renderConfig(req, db, user):
             page.utils.generateRepositorySelect(
                 db, user, value, allow_selecting_none=True,
                 placeholder_text="No default repository", selected=current_value,
-                id=input_id, name=item, disabled=disabled,
+                name=item, disabled=disabled,
                 critic_current=htmlutils.jsify(current_value),
                 critic_default=htmlutils.jsify(default_value))
         elif item == "defaultPage":
             options = value.select(
-                "setting", id=input_id, name=item, disabled=disabled,
+                "setting", name=item, disabled=disabled,
                 critic_current=htmlutils.jsify(current_value),
                 critic_default=htmlutils.jsify(default_value))
 
@@ -287,7 +279,7 @@ def renderConfig(req, db, user):
             selected = set(current_value.split(","))
 
             options = value.select(
-                "setting", id=input_id, name=item, size=len(identities),
+                "setting", name=item, size=len(identities),
                 multiple="multiple", disabled=disabled,
                 critic_current=htmlutils.jsify(current_value),
                 critic_default=htmlutils.jsify(default_value))
@@ -304,7 +296,7 @@ def renderConfig(req, db, user):
 
         elif item == "email.updatedReview.quotedComments":
             options = value.select(
-                "setting", id=input_id, name=item, disabled=disabled,
+                "setting", name=item, disabled=disabled,
                 critic_current=htmlutils.jsify(current_value),
                 critic_default=htmlutils.jsify(default_value))
 
@@ -314,7 +306,7 @@ def renderConfig(req, db, user):
             addOption("firstlast", "First & Last")
         elif item == "timezone":
             options = value.select(
-                "setting", id=input_id, name=item, disabled=disabled,
+                "setting", name=item, disabled=disabled,
                 critic_current=htmlutils.jsify(current_value),
                 critic_default=htmlutils.jsify(default_value))
 
@@ -326,7 +318,7 @@ def renderConfig(req, db, user):
                     addOption("%s/%s" % (group, name), "%s (%s / UTC%s)" % (name, abbrev, offset))
         elif item == "repository.urlType":
             options = value.select(
-                "setting", id=input_id, name=item, disabled=disabled,
+                "setting", name=item, disabled=disabled,
                 critic_current=htmlutils.jsify(current_value),
                 critic_default=htmlutils.jsify(default_value))
             long_path = os.path.join(configuration.paths.GIT_DIR, "<path>.git")
@@ -347,7 +339,7 @@ def renderConfig(req, db, user):
                 addOption("host", "%s:%s" % (configuration.base.HOSTNAME, long_path))
         else:
             value.input(
-                "setting", id=input_id, type="text", size=80, name=item,
+                "setting", type="text", size=80, name=item,
                 value=current_value, disabled=disabled,
                 critic_current=htmlutils.jsify(current_value),
                 critic_default=htmlutils.jsify(default_value))
@@ -390,6 +382,16 @@ def renderConfig(req, db, user):
             and repository is None \
             and filter_id is None:
         for extension_name, author, preferences in injected["preferences"]:
+            if highlight is not None:
+                prefix = "%s/%s" % (author.name, extension_name)
+                preferences = [
+                    preference for preference in preferences
+                    if fnmatch.fnmatch("%s/%s" % (prefix, preference["name"]),
+                                       highlight)]
+
+                if not preferences:
+                    continue
+
             h2 = table.tr("extension").td("extension", colspan=3).h2()
             h2.span("name").text(extension_name)
             h2.text(" by ")
@@ -406,27 +408,18 @@ def renderConfig(req, db, user):
                 line_class_name = "line"
                 help_class_name = "help"
 
-                highlight_this = highlight == ("%s/%s/%s" % (author.name, extension_name, preference_name))
-                if highlight_this:
-                    line_class_name += " highlight"
-                    help_class_name += " highlight"
-                    input_id = "highlight"
-                else:
-                    input_id = None
-
                 if preference_value != preference_default:
                     line_class_name += " customized"
 
                 row = table.tr(line_class_name)
                 heading = row.td("heading")
-                if highlight_this: heading = heading.a(name="go")
                 heading.text("%s:" % preference_name)
                 value = row.td("value", colspan=2)
                 value.preformatted()
 
                 if preference_type == "boolean":
                     value.input(
-                        "setting", id=input_id, type="checkbox",
+                        "setting", type="checkbox",
                         name=preference_name, disabled=disabled,
                         checked="checked" if preference_value else None,
                         critic_url=preference_url,
@@ -434,21 +427,21 @@ def renderConfig(req, db, user):
                         critic_extension=extension_name)
                 elif preference_type == "integer":
                     value.input(
-                        "setting", id=input_id, type="number", min=0,
+                        "setting", type="number", min=0,
                         name=preference_name, value=preference_value,
                         disabled=disabled, critic_url=preference_url,
                         critic_default=htmlutils.jsify(preference_default),
                         critic_extension=extension_name)
                 elif preference_type == "string":
                     value.input(
-                        "setting", id=input_id, type="text",
+                        "setting", type="text",
                         name=preference_name, value=preference_value,
                         disabled=disabled, critic_url=preference_url,
                         critic_default=htmlutils.jsify(preference_default),
                         critic_extension=extension_name)
                 else:
                     select = value.select(
-                        "setting", id=input_id, name=preference_name,
+                        "setting", name=preference_name,
                         disabled=disabled, critic_url=preference_url,
                         critic_value=preference_value,
                         critic_default=htmlutils.jsify(preference_default),
