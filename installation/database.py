@@ -96,18 +96,23 @@ backup of the database first is strongly recommended.
 
     return True
 
+SCHEMA_FILES = ["installation/data/dbschema.sql",
+                "installation/data/dbschema.comments.sql",
+                "installation/data/dbschema.extensions.sql",
+                "installation/data/roles.sql"]
+
+PGSQL_FILES = ["installation/data/comments.pgsql"]
+
 def install(data):
     global user_created, database_created, language_created
 
     print "Creating database ..."
 
-    # Several subsequent commands will run as Critic system user or "postgres" user,
-    # and these users typically don't have read access to the installation 'root_dir'
-    original_dir = os.getcwd()
-    try:
-        # Set cwd to something that Critic system / "postgres" users has access to.
-        os.chdir(tempfile.gettempdir())
-
+    # Several subsequent commands will run as Critic system user or "postgres"
+    # user, and these users typically don't have read access to the installation
+    # 'root_dir', so set cwd to something that Critic system / "postgres" users
+    # has access to.
+    with installation.utils.temporary_cwd():
         subprocess.check_output(["su", "-c", "psql -v ON_ERROR_STOP=1 -c 'CREATE USER \"%s\";'" % installation.system.username, "postgres"])
         user_created = True
 
@@ -128,11 +133,10 @@ def install(data):
 
         subprocess.check_output(["su", "-c", "psql -v ON_ERROR_STOP=1 -c 'GRANT ALL ON DATABASE \"critic\" TO \"%s\";'" % installation.system.username, "postgres"])
 
-        psql_import("installation/data/dbschema.sql")
-        psql_import("installation/data/dbschema.comments.sql")
-        psql_import("installation/data/dbschema.extensions.sql")
-        psql_import("installation/data/comments.pgsql")
-        psql_import("installation/data/roles.sql")
+        for schema_file in SCHEMA_FILES:
+            psql_import(schema_file)
+        for pgsql_file in PGSQL_FILES:
+            psql_import(pgsql_file)
 
         import psycopg2
 
@@ -156,8 +160,33 @@ def install(data):
             ["su", "-s", "/bin/sh", "-c", "psql -q -v ON_ERROR_STOP=1 -f -", installation.system.username],
             stdin=add_systemidentity_query)
 
-    finally:
-        os.chdir(original_dir)
+    return True
+
+def upgrade(arguments, data):
+    git = data["installation.prereqs.git"]
+
+    old_sha1 = data["sha1"]
+    new_sha1 = installation.utils.run_git([git, "rev-parse", "HEAD"],
+                                          cwd=installation.root_dir).strip()
+
+    for pgsql_file in PGSQL_FILES:
+        old_file_sha1 = installation.utils.get_file_sha1(
+            git, old_sha1, pgsql_file)
+        new_file_sha1 = installation.utils.get_file_sha1(
+            git, new_sha1, pgsql_file)
+
+        if old_file_sha1 == new_file_sha1:
+            continue
+
+        with installation.utils.temporary_cwd():
+            # We assume that these files use CREATE OR REPLACE syntax, so that
+            # we can simply re-import them when they change, and they'll update.
+            # If they need more than that to update (for instance if a function
+            # is removed) we'll need to use a migration script for that.
+            print "Reloading: %s" % pgsql_file
+
+            if not arguments.dry_run:
+                psql_import(pgsql_file)
 
     return True
 

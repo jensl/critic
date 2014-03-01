@@ -19,7 +19,7 @@ $$
 DECLARE
   result INTEGER;
 BEGIN
-  SELECT COUNT(*) INTO STRICT result FROM comments WHERE chain=chain_id;
+  SELECT COUNT(*) INTO STRICT result FROM comments WHERE chain=chain_id AND state='current';
   RETURN result;
 END;
 $$
@@ -30,7 +30,7 @@ $$
 DECLARE
   result INTEGER;
 BEGIN
-  SELECT COUNT(*) INTO STRICT result FROM commentstoread JOIN comments ON (comments.id=commentstoread.comment) WHERE comments.chain=chain_id AND commentstoread.uid=user_id;
+  SELECT COUNT(*) INTO STRICT result FROM commentstoread JOIN comments ON (comments.id=commentstoread.comment) WHERE comments.chain=chain_id AND comments.state='current' AND commentstoread.uid=user_id;
   RETURN result;
 END;
 $$

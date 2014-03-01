@@ -244,6 +244,15 @@ def clean_root_pyc_files():
                 os.unlink(file)
 
 @contextlib.contextmanager
+def temporary_cwd():
+    saved_cwd = os.getcwd()
+    os.chdir(tempfile.gettempdir())
+    try:
+        yield
+    finally:
+        os.chdir(saved_cwd)
+
+@contextlib.contextmanager
 def as_critic_system_user():
     saved_cwd = os.getcwd()
     os.chdir(tempfile.gettempdir())
