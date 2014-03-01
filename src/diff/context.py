@@ -243,9 +243,9 @@ class ContextLines:
             return offset
 
         if self.chains and not self.merge:
-            for chain in self.chains:
+            for (chain, use_old) in self.chains:
                 if chain.comments:
-                    if self.file.new_sha1 in chain.lines_by_sha1:
+                    if not use_old and self.file.new_sha1 in chain.lines_by_sha1:
                         chain_offset, chain_count = chain.lines_by_sha1[self.file.new_sha1]
                         old_offset = findMatchingOldOffset(chain_offset)
                         new_offset = chain_offset
@@ -368,9 +368,9 @@ class ContextLines:
             if all_chains:
                 index = 0
                 while index < len(all_chains):
-                    chain = all_chains[index]
+                    chain, use_old = all_chains[index]
 
-                    if self.file.new_sha1 in chain.lines_by_sha1:
+                    if not use_old and self.file.new_sha1 in chain.lines_by_sha1:
                         chain_offset, chain_count = chain.lines_by_sha1[self.file.new_sha1]
                         compare_offset = new_offset
                     else:

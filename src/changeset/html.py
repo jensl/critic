@@ -261,7 +261,7 @@ table.file > tbody.lines > tr > td.line {
 
                 if not file.isEmptyChanges():
                     lines = diff.context.ContextLines(
-                        file, file.chunks, comment_chains_per_file.get(file.path, []),
+                        file, file.chunks, [(chain, False) for chain in comment_chains_per_file.get(file.path, [])],
                         merge=options.get("merge", False), conflicts=changeset.conflicts)
                     file.macro_chunks = lines.getMacroChunks(context_lines, highlight=True)
                 else:

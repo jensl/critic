@@ -226,7 +226,7 @@ def renderCodeCommentChain(db, target, user, review, chain, context_lines=3, com
         file.loadOldLines(True)
         file.loadNewLines(True)
 
-        context = diff.context.ContextLines(file, file.chunks, [chain])
+        context = diff.context.ContextLines(file, file.chunks, [(chain, use == old)])
         file.macro_chunks = context.getMacroChunks(context_lines, highlight=True, lineFilter=lineFilter)
 
         try: macro_chunk = file.macro_chunks[0]
