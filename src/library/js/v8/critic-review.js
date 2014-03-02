@@ -617,6 +617,7 @@ CriticReview.prototype.prepareRebase = function (data)
                    this.id, old_head_id, old_upstream.id, data.newUpstream.id, user.id, branch);
     }
 
+    db.execute("UPDATE reviews SET serial=serial + 1 WHERE id=%d", this.id);
     db.commit();
   };
 
