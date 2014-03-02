@@ -315,6 +315,8 @@ function CriticChangesetFile(changeset, file_id, old_sha1, new_sha1, old_mode, n
   Object.freeze(this);
 }
 
+CriticChangesetFile.prototype = Object.create(CriticFile.prototype);
+
 function CriticChangesetFileVersion(changeset, file, mode, size, sha1)
 {
   CriticFileVersion.call(this, changeset.repository, file.path, mode, size, sha1, { review: changeset.review });
