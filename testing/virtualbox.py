@@ -25,10 +25,12 @@ import datetime
 
 import testing
 
-def flag(commit_sha1, name):
-    lstree = subprocess.check_output(
-        ["git", "ls-tree", commit_sha1, "testing/flags/%s.flag" % name])
+def exists_at(commit_sha1, path):
+    lstree = subprocess.check_output(["git", "ls-tree", commit_sha1, path])
     return bool(lstree.strip())
+
+def flag(commit_sha1, name):
+    return exists_at(commit_sha1, "testing/flags/%s.flag" % name)
 
 def flag_pwd_independence(commit_sha1):
     return flag(commit_sha1, "pwd-independence")
@@ -88,6 +90,7 @@ class Instance(object):
         self.coverage = getattr(arguments, "coverage", False)
         self.mailbox = None
         self.__started = False
+        self.__installed = False
 
         # Check that the identified VM actually exists:
         output = subprocess.check_output(
@@ -209,6 +212,8 @@ class Instance(object):
         time.sleep(0.5)
 
         testing.logger.info("Stopped VM: %s" % self.identifier)
+
+        self.__started = False
 
     def retake_snapshot(self, name):
         index = 1
@@ -541,6 +546,12 @@ class Instance(object):
 
         testing.logger.info("Installed Critic: %s" % self.install_commit_description)
 
+        self.__installed = True
+
+    def check_upgrade(self):
+        if not self.upgrade_commit:
+            raise testing.NotSupported("--upgrade-from argument not given")
+
     def upgrade(self, override_arguments={}, other_cwd=False, quick=False,
                 interactive=False):
         if self.upgrade_commit:
@@ -593,11 +604,16 @@ class Instance(object):
 
             testing.logger.info("Upgraded Critic: %s" % self.upgrade_commit_description)
 
-    def extend(self, repository):
+    def check_extend(self, repository, pre_upgrade=False):
+        if not exists_at(self.install_commit, "extend.py"):
+            raise testing.NotSupported("installed commit lacks extend.py")
         if not self.arguments.test_extensions:
             raise testing.NotSupported("--test-extensions argument not given")
         if not repository.v8_jsshell_path:
             raise testing.NotSupported("v8-jsshell sub-module not initialized")
+
+    def extend(self, repository):
+        self.check_extend(repository)
 
         testing.logger.debug("Extending Critic ...")
 
@@ -675,9 +691,15 @@ class Instance(object):
 
         self.execute(["sudo", "deluser", "--remove-home", "howard"])
 
+        self.__installed = False
+
     def finish(self):
-        self.execute(["sudo", "service", "critic-main", "stop"])
-        self.execute(["sudo", "service", "apache2", "stop"])
+        if not self.__started:
+            return
+
+        if self.__installed:
+            self.execute(["sudo", "service", "critic-main", "stop"])
+            self.execute(["sudo", "service", "apache2", "stop"])
 
         if self.coverage:
             sys.stdout.write(self.execute(

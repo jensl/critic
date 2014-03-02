@@ -98,27 +98,23 @@ def doInstallExtension(db, user, extension, version):
                        (extension_id, version, sha1))
         row = cursor.fetchone()
 
-        if not row:
+        if row:
+            (version_id,) = row
+        else:
             cursor.execute("""INSERT INTO extensionversions (extension, name, sha1)
                                    VALUES (%s, %s, %s)
                                 RETURNING id""",
                            (extension_id, version, sha1))
-            row = cursor.fetchone()
+            (version_id,) = cursor.fetchone()
 
-        (version_id,) = row
+            for role in manifest.roles:
+                role.install(db, version_id)
     else:
         version_id = None
 
     cursor.execute("""INSERT INTO extensioninstalls (uid, extension, version)
-                           VALUES (%s, %s, %s)
-                        RETURNING id""",
+                           VALUES (%s, %s, %s)""",
                    (user_id, extension_id, version_id))
-
-    (install_id,) = cursor.fetchone()
-
-    if version_id is not None:
-        for role in manifest.roles:
-            role.install(db, version_id)
 
 def doUninstallExtension(db, user, extension):
     extension_id = extension.getExtensionID(db)

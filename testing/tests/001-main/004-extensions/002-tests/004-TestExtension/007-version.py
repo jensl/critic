@@ -87,3 +87,10 @@ with frontend.signin("bob"):
         "version",
         expected_content_type="text/plain",
         expect={ "version": check_version("stable:2") })
+
+with frontend.signin("admin"):
+    frontend.operation(
+        "uninstallextension",
+        data={ "author_name": "alice",
+               "extension_name": "TestExtension",
+               "universal": True })
