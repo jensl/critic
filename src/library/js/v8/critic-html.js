@@ -169,6 +169,8 @@ PaleYellowTable.prototype.addItem = function (data)
 
       this.rows.push(format("<tr class=centered><td colspan=3>%s</td></tr>", buttons_html));
     }
+    else if (data.separator)
+      this.rows.push("<tr class=separator><td colspan=3><div></div></td></tr>");
     else
       throw CriticError("invalid argument");
   };
