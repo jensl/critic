@@ -48,6 +48,13 @@ function CriticFilters(data)
   {
     cli_input.repository_id = data.repository.id;
     cli_input.recursive = !!data.recursive;
+    cli_input.file_ids = data.files.map(
+      function (item)
+      {
+        if (!(item instanceof CriticFile))
+          item = CriticFile.find(item);
+        return item.id;
+      });
   }
 
   if (data.user)
