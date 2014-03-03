@@ -39,6 +39,8 @@ def execute(db, user, review, all_commits, old_head, new_head, output):
     for extension_id, version_id, version_sha1, is_universal in installs:
         handlers = []
 
+        extension = Extension.fromId(db, extension_id)
+
         if version_id is not None:
             cursor.execute("""SELECT script, function
                                 FROM extensionroles
@@ -55,7 +57,6 @@ def execute(db, user, review, all_commits, old_head, new_head, output):
             extension_path = getExtensionInstallPath(version_sha1)
             manifest = Manifest.load(extension_path)
         else:
-            extension = Extension.fromId(db, extension_id)
             manifest = Manifest.load(extension.getPath())
 
             for role in manifest.roles:
