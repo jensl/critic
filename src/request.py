@@ -198,6 +198,8 @@ class Request:
             try:
                 self.user = self.__environ["REMOTE_USER"]
             except KeyError:
+                if configuration.base.ALLOW_ANONYMOUS_USER:
+                    return
                 raise MissingWSGIRemoteUser
         else:
             session_type = configuration.base.SESSION_TYPE

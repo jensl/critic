@@ -103,13 +103,7 @@ def doTestConfiguration():
                     if session_type not in ("httpauth", "cookie"):
                         error("Invalid session type: must be one of 'httpauth' "
                               "and 'cookie'.")
-            elif authentication_mode == "host":
-                with value(configuration.base, "ALLOW_ANONYMOUS_USER") \
-                        as allow_anonymous_user:
-                    if allow_anonymous_user:
-                        warn("Allowing anonymous users is not possible when "
-                             "the host web-server handles authentication.")
-            else:
+            elif authentication_mode != "host":
                 # Unconditional external authentication mode
                 with value(configuration.base, "SESSION_TYPE") as session_type:
                     if session_type != "cookie":

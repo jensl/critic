@@ -705,35 +705,36 @@ def process_request(environ, start_response):
             req.setUser(db)
 
             if req.user is None:
-                if configuration.base.AUTHENTICATION_MODE != "host":
-                    if configuration.base.SESSION_TYPE == "httpauth":
-                        req.requestHTTPAuthentication()
-                        return []
-                    elif req.path.startswith("externalauth/"):
-                        provider_name = req.path[len("externalauth/"):]
-                        raise request.DoExternalAuthentication(provider_name)
-                    elif req.path.startswith("oauth/"):
-                        provider_name = req.path[len("oauth/"):]
-                        if provider_name in auth.PROVIDERS:
-                            provider = auth.PROVIDERS[provider_name]
-                            if isinstance(provider, auth.OAuthProvider):
-                                if finishOAuth(db, req, provider):
-                                    return []
-                    elif configuration.base.SESSION_TYPE == "cookie":
-                        if req.cookies.get("has_sid") == "1":
-                            req.ensureSecure()
-                        if configuration.base.ALLOW_ANONYMOUS_USER \
-                                or req.path in request.INSECURE_PATHS \
-                                or req.path.startswith("static-resource/"):
-                            user = dbutils.User.makeAnonymous()
-                        # Don't try to redirect POST requests to the login page.
-                        elif req.method == "GET":
-                            if configuration.base.AUTHENTICATION_MODE == "critic":
-                                raise request.NeedLogin(req)
-                            else:
-                                raise request.DoExternalAuthentication(
-                                    configuration.base.AUTHENTICATION_MODE,
-                                    req.getTargetURL())
+                if configuration.base.AUTHENTICATION_MODE == "host":
+                    user = dbutils.User.makeAnonymous()
+                elif configuration.base.SESSION_TYPE == "httpauth":
+                    req.requestHTTPAuthentication()
+                    return []
+                elif req.path.startswith("externalauth/"):
+                    provider_name = req.path[len("externalauth/"):]
+                    raise request.DoExternalAuthentication(provider_name)
+                elif req.path.startswith("oauth/"):
+                    provider_name = req.path[len("oauth/"):]
+                    if provider_name in auth.PROVIDERS:
+                        provider = auth.PROVIDERS[provider_name]
+                        if isinstance(provider, auth.OAuthProvider):
+                            if finishOAuth(db, req, provider):
+                                return []
+                elif configuration.base.SESSION_TYPE == "cookie":
+                    if req.cookies.get("has_sid") == "1":
+                        req.ensureSecure()
+                    if configuration.base.ALLOW_ANONYMOUS_USER \
+                            or req.path in request.INSECURE_PATHS \
+                            or req.path.startswith("static-resource/"):
+                        user = dbutils.User.makeAnonymous()
+                    # Don't try to redirect POST requests to the login page.
+                    elif req.method == "GET":
+                        if configuration.base.AUTHENTICATION_MODE == "critic":
+                            raise request.NeedLogin(req)
+                        else:
+                            raise request.DoExternalAuthentication(
+                                configuration.base.AUTHENTICATION_MODE,
+                                req.getTargetURL())
                 if not user:
                     req.setStatus(403)
                     req.start()

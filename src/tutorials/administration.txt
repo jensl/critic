@@ -216,8 +216,8 @@ external authentication][extauth].
 
 Authentication mode: Host
 -------------------------
-If Critic was configured to let the host Web server authenticate
-users, it instead assumes that the
+If Critic was configured to let the host web server authenticate users, it
+instead assumes that the
   <code>REMOTE_USER</code>
 WSGI environment variable is set to the name of the accessing user, and
 automatically creates a user record in its database if one doesn't already
@@ -226,6 +226,30 @@ administrator to manually add users to Critic's database (but it's still
 possible to do so.)  See
   <a href="/tutorial?item=customization#automatic_user_creation">the customization tutorial</a>
 for details on this automatic user creation, and how it can be tweaked.
+
+Anonymous Access
+----------------
+It is possible to let users access a Critic system without signing in, by
+setting the system setting
+  <code>ALLOW_ANONYMOUS_USER</code>
+in
+  <code>%(configuration.paths.CONFIG_DIR)s/configuration/base.py</code>
+to True.
+
+When Critic was configured to authenticate users itself (authentication mode
+"critic") and use HTTP cookies to handle sessions (instead of HTTP
+authentication) allowing anonymous access simply means the system won't redirect
+to the "Sign in" page for most page accesses; instead there will be a "Sign in"
+link in the paqe header.
+
+When Critic was configured to let the host web server authenticate users, the
+user is simply considered anonymous when the
+  <code>REMOTE_USER</code>
+WSGI environment variable is unset.  The host web server must be configured
+appropriately for this to be a meaningful configuration, and there are typically
+limited use-cases.  One possible use-case is to make parts of the web UI
+available anonymously by configuring the host web server to require a signed in
+user for some paths and not for others.
 
 System Users
 ------------
@@ -270,8 +294,8 @@ the system.  Instead, what deleting a user does is
 2 deletes the user's password so that he or she can no longer sign in.
 
 <strong>Important note:</strong> Deleting a user's password only prevents access
-to the system if Critic handles user authentication.  If the Web server handles
-it, the user must primarily be disabled in whatever mechanism the Web server
+to the system if Critic handles user authentication.  If the web server handles
+it, the user must primarily be disabled in whatever mechanism the web server
 uses to authenticate users.  Critic will <b>not</b> disallow access in this
 case.  What's more, in this case, if a deleted/retired user signs in, the user's
 "retired" status is automatically reverted, thus completely undoing the effects
