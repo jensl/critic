@@ -77,16 +77,6 @@ function CriticReviewCreated(review_id)
   this.id = review_id;
 }
 
-function CriticTrackedBranch(review, remote, name, disabled)
-{
-  this.review = review;
-  this.remote = remote;
-  this.name = name;
-  this.disabled = disabled;
-
-  Object.freeze(this);
-}
-
 function CriticReview(arg)
 {
   var review_id, created = false;
@@ -424,11 +414,12 @@ function CriticReview(arg)
   {
     if (trackedBranch === void 0)
     {
-      var result = db.execute("SELECT remote, remote_name, disabled FROM trackedbranches WHERE repository=%d AND local_name=%s",
+      var result = db.execute("SELECT id FROM trackedbranches WHERE repository=%d AND local_name=%s",
                               self.repository.id, self.branch.name)[0];
 
       if (result)
-        trackedBranch = new CriticTrackedBranch(self, result.remote, result.remote_name, result.disabled);
+        trackedBranch = new CriticTrackedBranch(result.id, { repository: self.repository,
+                                                             review: self });
       else
         trackedBranch = null;
     }

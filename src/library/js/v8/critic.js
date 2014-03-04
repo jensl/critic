@@ -152,6 +152,7 @@ Module.load("critic-html.js");
 Module.load("critic-storage.js");
 Module.load("critic-log.js");
 Module.load("critic-statistics.js");
+Module.load("critic-trackedbranch.js");
 
 Module.assign("CriticError", CriticError);
 Module.assign("Error", CriticError);
@@ -170,6 +171,7 @@ Module.assign("Filters", CriticFilters);
 Module.assign("Statistics", CriticStatistics);
 Module.assign("Storage", CriticStorage);
 Module.assign("MailTransaction", CriticMailTransaction);
+Module.assign("TrackedBranch", CriticTrackedBranch);
 Module.assign("Log", CriticLog);
 Module.assign("html", CriticHtml);
 Module.assign("text", Object.freeze({ reflow: reflow }));
@@ -216,6 +218,7 @@ var python_executable;
 var python_path;
 var repository_work_copy_path;
 var changeset_address;
+var branchtracker_pid_path;
 var maildelivery_pid_path;
 var is_development;
 
@@ -259,6 +262,7 @@ function setup(data)
   python_path = data.python_path;
   repository_work_copy_path = data.repository_work_copy_path;
   changeset_address = data.changeset_address;
+  branchtracker_pid_path = data.branchtracker_pid_path;
   maildelivery_pid_path = data.maildelivery_pid_path;
   is_development = data.is_development;
 

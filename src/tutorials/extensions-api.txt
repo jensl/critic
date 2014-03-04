@@ -383,6 +383,37 @@ containing this branch.  The work-copy's "origin" remote will be the repository
 containing this branch.  The work-copy's current branch will have the same name
 as this branch, and will be set up to track this branch in "origin".
 
+TrackedBranch
+-------------
+| dictionary FindData {
+|   Branch branch;
+|
+|   string remote;
+|   string name;
+| };
+|
+| interface TrackedBranch {
+|   readonly attribute Branch branch;
+|   readonly attribute Review? review;
+|   readonly attribute string remote;
+|   readonly attribute string name;
+|
+|   readonly attribute boolean disabled;
+|   readonly attribute boolean pending;
+|   readonly attribute boolean updating;
+|
+|   static TrackedBranch find(FindData data);
+| };
+
+Representation of a tracked branch.  The branch attribute represents the local
+branch.  The review attribute is the review connected with the local branch, if
+there is one, and null otherwise.  The remote and name attributes represent the
+remote repository and branch name.
+
+The disabled attribute indicates whether the tracking is disabled.  The pending
+attribute indicates whether the branch will be updated ASAP.  The updating
+attribute indicates whether the branch is being updated right now.
+
 Changesets
 ----------
 
@@ -550,6 +581,7 @@ Review
 |   readonly attribute OldBatch[]     batches;
 |   readonly attribute ReviewFilter[] filters;
 |   readonly attribute ReviewProgress progress;
+|   readonly attribute TrackedBranch  trackedBranch;
 |
 |   OldBatch getBatch(long id);
 |
