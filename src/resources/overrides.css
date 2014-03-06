@@ -30,7 +30,7 @@
 .chosen-container-single .chosen-single,
 .chosen-container-active.chosen-with-drop .chosen-single,
 .chosen-container-multi .chosen-choices li.search-choice {
-    background: #ede4d4 url(images/ui-bg_glass_70_ede4d4_1x400.png) 50% 50% repeat-x;
+    background: #ede4d4 url(third-party/images/ui-bg_glass_70_ede4d4_1x400.png) 50% 50% repeat-x;
 }
 
 .chosen-container .chosen-drop,
