@@ -108,12 +108,16 @@ def install(data):
     global password
 
     try:
-        subprocess.check_output(
-            [installation.criticctl.criticctl_path, "adduser",
-             "--name", username,
-             "--email", email,
-             "--fullname", fullname,
-             "--password", password])
+        criticctl_argv = [installation.criticctl.criticctl_path, "adduser",
+                          "--name", username,
+                          "--email", email,
+                          "--fullname", fullname]
+        if not password:
+            criticctl_argv.extend(["--no-password"])
+        else:
+            criticctl_argv.extend(["--password", password])
+
+        subprocess.check_output(criticctl_argv)
 
         for role in ["administrator", "repositories", "newswriter"]:
             subprocess.check_output(
