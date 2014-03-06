@@ -65,4 +65,31 @@ function CriticStorage(user)
       db.execute("DELETE FROM extensionstorage WHERE extension=%d AND uid=%d AND key=%s", extension_id, user.id, key);
       db.commit();
     };
+
+  this.list = function (data)
+    {
+      var condition, value;
+
+      if (!data)
+      {
+        condition = "%s";
+        value = true;
+      }
+      else if (data.like)
+      {
+        condition = "key LIKE %s";
+        value = data.like;
+      }
+      else if (data.regexp)
+      {
+        condition = "key ~ %s";
+        value = data.regexp;
+      }
+      else
+        throw new CriticError("invalid arguments");
+
+      var result = db.execute("SELECT key FROM extensionstorage WHERE extension=%d AND uid=%d AND " + condition + " ORDER BY key ASC", extension_id, user.id, value);
+
+      return result.apply(function (key) { return key; });
+    };
 }
