@@ -18,7 +18,8 @@ import dbutils
 import gitutils
 import log.commitset
 
-from operation import Operation, OperationResult, OperationError, Optional
+from operation import (Operation, OperationResult, OperationError, Optional,
+                       Review)
 
 def doPrepareRebase(db, user, review, new_upstream_arg=None, branch=None):
     commitset = log.commitset.CommitSet(review.branch.commits)
@@ -116,12 +117,11 @@ class SuggestUpstreams(Operation):
 
 class PrepareRebase(Operation):
     def __init__(self):
-        Operation.__init__(self, { "review_id": int,
+        Operation.__init__(self, { "review": Review,
                                    "new_upstream": Optional(str),
                                    "branch": Optional(str) })
 
-    def process(self, db, user, review_id, new_upstream=None, branch=None):
-        review = dbutils.Review.fromId(db, review_id)
+    def process(self, db, user, review, new_upstream=None, branch=None):
         doPrepareRebase(db, user, review, new_upstream, branch)
         return OperationResult()
 
@@ -200,12 +200,10 @@ class RebaseReview(Operation):
 
 class RevertRebase(Operation):
     def __init__(self):
-        Operation.__init__(self, { "review_id": int,
+        Operation.__init__(self, { "review": Review,
                                    "rebase_id": int })
 
-    def process(self, db, user, review_id, rebase_id):
-        review = dbutils.Review.fromId(db, review_id)
-
+    def process(self, db, user, review, rebase_id):
         cursor = db.cursor()
 
         cursor.execute("SELECT old_head, new_head, new_upstream FROM reviewrebases WHERE id=%s", (rebase_id,))
