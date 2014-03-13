@@ -83,7 +83,7 @@ with repository.workcopy() as workcopy:
                    "delegates": ["erin"] })
         frontend.operation(
             "setgitemails",
-            data={ "user_id": instance.userid("alice"),
+            data={ "subject_id": instance.userid("alice"),
                    "value": ["alice@example.org", "common@example.org"] })
 
     with frontend.signin("bob"):
@@ -95,7 +95,7 @@ with repository.workcopy() as workcopy:
                    "delegates": [] })
         frontend.operation(
             "setgitemails",
-            data={ "user_id": instance.userid("bob"),
+            data={ "subject_name": "bob",
                    "value": ["bob@example.org", "common@example.org"] })
 
     with frontend.signin("dave"):
@@ -107,7 +107,7 @@ with repository.workcopy() as workcopy:
                    "delegates": [] })
         frontend.operation(
             "setgitemails",
-            data={ "user_id": instance.userid("dave"),
+            data={ "subject": instance.userid("dave"),
                    "value": ["dave@example.org", "dave@example.com"] })
 
     workcopy.run(["checkout", "-b", "r/028-gitemails"])

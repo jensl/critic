@@ -24,7 +24,8 @@ import mailutils
 import textutils
 import configuration
 
-from operation import Operation, OperationResult, OperationError, OperationFailure, Optional
+from operation import (Operation, OperationResult, OperationError,
+                       OperationFailure, Optional, User)
 
 class SetFullname(Operation):
     def __init__(self):
@@ -45,11 +46,11 @@ class SetFullname(Operation):
 
 class SetGitEmails(Operation):
     def __init__(self):
-        Operation.__init__(self, { "user_id": int,
+        Operation.__init__(self, { "subject": User,
                                    "value": [str] })
 
-    def process(self, db, user, user_id, value):
-        if user.id != user_id:
+    def process(self, db, user, subject, value):
+        if user != subject:
             Operation.requireRole(db, "administrator", user)
 
         for address in value:
@@ -59,15 +60,17 @@ class SetGitEmails(Operation):
                 raise OperationError("invalid email address")
 
         cursor = db.cursor()
-        cursor.execute("SELECT email FROM usergitemails WHERE uid=%s", (user_id,))
+        cursor.execute("SELECT email FROM usergitemails WHERE uid=%s", (subject.id,))
 
         current_addresses = set(address for (address,) in cursor)
         new_addresses = set(address.strip() for address in value)
 
         for address in (current_addresses - new_addresses):
-            cursor.execute("DELETE FROM usergitemails WHERE uid=%s AND email=%s", (user_id, address))
+            cursor.execute("DELETE FROM usergitemails WHERE uid=%s AND email=%s",
+                           (subject.id, address))
         for address in (new_addresses - current_addresses):
-            cursor.execute("INSERT INTO usergitemails (uid, email) VALUES (%s, %s)", (user_id, address))
+            cursor.execute("INSERT INTO usergitemails (uid, email) VALUES (%s, %s)",
+                           (subject.id, address))
 
         db.commit()
 
@@ -75,24 +78,20 @@ class SetGitEmails(Operation):
 
 class ChangePassword(Operation):
     def __init__(self):
-        Operation.__init__(self, { "subject": Optional(set([int, str])),
+        Operation.__init__(self, { "subject": Optional(User),
                                    "current_pw": Optional(str),
                                    "new_pw": str })
 
     def process(self, db, user, new_pw, subject=None, current_pw=None):
         if subject is None:
-            user_id = user.id
-        elif isinstance(subject, basestring):
-            user_id = dbutils.User.fromName(db, subject).id
-        else:
-            user_id = subject
+            subject = user
 
         cursor = db.cursor()
 
-        if user.id != user_id:
+        if user != subject:
             Operation.requireRole(db, "administrator", user)
         elif current_pw is None:
-            cursor.execute("SELECT password FROM users WHERE id=%s", (user_id,))
+            cursor.execute("SELECT password FROM users WHERE id=%s", (subject.id,))
             if cursor.fetchone()[0] is not None:
                 # This is mostly a sanity check; the only way to trigger this is
                 # if the user has no password when he loads /home, sets a
@@ -102,8 +101,6 @@ class ChangePassword(Operation):
                 raise OperationFailure(code="wrongpassword",
                                        title="Wrong password!",
                                        message="No current password provided.")
-
-        subject = dbutils.User.fromId(db, user_id)
 
         if current_pw is not None:
             try: auth.checkPassword(db, subject.name, current_pw)
@@ -117,7 +114,8 @@ class ChangePassword(Operation):
                                    title="Empty password!",
                                    message="Setting an empty password is not allowed.")
 
-        cursor.execute("UPDATE users SET password=%s WHERE id=%s", (auth.hashPassword(new_pw), user_id))
+        cursor.execute("UPDATE users SET password=%s WHERE id=%s",
+                       (auth.hashPassword(new_pw), subject.id))
 
         db.commit()
 
@@ -321,21 +319,18 @@ class SelectEmailAddress(Operation):
 
 class AddEmailAddress(Operation):
     def __init__(self):
-        Operation.__init__(self, { "subject_id": int,
+        Operation.__init__(self, { "subject": User,
                                    "email": str })
 
-    def process(self, db, user, subject_id, email):
+    def process(self, db, user, subject, email):
         if not checkEmailAddressSyntax(email):
             raise OperationFailure(
                 code="invalidemail",
                 title="Invalid email address",
                 message="Please provide an address on the form <user>@<host>!")
 
-        if user != subject_id:
+        if user != subject:
             Operation.requireRole(db, "administrator", user)
-            subject = dbutils.User.fromId(db, subject_id)
-        else:
-            subject = user
 
         cursor = db.cursor()
         cursor.execute("""SELECT 1
@@ -376,38 +371,3 @@ class AddEmailAddress(Operation):
         db.commit()
 
         return OperationResult()
-
-class VerifyEmailAddress(Operation):
-    def __init__(self):
-        Operation.__init__(self, { "email_id": str })
-
-    def process(self, db, user, email_id):
-        Operation.requireRole(db, "administrator", user)
-
-        cursor = db.cursor()
-        cursor.execute("""SELECT verified
-                            FROM useremails
-                           WHERE uid=%s
-                             AND email=%s""",
-                       (email_id,))
-
-        row = cursor.fetchone()
-
-        if not row:
-            raise OperationFailure(
-                code="invalidemailid",
-                title="No such email address",
-                message="The address might have been deleted.")
-
-        verified, = row
-
-        if verified is True:
-            raise OperationFailure(
-                code="invalidemailid",
-                title="Not needed",
-                message="The address has been verified already.")
-
-        subject_id, = row
-
-        if user != subject_id:
-            Operation.requireRole(db, "administrator", user)

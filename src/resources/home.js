@@ -81,7 +81,7 @@ function saveGitEmails()
   {
     var operation = new Operation({ action: "save changes",
                                     url: "setgitemails",
-                                    data: { user_id: user.id,
+                                    data: { subject_id: user.id,
                                             value: value.split(/,\s*|\s+/g) }});
 
     if (operation.execute())
