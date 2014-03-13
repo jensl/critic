@@ -81,7 +81,7 @@ with work, signin:
                                                           branch)])
         result = frontend.operation(
             "submitreview",
-            data={ "repository_id": 1,
+            data={ "repository": "critic",
                    "commit_sha1s": [commit["sha1"] for commit in commits],
                    "branch": "r/" + branch,
                    "summary": summary })

@@ -23,8 +23,10 @@ import gitutils
 import htmlutils
 import configuration
 
-from operation import Operation, OperationResult, OperationError, Optional, OperationFailure
-from reviewing.utils import parseReviewFilters, parseRecipientFilters, createReview, getReviewersAndWatchers
+from operation import (Operation, OperationResult, OperationError, Optional,
+                       OperationFailure, Repository)
+from reviewing.utils import (parseReviewFilters, parseRecipientFilters,
+                             createReview, getReviewersAndWatchers)
 from page.createreview import generateReviewersAndWatchersTable
 from log.commitset import CommitSet
 
@@ -64,7 +66,7 @@ class ReviewersAndWatchers(Operation):
 
 class SubmitReview(Operation):
     def __init__(self):
-        Operation.__init__(self, { "repository_id": int,
+        Operation.__init__(self, { "repository": Repository,
                                    "branch": str,
                                    "summary": str,
                                    "commit_ids": Optional([int]),
@@ -82,7 +84,7 @@ class SubmitReview(Operation):
                                    "trackedbranch": Optional({ "remote": str,
                                                                "name": str }) })
 
-    def process(self, db, user, repository_id, branch, summary, commit_ids=None,
+    def process(self, db, user, repository, branch, summary, commit_ids=None,
                 commit_sha1s=None, applyfilters=True, applyparentfilters=True,
                 reviewfilters=None, recipientfilters=None, description=None,
                 frombranch=None, trackedbranch=None):
@@ -95,8 +97,6 @@ class SubmitReview(Operation):
             reviewfilters = []
         if recipientfilters is None:
             recipientfilters = {}
-
-        repository = gitutils.Repository.fromId(db, repository_id)
 
         components = branch.split("/")
         for index in range(1, len(components)):
@@ -155,7 +155,7 @@ class SubmitReview(Operation):
             cursor.execute("""INSERT INTO trackedbranches (repository, local_name, remote, remote_name, forced, delay)
                                    VALUES (%s, %s, %s, %s, false, %s)
                                 RETURNING id""",
-                           (repository_id, branch, trackedbranch["remote"], trackedbranch["name"], delay))
+                           (repository.id, branch, trackedbranch["remote"], trackedbranch["name"], delay))
 
             trackedbranch_id = cursor.fetchone()[0]
 

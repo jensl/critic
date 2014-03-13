@@ -29,7 +29,7 @@ with frontend.signin("alice"):
 
     result = frontend.operation(
         "submitreview",
-        data={ "repository_id": 1,
+        data={ "repository_name": "critic",
                "commit_ids": [commit_id],
                "branch": "r/012-createreview-recipients",
                "summary": COMMIT_SUMMARY,
