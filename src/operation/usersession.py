@@ -14,7 +14,7 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-from operation import Operation, OperationResult, OperationError
+from operation import Operation, OperationResult, OperationError, Request
 
 import dbutils
 import configuration
@@ -22,12 +22,12 @@ import auth
 
 class ValidateLogin(Operation):
     def __init__(self):
-        Operation.__init__(self, { "username": str,
+        Operation.__init__(self, { "req": Request,
+                                   "username": str,
                                    "password": str },
-                           accept_anonymous_user=True,
-                           pass_request=True)
+                           accept_anonymous_user=True)
 
-    def process(self, db, req, user, username, password):
+    def process(self, db, user, req, username, password):
         if not user.isAnonymous():
             if user.name == username:
                 return OperationResult()
@@ -54,9 +54,9 @@ class ValidateLogin(Operation):
 
 class EndSession(Operation):
     def __init__(self):
-        Operation.__init__(self, {}, pass_request=True)
+        Operation.__init__(self, { "req": Request })
 
-    def process(self, db, req, user):
+    def process(self, db, user, req):
         cursor = db.cursor()
         cursor.execute("DELETE FROM usersessions WHERE uid=%s", (user.id,))
 

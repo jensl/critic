@@ -14,8 +14,34 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
+class InvalidFileId(Exception):
+    def __init__(self, file_id):
+        super(InvalidFileId, self).__init__("Invalid file id: %d" % file_id)
+
 class InvalidPath(Exception):
     pass
+
+class File(object):
+    def __init__(self, file_id, path):
+        self.id = file_id
+        self.path = path
+
+    def __int__(self):
+        return self.id
+    def __str__(self):
+        return self.path
+
+    @staticmethod
+    def fromId(db, file_id):
+        return File(file_id, describe_file(db, file_id))
+
+    @staticmethod
+    def fromPath(db, path, insert=True):
+        file_id = find_file(db, path, insert)
+        if file_id is None:
+            # Only happens when insert=False.
+            raise InvalidPath("Path does not exist: %s" % path)
+        return File(file_id, path)
 
 def find_file(db, path, insert=True):
     path = path.lstrip("/")
@@ -46,4 +72,7 @@ def find_files(db, files):
 def describe_file(db, file_id):
     cursor = db.cursor()
     cursor.execute("SELECT path FROM files WHERE id=%s", (file_id,))
-    return cursor.fetchone()[0]
+    row = cursor.fetchone()
+    if not row:
+        raise InvalidFileId(file_id)
+    return row[0]

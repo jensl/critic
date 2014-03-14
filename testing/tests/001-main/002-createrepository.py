@@ -92,19 +92,20 @@ with frontend.signin():
                        data={ "name": "a" * 65,
                               "path": "validpath2" },
                        expect={ "status": "failure",
-                                "code": "paramtoolong_name" })
+                                "code": "paramtoolong:data.name" })
 
     frontend.operation("addrepository",
                        data={ "name": "",
                               "path": "validpath1" },
                        expect={ "status": "failure",
-                                "code": "paramtooshort_name" })
+                                "code": "paramtooshort:data.name" })
 
     frontend.operation("addrepository",
                        data={ "name": "a/b",
                               "path": "validpath3" },
                        expect={ "status": "failure",
-                                "code": "paramcontainsillegalchar_name" })
+                                "code": "paramcontainsillegalchar:data.name",
+                                "message": "invalid input: short name may not contain the character '/'" })
 
     frontend.operation("addrepository",
                        data={ "name": "critic.git",

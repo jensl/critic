@@ -18,23 +18,23 @@ import dbutils
 import configuration
 import auth
 
-from operation import Operation, OperationResult, Optional
+from operation import Operation, OperationResult, Optional, Request
 from operation.manipulateuser import sendVerificationMail, checkEmailAddressSyntax
 
 class RegisterUser(Operation):
     def __init__(self):
         super(RegisterUser, self).__init__(
-            { "username": str,
+            { "req": Request,
+              "username": str,
               "fullname": str,
               "email": str,
               "password": Optional(str),
               "external": Optional({ "provider": set(auth.PROVIDERS.keys()),
                                      "account": str,
                                      "token": str }) },
-            accept_anonymous_user=True,
-            pass_request=True)
+            accept_anonymous_user=True)
 
-    def process(self, db, req, user, username, fullname, email,
+    def process(self, db, user, req, username, fullname, email,
                 password=None, external=None):
         cursor = db.cursor()
 
