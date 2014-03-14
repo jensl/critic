@@ -19,6 +19,7 @@ import os
 import os.path
 import py_compile
 import argparse
+import multiprocessing
 
 import installation
 
@@ -524,6 +525,17 @@ web server to redirect all HTTP accesses to HTTPS.
     data["installation.config.is_development"] = is_development
     data["installation.config.is_testing"] = is_testing
     data["installation.config.coverage_dir"] = coverage_dir
+
+    if mode == "upgrade":
+        data["installation.config.highlight.max_workers"] = \
+            configuration.services.HIGHLIGHT["max_workers"]
+        data["installation.config.changeset.max_workers"] = \
+            configuration.services.CHANGESET["max_workers"]
+    else:
+        cpu_count = multiprocessing.cpu_count()
+
+        data["installation.config.highlight.max_workers"] = cpu_count
+        data["installation.config.changeset.max_workers"] = cpu_count / 2
 
     for provider in providers:
         provider.store(data)

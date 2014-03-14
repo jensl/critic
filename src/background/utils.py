@@ -613,12 +613,12 @@ class JSONJobServer(PeerServer):
         super(JSONJobServer, self).__init__(service)
         self.__clients_with_requests = []
         self.__started_requests = {}
-        self.__max_jobs = service.get("max_jobs", 4)
+        self.__max_workers = service.get("max_workers", 4)
 
     def __startJobs(self):
         # Repeat "start a job" while there are jobs to start and we haven't
         # reached the limit on number of concurrent jobs to run.
-        while self.__clients_with_requests and len(self.__started_requests) < self.__max_jobs:
+        while self.__clients_with_requests and len(self.__started_requests) < self.__max_workers:
             # Fetch next request from first client in list of clients with
             # pending requests.
             client = self.__clients_with_requests.pop(0)
