@@ -17,7 +17,6 @@
 import time
 
 import base
-import configuration
 
 def countDraftItems(db, user, review):
     cursor = db.cursor()
@@ -359,6 +358,8 @@ class Review(object):
         return "var review = critic.review = { id: %d, branch: { id: %d, name: %r }, owners: [ %s ], serial: %d };" % (self.id, self.branch.id, self.branch.name, ", ".join(owner.getJSConstructor() for owner in self.owners), self.serial)
 
     def getETag(self, db, user=None):
+        import configuration
+
         cursor = db.cursor()
         etag = ""
 

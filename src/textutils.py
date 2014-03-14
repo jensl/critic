@@ -18,9 +18,21 @@ import re
 import json
 import unicodedata
 
-import configuration
+try:
+    import configuration
 
-DEFAULT_ENCODINGS = configuration.base.DEFAULT_ENCODINGS[:]
+    DEFAULT_ENCODINGS = configuration.base.DEFAULT_ENCODINGS[:]
+except ImportError:
+    # This is the default set of default encodings.  We could fail to
+    # import 'configuration' for two principal reasons:
+    #
+    #  1) There's some catastrophic problem with the system.  Ignoring
+    #     the problem here won't make the least bit of difference.
+    #
+    #  2) We're trying to run unit tests without an installed system.
+    #     This fallback is simply nice in that case.
+
+    DEFAULT_ENCODINGS = ["utf-8"]
 
 def reflow(text, line_length=80, indent=0):
     if line_length == 0: return text

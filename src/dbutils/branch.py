@@ -14,8 +14,6 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-import gitutils
-
 class Branch(object):
     def __init__(self, id, repository, name, head, base, tail, branch_type, review_id):
         self.id = id
@@ -36,6 +34,7 @@ class Branch(object):
         return self.id != other.id
 
     def contains(self, db, commit):
+        import gitutils
         cursor = db.cursor()
         if isinstance(commit, gitutils.Commit) and commit.id is not None:
             cursor.execute("SELECT 1 FROM reachable WHERE branch=%s AND commit=%s", [self.id, commit.id])
@@ -44,6 +43,7 @@ class Branch(object):
         return cursor.fetchone() is not None
 
     def getHead(self, db):
+        import gitutils
         if not self.head:
             cursor = db.cursor()
             cursor.execute("""SELECT commits.id, commits.sha1
@@ -66,6 +66,7 @@ class Branch(object):
         return "var branch = %s;" % self.getJSConstructor()
 
     def loadCommits(self, db):
+        import gitutils
         if self.commits is None:
             cursor = db.cursor()
             cursor.execute("SELECT commits.id, commits.sha1 FROM reachable, commits WHERE reachable.branch=%s AND reachable.commit=commits.id", [self.id])
@@ -82,6 +83,8 @@ class Branch(object):
                 self.tail = gitutils.Commit.fromSHA1(db, self.repository, sha1, commit_id=commit_id)
 
     def rebase(self, db, base):
+        import gitutils
+
         cursor = db.cursor()
 
         def findReachable(head, base_branch_id, force_include=set()):
@@ -156,6 +159,8 @@ class Branch(object):
 
     @staticmethod
     def fromId(db, branch_id, load_review=False, load_commits=True, profiler=None):
+        import gitutils
+
         cursor = db.cursor()
         cursor.execute("SELECT name, repository, head, base, tail, branches.type, review, reviews.id IS NOT NULL FROM branches LEFT OUTER JOIN reviews ON (branches.id=reviews.branch) WHERE branches.id=%s", [branch_id])
         row = cursor.fetchone()

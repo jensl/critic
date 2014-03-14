@@ -15,9 +15,9 @@
 # the License.
 
 import psycopg2
-import configuration
 
 def connect():
+    import configuration
     return psycopg2.connect(**configuration.database.PARAMETERS)
 
 IntegrityError = psycopg2.IntegrityError

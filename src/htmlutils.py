@@ -15,9 +15,7 @@
 # the License.
 
 import re
-import gitutils
 import time
-import configuration
 import os
 import json
 import urllib
@@ -113,6 +111,7 @@ def base36(n):
     return s
 
 def getStaticResourceURI(name):
+    import configuration
     uri = "/static-resource/" + name
     ts = mtime(os.path.join(configuration.paths.INSTALL_DIR, "resources", name))
     if ts: uri += "?" + base36(ts)
@@ -193,6 +192,8 @@ class MetaInformation(object):
         return self.__request
 
     def render(self, target):
+        import configuration
+
         if not self.__finished:
             if self.__title:
                 target.title().text(self.__title)

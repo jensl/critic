@@ -18,10 +18,8 @@ import sys
 import traceback
 
 import base
-import mailutils
 import dbutils
 import htmlutils
-import configuration
 
 from textutils import json_encode, json_decode
 
@@ -414,6 +412,9 @@ class Operation(object):
                                 traceback.format_exc()))
 
             db.rollback()
+
+            import mailutils
+            import configuration
 
             if not user.hasRole(db, "developer"):
                 mailutils.sendExceptionMessage(db, "wsgi[%s]" % req.path, error_message)
