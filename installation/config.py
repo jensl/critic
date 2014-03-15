@@ -129,7 +129,7 @@ def calibrate_minimum_rounds():
         if hash_time >= minimum_password_hash_time:
             break
 
-        factor = min(1.2, minimum_password_hash_time / hash_time)
+        factor = min(1.2, minimum_password_hash_time / (hash_time + 0.001))
         min_rounds_value = int(factor * min_rounds_value)
 
     # If we're upgrading and have a current calibrated value, only change it if
