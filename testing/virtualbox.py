@@ -679,8 +679,7 @@ class Instance(testing.Instance):
         testing.logger.info("Extensions enabled")
 
     def restart(self):
-        self.execute(["sudo", "service", "apache2", "restart"])
-        self.execute(["sudo", "service", "critic-main", "restart"])
+        self.execute(["sudo", "criticctl", "restart"])
 
     def uninstall(self):
         self.execute(

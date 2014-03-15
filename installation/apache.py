@@ -17,6 +17,7 @@
 import os
 import re
 import subprocess
+import time
 
 import installation
 
@@ -66,12 +67,10 @@ def stop():
     return True
 
 def restart():
-    print
-    try:
-        subprocess.check_call(["service", "apache2", "restart"])
-    except subprocess.CalledProcessError:
+    if not stop():
         return False
-    return True
+    time.sleep(1)
+    return start()
 
 def prepare(mode, arguments, data):
     global pass_auth, site_suffix, default_site
