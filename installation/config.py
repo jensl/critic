@@ -124,12 +124,19 @@ def calibrate_minimum_rounds():
 
         calibration_context.encrypt("password")
 
-        hash_time = time.time() - before
+        # It's possible encryption was fast enough to measure as zero, or some
+        # other ridiculously small number.  "Round" it up to at least one
+        # millisecond for sanity.
+        hash_time = max(0.001, time.time() - before)
 
         if hash_time >= minimum_password_hash_time:
             break
 
-        factor = min(1.2, minimum_password_hash_time / (hash_time + 0.001))
+        # Multiplication factor.  Make it at least 1.2, to ensure we actually
+        # ever finish this loop, and at most 10, to ensure we don't over-shoot
+        # by too much.
+        factor = max(1.2, min(10.0, minimum_password_hash_time / hash_time))
+
         min_rounds_value = int(factor * min_rounds_value)
 
     # If we're upgrading and have a current calibrated value, only change it if
