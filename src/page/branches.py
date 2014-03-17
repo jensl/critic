@@ -95,8 +95,8 @@ def renderBranches(req, db, user):
             row = table.tr("branch")
 
             def link_to_branch(target, repository, name):
-                target.a(href=("log?branch=%s&repository=%d"
-                               % (name, repository.id))).text(name)
+                url = htmlutils.URL("/log", branch=name, repository=repository.id)
+                target.a(href=url).text(name)
 
             td_name = row.td("name")
             link_to_branch(td_name, repository, branch_name)
@@ -105,9 +105,12 @@ def renderBranches(req, db, user):
                 span = td_name.span("review").preformatted()
                 span.a(href="r/%d" % review_id).text("r/%d" % review_id)
             elif base_name:
-                span = td_name.span("check").preformatted()
-                span.a(href=("checkbranch?repository=%d&commit=%s&upstream=%s&fetch=no"
-                             % (repository.id, branch_name, base_name))).text("check")
+                url = htmlutils.URL("/checkbranch",
+                                    repository=repository.id,
+                                    commit=branch_name,
+                                    upstream=base_name,
+                                    fetch="no")
+                span = td_name.span("check").preformatted().a(href=url).text("check")
 
             td_base = row.td("base")
             if base_name:

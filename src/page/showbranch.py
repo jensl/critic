@@ -66,7 +66,8 @@ def renderShowBranch(req, db, user):
 
     def renderCreateReview(target):
         if not user.isAnonymous() and branch and branch.review is None and not rebased:
-            target.button(onclick="location.href = " + htmlutils.jsify("createreview?repository=%d&branch=%s" % (repository.id, branch_name))).text("Create Review")
+            url = htmlutils.URL("/createreview", repository=repository.id, branch=branch_name)
+            target.a("button", href=url).text("Create Review")
 
     if review_id is not None:
         extra_links = [("r/%s" % review_id, "Back to Review")]

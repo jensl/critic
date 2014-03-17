@@ -20,6 +20,7 @@ import time
 import configuration
 import os
 import json
+import urllib
 
 import textutils
 
@@ -116,6 +117,20 @@ def getStaticResourceURI(name):
     ts = mtime(os.path.join(configuration.paths.INSTALL_DIR, "resources", name))
     if ts: uri += "?" + base36(ts)
     return uri
+
+class URL(object):
+    def __init__(self, path, fragment=None, **query):
+        assert path.startswith("/")
+        assert "?" not in path
+        assert "#" not in path
+        self.value = path
+        if query:
+            self.value += "?" + urllib.urlencode(
+                [(name, str(value)) for name, value in query.items()])
+        if fragment:
+            self.value += "#" + fragment.lstrip("#")
+    def __str__(self):
+        return self.value
 
 class MetaInformation(object):
     def __init__(self):
