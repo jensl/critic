@@ -81,12 +81,12 @@ function rebase(name, base, newBaseBase, oldCount, newCount, baseOldCount, baseN
   function finish()
   {
     $.ajax({ async: false,
-             url: "/rebasebranch?repository=" + repository.id + "&name=" + name + "&base=" + base,
+             url: "/rebasebranch?repository=" + repository.id + "&name=" + encodeURIComponent(name) + "&base=" + encodeURIComponent(base),
              dataType: "text",
              success: function (data)
                {
                  if (data == "ok")
-                   location.replace("/log?repository=" + repository.id + "&branch=" + name);
+                   location.replace("/log?repository=" + repository.id + "&branch=" + encodeURIComponent(name));
                  else
                    reportError("update base branch", "Server reply: <i style='white-space: pre'>" + htmlify(data) + "</i>");
                },
@@ -237,7 +237,7 @@ $(document).ready(function ()
     $("select.base").change(function (ev)
       {
         if (ev.target.value != "*")
-          location.replace("/log?repository=" + repository.id + "&branch=" + branch.name + "&base=" + ev.target.value);
+          location.replace("/log?repository=" + repository.id + "&branch=" + encodeURIComponent(branch.name) + "&base=" + encodeURIComponent(ev.target.value));
       });
 
     $("span.squash, span.fixup").each(function (index, element)
