@@ -1,6 +1,11 @@
 with frontend.signin("alice"):
     frontend.operation(
         "evaluate",
+        data={ "source": "return critic.storage.has('the key');" },
+        expect={ "result": False })
+
+    frontend.operation(
+        "evaluate",
         data={ "source": "return critic.storage.get('the key');" },
         expect={ "result": None })
 
@@ -11,6 +16,16 @@ with frontend.signin("alice"):
 
     frontend.operation(
         "evaluate",
+        data={ "source": "return critic.storage.has('the key');" },
+        expect={ "result": True })
+
+    frontend.operation(
+        "evaluate",
+        data={ "source": "return critic.storage.has('the other key');" },
+        expect={ "result": False })
+
+    frontend.operation(
+        "evaluate",
         data={ "source": "return critic.storage.get('the key');" },
         expect={ "result": "the value" })
 
@@ -18,6 +33,11 @@ with frontend.signin("alice"):
         "clearextensionstorage",
         data={ "author_name": "alice",
                "extension_name": "TestExtension" })
+
+    frontend.operation(
+        "evaluate",
+        data={ "source": "return critic.storage.has('the key');" },
+        expect={ "result": False })
 
     frontend.operation(
         "evaluate",

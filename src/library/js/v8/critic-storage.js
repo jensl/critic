@@ -20,6 +20,18 @@
 
 function CriticStorage(user)
 {
+  this.has = function (key)
+    {
+      if (key.length > 64)
+        throw CriticError(format("%s: key length exceeds 64 characters", key));
+
+      var result = db.execute("SELECT 1 FROM extensionstorage WHERE extension=%d AND uid=%d AND key=%s", extension_id, user.id, key)[0];
+      if (result)
+        return true;
+      else
+        return false;
+    };
+
   this.get = function (key)
     {
       if (key.length > 64)
