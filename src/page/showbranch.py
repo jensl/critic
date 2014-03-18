@@ -19,6 +19,7 @@ import gitutils
 import dbutils
 import htmlutils
 import configuration
+import request
 
 import log.html as log_html
 
@@ -27,7 +28,10 @@ def renderShowBranch(req, db, user):
     base_name = req.getParameter("base", None)
     review_id = req.getParameter("review", None)
 
-    repository = gitutils.Repository.fromParameter(db, req.getParameter("repository", user.getPreference(db, "defaultRepository")))
+    repository = req.getParameter("repository", user.getPreference(db, "defaultRepository"))
+    if not repository:
+        raise request.MissingParameter("repository")
+    repository = gitutils.Repository.fromParameter(db, repository)
 
     cursor = db.cursor()
 
