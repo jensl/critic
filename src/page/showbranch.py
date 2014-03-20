@@ -49,7 +49,7 @@ def renderShowBranch(req, db, user):
         base = dbutils.Branch.fromName(db, repository, base_name)
 
         if base is None:
-            return page.utils.displayMessage(db, req, user, "'%s' doesn't name a branch!" % branch)
+            return page.utils.displayMessage(db, req, user, "'%s' doesn't name a branch!" % base_name)
 
         old_count, new_count, base_old_count, base_new_count = branch.rebase(db, base)
 
