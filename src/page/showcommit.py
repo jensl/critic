@@ -20,7 +20,6 @@ import dbutils
 import gitutils
 import diff
 import changeset.html as changeset_html
-import changeset.load as changeset_load
 import changeset.utils as changeset_utils
 import changeset.detectmoves as changeset_detectmoves
 import reviewing.utils as review_utils
@@ -28,7 +27,6 @@ import reviewing.comment as review_comment
 import reviewing.filters as review_filters
 import log.html as log_html
 from log.commitset import CommitSet
-import configuration
 import profiling
 import re
 
