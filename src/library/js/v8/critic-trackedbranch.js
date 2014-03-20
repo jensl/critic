@@ -114,7 +114,7 @@ function CriticTrackedBranch(id, data) {
       new_name = remote_name;
 
     db.execute(("UPDATE trackedbranches" +
-                "   SET remote_name=%s" +
+                "   SET remote_name=%s," +
                 "       disabled=FALSE" +
                 " WHERE id=%d"),
                new_name, this.id);
