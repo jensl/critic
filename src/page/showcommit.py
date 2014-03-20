@@ -53,7 +53,7 @@ def renderCommitInfo(db, target, user, repository, review, commit, conflicts=Fal
             span = cell.span("branch")
 
             if review_id is None:
-                url = "/log?repository=%d&branch=%s" % (repository.id, branch)
+                url = htmlutils.URL("/log", repository=repository.id, branch=branch)
                 title = branch
             else:
                 url = "/r/%d" % review_id
