@@ -14,7 +14,7 @@ function evaluate() {
     writeln(JSON.stringify({ "status": "ok",
                              "result": fn() }));
   } catch (error) {
-    writeln(JSON.stringify({ "status": "failure",
+    writeln(JSON.stringify({ "status": "error",
                              "error": String(error) }));
   }
 }

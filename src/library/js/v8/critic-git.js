@@ -175,6 +175,61 @@ function CriticCommitDirectory(commit, path)
   Object.freeze(this);
 }
 
+function runGitCommand(path, args)
+{
+  var env;
+
+  if (typeof args[args.length - 1] == "object")
+    env = args.pop();
+  else
+    env = {};
+
+  env["REMOTE_USER"] = global.user.name;
+
+  var stdin;
+
+  if ("stdin" in env)
+  {
+    stdin = env["stdin"];
+    delete env["stdin"];
+  }
+
+  var argv = [git_executable];
+
+  [].push.apply(argv, args);
+
+  var process = new OS.Process(git_executable, { argv: argv, cwd: path, environ: env });
+
+  if (stdin !== void 0)
+    process.stdin = new IO.MemoryFile(stdin, "r");
+
+  process.stdout = new IO.MemoryFile;
+  process.stderr = new IO.MemoryFile;
+
+  try
+  {
+    process.run();
+  }
+  catch (error)
+  {
+    var message;
+
+    if (process.exitStatus !== null)
+      message = format("Git exited with status %d", process.exitStatus);
+    else
+      message = format("Git terminated by signal %d", process.terminationSignal);
+
+    var stderr = process.stderr.value.decode();
+
+    if (stderr.trim())
+      message += format("\n%s", stderr);
+
+    throw CriticError(message);
+  }
+
+  return process.stdout.value.decode();
+}
+
 function CriticRepository(name_or_id)
 {
   var repository_id;
@@ -533,16 +588,11 @@ Object.defineProperties(CriticCommit.prototype,
       configurable: true }
   });
 
-CriticRepository.prototype.run = function (command)
+CriticRepository.prototype.run = function ()
   {
-    var argv = [git_executable];
-
-    [].push.apply(argv, arguments);
-
-    var process = new OS.Process(git_executable, { argv: argv, cwd: this.path });
-
-    return process.call();
+    return runGitCommand(this.path, [].slice.apply(arguments));
   };
+CriticRepository.prototype.run.supportsInput = true;
 
 CriticRepository.prototype.revparse = function (ref, use_short)
   {
@@ -786,61 +836,6 @@ function CriticRepositoryWorkCopy(repository, branch)
   var name = format("%s/%d/%s", global.user.name, extension_id, repository.name);
   var path = repository_work_copy_path + "/" + name;
 
-  this.run = function (command)
-    {
-      var args = [].slice.apply(arguments);
-      var env;
-
-      if (typeof args[args.length - 1] == "object")
-        env = args.pop();
-      else
-        env = {};
-
-      env["REMOTE_USER"] = global.user.name;
-
-      var stdin;
-
-      if ("stdin" in env)
-      {
-        stdin = env["stdin"];
-        delete env["stdin"];
-      }
-      else
-        stdin = "";
-
-      var argv = [git_executable];
-
-      [].push.apply(argv, args);
-
-      var process = new OS.Process(git_executable, { argv: argv, cwd: this.path, environ: env });
-
-      process.stdout = new IO.MemoryFile;
-      process.stderr = new IO.MemoryFile;
-
-      try
-      {
-        process.run(stdin);
-      }
-      catch (error)
-      {
-        var message;
-
-        if (process.exitStatus !== null)
-          message = format("Git exited with status %d", process.exitStatus);
-        else
-          message = format("Git terminated by signal %d", process.terminationSignal);
-
-        var stderr = process.stderr.value.decode();
-
-        if (stderr.trim())
-          message += format("\n%s", stderr);
-
-        throw CriticError(message);
-      }
-
-      return process.stdout.value.decode();
-    };
-
   this.repository = repository;
   this.path = path;
 
@@ -880,6 +875,12 @@ function CriticRepositoryWorkCopy(repository, branch)
     return process.call();
   }
 }
+
+CriticRepositoryWorkCopy.prototype.run = function ()
+  {
+    return runGitCommand(this.path, [].slice.apply(arguments));
+  };
+CriticRepositoryWorkCopy.prototype.run.supportsInput = true;
 
 CriticRepository.prototype.getWorkCopy = function ()
   {
