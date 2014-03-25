@@ -295,8 +295,6 @@ CommentChain.create = function (type_or_markers)
           data.file_context = { origin: side == 'o' ? "old" : "new",
                                 file_id: file,
                                 child_id: useChangeset.child.id,
-                                old_sha1: useFiles[file].old_sha1,
-                                new_sha1: useFiles[file].new_sha1,
                                 offset: firstLine,
                                 count: lastLine + 1 - firstLine };
 

@@ -392,7 +392,7 @@ def loadCommentChains(db, review, user, file=None, changeset=None, commit=None, 
 
     return result
 
-def createCommentChain(db, user, review, chain_type, commit_id=None, origin=None, file_id=None, parent_id=None, child_id=None, old_sha1=None, new_sha1=None, offset=None, count=None):
+def createCommentChain(db, user, review, chain_type, commit=None, origin=None, file=None, parent=None, child=None, offset=None, count=None):
     import reviewing.comment.propagate
 
     if chain_type == "issue" and review.state != "open":
@@ -402,15 +402,15 @@ def createCommentChain(db, user, review, chain_type, commit_id=None, origin=None
 
     cursor = db.cursor()
 
-    if file_id is not None:
+    if file is not None:
         if origin == "old":
-            commit = gitutils.Commit.fromId(db, review.repository, parent_id)
+            commit = parent
         else:
-            commit = gitutils.Commit.fromId(db, review.repository, child_id)
+            commit = child
 
         propagation = reviewing.comment.propagate.Propagation(db)
 
-        if not propagation.setCustom(review, commit, file_id, offset, offset + count - 1):
+        if not propagation.setCustom(review, commit, file.id, offset, offset + count - 1):
             raise OperationFailure(code="invalidoperation",
                                    title="Invalid operation",
                                    message="It's not possible to create a comment here.")
@@ -420,7 +420,9 @@ def createCommentChain(db, user, review, chain_type, commit_id=None, origin=None
         cursor.execute("""INSERT INTO commentchains (review, uid, type, origin, file, first_commit, last_commit)
                                VALUES (%s, %s, %s, %s, %s, %s, %s)
                             RETURNING id""",
-                       (review.id, user.id, chain_type, origin, file_id, parent_id, child_id))
+                       (review.id, user.id, chain_type, origin, file.id,
+                        parent.getId(db) if parent else None,
+                        child.getId(db) if child else None))
 
         chain_id = cursor.fetchone()[0]
         commentchainlines_values = []
@@ -431,13 +433,12 @@ def createCommentChain(db, user, review, chain_type, commit_id=None, origin=None
         cursor.executemany("""INSERT INTO commentchainlines (chain, uid, sha1, first_line, last_line)
                                    VALUES (%s, %s, %s, %s, %s)""",
                            commentchainlines_values)
-    elif commit_id is not None:
-        commit = gitutils.Commit.fromId(db, review.repository, commit_id)
+    elif commit is not None:
 
         cursor.execute("""INSERT INTO commentchains (review, uid, type, first_commit, last_commit)
                                VALUES (%s, %s, %s, %s, %s)
                             RETURNING id""",
-                       (review.id, user.id, chain_type, commit_id, commit_id))
+                       (review.id, user.id, chain_type, commit.getId(db), commit.getId(db)))
         chain_id = cursor.fetchone()[0]
 
         cursor.execute("""INSERT INTO commentchainlines (chain, uid, sha1, first_line, last_line)
@@ -452,12 +453,12 @@ def createCommentChain(db, user, review, chain_type, commit_id=None, origin=None
 
     commentchainusers = set([user.id] + map(int, review.owners))
 
-    if file_id is not None:
+    if file is not None:
         filters = Filters()
         filters.setFiles(db, review=review)
         filters.load(db, review=review)
 
-        for user_id in filters.listUsers(file_id):
+        for user_id in filters.listUsers(file.id):
             commentchainusers.add(user_id)
 
     cursor.executemany("INSERT INTO commentchainusers (chain, uid) VALUES (%s, %s)", [(chain_id, user_id) for user_id in commentchainusers])

@@ -16,7 +16,9 @@
 
 import dbutils
 
-from operation import Operation, OperationResult, OperationFailure, Optional
+from operation import (Operation, OperationResult, OperationFailure, Optional,
+                       NonNegativeInteger, PositiveInteger, Review, Commit, File)
+
 from reviewing.comment import CommentChain, validateCommentChain, createCommentChain, createComment
 
 class ValidateCommentChain(Operation):
@@ -42,25 +44,21 @@ def checkComment(text):
 
 class CreateCommentChain(Operation):
     def __init__(self):
-        Operation.__init__(self, { "review_id": int,
+        Operation.__init__(self, { "review": Review,
                                    "chain_type": set(["issue", "note"]),
-                                   "commit_context": Optional({ "commit_id": int,
-                                                                "offset": int,
-                                                                "count": int }),
+                                   "commit_context": Optional({ "commit": Commit,
+                                                                "offset": NonNegativeInteger,
+                                                                "count": PositiveInteger }),
                                    "file_context": Optional({ "origin": set(["old", "new"]),
-                                                              "parent_id": Optional(int),
-                                                              "child_id": int,
-                                                              "file_id": int,
-                                                              "old_sha1": Optional(str),
-                                                              "new_sha1": Optional(str),
-                                                              "offset": int,
-                                                              "count": int }),
+                                                              "parent": Optional(Commit),
+                                                              "child": Commit,
+                                                              "file": File,
+                                                              "offset": PositiveInteger,
+                                                              "count": PositiveInteger }),
                                    "text": str })
 
-    def process(self, db, user, review_id, chain_type, text, commit_context=None, file_context=None):
+    def process(self, db, user, review, chain_type, text, commit_context=None, file_context=None):
         checkComment(text)
-
-        review = dbutils.Review.fromId(db, review_id)
 
         if commit_context:
             chain_id = createCommentChain(db, user, review, chain_type, **commit_context)
