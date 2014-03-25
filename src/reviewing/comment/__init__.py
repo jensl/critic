@@ -434,6 +434,10 @@ def createCommentChain(db, user, review, chain_type, commit=None, origin=None, f
                                    VALUES (%s, %s, %s, %s, %s)""",
                            commentchainlines_values)
     elif commit is not None:
+        if offset + count > len(commit.message.splitlines()):
+            raise OperationFailure(code="invalidoperation",
+                                   title="Invalid operation",
+                                   message="It's not possible to create a comment here.")
 
         cursor.execute("""INSERT INTO commentchains (review, uid, type, first_commit, last_commit)
                                VALUES (%s, %s, %s, %s, %s)

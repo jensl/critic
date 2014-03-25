@@ -295,15 +295,15 @@ class Review(object):
 
         return log.commitset.CommitSet(commits)
 
-    def containsCommit(self, db, commit, include_head_and_tails=False):
+    def containsCommit(self, db, commit, include_head_and_tails=False, include_actual_log=False):
         import gitutils
 
         commit_id = None
         commit_sha1 = None
 
         if isinstance(commit, gitutils.Commit):
-            if commit.id: commit_id = commit.id
-            else: commit_sha1 = commit.sha1
+            commit_id = commit.id
+            commit_sha1 = commit.sha1
         elif isinstance(commit, str):
             commit_sha1 = self.repository.revparse(commit)
             commit = None
@@ -350,6 +350,28 @@ class Review(object):
                 commit_sha1 = commit.sha1
 
             if commit_sha1 in head_and_tails:
+                return True
+
+        if include_actual_log:
+            if commit_id is not None:
+                cursor.execute("""SELECT 1
+                                    FROM reachable
+                                    JOIN branches ON (branches.id=reachable.branch)
+                                    JOIN reviews ON (reviews.branch=branches.id)
+                                   WHERE reachable.commit=%s
+                                     AND reviews.id=%s""",
+                               (commit_id, self.id))
+            else:
+                cursor.execute("""SELECT 1
+                                    FROM commits
+                                    JOIN reachable ON (reachable.commit=commits.id)
+                                    JOIN branches ON (branches.id=reachable.branch)
+                                    JOIN reviews ON (reviews.branch=branches.id)
+                                   WHERE commits.sha1=%s
+                                     AND reviews.id=%s""",
+                               (commit_sha1, self.id))
+
+            if cursor.fetchone() is not None:
                 return True
 
         return False
