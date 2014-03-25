@@ -287,6 +287,10 @@ class RestrictedInteger(IntegerChecker):
                 message=("invalid input: %s must be %d or lower"
                          % (ui_name, self.maxvalue)))
 
+class NonNegativeInteger(RestrictedInteger):
+    def __init__(self):
+        super(NonNegativeInteger, self).__init__(minvalue=0)
+
 class PositiveInteger(RestrictedInteger):
     def __init__(self):
         super(PositiveInteger, self).__init__(minvalue=1)

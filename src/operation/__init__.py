@@ -25,8 +25,9 @@ from operation.basictypes import (OperationResult, OperationError,
                                   OperationFailure, OperationFailureMustLogin)
 
 from operation.typechecker import (Optional, Request, RestrictedString, SHA1,
-                                   RestrictedInteger, PositiveInteger, Review,
-                                   Repository, Commit, File, User)
+                                   RestrictedInteger, NonNegativeInteger,
+                                   PositiveInteger, Review, Repository, Commit,
+                                   File, User)
 
 class Operation(object):
 

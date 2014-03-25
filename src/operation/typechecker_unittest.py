@@ -10,8 +10,8 @@ def basic():
     from operation.typechecker import (
         Optional, TypeChecker, TypeCheckerContext, BooleanChecker,
         StringChecker, RestrictedString, SHA1, IntegerChecker,
-        RestrictedInteger, PositiveInteger, ArrayChecker, EnumerationChecker,
-        VariantChecker, DictionaryChecker)
+        RestrictedInteger, PositiveInteger, NonNegativeInteger, ArrayChecker,
+        EnumerationChecker, VariantChecker, DictionaryChecker)
 
     # Check TypeChecker.make()'s handling of basic types.
     assert type(TypeChecker.make(bool)) is BooleanChecker
@@ -200,6 +200,15 @@ def basic():
                      code="valuetoolow:data",
                      title="Invalid gazonk parameter",
                      message="invalid input: gazonk must be 1 or higher")
+
+    # Check NonNegativeInteger.
+    should_match(NonNegativeInteger, 0, 1, 2**31)
+    should_not_match(NonNegativeInteger, True, "foo",
+                     error="invalid input: data is not an integer")
+    should_not_match(NonNegativeInteger, -2**31, -1,
+                     code="valuetoolow:data",
+                     title="Invalid data parameter",
+                     message="invalid input: data must be 0 or higher")
 
     # Check PositiveInteger.
     should_match(PositiveInteger, 1, 2**31)
