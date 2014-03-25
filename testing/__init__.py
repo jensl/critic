@@ -57,6 +57,7 @@ import expect
 import repository
 import mailbox
 import findtests
+import utils
 
 logger = None
 

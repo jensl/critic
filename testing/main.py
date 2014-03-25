@@ -466,6 +466,9 @@ first or run this script without --test-extensions.""")
                     with instance:
                         instance.mailbox = mailbox
 
+                        testing.utils.instance = instance
+                        testing.utils.frontend = frontend
+
                         if run_group(group_name, all_groups[group_name]):
                             instance.finish()
 

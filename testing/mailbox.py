@@ -26,7 +26,7 @@ import testing
 class MissingMail(testing.TestFailure):
     def __init__(self, criteria, timeout):
         super(MissingMail, self).__init__(
-            "No mail matching [%s] received in %d seconds" % (criteria, timeout))
+            "No mail matching %r received in %d seconds" % (criteria, timeout))
         self.criteria = criteria
         self.timeout = timeout
 
@@ -334,7 +334,7 @@ class WithSubject(object):
         self.regexp = re.compile(value)
     def __call__(self, mail):
         return self.regexp.match(mail.header("Subject")) is not None
-    def __str__(self):
+    def __repr__(self):
         return "subject=%r" % self.regexp.pattern
 
 class ToRecipient(object):
@@ -342,5 +342,5 @@ class ToRecipient(object):
         self.address = address
     def __call__(self, mail):
         return mail.recipient == self.address
-    def __str__(self):
+    def __repr__(self):
         return "recipient=<%s>" % self.address
