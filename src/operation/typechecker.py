@@ -505,7 +505,7 @@ class Repository(VariantChecker, Prioritized):
 class CommitId(PositiveInteger):
     def __call__(self, value, context):
         import gitutils
-        if context.repository:
+        if context.repository is None:
             raise OperationError("missing repository in context")
         super(CommitId, self).__call__(value, context)
         return gitutils.Commit.fromId(context.db, context.repository, value)
@@ -513,7 +513,7 @@ class CommitId(PositiveInteger):
 class CommitSHA1(SHA1):
     def __call__(self, value, context):
         import gitutils
-        if context.repository:
+        if context.repository is None:
             raise OperationError("missing repository in context")
         super(CommitSHA1, self).__call__(value, context)
         return gitutils.Commit.fromSHA1(context.db, context.repository, value)
@@ -524,7 +524,7 @@ class Commit(VariantChecker):
                                        "sha1": CommitSHA1 })
 
     def __call__(self, value, context):
-        if context.repository:
+        if context.repository is None:
             raise OperationError("missing repository in context")
         return super(Commit, self).__call__(value, context)
 
