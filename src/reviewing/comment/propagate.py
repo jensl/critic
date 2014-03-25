@@ -15,6 +15,7 @@
 # the License.
 
 import dbutils
+import diff
 
 from changeset.utils import createChangeset
 
@@ -138,6 +139,9 @@ class Propagation:
         review.
         """
 
+        assert first_line > 0
+        assert last_line >= first_line
+
         if not review.containsCommit(self.db, commit, True):
             return False
 
@@ -150,10 +154,23 @@ class Propagation:
         self.location = Location(first_line, last_line)
         self.active = True
 
-        file_sha1 = commit.getFileSHA1(self.file_path)
+        file_entry = commit.getFileEntry(self.file_path)
 
-        self.all_lines = { file_sha1: (first_line, last_line) }
-        self.new_lines = { file_sha1: (first_line, last_line) }
+        if file_entry is None:
+            # File doesn't exist (in the given commit.)
+            return False
+
+        diff_file = diff.File(new_sha1=file_entry.sha1,
+                              new_mode=file_entry.mode,
+                              repository=review.repository)
+        diff_file.loadNewLines()
+
+        if last_line > diff_file.newCount():
+            # Range of lines is out of bounds.
+            return False
+
+        self.all_lines = { file_entry.sha1: (first_line, last_line) }
+        self.new_lines = { file_entry.sha1: (first_line, last_line) }
 
         return True
 
