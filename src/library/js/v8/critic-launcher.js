@@ -23,37 +23,44 @@ critic.load(data.criticjs_path);
 critic.setup(data);
 critic.close();
 
-try
+function run()
 {
-  var script = new Module({ PostgreSQL: false });
-  script.global.critic = critic;
-  script.eval("var Encodings = { decode: function (bytes) { return typeof bytes == 'object' ? bytes.decode.apply(bytes, [].slice.call(arguments, 1)) : bytes; } };");
-
   try
   {
-    script.load(data.script_path);
-  }
-  catch (error)
-  {
-    IO.File.stderr.write(format("Failed to load '%s':\n  %s",
-                                data.script_path, error));
-    OS.Process.exit(1);
-  }
+    var script = new Module({ PostgreSQL: false });
+    script.global.critic = critic;
+    script.eval("var Encodings = { decode: function (bytes) { return typeof bytes == 'object' ? bytes.decode.apply(bytes, [].slice.call(arguments, 1)) : bytes; } };");
 
-  try
-  {
-    script.global[data.fn].apply(null, eval(data.argv));
+    try
+    {
+      script.load(data.script_path);
+    }
+    catch (error)
+    {
+      IO.File.stderr.write(format("Failed to load '%s':\n  %s",
+                                  data.script_path, error));
+      return 1;
+    }
+
+    try
+    {
+      script.global[data.fn].apply(null, eval(data.argv));
+    }
+    catch (error)
+    {
+      IO.File.stderr.write(format("Failed to call '%s::%s()':\n  %s\n    %s",
+                                  data.script_path, data.fn,
+                                  error,
+                                  error.stack.replace(/\n/g, "\n    ")));
+      return 1;
+    }
+
+    return 0;
   }
-  catch (error)
+  finally
   {
-    IO.File.stderr.write(format("Failed to call '%s::%s()':\n  %s\n    %s",
-                                data.script_path, data.fn,
-                                error,
-                                error.stack.replace(/\n/g, "\n    ")));
-    OS.Process.exit(1);
+    critic.shutdown();
   }
 }
-finally
-{
-  critic.shutdown();
-}
+
+OS.Process.exit(run());

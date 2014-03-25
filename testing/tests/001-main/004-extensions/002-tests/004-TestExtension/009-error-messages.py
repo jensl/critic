@@ -17,6 +17,7 @@ Failed to call 'error\\.runtime\\.js::test\\(\\)':
   CriticError: nosuchuser: no such user
     new CriticUser\\(\\) at <Library>/critic-user\\.js:\\d+
     test\\(\\) at <Extension>/error\\.runtime\\.js:\\d+
+    run\\(\\) at <Library>/critic-launcher\\.js:\\d+
     <program code> at <Library>/critic-launcher\\.js:\\d+""",
         actual=document,
         equal=re.match)
