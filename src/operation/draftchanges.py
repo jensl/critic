@@ -279,8 +279,9 @@ class SubmitChanges(Operation):
 
         profiler.check("commentchains draft=>open")
 
-        # Reject all draft comment chain changes where the affected comment chain
-        # isn't in the state it was in when the change was drafted.
+        # Reject all draft comment chain changes where the affected comment
+        # chain isn't in the state it was in when the change was drafted, or has
+        # been morphed into a note since the change was drafted.
         cursor.execute("""UPDATE commentchainchanges
                              SET state='rejected',
                                  time=now()
@@ -291,7 +292,8 @@ class SubmitChanges(Operation):
                              AND commentchainchanges.state='draft'
                              AND commentchainchanges.from_state IS NOT NULL
                              AND (commentchainchanges.from_state!=commentchains.state
-                               OR commentchainchanges.from_last_commit!=commentchains.last_commit)""",
+                               OR commentchainchanges.from_last_commit!=commentchains.last_commit
+                               OR commentchains.type!='issue')""",
                        (review.id, user.id))
 
         profiler.check("commentchainchanges reject state changes")
