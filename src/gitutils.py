@@ -178,14 +178,10 @@ class Repository:
             else:
                 prefix = "%s:"
             url_format = prefix + os.path.join(configuration.paths.GIT_DIR, "%s")
-        elif configuration.base.ACCESS_SCHEME == "http":
-            url_format = "http://%s/%s"
-        elif configuration.base.ACCESS_SCHEME == "https":
-            url_format = "https://%s/%s"
-        elif user.isAnonymous():
-            url_format = "http://%s/%s"
         else:
-            url_format = "https://%s/%s"
+            import dbutils
+            url_prefix = dbutils.getURLPrefix(db, user)
+            return "%s/%s" % (url_prefix, path)
 
         return url_format % (configuration.base.HOSTNAME, path)
 
