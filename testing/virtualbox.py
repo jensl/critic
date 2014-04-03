@@ -669,7 +669,20 @@ class Instance(testing.Instance):
                                          self.identifier, "v8-jsshell",
                                          v8_jsshell_sha1)
 
-        if os.path.isfile(cached_executable):
+        if self.upgrade_commit is not None \
+                and self.install_commit == self.current_commit \
+                and self.upgrade_commit != self.current_commit:
+            # We're extending before upgrading.  Don't use a cached executable
+            # now if the upgrade changes the sub-module reference, since this
+            # breaks upgrade.py's automatic invocation of extend.py.
+
+            upgraded_v8_jsshell_sha1 = testing.repository.submodule_sha1(
+                os.getcwd(), self.upgrade_commit, submodule_path)
+            if upgraded_v8_jsshell_sha1 != v8_jsshell_sha1:
+                testing.logger.debug("Caching of v8-jsshell disabled")
+                cached_executable = None
+
+        if cached_executable and os.path.isfile(cached_executable):
             self.execute(["mkdir", "installation/externals/v8-jsshell/out"], cwd="critic")
             self.copyto(cached_executable,
                         "critic/installation/externals/v8-jsshell/out/jsshell")
@@ -698,11 +711,13 @@ class Instance(testing.Instance):
                 self.copyfrom("v8deps.tar.bz2", cached_v8deps)
 
             internal("build")
-            if not os.path.isdir(os.path.dirname(cached_executable)):
-                os.makedirs(os.path.dirname(cached_executable))
-            self.copyfrom("critic/installation/externals/v8-jsshell/out/jsshell",
-                          cached_executable)
-            testing.logger.debug("Copied built v8-jsshell executable from instance")
+
+            if cached_executable:
+                if not os.path.isdir(os.path.dirname(cached_executable)):
+                    os.makedirs(os.path.dirname(cached_executable))
+                self.copyfrom("critic/installation/externals/v8-jsshell/out/jsshell",
+                              cached_executable)
+                testing.logger.debug("Copied built v8-jsshell executable from instance")
 
         internal("install")
         internal("enable")
