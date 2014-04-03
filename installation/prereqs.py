@@ -69,7 +69,6 @@ missing software using it.
             default=True)
         if not aptget_approved: aptget = False
     if aptget:
-        installed_anything = False
         aptget_env = os.environ.copy()
         if arguments.headless:
             aptget_env["DEBIAN_FRONTEND"] = "noninteractive"
@@ -81,13 +80,16 @@ missing software using it.
         aptget_output = subprocess.check_output(
             [aptget, "-qq", "-y", "install"] + list(packages),
             env=aptget_env)
+        installed = {}
         for line in aptget_output.splitlines():
-            match = re.search(r"([^ ]+) \(.* \.\.\./([^)]+\.deb)\) \.\.\.", line)
+            match = re.match(r"^Setting up ([^ ]+) \(([^)]+)\) \.\.\.", line)
             if match:
-                need_blankline = True
-                installed_anything = True
-                print "Installed: %s (%s)" % (match.group(1), match.group(2))
-        return installed_anything
+                package_name, version = match.groups()
+                if package_name in packages:
+                    need_blankline = True
+                    installed[package_name] = version
+                    print "Installed: %s (%s)" % (package_name, version)
+        return installed
     else:
         return False
 
