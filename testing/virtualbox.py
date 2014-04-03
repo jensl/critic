@@ -59,8 +59,11 @@ class Instance(testing.Instance):
         self.ssh_port = arguments.vm_ssh_port
         if install_commit:
             self.install_commit, self.install_commit_description = install_commit
+            self.tested_commit = self.install_commit
         if upgrade_commit:
             self.upgrade_commit, self.upgrade_commit_description = upgrade_commit
+            if self.upgrade_commit:
+                self.tested_commit = self.upgrade_commit
         self.frontend = frontend
         self.strict_fs_permissions = getattr(arguments, "strict_fs_permissions", False)
         self.coverage = getattr(arguments, "coverage", False)
@@ -633,8 +636,9 @@ class Instance(testing.Instance):
             self.current_commit = self.upgrade_commit
 
     def check_extend(self, repository, pre_upgrade=False):
-        if not testing.exists_at(self.install_commit, "extend.py"):
-            raise testing.NotSupported("installed commit lacks extend.py")
+        commit = self.install_commit if pre_upgrade else self.tested_commit
+        if not testing.exists_at(commit, "extend.py"):
+            raise testing.NotSupported("tested commit lacks extend.py")
         if not self.arguments.test_extensions:
             raise testing.NotSupported("--test-extensions argument not given")
         if not repository.v8_jsshell_path:
