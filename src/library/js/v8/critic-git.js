@@ -275,6 +275,7 @@ function CriticRepository(name_or_id)
         catfile = new OS.Process(git_executable, { argv: argv, cwd: self.path });
         catfile.stdin = stdin.input;
         catfile.stdout = stdout.output;
+        catfile.stderr = new IO.MemoryFile();
         catfile.start();
 
         catfile_in = stdin.output;
