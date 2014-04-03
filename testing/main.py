@@ -36,6 +36,9 @@ class Counters:
 counters = Counters()
 logger = None
 
+class TestingAborted(Exception):
+    pass
+
 def run():
     global logger
 
@@ -451,8 +454,7 @@ first or run this script without --test-extensions.""")
                         maybe_pause_after(test)
                     break
         except KeyboardInterrupt:
-            logger.error("Testing aborted.")
-            return False
+            raise TestingAborted
         except testing.Error as error:
             if error.message:
                 logger.exception(error.message)
@@ -504,11 +506,12 @@ first or run this script without --test-extensions.""")
 def main():
     start_time = time.time()
 
-    run()
+    try:
+        run()
 
-    time_taken = str(datetime.timedelta(seconds=round(time.time() - start_time)))
+        time_taken = str(datetime.timedelta(seconds=round(time.time() - start_time)))
 
-    logger.info("""
+        logger.info("""
 Test summary
 ============
 Tests run:       %9d
@@ -522,7 +525,10 @@ Time taken:      %9s
        counters.warnings_logged,
        time_taken))
 
-    if counters.tests_failed or counters.errors_logged:
+        if counters.tests_failed or counters.errors_logged:
+            sys.exit(1)
+    except TestingAborted:
+        logger.error("Testing aborted.")
         sys.exit(1)
 
 if __name__ == "__main__":
