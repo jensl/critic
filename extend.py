@@ -295,13 +295,27 @@ def do_unprivileged_work():
             ["make", "-j%d" % multiprocessing.cpu_count()],
             cwd=v8_jsshell, env=env)
 
+def checked_unprivileged_work(result):
+    try:
+        do_unprivileged_work()
+    except:
+        result.put(False)
+        raise
+    else:
+        result.put(True)
+
 if fetch or build \
         or arguments.import_v8_dependencies \
         or arguments.export_v8_dependencies:
     if is_root:
-        unprivileged = multiprocessing.Process(target=do_unprivileged_work)
+        unprivileged_result = multiprocessing.Queue()
+        unprivileged = multiprocessing.Process(target=checked_unprivileged_work,
+                                               args=(unprivileged_result,))
         unprivileged.start()
         unprivileged.join()
+
+        if not unprivileged_result.get():
+            sys.exit(1)
     else:
         do_unprivileged_work()
 
