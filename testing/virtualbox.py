@@ -612,6 +612,7 @@ class Instance(testing.Instance):
                     arguments.append(value)
 
             self.execute(["git", "checkout", self.upgrade_commit], cwd="critic")
+            self.execute(["git", "submodule", "update", "--recursive"], cwd="critic")
 
             # Setting this will make has_flag() from now on (including when used
             # in the rest of this function) check the upgraded-to commit rather
