@@ -276,11 +276,13 @@ function CriticRepository(name_or_id)
         catfile.stdin = stdin.input;
         catfile.stdout = stdout.output;
         catfile.stderr = new IO.MemoryFile();
-        catfile.start();
 
         catfile_in = stdin.output;
+        catfile_in.setCloseOnExec(true);
         catfile_out = stdout.input;
         catfile_buffer = new IO.Buffered(catfile_out);
+
+        catfile.start();
       }
 
       try
