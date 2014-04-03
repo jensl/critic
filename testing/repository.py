@@ -43,6 +43,20 @@ def _git(args, **kwargs):
     except subprocess.CalledProcessError as error:
         raise GitCommandError(" ".join(argv), error.output)
 
+def submodule_sha1(repository_path, parent_sha1, submodule_path):
+    try:
+        lstree = _git(["ls-tree", parent_sha1, submodule_path],
+                      cwd=repository_path)
+    except GitCommandError:
+        # Sub-module doesn't exist?  Will probably fail later, but doesn't need
+        # to fail here.
+        return None
+    mode, object_type, sha1, path = lstree.strip().split(None, 3)
+    if object_type != "commit":
+        # Odd.  The repository doesn't look at all like we expect.
+        return None
+    return sha1
+
 class Repository(object):
     def __init__(self, host, port, tested_commit, vm_hostname):
         self.host = host
@@ -67,20 +81,6 @@ class Repository(object):
              cwd=self.path)
 
         self.push(tested_commit)
-
-        def submodule_sha1(repository_path, parent_sha1, submodule_path):
-            try:
-                lstree = _git(["ls-tree", parent_sha1, submodule_path],
-                              cwd=repository_path)
-            except GitCommandError:
-                # Sub-module doesn't exist?  Will probably fail later, but
-                # doesn't need to fail here.
-                return None
-            mode, object_type, sha1, path = lstree.strip().split(None, 3)
-            if object_type != "commit":
-                # Odd.  The repository doesn't look at all like we expect.
-                return None
-            return sha1
 
         if os.path.exists("installation/externals/v8-jsshell/.git"):
             v8_jsshell_path = os.path.join(os.getcwd(), "installation/externals/v8-jsshell")

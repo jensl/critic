@@ -541,6 +541,7 @@ class Instance(testing.Instance):
         testing.logger.info("Installed Critic: %s" % self.install_commit_description)
 
         self.__installed = True
+        self.current_commit = self.install_commit
 
     def check_upgrade(self):
         if not self.upgrade_commit:
@@ -629,6 +630,8 @@ class Instance(testing.Instance):
 
             testing.logger.info("Upgraded Critic: %s" % self.upgrade_commit_description)
 
+            self.current_commit = self.upgrade_commit
+
     def check_extend(self, repository, pre_upgrade=False):
         if not testing.exists_at(self.install_commit, "extend.py"):
             raise testing.NotSupported("installed commit lacks extend.py")
@@ -653,8 +656,10 @@ class Instance(testing.Instance):
 
         internal("prereqs")
 
-        v8_jsshell_sha1 = subprocess.check_output(
-            ["git", "ls-tree", "HEAD:installation/externals", "v8-jsshell"]).split()[2]
+        submodule_path = "installation/externals/v8-jsshell"
+
+        v8_jsshell_sha1 = testing.repository.submodule_sha1(
+            os.getcwd(), self.current_commit, submodule_path)
         cached_executable = os.path.join(self.arguments.cache_dir,
                                          self.identifier, "v8-jsshell",
                                          v8_jsshell_sha1)
