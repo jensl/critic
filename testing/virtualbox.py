@@ -659,7 +659,7 @@ class Instance(testing.Instance):
 
             self.execute(argv, cwd="critic")
 
-        internal("prereqs")
+        internal("prereqs", ["--libcurl-flavor=gnutls"])
 
         submodule_path = "installation/externals/v8-jsshell"
 
@@ -667,7 +667,7 @@ class Instance(testing.Instance):
             os.getcwd(), self.current_commit, submodule_path)
         cached_executable = os.path.join(self.arguments.cache_dir,
                                          self.identifier, "v8-jsshell",
-                                         v8_jsshell_sha1)
+                                         v8_jsshell_sha1 + "-gnutls")
 
         if self.upgrade_commit is not None \
                 and self.install_commit == self.current_commit \
