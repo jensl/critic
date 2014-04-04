@@ -293,7 +293,10 @@ be done manually later by running this command as root:
 
             if rebuild_v8_jsshell:
                 try:
-                    subprocess.check_call([sys.executable, "extend.py"])
+                    args = []
+                    if arguments.headless:
+                        args.append("--headless")
+                    subprocess.check_call([sys.executable, "extend.py"] + args)
                 except subprocess.CalledProcessError:
                     # We have already finished the main upgrade, so just
                     # propagate the exit status if extend.py failed.  It will
