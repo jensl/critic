@@ -15,6 +15,7 @@
 # the License.
 
 import subprocess
+import email.utils as email_utils
 
 import installation
 
@@ -91,6 +92,9 @@ administrators might need to know about right away.
         except AttributeError:
             system_recipients = ["%(fullname)s <%(email)s>" % admin
                                  for admin in configuration.base.ADMINISTRATORS]
+
+        if system_recipients:
+            _, email = email_utils.parseaddr(system_recipients[0])
 
         # The --system-recipients argument, on upgrade, is mostly intended to be
         # used by the testing framework.  It is checked after the code above has
