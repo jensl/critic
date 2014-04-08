@@ -53,14 +53,27 @@ if "--slave" in sys.argv:
                 self.module = service_data["module"]
                 self.started = None
                 self.process = None
+                self.callbacks = []
+
+            def signal_callbacks(self, event):
+                self.callbacks = filter(lambda callback: callback(event), self.callbacks)
 
             def start(self, input_data):
                 self.process = ServiceManager.Service.Process(self, input_data)
                 self.started = time.time()
                 self.manager.add_peer(self.process)
                 self.manager.info("%s: started (pid=%d)" % (self.name, self.process.pid))
+                self.input_data = input_data
+                self.signal_callbacks("started")
 
-            def stop(self):
+            def restart(self, callback=None):
+                if callback:
+                    self.callbacks.append(callback)
+                self.start(self.input_data)
+
+            def stop(self, callback=None):
+                if callback:
+                    self.callbacks.append(callback)
                 if self.process:
                     self.manager.info("%s: sending process SIGTERM" % self.name)
                     self.process.kill(signal.SIGTERM)
@@ -78,25 +91,32 @@ if "--slave" in sys.argv:
                 else:
                     self.manager.info("%s: exited normally" % self.name)
                 self.process = None
-                if restart: self.start()
+                if restart:
+                    self.restart()
+                else:
+                    self.signal_callbacks("stopped")
 
         class Client(background.utils.PeerServer.SocketPeer):
             def __init__(self, manager, peersocket):
                 super(ServiceManager.Client, self).__init__(manager, peersocket)
                 self.__manager = manager
 
+            def send_response(self, value):
+                self.write(background.utils.json_encode(value))
+                self.close()
+
             def handle_input(self, data):
-                def result(value):
-                    self.write(background.utils.json_encode(value))
-                    self.close()
+                result = self.send_response
 
                 try:
                     request = background.utils.json_decode(data)
                 except:
-                    return result({ "status": "error", "error": "invalid input: JSON decode failed" })
+                    return result({ "status": "error",
+                                    "error": "invalid input: JSON decode failed" })
 
                 if type(request) is not dict:
-                    return result({ "status": "error", "error": "invalid input: expected object" })
+                    return result({ "status": "error",
+                                    "error": "invalid input: expected object" })
 
                 if request.get("query") == "status":
                     services = { "manager": { "module": "background.servicemanager",
@@ -113,16 +133,21 @@ if "--slave" in sys.argv:
                     return result({ "status": "ok", "services": services })
                 elif request.get("command") == "restart":
                     if "service" not in request:
-                        return result({ "status": "error", "error": "invalid input: no service specified" })
+                        return result({ "status": "error",
+                                        "error": "invalid input: no service specified" })
                     if request["service"] == "manager":
                         self.__manager.info("restart requested")
                         self.__manager.requestRestart()
                         return result({ "status": "ok" })
                     for service in self.__manager.services:
                         if service.name == request.get("service"):
-                            if service.process: service.stop()
-                            else: service.start()
-                            return result({ "status": "ok" })
+                            self.__manager.info("%s: restart requested" % service.name)
+                            def callback(event):
+                                self.send_response({ "status": "ok",
+                                                     "event": event })
+                            if service.process: service.stop(callback)
+                            else: service.restart(callback)
+                            break
                     else:
                         return result({ "status": "error", "error": "%s: no such service" % request.get("service") })
                 else:
