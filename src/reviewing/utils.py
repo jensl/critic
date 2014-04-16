@@ -19,6 +19,7 @@ import gitutils
 from dbutils import *
 from itertools import izip, repeat, chain
 import htmlutils
+import configuration
 
 import mail
 import diff
@@ -27,9 +28,16 @@ import changeset.load as changeset_load
 import reviewing.comment
 import reviewing.filters
 import log.commitset as log_commitset
+import extensions.role.filterhook
 
 from operation import OperationError, OperationFailure
 from filters import Filters
+
+def getFileIdsFromChangesets(changesets):
+    file_ids = set()
+    for changeset in changesets:
+        file_ids.update(changed_file.id for changed_file in changeset.files)
+    return file_ids
 
 def getReviewersAndWatchers(db, repository, commits=None, changesets=None, reviewfilters=None,
                             applyfilters=True, applyparentfilters=False):
@@ -50,12 +58,7 @@ is used as a key in the dictionary instead of a real user ID."""
     cursor = db.cursor()
 
     filters = Filters()
-
-    file_ids = set()
-    for changeset in changesets:
-        for changed_file in changeset.files:
-            file_ids.add(changed_file.id)
-    filters.setFiles(db, list(file_ids))
+    filters.setFiles(db, list(getFileIdsFromChangesets(changesets)))
 
     if applyfilters:
         filters.load(db, repository=repository, recursive=applyparentfilters)
@@ -229,6 +232,31 @@ def assignChanges(db, user, review, commits=None, changesets=None, update=False)
 
     cursor.executemany("INSERT INTO reviewusers (review, uid) VALUES (%s, %s)", reviewusers_values)
     cursor.executemany("INSERT INTO reviewuserfiles (file, uid) SELECT id, %s FROM reviewfiles WHERE review=%s AND changeset=%s AND file=%s", reviewuserfiles_values)
+
+    if configuration.extensions.ENABLED:
+        cursor.execute("""SELECT id, uid, extension, path
+                            FROM extensionhookfilters
+                           WHERE repository=%s""",
+                       (review.repository.id,))
+
+        rows = cursor.fetchall()
+
+        if rows:
+            if commits is None:
+                commits = set()
+                for changeset in changesets:
+                    commits.add(changeset.child)
+                commits = list(commits)
+
+            filters = Filters()
+            filters.setFiles(db, list(getFileIdsFromChangesets(changesets)))
+
+            for filter_id, user_id, extension_id, path in rows:
+                filters.addFilter(user_id, path, None, None, filter_id)
+
+            for filter_id, file_ids in filters.matched_files.items():
+                extensions.role.filterhook.queueFilterHookEvent(
+                    db, filter_id, review, user, commits, file_ids)
 
     return new_reviewers, new_watchers
 

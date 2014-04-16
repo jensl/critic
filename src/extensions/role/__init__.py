@@ -16,5 +16,5 @@
 
 import page
 import inject
+import filterhook
 import processcommits
-

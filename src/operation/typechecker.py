@@ -112,7 +112,7 @@ class TypeChecker(object):
             if is_type_checker:
                 return source()
 
-        raise base.ImplementationError("invalid source type: %s" % type(source))
+        raise base.ImplementationError("invalid source type: %r" % source)
 
     def getSuffixedCheckers(self):
         """
@@ -557,3 +557,21 @@ class User(VariantChecker):
     def __init__(self):
         super(User, self).__init__({ "id": UserId,
                                      "name": UserName })
+
+class ExtensionId(PositiveInteger):
+    def __call__(self, value, context):
+        from extensions.extension import Extension
+        super(ExtensionId, self).__call__(value, context)
+        return Extension.fromId(context.db, value)
+
+class ExtensionKey(StringChecker):
+    def __call__(self, value, context):
+        from extensions.extension import Extension
+        super(ExtensionKey, self).__call__(value, context)
+        author_name, _, extension_name = value.rpartition("/")
+        return Extension(author_name, extension_name)
+
+class Extension(VariantChecker):
+    def __init__(self):
+        super(Extension, self).__init__({ "id": ExtensionId,
+                                          "key": ExtensionKey })

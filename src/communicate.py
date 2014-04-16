@@ -22,10 +22,15 @@ import time
 import errno
 
 class ProcessTimeout(Exception):
-    pass
+    def __init__(self, timeout):
+        super(ProcessTimeout, self).__init__(
+            "Process timed out (after %d seconds)" % timeout)
+        self.timeout = timeout
 
 class ProcessError(Exception):
     def __init__(self, process, stderr):
+        super(ProcessError, self).__init__(
+            "Process returned non-zero exit status %d" % process.returncode)
         self.returncode = process.returncode
         self.stderr = stderr
 
@@ -35,6 +40,7 @@ def setnonblocking(fd):
 class Communicate(object):
     def __init__(self, process):
         self.process = process
+        self.timeout = None
         self.deadline = None
         self.stdin_data = None
         self.stdout_callbacks = [None, None]
@@ -42,6 +48,7 @@ class Communicate(object):
         self.returncode = None
 
     def setTimeout(self, timeout):
+        self.timeout = timeout
         self.deadline = time.time() + timeout
 
     def setInput(self, data):
@@ -117,7 +124,17 @@ class Communicate(object):
             else:
                 timeout = 1000 * (self.deadline - time.time())
 
-            for fd, event in poll.poll(timeout):
+            while True:
+                try:
+                    events = poll.poll(timeout)
+                except select.error as (errnum, _):
+                    if errnum == errno.EINTR:
+                        continue
+                    raise
+                else:
+                    break
+
+            for fd, event in events:
                 if not stdin_done and fd == process.stdin.fileno():
                     if callable(self.stdin_data):
                         data = self.stdin_data()
@@ -163,4 +180,4 @@ class Communicate(object):
         process.kill()
         process.wait()
 
-        raise ProcessTimeout
+        raise ProcessTimeout(self.timeout)

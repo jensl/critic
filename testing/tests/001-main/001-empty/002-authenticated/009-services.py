@@ -21,6 +21,9 @@ def check_services(services, restarted=frozenset()):
             pid = extract_text(td_pid)
             rss = extract_text(td_rss)
 
+            if name == "extensiontasks":
+                continue
+
             try:
                 pid = int(pid)
             except ValueError:
@@ -69,7 +72,8 @@ with frontend.signin():
     all_services = set(["manager"])
 
     for service_name in services.keys():
-        if service_name != "manager" and not service_name.startswith("wsgi:"):
+        if service_name not in ("manager", "extensiontasks") \
+                and not service_name.startswith("wsgi:"):
             all_services.add(service_name)
 
             frontend.operation(

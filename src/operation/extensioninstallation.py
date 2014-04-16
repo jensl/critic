@@ -14,11 +14,17 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-from operation import Operation, OperationResult, OperationFailure, \
-                      OperationError, Optional
-from extensions.installation import installExtension, uninstallExtension, \
-                                    reinstallExtension, InstallationError, \
-                                    getExtension
+import dbutils
+import gitutils
+import reviewing.filters
+
+from operation import (Operation, OperationResult, OperationFailure,
+                       OperationError, Optional, typechecker)
+from extensions.installation import (installExtension, uninstallExtension,
+                                     reinstallExtension, InstallationError,
+                                     getExtension)
+from extensions.extension import Extension, ExtensionError
+from extensions.manifest import FilterHookRole
 
 class ExtensionOperation(Operation):
     def __init__(self, perform):
@@ -85,5 +91,117 @@ class ClearExtensionStorage(Operation):
                                       AND uid=%s""",
                            (extension_id, user.id))
             db.commit()
+
+        return OperationResult()
+
+class AddExtensionHookFilter(Operation):
+    def __init__(self):
+        Operation.__init__(self, { "subject": typechecker.User,
+                                   "extension": typechecker.Extension,
+                                   "repository": typechecker.Repository,
+                                   "filterhook_name": str,
+                                   "path": str,
+                                   "data": Optional(str),
+                                   "replaced_filter_id": Optional(int) })
+
+    def process(self, db, user, subject, extension, repository,
+                filterhook_name, path, data=None, replaced_filter_id=None):
+        if user != subject:
+            Operation.requireRole(db, "administrator", user)
+
+        path = reviewing.filters.sanitizePath(path)
+
+        if "*" in path:
+            try:
+                reviewing.filters.validatePattern(path)
+            except reviewing.filters.PatternError as error:
+                raise OperationFailure(
+                    code="invalidpattern",
+                    title="Invalid path pattern",
+                    message="There are invalid wild-cards in the path: %s" % error.message)
+
+        installed_sha1, _ = extension.getInstalledVersion(db, subject)
+
+        if installed_sha1 is False:
+            raise OperationFailure(
+                code="invalidrequest",
+                title="Invalid request",
+                message=("The extension \"%s\" must be installed first!"
+                         % extension.getTitle(db)))
+
+        manifest = extension.getManifest(sha1=installed_sha1)
+
+        for role in manifest.roles:
+            if isinstance(role, FilterHookRole) and role.name == filterhook_name:
+                break
+        else:
+            raise OperationFailure(
+                code="invalidrequest",
+                title="Invalid request",
+                message=("The extension doesn't have a filter hook role named %r!"
+                         % filterhook_name))
+
+        cursor = db.cursor()
+
+        if replaced_filter_id is not None:
+            cursor.execute("""SELECT 1
+                                FROM extensionhookfilters
+                               WHERE id=%s
+                                 AND uid=%s""",
+                           (replaced_filter_id, subject.id))
+
+            if not cursor.fetchone():
+                raise OperationFailure(
+                    code="invalidoperation",
+                    title="Invalid operation",
+                    message="Filter to replace does not exist or belongs to another user!")
+
+            cursor.execute("""DELETE
+                                FROM extensionhookfilters
+                               WHERE id=%s""",
+                           (replaced_filter_id,))
+
+        cursor.execute("""INSERT INTO extensionhookfilters
+                                        (uid, extension, repository, name,
+                                         path, data)
+                               VALUES (%s, %s, %s, %s, %s, %s)
+                            RETURNING id""",
+                       (subject.id, extension.getExtensionID(db), repository.id,
+                        filterhook_name, path, data))
+
+        filter_id, = cursor.fetchone()
+
+        db.commit()
+
+        return OperationResult(filter_id=filter_id)
+
+class DeleteExtensionHookFilter(Operation):
+    def __init__(self):
+        Operation.__init__(self, { "subject": typechecker.User,
+                                   "filter_id": int })
+
+    def process(self, db, user, subject, filter_id):
+        if user != subject:
+            Operation.requireRole(db, "administrator", user)
+
+        cursor = db.cursor()
+        cursor.execute("""SELECT 1
+                            FROM extensionhookfilters
+                           WHERE id=%s
+                             AND uid=%s""",
+                       (filter_id, subject.id))
+
+        if not cursor.fetchone():
+            raise OperationFailure(
+                code="invalidoperation",
+                title="Invalid operation",
+                message="Filter to delete does not exist or belongs to another user!")
+
+        cursor.execute("""DELETE
+                            FROM extensionhookfilters
+                           WHERE id=%s""",
+                       (filter_id,))
+
+        db.commit()
 
         return OperationResult()

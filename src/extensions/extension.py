@@ -273,7 +273,10 @@ class Extension(object):
                  LEFT OUTER JOIN users ON (users.id=extensions.author)
                            WHERE extensions.id=%s""",
                        (extension_id,))
-        author_name, extension_name = cursor.fetchone()
+        row = cursor.fetchone()
+        if not row:
+            raise ExtensionError("Invalid extension id: %d" % extension_id)
+        author_name, extension_name = row
         return Extension(author_name, extension_name)
 
     @staticmethod

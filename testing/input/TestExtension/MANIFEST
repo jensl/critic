@@ -70,3 +70,9 @@ Function = showcommitLong
 Description = "Basic commits processing testing."
 Script = processcommits.js
 Function = processcommits
+
+[FilterHook echo]
+Description = "Filter hook that echoes its arguments via a mail."
+DataDescription = "Some random data."
+Script = filterhook.js
+Function = filterhook

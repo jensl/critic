@@ -70,6 +70,43 @@ CREATE VIEW extensionroles_inject AS
 CREATE TABLE extensionprocesscommitsroles
   ( role INTEGER NOT NULL REFERENCES extensionroles ON DELETE CASCADE );
 
+CREATE TABLE extensionfilterhookroles
+  ( role INTEGER NOT NULL REFERENCES extensionroles ON DELETE CASCADE,
+    name VARCHAR(64) NOT NULL,
+    title VARCHAR(64) NOT NULL,
+    role_description TEXT,
+    data_description TEXT );
+
+CREATE TABLE extensionhookfilters
+  ( id SERIAL PRIMARY KEY,
+    uid INTEGER NOT NULL REFERENCES users ON DELETE CASCADE,
+    extension INTEGER NOT NULL REFERENCES extensions ON DELETE CASCADE,
+    repository INTEGER NOT NULL REFERENCES repositories ON DELETE CASCADE,
+    name VARCHAR(64) NOT NULL,
+    path TEXT NOT NULL,
+    data TEXT );
+CREATE INDEX extensionhookfilters_uid_extension
+          ON extensionhookfilters (uid, extension);
+CREATE INDEX extensionhookfilters_repository
+          ON extensionhookfilters (repository);
+
+CREATE TABLE extensionfilterhookevents
+  ( id SERIAL PRIMARY KEY,
+    filter INTEGER NOT NULL REFERENCES extensionhookfilters ON DELETE CASCADE,
+    review INTEGER NOT NULL REFERENCES reviews ON DELETE CASCADE,
+    uid INTEGER NOT NULL REFERENCES users ON DELETE CASCADE,
+    data TEXT );
+CREATE TABLE extensionfilterhookcommits
+  ( event INTEGER NOT NULL REFERENCES extensionfilterhookevents ON DELETE CASCADE,
+    commit INTEGER NOT NULL REFERENCES commits );
+CREATE INDEX extensionfilterhookcommits_event
+          ON extensionfilterhookcommits (event);
+CREATE TABLE extensionfilterhookfiles
+  ( event INTEGER NOT NULL REFERENCES extensionfilterhookevents ON DELETE CASCADE,
+    file INTEGER NOT NULL REFERENCES files );
+CREATE INDEX extensionfilterhookfiles_event
+          ON extensionfilterhookfiles (event);
+
 CREATE TABLE extensionstorage
   ( extension INTEGER NOT NULL REFERENCES extensions,
     uid INTEGER NOT NULL REFERENCES users,

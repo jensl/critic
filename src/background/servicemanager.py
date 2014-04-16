@@ -98,6 +98,8 @@ if "--slave" in sys.argv:
                     self.manager.error(message)
                 else:
                     self.manager.info("%s: exited normally" % self.name)
+                    if not self.callbacks:
+                        restart = False
                 self.process = None
                 if restart:
                     self.restart()

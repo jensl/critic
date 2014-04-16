@@ -127,6 +127,7 @@ class Database(Session):
     def __init__(self):
         super(Database, self).__init__()
         self.__connection = dbaccess.connect()
+        self.__commit_callbacks = []
 
     def cursor(self):
         return Database.Cursor(self, self.__connection.cursor(), self.profiling)
@@ -136,12 +137,16 @@ class Database(Session):
         self.__connection.commit()
         after = time.time()
         self.recordProfiling("<commit>", after - before, 0)
+        for callback in self.__commit_callbacks:
+            callback()
+        self.__commit_callbacks = []
 
     def rollback(self):
         before = time.time()
         self.__connection.rollback()
         after = time.time()
         self.recordProfiling("<rollback>", after - before, 0)
+        self.__commit_callbacks = []
 
     def close(self):
         super(Database, self).close()
@@ -156,3 +161,6 @@ class Database(Session):
     def __exit__(self, *args):
         self.close()
         return False
+
+    def registerCommitCallback(self, callback):
+        self.__commit_callbacks.append(callback)

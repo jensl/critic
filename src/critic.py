@@ -537,6 +537,8 @@ if configuration.extensions.ENABLED:
     OPERATIONS["uninstallextension"] = operation.extensioninstallation.UninstallExtension()
     OPERATIONS["reinstallextension"] = operation.extensioninstallation.ReinstallExtension()
     OPERATIONS["clearextensionstorage"] = operation.extensioninstallation.ClearExtensionStorage()
+    OPERATIONS["addextensionhookfilter"] = operation.extensioninstallation.AddExtensionHookFilter()
+    OPERATIONS["deleteextensionhookfilter"] = operation.extensioninstallation.DeleteExtensionHookFilter()
     OPERATIONS["loadmanifest"] = loadmanifest
     OPERATIONS["processcommits"] = processcommits
 

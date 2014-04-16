@@ -20,7 +20,9 @@ import dbutils
 import configuration
 
 from extensions.extension import Extension, ExtensionError
-from extensions.manifest import ManifestError, PageRole, InjectRole, ProcessCommitsRole, ScheduledRole
+from extensions.manifest import (ManifestError, PageRole, InjectRole,
+                                 ProcessCommitsRole, FilterHookRole,
+                                 ScheduledRole)
 
 def renderManageExtensions(req, db, user):
     if not configuration.extensions.ENABLED:
@@ -291,6 +293,7 @@ def renderManageExtensions(req, db, user):
             pages = []
             injects = []
             processcommits = []
+            filterhooks = []
             scheduled = []
 
             if manifest:
@@ -301,6 +304,8 @@ def renderManageExtensions(req, db, user):
                         injects.append(role)
                     elif isinstance(role, ProcessCommitsRole):
                         processcommits.append(role)
+                    elif isinstance(role, FilterHookRole):
+                        filterhooks.append(role)
                     elif isinstance(role, ScheduledRole):
                         scheduled.append(role)
 
@@ -335,6 +340,14 @@ def renderManageExtensions(req, db, user):
                 for role in processcommits:
                     li = ul.li()
                     li.text(role.description)
+
+            if filterhooks:
+                role_table.tr().th(colspan=2).text("FilterHook hooks")
+
+                for role in filterhooks:
+                    row = role_table.tr()
+                    row.td("title").text(role.title)
+                    row.td("description").text(role.description)
 
             if scheduled:
                 role_table.tr().th(colspan=2).text("Scheduled hooks")

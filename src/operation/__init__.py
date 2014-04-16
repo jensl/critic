@@ -18,6 +18,7 @@ import traceback
 
 import base
 import dbutils
+import extensions
 
 from textutils import json_encode, json_decode
 
@@ -27,7 +28,7 @@ from operation.basictypes import (OperationResult, OperationError,
 from operation.typechecker import (Optional, Request, RestrictedString, SHA1,
                                    RestrictedInteger, NonNegativeInteger,
                                    PositiveInteger, Review, Repository, Commit,
-                                   File, User)
+                                   File, User, Extension)
 
 class Operation(object):
 
@@ -113,6 +114,11 @@ class Operation(object):
             return OperationFailure(code="transactionrollback",
                                     title="Transaction rolled back",
                                     message="Your database transaction rolled back, probably due to a deadlock.  Please try again.")
+        except extensions.extension.ExtensionError as error:
+            return OperationFailure(
+                code="invalidextension",
+                title="Invalid extension",
+                message=error.message)
         except:
             # Decode value again since the type checkers might have modified it.
             value = json_decode(data)

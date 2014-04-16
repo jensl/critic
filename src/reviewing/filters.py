@@ -155,6 +155,7 @@ class Filters:
         self.root = ({}, {})     # tree
         self.data = {}           # dict(file_id -> data)
         self.active_filters = {} # dict(user_id -> set(filter_id))
+        self.matched_files = {}  # dict(filter_id -> set(file_id))
 
         # Note: The same per-file 'data' objects are referenced by all of
         # 'self.files', 'self.tree' and 'self.data'.
@@ -206,8 +207,8 @@ class Filters:
                 for f in files_in_tree(components + [dirname], child_tree):
                     yield f
             dirname = "/".join(components) + "/" if components else ""
-            for filename, (_, data) in tree[1].items():
-                yield dirname, filename, data
+            for filename, (file_id, data) in tree[1].items():
+                yield dirname, filename, file_id, data
 
         if not path:
             dirname, filename = "", None
@@ -228,9 +229,11 @@ class Filters:
         def hasWildcard(string):
             return "*" in string or "?" in string
 
+        file_ids = []
+        files = []
+
         if hasWildcard(path):
             tree = self.root
-            files = []
 
             for index, component in enumerate(components):
                 if hasWildcard(component):
@@ -248,30 +251,38 @@ class Filters:
             if wild_dirname:
                 re_dirname = compilePattern(wild_dirname)
 
-                for dirname, filename, data in files_in_tree([], tree):
+                for dirname, filename, file_id, data in files_in_tree([], tree):
                     if re_dirname.match(dirname) and re_filename.match(filename):
+                        file_ids.append(file_id)
                         files.append(data)
             else:
-                for filename, (_, data) in tree[1].items():
+                for filename, (file_id, data) in tree[1].items():
                     if re_filename.match(filename):
+                        file_ids.append(file_id)
                         files.append(data)
         else:
             if filename:
                 if path in self.files:
-                    files = [self.files[path][1]]
+                    file_id, data = self.files[path]
+                    file_ids.append(file_id)
+                    files.append(data)
                 else:
                     return
             else:
                 if dirname in self.directories:
-                    files = [data for _, _, data in files_in_tree([dirname], self.directories[dirname])]
+                    for _, _, file_id, data in files_in_tree([dirname], self.directories[dirname]):
+                        file_ids.append(file_id)
+                        files.append(data)
                 else:
                     return
+
+        self.matched_files[filter_id] = file_ids
 
         if filter_type == "ignored":
             for data in files:
                 if user_id in data:
                     del data[user_id]
-        else:
+        elif filter_type in ("reviewer", "watcher"):
             if files:
                 self.active_filters.setdefault(user_id, set()).add(filter_id)
                 for data in files:

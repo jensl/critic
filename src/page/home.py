@@ -22,6 +22,7 @@ import configuration
 import reviewing.filters
 import profiling
 import auth
+import extensions.role.filterhook
 
 from htmlutils import jsify
 from textutils import json_encode
@@ -204,14 +205,43 @@ def renderHome(req, db, user):
     filters.titleRight.a("button", href="/tutorial?item=filters").text("Tutorial")
 
     cursor.execute("""SELECT repositories.id, repositories.name, repositories.path,
-                             filters.id, filters.type, filters.path, filters.delegate
+                             filters.id, filters.type, filters.path, NULL, filters.delegate
                         FROM repositories
                         JOIN filters ON (filters.repository=repositories.id)
-                       WHERE filters.uid=%s
-                    ORDER BY repositories.name, filters.type, filters.path""",
+                       WHERE filters.uid=%s""",
                    (user.id,))
 
     rows = cursor.fetchall()
+
+    if configuration.extensions.ENABLED:
+        cursor.execute("""SELECT repositories.id, repositories.name, repositories.path,
+                                 filters.id, 'extensionhook', filters.path, filters.name, filters.data
+                            FROM repositories
+                            JOIN extensionhookfilters AS filters ON (filters.repository=repositories.id)
+                           WHERE filters.uid=%s""",
+                       (user.id,))
+
+        rows.extend(cursor.fetchall())
+
+    FILTER_TYPES = ["reviewer", "watcher", "ignored", "extensionhook"]
+
+    def rowSortKey(row):
+        (repository_id, repository_name, repository_path,
+         filter_id, filter_type, filter_path, filter_name, filter_data) = row
+
+        # Rows are grouped by repository first and type second, so sort by
+        # repository name and filter type primarily.
+        #
+        # Secondarily sort by filter name (only for extension hook filters; is
+        # None for regular filters) and filter path.  This sorting is mostly to
+        # achieve a stable order; it has no greater meaning.
+
+        return (repository_name,
+                FILTER_TYPES.index(filter_type),
+                filter_name,
+                filter_path)
+
+    rows.sort(key=rowSortKey)
 
     if rows:
         repository = None
@@ -219,41 +249,58 @@ def renderHome(req, db, user):
         tbody_reviewer = None
         tbody_watcher = None
         tbody_ignored = None
+        tbody_extensionhook = None
 
         count_matched_files = {}
 
         for (repository_id, repository_name, repository_path,
-             filter_id, filter_type, filter_path, filter_delegates) in rows:
+             filter_id, filter_type, filter_path, filter_name, filter_data) in rows:
             if not repository or repository.id != repository_id:
                 repository = gitutils.Repository.fromId(db, repository_id)
                 repository_url = repository.getURL(db, user)
                 filters.addSection(repository_name, repository_url)
                 repository_filters = filters.addCentered().table("filters callout")
-                tbody_reviewer = tbody_watcher = tbody_ignored = None
+                tbody_reviewer = tbody_watcher = tbody_ignored = tbody_extensionhook = None
 
             if filter_type == "reviewer":
                 if not tbody_reviewer:
                     tbody_reviewer = repository_filters.tbody()
-                    tbody_reviewer.tr().th(colspan=4).text("Reviewer")
+                    tbody_reviewer.tr().th(colspan=5).text("Reviewer")
                 tbody = tbody_reviewer
             elif filter_type == "watcher":
                 if not tbody_watcher:
                     tbody_watcher = repository_filters.tbody()
-                    tbody_watcher.tr().th(colspan=4).text("Watcher")
+                    tbody_watcher.tr().th(colspan=5).text("Watcher")
                 tbody = tbody_watcher
-            else:
+            elif filter_type == "ignored":
                 if not tbody_ignored:
                     tbody_ignored = repository_filters.tbody()
-                    tbody_ignored.tr().th(colspan=4).text("Ignored")
+                    tbody_ignored.tr().th(colspan=5).text("Ignored")
                 tbody = tbody_ignored
+            else:
+                if not tbody_extensionhook:
+                    tbody_extensionhook = repository_filters.tbody()
+                    tbody_extensionhook.tr().th(colspan=5).text("Extension hooks")
+                tbody = tbody_extensionhook
 
             row = tbody.tr()
             row.td("path").text(filter_path)
 
-            delegates = row.td("delegates")
-            if filter_delegates:
-                delegates.i().text("Delegates: ")
-                delegates.span("names").text(", ".join(filter_delegates.split(",")))
+            if filter_type != "extensionhook":
+                delegates = row.td("delegates", colspan=2)
+                if filter_data:
+                    delegates.i().text("Delegates: ")
+                    delegates.span("names").text(", ".join(filter_data.split(",")))
+            else:
+                role = extensions.role.filterhook.getFilterHookRole(db, filter_id)
+                if role:
+                    title = row.td("title")
+                    title.text(role.title)
+
+                    data = row.td("data")
+                    data.text(filter_data)
+                else:
+                    row.td(colspan=2).i().text("Invalid filter")
 
             if filter_path == "/":
                 row.td("files").text("all files")
@@ -263,14 +310,19 @@ def renderHome(req, db, user):
                 count_matched_files.setdefault(repository_id, []).append(filter_id)
 
             links = row.td("links")
+
             arguments = (jsify(repository.name),
                          filter_id,
                          jsify(filter_type),
                          jsify(filter_path),
-                         jsify(filter_delegates))
+                         jsify(filter_data))
             links.a(href="javascript:void(editFilter(%s, %d, %s, %s, %s));" % arguments).text("[edit]")
-            links.a(href="javascript:if (deleteFilterById(%d)) location.reload(); void(0);" % filter_id).text("[delete]")
-            links.a(href="javascript:location.href='/config?filter=%d';" % filter_id).text("[preferences]")
+
+            if filter_type != "extensionhook":
+                links.a(href="javascript:if (deleteFilterById(%d)) location.reload(); void(0);" % filter_id).text("[delete]")
+                links.a(href="javascript:location.href='/config?filter=%d';" % filter_id).text("[preferences]")
+            else:
+                links.a(href="javascript:if (deleteExtensionHookFilterById(%d)) location.reload(); void(0);" % filter_id).text("[delete]")
 
         document.addInternalScript("var count_matched_files = %s;" % json_encode(count_matched_files.values()))
     else:
@@ -289,6 +341,11 @@ def renderHome(req, db, user):
 
     hidden = body.div("hidden", style="display: none")
 
+    if configuration.extensions.ENABLED:
+        filterhooks = extensions.role.filterhook.listFilterHooks(db, user)
+    else:
+        filterhooks = []
+
     with hidden.div("filterdialog") as dialog:
         paragraph = dialog.p()
         paragraph.b().text("Repository:")
@@ -303,21 +360,49 @@ def renderHome(req, db, user):
         filter_type.option(value="watcher").text("Watcher")
         filter_type.option(value="ignored").text("Ignored")
 
+        for extension, manifest, roles in filterhooks:
+            optgroup = filter_type.optgroup(label=extension.getTitle(db))
+            for role in roles:
+                option = optgroup.option(
+                    value="extensionhook",
+                    data_extension_id=extension.getExtensionID(db),
+                    data_filterhook_name=role.name)
+                option.text(role.title)
+
         paragraph = dialog.p()
         paragraph.b().text("Path:")
         paragraph.br()
         paragraph.input(name="path", type="text")
         paragraph.span("matchedfiles")
 
-        paragraph = dialog.p()
+        regular_div = dialog.div("regular")
+
+        paragraph = regular_div.p()
         paragraph.b().text("Delegates:")
         paragraph.br()
         paragraph.input(name="delegates", type="text")
 
-        paragraph = dialog.p()
+        paragraph = regular_div.p()
         label = paragraph.label()
         label.input(name="apply", type="checkbox", checked="checked")
         label.b().text("Apply to existing reviews")
+
+        for extension, manifest, roles in filterhooks:
+            for role in roles:
+                if not role.data_description:
+                    continue
+
+                filterhook_id = "%d_%s" % (extension.getExtensionID(db), role.name)
+
+                extensionhook_div = dialog.div(
+                    "extensionhook " + filterhook_id,
+                    style="display: none")
+                extensionhook_div.innerHTML(role.data_description)
+
+                paragraph = extensionhook_div.p()
+                paragraph.b().text("Data:")
+                paragraph.br()
+                paragraph.input(type="text")
 
     profiler.output(db, user, document)
 

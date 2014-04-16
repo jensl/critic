@@ -492,7 +492,17 @@ function deleteFilterById(filter_id)
   return !!operation.execute();
 }
 
-function editFilter(repository_name, filter_id, filter_type, filter_path, filter_delegates)
+function deleteExtensionHookFilterById(filter_id)
+{
+  var operation = new Operation({ action: "delete filter",
+                                  url: "deleteextensionhookfilter",
+                                  data: { subject_id: user.id,
+                                          filter_id: filter_id }});
+
+  return !!operation.execute();
+}
+
+function editFilter(repository_name, filter_id, filter_type, filter_path, filter_data)
 {
   function getPaths(prefix, callback)
   {
@@ -618,11 +628,8 @@ function editFilter(repository_name, filter_id, filter_type, filter_path, filter
     repository.val(repository_name);
     type.val(filter_type);
     path.val(filter_path);
-    delegates.val(filter_delegates);
 
-    if (filter_type != "reviewer")
-      delegates.prop("disabled", true);
-
+    updateFilterType().val(filter_data);
     updateMatchedFiles();
   }
   else
@@ -631,6 +638,66 @@ function editFilter(repository_name, filter_id, filter_type, filter_path, filter
     path.val("");
     delegates.val("");
     delegates.prop("disabled", false);
+  }
+
+  function updateFilterType()
+  {
+    switch (type.val())
+    {
+    case "reviewer":
+      dialog.find(".regular").show();
+      dialog.find(".extensionhook").hide();
+      delegates.prop("disabled", false);
+      return delegates;
+
+    case "watcher":
+    case "ignored":
+      dialog.find(".regular").show();
+      dialog.find(".extensionhook").hide();
+      delegates.prop("disabled", true);
+      return $();
+
+    case "extensionhook":
+      var key = selectedExtensionHookKey();
+      dialog.find(".regular, .extensionhook").hide();
+      dialog.find("." + key).show();
+      return dialog.find("." + key + " input");
+    }
+  }
+
+  function selectedExtensionHookKey()
+  {
+    var option = type.find(":selected");
+    return option.data("extension-id") + "_" + option.data("filterhook-name");
+  }
+
+  function saveExtensionHookFilter(path_value)
+  {
+    var option = type.find(":selected");
+
+    var data = { subject_id: user.id,
+                 extension_id: option.data("extension-id"),
+                 repository_name: repository.val(),
+                 filterhook_name: option.data("filterhook-name"),
+                 path: path_value };
+
+    var data_input = dialog.find("." + selectedExtensionHookKey() + " input");
+    if (data_input.length)
+      data.data = data_input.val();
+
+    if (filter_id !== void 0)
+      data.replaced_filter_id = filter_id;
+
+    var operation = new Operation({ action: "save filter",
+                                    url: "addextensionhookfilter",
+                                    data: data });
+    var result = operation.execute();
+
+    if (result)
+    {
+      dialog.dialog("close");
+      location.reload();
+    }
   }
 
   function saveFilter()
@@ -648,6 +715,12 @@ function editFilter(repository_name, filter_id, filter_type, filter_path, filter
     {
       showMessage("Invalid input", "No repository selected!", "Please select a repository.",
                   function () { repository.focus(); });
+      return;
+    }
+
+    if (type_value == "extensionhook")
+    {
+      saveExtensionHookFilter(path_value);
       return;
     }
 
@@ -723,12 +796,7 @@ function editFilter(repository_name, filter_id, filter_type, filter_path, filter
   delegates.keypress(handleKeypress);
 
   path.change(updateMatchedFiles);
-
-  type.change(
-    function ()
-    {
-      delegates.prop("disabled", type.val() != "reviewer");
-    });
+  type.change(updateFilterType);
 
   path.autocomplete({ source: AutoCompletePath(getPaths),
                       html: true });

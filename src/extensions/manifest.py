@@ -19,9 +19,10 @@ import re
 
 from textutils import json_decode
 
-RE_ROLE_Page = re.compile(r"^\[Page (.*)\]$", re.IGNORECASE)
-RE_ROLE_Inject = re.compile(r"^\[Inject (.*)\]$", re.IGNORECASE)
+RE_ROLE_Page = re.compile(r"^\[Page\s+(.*?)\s*\]$", re.IGNORECASE)
+RE_ROLE_Inject = re.compile(r"^\[Inject\s+(.*?)\s*\]$", re.IGNORECASE)
 RE_ROLE_ProcessCommits = re.compile(r"^\[ProcessCommits\]$", re.IGNORECASE)
+RE_ROLE_FilterHook = re.compile(r"^\[FilterHook\s+(.*?)\s*\]$", re.IGNORECASE)
 RE_ROLE_Scheduled = re.compile(r"^\[Scheduled\]$", re.IGNORECASE)
 
 class ManifestError(Exception):
@@ -127,6 +128,45 @@ class ProcessCommitsRole(Role):
         cursor.execute("""INSERT INTO extensionprocesscommitsroles (role)
                                VALUES (%s)""",
                        (role_id,))
+        return role_id
+
+class FilterHookRole(Role):
+    def __init__(self, location, name):
+        Role.__init__(self, location)
+        self.name = name
+        self.title = name
+        self.data_description = None
+
+    def name(self):
+        return "FilterHook"
+
+    def process(self, name, value, location):
+        if Role.process(self, name, value, location):
+            return True
+        if name == "title":
+            self.title = value
+            return True
+        if name == "datadescription":
+            self.data_description = value
+            return True
+        return False
+
+    def check(self):
+        Role.check(self)
+        if not re.match("^[a-z0-9_]+$", self.name, re.IGNORECASE):
+            raise ManifestError("%s: manifest error: invalid filter hook name: "
+                                "should contain only ASCII letters and numbers "
+                                "and underscores" % self.location)
+
+    def install(self, db, version_id):
+        role_id = Role.install(self, db, version_id)
+        cursor = db.cursor()
+        cursor.execute("""INSERT INTO extensionfilterhookroles
+                                        (role, name, title, role_description,
+                                         data_description)
+                               VALUES (%s, %s, %s, %s, %s)""",
+                       (role_id, self.name, self.title, self.description,
+                        self.data_description))
         return role_id
 
 class ScheduledRole(Role):
@@ -316,6 +356,11 @@ class Manifest(object):
             match = RE_ROLE_ProcessCommits.match(line)
             if match:
                 role = ProcessCommitsRole(location)
+                continue
+
+            match = RE_ROLE_FilterHook.match(line)
+            if match:
+                role = FilterHookRole(location, match.group(1))
                 continue
 
             match = RE_ROLE_Scheduled.match(line)

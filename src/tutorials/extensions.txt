@@ -107,12 +107,13 @@ The manifest for a simple extension could look something like
 Roles
 -----
 
-Currently there are three supported roles: Page, Inject and ProcessCommits.
-Each role is defined with a separate section.  Every such section must specify
-three keys, "Description", "Script" and "Function".  The "Description" should
-simply describe what the extension does in this role; the "Script" is a path
-specifying the .js file to load (the path is relative the extension's directory)
-and "Function" is the name of the script function to call.
+Currently there are four supported roles: Page, Inject, ProcessCommits and
+FilterHook.  Each role is defined with a separate section.  Every such section
+must specify three keys, "Description", "Script" and "Function".  The
+"Description" should simply describe what the extension does in this role; the
+"Script" is a path specifying the .js file to load (the path is relative the
+extension's directory) and "Function" is the name of the script function to
+call.
 
 Page
 ----
@@ -264,6 +265,62 @@ If the script function writes to its standard output, the written text will be
 shown to the user, either as output from the "git push" command, or in a dialog
 in the web interface.
 
+FilterHook
+----------
+A "FilterHook" role lets the extension define an additional filter type, that a
+user can select in filter type drop-down in the "Add Filter" dialog on their
+["Home" page][home] instead of the built-in types (<code>Reviewer</code>,
+<code>Watcher</code> and <code>Ignored</code>) when they have installed the
+extension.
+
+When a user has such a filter, and a set of commits is added to a review
+including at least one commit that touches a file matched by the filter, the
+role is invoked.
+
+  Note: When a review is first created, the initial set of commits to be
+  reviewed are considered to be added to the review as part of creation, which
+  also triggers the filter, if it matches any touched files.
+
+The section header for a filter hook role is <code>[FilterHook
+&lt;name&gt;]</code>, where <code>&lt;name&gt;</code> should be a simple
+identifier of the filter, unique to the extension.  The name should contain only
+ASCII letter and digits, and underscores.
+
+The section can contain two additional keys: "Title" and "DataDescription".  The
+"Title" is what is displayed in the filter type drop-down in the "Add Filter"
+dialog.  If not present, it defaults to the role's name.  The "DataDescription"
+key, if present, enables an extra input field in the "Add Filter" dialog when
+the filter is selected in the filter type drop-down, where the user can input an
+arbitrary string.  The "DataDescription" should, as the name suggests, describe
+to the user what to input, and is displayed above the extra input field in the
+"Add Filter" dialog.
+
+The script function specified for the role will be called with five arguments:
+
+1 A string containing the data that the user input in the extra data input field
+  in the "Add Filter" dialog, or <code>null</code> if there was no
+  "DataDescription" key in the role's section in the MANIFEST file.
+2 A [Review object][review] representing the review being modified,
+3 A [User object][user] representing the user who added the commits to the
+  review (or created the review.)
+4 A [CommitSet object][commitset] representing all the commits added.
+5 An array of [File objects][file] representing the files touched by the added
+  commits that actually matched the filter.
+
+  Note: The current user (as returned by <code>critic.User.current</code>) when
+  the script function is called is the user whose filter was triggered, not the
+  user that added commits, or the user that authered/hosts the extension.
+
+The script function is called asynchronously, and can, unlike a "ProcessCommits"
+role, not generate output that end up output by the "git push" command that
+added commits to the review.  If it wishes to produce output, it can either
+create issues or notes in the review, or send custom emails using the
+<code>critic.MailTransaction</code> API.
+
+[home]: /home
+
 [review]: /tutorial?item=extensions-api#review
+[user]: /tutorial?item=extensions-api#user
 [changeset]: /tutorial?item=extensions-api#changeset
 [commitset]: /tutorial?item=extensions-api#commitset
+[file]: /tutorial?item=extensions-api#file

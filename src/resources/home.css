@@ -107,9 +107,11 @@ table.filters td.links {
     text-align: right;
 }
 
-table.filters td.path { width: 35%; }
-table.filters td.delegates { width: 25%; }
-table.filters td.files { width: 15%; }
+table.filters td.path { width: 25%; }
+table.filters td.delegates { width: 35%; }
+table.filters td.title { width: 20%; }
+table.filters td.data { width: 20%; font-family: monospace }
+table.filters td.files { width: 10%; }
 table.filters td.links { width: 25%; }
 
 table.filters td.links a {

@@ -38,6 +38,7 @@ BRANCHTRACKER     = service(name="branchtracker",     address=None)
 MAILDELIVERY      = service(name="maildelivery",      address=None)
 WATCHDOG          = service(name="watchdog",          address=None)
 MAINTENANCE       = service(name="maintenance",       address=None)
+EXTENSIONTASKS    = service(name="extensiontasks",    address=None)
 SERVICEMANAGER    = service(name="servicemanager")
 
 HIGHLIGHT["cache_dir"] = os.path.join(configuration.paths.CACHE_DIR, "highlight")
@@ -64,4 +65,5 @@ SERVICEMANAGER["services"] = [HIGHLIGHT,
                               BRANCHTRACKER,
                               MAILDELIVERY,
                               WATCHDOG,
-                              MAINTENANCE]
+                              MAINTENANCE,
+                              EXTENSIONTASKS]
