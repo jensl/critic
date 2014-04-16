@@ -696,8 +696,9 @@ the review front-page if you've changed your mind.)""")
                     if new_head.tree == old_head.tree: break
                 else:
                     raise IndexException("""\
-Invalid history rewrite: No commit on the rebased branch references
-the same tree as the old head of the branch.""")
+Invalid history rewrite: The rebase introduced unexpected code changes.
+Use git diff between the review branch in Critic's repository and
+the rebased local branch to see what those changes are.""")
 
                 rebased_commits = [gitutils.Commit.fromSHA1(db, repository, sha1) for sha1 in repository.revlist([new_head], old_commitset.getTails(), '--topo-order')]
                 new_commits = [gitutils.Commit.fromSHA1(db, repository, sha1) for sha1 in repository.revlist([new], [new_head], '--topo-order')]
