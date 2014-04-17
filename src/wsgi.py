@@ -46,6 +46,14 @@ else:
             return [result]
     else:
         try:
+            import configuration
+
+            if configuration.debug.COVERAGE_DIR:
+                import coverage
+                def import_critic():
+                    import critic
+                coverage.call("wsgi", import_critic)
+
             import critic
         except ImportError:
             import traceback

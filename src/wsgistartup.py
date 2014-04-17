@@ -22,8 +22,14 @@ try:
     import errno
 
     # Preload critic.py to reduce initial page load delay.
-    import critic
     import configuration
+    if configuration.debug.COVERAGE_DIR:
+        import coverage
+        def import_critic():
+            import critic
+        coverage.call("wsgi", import_critic)
+    else:
+        import critic
 
     pidfile_path = os.path.join(configuration.paths.WSGI_PIDFILE_DIR, str(os.getpid()))
 
