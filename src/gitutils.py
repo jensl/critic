@@ -24,6 +24,7 @@ import threading
 import tempfile
 import shutil
 import stat
+import contextlib
 
 import base
 import configuration
@@ -484,7 +485,19 @@ class Repository:
         else: return False
 
     def keepalive(self, commit):
-        self.run('update-ref', 'refs/keepalive/%s' % str(commit), str(commit))
+        sha1 = str(commit)
+        self.run('update-ref', 'refs/keepalive/%s' % sha1, sha1)
+        return sha1
+
+    @contextlib.contextmanager
+    def temporaryref(self, commit):
+        sha1 = self.revparse(str(commit))
+        name = "refs/temporary/%s" % sha1
+        self.run("update-ref", name, sha1, "0" * 40)
+        try:
+            yield name
+        finally:
+            self.run("update-ref", "-d", name, sha1)
 
     def __copy(self, identifier, flavor):
         base_args = ["clone", "--quiet"]
@@ -546,11 +559,10 @@ class Repository:
         return self.__copy(identifier, "work")
 
     def replaymerge(self, db, user, commit):
-        self.keepalive(commit)
-
         with self.workcopy(commit.sha1) as workcopy:
-            # Then fetch everything from the main repository into the work copy.
-            workcopy.run('fetch', 'origin', 'refs/keepalive/%s:refs/heads/merge' % commit.sha1)
+            with self.temporaryref(commit) as ref_name:
+                # Fetch the merge to replay from the main repository into the work copy.
+                workcopy.run('fetch', 'origin', ref_name)
 
             parent_sha1s = commit.parents
 
@@ -576,9 +588,8 @@ class Repository:
                 workcopy.run("commit", "--all", "--message=replay of merge that produced %s" % commit.sha1,
                              env=getGitEnvironment(author=commit.author))
 
-
             # Then push the branch to the main repository.
-            workcopy.run('push', 'origin', 'refs/heads/replay:refs/replays/%s' % commit.sha1)
+            workcopy.run('push', 'origin', 'HEAD:refs/replays/%s' % commit.sha1)
 
             # Finally, return the resulting commit.
             return Commit.fromSHA1(db, self, self.run('rev-parse', 'refs/replays/%s' % commit.sha1).strip())
@@ -622,6 +633,7 @@ class Repository:
 
             relay.run("push", "-f", "origin", "FETCH_HEAD:%s" % branch_name)
 
+    @contextlib.contextmanager
     def fetchTemporaryFromRemote(self, remote, ref):
         with self.relaycopy("fetchTemporaryFromRemote") as relay:
             try:
@@ -632,10 +644,14 @@ class Repository:
                 raise
 
             sha1 = relay.run("rev-parse", "--verify", "FETCH_HEAD").strip()
+            name = "refs/temporary/%s" % sha1
 
-            relay.run("push", "-f", "origin", "%s:refs/temporary/%s" % (sha1, sha1))
+            relay.run("push", "-f", "origin", "%s:%s" % (sha1, name))
 
-            return sha1
+        try:
+            yield sha1
+        finally:
+            self.run("update-ref", "-d", name, sha1)
 
     @staticmethod
     def readObject(repository_path, object_type, object_sha1):

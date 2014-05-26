@@ -171,10 +171,9 @@ class RebaseReview(Operation):
         doPrepareRebase(db, user, review, new_upstream_sha1, branch)
 
         try:
-            review.repository.run("update-ref", "refs/commit/%s" % new_head.sha1, new_head.sha1)
-
             with review.repository.relaycopy("RebaseReview") as relay:
-                relay.run("fetch", "origin", "refs/commit/%s" % new_head.sha1)
+                with review.repository.temporaryref(new_head) as ref_name:
+                    relay.run("fetch", "origin", ref_name)
                 relay.run("push", "--force", "origin",
                           "%s:refs/heads/%s" % (new_head.sha1, review.branch.name),
                           env={ "REMOTE_USER": user.name })

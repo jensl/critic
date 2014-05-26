@@ -99,15 +99,14 @@ onto the %(new_upstream_name)s.""" % { "review.branch.name": review.branch.name,
         env=gitutils.getGitEnvironment(),
         input=commit_message).strip()
 
-    repository.run("update-ref", "refs/commit/%s" % new_upstream.sha1, new_upstream.sha1)
-    repository.run("update-ref", "refs/commit/%s" % original_sha1, original_sha1)
-
     with repository.workcopy(original_sha1) as workcopy:
-        workcopy.run("fetch", "--quiet", "origin",
-                     "refs/commit/%s:refs/heads/temporary" % new_upstream.sha1,
-                     "refs/commit/%s:refs/heads/original" % original_sha1)
+        with repository.temporaryref(new_upstream) as new_upstream_ref, \
+                repository.temporaryref(original_sha1) as original_ref:
+            workcopy.run("fetch", "--quiet", "origin",
+                         "%s:refs/heads/temporary" % new_upstream_ref,
+                         "%s:refs/heads/original" % original_ref)
 
-        workcopy.run("checkout", "temporary")
+        workcopy.run("checkout", "refs/heads/temporary")
 
         returncode, stdout, stderr = workcopy.run(
             "cherry-pick", "refs/heads/original",
