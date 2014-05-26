@@ -747,7 +747,7 @@ the rebased local branch to see what those changes are.""")
                                (gitutils.Commit.fromSHA1(db, repository, new).getId(db),
                                 review.branch.id))
 
-                repository.run('update-ref', 'refs/keepalive/%s' % old, old)
+                repository.keepalive(old)
 
             review.incrementSerial(db)
 

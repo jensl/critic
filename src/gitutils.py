@@ -39,6 +39,13 @@ re_sha1 = re.compile("^[A-Za-z0-9]{40}$")
 REPOSITORY_RELAYCOPY_DIR = os.path.join(configuration.paths.DATA_DIR, "relay")
 REPOSITORY_WORKCOPY_DIR = os.path.join(configuration.paths.DATA_DIR, "temporary")
 
+# Reference used to keep various commits alive.
+KEEPALIVE_REF_CHAIN = "refs/keepalive-chain"
+KEEPALIVE_REF_PREFIX = "refs/keepalive/"
+
+# This is what an empty tree object hashes to.
+EMPTY_TREE_SHA1 = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
+
 def same_filesystem(pathA, pathB):
     return os.stat(pathA).st_dev == os.stat(pathB).st_dev
 
@@ -486,8 +493,98 @@ class Repository:
 
     def keepalive(self, commit):
         sha1 = str(commit)
-        self.run('update-ref', 'refs/keepalive/%s' % sha1, sha1)
+        self.run("update-ref", KEEPALIVE_REF_PREFIX + sha1, sha1)
         return sha1
+
+    def packKeepaliveRefs(self):
+        """
+        Pack the repository's keepalive refs into a single chain
+        """
+
+        def splitRefs(output):
+            return [(int(timestamp.split()[0]), sha1, timestamp)
+                    for sha1, _, timestamp in
+                    (line.partition(":")
+                     for line in
+                     output.splitlines())
+                    # Skip the root commit, which has summary "Root".
+                    if len(sha1) == 40]
+
+        loose_keepalive_refs = splitRefs(
+            self.run("for-each-ref",
+                     "--sort=committerdate",
+                     "--format=%(objectname):%(committerdate:raw)",
+                     KEEPALIVE_REF_PREFIX))
+
+        if not loose_keepalive_refs:
+            # No loose refs => no need to (re)pack.
+            return
+
+        try:
+            old_value = self.revparse(KEEPALIVE_REF_CHAIN)
+        except GitReferenceError:
+            old_value = "0" * 40
+            packed_keepalive_refs = []
+        else:
+            packed_keepalive_refs = splitRefs(
+                self.run("log",
+                         "--first-parent",
+                         "--date=raw",
+                         "--format=%s:%cd",
+                         old_value))
+
+        keepalive_refs = sorted(packed_keepalive_refs + loose_keepalive_refs)
+
+        env = getGitEnvironment()
+
+        def withDates(env, timestamp):
+            env["GIT_AUTHOR_DATE"] = timestamp
+            env["GIT_COMMITTER_DATE"] = timestamp
+            return env
+
+        # Note: we don't keep the generated commits alive by updating refs while
+        # doing this.  Since commit-tree itself produces unreferenced objects,
+        # it seems unlikely it will ever run an automatic GC, and if someone
+        # else triggers a GC while we're working, and it prunes our objects,
+        # then we'll fail, which is no big deal (we'd just leave the existing
+        # keepalive refs unmodified.)
+        #
+        # Also note: in most cases, the repacked keepalive chain will end up
+        # reusing the commit objects from the existing keepalive chain, since
+        # all meta-data in the generated commits come from the commits that we
+        # keep alive, and the order stable.
+
+        try:
+            processed = set()
+
+            new_value = self.run(
+                "commit-tree", EMPTY_TREE_SHA1, input="Root",
+                env=withDates(env, keepalive_refs[0][2])).strip()
+
+            for _, sha1, timestamp in keepalive_refs:
+                if sha1 in processed:
+                    continue
+                processed.add(sha1)
+
+                new_value = self.run(
+                    "commit-tree", EMPTY_TREE_SHA1, "-p", new_value, "-p", sha1,
+                    input=sha1, env=withDates(env, timestamp)).strip()
+
+            self.run("update-ref", KEEPALIVE_REF_CHAIN, new_value, old_value)
+        except GitCommandError:
+            # No big deal if this fails here; this is just a maintenance
+            # operation.  We'll try again another day.
+            return False
+
+        for _, sha1, _ in loose_keepalive_refs:
+            try:
+                self.run(
+                    "update-ref", "-d", KEEPALIVE_REF_PREFIX + sha1, sha1)
+            except GitCommandError:
+                # Ignore failures to delete loose keepalive refs.
+                pass
+
+        return True
 
     @contextlib.contextmanager
     def temporaryref(self, commit):
@@ -588,11 +685,15 @@ class Repository:
                 workcopy.run("commit", "--all", "--message=replay of merge that produced %s" % commit.sha1,
                              env=getGitEnvironment(author=commit.author))
 
-            # Then push the branch to the main repository.
-            workcopy.run('push', 'origin', 'HEAD:refs/replays/%s' % commit.sha1)
+            sha1 = workcopy.run("rev-parse", "HEAD").strip()
+
+            # Then push the commit to the main repository.
+            workcopy.run('push', 'origin', 'HEAD:refs/keepalive/' + sha1)
+
+            commit = Commit.fromSHA1(db, self, sha1)
 
             # Finally, return the resulting commit.
-            return Commit.fromSHA1(db, self, self.run('rev-parse', 'refs/replays/%s' % commit.sha1).strip())
+            return commit
 
     def getDefaultRemote(self, db):
         cursor = db.cursor()

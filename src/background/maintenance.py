@@ -64,12 +64,13 @@ class Maintenance(background.utils.BackgroundProcess):
                 return
 
             # Run a garbage collect in all Git repositories, to keep them neat
-            # and tidy.
+            # and tidy.  Also pack keepalive refs.
             cursor.execute("SELECT name FROM repositories")
             for (repository_name,) in cursor:
                 self.debug("repository GC: %s" % repository_name)
                 try:
                     repository = gitutils.Repository.fromName(db, repository_name)
+                    repository.packKeepaliveRefs()
                     repository.run("gc", "--prune=1 day", "--quiet")
                     repository.stopBatch()
                 except Exception:

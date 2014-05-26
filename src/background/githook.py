@@ -91,16 +91,12 @@ def slave():
                     delete_tags.append(name)
                 else:
                     update_tags.append((name, old_sha1, new_sha1))
-            elif name.startswith("replays/"):
-                index.processCommits(repository_name, new_sha1)
-            elif name.startswith("keepalive/"):
-                name = name[len("keepalive/"):]
-                if name != new_sha1: reject("invalid update of '%s'; value is not %s" % (ref["name"], name))
-                index.processCommits(repository_name, new_sha1)
-            elif name.startswith("temporary/"):
+            elif name.startswith("temporary/") or name.startswith("keepalive/"):
+                # len("temporary/") == len("keepalive/")
                 name = name[len("temporary/"):]
-                if new_sha1 != '0000000000000000000000000000000000000000':
-                    index.processCommits(repository_name, new_sha1)
+                if name != new_sha1:
+                    reject("invalid update of '%s'; value is not %s" % (ref["name"], name))
+                index.processCommits(repository_name, new_sha1)
             else:
                 reject("unexpected ref name: '%s'" % ref["name"])
 

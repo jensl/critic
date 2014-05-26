@@ -129,6 +129,6 @@ onto the %(new_upstream_name)s.""" % { "review.branch.name": review.branch.name,
 
         rebased_sha1 = workcopy.run("rev-parse", "HEAD").strip()
 
-        workcopy.run("push", "origin", "HEAD:refs/keepalive/%s" % rebased_sha1)
+        workcopy.run("push", "origin", "HEAD:refs/keepalive/" + rebased_sha1)
 
     return gitutils.Commit.fromSHA1(db, repository, rebased_sha1)
