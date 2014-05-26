@@ -109,7 +109,7 @@ $(function ()
           message = "Has conflicts and other changes.";
         else if (result.has_conflicts)
           message = "Has conflicts.";
-        else if (result.has_conflicts)
+        else if (result.has_changes)
           message = "Has unexpected changes!";
 
         var status_conflicts = $("#status_conflicts");
