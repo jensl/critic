@@ -158,6 +158,7 @@ class SubmitReview(Operation):
                            (repository.id, branch, trackedbranch["remote"], trackedbranch["name"], delay))
 
             trackedbranch_id = cursor.fetchone()[0]
+            kwargs["trackedbranch_id"] = trackedbranch_id
 
             cursor.execute("""INSERT INTO trackedbranchusers (branch, uid)
                                    VALUES (%s, %s)""",

@@ -732,3 +732,8 @@ class Instance(testing.Instance):
                 output = "\n  ".join(error.stderr.splitlines())
                 testing.logger.error("Unit tests failed: %s: %s\nOutput:\n  %s"
                                      % (module, test, output))
+
+    def gc(self, repository):
+        self.execute(["git", "gc", "--prune=now"],
+                     cwd=os.path.join("/var/git", repository),
+                     as_user="alice")
