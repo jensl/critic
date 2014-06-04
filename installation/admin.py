@@ -15,7 +15,6 @@
 # the License.
 
 import subprocess
-import email.utils as email_utils
 
 import installation
 
@@ -84,6 +83,8 @@ administrators might need to know about right away.
                 prompt="Where should system messages be sent?",
                 default="%s <%s>" % (fullname, email))
             system_recipients = [system_recipient]
+
+        data["installation.admin.email"] = email
     else:
         import configuration
 
@@ -93,9 +94,6 @@ administrators might need to know about right away.
             system_recipients = ["%(fullname)s <%(email)s>" % admin
                                  for admin in configuration.base.ADMINISTRATORS]
 
-        if system_recipients:
-            _, email = email_utils.parseaddr(system_recipients[0])
-
         # The --system-recipients argument, on upgrade, is mostly intended to be
         # used by the testing framework.  It is checked after the code above has
         # run for testing purpose; making sure the code above ever runs while
@@ -103,7 +101,6 @@ administrators might need to know about right away.
         if arguments.system_recipients:
             system_recipients = arguments.system_recipients
 
-    data["installation.admin.email"] = email
     data["installation.system.recipients"] = system_recipients
 
     return True
