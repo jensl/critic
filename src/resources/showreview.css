@@ -266,8 +266,8 @@ div.main table.log td.approval.pending span {
     background-color: #fdd
 }
 
-div.main table.comments td,
-div.main table.batches td {
+div.main table.comments > tr > td,
+div.main table.batches > tr > td {
     padding-left: 1em
 }
 

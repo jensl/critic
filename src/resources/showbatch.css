@@ -21,8 +21,37 @@ table.files {
 }
 table.files tbody {
     font-family: monospace;
+}
+
+table.files .path {
+    text-align: left;
+    padding-left: 0.25em;
+    padding-right: 1em;
     white-space: pre;
 }
-table.files .path {
-    padding-right: 1em;
+table.files .lines {
+    text-align: right;
+}
+
+div.main table.comments td.h2 {
+    padding-top: 2em;
+    padding-left: 2em;
+}
+
+div.main table.comments td.h3 {
+    padding-top: 1.5em;
+    padding-left: 1.5em;
+}
+
+div.main table.comments td.h3 h3 {
+    font-size: 0.9rem;
+    border-bottom: 1px solid #cca;
+    display: inline-block;
+    margin-top: 0;
+    margin-bottom: 0.5em
+}
+
+div.main table.comments td.h3 h3 a {
+    font-size: 60%;
+    margin-left: 1em
 }

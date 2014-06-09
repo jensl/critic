@@ -61,8 +61,8 @@ def renderShowBatch(req, db, user):
 
     page.utils.generateHeader(body, db, user, lambda target: review_utils.renderDraftItems(db, user, review, target), extra_links=[("r/%d" % review.id, "Back to Review")])
 
-    document.addExternalStylesheet("resource/showbatch.css")
     document.addExternalStylesheet("resource/showreview.css")
+    document.addExternalStylesheet("resource/showbatch.css")
     document.addExternalStylesheet("resource/review.css")
     document.addExternalStylesheet("resource/comment.css")
     document.addExternalScript("resource/review.js")
@@ -75,21 +75,21 @@ def renderShowBatch(req, db, user):
 
     target = body.div("main")
 
-    basic = target.table('paleyellow basic', align='center')
-    basic.col(width='10%')
-    basic.col(width='80%')
-    basic.col(width='10%')
-    basic.tr().td('h1', colspan=3).h1().text("Review by %s" % htmlify(author.fullname))
+    table = target.table('paleyellow basic comments', align='center')
+    table.col(width='10%')
+    table.col(width='80%')
+    table.col(width='10%')
+    table.tr().td('h1', colspan=3).h1().text("Review by %s" % htmlify(author.fullname))
 
     if batch_chain:
         batch_chain.loadComments(db, user)
 
-        row = basic.tr("line")
+        row = table.tr("line")
         row.td("heading").text("Comment:")
         row.td("value").preformatted().div("text").text(htmlify(batch_chain.comments[0].comment))
         row.td("status").text()
 
-    def renderFiles(title):
+    def renderFiles(title, cursor):
         files = []
 
         for file_id, delete_count, insert_count in cursor.fetchall():
@@ -107,20 +107,20 @@ def renderShowBatch(req, db, user):
         if paths:
             diff.File.eliminateCommonPrefixes(paths)
 
-            row = basic.tr("line")
+            row = table.tr("line")
             row.td("heading").text(title)
 
-            table = row.td().table("files callout")
-            headers = table.thead().tr()
+            files_table = row.td().table("files callout")
+            headers = files_table.thead().tr()
             headers.th("path").text("Changed Files")
-            headers.th(colspan=2).text("Lines")
+            headers.th("lines", colspan=2).text("Lines")
 
-            files = table.tbody()
+            files = files_table.tbody()
             for path, delete_count, insert_count in zip(paths, deleted, inserted):
                 file = files.tr()
                 file.td("path").preformatted().innerHTML(path)
-                file.td().preformatted().text(delete_count and "-%d" % delete_count or "")
-                file.td().preformatted().text(delete_count and "+%d" % insert_count or "")
+                file.td("lines").preformatted().text("-%d" % delete_count if delete_count else None)
+                file.td("lines").preformatted().text("+%d" % insert_count if insert_count else None)
 
             row.td("status").text()
 
@@ -136,7 +136,7 @@ def renderShowBatch(req, db, user):
                        WHERE %s
                          AND reviewfilechanges.to='reviewed'
                     GROUP BY reviewfiles.file""" % condition("reviewfilechanges"))
-    renderFiles("Reviewed:")
+    renderFiles("Reviewed:", cursor)
 
     cursor.execute("""SELECT reviewfiles.file, SUM(deleted), SUM(inserted)
                         FROM reviewfiles
@@ -144,12 +144,17 @@ def renderShowBatch(req, db, user):
                        WHERE %s
                          AND reviewfilechanges.to='pending'
                     GROUP BY reviewfiles.file""" % condition("reviewfilechanges"))
-    renderFiles("Unreviewed:")
+    renderFiles("Unreviewed:", cursor)
 
-    def renderChains(title, replies):
-        all_chains = [review_comment.CommentChain.fromId(db, id, user, review=review) for (id,) in rows]
+    def renderChains(title, cursor, replies):
+        all_chains = [review_comment.CommentChain.fromId(db, chain_id, user, review=review)
+                      for (chain_id,) in cursor]
 
-        for chain in all_chains: chain.loadComments(db, user)
+        if not all_chains:
+            return
+
+        for chain in all_chains:
+            chain.loadComments(db, user)
 
         issue_chains = filter(lambda chain: chain.type == "issue", all_chains)
         draft_issues = filter(lambda chain: chain.state == "draft", issue_chains)
@@ -167,64 +172,105 @@ def renderShowBatch(req, db, user):
                 row.td("title").a(href="showcomment?chain=%d" % chain.id).innerHTML(chain.leader())
                 row.td("when").text(chain.when())
 
+        def showcomments(filter_param):
+            params = { "review": review.id, "filter": filter_param }
+            if batch_id:
+                params["batch"] = batch_id
+            return htmlutils.URL("/showcomments", **params)
+
         if draft_issues or open_issues or addressed_issues or closed_issues:
-            chains = target.table("paleyellow comments", align="center", cellspacing=0)
-            chains.tr().td("h1", colspan=3).h1().text(title)
+            h2 = table.tr().td("h2", colspan=3).h2().text(title)
+            if len(draft_issues) + len(open_issues) + len(addressed_issues) + len(closed_issues) > 1:
+                h2.a(href=showcomments("issues")).text("[display all]")
 
             if draft_issues:
-                chains.tr(id="draft-issues").td("h2", colspan=3).h2().text("Draft Issues").a(href="showcomments?review=%d&filter=draft-issues" % review.id).text("[display all]")
-                renderChains(chains, draft_issues)
+                h3 = table.tr(id="draft-issues").td("h3", colspan=3).h3().text("Draft issues")
+                if len(draft_issues) > 1:
+                    h3.a(href=showcomments("draft-issues")).text("[display all]")
+                renderChains(table, draft_issues)
 
             if batch_id is not None or replies:
                 if open_issues:
-                    h2 = chains.tr(id="open-issues").td("h2", colspan=3).h2().text("Still Open Issues")
-                    if batch_id:
-                        h2.a(href="showcomments?review=%d&filter=open-issues&batch=%d" % (review.id, batch_id)).text("[display all]")
-                    renderChains(chains, open_issues)
+                    h3 = table.tr(id="open-issues").td("h3", colspan=3).h3().text("Still open issues")
+                    if batch_id and len(open_issues) > 1:
+                        h3.a(href=showcomments("open-issues")).text("[display all]")
+                    renderChains(table, open_issues)
 
                 if addressed_issues:
-                    h2 = chains.tr(id="addressed-issues").td("h2", colspan=3).h2().text("Now Addressed Issues")
-                    if batch_id:
-                        h2.a(href="showcomments?review=%d&filter=addressed-issues&batch=%d" % (review.id, batch_id)).text("[display all]")
-                    renderChains(chains, addressed_issues)
+                    h3 = table.tr(id="addressed-issues").td("h3", colspan=3).h3().text("Now addressed issues")
+                    if batch_id and len(addressed_issues) > 1:
+                        h3.a(href=showcomments("addressed-issues")).text("[display all]")
+                    renderChains(table, addressed_issues)
 
                 if closed_issues:
-                    h2 = chains.tr(id="closed-issues").td("h2", colspan=3).h2().text("Now Closed Issues")
-                    if batch_id:
-                        h2.a(href="showcomments?review=%d&filter=closed-issues&batch=%d" % (review.id, batch_id)).text("[display all]")
-                    renderChains(chains, closed_issues)
+                    h3 = table.tr(id="closed-issues").td("h3", colspan=3).h3().text("Now closed issues")
+                    if batch_id and len(closed_issues) > 1:
+                        h3.a(href=showcomments("closed-issues")).text("[display all]")
+                    renderChains(table, closed_issues)
 
         if draft_notes or open_notes:
-            chains = target.table("paleyellow comments", align="center", cellspacing=0)
-            chains.tr().td("h1", colspan=3).h1().text(title)
+            h2 = table.tr().td("h2", colspan=3).h2().text(title)
+            if len(draft_notes) + len(open_notes) > 1:
+                h2.a(href=showcomments("notes")).text("[display all]")
 
             if draft_notes:
-                chains.tr(id="draft-notes").td("h2", colspan=3).h2().text("Draft Notes").a(href="showcomments?review=%d&filter=draft-notes" % review.id).text("[display all]")
-                renderChains(chains, draft_notes)
+                h3 = table.tr(id="draft-notes").td("h3", colspan=3).h3().text("Draft notes")
+                if len(draft_notes) > 1:
+                    h3.a(href=showcomments("draft-notes")).text("[display all]")
+                renderChains(table, draft_notes)
 
             if open_notes:
-                h2 = chains.tr(id="notes").td("h2", colspan=3).h2().text("Notes")
-                if batch_id:
-                    h2.a(href="showcomments?review=%d&filter=open-notes&batch=%d" % (review.id, batch_id)).text("[display all]")
-                renderChains(chains, open_notes)
+                h3 = table.tr(id="notes").td("h3", colspan=3).h3().text("Notes")
+                if batch_id and len(open_notes) > 1:
+                    h3.a(href=showcomments("open-notes")).text("[display all]")
+                renderChains(table, open_notes)
 
     cursor.execute("SELECT id FROM commentchains WHERE %s AND type='issue'" % condition("commentchains"))
-    rows = cursor.fetchall()
 
-    if rows: renderChains("Raised Issues", False)
+    renderChains("Raised issues", cursor, False)
+
+    cursor.execute("""SELECT commentchains.id
+                        FROM commentchains
+                        JOIN commentchainchanges ON (commentchainchanges.chain=commentchains.id)
+                       WHERE %s
+                         AND to_state='closed'""" % condition("commentchainchanges"))
+
+    renderChains("Resolved issues", cursor, False)
+
+    cursor.execute("""SELECT commentchains.id
+                        FROM commentchains
+                        JOIN commentchainchanges ON (commentchainchanges.chain=commentchains.id)
+                       WHERE %s
+                         AND to_state='open'""" % condition("commentchainchanges"))
+
+    renderChains("Reopened issues", cursor, False)
+
+    cursor.execute("""SELECT commentchains.id
+                        FROM commentchains
+                        JOIN commentchainchanges ON (commentchainchanges.chain=commentchains.id)
+                       WHERE %s
+                         AND to_type='issue'""" % condition("commentchainchanges"))
+
+    renderChains("Converted into issues", cursor, False)
+
+    cursor.execute("""SELECT commentchains.id
+                        FROM commentchains
+                        JOIN commentchainchanges ON (commentchainchanges.chain=commentchains.id)
+                       WHERE %s
+                         AND to_type='note'""" % condition("commentchainchanges"))
+
+    renderChains("Converted into notes", cursor, False)
 
     cursor.execute("SELECT id FROM commentchains WHERE %s AND type='note'" % condition("commentchains"))
-    rows = cursor.fetchall()
 
-    if rows: renderChains("Written Notes", False)
+    renderChains("Written notes", cursor, False)
 
     cursor.execute("""SELECT commentchains.id
                         FROM commentchains
                         JOIN comments ON (comments.chain=commentchains.id)
                        WHERE %s
                          AND comments.id!=commentchains.first_comment""" % condition("comments"))
-    rows = cursor.fetchall()
 
-    if rows: renderChains("Replied To", True)
+    renderChains("Replied to", cursor, True)
 
     return document
