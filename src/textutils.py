@@ -74,6 +74,16 @@ def indent(string, width=4):
     prefix = " " * width
     return prefix + ("\n" + prefix).join(string.splitlines())
 
+def summarize(string, max_length=80, as_html=False):
+    if len(string) <= max_length:
+        return string
+    string = string[:max_length - 5]
+    if as_html:
+        import htmlutils
+        return htmlutils.htmlify(string) + "[&#8230;]"
+    else:
+        return string + "[...]"
+
 def escape(text):
     special = { "\a": "a",
                 "\b": "b",

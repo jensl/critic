@@ -30,8 +30,7 @@ import configuration
 import diff
 import profiling
 import linkify
-
-from textutils import json_encode
+import textutils
 
 try:
     from customization.paths import getModuleFromFile
@@ -1054,8 +1053,8 @@ def renderShowReview(req, db, user):
             for path in diff.File.eliminateCommonPrefixes(sorted(modules)):
                 cell.span("file").innerHTML(path).br()
 
-            paths = json_encode(list(modules))
-            user_ids = json_encode(list(team))
+            paths = textutils.json_encode(list(modules))
+            user_ids = textutils.json_encode(list(team))
 
             cell = row.td("buttons")
             cell.button("accept", critic_paths=paths, critic_user_ids=user_ids).text("I will review this!")
@@ -1065,29 +1064,142 @@ def renderShowReview(req, db, user):
 
     profiler.check("shared assignments")
 
-    cursor.execute("SELECT batches.id, users.fullname, batches.comment, batches.time FROM batches JOIN users ON (users.id=batches.uid) WHERE batches.review=%s ORDER BY batches.id DESC", [review.id])
+    cursor.execute("""SELECT batches.id, batches.time,
+                             users.fullname,
+                             comments.comment
+                        FROM batches
+                        JOIN users ON (users.id=batches.uid)
+             LEFT OUTER JOIN commentchains ON (commentchains.id=batches.comment)
+             LEFT OUTER JOIN comments ON (comments.id=commentchains.first_comment)
+                       WHERE batches.review=%s
+                    ORDER BY batches.id DESC""",
+                   (review.id,))
+
     rows = cursor.fetchall()
 
     if rows:
-        notes = dict([(chain.id, chain) for chain in open_notes])
+        numbers = {}
+
+        cursor.execute("""SELECT batches.id, reviewfiles.state, SUM(deleted), SUM(inserted)
+                            FROM batches
+                            JOIN reviewfilechanges ON (reviewfilechanges.batch=batches.id)
+                            JOIN reviewfiles ON (reviewfiles.id=reviewfilechanges.file)
+                           WHERE batches.review=%s
+                        GROUP BY batches.id, reviewfiles.state""",
+                       (review.id,))
+
+        for batch_id, reviewfile_state, deleted, inserted in cursor:
+            per_batch = numbers.setdefault(batch_id, {})
+            per_batch[reviewfile_state] = (deleted, inserted)
+
+        cursor.execute("""SELECT batches.id, commentchains.type, COUNT(commentchains.id)
+                            FROM batches
+                            JOIN commentchains ON (commentchains.batch=batches.id)
+                           WHERE batches.review=%s
+                        GROUP BY batches.id, commentchains.type""",
+                       (review.id,))
+
+        for batch_id, commentchain_type, count in cursor:
+            per_batch = numbers.setdefault(batch_id, {})
+            per_batch[commentchain_type] = count
+
+        cursor.execute("""SELECT batches.id, commentchainchanges.to_state, COUNT(commentchainchanges.chain)
+                            FROM batches
+                            JOIN commentchainchanges ON (commentchainchanges.batch=batches.id)
+                           WHERE batches.review=%s
+                             AND commentchainchanges.to_state IS NOT NULL
+                        GROUP BY batches.id, commentchainchanges.to_state""",
+                       (review.id,))
+
+        for batch_id, commentchainchange_state, count in cursor:
+            per_batch = numbers.setdefault(batch_id, {})
+            per_batch[commentchainchange_state] = count
+
+        cursor.execute("""SELECT batches.id, COUNT(commentchainchanges.chain)
+                            FROM batches
+                            JOIN commentchainchanges ON (commentchainchanges.batch=batches.id)
+                           WHERE batches.review=%s
+                             AND commentchainchanges.to_type IS NOT NULL
+                        GROUP BY batches.id""",
+                       (review.id,))
+
+        for batch_id, count in cursor:
+            per_batch = numbers.setdefault(batch_id, {})
+            per_batch["morph"] = count
+
+        cursor.execute("""SELECT batches.id, COUNT(comments.id)
+                            FROM batches
+                            JOIN commentchains ON (commentchains.batch!=batches.id)
+                            JOIN comments ON (comments.batch=batches.id
+                                          AND comments.chain=commentchains.id)
+                           WHERE batches.review=%s
+                        GROUP BY batches.id""",
+                       (review.id,))
+
+        for batch_id, count in cursor:
+            per_batch = numbers.setdefault(batch_id, {})
+            per_batch["reply"] = count
 
         batches = target.table("paleyellow batches", align="center", cellspacing=0)
         batches.tr().td("h1", colspan=3).h1().text("Work Log")
 
-        for batch_id, user_fullname, chain_id, when in rows:
+        def format_lines(deleted, inserted):
+            if deleted and inserted:
+                return "-%d/+%d" % (deleted, inserted)
+            elif deleted:
+                return "-%d" % deleted
+            else:
+                return "+%d" % inserted
+        def with_plural(count, one, many):
+            return (count, many if count > 1 else one)
+        def with_plural_s(count):
+            return with_plural(count, "", "s")
+
+        for batch_id, timestamp, user_fullname, comment in rows:
             row = batches.tr("batch")
             row.td("author").text(user_fullname)
-            title = "<i>No comment</i>"
-            if chain_id:
-                if chain_id in notes:
-                    title = notes[chain_id].leader()
+
+            title = row.td("title clickable").a(
+                "clickable-target", href="showbatch?batch=%d" % batch_id)
+            if comment:
+                title.innerHTML(textutils.summarize(comment, as_html=True))
+            else:
+                title.i().text("No comment")
+
+            per_batch = numbers.get(batch_id)
+            if per_batch:
+                items = []
+                reviewed = per_batch.get("reviewed")
+                if reviewed:
+                    items.append("reviewed %s lines" % format_lines(*reviewed))
+                unreviewed = per_batch.get("pending")
+                if unreviewed:
+                    items.append("unreviewed %s lines" % format_lines(*unreviewed))
+                issues = per_batch.get("issue")
+                if issues:
+                    items.append("raised %d issue%s" % with_plural_s(issues))
+                notes = per_batch.get("note")
+                if notes:
+                    items.append("wrote %d note%s" % with_plural_s(notes))
+                resolved = per_batch.get("closed")
+                if resolved:
+                    items.append("resolved %d issue%s" % with_plural_s(resolved))
+                reopened = per_batch.get("open")
+                if reopened:
+                    items.append("reopened %d issue%s" % with_plural_s(reopened))
+                morphed = per_batch.get("morph")
+                if morphed:
+                    items.append("morphed %d comment%s" % with_plural_s(morphed))
+                replies = per_batch.get("reply")
+                if replies:
+                    items.append("wrote %d %s" % with_plural(replies, "reply", "replies"))
+                if len(items) == 1:
+                    items = items[0]
                 else:
-                    for chain in all_chains:
-                        if chain.id == chain_id:
-                            title = chain.leader()
-                            break
-            row.td("title").a(href="showbatch?batch=%d" % batch_id).innerHTML(title)
-            row.td("when").text(user.formatTimestamp(db, when))
+                    items = "%s and %s" % (", ".join(items[:-1]), items[-1])
+                title.span("numbers").text(items)
+
+            row.td("when").text(user.formatTimestamp(db, timestamp))
 
     profiler.check("batches")
     profiler.output(db, user, target)

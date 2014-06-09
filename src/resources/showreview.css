@@ -342,6 +342,13 @@ div.main table.comments td.buttons {
     text-align: right
 }
 
+div.main table.batches td.title span.numbers {
+    color: black;
+    float: right;
+    font-family: sans-serif;
+    font-size: 90%
+}
+
 div.summary-tooltip > div.header {
     font-weight: bold;
     text-decoration: underline
