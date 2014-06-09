@@ -112,6 +112,12 @@ class Instance(testing.Instance):
             raise testing.Error("Invalid VM snapshot: %s (matches multiple snapshots)"
                                 % self.snapshot)
 
+        # Check that the VM isn't running:
+        state = self.state()
+        if state != "poweroff":
+            raise testing.Error("Invalid VM state: %s (expected 'poweroff')"
+                                % state)
+
         self.__users = ["admin"]
         self.__user_ids = { "admin": 1 }
 
