@@ -55,8 +55,7 @@ table.log tr.commit td.summary {
     border-bottom: 1px dotted #cca;
     border-right: 1px dotted #cca;
     white-space: nowrap;
-    overflow: hidden;
-    cursor: pointer
+    overflow: hidden
 }
 table.log tr.commit:hover td.summary { background-color: #eed }
 table.log tr.commit.highlight td.summary { background-color: #dfd }

@@ -446,3 +446,7 @@ fieldset {
 .checkbox-group label:last-child {
     padding-right: 0;
 }
+
+.clickable {
+    cursor: pointer
+}

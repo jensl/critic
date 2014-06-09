@@ -241,6 +241,17 @@ $(document).ready(function ()
   {
     $("button").button();
     $("a.button").button();
+
+    /* Element (e.g. a table-cell) containing a link and with a 'click' handler
+       that clicks the link. */
+    $(".clickable").click(function (ev)
+      {
+        if (ev.button == 0 && !$(ev.target).closest("a, button, .clickable-target").size())
+          /* The '.get(0)' means we call the browser's native click() instead of
+             jQuery's.  For some reason, the latter doesn't trigger the default
+             action of the click event on the link (i.e. navigation). */
+          $(ev.currentTarget).find(".clickable-target").get(0).click();
+      });
   });
 
 var keyboardShortcutHandlers = [];

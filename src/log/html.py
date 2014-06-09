@@ -70,12 +70,13 @@ class SummaryColumn:
         self.linkToCommit = linkToCommit
         self.isFixupOrSquash = None
     def className(self, db, commit):
-        return "summary"
+        return "summary clickable"
     def heading(self, target):
         target.text("Summary")
     def render(self, db, commit, target, overrides={}):
         summary = overrides.get("summary", commit.summary())
-        classnames = ["commit"] + overrides.get("summary_classnames", [])
+        classnames = (["commit", "clickable-target"] +
+                      overrides.get("summary_classnames", []))
 
         if self.isFixupOrSquash is not None:
             data = self.isFixupOrSquash(commit)

@@ -164,12 +164,6 @@ $(document).ready(function ()
     $("tr.commit td.summary").click(function (ev)
       {
         resetSelection();
-
-        if (ev.button == 0 && !$(ev.target).closest("a").size())
-          /* The '.get(0)' means we call the browser's native click() instead of
-             jQuery's.  For some reason, the latter doesn't trigger the default
-             action of the click event on the link (i.e. navigation). */
-          $(ev.currentTarget).children("a").get(0).click();
       });
 
     $("tr.commit td.summary").mousedown(function (ev)

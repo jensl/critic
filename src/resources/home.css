@@ -143,8 +143,7 @@ div.filterdialog span.matchedfiles {
 }
 
 div.filterdialog span.matchedfiles.clickable:hover {
-    text-decoration: underline;
-    cursor: pointer
+    text-decoration: underline
 }
 
 div.reapplyresult th {
