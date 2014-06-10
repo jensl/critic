@@ -14,10 +14,11 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-from dbaccess import IntegrityError, ProgrammingError, TransactionRollbackError
+from dbaccess import (IntegrityError, OperationalError, ProgrammingError,
+                      TransactionRollbackError)
 
 from dbutils.session import Session
-from dbutils.database import Database
+from dbutils.database import FailedToLock, NOWAIT, Database
 from dbutils.user import InvalidUserId, NoSuchUser, User
 from dbutils.review import NoSuchReview, ReviewState, Review
 from dbutils.branch import Branch

@@ -207,9 +207,16 @@ class Branch(object):
             return branch
 
     @staticmethod
-    def fromName(db, repository, name):
+    def fromName(db, repository, name, for_update=False):
         cursor = db.cursor()
-        cursor.execute("SELECT id FROM branches WHERE repository=%s AND name=%s", (repository.id, name))
+        cursor.execute("""SELECT id
+                            FROM branches
+                           WHERE repository=%s
+                             AND name=%s""",
+                       (repository.id, name),
+                       for_update=for_update)
         row = cursor.fetchone()
-        if not row: return None
-        else: return Branch.fromId(db, row[0])
+        if not row:
+            return None
+        else:
+            return Branch.fromId(db, row[0])

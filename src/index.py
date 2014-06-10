@@ -22,7 +22,6 @@ from time import gmtime, strftime
 from pwd import getpwuid
 from os import getuid
 
-from dbutils import *
 import gitutils
 from log.commitset import CommitSet
 
@@ -50,6 +49,9 @@ except ImportError:
         pass
     def update(_repository, _ref, _old, _new):
         pass
+
+def reflow(message):
+    return textutils.reflow(message, line_length=80 - len("remote: "))
 
 def timestamp(time):
     return strftime("%Y-%m-%d %H:%M:%S", time)
@@ -154,7 +156,7 @@ perhaps pushing to the wrong repository?""" % count)
 def init():
     global db
 
-    db = Database()
+    db = dbutils.Database()
 
 def finish():
     global db
@@ -251,7 +253,7 @@ def createBranch(user, repository, name, head, flags):
 
         message = ("Cannot create branch with name '%s' since there is already a branch named '%s' in the repository." %
                    (name, "/".join(components[:index])))
-        raise IndexException(textutils.reflow(message, line_length=80 - len("remote: ")))
+        raise IndexException(reflow(message))
 
     if name.startswith("r/"):
         try:
@@ -430,10 +432,17 @@ def updateBranch(user_name, repository_name, name, old, new, multiple, flags):
         pass
 
     try:
-        branch = dbutils.Branch.fromName(db, repository, name)
+        branch = dbutils.Branch.fromName(db, repository, name, for_update=dbutils.NOWAIT)
+    except dbutils.FailedToLock:
+        raise IndexException(reflow(
+                "The branch '%s' is currently locked since it is being updated "
+                "by another push.  Please fetch and try again." % name))
+    else:
+        if not branch:
+            # FIXME: We should handle this better.  Maybe just redirect to
+            # createBranch()?
+            raise IndexException("The branch '%s' is not in the database!" % name)
         base_branch_id = branch.base.id if branch.base else None
-    except:
-        raise IndexException("The branch '%s' is not in the database!  (This should never happen.)" % name)
 
     if branch.head.sha1 != old:
         if new == branch.head.sha1:

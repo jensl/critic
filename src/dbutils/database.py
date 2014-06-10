@@ -22,6 +22,18 @@ from dbutils.session import Session
 class InvalidCursorError(Exception):
     pass
 
+# Raised when "SELECT ... FOR UPDATE NOWAIT" fails to acquire row locks (without
+# blocking.)
+class FailedToLock(Exception):
+    pass
+
+# Singleton used as the value to Database.Cursor.execute()'s 'for_update'
+# argument to request NOWAIT behavior (fail instead of blocking if rows are
+# already locked.)
+class NoWait:
+    pass
+NOWAIT = NoWait()
+
 class Database(Session):
     class Cursor(object):
         class Iterator(object):
@@ -74,20 +86,30 @@ class Database(Session):
             else:
                 return self.__rows
 
-        def execute(self, query, params=None):
-            if not self.__profiling:
-                self.__cursor.execute(query, params)
-            else:
-                map(Database.Cursor.Iterator.invalidate, self.__iterators)
-                self.__iterators = []
-                before = time.time()
-                self.__cursor.execute(query, params)
-                try:
-                    self.__rows = self.__cursor.fetchall()
-                except dbaccess.ProgrammingError:
-                    self.__rows = None
-                after = time.time()
-                self.__db.recordProfiling(query, after - before, rows=len(self.__rows) if self.__rows else 0)
+        def execute(self, query, params=None, for_update=False):
+            if for_update:
+                assert query.upper().startswith("SELECT ")
+                query += " FOR UPDATE"
+                if for_update is NOWAIT:
+                    query += " NOWAIT"
+            try:
+                if not self.__profiling:
+                    self.__cursor.execute(query, params)
+                else:
+                    map(Database.Cursor.Iterator.invalidate, self.__iterators)
+                    self.__iterators = []
+                    before = time.time()
+                    self.__cursor.execute(query, params)
+                    try:
+                        self.__rows = self.__cursor.fetchall()
+                    except dbaccess.ProgrammingError:
+                        self.__rows = None
+                    after = time.time()
+                    self.__db.recordProfiling(query, after - before, rows=len(self.__rows) if self.__rows else 0)
+            except dbaccess.OperationalError:
+                if for_update is NOWAIT:
+                    raise FailedToLock()
+                raise
 
         def executemany(self, query, params):
             if self.__profiling is None:

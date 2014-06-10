@@ -21,5 +21,6 @@ def connect():
     return psycopg2.connect(**configuration.database.PARAMETERS)
 
 IntegrityError = psycopg2.IntegrityError
+OperationalError = psycopg2.OperationalError
 ProgrammingError = psycopg2.ProgrammingError
 TransactionRollbackError = psycopg2.extensions.TransactionRollbackError
