@@ -23,12 +23,17 @@ import re
 import log.commitset
 
 def formatWhen(when):
+    def relative_time(delta, time_unit_singular):
+        time_unit = time_unit_singular
+        if delta > 1:
+            time_unit += "s"
+        return "%d %s ago" % (delta, time_unit)
     def inner(when):
         delta = int(time() - mktime(when))
-        if delta < 60: return "%d seconds ago" % delta
-        elif delta < 60 * 60: return "%d minutes ago" % (delta / 60)
-        elif delta < 60 * 60 * 24: return "%d hours ago" % (delta / (60 * 60))
-        elif delta < 60 * 60 * 24 * 30: return "%d days ago" % (delta / (60 * 60 * 24))
+        if delta < 60: return relative_time(delta, "second")
+        elif delta < 60 * 60: return relative_time(delta / 60, "minute")
+        elif delta < 60 * 60 * 24: return relative_time(delta / (60 * 60), "hour")
+        elif delta < 60 * 60 * 24 * 30: return relative_time(delta / (60 * 60 * 24), "day")
         else: return strftime("%Y-%m-%d", localtime(mktime(when)))
     return inner(when).replace(" ", "&nbsp;")
 
