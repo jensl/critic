@@ -26,7 +26,7 @@ import log.html as log_html
 def renderShowBranch(req, db, user):
     branch_name = req.getParameter("branch")
     base_name = req.getParameter("base", None)
-    review_id = req.getParameter("review", None)
+    review_id = req.getParameter("review", None, filter=int)
 
     repository = req.getParameter("repository", user.getPreference(db, "defaultRepository"))
     if not repository:
@@ -74,9 +74,16 @@ def renderShowBranch(req, db, user):
             target.a("button", href=url).text("Create Review")
 
     if review_id is not None:
-        extra_links = [("r/%s" % review_id, "Back to Review")]
+        review = dbutils.Review.fromId(db, review_id)
+    else:
+        review = None
+
+    if review:
+        extra_links = [("r/%d" % review.id, "Back to Review")]
+        document.addInternalScript(review.getJS())
     else:
         extra_links = []
+
     page.utils.generateHeader(body, db, user, renderCreateReview, extra_links=extra_links)
 
     document.addInternalScript(branch.getJS())

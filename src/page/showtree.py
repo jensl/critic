@@ -64,6 +64,9 @@ def renderShowTree(req, db, user):
 
     document.addExternalStylesheet("resource/showtree.css")
 
+    if review:
+        document.addInternalScript(review.getJS())
+
     target = body.div("main")
 
     table = target.table("tree paleyellow", align="center", cellspacing=0)

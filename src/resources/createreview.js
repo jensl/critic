@@ -61,7 +61,7 @@ function submitReview()
   }
 
   var data = { repository_id: repository.id,
-               commit_ids: review.commit_ids,
+               commit_ids: review_data.commit_ids,
                branch: "r/" + branch_name.value,
                summary: summary.value.trim(),
                reviewfilters: splitReviewFilters(reviewfilters),
@@ -103,7 +103,7 @@ function updateReviewersAndWatchers(new_reviewfilters)
     new_reviewfilters = reviewfilters;
 
   var data = { repository_id: repository.id,
-               commit_ids: review.commit_ids,
+               commit_ids: review_data.commit_ids,
                reviewfilters: splitReviewFilters(new_reviewfilters),
                applyfilters: $("input.applyfilters:checked").size() != 0,
                applyparentfilters: $("input.applyparentfilters:checked").size() != 0 };

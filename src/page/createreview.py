@@ -310,9 +310,12 @@ def renderCreateReview(req, db, user):
 
     document.addInternalScript("""
 var invalid_branch_name = %s;
-var review = { commit_ids: %r,
-               commit_sha1s: %r,
-               changeset_ids: %r };""" % (invalid_branch_name, commit_ids, commit_sha1s, changeset_ids))
+var review_data = { commit_ids: %r,
+                    commit_sha1s: %r,
+                    changeset_ids: %r };""" % (invalid_branch_name,
+                                               commit_ids,
+                                               commit_sha1s,
+                                               changeset_ids))
     document.addInternalScript(repository.getJS())
 
     main = body.div("main")

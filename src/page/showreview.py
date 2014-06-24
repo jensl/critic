@@ -312,6 +312,7 @@ def renderShowReview(req, db, user):
     document.addExternalScript("resource/reviewfilters.js")
     document.addExternalScript("resource/autocomplete.js")
     document.addInternalScript(user.getJS())
+    document.addInternalScript("var isReviewFrontpage = true;")
     document.addInternalScript("var owners = [ %s ];" % ", ".join(owner.getJSConstructor() for owner in review.owners))
     document.addInternalScript("var updateCheckInterval = %d;" % user.getPreference(db, "review.updateCheckInterval"));
 

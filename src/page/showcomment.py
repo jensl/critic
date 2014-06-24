@@ -74,7 +74,7 @@ def renderShowComment(req, db, user):
     review_html.renderCommentChain(db, body.div("main"), user, review, chain, context_lines=context_lines, compact=compact, tabify=tabify, original=original, linkify=linkify.Context(db=db, request=req, review=review))
 
     if user.getPreference(db, "ui.keyboardShortcuts"):
-        page.utils.renderShortcuts(body, "showcomment")
+        page.utils.renderShortcuts(body, "showcomment", review=review)
 
     yield document.render(pretty=not compact)
 
@@ -299,7 +299,7 @@ def renderShowComments(req, db, user):
 
             profiler.check("transfer")
 
-        page.utils.renderShortcuts(target, "showcomments")
+        page.utils.renderShortcuts(target, "showcomments", review=review)
     else:
         target.h1(align="center").text("No comments.")
 

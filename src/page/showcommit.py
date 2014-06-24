@@ -627,7 +627,10 @@ def render(db, target, user, repository, review, changesets, commits, listed_com
         if profiler: profiler.check("render diff")
 
     if user.getPreference(db, "ui.keyboardShortcuts"):
-        page.utils.renderShortcuts(target, "showcommit", merge_parents=len(changesets), squashed_diff=commits and len(commits) > 1)
+        page.utils.renderShortcuts(target, "showcommit",
+                                   review=review,
+                                   merge_parents=len(changesets),
+                                   squashed_diff=commits and len(commits) > 1)
 
 def commitRangeFromReview(db, user, review, filter_value, file_ids):
     edges = cursor = db.cursor()

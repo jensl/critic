@@ -159,6 +159,6 @@ def renderFilterChanges(req, db, user):
     row.td('button', colspan=3).button("display").text("Display Diff")
 
     if user.getPreference(db, "ui.keyboardShortcuts"):
-        page.utils.renderShortcuts(body, "filterchanges")
+        page.utils.renderShortcuts(body, "filterchanges", review=review)
 
     return document

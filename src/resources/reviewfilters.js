@@ -104,12 +104,12 @@ function addReviewFiltersDialog(options)
 
   var data = { values: [ "users", "paths" ] };
 
-  if ("id" in review)
+  if (window.review)
     /* Called from review front-page. */
     data.review_id = review.id;
   else
     /* Called from "Create Review" page. */
-    data.changeset_ids = review.changeset_ids;
+    data.changeset_ids = review_data.changeset_ids;
 
   var operation = new Operation({ action: "get auto-complete data",
                                   url: "getautocompletedata",

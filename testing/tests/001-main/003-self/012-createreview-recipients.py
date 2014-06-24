@@ -18,7 +18,7 @@ with frontend.signin("alice"):
         if script.has_key("src"):
             continue
         match = re.search(
-            r"^\s*var review\s*=\s*\{\s*commit_ids:\s*\[\s*(\d+)\s*\]",
+            r"^\s*var review_data\s*=\s*\{\s*commit_ids:\s*\[\s*(\d+)\s*\]",
             script.string, re.MULTILINE)
         if match:
             commit_id = int(match.group(1))

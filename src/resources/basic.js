@@ -562,6 +562,17 @@ keyboardShortcutHandlers.push(function (key)
       quickSearch();
       return true;
     }
+    if (key == "u".charCodeAt(0))
+    {
+      if (window.review)
+      {
+        if (window.isReviewFrontpage)
+          location.href = "/dashboard";
+        else
+          location.href = "/r/" + review.id;
+        return true;
+      }
+    }
   });
 
 $(window).resize(repositionNotifications);

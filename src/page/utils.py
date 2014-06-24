@@ -185,6 +185,9 @@ def renderShortcuts(target, page, **kwargs):
     def addShortcut(keyCode, keyName, description):
         shortcuts.append((keyCode, keyName, description))
 
+    if kwargs.get("review"):
+        addShortcut(ord("u"), "u", "back to review")
+
     if page == "showcommit":
         what = "files"
 
@@ -255,6 +258,8 @@ def displayMessage(db, req, user, title, review=None, message=None, page_title=N
             review_utils.renderDraftItems(db, user, review, target)
 
         back_to_review = ("r/%d" % review.id, "Back to Review")
+
+        document.addInternalScript(review.getJS())
 
         generateHeader(body, db, user, generate_right=generateRight, extra_links=[back_to_review])
     else:
