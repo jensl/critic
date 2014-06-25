@@ -16,7 +16,6 @@
 
 import os
 import base64
-import hashlib
 import re
 
 from passlib.context import CryptContext
