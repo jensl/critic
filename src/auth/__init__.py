@@ -18,8 +18,6 @@ import os
 import base64
 import re
 
-from passlib.context import CryptContext
-
 import configuration
 import dbutils
 
@@ -28,6 +26,8 @@ class NoSuchUser(CheckFailed): pass
 class WrongPassword(CheckFailed): pass
 
 def createCryptContext():
+    from passlib.context import CryptContext
+
     kwargs = {}
 
     for scheme, min_rounds in configuration.auth.MINIMUM_ROUNDS.items():

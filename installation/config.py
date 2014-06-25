@@ -508,7 +508,8 @@ web server to redirect all HTTP accesses to HTTPS.
     data["installation.config.allow_user_registration"] = allow_user_registration
     data["installation.config.verify_email_addresses"] = verify_email_addresses
 
-    calibrate_minimum_rounds()
+    if auth_mode == "critic":
+        calibrate_minimum_rounds()
 
     data["installation.config.password_hash_schemes"] = password_hash_schemes
     data["installation.config.default_password_hash_scheme"] = default_password_hash_scheme
