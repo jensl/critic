@@ -40,7 +40,7 @@ REPOSITORY_RELAYCOPY_DIR = os.path.join(configuration.paths.DATA_DIR, "relay")
 REPOSITORY_WORKCOPY_DIR = os.path.join(configuration.paths.DATA_DIR, "temporary")
 
 # Reference used to keep various commits alive.
-KEEPALIVE_REF_CHAIN = "refs/keepalive-chain"
+KEEPALIVE_REF_CHAIN = "refs/internal/keepalive-chain"
 KEEPALIVE_REF_PREFIX = "refs/keepalive/"
 
 # This is what an empty tree object hashes to.
