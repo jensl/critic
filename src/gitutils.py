@@ -491,6 +491,18 @@ class Repository:
         if git.returncode == 0: return stdout.strip() == "commit"
         else: return False
 
+    def createref(self, name, value):
+        assert name.startswith("refs/")
+        self.run("update-ref", name, str(value), "0" * 40)
+
+    def updateref(self, name, new_value, old_value):
+        assert name.startswith("refs/")
+        self.run("update-ref", name, str(new_value), str(old_value))
+
+    def deleteref(self, name, value):
+        assert name.startswith("refs/")
+        self.run("update-ref", "-d", name, str(value))
+
     def keepalive(self, commit):
         sha1 = str(commit)
         self.run("update-ref", KEEPALIVE_REF_PREFIX + sha1, sha1)
@@ -570,7 +582,7 @@ class Repository:
                     "commit-tree", EMPTY_TREE_SHA1, "-p", new_value, "-p", sha1,
                     input=sha1, env=withDates(env, timestamp)).strip()
 
-            self.run("update-ref", KEEPALIVE_REF_CHAIN, new_value, old_value)
+            self.updateref(KEEPALIVE_REF_CHAIN, new_value, old_value)
         except GitCommandError:
             # No big deal if this fails here; this is just a maintenance
             # operation.  We'll try again another day.
@@ -578,8 +590,7 @@ class Repository:
 
         for _, sha1, _ in loose_keepalive_refs:
             try:
-                self.run(
-                    "update-ref", "-d", KEEPALIVE_REF_PREFIX + sha1, sha1)
+                self.deleteref(KEEPALIVE_REF_PREFIX + sha1, sha1)
             except GitCommandError:
                 # Ignore failures to delete loose keepalive refs.
                 pass
@@ -590,11 +601,11 @@ class Repository:
     def temporaryref(self, commit):
         sha1 = self.revparse(str(commit))
         name = "refs/temporary/%s" % sha1
-        self.run("update-ref", name, sha1, "0" * 40)
+        self.createref(name, sha1)
         try:
             yield name
         finally:
-            self.run("update-ref", "-d", name, sha1)
+            self.deleteref(name, sha1)
 
     def __copy(self, identifier, flavor):
         base_args = ["clone", "--quiet"]
@@ -754,7 +765,7 @@ class Repository:
         try:
             yield sha1
         finally:
-            self.run("update-ref", "-d", name, sha1)
+            self.deleteref(name, sha1)
 
     @staticmethod
     def readObject(repository_path, object_type, object_sha1):

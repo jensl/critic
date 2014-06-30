@@ -107,3 +107,13 @@ USER_NAME_PATTERN_DESCRIPTION = (
 # emails to them.  This does not affect email addresses set by the system
 # administrator via the 'criticctl' utility or via the web interface.
 VERIFY_EMAIL_ADDRESSES = %(installation.config.verify_email_addresses)r
+
+# Archive review branches belonging to closed or dropped reviews a configurable
+# amount of time after the review was closed or dropped.  Archiving a review
+# branch means deleting the review branch ref, but the commits on the branch are
+# kept alive for all eternity.  An archived branch can be resurrected at any
+# time, and is resurrected automatically should the review be reopened.
+#
+# Archiving branches avoids an ever increasing number of refs in repositories
+# that over time leads to performance degradation.
+ARCHIVE_REVIEW_BRANCHES = %(installation.config.archive_review_branches)r

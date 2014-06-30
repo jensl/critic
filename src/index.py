@@ -226,9 +226,12 @@ def createBranches(user_name, repository_name, branches, flags):
 
         branches.sort(cmp=compareBranches)
 
-    for name, head in branches: createBranch(user, repository, name, head, flags)
+    multiple = len(branches) > 1
 
-def createBranch(user, repository, name, head, flags):
+    for name, head in branches:
+        createBranch(user, repository, name, head, multiple, flags)
+
+def createBranch(user, repository, name, head, multiple, flags):
     try:
         update(repository.path, "refs/heads/" + name, None, head)
     except Reject as rejected:
@@ -237,6 +240,37 @@ def createBranch(user, repository, name, head, flags):
         pass
 
     cursor = db.cursor()
+
+    # Check if a branch with this name already "exists".
+    branch = dbutils.Branch.fromName(db, repository, name, load_review=True)
+    if branch is not None:
+        if branch.archived:
+            # This is a (review) branch that has been archived.  It's expected
+            # that Git thinks the user is creating a new branch.
+            message = """\
+This repository already contains a branch named '%s', but it has been archived,
+meaning it has been hidden from view to reduce the number of visible refs in
+this repository.""" % name
+
+            if branch.review:
+                message += """
+
+To continue working on this branch, you need to first reopen the review that is
+associated with the branch.  You can do this from the review's front-page:
+
+%s""" % branch.review.getURL(db, user, indent=2)
+
+            raise IndexException(reflow(message))
+        else:
+            # This is a branch that's not supposed to have been archived,
+            # meaning it appears to have just gone missing from the repository.
+            # Handle this the same way we handle updates where Git's idea of the
+            # branches current value doesn't match what we think it should be.
+            #
+            # We can trigger that handling by calling updateBranch() with any
+            # "wrong" old value.
+            updateBranch(user.name, repository.name, name, "0" * 40, head, multiple, flags)
+            return
 
     def commit_id(sha1):
         cursor.execute("SELECT id FROM commits WHERE sha1=%s", [sha1])

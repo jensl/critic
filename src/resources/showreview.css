@@ -50,6 +50,10 @@ div.main table.basic td.value {
     vertical-align: top
 }
 
+div.main table.basic code.branch.archived {
+    text-decoration: line-through
+}
+
 div.main table.basic span.user.retired > span.name {
     text-decoration: line-through
 }
@@ -444,4 +448,9 @@ div.enabletracking input {
     font-family: monospace;
     margin-top: 0.5em;
     width: 100%
+}
+
+div.operation-performed h1 {
+    text-align: center;
+    font-size: 120%
 }

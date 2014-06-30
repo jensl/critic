@@ -16,6 +16,84 @@
 
 */
 
+function archiveBranch()
+{
+  function finished(result)
+  {
+    if (result)
+    {
+      var done = $("<div class=operation-performed title=Status>" +
+                   "<h1>Branch archived</h1>" +
+                   "</div>");
+
+      done.dialog({
+        modal: true,
+        buttons: {
+          OK: function () {
+            done.dialog("close");
+            location.reload();
+          }
+        }
+      });
+    }
+  }
+
+  var operation = new Operation({
+    action: "archive branch",
+    url: "archivebranch",
+    data: { review_id: review.id },
+    callback: finished
+  });
+
+  operation.execute();
+}
+
+function resurrectBranch()
+{
+  function finish(result)
+  {
+    if (result)
+    {
+      var scheduled_archival_note = "";
+
+      if (result.delay)
+      {
+        var delay = String(result.delay) + " day";
+        if (result.delay > 1)
+          delay += "s";
+        scheduled_archival_note = (
+          "<p>Note that since the review is not open, its branch was " +
+          "scheduled to be archived again in " + delay + ".</p>");
+      }
+
+      var done = $("<div class=operation-performed title=Status>" +
+                   "<h1>Branch resurrected</h1>" +
+                   scheduled_archival_note +
+                   "</div>");
+
+      done.dialog({
+        width: scheduled_archival_note ? 600 : void 0,
+        modal: true,
+        buttons: {
+          OK: function () {
+            done.dialog("close");
+            location.reload();
+          }
+        }
+      });
+    }
+  }
+
+  var operation = new Operation({
+    action: "resurrect branch",
+    url: "resurrectbranch",
+    data: { review_id: review.id },
+    callback: finish
+  });
+
+  operation.execute();
+}
+
 function shortDate(date)
 {
   function pad(number, width)
@@ -41,7 +119,7 @@ function triggerUpdate(branch_id)
 
   if (operation.execute())
   {
-    done = $("<div title='Status' style='text-align: center; padding-top: 2em'>Branch update triggered.</div>");
+    var done = $("<div title='Status' style='text-align: center; padding-top: 2em'>Branch update triggered.</div>");
     done.dialog({ modal: true, buttons: { OK: function () { done.dialog("close"); }}});
   }
 }
@@ -592,6 +670,9 @@ function includeRecipient(user_id)
 
 $(document).ready(function ()
   {
+    $("button.archive").click(archiveBranch);
+    $("button.resurrect").click(resurrectBranch);
+
     $("tr.commit td.summary").each(function (index, element)
       {
         var users = $(element).attr("critic-reviewers");

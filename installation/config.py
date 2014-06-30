@@ -29,6 +29,7 @@ access_scheme = None
 repository_url_types = ["http"]
 allow_user_registration = None
 verify_email_addresses = True
+archive_review_branches = True
 
 password_hash_schemes = ["pbkdf2_sha256", "bcrypt"]
 default_password_hash_scheme = "pbkdf2_sha256"
@@ -239,7 +240,7 @@ default_encodings = ["utf-8", "latin-1"]
 def prepare(mode, arguments, data):
     global auth_mode, session_type, allow_anonymous_user, access_scheme
     global repository_url_types, default_encodings, allow_user_registration
-    global verify_email_addresses
+    global verify_email_addresses, archive_review_branches
     global password_hash_schemes, default_password_hash_scheme
     global minimum_password_hash_time, minimum_rounds
     global is_development, is_testing, coverage_dir
@@ -352,6 +353,9 @@ the Web front-end.  This can be handled in two different ways:
         except AttributeError: pass
 
         try: verify_email_addresses = configuration.base.VERIFY_EMAIL_ADDRESSES
+        except AttributeError: pass
+
+        try: archive_review_branches = configuration.base.ARCHIVE_REVIEW_BRANCHES
         except AttributeError: pass
 
     if auth_mode == "critic":
@@ -507,6 +511,7 @@ web server to redirect all HTTP accesses to HTTPS.
     data["installation.config.default_encodings"] = default_encodings
     data["installation.config.allow_user_registration"] = allow_user_registration
     data["installation.config.verify_email_addresses"] = verify_email_addresses
+    data["installation.config.archive_review_branches"] = archive_review_branches
 
     if auth_mode == "critic":
         calibrate_minimum_rounds()

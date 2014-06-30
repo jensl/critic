@@ -482,6 +482,7 @@ periodically.  Currently it performs these tasks:
   database up-to-date.  The offsets are fetched from PostgreSQL's
   <code>pg_timezone_names</code> table, but accessing this table directly is
   quite slow, so the offsets in it are read periodically and cached.
+* Performing scheduled [review branch archivals][archival].
 * Running <code>git gc</code> in Critic's Git repositories.
 
 The service has the following additional configuration settings in
@@ -492,6 +493,8 @@ The service has the following additional configuration settings in
 The "maintenance_at" setting is a tuple (HOUR, MINUTE) that defines when during
 the day (in the server's local time) that the service should perform its
 maintenance tasks.
+
+[archival]: #review_branch_archival
 
 servicemanager
 --------------
@@ -590,3 +593,24 @@ to the value <code>None</code>.  With that configuration, only users with write
 access to the directory
   <code>%(configuration.paths.DATA_DIR)s/extensions/</code>
 can add extensions to the system.
+
+Review branch archival
+----------------------
+
+For a description of this mechanism, see the [tutorial on the
+subject][archival-tutorial].
+
+A system administrator can tweak the mechanism by changing the system-wide or
+per-repository defaults for the settings
+CONFIG(review.branchArchiveDelay.closed) and
+CONFIG(review.branchArchiveDelay.dropped).  Individual users can override the
+defaults, but only to achieve a longer delay, or disable archival entirely, for
+reviews they own.
+
+If review branch archival is not desired at all, it can also be disabled
+system-wide by the system administrator by setting
+<code>ARCHIVE_REVIEW_BRANCHES</code> in
+<code>%(configuration.paths.CONFIG_DIR)s/configuration/base.py</code> to
+<code>False</code>.
+
+[archival-tutorial]: /tutorial?item=archival

@@ -348,11 +348,16 @@ def renderShowReview(req, db, user):
         if help: basic.tr('help').td('help', colspan=3).text(help)
 
     def renderBranchName(target):
-        target.code("branch inset").text(review.branch.name, linkify=linkify.Context())
+        classes = "branch inset"
+        if review.branch.archived:
+            classes += " archived"
+        target.code(classes).text(review.branch.name, linkify=linkify.Context())
 
         if repository.name != user.getPreference(db, "defaultRepository"):
             target.text(" in ")
             target.code("repository inset").text(repository.getURL(db, user))
+
+        buttons = target.div("buttons")
 
         cursor.execute("""SELECT id, remote, remote_name, disabled, previous
                             FROM trackedbranches
@@ -374,8 +379,6 @@ def renderShowReview(req, db, user):
                 target.span("lastupdate").script(type="text/javascript").text("document.write('(last fetched: ' + shortDate(new Date(%d)) + ')');" % (calendar.timegm(previous.utctimetuple()) * 1000))
 
             if user in review.owners or user.hasRole(db, "administrator"):
-                buttons = target.div("buttons")
-
                 if review.state == "open":
                     if disabled:
                         button = buttons.button("enabletracking",
@@ -389,6 +392,9 @@ def renderShowReview(req, db, user):
                         buttons.button("disabletracking", onclick="disableTracking(%d);" % trackedbranch_id).text("Disable Tracking")
 
                     buttons.button("rebasereview", onclick="location.assign('/rebasetrackingreview?review=%d');" % review.id).text("Rebase Review")
+
+        if review.state != "open" and review.branch.archived:
+            buttons.button("resurrect").text("Resurrect Branch")
 
     def renderPeople(target, list):
         for index, person in enumerate(list):

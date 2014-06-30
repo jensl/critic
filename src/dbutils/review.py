@@ -461,17 +461,76 @@ class Review(object):
         self.serial += 1
         db.cursor().execute("UPDATE reviews SET serial=%s WHERE id=%s", [self.serial, self.id])
 
+    def scheduleBranchArchival(self, db, delay=None):
+        import dbutils
+
+        # First, cancel current scheduled archival, if there is one.
+        self.cancelScheduledBranchArchival(db)
+
+        # If review is not closed or dropped, don't schedule a branch archival.
+        # Also don't schedule one if the branch has already been archived.
+        if self.state not in ("closed", "dropped") or self.branch.archived:
+            return
+
+        if delay is None:
+            # Configuration policy:
+            #
+            # Any owner of a review can, by having changed the relevant
+            # preference setting, increase the time before a review branch is
+            # archived, or disable archival entirely, but they can't make it
+            # happen sooner than the system or repository default, or what any
+            # other owner has requested.
+
+            # Find configured value for each owner, and also the per-repository
+            # (or per-system) default, in case each owner has changed the
+            # setting.
+            preference_item = "review.branchArchiveDelay." + self.state
+            repository_default = dbutils.User.fetchPreference(
+                db, preference_item, repository=self.repository)
+            delays = set([repository_default])
+            for owner in self.owners:
+                delays.add(owner.getPreference(db, preference_item,
+                                               repository=self.repository))
+
+            # If configured to zero (by any owner,) don't schedule a branch
+            # archival.
+            if min(delays) <= 0:
+                return
+
+            # Otherwise, use maximum configured value for any owner.
+            delay = max(delays)
+
+        cursor = db.cursor()
+        cursor.execute("""INSERT INTO scheduledreviewbrancharchivals (review, deadline)
+                               VALUES (%s, NOW() + INTERVAL %s)""",
+                       (self.id, "%d DAYS" % delay))
+
+        return delay
+
+    def cancelScheduledBranchArchival(self, db):
+        cursor = db.cursor()
+        cursor.execute("""DELETE FROM scheduledreviewbrancharchivals
+                                WHERE review=%s""",
+                       (self.id,))
+
     def close(self, db, user):
         self.serial += 1
+        self.state = "closed"
         db.cursor().execute("UPDATE reviews SET state='closed', serial=%s, closed_by=%s WHERE id=%s", (self.serial, user.id, self.id))
+        self.scheduleBranchArchival(db)
 
     def drop(self, db, user):
         self.serial += 1
+        self.state = "dropped"
         db.cursor().execute("UPDATE reviews SET state='dropped', serial=%s, closed_by=%s WHERE id=%s", (self.serial, user.id, self.id))
+        self.scheduleBranchArchival(db)
 
     def reopen(self, db, user):
         self.serial += 1
+        if self.branch.archived:
+            self.branch.resurrect(db)
         db.cursor().execute("UPDATE reviews SET state='open', serial=%s, closed_by=NULL WHERE id=%s", (self.serial, self.id))
+        self.cancelScheduledBranchArchival(db)
 
     def disableTracking(self, db):
         db.cursor().execute("UPDATE trackedbranches SET disabled=TRUE WHERE repository=%s AND local_name=%s", (self.repository.id, self.branch.name))

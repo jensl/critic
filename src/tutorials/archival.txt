@@ -1,0 +1,95 @@
+Review branch archival
+======================
+
+Background
+----------
+
+Over time, Critic's repositories may accumulate many effectively obsolete review
+branch refs belonging to long-since finished and closed, or dropped, reviews.
+This slows down various Git operations performed on the repository, and also
+pollutes your local repositories if you ever fetch from Critic's repository.
+
+To remedy this problem and keep Critic's repositories clean and tidy, old review
+branch refs are archived.  This means that the ref is simply deleted from the
+repository, while making sure that all commits are kept alive in the repository.
+
+Details
+-------
+
+Only review branches -- those with a <code>r/</code> prefix -- are archived, no
+other branches.  Review branches are furthermore only archived when they are
+<em>obsolete</em>.  A review branch is considered obsolete when the review is
+finished and has been closed, or when the review has been dropped.
+
+When a review branch becomes obsolete, it's scheduled for archival some time
+into the future.  By default, if the review is finished, its branch is archived
+no sooner than 7 whole days after the review was closed.  If the review is
+dropped, its branch is archived no sooner than one whole day after the review
+was dropped.
+
+The actual archival is done by a nightly maintenance task.
+
+Configuration
+-------------
+
+The delays -- <em>7 days</em> and <em>one day</em> -- can be changed via the
+configuration settings CONFIG(review.branchArchiveDelay.closed) and
+CONFIG(review.branchArchiveDelay.dropped).  The settings can be set per
+repository, meaning a user can configure different delays for different
+repositories, and also that the system default can be different for different
+repositories.
+
+When the appropriate delay is calculated for a review, the (possibly
+per-repository) delay settings for each owner of the review, as well as the
+(possibly per-repository) system default, are considered.  If any of those
+settings is zero, the review branch is not scheduled for archival at all.
+Otherwise, the <em>highest</em> setting is used, thus resulting in the longest
+delay requested by any owner, or the system administrator.
+
+Resurrection
+------------
+
+When a review branch has been archived it is in no way lost forever.  It can
+always be <em>resurrected</em>, simply by clicking the <code>Resurrect
+Branch</code> button on the review's front-page.  When a review branch is
+manually resurrected this way, another archival is always rescheduled with the
+usual delay.
+
+The review branch is also automatically resurrected if the review is reopened.
+In that case, no new archival is rescheduled until the review is closed or
+dropped again.
+
+Local repositories
+------------------
+
+If you have a local clone of one of Critic's repositories, or have added
+Critic's repository as a remote and fetched from it, you will have local copies
+-- called <em>remote tracking branches</em> and named
+<code>refs/remotes/origin/*</code> or similar -- of all branches that existed in
+Critic's repository when you cloned or fetched from it.  Git will by default not
+remove these local copies when the corresponding branch ref is deleted in
+Critic's repository.
+
+To have Git clean up your local repository, you can run the command
+
+| git remote prune $name
+
+where <code>$name</code> is the name of your Critic remote, typically
+<code>origin</code> if you cloned Critic's repository directly.
+
+Alternatively, you can make <code>git fetch</code> do this pruning each time you
+fetch from the remote by running the command
+
+| git config remote.$name.prune true
+
+or each time you fetch from any remote using the command
+
+| git config fetch.prune true
+
+Warning
+-------
+In Git versions prior to 2.0.1, this pruning can take a long time, if there are
+many refs to prune, and especially if there are many other refs in the
+repository as well.  The <code>git remote prune</code> command can be stopped
+and restarted any number of times, and can thus be used to incrementally prune
+refs in chunks, if desired.

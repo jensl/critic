@@ -181,6 +181,7 @@ CREATE TABLE branches
     tail INTEGER REFERENCES commits,
     type branchtype NOT NULL DEFAULT 'normal',
     review INTEGER, -- Foreign key constraint "REFERENCES reviews" set up later.
+    archived BOOLEAN NOT NULL DEFAULT FALSE,
 
     UNIQUE (repository, name) );
 
@@ -287,6 +288,10 @@ CREATE TABLE reviews
 CREATE INDEX reviews_branch ON reviews (branch);
 
 ALTER TABLE branches ADD CONSTRAINT branches_review_fkey FOREIGN KEY (review) REFERENCES reviews ON DELETE SET NULL;
+
+CREATE TABLE scheduledreviewbrancharchivals
+  ( review INTEGER PRIMARY KEY REFERENCES reviews (id),
+    deadline TIMESTAMP NOT NULL );
 
 CREATE TABLE reviewfilters
   ( id SERIAL NOT NULL PRIMARY KEY,

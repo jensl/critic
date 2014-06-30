@@ -63,6 +63,41 @@ class Maintenance(background.utils.BackgroundProcess):
             if self.terminated:
                 return
 
+            # Execute scheduled review branch archivals.
+            if configuration.base.ARCHIVE_REVIEW_BRANCHES:
+                repository = None
+
+                cursor.execute("""SELECT branches.repository, branches.id, branches.name
+                                    FROM scheduledreviewbrancharchivals
+                                    JOIN reviews ON (reviews.id=scheduledreviewbrancharchivals.review)
+                                    JOIN branches ON (branches.id=reviews.branch)
+                                   WHERE scheduledreviewbrancharchivals.deadline <= NOW()
+                                     AND reviews.state IN ('closed', 'dropped')
+                                     AND NOT branches.archived
+                                ORDER BY branches.repository""",
+                               for_update=True)
+
+                for repository_id, branch_id, branch_name in cursor:
+                    if not repository or repository.id != repository_id:
+                        if repository:
+                            repository.stopBatch()
+                        repository = gitutils.Repository.fromId(db, repository_id)
+                        self.info("archiving branches in: " + repository.name)
+
+                    self.info("  " + branch_name)
+
+                    branch = dbutils.Branch.fromId(db, branch_id, repository=repository)
+                    branch.archive(db)
+
+                # Since NOW() returns the same value each time within a single
+                # transaction, this is guaranteed to delete only the set of
+                # archivals we selected above.
+                cursor.execute("""DELETE
+                                    FROM scheduledreviewbrancharchivals
+                                   WHERE deadline <= NOW()""")
+
+                db.commit()
+
             # Run a garbage collect in all Git repositories, to keep them neat
             # and tidy.  Also pack keepalive refs.
             cursor.execute("SELECT name FROM repositories")

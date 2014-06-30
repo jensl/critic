@@ -51,6 +51,10 @@ requesting the reviews.""")
     section("filters", "Filters", """\
 Information about the Filters mechanism.""")
 
+    section("archival", "Review Branch Archival", """\
+Information about the automatic review branch archival mechanism, which
+deletes review branches some time after the review is finished.""")
+
     section("viewer", "Repository Viewer", """\
 Some information about Critic's repository viewers and its peculiarities
 compared to \"normal\" git repository viewers such as gitk and cgit.""")
@@ -103,6 +107,7 @@ def renderTutorial(req, db, user):
     items = { "request": "requesting",
               "review": "reviewing",
               "filters": "filters",
+              "archival": "archival",
               "viewer": "repository",
               "rebase": "rebasing",
               "reconfigure": "reconfiguring",

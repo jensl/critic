@@ -257,6 +257,18 @@
     "default": true,
     "description": "If enabled, filters from upstream repositories are applied when creating review via push."
   },
+  "review.branchArchiveDelay.closed": {
+    "type": "integer",
+    "default": 7,
+    "description": "If non-zero, archive review branches belonging to closed reviews this number of days after the review was (last) closed.",
+    "relevance": { "repository": true }
+  },
+  "review.branchArchiveDelay.dropped": {
+    "type": "integer",
+    "default": 1,
+    "description": "If non-zero, archive review branches belonging to dropped reviews this number of days after the review was (last) dropped.",
+    "relevance": { "repository": true }
+  },
   "review.createViaPush": {
     "type": "boolean",
     "default": false,

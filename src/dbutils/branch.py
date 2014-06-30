@@ -15,7 +15,7 @@
 # the License.
 
 class Branch(object):
-    def __init__(self, id, repository, name, head, base, tail, branch_type, review_id):
+    def __init__(self, id, repository, name, head, base, tail, branch_type, archived, review_id):
         self.id = id
         self.repository = repository
         self.name = name
@@ -23,6 +23,7 @@ class Branch(object):
         self.base = base
         self.tail = tail
         self.type = branch_type
+        self.archived = archived
         self.review_id = review_id
         self.review = None
         self.commits = None
@@ -157,21 +158,51 @@ class Branch(object):
 
         return old_count, new_count, base_old_count, base_new_count
 
+    def archive(self, db):
+        self.repository.keepalive(self.head)
+        self.repository.deleteref("refs/heads/" + self.name, self.head)
+
+        cursor = db.cursor()
+        cursor.execute("""UPDATE branches
+                             SET archived=TRUE
+                           WHERE id=%s""",
+                       (self.id,))
+
+        self.archived = True
+
+    def resurrect(self, db):
+        self.repository.createref("refs/heads/" + self.name, self.head)
+
+        cursor = db.cursor()
+        cursor.execute("""UPDATE branches
+                             SET archived=FALSE
+                           WHERE id=%s""",
+                       (self.id,))
+
+        self.archived = False
+
     @staticmethod
-    def fromId(db, branch_id, load_review=False, load_commits=True, profiler=None):
+    def fromId(db, branch_id, load_review=False, load_commits=True, repository=None, for_update=False, profiler=None):
         import gitutils
 
         cursor = db.cursor()
-        cursor.execute("SELECT name, repository, head, base, tail, branches.type, review, reviews.id IS NOT NULL FROM branches LEFT OUTER JOIN reviews ON (branches.id=reviews.branch) WHERE branches.id=%s", [branch_id])
+        cursor.execute("""SELECT name, repository, head, base, tail, branches.type, archived, review
+                            FROM branches
+                           WHERE branches.id=%s""",
+                       (branch_id,),
+                       for_update=for_update)
         row = cursor.fetchone()
 
         if not row: return None
         else:
-            branch_name, repository_id, head_commit_id, base_branch_id, tail_commit_id, type, review_id, has_review = row
+            branch_name, repository_id, head_commit_id, base_branch_id, tail_commit_id, type, archived, review_id = row
 
             if profiler: profiler.check("Branch.fromId: basic")
 
-            repository = gitutils.Repository.fromId(db, repository_id)
+            if repository is None:
+                repository = gitutils.Repository.fromId(db, repository_id)
+
+            assert repository.id == repository_id
 
             if profiler: profiler.check("Branch.fromId: repository")
 
@@ -195,9 +226,9 @@ class Branch(object):
                 base_branch = None
                 tail_commit = None
 
-            branch = Branch(branch_id, repository, branch_name, head_commit, base_branch, tail_commit, type, review_id)
+            branch = Branch(branch_id, repository, branch_name, head_commit, base_branch, tail_commit, type, archived, review_id)
 
-            if has_review and load_review:
+            if load_review:
                 from dbutils import Review
 
                 branch.review = Review.fromBranch(db, branch)
@@ -207,16 +238,15 @@ class Branch(object):
             return branch
 
     @staticmethod
-    def fromName(db, repository, name, for_update=False):
+    def fromName(db, repository, name, **kwargs):
         cursor = db.cursor()
         cursor.execute("""SELECT id
                             FROM branches
                            WHERE repository=%s
                              AND name=%s""",
-                       (repository.id, name),
-                       for_update=for_update)
+                       (repository.id, name))
         row = cursor.fetchone()
         if not row:
             return None
         else:
-            return Branch.fromId(db, row[0])
+            return Branch.fromId(db, row[0], **kwargs)

@@ -16,6 +16,7 @@
 
 import json
 import contextlib
+import urllib
 
 try:
     import requests
@@ -73,7 +74,12 @@ class Frontend(object):
              disable_redirects=False):
         full_url = "http://%s:%d/%s" % (self.hostname, self.http_port, url)
 
-        testing.logger.debug("Fetching page: %s ..." % full_url)
+        log_url = full_url
+        if params:
+            query = urllib.urlencode(sorted(params.items()))
+            log_url = "%s?%s" % (log_url, query)
+
+        testing.logger.debug("Fetching page: %s ..." % log_url)
 
         headers = {}
 
@@ -125,7 +131,7 @@ class Frontend(object):
             # interested in the redirect itself, so return the whole response.
             return response
 
-        testing.logger.debug("Fetched page: %s" % full_url)
+        testing.logger.debug("Fetched page: %s" % log_url)
 
         document = text(response)
 
@@ -149,7 +155,7 @@ class Frontend(object):
                 raise testing.TestFailure
 
         if expect:
-            testing.logger.debug("Checking page: %s ..." % full_url)
+            testing.logger.debug("Checking page: %s ..." % log_url)
 
             failed_checks = False
 
@@ -166,7 +172,7 @@ class Frontend(object):
             if failed_checks:
                 raise testing.TestFailure
 
-            testing.logger.debug("Checked page: %s ..." % full_url)
+            testing.logger.debug("Checked page: %s ..." % log_url)
 
         return document
 

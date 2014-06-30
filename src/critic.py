@@ -60,6 +60,7 @@ import operation.applyfilters
 import operation.savesettings
 import operation.searchreview
 import operation.registeruser
+import operation.brancharchiving
 
 import page.utils
 import page.createreview
@@ -489,7 +490,10 @@ OPERATIONS = { "fetchlines": operation.fetchlines.FetchLines(),
                "checkconflictsstatus": operation.checkrebase.CheckConflictsStatus(),
                "checkhistoryrewritestatus": operation.checkrebase.CheckHistoryRewriteStatus(),
                "searchreview": operation.searchreview.SearchReview(),
-               "registeruser": operation.registeruser.RegisterUser() }
+               "registeruser": operation.registeruser.RegisterUser(),
+               "archivebranch": operation.brancharchiving.ArchiveBranch(),
+               "resurrectbranch": operation.brancharchiving.ResurrectBranch(),
+               "schedulebrancharchival": operation.brancharchiving.ScheduleBranchArchival() }
 
 PAGES = { "showreview": page.showreview.renderShowReview,
           "showcommit": page.showcommit.renderShowCommit,
