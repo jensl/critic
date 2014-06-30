@@ -132,6 +132,29 @@ try:
                         review = None
                     pending_mails.extend(sendCustomMail(
                         from_user, recipients, subject, headers, body, review))
+            elif command == "set-review-state":
+                data = json_decode(sys.stdin.readline())
+                error = ""
+                try:
+                    user = dbutils.User.fromId(db, data["user_id"])
+                    review = dbutils.Review.fromId(db, data["review_id"])
+                    if review.state != data["old_state"]:
+                        error = "invalid old state"
+                    elif data["new_state"] == "open":
+                        review.reopen(db, user)
+                    elif data["new_state"] == "closed":
+                        review.close(db, user)
+                    elif data["new_state"] == "dropped":
+                        review.drop(db, user)
+                    else:
+                        error = "invalid new state"
+                except dbutils.NoSuchUser:
+                    error = "invalid user id"
+                except dbutils.NoSuchReview:
+                    error = "invalid review id"
+                except Exception as error:
+                    error = str(error)
+                sys.stdout.write(error + "\n")
             else:
                 sys.stdout.write(json_encode("unknown command: %s" % command) + "\n")
                 sys.exit(0)

@@ -153,6 +153,7 @@ Module.load("critic-storage.js");
 Module.load("critic-log.js");
 Module.load("critic-statistics.js");
 Module.load("critic-trackedbranch.js");
+Module.load("critic-cli.js");
 
 Module.assign("CriticError", CriticError);
 Module.assign("Error", CriticError);

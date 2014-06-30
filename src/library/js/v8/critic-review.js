@@ -632,6 +632,27 @@ CriticReview.prototype.cancelRebase = function (data)
     db.commit();
   };
 
+function setReviewState(review, user, new_state, verb)
+{
+  user = user || global.user;
+
+  if (!(user instanceof CriticUser))
+    throw CriticError("invalid argument; expected user object");
+
+  db.rollback();
+
+  var error = executeCLI([{ name: "set-review-state",
+                            data: { user_id: user.id,
+                                    review_id: review.id,
+                                    old_state: review.state,
+                                    new_state: new_state }}])[0];
+
+  if (error)
+    throw CriticError(format("error encountered while %s review: %s", verb, error));
+
+  db.commit();
+}
+
 CriticReview.prototype.close = function (user)
   {
     if (this.state != "open")
@@ -639,13 +660,25 @@ CriticReview.prototype.close = function (user)
     if (!this.progress.accepted)
       throw CriticError("review is not accepted");
 
-    user = user || global.user;
+    setReviewState(this, user, "closed", "closing");
+  };
 
-    if (!(user instanceof CriticUser))
-      throw CriticError("invalid argument; expected user object");
+CriticReview.prototype.drop = function (user)
+  {
+    if (this.state != "open")
+      throw CriticError("review is not open");
+    if (this.progress.accepted)
+      throw CriticError("review is accepted");
 
-    db.execute("UPDATE reviews SET state='closed', closed_by=%d, serial=serial+1 WHERE id=%d", user.id, this.id);
-    db.commit();
+    setReviewState(this, user, "dropped", "dropping");
+  };
+
+CriticReview.prototype.reopen = function (user)
+  {
+    if (this.state == "open")
+      throw CriticError("review is already open");
+
+    setReviewState(this, user, "open", "opening");
   };
 
 CriticReview.create = function (data)
