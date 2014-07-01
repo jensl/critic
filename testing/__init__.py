@@ -38,6 +38,9 @@ class Instance(object):
     def __exit__(self, *args):
         return False
 
+    def check_late_upgrade(self):
+        raise NotSupported("late upgrade not supported")
+
     def translateUnittestPath(self, module):
         path = module.split(".")
         if path[0] == "api":

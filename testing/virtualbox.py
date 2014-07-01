@@ -554,6 +554,32 @@ class Instance(testing.Instance):
         if not self.upgrade_commit:
             raise testing.NotSupported("--upgrade-from argument not given")
 
+    def check_late_upgrade(self):
+        # First of all: late upgrade testing is only meaningful if we're
+        # upgrading at all.
+        self.check_upgrade()
+
+        changed_files = subprocess.check_output(
+            ["git", "diff", "--name-only",
+             "%s..%s" % (self.install_commit, self.upgrade_commit),
+             "--", "installation/migrations/"]).splitlines()
+
+        if not changed_files:
+            raise testing.NotSupported("no migration scripts added or modified")
+
+        # This commit added testing/tests/002-late-upgrade/.  It's actually a
+        # rather arbitrary point in the history to limit at, but it works, and
+        # some really old commits don't.
+        FIRST_LATE_UPGRADE = "80512c5a80b29d269fb6f955e1f757920e63d211"
+
+        try:
+            subprocess.check_call(
+                ["git", "merge-base", "--is-ancestor",
+                 FIRST_LATE_UPGRADE, self.install_commit])
+        except subprocess.CalledProcessError:
+            raise testing.NotSupported(
+                "installed commit predates late upgrade testing")
+
     def upgrade(self, override_arguments={}, other_cwd=False, quick=False,
                 interactive=False):
         if self.upgrade_commit:

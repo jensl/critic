@@ -280,6 +280,9 @@ first or run this script without --test-extensions.""")
         logger.error(error.message)
         return
 
+    if not arguments.test_extensions:
+        flags_off.add("extensions")
+
     tests, dependencies = testing.findtests.selectTests(
         arguments.test, strict=False, flags_on=flags_on, flags_off=flags_off)
 
