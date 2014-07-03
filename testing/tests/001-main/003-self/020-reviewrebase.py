@@ -62,8 +62,7 @@ with work, signin:
     def expectmail(title):
         review = reviews[-1]
         mailbox.pop(accept=[to("alice"),
-                            about("%s: %s" % (title, review["summary"]))],
-                    timeout=30)
+                            about("%s: %s" % (title, review["summary"]))])
 
     def expecthead(expected):
         """Check that the review branch in Critic's repository is where we want

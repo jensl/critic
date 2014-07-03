@@ -83,8 +83,7 @@ with repository.workcopy() as work:
 
             mailbox.pop(
                 accept=[to(primary_owner),
-                        about("New Review: %s" % review["summary"])],
-                timeout=30)
+                        about("New Review: %s" % review["summary"])])
 
             updatereview_data = {}
 
@@ -122,12 +121,10 @@ with repository.workcopy() as work:
             for username in recipients:
                 if username not in review["owners"]:
                     mailbox.pop(accept=[to(username),
-                                        about(r"^New\(ish\) Review:")],
-                                timeout=30)
+                                        about(r"^New\(ish\) Review:")])
                 if username != primary_owner:
                     mailbox.pop(accept=[to(username),
-                                        about(r"^Updated Review:")],
-                                timeout=30)
+                                        about(r"^Updated Review:")])
 
             if "closed" in review:
                 frontend.operation(

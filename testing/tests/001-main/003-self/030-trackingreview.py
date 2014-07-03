@@ -93,8 +93,7 @@ with frontend.signin("alice"):
 
     mailbox.pop(
         accept=[to("alice"),
-                about("New Review: " + SUMMARY)],
-        timeout=30)
+                about("New Review: " + SUMMARY)])
 
     # Emulate a review rebase via /rebasetrackingreview.
     frontend.page(
@@ -152,8 +151,7 @@ with frontend.signin("alice"):
 
     mailbox.pop(
         accept=[to("alice"),
-                about("Rebased Review: " + SUMMARY)],
-        timeout=30)
+                about("Rebased Review: " + SUMMARY)])
 
     # Disable and enable the tracking.
     frontend.operation(

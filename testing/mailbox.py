@@ -24,11 +24,10 @@ import base64
 import testing
 
 class MissingMail(testing.TestFailure):
-    def __init__(self, criteria, timeout):
+    def __init__(self, criteria):
         super(MissingMail, self).__init__(
-            "No mail matching %r received in %d seconds" % (criteria, timeout))
+            "No mail matching %r received" % criteria)
         self.criteria = criteria
-        self.timeout = timeout
 
 class User(object):
     def __init__(self, name, address):
@@ -260,7 +259,8 @@ class Listener(threading.Thread):
         self.stopped = True
 
 class Mailbox(object):
-    def __init__(self, credentials=None, debug_mails=False):
+    def __init__(self, instance, credentials=None, debug_mails=False):
+        self.instance = instance
         self.credentials = credentials
         self.queued = []
         self.errors = []
@@ -272,7 +272,7 @@ class Mailbox(object):
             self.queued.append(mail)
             self.condition.notify()
 
-    def pop(self, accept=None, timeout=5):
+    def pop(self, accept=None):
         def is_accepted(mail):
             if accept is None:
                 return True
@@ -283,19 +283,28 @@ class Mailbox(object):
                     return False
             return True
 
-        deadline = time.time() + timeout
-        with self.condition:
-            while True:
+        def find_mail():
+            with self.condition:
                 for mail in self.queued:
                     if is_accepted(mail):
                         self.queued.remove(mail)
                         return mail
-                use_timeout = deadline - time.time()
-                if use_timeout > 0:
-                    self.condition.wait(use_timeout)
-                else:
-                    break
-        raise MissingMail(accept, timeout)
+
+        mail = find_mail()
+        if mail:
+            return mail
+
+        if accept is not None and self.instance:
+            # Wait until the instance's mail delivery service is idle, which
+            # means it has delivered all pending mail.  After that, the mail
+            # should be here, or it never will be.
+            self.instance.synchronize_service("maildelivery")
+
+            mail = find_mail()
+            if mail:
+                return mail
+
+        raise MissingMail(accept)
 
     def reset(self):
         with self.condition:
@@ -309,14 +318,13 @@ class Mailbox(object):
         self.listener.stop()
 
     def check_empty(self):
-        while True:
-            try:
-                unexpected = self.pop(timeout=0)
-            except MissingMail:
-                break
-            else:
+        try:
+            while True:
+                unexpected = self.pop()
                 testing.logger.error("Unexpected mail to <%s>:\n%s"
                                      % (unexpected.recipient, unexpected))
+        except MissingMail:
+            pass
 
     @property
     def port(self):

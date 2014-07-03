@@ -34,6 +34,4 @@ Relevant summary
         work.run(["push", "-q", "critic",
                   "HEAD:refs/heads/r/020-fixup-review-via-push"])
 
-        mailbox.pop(
-            accept=[to("alice"), about("New Review: Relevant summary")],
-            timeout=30)
+        mailbox.pop(accept=[to("alice"), about("New Review: Relevant summary")])

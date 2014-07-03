@@ -230,23 +230,30 @@ Output from Critic's git hook
                                  AND next IS NULL""")
 
             if not cursor.fetchone():
-                cursor.execute("""SELECT 1
+                maintenance_delay = self.run_maintenance()
+
+                if maintenance_delay is None:
+                    maintenance_delay = 3600
+
+                cursor.execute("""SELECT COUNT(*), EXTRACT('epoch' FROM (MIN(next) - NOW()))
                                     FROM trackedbranches
                                    WHERE NOT disabled""")
 
-                if not cursor.fetchone():
-                    self.info("nothing to do; sleeping one hour")
-                    delay = 3600
+                enabled_branches, update_delay = cursor.fetchone()
+
+                if not enabled_branches:
+                    self.info("nothing to do")
+                    update_delay = 3600
                 else:
-                    cursor.execute("""SELECT EXTRACT('epoch' FROM (MIN(next) - NOW()))
-                                        FROM trackedbranches
-                                       WHERE NOT disabled""")
+                    update_delay = max(0, int(update_delay))
 
-                    delay = max(0, int(cursor.fetchone()[0] or 0))
-
-                    if delay: self.debug("sleeping %d seconds" % delay)
+                delay = min(maintenance_delay, update_delay)
 
                 if delay:
+                    self.signal_idle_state()
+
+                    self.debug("sleeping %d seconds" % delay)
+
                     gitutils.Repository.forEach(self.db, lambda db, repository: repository.stopBatch())
 
                     self.db.commit()

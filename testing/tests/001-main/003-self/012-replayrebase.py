@@ -52,8 +52,7 @@ with frontend.signin("alice"):
                                  "<expected content not found>")
 
         mailbox.pop(accept=[to("alice"),
-                            about("New Review: %s" % SUMMARY)],
-                    timeout=30)
+                            about("New Review: %s" % SUMMARY)])
 
         frontend.operation(
             "preparerebase",
@@ -85,9 +84,7 @@ with frontend.signin("alice"):
         work.run(["push", "--force", "critic", "HEAD"])
 
         mailbox.pop(accept=[to("alice"),
-                            about("Updated Review: %s" % SUMMARY)],
-                    timeout=30)
+                            about("Updated Review: %s" % SUMMARY)])
 
         mailbox.pop(accept=[to("alice"),
-                            about("Rebased Review: %s" % SUMMARY)],
-                    timeout=30)
+                            about("Rebased Review: %s" % SUMMARY)])

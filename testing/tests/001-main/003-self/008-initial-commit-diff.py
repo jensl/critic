@@ -53,7 +53,7 @@ with frontend.signin("alice"):
 
         push()
 
-        to_alice = mailbox.pop(accept=to("alice"), timeout=30)
+        to_alice = mailbox.pop(accept=to("alice"))
         testing.expect.check("New Review: %s" % SUMMARY,
                              to_alice.header("Subject"))
 
@@ -79,7 +79,7 @@ with frontend.signin("alice"):
 
         push()
 
-        to_alice = mailbox.pop(accept=to("alice"), timeout=30)
+        to_alice = mailbox.pop(accept=to("alice"))
         testing.expect.check("Updated Review: %s" % SUMMARY,
                              to_alice.header("Subject"))
 
@@ -90,12 +90,8 @@ with frontend.signin("alice"):
                              "user_names": ["bob"],
                              "paths": ["/"] }] })
 
-    mailbox.pop(
-        accept=(to("bob"), about(r"New\(ish\) Review: %s" % SUMMARY)),
-        timeout=30)
-    mailbox.pop(
-        accept=(to("bob"), about("Updated Review: %s" % SUMMARY)),
-        timeout=30)
+    mailbox.pop(accept=(to("bob"), about(r"New\(ish\) Review: %s" % SUMMARY)))
+    mailbox.pop(accept=(to("bob"), about("Updated Review: %s" % SUMMARY)))
 
 def check_squashed_history(sha1s):
     def check(document):

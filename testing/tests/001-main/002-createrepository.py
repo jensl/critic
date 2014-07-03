@@ -56,28 +56,12 @@ with frontend.signin():
                               "remote": { "url": repository.url,
                                           "branch": "master" }})
 
-    # If it hasn't happened after 30 seconds, something must be wrong.
-    deadline = time.time() + 30
-    finished = False
+    instance.synchronize_service("branchtracker")
 
-    while not finished and time.time() < deadline:
-        # The frontend.page() function returns None if the HTTP status was
-        # 404, and a BeautifulSoup object if it was 200.
-        if frontend.page("critic/master", expected_http_status=[200, 404]) is None:
-            time.sleep(0.5)
-            try:
-                mailbox.pop(
-                    accept=testing.mailbox.WithSubject("^branchtracker.log: "),
-                    timeout=0)
-            except testing.mailbox.MissingMail:
-                pass
-            else:
-                raise testing.TestFailure
-        else:
-            finished = True
-
-    if not finished:
-        logger.error("Repository main branch ('refs/heads/master') not fetched after 30 seconds.")
+    try:
+        frontend.page("critic/master")
+    except testing.TestFailure:
+        logger.error("Repository main branch ('refs/heads/master') not fetched as expected.")
         raise testing.TestFailure
 
     # Check that /repositories still loads correctly now that there's a

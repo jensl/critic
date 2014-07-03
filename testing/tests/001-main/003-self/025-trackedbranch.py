@@ -4,20 +4,15 @@ BRANCH_NAME = "025-trackedbranch"
 
 with repository.workcopy() as work, frontend.signin():
     def wait_for_branch(branch_name, value):
-        # If it hasn't happened after 10 seconds, something must be wrong.
-        deadline = time.time() + 10
+        instance.synchronize_service("branchtracker")
 
-        while time.time() < deadline:
-            try:
-                output = work.run(["ls-remote", "--exit-code", "critic",
-                                   "refs/heads/" + branch_name])
-                if output.startswith(value):
-                    break
-            except testing.repository.GitCommandError:
-                pass
-            time.sleep(0.2)
-        else:
-            logger.error("Tracked branch %s not updated within 10 seconds."
+        try:
+            output = work.run(["ls-remote", "--exit-code", "critic",
+                               "refs/heads/" + branch_name])
+            if output.startswith(value):
+                return
+        except testing.repository.GitCommandError:
+            logger.error("Tracked branch %s not updated as expected."
                          % branch_name)
             raise testing.TestFailure
 
@@ -74,16 +69,18 @@ with repository.workcopy() as work, frontend.signin():
         "triggertrackedbranchupdate",
         data={ "branch_id": branch_id })
 
+    instance.synchronize_service("branchtracker")
+
     to_system = testing.mailbox.ToRecipient("system@example.org")
     system_subject = testing.mailbox.WithSubject(
         "branchtracker.log: update of branch %s from %s in %s failed"
         % (BRANCH_NAME, BRANCH_NAME, repository.url))
-    mailbox.pop(accept=[to_system, system_subject], timeout=5)
+    mailbox.pop(accept=[to_system, system_subject])
 
     to_alice = testing.mailbox.ToRecipient("alice@example.org")
     alice_subject = testing.mailbox.WithSubject(
         "%s: update from %s in %s" % (BRANCH_NAME, BRANCH_NAME, repository.url))
-    mailbox.pop(accept=[to_alice, alice_subject], timeout=5)
+    mailbox.pop(accept=[to_alice, alice_subject])
 
     branch_log = get_branch_log(branch_id, expected_length=2)
 

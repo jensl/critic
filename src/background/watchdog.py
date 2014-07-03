@@ -156,6 +156,8 @@ class Watchdog(background.utils.BackgroundProcess):
 
             soft_restart_attempted = soft_restart_attempted & pids
 
+            self.signal_idle_state()
+
             time.sleep(10)
 
 def start_service():

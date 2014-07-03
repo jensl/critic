@@ -74,8 +74,7 @@ with frontend.signin("alice"):
                              extension_lines)
 
         mailbox.pop(accept=[to("alice"),
-                            about("New Review: %s" % SUMMARY)],
-                    timeout=30)
+                            about("New Review: %s" % SUMMARY)])
 
         with open(os.path.join(work.path, FILENAME), "a") as text_file:
             print >>text_file, "Second line."
@@ -101,5 +100,4 @@ with frontend.signin("alice"):
                              extension_lines)
 
         mailbox.pop(accept=[to("alice"),
-                            about("Updated Review: %s" % SUMMARY)],
-                    timeout=30)
+                            about("Updated Review: %s" % SUMMARY)])

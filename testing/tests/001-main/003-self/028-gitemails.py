@@ -39,8 +39,7 @@ with repository.workcopy() as workcopy:
     def expect_mail(recipient, expected_files):
         mail = mailbox.pop(
             accept=[to_recipient(recipient + "@example.org"),
-                    with_subject("(New|Updated) Review: Edited cat.txt")],
-            timeout=5)
+                    with_subject("(New|Updated) Review: Edited cat.txt")])
 
         assigned_files = []
 

@@ -157,6 +157,8 @@ class MailDelivery(background.utils.PeerServer):
                             os.rename(filename, "%s/%s.invalid" % (configuration.paths.OUTBOX, os.path.basename(filename)))
                             continue
                 else:
+                    self.signal_idle_state()
+
                     if sleeptime > 25:
                         self.__disconnect()
 

@@ -22,6 +22,7 @@ import fcntl
 import select
 import errno
 import datetime
+import signal
 
 import testing
 
@@ -91,6 +92,7 @@ class Instance(testing.Instance):
         self.mailbox = None
         self.__started = False
         self.__installed = False
+        self.__upgraded = False
 
         # Check that the identified VM actually exists:
         output = subprocess.check_output(
@@ -501,8 +503,7 @@ class Instance(testing.Instance):
         if not quick:
             try:
                 testmail = self.mailbox.pop(
-                    testing.mailbox.WithSubject("Test email from Critic"),
-                    timeout=3)
+                    testing.mailbox.WithSubject("Test email from Critic"))
 
                 if not testmail:
                     testing.expect.check("<test email>", "<no test email received>")
@@ -631,6 +632,8 @@ class Instance(testing.Instance):
                 self.frontend.run_basic_tests()
 
             testing.logger.info("Upgraded Critic: %s" % self.upgrade_commit_description)
+
+        self.__upgraded = True
 
     def check_extend(self, repository, pre_upgrade=False):
         if not exists_at(self.install_commit, "extend.py"):
@@ -763,3 +766,27 @@ class Instance(testing.Instance):
         self.execute(["git", "gc", "--prune=now"],
                      cwd=os.path.join("/var/git", repository),
                      as_user="alice")
+
+    def synchronize_service(self, service_name, force_maintenance=False, timeout=30):
+        helper = "testing/input/service_synchronization_helper.py"
+        if not (self.__upgraded or exists_at(self.install_commit, helper)):
+            # We're upgrading from a commit where background services don't
+            # support synchronization, and haven't upgraded yet.  Sleep a (long)
+            # while and pray that the service is idle when we wake up.
+            testing.logger.debug("Synchronizing service: %s (sleeping %d seconds)"
+                                 % (service_name, timeout))
+            time.sleep(timeout)
+            return
+        testing.logger.debug("Synchronizing service: %s" % service_name)
+        pidfile_path = os.path.join("/var/run/critic/main", service_name + ".pid")
+        if force_maintenance:
+            signum = signal.SIGUSR2
+        else:
+            signum = signal.SIGUSR1
+        before = time.time()
+        self.execute(
+            ["sudo", "python", "critic/" + helper,
+             pidfile_path, str(signum), str(timeout)])
+        after = time.time()
+        testing.logger.debug("Synchronized service: %s in %.2f seconds"
+                             % (service_name, after - before))

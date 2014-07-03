@@ -79,6 +79,8 @@ class BackgroundProcess(object):
         self.terminated = False
         self.interrupted = False
         self.restart_requested = False
+        self.synchronize_when_idle = False
+        self.force_maintenance = False
 
         self.__maintenance_hooks = []
         self.__logger = logger
@@ -87,6 +89,8 @@ class BackgroundProcess(object):
 
         signal.signal(signal.SIGHUP, self.__handle_SIGHUP)
         signal.signal(signal.SIGTERM, self.__handle_SIGTERM)
+        signal.signal(signal.SIGUSR1, self.__handle_SIGUSR1)
+        signal.signal(signal.SIGUSR2, self.__handle_SIGUSR2)
 
         self.info("service started")
 
@@ -96,6 +100,20 @@ class BackgroundProcess(object):
         self.interrupted = True
     def __handle_SIGTERM(self, signum, frame):
         self.terminated = True
+    def __handle_SIGUSR1(self, signum, frame):
+        # Used for synchronization during testing.
+        #
+        # Someone<TM> creates a file named "<pidfile_path>.busy", then sends
+        # SIGUSR1, and expects the file to be deleted as soon as this service
+        # reaches an idle point.
+        self.synchronize_when_idle = True
+    def __handle_SIGUSR2(self, signum, frame):
+        # Used for running maintenance tasks during testing.
+        #
+        # Works the same way as SIGUSR1, but additionally makes sure to run all
+        # scheduled maintenance tasks before reporting an idle state.
+        self.force_maintenance = True
+        self.synchronize_when_idle = True
 
     def __create_pidfile(self):
         if self.__pidfile_path:
@@ -115,6 +133,14 @@ class BackgroundProcess(object):
     def __stopped(self):
         self.info("service stopped")
         self.__delete_pidfile()
+
+    def signal_idle_state(self):
+        if self.synchronize_when_idle:
+            if self.force_maintenance:
+                self.run_maintenance()
+                self.force_maintenance = False
+            os.unlink(self.__pidfile_path + ".busy")
+            self.synchronize_when_idle = False
 
     def error(self, message):
         self.__logger.error(message)
@@ -167,6 +193,9 @@ class BackgroundProcess(object):
                     callback()
                     hook[3] = scheduled_at
                     scheduled_at += interval
+                elif self.force_maintenance:
+                    self.info("performing %s maintenance task (forced)" % interval_type)
+                    callback()
 
                 now = datetime.datetime.now()
                 seconds_remaining = (scheduled_at - now).total_seconds()
@@ -182,6 +211,10 @@ class BackgroundProcess(object):
 
     def run(self):
         while not self.terminated:
+            # Aside from scheduled maintenance task, this service is always
+            # idle, so...
+            self.signal_idle_state()
+
             timeout = self.run_maintenance()
 
             if timeout is None:
@@ -370,50 +403,77 @@ class PeerServer(BackgroundProcess):
                     self.interrupted = False
 
                     if self.restart_requested:
-                        if not self.__peers: break
-                        else: self.debug("restart delayed; have %d peers" % len(self.__peers))
+                        if not self.__peers:
+                            break
+                        else:
+                            self.debug("restart delayed; have %d peers" % len(self.__peers))
 
                     poll = select.poll()
                     poll.register(self.__listening_socket, select.POLLIN)
 
                     for peer in self.__peers:
-                        if peer.writing(): poll.register(peer.writing(), select.POLLOUT)
-                        if peer.reading(): poll.register(peer.reading(), select.POLLIN)
+                        if peer.writing():
+                            poll.register(peer.writing(), select.POLLOUT)
+                        if peer.reading():
+                            poll.register(peer.reading(), select.POLLIN)
 
                     def fileno(file):
-                        if file: return file.fileno()
-                        else: return None
+                        if file:
+                            return file.fileno()
+                        else:
+                            return None
 
                     while not self.terminated:
-                        timeout = self.run_maintenance()
+                        timeout_seconds = self.run_maintenance()
 
-                        if not (timeout is None or self.__peers):
-                            self.debug("next maintenance task check scheduled in %d seconds" % timeout)
+                        if timeout_seconds:
+                            if not self.__peers:
+                                self.debug("next maintenance task check scheduled in %d seconds"
+                                           % timeout_seconds)
+                            timeout_ms = timeout_seconds * 1000
+                        else:
+                            timeout_ms = None
+
+                        if self.synchronize_when_idle and not self.__peers:
+                            # We seem to be idle, but poll once, non-blocking,
+                            # just to be sure.
+                            timeout_ms = 0
 
                         try:
-                            events = poll.poll(timeout * 1000 if timeout else None)
+                            events = poll.poll(timeout_ms)
                             break
                         except select.error as error:
-                            if error[0] == errno.EINTR: continue
-                            else: raise
+                            if error[0] == errno.EINTR:
+                                continue
+                            else:
+                                raise
 
-                    if self.terminated: break
+                    if self.terminated:
+                        break
+                    elif not (self.__peers or events):
+                        self.signal_idle_state()
 
                     def catch_error(fn):
-                        try: fn()
+                        try:
+                            fn()
                         except socket.error as error:
-                            if error[0] not in (errno.EAGAIN, errno.EINTR): raise
+                            if error[0] not in (errno.EAGAIN, errno.EINTR):
+                                raise
                         except OSError as error:
-                            if error.errno not in (errno.EAGAIN, errno.EINTR): raise
+                            if error.errno not in (errno.EAGAIN, errno.EINTR):
+                                raise
 
                     for fd, event in events:
                         if fd == self.__listening_socket.fileno():
                             peersocket, peeraddress = self.__listening_socket.accept()
                             peer = self.handle_peer(peersocket, peeraddress)
-                            if peer: self.__peers.append(peer)
+                            if peer:
+                                self.__peers.append(peer)
                             else:
-                                try: peersocket.close()
-                                except: pass
+                                try:
+                                    peersocket.close()
+                                except Exception:
+                                    pass
                         else:
                             for peer in self.__peers[:]:
                                 if fd == fileno(peer.writing()) and event != select.POLLIN:
@@ -431,14 +491,20 @@ class PeerServer(BackgroundProcess):
             else:
                 self.info("service shutting down ...")
         finally:
-            try: self.shutdown()
-            except: self.exception()
+            try:
+                self.shutdown()
+            except:
+                self.exception()
 
             for peer in self.__peers:
-                try: peer.destroy()
-                except: self.exception()
-                try: self.peer_destroyed(peer)
-                except: self.exception()
+                try:
+                    peer.destroy()
+                except:
+                    self.exception()
+                try:
+                    self.peer_destroyed(peer)
+                except:
+                    self.exception()
 
     def add_peer(self, peer):
         self.__peers.append(peer)

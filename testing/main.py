@@ -408,18 +408,16 @@ first or run this script without --test-extensions.""")
                         logger.error(failure.message)
 
                     if mailbox:
-                        while True:
-                            try:
+                        try:
+                            while True:
                                 mail = mailbox.pop(
                                     accept=testing.mailbox.ToRecipient(
-                                        "system@example.org"),
-                                    timeout=1)
-                            except testing.mailbox.MissingMail:
-                                break
-                            else:
+                                        "system@example.org"))
                                 logger.error("System message: %s\n  %s"
                                              % (mail.header("Subject"),
                                                 "\n  ".join(mail.lines)))
+                        except testing.mailbox.MissingMail:
+                            pass
 
                     if arguments.pause_on_failure:
                         pause()
@@ -457,7 +455,8 @@ first or run this script without --test-extensions.""")
                 arguments.git_daemon_port,
                 tested_commit,
                 arguments.vm_hostname)
-            mailbox = testing.mailbox.Mailbox({ "username": "smtp_username",
+            mailbox = testing.mailbox.Mailbox(instance,
+                                              { "username": "smtp_username",
                                                 "password": "SmTp_PaSsWoRd" },
                                               arguments.debug_mails)
 
@@ -475,6 +474,7 @@ first or run this script without --test-extensions.""")
                         if run_group(group_name, all_groups[group_name]):
                             instance.finish()
 
+                    mailbox.instance = None
                     mailbox.check_empty()
 
 def main():

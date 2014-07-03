@@ -107,7 +107,7 @@ Also note: The administrator user's password will be "testing" (password
 
         try:
             while True:
-                mail = mailbox.pop(timeout=0)
+                mail = mailbox.pop()
                 logger.info("Mail to <%s>:\n%s" % (mail.recipient, mail))
         except testing.mailbox.MissingMail:
             pass

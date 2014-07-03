@@ -54,9 +54,9 @@ with frontend.signin("alice"):
     def to(name):
         return testing.mailbox.ToRecipient("%s@example.org" % name)
 
-    mailbox.pop(accept=to("alice"), timeout=30)
-    mailbox.pop(accept=to("bob"), timeout=30)
-    mailbox.pop(accept=to("dave"), timeout=30)
+    mailbox.pop(accept=to("alice"))
+    mailbox.pop(accept=to("bob"))
+    mailbox.pop(accept=to("dave"))
 
     mailbox.check_empty()
 
