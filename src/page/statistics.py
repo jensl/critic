@@ -81,7 +81,7 @@ def renderStatistics(req, db, user):
             row = table.tr("line self extra")
             row.td("left")
             row.td("user").text(user.fullname)
-            row.td("value").innerHTML("%s lines" % data[0])
+            row.td("value").innerHTML("%s lines" % commas(lines))
             row.td("right").text("(your position: %d)" % cursor.fetchone()[0])
 
     table.tr("space").td(colspan=4)
