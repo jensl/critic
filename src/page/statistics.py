@@ -20,6 +20,7 @@ import dbutils
 
 def renderStatistics(req, db, user):
     document = htmlutils.Document(req)
+    document.setTitle("Statistics")
 
     html = document.html()
     head = html.head()
