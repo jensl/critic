@@ -397,6 +397,9 @@ first or run this script without --test-extensions.""")
                     errors_before = counters.errors_logged
                     execfile(os.path.join("testing/tests", test.filename),
                              scope.copy())
+                    if mailbox:
+                        mailbox.check_empty()
+                    instance.check_service_logs()
                     if errors_before < counters.errors_logged:
                         raise testing.TestFailure
                 except testing.TestFailure as failure:
@@ -418,6 +421,8 @@ first or run this script without --test-extensions.""")
                                                 "\n  ".join(mail.lines)))
                         except testing.mailbox.MissingMail:
                             pass
+
+                    instance.check_service_logs()
 
                     if arguments.pause_on_failure:
                         pause()

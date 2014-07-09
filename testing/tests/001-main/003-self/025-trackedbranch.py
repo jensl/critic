@@ -71,6 +71,13 @@ with repository.workcopy() as work, frontend.signin():
 
     instance.synchronize_service("branchtracker")
 
+    log_entries = instance.filter_service_log("branchtracker", "error")
+
+    testing.expect.check(1, len(log_entries))
+    testing.expect.check("ERROR - update of branch 025-trackedbranch from "
+                         "025-trackedbranch in %s failed" % repository.url,
+                         log_entries[0].splitlines()[0])
+
     to_system = testing.mailbox.ToRecipient("system@example.org")
     system_subject = testing.mailbox.WithSubject(
         "branchtracker.log: update of branch %s from %s in %s failed"

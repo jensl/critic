@@ -23,6 +23,7 @@ import select
 import errno
 import datetime
 import signal
+import json
 
 import testing
 
@@ -514,6 +515,7 @@ class Instance(testing.Instance):
                                          "\n".join(testmail.lines))
 
                 self.mailbox.check_empty()
+                self.check_service_logs()
             except testing.TestFailure as error:
                 if error.message:
                     testing.logger.error("Basic test: %s" % error.message)
@@ -790,3 +792,21 @@ class Instance(testing.Instance):
         after = time.time()
         testing.logger.debug("Synchronized service: %s in %.2f seconds"
                              % (service_name, after - before))
+
+    def filter_service_logs(self, level, service_names):
+        helper = "testing/input/service_log_filter.py"
+        if not (self.__upgraded or exists_at(self.install_commit, helper)):
+            # We're upgrading from a commit where the helper for filtering
+            # service logs isn't supported, and haven't upgraded yet.
+            return
+        logfile_paths = {
+            os.path.join("/var/log/critic/main", service_name + ".log"): service_name
+            for service_name in service_names }
+        try:
+            data = json.loads(self.execute(
+                ["sudo", "python", "critic/" + helper, level] + logfile_paths.keys(),
+                log_stdout=False))
+            return { logfile_paths[logfile_path]: entries
+                     for logfile_path, entries in sorted(data.items()) }
+        except GuestCommandError:
+            return None

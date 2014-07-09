@@ -41,6 +41,29 @@ class Instance(object):
     def check_late_upgrade(self):
         raise NotSupported("late upgrade not supported")
 
+    def filter_service_log(self, service_name, level="warning"):
+        data = self.filter_service_logs(level, [service_name])
+        if data is None:
+            return []
+        return data.get(service_name)
+
+    def check_service_logs(self, level="warning"):
+        data = self.filter_service_logs(level, ["branchtracker",
+                                                "changeset",
+                                                "githook",
+                                                "highlight",
+                                                "maildelivery",
+                                                "maintenance",
+                                                "servicemanager",
+                                                "watchdog"])
+        if data is None:
+            return
+        for service_name, entries in data.items():
+            lines = "\n".join(entries)
+            logger.error(
+                "%s: service log contains unexpected entries:\n  %s"
+                % (service_name, "\n  ".join(lines.splitlines())))
+
     def translateUnittestPath(self, module):
         path = module.split(".")
         if path[0] == "api":
@@ -79,7 +102,7 @@ def configureLogging(arguments=None, wrap=None):
         STDERR = logging.DEBUG + 2
         logging.addLevelName(STDOUT, "STDOUT")
         logging.addLevelName(STDERR, "STDERR")
-        if arguments and arguments.coverage:
+        if arguments and getattr(arguments, "coverage", False):
             STREAM = sys.stderr
         else:
             STREAM = sys.stdout

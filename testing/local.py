@@ -51,3 +51,7 @@ class Instance(testing.Instance):
                 output = "\n  ".join(error.stderr.splitlines())
                 testing.logger.error("Unit tests failed: %s: %s\nOutput:\n  %s"
                                      % (module, test, output))
+
+    def filter_service_logs(self, level, service_names):
+        # We have no services.
+        pass
