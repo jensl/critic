@@ -65,13 +65,20 @@ def slave():
 
         index.init()
 
+        commits_to_process = set()
+
         for ref in request["refs"]:
             name = ref["name"]
             old_sha1 = ref["old_sha1"]
             new_sha1 = ref["new_sha1"]
 
-            if "//" in name: reject("invalid ref name: '%s'" % name)
-            if not name.startswith("refs/"): reject("unexpected ref name: '%s'" % name)
+            if "//" in name:
+                reject("invalid ref name: '%s'" % name)
+            if not name.startswith("refs/"):
+                reject("unexpected ref name: '%s'" % name)
+
+            if new_sha1 != '0000000000000000000000000000000000000000':
+                commits_to_process.add(new_sha1)
 
             name = name[len("refs/"):]
 
@@ -96,12 +103,14 @@ def slave():
                 name = name[len("temporary/"):]
                 if name != new_sha1:
                     reject("invalid update of '%s'; value is not %s" % (ref["name"], name))
-                index.processCommits(repository_name, new_sha1)
             else:
                 reject("unexpected ref name: '%s'" % ref["name"])
 
         multiple = (len(delete_branches) + len(update_branches) + len(create_branches) + len(delete_tags) + len(update_tags) + len(create_tags)) > 1
         info = []
+
+        for sha1 in commits_to_process:
+            index.processCommits(repository_name, sha1)
 
         for name, old in delete_branches:
             index.deleteBranch(user_name, repository_name, name, old)
@@ -178,6 +187,8 @@ class GitHookServer(background.utils.PeerServer):
 An exception was raised while processing the request.  A message has
 been sent to the system administrator(s).
 """)
+                if configuration.debug.IS_DEVELOPMENT:
+                    self.__client.write("\n" + result["error"].strip() + "\n")
             self.__client.close()
 
     class Client(background.utils.PeerServer.SocketPeer):
