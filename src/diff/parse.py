@@ -219,7 +219,7 @@ def parseDifferences(repository, commit=None, from_commit=None, to_commit=None, 
     selected_file = None
 
     re_chunk = re.compile('^@@ -(\\d+)(?:,\\d+)? \\+(\\d+)(?:,\\d+)? @@')
-    re_binary = re.compile('^Binary files (?:a/(.+)|/dev/null) and (?:b/(.+)|/dev/null) differ')
+    re_binary = re.compile('^Binary files (?:[\"]?a/(.+)[\"]|/dev/null) and (?:[\"]?b/(.+)[\"]?|/dev/null) differ')
     re_diff = re.compile("^diff --git ([\"']?)a/(.*)\\1 ([\"']?)b/(.*)\\3$")
     re_old_path = re.compile("--- ([\"']?)a/(.*?)\\1\t?$")
     re_new_path = re.compile("\\+\\+\\+ ([\"']?)b/(.*?)\\1\t?$")
@@ -369,8 +369,8 @@ def parseDifferences(repository, commit=None, from_commit=None, to_commit=None, 
             else:
                 new_path = None
 
-            assert (old_path is None) == ('0' * 40 == old_sha1)
-            assert (new_path is None) == ('0' * 40 == new_sha1)
+            assert (old_path is None) == ('0' * 40 == old_sha1), '%s %s %s\n' % (old_path, old_sha1, line)
+            assert (new_path is None) == ('0' * 40 == new_sha1), '%s %s %s\n' % (new_path, new_sha1, line)
 
             if old_path:
                 path = old_path
