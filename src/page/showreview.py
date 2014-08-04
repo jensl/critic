@@ -392,16 +392,22 @@ def renderShowReview(req, db, user):
 
                     buttons.button("rebasereview", onclick="location.assign('/rebasetrackingreview?review=%d');" % review.id).text("Rebase Review")
 
+    def renderPeople(target, list):
+        for index, person in enumerate(list):
+            if index != 0: target.text(", ")
+            span = target.span("user %s" % person.status)
+            span.span("name").text(person.fullname)
+            if person.status == 'absent':
+                span.span("status").text(" (%s)" % person.getAbsence(db))
+            elif person.status == 'retired':
+                span.span("status").text(" (retired)")
+
+    def renderOwners(target):
+        renderPeople(target, review.owners)
+
     def renderReviewers(target):
         if review.reviewers:
-            for index, reviewer in enumerate(review.reviewers):
-                if index != 0: target.text(", ")
-                span = target.span("user %s" % reviewer.status)
-                span.span("name").text(reviewer.fullname)
-                if reviewer.status == 'absent':
-                    span.span("status").text(" (%s)" % reviewer.getAbsence(db))
-                elif reviewer.status == 'retired':
-                    span.span("status").text(" (retired)")
+            renderPeople(target, review.reviewers)
         else:
             target.i().text("No reviewers.")
 
@@ -483,14 +489,7 @@ def renderShowReview(req, db, user):
 
     def renderWatchers(target):
         if review.watchers:
-            for index, watcher in enumerate(review.watchers):
-                if index != 0: target.text(", ")
-                span = target.span("user %s" % watcher.status)
-                span.span("name").text(watcher.fullname)
-                if watcher.status == 'absent':
-                    span.span("status").text(" (%s)" % watcher.getAbsence(db))
-                elif watcher.status == 'retired':
-                    span.span("status").text(" (retired)")
+            renderPeople(target, review.watchers)
         else:
             target.i().text("No watchers.")
 
@@ -644,7 +643,7 @@ def renderShowReview(req, db, user):
                 container.button(onclick=onclick).text(label)
 
     row("Branch", renderBranchName, "The branch containing the commits to review.", right=False)
-    row("Owner%s" % ("s" if len(review.owners) > 1 else ""), ", ".join(owner.fullname for owner in review.owners), "The users who created and/or owns the review.", right=renderEditOwners)
+    row("Owner%s" % ("s" if len(review.owners) > 1 else ""), renderOwners, "The users who created and/or owns the review.", right=renderEditOwners)
     if review.description:
         row("Description", review.description, "A longer description of the changes to be reviewed.", linkify=linkToCommit, cellId="description", right=renderEditDescription)
     row("Reviewers", renderReviewers, "Users responsible for reviewing the changes in this review.", right=False)
