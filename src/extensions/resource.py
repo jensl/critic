@@ -51,10 +51,14 @@ def get(req, db, user, path):
     resource_path = os.path.join(extension_path, "resources", resource_path)
 
     def guessContentType(name):
-        try:
-            name, ext = name.split(".", 1)
-            return configuration.mimetypes.MIMETYPES[ext]
-        except:
+        extension_parts = name.split(".")[1:]
+        while extension_parts:
+            extension = ".".join(extension_parts)
+            mimetype = configuration.mimetypes.MIMETYPES.get(extension)
+            if mimetype:
+                return mimetype
+            extension_parts = extension_parts[1:]
+        else:
             return "application/octet-stream"
 
     try:
@@ -65,4 +69,4 @@ def get(req, db, user, path):
             return None, None
         raise
     else:
-        return guessContentType(resource_path), resource
+        return guessContentType(os.path.basename(resource_path)), resource
