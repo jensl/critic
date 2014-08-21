@@ -236,9 +236,15 @@ class MailDelivery(background.utils.PeerServer):
                 else:
                     header.append(user.fullname, "utf-8")
                 if index < len(users) - 1:
-                    header.append("<%s>," % user.email, "us-ascii")
+                    if header_name == "From" and configuration.smtp.USE_SYSTEM_MAIL_FOR_FROM_FIELD == True:
+                        header.append("<%s>," % configuration.base.SYSTEM_USER_EMAIL, "us-ascii")
+                    else:
+                        header.append("<%s>," % user.email, "us-ascii")
                 else:
-                    header.append("<%s>" % user.email, "us-ascii")
+                    if header_name == "From" and configuration.smtp.USE_SYSTEM_MAIL_FOR_FROM_FIELD == True:
+                        header.append("<%s>," % configuration.base.SYSTEM_USER_EMAIL, "us-ascii")
+                    else:
+                        header.append("<%s>" % user.email, "us-ascii")
 
             return header
 

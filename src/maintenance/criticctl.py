@@ -387,6 +387,14 @@ def configtest(command, argv):
     else:
         return 1
 
+def is_yum():
+    for search_path in os.environ["PATH"].split(":"):
+        path = os.path.join(search_path, "yum")
+        if os.path.isfile(path) and os.access(path, os.X_OK):
+            return True
+    return False
+
+
 def restart(command, argv):
     parser = argparse.ArgumentParser(
         description="Critic administration interface: restart",
@@ -412,9 +420,14 @@ def restart(command, argv):
         print >>sys.stderr, "ERROR: 'criticctl restart' must be run as root."
         return 1
 
-    subprocess.check_call(["service", "apache2", "stop"])
+ 	if is_yum() == True:
+ 		apache_name = "httpd"
+ 	else:
+ 		apache_name = "apache2"
+
+    subprocess.check_call(["service", apache_name, "stop"])
     subprocess.check_call(["service", "critic-" + system_identity, "restart"])
-    subprocess.check_call(["service", "apache2", "start"])
+    subprocess.check_call(["service", apache_name, "start"])
 
     return 0
 

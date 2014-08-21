@@ -25,6 +25,7 @@ username = None
 password = None
 use_ssl = None
 use_starttls = None
+use_system_mail_for_from_field = None
 
 def add_arguments(mode, parser):
     if mode == "install":
@@ -39,6 +40,10 @@ def add_arguments(mode, parser):
                             help="use SSL(/TLS) when connecting to SMTP server")
         parser.add_argument("--smtp-no-ssl-tls", dest="smtp_use_ssl", action="store_const", const=False,
                             help="don't use SSL(/TLS) when connecting to SMTP server")
+        parser.add_argument("--smtp-system-mail-for-from-field", dest="smtp_use_system_mail_for_from_field", action="store_const", const=True,
+                            help="use SYSTEM MAIL USER as value for From: field in all mails")
+        parser.add_argument("--smtp-no-system-mail-for-from-field", dest="smtp_use_system_mail_for_from_field", action="store_const", const=False,
+                            help="don't use SYSTEM MAIL USER as value for From: field in all mails")
 
         # Using smtplib.SMTP() + starttls()
         parser.add_argument("--smtp-starttls", dest="smtp_use_starttls", action="store_const", const=True,
@@ -52,7 +57,7 @@ def add_arguments(mode, parser):
                             help="do not ask whether the test e-mail arrived correctly")
 
 def prepare(mode, arguments, data):
-    global host, port, username, password, use_ssl, use_starttls
+    global host, port, username, password, use_ssl, use_starttls, use_system_mail_for_from_field
 
     if mode == "install" or "installation.smtp.host" not in data:
         print """
@@ -67,6 +72,7 @@ well as to the system administrator to alert about problems.
         host = "localhost"
         use_ssl = False
         use_starttls = False
+        use_system_mail_for_from_field = False
 
         def valid_port(value):
             try:
@@ -136,6 +142,11 @@ well as to the system administrator to alert about problems.
                     password = arguments.smtp_password
                 else:
                     password = installation.input.password("SMTP password:", default=password, twice=False)
+
+            if first and arguments.smtp_use_system_mail_for_from_field is not None:
+                use_system_mail_for_from_field = arguments.smtp_use_system_mail_for_from_field
+            else:
+                use_system_mail_for_from_field = installation.input.yes_or_no("Use SYSTEM MAIL USER as value for From: field in all mails?", default=use_system_mail_for_from_field)
 
             print
 
@@ -243,6 +254,7 @@ Please check the configuration!
     data["installation.smtp.password"] = json.dumps(password)
     data["installation.smtp.use_ssl"] = use_ssl
     data["installation.smtp.use_starttls"] = use_starttls
+    data["installation.smtp.use_system_mail_for_from_field"] = use_system_mail_for_from_field
 
     return True
 

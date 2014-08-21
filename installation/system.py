@@ -175,15 +175,24 @@ def install(data):
     if create_system_group:
         print "Creating group '%s' ..." % groupname
 
-        subprocess.check_call(["addgroup", "--quiet", "--system", groupname])
+        if installation.prereqs.use_yum:
+            subprocess.check_call(["groupadd", "--force", "-r", groupname])
+        else:
+            subprocess.check_call(["addgroup", "--quiet", "--system", groupname])
 
     if create_system_user:
         print "Creating user '%s' ..." % username
 
-        subprocess.check_call(
-            ["adduser", "--quiet", "--system", "--ingroup=%s" % groupname,
-             "--home=%s" % installation.paths.data_dir, "--disabled-login",
-             username])
+        if installation.prereqs.use_yum:
+            subprocess.check_call(
+                ["adduser", "-r", "--gid=%s" % groupname,
+                 "--home-dir=%s" % installation.paths.data_dir,
+                 username])
+        else:
+            subprocess.check_call(
+                ["adduser", "--quiet", "--system", "--ingroup=%s" % groupname,
+                 "--home=%s" % installation.paths.data_dir, "--disabled-login",
+                 username])
 
     uid = pwd.getpwnam(username).pw_uid
     gid = grp.getgrnam(groupname).gr_gid
@@ -193,10 +202,14 @@ def install(data):
 def undo():
     if created_system_user:
         print "Deleting user '%s' ..." % username
-
-        subprocess.check_call(["deluser", "--system", username])
+        if installation.prereqs.use_yum:
+            subprocess.check_call(["userdel", "--force", username])
+        else:
+            subprocess.check_call(["deluser", "--system", username])
 
     if created_system_group:
         print "Deleting group '%s' ..." % groupname
-
-        subprocess.check_call(["delgroup", "--system", groupname])
+        if installation.prereqs.use_yum:
+            subprocess.check_call(["delgroup", groupname])
+        else:
+            subprocess.check_call(["delgroup", "--system", groupname])
