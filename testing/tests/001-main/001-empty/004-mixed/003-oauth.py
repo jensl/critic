@@ -125,14 +125,10 @@ instance.execute(["sudo", "criticctl", "connect",
 # Sign in for real now.
 state = start_externalauth("alice")
 
-with frontend.signin(username=None):
-    redirect_url = finish_externalauth("alice", state)
-    testing.expect.check("/", redirect_url)
+redirect_url = finish_externalauth("alice", state)
+testing.expect.check("/", redirect_url)
 
-    if not frontend.session_id:
-        testing.expect.check("<signed in after /oauth/alice>",
-                             "<no session cookie set>")
-
+with frontend.session("/oauth/alice"):
     document_title_check = testing.expect.document_title(
         "Alice von Testing's Home")
 
@@ -186,21 +182,17 @@ frontend.operation(
                          "token": "wrong token" }},
     expect={ "message": "Invalid external authentication state." })
 
-with frontend.signin(username=None):
-    # Use right account and token.  This should leave us signed in as carol.
-    frontend.operation(
-        "registeruser",
-        data={ "username": "carol",
-               "fullname": "Carol von Testing",
-               "email": "carol@example.org",
-               "external": { "provider": "carol",
-                             "account": "account-carol",
-                             "token": token }})
+# Use right account and token.  This should leave us signed in as carol.
+frontend.operation(
+    "registeruser",
+    data={ "username": "carol",
+           "fullname": "Carol von Testing",
+           "email": "carol@example.org",
+           "external": { "provider": "carol",
+                         "account": "account-carol",
+                         "token": token }})
 
-    if not frontend.session_id:
-        testing.expect.check("<signed in after /registeruser>",
-                             "<no session cookie set>")
-
+with frontend.session("/registeruser"):
     # Check that the email address isn't unverified.
     def email_not_unverified(document):
         address = document.find(attrs=with_class("address"))
@@ -225,13 +217,9 @@ with frontend.signin(username=None):
 
 state = start_externalauth("felix")
 
-with frontend.signin(username=None):
-    redirect_url = finish_externalauth("felix", state)
+redirect_url = finish_externalauth("felix", state)
 
-    if not frontend.session_id:
-        testing.expect.check("<signed in after /oauth/felix>",
-                             "<no session cookie set>")
-
+with frontend.session("/oauth/felix"):
     document_title_check = testing.expect.document_title(
         "Felix von Testing's Home")
 
@@ -258,21 +246,17 @@ parsed_url = urlparse.urlparse(redirect_url)
 parsed_query = urlparse.parse_qs(parsed_url.query)
 token = parsed_query.get("token")[0]
 
-with frontend.signin(username=None):
-    # Use right account and token.  This should leave us signed in as carol.
-    frontend.operation(
-        "registeruser",
-        data={ "username": "gina",
-               "fullname": "Gina von Testing",
-               "email": "gina@example.org",
-               "external": { "provider": "gina",
-                             "account": "account-gina",
-                             "token": token }})
+# Use right account and token.  This should leave us signed in as carol.
+frontend.operation(
+    "registeruser",
+    data={ "username": "gina",
+           "fullname": "Gina von Testing",
+           "email": "gina@example.org",
+           "external": { "provider": "gina",
+                         "account": "account-gina",
+                         "token": token }})
 
-    if not frontend.session_id:
-        testing.expect.check("<signed in after /registeruser>",
-                             "<no session cookie set>")
-
+with frontend.session("/registeruser"):
     # Check that the email address isn't unverified.
     def email_unverified(document):
         address = document.find(attrs=with_class("address"))

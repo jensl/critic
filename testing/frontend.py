@@ -64,7 +64,8 @@ class Frontend(object):
     def __init__(self, hostname, http_port=8080):
         self.hostname = hostname
         self.http_port = http_port
-        self.session_id = None
+        self.session_ids = []
+        self.pending_session_id = None
 
     def page(self, url, params={}, expect={},
              expected_content_type="text/html",
@@ -76,8 +77,8 @@ class Frontend(object):
 
         headers = {}
 
-        if self.session_id:
-            headers["Cookie"] = "sid=%s" % self.session_id
+        if self.session_ids and self.session_ids[-1]:
+            headers["Cookie"] = "sid=%s" % self.session_ids[-1]
 
         response = requests.get(full_url,
                                 params=params,
@@ -86,7 +87,9 @@ class Frontend(object):
 
         if "sid" in response.cookies:
             testing.logger.debug("Cookie: sid=%s" % response.cookies["sid"])
-            self.session_id = response.cookies["sid"]
+            self.pending_session_id = response.cookies["sid"]
+        else:
+            self.pending_session_id = None
 
         def text(response):
             if hasattr(response, "text"):
@@ -174,8 +177,8 @@ class Frontend(object):
 
         headers = {}
 
-        if self.session_id:
-            headers["Cookie"] = "sid=%s" % self.session_id
+        if self.session_ids and self.session_ids[-1]:
+            headers["Cookie"] = "sid=%s" % self.session_ids[-1]
 
         if not isinstance(data, basestring):
             data = json.dumps(data)
@@ -212,7 +215,9 @@ class Frontend(object):
 
         if "sid" in response.cookies:
             testing.logger.debug("Cookie: sid=%s" % response.cookies["sid"])
-            self.session_id = response.cookies["sid"]
+            self.pending_session_id = response.cookies["sid"]
+        else:
+            self.pending_session_id = None
 
         testing.logger.debug("Executed operation: %s" % full_url)
 
@@ -264,27 +269,44 @@ class Frontend(object):
         return result
 
     @contextlib.contextmanager
-    def signin(self, username="admin", password="testing"):
-        if username is not None:
-            self.operation("validatelogin", data={ "username": username,
-                                                   "password": password })
+    def session(self, operation):
+        if not self.pending_session_id:
+            testing.expect.check("<signed in after %s>" % operation,
+                                 "<no session cookie received>")
+        self.session_ids.append(self.pending_session_id)
+        self.pending_session_id = None
         try:
             yield
         finally:
-            self.signout()
+            try:
+                self.operation("endsession", data={})
+            except testing.TestFailure as failure:
+                if failure.message:
+                    testing.logger.error(failure.message)
+            except Exception:
+                testing.logger.exception("Failed to sign out!")
 
-    def signout(self):
+            # Dropping the cookie effectively signs out even if the "endsession"
+            # operation failed.
+            self.session_ids.pop()
+
+    @contextlib.contextmanager
+    def no_session(self):
+        self.session_ids.append(None)
         try:
-            self.operation("endsession", data={})
-        except testing.TestFailure as failure:
-            if failure.message:
-                testing.logger.error(failure.message)
-        except Exception:
-            testing.logger.exception("Failed to sign out!")
+            yield
+        finally:
+            self.session_ids.pop()
 
-        # Resetting the cookie effectively signs out even if the "endsession"
-        # operation failed.
-        self.session_id = None
+    @contextlib.contextmanager
+    def signin(self, username="admin", password="testing"):
+        with self.no_session():
+            self.operation(
+                "validatelogin",
+                data={ "username": username,
+                       "password": password })
+        with self.session("/validatelogin"):
+            yield
 
     def run_basic_tests(self):
         # The /tutorials page is essentially static content and doesn't require
@@ -294,7 +316,7 @@ class Frontend(object):
                                        "content_title": testing.expect.paleyellow_title(0, u"Tutorials") })
 
         # The /validatelogin operation is a) necessary for most meaningful
-        # additional testing, and a simple enough operation to test.
+        # additional testing, and b) a simple enough operation to test.
         with self.signin():
             # Load /home to determine whether /validatelogin successfully signed in
             # (and that we stored the session id cookie correctly.)

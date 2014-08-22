@@ -13,15 +13,11 @@ with frontend.signin("bob"):
         data={ "current_pw": "testing",
                "new_pw": "gnitset" })
 
-try:
-    frontend.operation(
-        "validatelogin",
-        data={ "username": "bob",
-               "password": "testing" },
-        expect={ "message": "Wrong password!" })
-except testing.TestFailure:
-    # Make sure we don't accidentally stay signed in.
-    frontend.signout()
+frontend.operation(
+    "validatelogin",
+    data={ "username": "bob",
+           "password": "testing" },
+    expect={ "message": "Wrong password!" })
 
 with frontend.signin("bob", "gnitset"):
     pass
