@@ -66,6 +66,9 @@ with frontend.signin("alice"):
                                    "path": "/" },
                                  { "username": "dave",
                                    "type": "watcher",
+                                   "path": "/" },
+                                 { "username": "erin",
+                                   "type": "watcher",
                                    "path": "/" }],
                "recipientfilters": { "mode": "opt-out" }},
         expect={ "review_id": 1 })
@@ -96,6 +99,11 @@ with frontend.signin("alice"):
     testing.expect.check("watcher",
                          to_dave.header("OperaCritic-Association"))
 
+    to_erin = mailbox.pop(accept=to("erin"))
+    check_initial(to_erin)
+    testing.expect.check("watcher",
+                         to_erin.header("OperaCritic-Association"))
+
     mailbox.check_empty()
 
     with repository.workcopy() as work:
@@ -104,9 +112,12 @@ with frontend.signin("alice"):
 
         followup_sha1 = work.run(["rev-parse", "HEAD"]).strip()
 
-        work.run([
-            "push", "-q", "alice@%s:/var/git/critic.git" % instance.hostname,
-            "HEAD:refs/heads/r/004-createreview"])
+        SETTINGS = { "email.subjectLine.updatedReview.commitsPushed": "" }
+
+        with testing.utils.settings("erin", SETTINGS):
+            work.run(
+                ["push", "-q", "alice@%s:/var/git/critic.git" % instance.hostname,
+                 "HEAD:refs/heads/r/004-createreview"])
 
     def check_followup(mail):
         testing.expect.check("Updated Review: %s" % COMMIT_SUMMARY,
@@ -124,5 +135,8 @@ with frontend.signin("alice"):
 
     to_dave = mailbox.pop(accept=to("dave"))
     check_followup(to_dave)
+
+    # Note: Erin is a watcher too, but because of the empty subject line
+    # preference set above, she shouldn't receive this email.
 
     mailbox.check_empty()

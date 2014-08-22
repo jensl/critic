@@ -338,9 +338,13 @@ def renderConfig(req, db, user):
             if "host" in configuration.base.REPOSITORY_URL_TYPES:
                 addOption("host", "%s:%s" % (configuration.base.HOSTNAME, long_path))
         else:
+            if item.startswith("email.subjectLine."):
+                placeholder = "Email type disabled"
+            else:
+                placeholder = None
             value.input(
                 "setting", type="text", size=80, name=item,
-                value=current_value, disabled=disabled,
+                placeholder=placeholder, value=current_value, disabled=disabled,
                 critic_current=htmlutils.jsify(current_value),
                 critic_default=htmlutils.jsify(default_value))
 
