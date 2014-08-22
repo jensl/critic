@@ -55,12 +55,10 @@ def check_tracking(branch_name, disabled=False):
 
     return check
 
-with frontend.signin("alice"):
-    frontend.operation(
-        "savesettings",
-        data={ "settings": [{ "item": "email.subjectLine.updatedReview.reviewRebased",
-                              "value": "Rebased Review: %(summary)s" }] })
+SETTINGS = { "email.subjectLine.updatedReview.reviewRebased":
+                 "Rebased Review: %(summary)s" }
 
+with testing.utils.settings("alice", SETTINGS), frontend.signin("alice"):
     result = frontend.operation(
         "fetchremotebranch",
         data={

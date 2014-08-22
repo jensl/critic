@@ -23,18 +23,16 @@ def to(name):
 def about(subject):
     return testing.mailbox.WithSubject(subject)
 
+SETTINGS = { "review.createViaPush": True,
+             "email.subjectLine.updatedReview.reviewRebased":
+                 "Rebased Review: %(summary)s" }
+
 work = repository.workcopy()
+settings = testing.utils.settings("alice", SETTINGS)
 signin = frontend.signin("alice")
 reviews = []
 
-with work, signin:
-    frontend.operation(
-        "savesettings",
-        data={ "settings": [{ "item": "review.createViaPush",
-                              "value": True },
-                            { "item": "email.subjectLine.updatedReview.reviewRebased",
-                              "value": "Rebased Review: %(summary)s" }] })
-
+with work, settings, signin:
     work.run(["remote", "add", "critic",
               "alice@%s:/var/git/critic.git" % instance.hostname])
 

@@ -71,10 +71,6 @@ with repository.workcopy() as workcopy:
 
     with frontend.signin("alice"):
         frontend.operation(
-            "savesettings",
-            data={ "settings": [{ "item": "review.createViaPush",
-                                  "value": True }] })
-        frontend.operation(
             "addfilter",
             data={ "filter_type": "reviewer",
                    "repository_name": "critic",
@@ -116,7 +112,8 @@ with repository.workcopy() as workcopy:
     commits = []
     commits.append(commit("cat.txt", "alice"))
 
-    workcopy.run(["push", REMOTE_URL, "HEAD"])
+    with testing.utils.settings("alice", { "review.createViaPush": True }):
+        workcopy.run(["push", REMOTE_URL, "HEAD"])
 
     expect_mail("alice", [])
     expect_mail("bob", ["cat.txt"])

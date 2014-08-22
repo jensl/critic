@@ -7,13 +7,9 @@ def about(subject):
     return testing.mailbox.WithSubject(subject)
 
 FILENAME = "020-fixup-review-via-push.txt"
+SETTINGS = { "review.createViaPush": True }
 
-with frontend.signin("alice"):
-    frontend.operation(
-        "savesettings",
-        data={ "settings": [{ "item": "review.createViaPush",
-                              "value": True }] })
-
+with testing.utils.settings("alice", SETTINGS), frontend.signin("alice"):
     with repository.workcopy() as work:
         work.run(["remote", "add", "critic",
                   "alice@%s:/var/git/critic.git" % instance.hostname])

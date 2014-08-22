@@ -37,6 +37,7 @@ packages in the instance and retake the snapshot afterwards.""",
                          "dropped": True } }
 
 FAILED = False
+SETTINGS = { "review.createViaPush": True }
 
 def to(name):
     return testing.mailbox.ToRecipient("%s@example.org" % name)
@@ -51,12 +52,8 @@ with repository.workcopy() as work:
     for review in REVIEWS.values():
         primary_owner = review["owners"][0]
 
-        with frontend.signin(primary_owner):
-            frontend.operation(
-                "savesettings",
-                data={ "settings": [{ "item": "review.createViaPush",
-                                      "value": True }] })
-
+        with testing.utils.settings(primary_owner, SETTINGS), \
+                frontend.signin(primary_owner):
             work.run(
                 ["remote", "set-url", "critic",
                  ("%s@%s:/var/git/critic.git"

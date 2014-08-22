@@ -9,15 +9,11 @@ def about(subject):
 
 FILENAME = "008-processcommits.txt"
 SUMMARY = "Added %s" % FILENAME
+SETTINGS = { "review.createViaPush": True }
 
 review_id = None
 
-with frontend.signin("alice"):
-    frontend.operation(
-        "savesettings",
-        data={ "settings": [{ "item": "review.createViaPush",
-                              "value": True }] })
-
+with testing.utils.settings("alice", SETTINGS), frontend.signin("alice"):
     with repository.workcopy() as work:
         base_sha1 = work.run(["rev-parse", "HEAD"]).strip()
 

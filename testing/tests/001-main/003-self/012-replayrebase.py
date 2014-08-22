@@ -19,14 +19,11 @@ TARGET_SHA1 = "132dbfb7c2ac0f4333fb483a70f1e8cce0333d11"
 # The subject of the reviewed commit.
 SUMMARY = "Use temporary clones for relaying instead of temporary remotes"
 
-with frontend.signin("alice"):
-    frontend.operation(
-        "savesettings",
-        data={ "settings": [{ "item": "review.createViaPush",
-                              "value": True },
-                            { "item": "email.subjectLine.updatedReview.reviewRebased",
-                              "value": "Rebased Review: %(summary)s" }] })
+SETTINGS = { "review.createViaPush": True,
+             "email.subjectLine.updatedReview.reviewRebased":
+                 "Rebased Review: %(summary)s" }
 
+with testing.utils.settings("alice", SETTINGS), frontend.signin("alice"):
     with repository.workcopy() as work:
         work.run(["remote", "add", "critic",
                   "alice@%s:/var/git/critic.git" % instance.hostname])

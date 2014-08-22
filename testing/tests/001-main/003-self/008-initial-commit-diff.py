@@ -16,12 +16,9 @@ first_commit = None
 second_commit = None
 third_commit = None
 
-with frontend.signin("alice"):
-    frontend.operation(
-        "savesettings",
-        data={ "settings": [{ "item": "review.createViaPush",
-                              "value": True }] })
+SETTINGS = { "review.createViaPush": True }
 
+with testing.utils.settings("alice", SETTINGS), frontend.signin("alice"):
     with repository.workcopy(empty=True) as work:
         work.run(["remote", "add", "critic",
                   "alice@%s:/var/git/critic.git" % instance.hostname])
