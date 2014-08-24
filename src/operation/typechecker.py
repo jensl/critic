@@ -324,9 +324,9 @@ class DictionaryChecker(TypeChecker):
         for name, source_type in source.items():
             if isinstance(source_type, Optional):
                 checker = TypeChecker.make(source_type.source)
-                if isinstance(checker, (Implicit, Prioritized)):
+                if isinstance(checker, Implicit):
                     raise base.ImplementationError(
-                        "implicit/prioritized parameter cannot be optional: %s"
+                        "implicit parameter cannot be optional: %s"
                         % name)
                 self.__optional.append((name, checker))
             else:
