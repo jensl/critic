@@ -112,7 +112,7 @@ function saveSettings(reset_item)
   }
 
   if (defaults)
-    data.user_id = -1;
+    data.defaults = true;
 
   if (filter_id !== null)
     data.filter_id = filter_id;

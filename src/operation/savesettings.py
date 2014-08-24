@@ -14,7 +14,8 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-from operation import Operation, OperationResult, OperationFailure, OperationError, Optional
+from operation import (Operation, OperationResult, OperationFailure,
+                       OperationError, Optional, User, Repository)
 
 import dbutils
 import gitutils
@@ -22,24 +23,21 @@ import gitutils
 class SaveSettings(Operation):
     def __init__(self):
         super(SaveSettings, self).__init__(
-            { "user_id": Optional(int),
-              "repository_id": Optional(int),
+            { "subject": Optional(User),
+              "repository": Optional(Repository),
               "filter_id": Optional(int),
               "settings": [{ "item": str,
-                             "value": Optional(set([bool, int, str])) }] })
+                             "value": Optional(set([bool, int, str])) }],
+              "defaults": Optional(bool) })
 
-    def process(self, db, user, settings, user_id=None, repository_id=None, filter_id=None):
-        if repository_id is not None and filter_id is not None:
-            raise OperationError("invalid input: both 'repository_id' and 'filter_id' set")
+    def process(self, db, user, settings, subject=None, repository=None, filter_id=None, defaults=False):
+        if repository is not None and filter_id is not None:
+            raise OperationError("invalid input: both 'repository' and 'filter_id' set")
 
-        if user_id is None:
-            affected_user = user
-        elif user_id != user.id:
+        if (subject and subject != user) or defaults:
             Operation.requireRole(db, "administrator", user)
-            if user_id == -1:
-                affected_user = None
-            else:
-                affected_user = dbutils.User.fromId(db, user_id)
+        else:
+            subject = user
 
         cursor = db.cursor()
         repository = None
@@ -55,13 +53,11 @@ class SaveSettings(Operation):
                     title="No such filter!",
                     message=("Maybe the filter has been deleted since you "
                              "loaded this page?"))
-            elif row[0] != affected_user.id:
+            elif row[0] != subject.id:
                 raise OperationFailure(
                     code="invalidfilter",
                     title="The filter belongs to someone else!",
                     message=("What are you up to?"))
-        elif repository_id is not None:
-            repository = gitutils.Repository.fromId(db, repository_id)
 
         saved_settings = []
 
@@ -69,7 +65,7 @@ class SaveSettings(Operation):
             item = setting["item"]
             value = setting.get("value")
 
-            if dbutils.User.storePreference(db, item, value, affected_user,
+            if dbutils.User.storePreference(db, item, value, subject,
                                             repository, filter_id):
                 saved_settings.append(setting["item"])
 
