@@ -88,6 +88,9 @@ def run():
                         help="Pause testing after each failed test")
     parser.add_argument("--pause-upgrade-loop", action="store_true",
                         help="Support upgrading the tested system while paused")
+    parser.add_argument("--pause-upgrade-retry", action="store_true",
+                        help=("Support upgrading the tested system while paused "
+                              "after a failed test, and retrying the failed test"))
     parser.add_argument("--pause-upgrade-hook", action="append",
                         help="Command to run (locally) before upgrading")
 
@@ -290,12 +293,19 @@ first or run this script without --test-extensions.""")
         logger.error("No tests selected!")
         return
 
-    def pause():
-        if arguments.pause_upgrade_loop:
+    def pause(failed_test=None):
+        if arguments.pause_upgrade_loop \
+                or (failed_test and arguments.pause_upgrade_retry):
             print "Testing paused."
 
             while True:
-                testing.pause("Press ENTER to upgrade (to HEAD), CTRL-c to stop: ")
+                if failed_test and arguments.pause_upgrade_retry:
+                    testing.pause("Press ENTER to upgrade (to HEAD) and "
+                                  "retry %s, CTRL-c to stop: "
+                                  % os.path.basename(failed_test))
+                else:
+                    testing.pause("Press ENTER to upgrade (to HEAD), "
+                                  "CTRL-c to stop: ")
 
                 for command in arguments.pause_upgrade_hook:
                     subprocess.check_call(command, shell=True)
@@ -305,6 +315,9 @@ first or run this script without --test-extensions.""")
                 instance.execute(["git", "fetch", "origin", "master"], cwd="critic")
                 instance.upgrade_commit = "FETCH_HEAD"
                 instance.upgrade()
+
+                if failed_test and arguments.pause_upgrade_retry:
+                    return "retry"
         else:
             testing.pause("Testing paused.  Press ENTER to continue: ")
 
@@ -393,44 +406,50 @@ first or run this script without --test-extensions.""")
 
                 counters.tests_run += 1
 
-                try:
-                    errors_before = counters.errors_logged
-                    execfile(os.path.join("testing/tests", test.filename),
-                             scope.copy())
-                    if mailbox:
-                        mailbox.check_empty()
-                    instance.check_service_logs()
-                    if errors_before < counters.errors_logged:
-                        raise testing.TestFailure
-                except testing.TestFailure as failure:
-                    counters.tests_failed += 1
+                while True:
+                    try:
+                        errors_before = counters.errors_logged
+                        execfile(os.path.join("testing/tests", test.filename),
+                                 scope.copy())
+                        if mailbox:
+                            mailbox.check_empty()
+                        instance.check_service_logs()
+                        if errors_before < counters.errors_logged:
+                            raise testing.TestFailure
+                    except testing.TestFailure as failure:
+                        counters.tests_failed += 1
 
-                    failed_tests.add(test)
+                        failed_tests.add(test)
 
-                    if failure.message:
-                        logger.error(failure.message)
+                        if failure.message:
+                            logger.error(failure.message)
 
-                    if mailbox:
-                        try:
-                            while True:
-                                mail = mailbox.pop(
-                                    accept=testing.mailbox.ToRecipient(
-                                        "system@example.org"))
-                                logger.error("System message: %s\n  %s"
-                                             % (mail.header("Subject"),
-                                                "\n  ".join(mail.lines)))
-                        except testing.mailbox.MissingMail:
-                            pass
+                        if mailbox:
+                            try:
+                                while True:
+                                    mail = mailbox.pop(
+                                        accept=testing.mailbox.ToRecipient(
+                                            "system@example.org"))
+                                    logger.error("System message: %s\n  %s"
+                                                 % (mail.header("Subject"),
+                                                    "\n  ".join(mail.lines)))
+                            except testing.mailbox.MissingMail:
+                                pass
 
-                    instance.check_service_logs()
+                        instance.check_service_logs()
 
-                    if arguments.pause_on_failure:
-                        pause()
-                except testing.NotSupported as not_supported:
-                    failed_tests.add(test)
-                    logger.info("Test not supported: %s" % not_supported.message)
-                else:
-                    maybe_pause_after(test)
+                        if arguments.pause_on_failure \
+                                or arguments.pause_upgrade_retry:
+                            if pause(test.filename) == "retry":
+                                # Re-run test due to --pause-upgrade-retry.
+                                continue
+                    except testing.NotSupported as not_supported:
+                        failed_tests.add(test)
+                        logger.info("Test not supported: %s"
+                                    % not_supported.message)
+                    else:
+                        maybe_pause_after(test)
+                    break
         except KeyboardInterrupt:
             logger.error("Testing aborted.")
             return False
