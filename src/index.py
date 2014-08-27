@@ -80,6 +80,8 @@ def processCommits(repository_name, sha1):
 
     if not repository: raise IndexException("No such repository: %r" % repository_name)
 
+    sha1 = repository.run("rev-parse", "--verify", "--quiet", sha1 + "^{commit}").strip()
+
     stack = []
     edges_values = []
 
