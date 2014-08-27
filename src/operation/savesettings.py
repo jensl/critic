@@ -40,7 +40,6 @@ class SaveSettings(Operation):
             subject = user
 
         cursor = db.cursor()
-        repository = None
 
         if filter_id is not None:
             # Check that the filter exists and that it's one of the user's
