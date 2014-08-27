@@ -74,5 +74,5 @@ NOTE: This update adds a review branch archival mechanism, enabled by
       default.  To find out more about it, including how to disable
       it, please see the administration tutorial:
 
-  http://<this-system>/tutorial?item=administrator#review_branch_archival
+  http://<this-system>/tutorial?item=administration#review_branch_archival
 """
