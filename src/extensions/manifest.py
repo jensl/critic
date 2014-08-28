@@ -17,7 +17,6 @@
 import os
 import re
 
-import configuration
 from textutils import json_decode
 
 RE_ROLE_Page = re.compile(r"^\[Page (.*)\]$", re.IGNORECASE)
@@ -213,6 +212,8 @@ class Author(object):
 
 class Manifest(object):
     def __init__(self, path, source=None):
+        import configuration
+
         self.path = path
         self.source = source
         self.authors = []
@@ -233,6 +234,8 @@ class Manifest(object):
         return self.authors
 
     def read(self):
+        import configuration
+
         path = os.path.join(self.path, "MANIFEST")
 
         if self.source:

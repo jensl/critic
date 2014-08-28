@@ -16,12 +16,11 @@
 
 import os
 
-import configuration
-
 def getExtensionPath(author_name, extension_name):
     return extension.Extension(author_name, extension_name).getPath()
 
 def getExtensionInstallPath(sha1):
+    import configuration
     return os.path.join(configuration.extensions.INSTALL_DIR, sha1)
 
 import manifest

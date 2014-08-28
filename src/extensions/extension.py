@@ -18,7 +18,6 @@ import os
 import subprocess
 import pwd
 
-import configuration
 import dbutils
 import htmlutils
 
@@ -32,6 +31,8 @@ class ExtensionError(Exception):
 
 class Extension(object):
     def __init__(self, author_name, extension_name):
+        import configuration
+
         if os.path.sep in extension_name:
             raise ExtensionError(
                 "Invalid extension name: %s" % extension_name)
@@ -113,6 +114,8 @@ class Extension(object):
         return self.__path
 
     def getVersions(self):
+        import configuration
+
         try:
             output = subprocess.check_output(
                 [configuration.executables.GIT, "for-each-ref",
@@ -129,6 +132,8 @@ class Extension(object):
         return versions
 
     def getManifest(self, version=None, sha1=None):
+        import configuration
+
         path = self.__path
         source = None
 
@@ -161,12 +166,16 @@ class Extension(object):
         return manifest
 
     def getCurrentSHA1(self, version):
+        import configuration
+
         return subprocess.check_output(
             [configuration.executables.GIT, "rev-parse", "--verify",
              "version/%s" % version],
             cwd=self.__path).strip()
 
     def prepareVersionSnapshot(self, version):
+        import configuration
+
         sha1 = self.getCurrentSHA1(version)
 
         if not os.path.isdir(getExtensionInstallPath(sha1)):
@@ -335,6 +344,8 @@ class Extension(object):
 
     @staticmethod
     def find(db):
+        import configuration
+
         def search(user_name, search_dir):
             if not (os.path.isdir(search_dir) and
                     os.access(search_dir, os.X_OK | os.R_OK)):

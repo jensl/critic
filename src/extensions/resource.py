@@ -17,11 +17,11 @@
 import os
 import errno
 
-import configuration
-
 from extensions import getExtensionPath, getExtensionInstallPath
 
 def get(req, db, user, path):
+    import configuration
+
     extension_name, resource_path = path.split("/", 1)
 
     cursor = db.cursor()
