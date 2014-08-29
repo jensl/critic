@@ -56,9 +56,9 @@ class SetCommentChainState(Operation):
 
         else:
             # Otherwise insert a new row into the commentchainchanges table.
-            cursor.execute("""INSERT INTO commentchainchanges (review, uid, chain, from_state, to_state, from_last_commit, to_last_commit)
-                              VALUES (%s, %s, %s, %s, %s, %s, %s)""",
-                           (review.id, user.id, chain.id, old_state, new_state, old_last_commit, new_last_commit))
+            cursor.execute("""INSERT INTO commentchainchanges (uid, chain, from_state, to_state, from_last_commit, to_last_commit)
+                              VALUES (%s, %s, %s, %s, %s, %s)""",
+                           (user.id, chain.id, old_state, new_state, old_last_commit, new_last_commit))
 
         db.commit()
 
@@ -123,9 +123,9 @@ class ReopenAddressedCommentChain(SetCommentChainState):
                                          AND to_addressed_by=%s""",
                                    (new_addressed_by_id, chain.id, user.id, old_addressed_by_id))
                 else:
-                    cursor.execute("""INSERT INTO commentchainchanges (review, uid, chain, from_addressed_by, to_addressed_by)
-                                      VALUES (%s, %s, %s, %s, %s)""",
-                                   (chain.review.id, user.id, chain.id, old_addressed_by_id, new_addressed_by_id))
+                    cursor.execute("""INSERT INTO commentchainchanges (uid, chain, from_addressed_by, to_addressed_by)
+                                      VALUES (%s, %s, %s, %s)""",
+                                   (user.id, chain.id, old_addressed_by_id, new_addressed_by_id))
 
                 old_last_commit_id = chain.last_commit.getId(db)
                 new_last_commit_id = chain.addressed_by.getId(db)
@@ -139,9 +139,9 @@ class ReopenAddressedCommentChain(SetCommentChainState):
                                          AND to_last_commit=%s""",
                                    (new_last_commit_id, chain.id, user.id, old_last_commit_id))
                 else:
-                    cursor.execute("""INSERT INTO commentchainchanges (review, uid, chain, from_last_commit, to_last_commit)
-                                      VALUES (%s, %s, %s, %s, %s)""",
-                                   (chain.review.id, user.id, chain.id, old_last_commit_id, new_last_commit_id))
+                    cursor.execute("""INSERT INTO commentchainchanges (uid, chain, from_last_commit, to_last_commit)
+                                      VALUES (%s, %s, %s, %s)""",
+                                   (user.id, chain.id, old_last_commit_id, new_last_commit_id))
 
                 db.commit()
 
@@ -195,9 +195,9 @@ class MorphCommentChain(Operation):
 
         else:
             # Otherwise insert a new row into the commentchainchanges table.
-            cursor.execute("""INSERT INTO commentchainchanges (review, uid, chain, from_type, to_type)
-                              VALUES (%s, %s, %s, %s, %s)""",
-                           (review.id, user.id, chain.id, chain.type, new_type))
+            cursor.execute("""INSERT INTO commentchainchanges (uid, chain, from_type, to_type)
+                              VALUES (%s, %s, %s, %s)""",
+                           (user.id, chain.id, chain.type, new_type))
 
         db.commit()
 

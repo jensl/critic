@@ -61,8 +61,7 @@ CREATE TYPE commentchainchangestate AS ENUM
                  -- expected state.
   );
 CREATE TABLE commentchainchanges
-  ( review INTEGER NOT NULL REFERENCES reviews ON DELETE CASCADE,
-    batch INTEGER REFERENCES batches ON DELETE CASCADE,
+  ( batch INTEGER REFERENCES batches ON DELETE CASCADE,
     uid INTEGER NOT NULL REFERENCES users ON DELETE CASCADE,
     chain INTEGER NOT NULL REFERENCES commentchains ON DELETE CASCADE,
     time TIMESTAMP NOT NULL DEFAULT now(),
@@ -75,7 +74,6 @@ CREATE TABLE commentchainchanges
     to_last_commit INTEGER REFERENCES commits,
     from_addressed_by INTEGER REFERENCES commits,
     to_addressed_by INTEGER REFERENCES commits );
-CREATE INDEX commentchainchanges_review_uid_state ON commentchainchanges (review, uid, state);
 CREATE INDEX commentchainchanges_batch ON commentchainchanges(batch);
 CREATE INDEX commentchainchanges_chain ON commentchainchanges(chain);
 

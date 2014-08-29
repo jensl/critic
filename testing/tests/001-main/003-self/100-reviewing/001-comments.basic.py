@@ -187,9 +187,19 @@ def morphCommentChain(chain, new_type):
                "new_type": new_type })
 
 def submitChanges():
-    frontend.operation(
+    if instance.has_flag("fixed-batch-preview"):
+        frontend.page(
+            "showbatch",
+            params={ "review": str(review_id) })
+
+    result = frontend.operation(
         "submitchanges",
         data={ "review_id": review_id })
+
+    if "batch_id" in result:
+        frontend.page(
+            "showbatch",
+            params={ "batch": result["batch_id"] })
 
 with repository.workcopy() as work:
     ############################################################################

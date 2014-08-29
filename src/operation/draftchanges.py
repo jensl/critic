@@ -455,9 +455,12 @@ class SubmitChanges(Operation):
         profiler.check("finished")
 
         if user.getPreference(db, "debug.profiling.submitChanges"):
-            return OperationResult(serial=review.serial, profiling=profiler.output())
+            return OperationResult(batch_id=batch_id,
+                                   serial=review.serial,
+                                   profiling=profiler.output())
         else:
-            return OperationResult(serial=review.serial)
+            return OperationResult(batch_id=batch_id,
+                                   serial=review.serial)
 
 class AbortChanges(Operation):
     def __init__(self):

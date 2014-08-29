@@ -488,8 +488,8 @@ CriticBatch.prototype.resolveIssue = function (chain)
     operations.push(function (batch_id)
       {
         db.execute("UPDATE commentchains SET state='closed', closed_by=%d WHERE id=%d", this.user.id, chain.id);
-        db.execute("INSERT INTO commentchainchanges (review, batch, uid, chain, state, from_state, to_state) VALUES (%d, %d, %d, %d, 'performed', %s, %s)",
-                   this.review.id, batch_id, this.user.id, chain.id, 'open', 'closed');
+        db.execute("INSERT INTO commentchainchanges (batch, uid, chain, state, from_state, to_state) VALUES (%d, %d, %d, 'performed', %s, %s)",
+                   batch_id, this.user.id, chain.id, 'open', 'closed');
 
         if (!db.execute("SELECT 1 FROM commentchainusers WHERE chain=%d AND uid=%d", chain.id, this.user.id)[0])
           db.execute("INSERT INTO commentchainusers (chain, uid) VALUES (%d, %d)", chain.id, this.user.id);
@@ -559,8 +559,8 @@ CriticBatch.prototype.reopenIssue = function (chain, data)
     operations.push(function (batch_id)
       {
         db.execute("UPDATE commentchains SET state='open', closed_by=null, addressed_by=null WHERE id=%d", chain.id);
-        db.execute("INSERT INTO commentchainchanges (review, batch, uid, chain, state, from_state, to_state) VALUES (%d, %d, %d, %d, 'performed', %s, %s)",
-                   this.review.id, batch_id, this.user.id, chain.id, current_state, 'open');
+        db.execute("INSERT INTO commentchainchanges (batch, uid, chain, state, from_state, to_state) VALUES (%d, %d, %d, 'performed', %s, %s)",
+                   batch_id, this.user.id, chain.id, current_state, 'open');
 
         if (lines)
           for (var index = 0; index < lines.length; ++index)
@@ -598,8 +598,8 @@ CriticBatch.prototype.markIssueAddressedBy = function (chain, commit)
     operations.push(function (batch_id)
       {
         db.execute("UPDATE commentchains SET state='addressed', closed_by=%d, addressed_by=%d WHERE id=%d", this.user.id, commit.id, chain.id);
-        db.execute("INSERT INTO commentchainchanges (review, batch, uid, chain, state, from_state, to_state) VALUES (%d, %d, %d, %d, 'performed', %s, %s)",
-                   this.review.id, batch_id, this.user.id, chain.id, 'open', 'addressed');
+        db.execute("INSERT INTO commentchainchanges (batch, uid, chain, state, from_state, to_state) VALUES (%d, %d, %d, 'performed', %s, %s)",
+                   batch_id, this.user.id, chain.id, 'open', 'addressed');
 
         if (!db.execute("SELECT 1 FROM commentchainusers WHERE chain=%d AND uid=%d", chain.id, this.user.id)[0])
           db.execute("INSERT INTO commentchainusers (chain, uid) VALUES (%d, %d)", chain.id, this.user.id);
