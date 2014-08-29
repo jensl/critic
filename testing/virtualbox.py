@@ -65,9 +65,6 @@ class Instance(testing.Instance):
         self.strict_fs_permissions = getattr(arguments, "strict_fs_permissions", False)
         self.coverage = getattr(arguments, "coverage", False)
         self.mailbox = None
-        self.__started = False
-        self.__installed = False
-        self.__upgraded = False
 
         # Check that the identified VM actually exists:
         output = subprocess.check_output(
@@ -92,6 +89,12 @@ class Instance(testing.Instance):
             raise testing.Error("Invalid VM state: %s (expected 'poweroff')"
                                 % state)
 
+        self.__reset()
+
+    def __reset(self):
+        self.__started = False
+        self.__installed = False
+        self.__upgraded = False
         self.__users = ["admin"]
         self.__user_ids = { "admin": 1 }
 
@@ -101,6 +104,7 @@ class Instance(testing.Instance):
     def __exit__(self, *args):
         if self.__started:
             self.stop()
+        self.__reset()
         return False
 
     def __vmcommand(self, command, *arguments):
@@ -195,8 +199,6 @@ class Instance(testing.Instance):
         time.sleep(0.5)
 
         testing.logger.info("Stopped VM: %s" % self.identifier)
-
-        self.__started = False
 
     def retake_snapshot(self, name):
         index = 1
