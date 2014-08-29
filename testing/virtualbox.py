@@ -27,32 +27,6 @@ import json
 
 import testing
 
-def exists_at(commit_sha1, path):
-    lstree = subprocess.check_output(["git", "ls-tree", commit_sha1, path])
-    return bool(lstree.strip())
-
-def flag(commit_sha1, name):
-    return exists_at(commit_sha1, "testing/flags/%s.flag" % name)
-
-def flag_pwd_independence(commit_sha1):
-    return flag(commit_sha1, "pwd-independence")
-
-def flag_is_testing(commit_sha1):
-    return flag(commit_sha1, "is-testing")
-
-def flag_system_recipients(commit_sha1):
-    return flag(commit_sha1, "system-recipients")
-
-def flag_minimum_password_hash_time(commit_sha1):
-    try:
-        subprocess.check_call(
-            ["git", "grep", "--quiet", "-e", "--minimum-password-hash-time",
-             commit_sha1, "--", "installation/config.py"])
-    except subprocess.CalledProcessError:
-        return False
-    else:
-        return True
-
 # Directory (on guest system) to store coverage data in.
 COVERAGE_DIR = "/var/tmp/critic/coverage"
 
@@ -399,6 +373,13 @@ class Instance(testing.Instance):
     def userid(self, name):
         return self.__user_ids.get(name)
 
+    def has_flag(self, flag):
+        if self.upgrade_commit and self.__upgraded:
+            check_commit = self.upgrade_commit
+        else:
+            check_commit = self.install_commit
+        return testing.has_flag(check_commit, flag)
+
     def restrict_access(self):
         if not self.strict_fs_permissions:
             return
@@ -439,15 +420,15 @@ class Instance(testing.Instance):
             if self.coverage:
                 use_arguments["--coverage-dir"] = COVERAGE_DIR
 
-            if flag_system_recipients(self.install_commit):
+            if self.has_flag("system-recipients"):
                 use_arguments["--system-recipient"] = "system@example.org"
         else:
             use_arguments = { "--admin-password": "testing" }
 
-        if flag_minimum_password_hash_time(self.install_commit):
+        if self.has_flag("minimum-password-hash-time"):
             use_arguments["--minimum-password-hash-time"] = "0.01"
 
-        if flag_is_testing(self.install_commit):
+        if self.has_flag("is-testing"):
             use_arguments["--is-testing"] = True
 
         for name, value in override_arguments.items():
@@ -496,7 +477,7 @@ class Instance(testing.Instance):
         else:
             self.restrict_access()
 
-        if other_cwd and flag_pwd_independence(self.install_commit):
+        if other_cwd and self.has_flag("pwd-independence"):
             install_py = "critic/install.py"
             cwd = None
         else:
@@ -601,13 +582,13 @@ class Instance(testing.Instance):
             else:
                 use_arguments = {}
 
-            if not flag_minimum_password_hash_time(self.install_commit):
+            if not self.has_flag("minimum-password-hash-time"):
                 use_arguments["--minimum-password-hash-time"] = "0.01"
 
-            if not flag_is_testing(self.install_commit):
+            if not self.has_flag("is-testing"):
                 use_arguments["--is-testing"] = True
 
-            if not flag_system_recipients(self.install_commit):
+            if not self.has_flag("system-recipients"):
                 use_arguments["--system-recipient"] = "system@example.org"
 
             for name, value in override_arguments.items():
@@ -626,7 +607,12 @@ class Instance(testing.Instance):
 
             self.execute(["git", "checkout", self.upgrade_commit], cwd="critic")
 
-            if other_cwd and flag_pwd_independence(self.upgrade_commit):
+            # Setting this will make has_flag() from now on (including when used
+            # in the rest of this function) check the upgraded-to commit rather
+            # than the initially installed commit.
+            self.__upgraded = True
+
+            if other_cwd and self.has_flag("pwd-independence"):
                 upgrade_py = "critic/upgrade.py"
                 cwd = None
             else:
@@ -641,10 +627,8 @@ class Instance(testing.Instance):
 
             testing.logger.info("Upgraded Critic: %s" % self.upgrade_commit_description)
 
-        self.__upgraded = True
-
     def check_extend(self, repository, pre_upgrade=False):
-        if not exists_at(self.install_commit, "extend.py"):
+        if not testing.exists_at(self.install_commit, "extend.py"):
             raise testing.NotSupported("installed commit lacks extend.py")
         if not self.arguments.test_extensions:
             raise testing.NotSupported("--test-extensions argument not given")
@@ -730,6 +714,7 @@ class Instance(testing.Instance):
         self.execute(["sudo", "deluser", "--remove-home", "howard"])
 
         self.__installed = False
+        self.__upgraded = False
 
     def finish(self):
         if not self.__started:
@@ -777,7 +762,7 @@ class Instance(testing.Instance):
 
     def synchronize_service(self, service_name, force_maintenance=False, timeout=30):
         helper = "testing/input/service_synchronization_helper.py"
-        if not (self.__upgraded or exists_at(self.install_commit, helper)):
+        if not (self.__upgraded or testing.exists_at(self.install_commit, helper)):
             # We're upgrading from a commit where background services don't
             # support synchronization, and haven't upgraded yet.  Sleep a (long)
             # while and pray that the service is idle when we wake up.
@@ -801,7 +786,7 @@ class Instance(testing.Instance):
 
     def filter_service_logs(self, level, service_names):
         helper = "testing/input/service_log_filter.py"
-        if not (self.__upgraded or exists_at(self.install_commit, helper)):
+        if not (self.__upgraded or testing.exists_at(self.install_commit, helper)):
             # We're upgrading from a commit where the helper for filtering
             # service logs isn't supported, and haven't upgraded yet.
             return

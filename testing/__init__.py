@@ -15,6 +15,7 @@
 # the License.
 
 import os
+import subprocess
 
 class Error(Exception):
     pass
@@ -142,3 +143,20 @@ class Context(object):
     def __exit__(self, *args):
         self.finish()
         return False
+
+def exists_at(commit, path):
+    lstree = subprocess.check_output(["git", "ls-tree", commit, path])
+    return bool(lstree.strip())
+
+def has_flag(commit, flag):
+    if flag == "minimum-password-hash-time":
+        try:
+            subprocess.check_call(
+                ["git", "grep", "--quiet", "-e", "--minimum-password-hash-time",
+                 commit, "--", "installation/config.py"])
+        except subprocess.CalledProcessError:
+            return False
+        else:
+            return True
+    else:
+        return exists_at(commit, "testing/flags/%s.flag" % flag)

@@ -25,6 +25,9 @@ class CommandError(Exception):
         self.stderr = stderr
 
 class Instance(testing.Instance):
+    def has_flag(self, flag):
+        return testing.has_flag("HEAD", flag)
+
     def execute(self, args, log_stdout=True, log_stderr=True, **kwargs):
         process = subprocess.Popen(
             args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, **kwargs)
