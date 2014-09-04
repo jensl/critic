@@ -170,15 +170,6 @@ def generateHeader(target, db, user, generate_right=None, current_page=None, ext
 
     return injected
 
-def getParameter(req, name, default=NoDefault(), filter=lambda value: value):
-    match = re.search("(?:^|&)" + name + "=([^&]*)", str(req.query))
-    if match:
-        try: return filter(decodeURIComponent(match.group(1)))
-        except DisplayMessage: raise
-        except: raise DisplayMessage("Invalid parameter value: %s=%r" % (name, match.group(1)))
-    elif isinstance(default, NoDefault): raise DisplayMessage("Required parameter missing: %s" % name)
-    else: return default
-
 def renderShortcuts(target, page, **kwargs):
     shortcuts = []
 

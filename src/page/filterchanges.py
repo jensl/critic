@@ -23,9 +23,9 @@ import reviewing.utils as review_utils
 import log.commitset
 
 def renderFilterChanges(req, db, user):
-    review_id = page.utils.getParameter(req, "review", filter=int)
-    first_sha1 = page.utils.getParameter(req, "first", None)
-    last_sha1 = page.utils.getParameter(req, "last", None)
+    review_id = req.getParameter("review", filter=int)
+    first_sha1 = req.getParameter("first", None)
+    last_sha1 = req.getParameter("last", None)
 
     cursor = db.cursor()
 

@@ -20,7 +20,7 @@ import page.utils
 import configuration
 
 def renderEditResource(req, db, user):
-    name = page.utils.getParameter(req, "name", None)
+    name = req.getParameter("name", None)
 
     document = htmlutils.Document(req)
 

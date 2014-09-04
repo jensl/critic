@@ -35,7 +35,7 @@ class Page(object):
                 default = None
                 checker = checker.actual
             else:
-                default = request.NoDefault()
+                default = request.NoDefault
 
             is_list = isinstance(checker, page.parameters.ListOf)
 

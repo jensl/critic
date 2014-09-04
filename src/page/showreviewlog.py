@@ -27,9 +27,9 @@ import diff
 re_module = re.compile("^((?:data|modules|platforms)/[^/]+)/.*$")
 
 def renderShowReviewLog(req, db, user):
-    review_id = page.utils.getParameter(req, "review", filter=int)
-    granularity = page.utils.getParameter(req, "granularity")
-    unassigned = page.utils.getParameter(req, "unassigned", "no") == "yes"
+    review_id = req.getParameter("review", filter=int)
+    granularity = req.getParameter("granularity")
+    unassigned = req.getParameter("unassigned", "no") == "yes"
 
     cursor = db.cursor()
 

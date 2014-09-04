@@ -841,7 +841,7 @@ def process_request(environ, start_response):
                 return handleStaticResource(req)
 
             if req.path.startswith("r/"):
-                req.query = "id=" + req.path[2:] + ("&" + req.query if req.query else "")
+                req.updateQuery({ "id": [req.path[2:]] })
                 req.path = "showreview"
 
             if configuration.extensions.ENABLED:
@@ -1004,20 +1004,18 @@ def process_request(environ, start_response):
                 if repository:
                     try:
                         items = filter(None, map(revparse, path.split("..")))
-                        query = None
+                        updated_query = {}
 
                         if len(items) == 1:
-                            query = ("repository=%d&sha1=%s"
-                                     % (repository.id, items[0]))
+                            updated_query["repository"] = [repository.name]
+                            updated_query["sha1"] = [items[0]]
                         elif len(items) == 2:
-                            query = ("repository=%d&from=%s&to=%s"
-                                     % (repository.id, items[0], items[1]))
+                            updated_query["repository"] = [repository.name]
+                            updated_query["from"] = [items[0]]
+                            updated_query["to"] = [items[1]]
 
-                        if query:
-                            if req.query:
-                                query += "&" + req.query
-
-                            req.query = query
+                        if updated_query:
+                            req.updateQuery(updated_query)
                             req.path = "showcommit"
                             continue
                     except gitutils.GitReferenceError:

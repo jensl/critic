@@ -39,9 +39,9 @@ def renderManageExtensions(req, db, user):
 
     cursor = db.cursor()
 
-    what = page.utils.getParameter(req, "what", "available")
-    selected_versions = page.utils.json_decode(page.utils.getParameter(req, "select", "{}"))
-    focused = page.utils.getParameter(req, "focus", None)
+    what = req.getParameter("what", "available")
+    selected_versions = page.utils.json_decode(req.getParameter("select", "{}"))
+    focused = req.getParameter("focus", None)
 
     if what == "installed":
         title = "Installed Extensions"

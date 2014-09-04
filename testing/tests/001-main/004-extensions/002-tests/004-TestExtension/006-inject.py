@@ -83,8 +83,8 @@ with frontend.signin("alice"):
                 ["critic/master", None]),
                  "showcommitLong": check_injected(
                 "showcommitLong",
-                ["showcommit", { "raw": "repository=1&sha1=" + sha1,
-                                 "params": { "repository": "1",
+                ["showcommit", { "raw": "repository=critic&sha1=" + sha1,
+                                 "params": { "repository": "critic",
                                              "sha1": sha1 }}]) })
 
     frontend.page(

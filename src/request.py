@@ -16,6 +16,7 @@
 
 import re
 import urllib
+import urlparse
 import httplib
 import wsgiref.util
 
@@ -186,6 +187,7 @@ class Request:
         self.path = environ.get("PATH_INFO", "").lstrip("/")
         self.original_path = self.path
         self.query = environ.get("QUERY_STRING", "")
+        self.parsed_query = urlparse.parse_qs(self.query, keep_blank_values=True)
         self.original_query = self.query
         self.user = None
         self.cookies = {}
@@ -196,6 +198,11 @@ class Request:
                 name, _, value = cookie.partition("=")
                 if name and value:
                     self.cookies[name] = value
+
+    def updateQuery(self, items):
+        self.parsed_query.update(items)
+        self.query = urllib.urlencode(
+            sorted(self.parsed_query.items()), doseq=True)
 
     def setUser(self, db):
         if configuration.base.AUTHENTICATION_MODE == "host":
@@ -286,14 +293,14 @@ class Request:
         import dbutils
         return dbutils.User.fromName(db, self.user)
 
-    def getParameter(self, name, default=NoDefault(), filter=lambda value: value):
+    def getParameter(self, name, default=NoDefault, filter=lambda value: value):
         """\
         Get URI query parameter.
 
         If the requested parameter was not present in the URI query component,
         the supplied default value is returned instead, or, if the supplied
-        default value is an instance of the NoDefault class, a MissingParameter
-        exception is raised.
+        default value is the NoDefault class, a MissingParameter exception is
+        raised.
 
         If a filter function is supplied, it is called with a single argument,
         the string value of the URI parameter, and its return value is returned
@@ -304,16 +311,31 @@ class Request:
         type than actual parameter values.
         """
 
-        match = re.search("(?:^|&)" + name + "=([^&]*)", str(self.query))
-        if match:
-            try: return filter(decodeURIComponent(match.group(1)))
-            except base.Error: raise
-            except:
-                if filter is int: expected = "integer"
-                else: expected = "something else"
-                raise InvalidParameterValue(name, match.group(1), expected)
-        elif isinstance(default, NoDefault): raise MissingParameter(name)
-        else: return default
+        value = self.parsed_query.get(name)
+
+        if value is None:
+            if default is NoDefault:
+                raise MissingParameter(name)
+            return default
+
+        def filter_value(value):
+            try:
+                return filter(value)
+            except base.Error:
+                raise
+            except Exception:
+                if filter is int:
+                    expected = "integer"
+                else:
+                    expected = "something else"
+                raise InvalidParameterValue(name, value, expected)
+
+        value = [filter_value(element) for element in value]
+
+        if len(value) == 1:
+            return value[0]
+
+        return value
 
     def getRequestHeader(self, name, default=None):
         """\

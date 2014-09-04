@@ -24,8 +24,8 @@ import diff
 from htmlutils import jsify, htmlify
 
 def renderShowBatch(req, db, user):
-    batch_id = page.utils.getParameter(req, "batch", None, filter=int)
-    review_id = page.utils.getParameter(req, "review", None, filter=int)
+    batch_id = req.getParameter("batch", None, filter=int)
+    review_id = req.getParameter("review", None, filter=int)
 
     cursor = db.cursor()
 
