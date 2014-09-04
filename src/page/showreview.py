@@ -941,7 +941,7 @@ def renderShowReview(req, db, user):
                 nunread = chain.countUnread()
 
                 cell = row.td("when")
-                if ncomments == 1:
+                if ncomments <= 1:
                     if nunread: cell.b().text("Unread")
                     else: cell.text("No replies")
                 else:
