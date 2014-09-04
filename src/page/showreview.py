@@ -1086,17 +1086,17 @@ def renderShowReview(req, db, user):
     if rows:
         numbers = {}
 
-        cursor.execute("""SELECT batches.id, reviewfiles.state, SUM(deleted), SUM(inserted)
+        cursor.execute("""SELECT batches.id, reviewfilechanges.to, SUM(deleted), SUM(inserted)
                             FROM batches
                             JOIN reviewfilechanges ON (reviewfilechanges.batch=batches.id)
                             JOIN reviewfiles ON (reviewfiles.id=reviewfilechanges.file)
                            WHERE batches.review=%s
-                        GROUP BY batches.id, reviewfiles.state""",
+                        GROUP BY batches.id, reviewfilechanges.to""",
                        (review.id,))
 
-        for batch_id, reviewfile_state, deleted, inserted in cursor:
+        for batch_id, state, deleted, inserted in cursor:
             per_batch = numbers.setdefault(batch_id, {})
-            per_batch[reviewfile_state] = (deleted, inserted)
+            per_batch[state] = (deleted, inserted)
 
         cursor.execute("""SELECT batches.id, commentchains.type, COUNT(commentchains.id)
                             FROM batches
