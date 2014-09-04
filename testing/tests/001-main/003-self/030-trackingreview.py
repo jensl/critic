@@ -93,6 +93,10 @@ with testing.utils.settings("alice", SETTINGS), frontend.signin("alice"):
         accept=[to("alice"),
                 about("New Review: " + SUMMARY)])
 
+    # Wait for the immediate fetch of the tracked branch that /submitreview
+    # schedules.
+    instance.synchronize_service("branchtracker")
+
     # Emulate a review rebase via /rebasetrackingreview.
     frontend.page(
         "r/%d" % review_id,
