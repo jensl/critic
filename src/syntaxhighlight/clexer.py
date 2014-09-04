@@ -201,11 +201,12 @@ WIDE_CHARACTER_LITERAL = "L'(?:\\\\.|[^'\n])*'"
 PREPROCESSOR_DIRECTIVE = "^[ \t]*#(?:%s|%s|%s|%s|%s|%s|\\\\\n|[^\n])*" % (MULTILINE_COMMENT, SINGLELINE_COMMENT, STRING_LITERAL, CHARACTER_LITERAL, WIDE_STRING_LITERAL, WIDE_CHARACTER_LITERAL)
 OPERATOR_OR_PUNCTUATOR = rejoin(OPERATORS_AND_PUNCTUATORS, escape=True)
 WHITESPACE = "\\s+"
+BYTE_ORDER_MARK = u"\ufeff".encode("utf-8")
 
 SUBPATTERNS = [FLOAT_LITERAL, INT_LITERAL, WIDE_STRING_LITERAL, WIDE_CHARACTER_LITERAL, IDENTIFIER, MULTILINE_COMMENT, SINGLELINE_COMMENT, PREPROCESSOR_DIRECTIVE, STRING_LITERAL, CHARACTER_LITERAL]
 
-RE_CTOKENS = re.compile(rejoin([CONFLICT_MARKER, IDENTIFIER, FLOAT_LITERAL, MULTILINE_COMMENT, SINGLELINE_COMMENT, PREPROCESSOR_DIRECTIVE, OPERATOR_OR_PUNCTUATOR, INT_LITERAL, STRING_LITERAL, CHARACTER_LITERAL, "."], escape=False), re.DOTALL | re.MULTILINE)
-RE_CTOKENS_INCLUDE_WS = re.compile(rejoin([CONFLICT_MARKER, IDENTIFIER, FLOAT_LITERAL, MULTILINE_COMMENT, SINGLELINE_COMMENT, PREPROCESSOR_DIRECTIVE, OPERATOR_OR_PUNCTUATOR, INT_LITERAL, STRING_LITERAL, CHARACTER_LITERAL, WHITESPACE, "."], escape=False), re.DOTALL | re.MULTILINE)
+RE_CTOKENS = re.compile(rejoin([CONFLICT_MARKER, IDENTIFIER, FLOAT_LITERAL, MULTILINE_COMMENT, SINGLELINE_COMMENT, PREPROCESSOR_DIRECTIVE, OPERATOR_OR_PUNCTUATOR, INT_LITERAL, STRING_LITERAL, CHARACTER_LITERAL, BYTE_ORDER_MARK, "."], escape=False), re.DOTALL | re.MULTILINE)
+RE_CTOKENS_INCLUDE_WS = re.compile(rejoin([CONFLICT_MARKER, IDENTIFIER, FLOAT_LITERAL, MULTILINE_COMMENT, SINGLELINE_COMMENT, PREPROCESSOR_DIRECTIVE, OPERATOR_OR_PUNCTUATOR, INT_LITERAL, STRING_LITERAL, CHARACTER_LITERAL, BYTE_ORDER_MARK, WHITESPACE, "."], escape=False), re.DOTALL | re.MULTILINE)
 
 RE_IDENTIFIER = re.compile(IDENTIFIER)
 RE_INT_LITERAL = re.compile("^" + INT_LITERAL + "$")
@@ -233,6 +234,7 @@ def isconflictmarker(value):
     return value.startswith("<<<<<<<") or value.startswith("=======") or value.startswith(">>>>>>>")
 def isint(value): return RE_INT_LITERAL.match(str(value)) is not None
 def isfloat(value): return RE_FLOAT_LITERAL.match(str(value)) is not None
+def isbyteordermark(value): return str(value) == BYTE_ORDER_MARK
 
 def split(input, include_ws=True, include_comments=True):
     if include_ws: expression = RE_CTOKENS_INCLUDE_WS
@@ -277,6 +279,7 @@ class Token:
     def ischar(self): return self.__value[0] == "'" or self.__value.startswith("L'")
     def isint(self): return isint(self.__value)
     def isfloat(self): return isfloat(self.__value)
+    def isbyteordermark(self): return isbyteordermark(self.__value)
 
     def reduced(self):
         if self.isspace() or self.iscomment():

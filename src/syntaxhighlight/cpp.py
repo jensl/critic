@@ -38,17 +38,18 @@ class HighlightCPP:
             self.output.write(str(token))
         elif token.isconflictmarker():
             self.output.write(htmlutils.htmlify(token))
+        elif str(token)[0] == '"':
+            self.output.write("<b class='str'>" + htmlutils.htmlify(token) + "</b>")
+        elif str(token)[0] == "'":
+            self.output.write("<b class='ch'>" + htmlutils.htmlify(token) + "</b>")
+        elif token.isfloat():
+            self.output.write("<b class='fp'>" + str(token) + "</b>")
+        elif token.isint():
+            self.output.write("<b class='int'>" + str(token) + "</b>")
+        elif token.isbyteordermark():
+            self.output.write(htmlutils.htmlify(u"\ufeff"))
         else:
-            if str(token)[0] == '"':
-                self.output.write("<b class='str'>" + htmlutils.htmlify(token) + "</b>")
-            elif str(token)[0] == "'":
-                self.output.write("<b class='ch'>" + htmlutils.htmlify(token) + "</b>")
-            elif token.isfloat():
-                self.output.write("<b class='fp'>" + str(token) + "</b>")
-            elif token.isint():
-                self.output.write("<b class='int'>" + str(token) + "</b>")
-            else:
-                self.output.write("<b class='op'>" + htmlutils.htmlify(token) + "</b>")
+            self.output.write("<b class='op'>" + htmlutils.htmlify(token) + "</b>")
 
     def outputContext(self, tokens, terminator):
         if not self.contexts: return
