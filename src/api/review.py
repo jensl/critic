@@ -60,6 +60,27 @@ class Review(api.APIObject):
         return self._impl.getOwners(self.critic)
 
     @property
+    def reviewers(self):
+        """The review's reviewers
+
+           The reviewers are returned as a set of api.user.User objects.
+
+           A user is considered a reviewer if he/she is assigned to review any
+           changes (whether those changes have been reviewed already or not,)
+           or has reviewed any changes."""
+        return self._impl.getReviewers(self.critic)
+
+    @property
+    def watchers(self):
+        """The review's watchers
+
+           The watchers are returned as a set of api.user.User objects.
+
+           A user is a watcher if he/she is on the list of users that receive
+           emails about the review, and is neither an owner nor a reviewer."""
+        return self._impl.getWatchers(self.critic)
+
+    @property
     def filters(self):
         """The review's local filters
 

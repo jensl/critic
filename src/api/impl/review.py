@@ -8,7 +8,9 @@ class Review(object):
         self.__branch_id = branch_id
         self.summary = summary
         self.description = description
-        self.__owners = None
+        self.__owners_ids = None
+        self.__reviewers_ids = None
+        self.__watchers_ids = None
         self.__filters = None
         self.__commits = None
         self.__rebases = None
@@ -19,17 +21,60 @@ class Review(object):
     def getBranch(self, critic):
         return api.branch.fetch(critic, branch_id=self.__branch_id)
 
-    def getOwners(self, critic):
-        if self.__owners is None:
+    def __fetchOwners(self, critic):
+        if self.__owners_ids is None:
             cursor = critic.getDatabaseCursor()
             cursor.execute("""SELECT uid
                                 FROM reviewusers
                                WHERE review=%s
                                  AND owner""",
                            (self.id,))
-            self.__owners = frozenset(api.user.fetchMany(
-                critic, (user_id for (user_id,) in cursor)))
-        return self.__owners
+            self.__owners_ids = frozenset(user_id for (user_id,) in cursor)
+
+    def getOwners(self, critic):
+        self.__fetchOwners(critic)
+        return frozenset(api.user.fetch(critic, user_id=user_id)
+                         for user_id in self.__owners_ids)
+
+    def __fetchReviewers(self, critic):
+        if self.__reviewers_ids is None:
+            cursor = critic.getDatabaseCursor()
+            cursor.execute("""SELECT DISTINCT uid
+                                FROM reviewuserfiles
+                                JOIN reviewfiles ON (reviewfiles.id=reviewuserfiles.file)
+                               WHERE reviewfiles.review=%s""",
+                           (self.id,))
+            assigned_reviewers = frozenset(user_id for (user_id,) in cursor)
+            cursor.execute("""SELECT DISTINCT uid
+                                FROM reviewfilechanges
+                                JOIN reviewfiles ON (reviewfiles.id=reviewfilechanges.file)
+                               WHERE reviewfiles.review=%s""",
+                           (self.id,))
+            actual_reviewers = frozenset(user_id for (user_id,) in cursor)
+            self.__reviewers_ids = assigned_reviewers | actual_reviewers
+
+    def getReviewers(self, critic):
+        self.__fetchReviewers(critic)
+        return frozenset(api.user.fetch(critic, user_id=user_id)
+                         for user_id in self.__reviewers_ids)
+
+    def __fetchWatchers(self, critic):
+        if self.__watchers_ids is None:
+            cursor = critic.getDatabaseCursor()
+            cursor.execute("""SELECT uid
+                                FROM reviewusers
+                               WHERE review=%s""",
+                           (self.id,))
+            associated_users = frozenset(user_id for (user_id,) in cursor)
+            self.__fetchOwners(critic)
+            self.__fetchReviewers(critic)
+            non_watchers = self.__owners_ids | self.__reviewers_ids
+            self.__watchers_ids = associated_users - non_watchers
+
+    def getWatchers(self, critic):
+        self.__fetchWatchers(critic)
+        return frozenset(api.user.fetch(critic, user_id=user_id)
+                         for user_id in self.__watchers_ids)
 
     def getFilters(self, critic):
         if self.__filters is None:
