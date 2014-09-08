@@ -331,6 +331,6 @@ def start_service():
         credentials = None
 
     maildelivery = MailDelivery(credentials)
-    maildelivery.run()
+    return maildelivery.start()
 
 background.utils.call("maildelivery", start_service)

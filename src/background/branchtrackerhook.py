@@ -235,4 +235,4 @@ else:
             return BranchTrackerHook.Client(self, peersocket, peeraddress)
 
     server = BranchTrackerHook()
-    server.run()
+    sys.exit(server.start())

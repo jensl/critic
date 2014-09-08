@@ -121,6 +121,6 @@ else:
 
     def start_service():
         server = ChangesetServer()
-        server.run()
+        return server.start()
 
     background.utils.call("changeset", start_service)

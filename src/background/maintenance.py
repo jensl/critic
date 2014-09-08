@@ -139,6 +139,6 @@ class Maintenance(background.utils.BackgroundProcess):
 
 def start_service():
     maintenance = Maintenance()
-    maintenance.run()
+    return maintenance.start()
 
 background.utils.call("maintenance", start_service)

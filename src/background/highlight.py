@@ -166,6 +166,6 @@ else:
 
     def start_service():
         server = HighlightServer()
-        server.run()
+        return server.start()
 
     background.utils.call("highlight", start_service)

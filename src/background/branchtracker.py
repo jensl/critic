@@ -267,6 +267,6 @@ Output from Critic's git hook
 
 def start_service():
     tracker = BranchTracker()
-    tracker.run()
+    return tracker.start()
 
 background.utils.call("branchtracker", start_service)

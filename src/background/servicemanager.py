@@ -20,13 +20,21 @@ import time
 import signal
 import os
 import json
+import glob
 
 import configuration
+
+# Number of seconds to wait for startup synchronization.
+STARTUP_SYNC_TIMEOUT = 30
 
 if "--slave" in sys.argv:
     import background.utils
 
     class ServiceManager(background.utils.PeerServer):
+        # The master process manages our pid file, so tell our base class to
+        # leave it alone.
+        manage_pidfile = False
+
         class Service(object):
             class Process(background.utils.PeerServer.ChildProcess):
                 def __init__(self, service, input_data):
@@ -156,10 +164,6 @@ if "--slave" in sys.argv:
         def __init__(self, input_data):
             service = configuration.services.SERVICEMANAGER.copy()
 
-            # This is the slave process; the pid file is maintained by the
-            # master process.
-            del service["pidfile_path"]
-
             super(ServiceManager, self).__init__(service=service)
 
             self.input_data = input_data
@@ -170,7 +174,13 @@ if "--slave" in sys.argv:
             return ServiceManager.Client(self, peersocket)
 
         def startup(self):
+            super(ServiceManager, self).startup()
+
             for service_data in configuration.services.SERVICEMANAGER["services"]:
+                starting_path = service_data["pidfile_path"] + ".starting"
+                with open(starting_path, "w") as starting:
+                    starting.write("%s\n" % time.ctime())
+
                 service = ServiceManager.Service(self, service_data)
                 service.start(self.input_data.get(service.name))
                 self.services.append(service)
@@ -178,6 +188,8 @@ if "--slave" in sys.argv:
         def shutdown(self):
             for service in self.services:
                 service.stop()
+
+            super(ServiceManager, self).shutdown()
 
         def requestRestart(self):
             super(ServiceManager, self).requestRestart()
@@ -194,7 +206,7 @@ if "--slave" in sys.argv:
             input_data = {}
 
         manager = ServiceManager(input_data)
-        manager.run()
+        return manager.start()
 
     background.utils.call("servicemanager", start_service)
 else:
@@ -247,8 +259,38 @@ else:
     os.setgid(gid)
     os.setuid(uid)
 
+    starting_pattern = os.path.join(os.path.dirname(pidfile_path), "*.starting")
+
+    # Remove any stale/unexpected *.starting files that would otherwise break
+    # our startup synchronization.
+    for filename in glob.glob(starting_pattern):
+        try:
+            os.unlink(filename)
+        except OSError as error:
+            print >>sys.stderr, error
+
+    with open(pidfile_path + ".starting", "w") as starting:
+        starting.write("%s\n" % time.ctime())
+
+    def wait_for_startup_sync():
+        deadline = time.time() + STARTUP_SYNC_TIMEOUT
+        while True:
+            filenames = glob.glob(starting_pattern)
+            if not filenames:
+                return 0
+            if time.time() > deadline:
+                break
+            time.sleep(0.1)
+        print >>sys.stderr
+        print >>sys.stderr, ("Startup synchronization timeout after %d seconds!"
+                             % STARTUP_SYNC_TIMEOUT)
+        print >>sys.stderr, "Services still starting:"
+        for filename in filenames:
+            print >>sys.stderr, "  " + os.path.basename(filename)
+        return 1
+
     with open(pidfile_path, "w") as pidfile:
-        daemon.detach()
+        daemon.detach(parent_exit_hook=wait_for_startup_sync)
         pidfile.write("%s\n" % os.getpid())
 
     was_terminated = False

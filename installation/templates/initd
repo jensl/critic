@@ -25,7 +25,6 @@ start () {
     log_daemon_msg "Starting Critic service manager" "servicemanager.py"
 
     PYTHONPATH=$critic_etc:$critic_root %(installation.prereqs.python)s -m background.servicemanager
-    PYTHONPATH=$critic_etc:$critic_root %(installation.prereqs.python)s -m background.wait-for-pidfiles
 
     log_end_msg $?
 }

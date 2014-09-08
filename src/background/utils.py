@@ -56,6 +56,9 @@ class AdministratorMailHandler(logging.Handler):
             db.close()
 
 class BackgroundProcess(object):
+    # Set to False in sub-class to disable pid file creation and deletion.
+    manage_pidfile = True
+
     def __init__(self, service, send_administrator_mails=True):
         try: loglevel = getattr(logging, service["loglevel"].upper())
         except: loglevel = logging.INFO
@@ -84,7 +87,7 @@ class BackgroundProcess(object):
 
         self.__maintenance_hooks = []
         self.__logger = logger
-        self.__pidfile_path = service.get("pidfile_path")
+        self.__pidfile_path = service["pidfile_path"]
         self.__create_pidfile()
 
         signal.signal(signal.SIGHUP, self.__handle_SIGHUP)
@@ -116,7 +119,7 @@ class BackgroundProcess(object):
         self.synchronize_when_idle = True
 
     def __create_pidfile(self):
-        if self.__pidfile_path:
+        if self.manage_pidfile:
             try: os.makedirs(os.path.dirname(self.__pidfile_path))
             except OSError as error:
                 if error.errno == errno.EEXIST: pass
@@ -126,13 +129,50 @@ class BackgroundProcess(object):
             pidfile.close()
 
     def __delete_pidfile(self):
-        if self.__pidfile_path:
+        if self.manage_pidfile:
             try: os.unlink(self.__pidfile_path)
             except: pass
+
+    def __signal_started(self):
+        try:
+            os.unlink(self.__pidfile_path + ".starting")
+        except OSError as error:
+            if error.errno != errno.ENOENT:
+                self.exception()
+        except Exception:
+            self.exception()
 
     def __stopped(self):
         self.info("service stopped")
         self.__delete_pidfile()
+
+    def start(self):
+        try:
+            try:
+                self.startup()
+            except Exception:
+                self.exception()
+                self.__signal_started()
+                return 1
+
+            self.__signal_started()
+
+            try:
+                return self.run() or 0
+            except Exception:
+                self.exception()
+                return 1
+        finally:
+            try:
+                self.shutdown()
+            except Exception:
+                self.exception()
+                return 1
+
+    def startup(self):
+        pass
+    def shutdown(self):
+        pass
 
     def signal_idle_state(self):
         if self.synchronize_when_idle:
@@ -221,7 +261,7 @@ class BackgroundProcess(object):
                 # No configured maintenance hooks; nothing to do.  Returning will
                 # probably cause service to terminate, and we just started, so the
                 # service manager will leave the service not running.
-                return
+                return 0
 
             self.debug("sleeping %d seconds" % timeout)
             time.sleep(timeout)
@@ -337,7 +377,6 @@ class PeerServer(BackgroundProcess):
 
         self.__peers = []
         self.__address = service.get("address")
-        self.__create_listening_socket()
 
     def __create_listening_socket(self):
         if type(self.__address) == str:
@@ -395,116 +434,91 @@ class PeerServer(BackgroundProcess):
             except: pass
 
     def run(self):
-        try:
-            try:
-                self.startup()
+        while not self.terminated:
+            self.interrupted = False
 
-                while not self.terminated:
-                    self.interrupted = False
+            if self.restart_requested:
+                if not self.__peers:
+                    break
+                else:
+                    self.debug("restart delayed; have %d peers" % len(self.__peers))
 
-                    if self.restart_requested:
-                        if not self.__peers:
-                            break
-                        else:
-                            self.debug("restart delayed; have %d peers" % len(self.__peers))
-
-                    poll = select.poll()
-                    poll.register(self.__listening_socket, select.POLLIN)
-
-                    for peer in self.__peers:
-                        if peer.writing():
-                            poll.register(peer.writing(), select.POLLOUT)
-                        if peer.reading():
-                            poll.register(peer.reading(), select.POLLIN)
-
-                    def fileno(file):
-                        if file:
-                            return file.fileno()
-                        else:
-                            return None
-
-                    while not self.terminated:
-                        timeout_seconds = self.run_maintenance()
-
-                        if timeout_seconds:
-                            if not self.__peers:
-                                self.debug("next maintenance task check scheduled in %d seconds"
-                                           % timeout_seconds)
-                            timeout_ms = timeout_seconds * 1000
-                        else:
-                            timeout_ms = None
-
-                        if self.synchronize_when_idle and not self.__peers:
-                            # We seem to be idle, but poll once, non-blocking,
-                            # just to be sure.
-                            timeout_ms = 0
-
-                        try:
-                            events = poll.poll(timeout_ms)
-                            break
-                        except select.error as error:
-                            if error[0] == errno.EINTR:
-                                continue
-                            else:
-                                raise
-
-                    if self.terminated:
-                        break
-                    elif not (self.__peers or events):
-                        self.signal_idle_state()
-
-                    def catch_error(fn):
-                        try:
-                            fn()
-                        except socket.error as error:
-                            if error[0] not in (errno.EAGAIN, errno.EINTR):
-                                raise
-                        except OSError as error:
-                            if error.errno not in (errno.EAGAIN, errno.EINTR):
-                                raise
-
-                    for fd, event in events:
-                        if fd == self.__listening_socket.fileno():
-                            peersocket, peeraddress = self.__listening_socket.accept()
-                            peer = self.handle_peer(peersocket, peeraddress)
-                            if peer:
-                                self.__peers.append(peer)
-                            else:
-                                try:
-                                    peersocket.close()
-                                except Exception:
-                                    pass
-                        else:
-                            for peer in self.__peers[:]:
-                                if fd == fileno(peer.writing()) and event != select.POLLIN:
-                                    catch_error(peer.do_write)
-                                if fd == fileno(peer.reading()) and event != select.POLLOUT:
-                                    catch_error(peer.do_read)
-                                if peer.is_finished():
-                                    peer.destroy()
-                                    self.peer_destroyed(peer)
-                                    self.__peers.remove(peer)
-            except:
-                self.exception()
-                self.error("service crashed!")
-                sys.exit(1)
-            else:
-                self.info("service shutting down ...")
-        finally:
-            try:
-                self.shutdown()
-            except:
-                self.exception()
+            poll = select.poll()
+            poll.register(self.__listening_socket, select.POLLIN)
 
             for peer in self.__peers:
+                if peer.writing():
+                    poll.register(peer.writing(), select.POLLOUT)
+                if peer.reading():
+                    poll.register(peer.reading(), select.POLLIN)
+
+            def fileno(file):
+                if file:
+                    return file.fileno()
+                else:
+                    return None
+
+            while not self.terminated:
+                timeout_seconds = self.run_maintenance()
+
+                if timeout_seconds:
+                    if not self.__peers:
+                        self.debug("next maintenance task check scheduled in %d seconds"
+                                   % timeout_seconds)
+                    timeout_ms = timeout_seconds * 1000
+                else:
+                    timeout_ms = None
+
+                if self.synchronize_when_idle and not self.__peers:
+                    # We seem to be idle, but poll once, non-blocking,
+                    # just to be sure.
+                    timeout_ms = 0
+
                 try:
-                    peer.destroy()
-                except:
-                    self.exception()
+                    events = poll.poll(timeout_ms)
+                    break
+                except select.error as error:
+                    if error[0] == errno.EINTR:
+                        continue
+                    else:
+                        raise
+
+            if self.terminated:
+                break
+            elif not (self.__peers or events):
+                self.signal_idle_state()
+
+            def catch_error(fn):
                 try:
-                    self.peer_destroyed(peer)
-                except:
-                    self.exception()
+                    fn()
+                except socket.error as error:
+                    if error[0] not in (errno.EAGAIN, errno.EINTR):
+                        raise
+                except OSError as error:
+                    if error.errno not in (errno.EAGAIN, errno.EINTR):
+                        raise
+
+            for fd, event in events:
+                if fd == self.__listening_socket.fileno():
+                    peersocket, peeraddress = self.__listening_socket.accept()
+                    peer = self.handle_peer(peersocket, peeraddress)
+                    if peer:
+                        self.__peers.append(peer)
+                    else:
+                        try:
+                            peersocket.close()
+                        except Exception:
+                            pass
+                else:
+                    for peer in self.__peers[:]:
+                        if fd == fileno(peer.writing()) and event != select.POLLIN:
+                            catch_error(peer.do_write)
+                        if fd == fileno(peer.reading()) and event != select.POLLOUT:
+                            catch_error(peer.do_read)
+                        if peer.is_finished():
+                            peer.destroy()
+                            self.peer_destroyed(peer)
+                            self.__peers.remove(peer)
 
     def add_peer(self, peer):
         self.__peers.append(peer)
@@ -516,9 +530,18 @@ class PeerServer(BackgroundProcess):
         pass
 
     def startup(self):
-        pass
+        self.__create_listening_socket()
+
     def shutdown(self):
-        pass
+        for peer in self.__peers:
+            try:
+                peer.destroy()
+            except:
+                self.exception()
+            try:
+                self.peer_destroyed(peer)
+            except:
+                self.exception()
 
 class SlaveProcessServer(PeerServer):
     class SlaveChildProcess(PeerServer.ChildProcess):
@@ -650,9 +673,10 @@ class JSONJobServer(PeerServer):
     def request_finished(self, job, request, result):
         del self.__started_requests[freeze(request)]
 
-if configuration.debug.COVERAGE_DIR:
-    import coverage
-    call = coverage.call
-else:
-    def call(context, fn, *args, **kwargs):
-        return fn(*args, **kwargs)
+def call(context, fn, *args, **kwargs):
+    if configuration.debug.COVERAGE_DIR:
+        import coverage
+        result = coverage.call(context, fn, *args, **kwargs)
+    else:
+        result = fn(*args, **kwargs)
+    sys.exit(result)

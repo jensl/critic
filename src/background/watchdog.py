@@ -162,6 +162,6 @@ class Watchdog(background.utils.BackgroundProcess):
 
 def start_service():
     watchdog = Watchdog()
-    watchdog.run()
+    return watchdog.start()
 
 background.utils.call("watchdog", start_service)

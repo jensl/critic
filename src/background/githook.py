@@ -233,6 +233,9 @@ been sent to the system administrator(s).
     def __init__(self):
         super(GitHookServer, self).__init__(service=configuration.services.GITHOOK)
 
+    def startup(self):
+        super(GitHookServer, self).startup()
+
         os.chmod(configuration.services.GITHOOK["address"], 0770)
 
     def handle_peer(self, peersocket, peeraddress):
@@ -240,7 +243,7 @@ been sent to the system administrator(s).
 
 def start_service():
     server = GitHookServer()
-    server.run()
+    return server.start()
 
 if "--slave" in sys.argv[1:]:
     background.utils.call("githook", slave)

@@ -17,11 +17,11 @@
 import os
 import sys
 
-def detach():
+def detach(parent_exit_hook=lambda: 0):
     try:
         if os.fork() != 0:
             # Exit from parent process.
-            sys.exit(0)
+            sys.exit(parent_exit_hook())
     except OSError as error:
         print >>sys.stderr, "fork failed: %s" % error.message
         sys.exit(1)
