@@ -89,11 +89,6 @@ backup of the database first is strongly recommended.
                      data["installation.system.username"]],
                     stdout=output_file)
 
-            print "Compressing database dump ..."
-            print
-
-            subprocess.check_call(["bzip2", backup_path])
-
     return True
 
 SCHEMA_FILES = ["installation/data/dbschema.sql",
