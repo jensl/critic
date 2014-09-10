@@ -102,3 +102,9 @@ with frontend.signin():
                               "path": "validpath" },
                        expect={ "status": "failure",
                                 "code": "invalid_name" })
+
+    frontend.operation("addrepository",
+                       data={ "name": "validname",
+                              "path": "" },
+                       expect={ "status": "failure",
+                                "code": "paramtooshort:data.path" })
