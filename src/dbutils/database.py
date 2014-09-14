@@ -86,7 +86,7 @@ class Database(Session):
             else:
                 return self.__rows
 
-        def execute(self, query, params=None, for_update=False):
+        def execute(self, query, params=(), for_update=False):
             if for_update:
                 assert query.upper().startswith("SELECT ")
                 query += " FOR UPDATE"
@@ -111,7 +111,7 @@ class Database(Session):
                     raise FailedToLock()
                 raise
 
-        def executemany(self, query, params):
+        def executemany(self, query, params=()):
             if self.__profiling is None:
                 self.__cursor.executemany(query, params)
             else:
@@ -167,3 +167,9 @@ class Database(Session):
 
     def registerCommitCallback(self, callback):
         self.__commit_callbacks.append(callback)
+
+# This function performs a NULL-safe conversion from a "truth" value or
+# arbitrary type to True/False (or None.)  It's a utility for working around the
+# fact that SQLite stores booleans as integers (zero or one.)
+def boolean(value):
+    return None if value is None else bool(value)

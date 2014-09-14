@@ -46,21 +46,15 @@ def about(subject):
     return testing.mailbox.WithSubject(subject)
 
 with repository.workcopy() as work:
-    work.run(["remote", "add", "critic",
-              "nobody@%s:/var/git/critic.git" % instance.hostname])
-
     for review in REVIEWS.values():
         primary_owner = review["owners"][0]
 
         with testing.utils.settings(primary_owner, SETTINGS), \
                 frontend.signin(primary_owner):
-            work.run(
-                ["remote", "set-url", "critic",
-                 ("%s@%s:/var/git/critic.git"
-                  % (primary_owner, instance.hostname))])
+            REMOTE_URL = instance.repository_url(primary_owner)
 
             output = work.run(
-                ["push", "critic", "%(sha1)s:refs/heads/%(branch)s" % review])
+                ["push", REMOTE_URL, "%(sha1)s:refs/heads/%(branch)s" % review])
 
             next_is_review_url = False
 

@@ -3,7 +3,7 @@ import os
 UTF8_BOM = "\xEF\xBB\xBF"
 
 with frontend.signin("alice"), repository.workcopy(empty=True) as work:
-    REMOTE_URL = "alice@%s:/var/git/critic.git" % instance.hostname
+    REMOTE_URL = instance.repository_url("alice")
 
     def commit(filename):
         work.run(["add", filename])

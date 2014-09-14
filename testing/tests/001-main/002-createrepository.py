@@ -67,11 +67,16 @@ with frontend.signin():
 
     instance.synchronize_service("branchtracker")
 
-    try:
-        frontend.page("critic/master")
-    except testing.TestFailure:
-        logger.error("Repository main branch ('refs/heads/master') not fetched as expected.")
-        raise testing.TestFailure
+    with repository.workcopy(empty=True) as work:
+        REMOTE_URL = instance.repository_url("alice")
+
+        try:
+            work.run(
+                ["ls-remote", "--exit-code", REMOTE_URL, "refs/heads/master"])
+        except testing.repository.GitCommandError:
+            logger.error("Repository main branch ('refs/heads/master') "
+                         "not fetched as expected.")
+            raise testing.TestFailure
 
     # Check that /repositories still loads correctly now that there's a
     # repository in the system.

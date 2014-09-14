@@ -26,23 +26,26 @@ def loadTimezones(db):
     so can't be used during normal operations.
     """
 
-    cursor = db.cursor()
-    cursor.execute("DELETE FROM timezones")
+    import configuration
 
     def add(name, abbrev, utc_offset):
         cursor.execute("""INSERT INTO timezones (name, abbrev, utc_offset)
                                VALUES (%s, %s, %s)""",
                        (name, abbrev, utc_offset))
 
-    add("Universal/UTC", "UTC", datetime.timedelta())
+    if configuration.database.DRIVER == "postgresql":
+        cursor = db.cursor()
+        cursor.execute("DELETE FROM timezones")
 
-    cursor.execute("SELECT name, abbrev, utc_offset FROM pg_timezone_names")
-    for full_name, abbrev, utc_offset in cursor.fetchall():
-        region, _, name = full_name.partition("/")
-        if region not in ("posix", "Etc") and name and "/" not in name:
-            add(full_name, abbrev, utc_offset)
+        add("Universal/UTC", "UTC", datetime.timedelta())
 
-    db.commit()
+        cursor.execute("SELECT name, abbrev, utc_offset FROM pg_timezone_names")
+        for full_name, abbrev, utc_offset in cursor.fetchall():
+            region, _, name = full_name.partition("/")
+            if region not in ("posix", "Etc") and name and "/" not in name:
+                add(full_name, abbrev, utc_offset)
+
+        db.commit()
 
 def updateTimezones(db):
     """
@@ -53,12 +56,15 @@ def updateTimezones(db):
     values in 'timezones' up-to-date.
     """
 
-    cursor = db.cursor()
-    cursor.execute("""UPDATE timezones
-                         SET utc_offset=pg_timezone_names.utc_offset
-                        FROM pg_timezone_names
-                       WHERE pg_timezone_names.name=timezones.name""")
-    db.commit()
+    import configuration
+
+    if configuration.database.DRIVER == "postgresql":
+        cursor = db.cursor()
+        cursor.execute("""UPDATE timezones
+                             SET utc_offset=pg_timezone_names.utc_offset
+                            FROM pg_timezone_names
+                           WHERE pg_timezone_names.name=timezones.name""")
+        db.commit()
 
 def __fetchTimezones(db):
     groups = db.storage["Timezones"].get(None, {})
@@ -69,6 +75,8 @@ def __fetchTimezones(db):
 
         for full_name, abbrev, utc_offset in cursor.fetchall():
             group, name = full_name.split("/")
+            if isinstance(utc_offset, int):
+                utc_offset = datetime.timedelta(utc_offset)
             groups.setdefault(group, {})[name] = (abbrev, utc_offset)
 
         db.storage["Timezones"][None] = groups

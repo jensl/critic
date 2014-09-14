@@ -28,8 +28,7 @@ def check_filename(class_name):
 
 with frontend.signin("alice"):
     with repository.workcopy(empty=True) as work:
-        work.run(["remote", "add", "critic",
-                  "alice@%s:/var/git/critic.git" % instance.hostname])
+        REMOTE_URL = instance.repository_url("alice")
 
         def commit():
             work.run(["add", TC_NAME_UTF8])
@@ -41,7 +40,7 @@ with frontend.signin("alice"):
             return work.run(["rev-parse", "HEAD"]).strip()
 
         def push():
-            work.run(["push", "-q", "critic",
+            work.run(["push", "-q", REMOTE_URL,
                       "HEAD:refs/heads/" + TC_NAME_PREFIX])
 
         with open(os.path.join(work.path, TC_NAME_UTF8), "w") as text_file:

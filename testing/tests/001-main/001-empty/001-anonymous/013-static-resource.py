@@ -17,13 +17,13 @@ def check_jquery_foundation(document):
 # Test a basic regular file.
 frontend.page(
     "static-resource/basic.js",
-    expected_content_type="application/javascript",
+    expected_content_type=("application/javascript", "text/javascript"),
     expect={ "user_constructor": check_user_constructor })
 
 # Test jquery.js, which is a symlink to the current version.
 frontend.page(
     "static-resource/third-party/jquery.js",
-    expected_content_type="application/javascript",
+    expected_content_type=("application/javascript", "text/javascript"),
     expect={ "jquery_foundation": check_jquery_foundation })
 
 # Test a non-existing file.

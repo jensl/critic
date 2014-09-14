@@ -42,7 +42,7 @@ def add_preference(db, item, data, silent=False):
                                VALUES (%s, %s)""",
                        (item, int(data["default"])))
 
-    if not silent:
+    if not silent and not installation.quiet:
         print "Added preference: '%s'" % item
 
 def update_preference(db, item, data, type_changed):
@@ -129,7 +129,8 @@ def install(data):
 
             db.commit()
 
-            print "Added %d preferences." % len(preferences)
+            if not installation.quiet:
+                print "Added %d preferences." % len(preferences)
 
     return True
 

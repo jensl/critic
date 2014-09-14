@@ -3,11 +3,13 @@ import time
 BRANCH_NAME = "025-trackedbranch"
 
 with repository.workcopy() as work, frontend.signin():
+    REMOTE_URL = instance.repository_url("alice")
+
     def wait_for_branch(branch_name, value):
         instance.synchronize_service("branchtracker")
 
         try:
-            output = work.run(["ls-remote", "--exit-code", "critic",
+            output = work.run(["ls-remote", "--exit-code", REMOTE_URL,
                                "refs/heads/" + branch_name])
             if output.startswith(value):
                 return
@@ -33,9 +35,6 @@ with repository.workcopy() as work, frontend.signin():
         testing.expect.check(to_sha1, branch_log_item["to_sha1"])
         testing.expect.check(hook_output, branch_log_item["hook_output"])
         testing.expect.check(successful, branch_log_item["successful"])
-
-    work.run(["remote", "add", "critic",
-              "alice@%s:/var/git/critic.git" % instance.hostname])
 
     work.run(["push", "origin", "HEAD:refs/heads/" + BRANCH_NAME])
 

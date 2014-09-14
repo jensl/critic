@@ -51,6 +51,8 @@ def run():
     parser.add_argument("--quiet", action="store_true",
                         help="Disable INFO level logging")
 
+    parser.add_argument("--quickstart", action="store_true",
+                        help="Test against a quick-start instance")
     parser.add_argument("--coverage", action="store_true",
                         help="Enable coverage measurement mode")
     parser.add_argument("--commit",
@@ -133,15 +135,21 @@ Critic Testing Framework
 
 """)
 
-    if not arguments.local and not arguments.vm_identifier:
-        logger.error("Must specify one of --local and --vm-identifier!")
+
+    key_arguments = [arguments.local,
+                     arguments.quickstart,
+                     arguments.vm_identifier]
+
+    if len(filter(None, key_arguments)) != 1:
+        logger.error("Must specify exactly one of --local, --quickstart and "
+                     "--vm-identifier!")
         return
 
-    if arguments.local:
+    if arguments.local or arguments.quickstart:
         incompatible_arguments = []
 
         # This is not a complete list; just those that are most significantly
-        # incompatible or irrelevant with --local.
+        # incompatible or irrelevant with --local/--quickstart.
         if arguments.commit:
             incompatible_arguments.append("--commit")
         if arguments.upgrade_from:
@@ -156,7 +164,8 @@ Critic Testing Framework
             incompatible_arguments.append("--vm-identifier")
 
         if incompatible_arguments:
-            logger.error("These arguments can't be combined with --local:\n  " +
+            logger.error("These arguments can't be combined with "
+                         "--local/--quickstart:\n  " +
                          "\n  ".join(incompatible_arguments))
             return
 
@@ -203,7 +212,7 @@ The v8-jsshell submodule must be checked for extension testing.  Please run
 first or run this script without --test-extensions.""")
             return
 
-    if not arguments.local:
+    if arguments.vm_identifier:
         # Note: we are not ignoring typical temporary editor files such as the
         # ".#<name>" files created by Emacs when a buffer has unsaved changes.
         # This is because unsaved changes in an editor is probably also
@@ -271,23 +280,29 @@ first or run this script without --test-extensions.""")
         if arguments.local:
             frontend = None
             instance = testing.local.Instance()
-            flags_on.add("local")
         else:
             frontend = testing.frontend.Frontend(
                 hostname=arguments.vm_hostname or arguments.vm_identifier,
                 http_port=arguments.vm_http_port)
 
-            instance = testing.virtualbox.Instance(
-                arguments,
-                install_commit=(install_commit, install_commit_description),
-                upgrade_commit=(upgrade_commit, upgrade_commit_description),
-                frontend=frontend)
+            if arguments.quickstart:
+                instance = testing.quickstart.Instance(
+                    frontend=frontend)
+            else:
+                instance = testing.virtualbox.Instance(
+                    arguments,
+                    install_commit=(install_commit, install_commit_description),
+                    upgrade_commit=(upgrade_commit, upgrade_commit_description),
+                    frontend=frontend)
     except testing.Error as error:
         logger.error(error.message)
         return
 
     if not arguments.test_extensions:
         flags_off.add("extensions")
+
+    flags_on.update(instance.flags_on)
+    flags_off.update(instance.flags_off)
 
     tests, dependencies = testing.findtests.selectTests(
         arguments.test, strict=False, flags_on=flags_on, flags_off=flags_off)
@@ -477,10 +492,10 @@ first or run this script without --test-extensions.""")
             run_group(group_name, all_groups[group_name])
         else:
             repository = testing.repository.Repository(
-                arguments.vbox_host,
+                "localhost" if arguments.quickstart else arguments.vbox_host,
                 arguments.git_daemon_port,
                 tested_commit,
-                arguments.vm_hostname)
+                instance)
             mailbox = testing.mailbox.Mailbox(instance,
                                               { "username": "smtp_username",
                                                 "password": "SmTp_PaSsWoRd" },

@@ -20,6 +20,7 @@ import shutil
 import installation
 
 etc_dir = "/etc/critic"
+bin_dir = "/usr/bin"
 install_dir = "/usr/share/critic"
 data_dir = "/var/lib/critic"
 cache_dir = "/var/cache/critic"
@@ -173,7 +174,9 @@ def mkdir(path, mode=0750):
         if not os.path.isdir(os.path.dirname(path)):
             mkdir(os.path.dirname(path), mode)
 
-        print "Creating directory '%s' ..." % path
+        if not installation.quiet:
+            print "Creating directory '%s' ..." % path
+
         os.mkdir(path, mode)
         created.append(path)
         os.chown(path, installation.system.uid, installation.system.gid)
@@ -182,6 +185,7 @@ def mkdirs():
     import stat
 
     mkdir(os.path.join(etc_dir, "main"))
+    mkdir(bin_dir)
     mkdir(install_dir, 0755)
     mkdir(os.path.join(data_dir, "relay"))
     mkdir(os.path.join(data_dir, "temporary"))

@@ -1085,7 +1085,7 @@ authentication in apache2, see:
             req.start()
 
             return [str(document)]
-        except:
+        except Exception:
             # crash might be psycopg2.ProgrammingError so rollback to avoid
             # "InternalError: current transaction is aborted" inside handleException()
             if db and db.closed():

@@ -33,8 +33,7 @@ signin = frontend.signin("alice")
 reviews = []
 
 with work, settings, signin:
-    work.run(["remote", "add", "critic",
-              "alice@%s:/var/git/critic.git" % instance.hostname])
+    REMOTE_URL = instance.repository_url("alice")
 
     def write(*args, **kwargs):
         """Write the file<tm>, optionally with lines upper-cased."""
@@ -66,7 +65,7 @@ with work, settings, signin:
         """Check that the review branch in Critic's repository is where we want
            it to be."""
         review = reviews[-1]
-        actual = work.run(["ls-remote", "critic", review["branch"]]).split()[0]
+        actual = work.run(["ls-remote", REMOTE_URL, review["branch"]]).split()[0]
         testing.expect.check(expected["sha1"], actual)
 
     def createreview(commits):
@@ -74,8 +73,8 @@ with work, settings, signin:
         index = len(reviews) + 1
         branch = "020-reviewrebase/%d" % index
         summary = "020-reviewrebase, test %d" % index
-        work.run(["push", "critic", "%s:refs/heads/%s" % (commits[-1]["sha1"],
-                                                          branch)])
+        work.run(["push", REMOTE_URL, "%s:refs/heads/%s" % (commits[-1]["sha1"],
+                                                            branch)])
         result = frontend.operation(
             "submitreview",
             data={ "repository": "critic",
@@ -94,8 +93,8 @@ with work, settings, signin:
         args = ["push"]
         if force:
             args.append("-f")
-        args.extend(["critic", "%s:refs/heads/%s" % (new_head["sha1"],
-                                                     review["branch"])])
+        args.extend([REMOTE_URL, "%s:refs/heads/%s" % (new_head["sha1"],
+                                                       review["branch"])])
         work.run(args)
         expecthead(new_head)
 
@@ -246,7 +245,7 @@ with work, settings, signin:
     work.run(["checkout", "-b", "020-reviewrebase-2-base", start_sha1])
     base_commits = [commit("Test #2 base, commit 1", write),
                     commit("Test #2 base, commit 2", write, 0)]
-    work.run(["push", "critic", "020-reviewrebase-2-base"])
+    work.run(["push", REMOTE_URL, "020-reviewrebase-2-base"])
     work.run(["checkout", "-b", "020-reviewrebase-2", base_commits[0]["sha1"]])
     commits = [commit("Test #2, commit 1", write, 5),
                commit("Test #2, commit 2", write, 5, 6),
@@ -285,7 +284,7 @@ with work, settings, signin:
     work.run(["checkout", "-b", "020-reviewrebase-3-base", start_sha1])
     base_commits = [commit("Test #3 base, commit 1", write),
                     commit("Test #3 base, commit 2", write, 2)]
-    work.run(["push", "critic", "020-reviewrebase-3-base"])
+    work.run(["push", REMOTE_URL, "020-reviewrebase-3-base"])
     work.run(["checkout", "-b", "020-reviewrebase-3", base_commits[0]["sha1"]])
     commits = [commit("Test #3, commit 1", write, 5),
                commit("Test #3, commit 2", write, 5, 6),
@@ -328,7 +327,7 @@ with work, settings, signin:
     # TEST #4: Create a review with three commits based on master~2, then merge
     # master~1 into the review, and then rebase the review onto master.
 
-    work.run(["fetch", "critic", "refs/heads/master"])
+    work.run(["fetch", REMOTE_URL, "refs/heads/master"])
     base_commits = [commit("FETCH_HEAD~2"),
                     commit("FETCH_HEAD~1"),
                     commit("FETCH_HEAD")]
@@ -363,7 +362,7 @@ with work, settings, signin:
     work.run(["checkout", "-b", "020-reviewrebase-5-base", start_sha1])
     base_commits = [commit("Test #5 base, commit 1", write, filename=FILENAME_BASE),
                     commit("Test #5 base, commit 2", write, 0, filename=FILENAME_BASE)]
-    work.run(["push", "critic", "020-reviewrebase-5-base"])
+    work.run(["push", REMOTE_URL, "020-reviewrebase-5-base"])
     work.run(["checkout", "-b", "020-reviewrebase-5", base_commits[1]["sha1"]])
     commits = [commit("Test #5, commit 1", write, 4),
                commit("Test #5, commit 2", write, 4, 5),
@@ -388,7 +387,7 @@ with work, settings, signin:
     work.run(["checkout", "-b", "020-reviewrebase-6-base", start_sha1])
     base_commits = [commit("Test #6 base, commit 1", write, filename=FILENAME_BASE),
                     commit("Test #6 base, commit 2", write, 0, filename=FILENAME_BASE)]
-    work.run(["push", "critic", "020-reviewrebase-6-base"])
+    work.run(["push", REMOTE_URL, "020-reviewrebase-6-base"])
     work.run(["checkout", "-b", "020-reviewrebase-6", base_commits[1]["sha1"]])
     commits = [commit("Test #6, commit 1", write, 4),
                commit("Test #6, commit 2", write, 4, 5),

@@ -1,6 +1,5 @@
 with repository.workcopy() as work, frontend.signin("alice"):
-    work.run(["remote", "add", "critic",
-              "alice@%s:/var/git/critic.git" % instance.hostname])
+    REMOTE_URL = instance.repository_url("alice")
 
     def assert_branch_state(archived):
         # Check that the branch is or isn't flagged as archived on the review
@@ -16,7 +15,7 @@ with repository.workcopy() as work, frontend.signin("alice"):
         # repository.
         expected = "ref is missing" if archived else "ref is present"
         try:
-            work.run(["ls-remote", "--exit-code", "critic",
+            work.run(["ls-remote", "--exit-code", REMOTE_URL,
                       "refs/heads/" + branch_name])
             actual = "ref is present"
         except testing.repository.GitCommandError:

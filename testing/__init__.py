@@ -28,11 +28,28 @@ class TestFailure(Error):
     """Error raised for "expected" test failures."""
     pass
 
+class CommandError(Exception):
+    def __init__(self, stdout, stderr):
+        self.stdout = stdout
+        self.stderr = stderr
+
+class CriticctlError(TestFailure):
+    """Error raised for failed criticctl usage."""
+    def __init__(self, command, stdout, stderr=None):
+        super(CriticctlError, self).__init__(
+            "CriticctlError: %s\nOutput:\n%s" % (command, stderr or stdout))
+        self.command = command
+        self.stdout = stdout
+        self.stderr = stderr
+
 class NotSupported(Error):
-    """Error raised when a test (and its dependencies) are unsupported."""
+    """Error raised when a test is unsupported."""
     pass
 
 class Instance(object):
+    flags_on = []
+    flags_off = []
+
     def __enter__(self):
         return self
 
@@ -65,6 +82,18 @@ class Instance(object):
                 "%s: service log contains unexpected entries:\n  %s"
                 % (service_name, "\n  ".join(lines.splitlines())))
 
+    def executeProcess(self, args, log_stdout=True, log_stderr=True, **kwargs):
+        process = subprocess.Popen(
+            args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, **kwargs)
+        stdout, stderr = process.communicate()
+        if stdout.strip() and log_stdout:
+            logger.log(STDOUT, stdout.rstrip("\n"))
+        if stderr.strip() and log_stderr:
+            logger.log(STDERR, stderr.rstrip("\n"))
+        if process.returncode != 0:
+            raise CommandError(stdout, stderr)
+        return stdout
+
     def translateUnittestPath(self, module):
         path = module.split(".")
         if path[0] == "api":
@@ -85,6 +114,7 @@ import repository
 import mailbox
 import findtests
 import utils
+import quickstart
 
 logger = None
 

@@ -21,7 +21,7 @@ workcopy.run("push", "origin", sha1 + ":refs/heads/014-Repository.run-1");
 return sha1;""" })
 
     with repository.workcopy() as work:
-        REMOTE_URL = "alice@" + instance.hostname + ":/var/git/critic.git"
+        REMOTE_URL = instance.repository_url("alice")
 
         work.run(["fetch", REMOTE_URL, "refs/heads/014-Repository.run-1"])
 

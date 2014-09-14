@@ -48,7 +48,7 @@ with repository.workcopy() as work:
 
     work.run(["add", FILENAME])
     work.run(["commit", "-m", MESSAGE])
-    work.run(["push", "alice@%s:/var/git/critic.git" % instance.hostname, "HEAD"])
+    work.run(["push", instance.repository_url("alice"), "HEAD"])
 
 LINKS = { "A plain HTTP URL": ("http://critic-review.org/tutorials",
                                "http://critic-review.org/tutorials" ),

@@ -1,3 +1,6 @@
+# Need a VM (full installation) to do customizations.
+# @flag full
+
 import re
 import json
 
@@ -17,9 +20,11 @@ instance.execute(
 # module.
 
 with repository.workcopy() as work:
+    REMOTE_URL = instance.repository_url("alice")
+
     def lsremote(ref_name):
         try:
-            output = work.run(["ls-remote", "--exit-code", "critic", ref_name])
+            output = work.run(["ls-remote", "--exit-code", REMOTE_URL, ref_name])
         except testing.repository.GitCommandError:
             return None
 
@@ -38,7 +43,7 @@ with repository.workcopy() as work:
             new_value = work.run(["rev-parse", new_value]).strip()
 
         try:
-            output = work.run(["push", "--quiet", "critic",
+            output = work.run(["push", "--quiet", REMOTE_URL,
                                "%s:%s" % (new_value or "", ref_name)])
             testing.expect.check("ACCEPT", expected_result)
         except testing.repository.GitCommandError as error:
@@ -62,9 +67,6 @@ with repository.workcopy() as work:
             testing.expect.check(new_value, lsremote(ref_name))
         else:
             testing.expect.check(old_value, lsremote(ref_name))
-
-    work.run(["remote", "add", "critic",
-              "alice@%s:/var/git/critic.git" % instance.hostname])
 
     push("HEAD", "refs/heads/reject-create", "REJECT")
     push("HEAD^", "refs/heads/reject-delete", "ACCEPT")

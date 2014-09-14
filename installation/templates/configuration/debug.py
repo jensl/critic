@@ -24,6 +24,10 @@ IS_DEVELOPMENT = %(installation.config.is_development)r
 # True if this is an installation by the automatic testing framework.
 IS_TESTING = %(installation.config.is_testing)r
 
+# True if this is an instance started using the installation/quickstart.py
+# script.
+IS_QUICKSTART = %(installation.config.is_quickstart)r
+
 # Directory to write code coverage results to.  If None, code coverage is not
 # written, and more importantly, not measured in the first place.
 COVERAGE_DIR = %(installation.config.coverage_dir)r

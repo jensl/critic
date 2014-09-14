@@ -26,7 +26,7 @@ with repository.workcopy() as work:
     third_sha1 = work.run(["rev-parse", "HEAD^^"]).strip()
 
     work.run(["revert", "--no-edit", first_sha1])
-    work.run(["push", "-q", "alice@%s:/var/git/critic.git" % instance.hostname,
+    work.run(["push", "-q", instance.repository_url("alice"),
               "HEAD:refs/heads/005-checkbranch-1"])
 
     work.run(["revert", "--no-edit", second_sha1])

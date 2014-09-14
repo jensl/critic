@@ -14,13 +14,34 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-import psycopg2
-
-def connect():
+try:
     import configuration
-    return psycopg2.connect(**configuration.database.PARAMETERS)
+except ImportError:
+    IntegrityError = ProgrammingError = OperationalError = Exception
+    TransactionRollbackError = Exception
 
-IntegrityError = psycopg2.IntegrityError
-OperationalError = psycopg2.OperationalError
-ProgrammingError = psycopg2.ProgrammingError
-TransactionRollbackError = psycopg2.extensions.TransactionRollbackError
+    def connect():
+        raise Exception("not supported")
+else:
+    if configuration.database.DRIVER == "postgresql":
+        import psycopg2 as driver
+
+        TransactionRollbackError = driver.extensions.TransactionRollbackError
+    else:
+        import sys
+        import os
+
+        sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+
+        import installation.qs.sqlite as driver
+
+        # SQLite doesn't appear to be throwing this type of error.
+        class TransactionRollbackError(Exception):
+            pass
+
+    IntegrityError = driver.IntegrityError
+    OperationalError = driver.OperationalError
+    ProgrammingError = driver.ProgrammingError
+
+    def connect():
+        return driver.connect(**configuration.database.PARAMETERS)

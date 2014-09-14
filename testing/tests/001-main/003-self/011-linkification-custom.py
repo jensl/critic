@@ -1,3 +1,6 @@
+# Need a VM (full installation) to do customizations.
+# @flag full
+
 import os
 
 TESTNAME = "010-linkification-custom"
@@ -25,7 +28,7 @@ with repository.workcopy() as work:
 
     work.run(["add", FILENAME])
     work.run(["commit", "-m", MESSAGE])
-    work.run(["push", "alice@%s:/var/git/critic.git" % instance.hostname, "HEAD"])
+    work.run(["push", instance.repository_url("alice"), "HEAD"])
 
 instance.execute(
     ["sudo", "mkdir", "-p", "/etc/critic/main/customization",

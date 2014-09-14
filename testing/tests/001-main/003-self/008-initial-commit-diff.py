@@ -20,8 +20,7 @@ SETTINGS = { "review.createViaPush": True }
 
 with testing.utils.settings("alice", SETTINGS), frontend.signin("alice"):
     with repository.workcopy(empty=True) as work:
-        work.run(["remote", "add", "critic",
-                  "alice@%s:/var/git/critic.git" % instance.hostname])
+        REMOTE_URL = instance.repository_url("alice")
 
         def commit(fixup_message=None):
             if fixup_message:
@@ -40,7 +39,7 @@ with testing.utils.settings("alice", SETTINGS), frontend.signin("alice"):
             return sha1
 
         def push():
-            work.run(["push", "-q", "critic",
+            work.run(["push", "-q", REMOTE_URL,
                       "HEAD:refs/heads/r/008-root-commit-pending"])
 
         with open(os.path.join(work.path, FILENAME), "w") as text_file:

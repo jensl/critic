@@ -1,0 +1,2 @@
+# @flag extensions
+# @flag upgrade

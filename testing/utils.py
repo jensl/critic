@@ -31,7 +31,7 @@ def settings(user, settings, repository=None):
 
 def createReviewViaPush(work, owner, commit="HEAD"):
     with settings(owner, { "review.createViaPush": True }):
-        remote_url = "%s@%s:/var/git/critic.git" % (owner, instance.hostname)
+        remote_url = instance.repository_url(owner)
         output = work.run(["push", remote_url, "HEAD"], TERM="dumb")
         for line in output.splitlines():
             match = RE_REVIEW_URL.match(line)

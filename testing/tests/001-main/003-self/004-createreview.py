@@ -116,7 +116,7 @@ with frontend.signin("alice"):
 
         with testing.utils.settings("erin", SETTINGS):
             work.run(
-                ["push", "-q", "alice@%s:/var/git/critic.git" % instance.hostname,
+                ["push", "-q", instance.repository_url("alice"),
                  "HEAD:refs/heads/r/004-createreview"])
 
     def check_followup(mail):

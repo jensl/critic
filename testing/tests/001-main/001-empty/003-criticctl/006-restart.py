@@ -1,3 +1,6 @@
+# Need a VM (full installation) to restart Critic.
+# @flag full
+
 try:
     output = instance.execute(["sudo", "criticctl", "restart"])
 except testing.virtualbox.GuestCommandError as error:

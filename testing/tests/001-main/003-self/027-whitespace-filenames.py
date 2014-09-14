@@ -21,7 +21,7 @@ def check_filename(class_name):
 
 with frontend.signin("alice"):
     with repository.workcopy(empty=True) as work:
-        REMOTE_URL = "alice@%s:/var/git/critic.git" % instance.hostname
+        REMOTE_URL = instance.repository_url("alice")
 
         def commit():
             work.run(["add", FILENAME])

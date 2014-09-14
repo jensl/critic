@@ -68,6 +68,7 @@ class Instance(testing.Instance):
         self.strict_fs_permissions = getattr(arguments, "strict_fs_permissions", False)
         self.coverage = getattr(arguments, "coverage", False)
         self.mailbox = None
+        self.etc_dir = "/etc/critic"
 
         # Check that the identified VM actually exists:
         output = subprocess.check_output(
@@ -341,6 +342,12 @@ class Instance(testing.Instance):
         except subprocess.CalledProcessError as error:
             raise GuestCommandError(" ".join(argv), error.output)
 
+    def criticctl(self, argv):
+        try:
+            return self.execute(["sudo", "criticctl"] + argv)
+        except GuestCommandError as error:
+            raise testing.CriticctlError(error.command, error.stdout, error.stderr)
+
     def adduser(self, name, email=None, fullname=None, password=None):
         if email is None:
             email = "%s@example.org" % name
@@ -384,6 +391,16 @@ class Instance(testing.Instance):
         else:
             check_commit = self.install_commit
         return testing.has_flag(check_commit, flag)
+
+    def repository_path(self, repository="critic"):
+        return "/var/git/%s.git" % repository
+
+    def repository_url(self, name=None, repository="critic"):
+        if name is None:
+            user_prefix = ""
+        else:
+            user_prefix = name + "@"
+        return "%s%s:/var/git/%s.git" % (user_prefix, self.hostname, repository)
 
     def restrict_access(self):
         if not self.strict_fs_permissions:

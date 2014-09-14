@@ -4,8 +4,7 @@ import os
 import time
 
 with repository.workcopy() as work:
-    work.run(["remote", "add", "critic",
-              "alice@%s:/var/git/critic.git" % instance.hostname])
+    REMOTE_URL = instance.repository_url("alice")
 
     os.mkdir(os.path.join(work.path, "009-commitset"))
 
@@ -86,7 +85,7 @@ with repository.workcopy() as work:
     merge("L", "GHK")
     commit("M")
 
-    work.run(["push", "critic"] +
+    work.run(["push", REMOTE_URL] +
              ["%s:refs/heads/009-commitset/%s" % (sha1, letter)
               for letter, sha1 in commits.items()])
 
@@ -94,6 +93,6 @@ with repository.workcopy() as work:
         instance.unittest("api.commitset", ["basic"],
                           args=["--prefix=009-commitset/"])
     finally:
-        work.run(["push", "critic"] +
+        work.run(["push", REMOTE_URL] +
                  [":refs/heads/009-commitset/%s" % letter
                   for letter in commits.keys()])

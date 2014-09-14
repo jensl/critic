@@ -209,8 +209,6 @@ with repository.workcopy() as work:
     #
     ############################################################################
 
-    REMOTE_URL = "alice@%s:/var/git/critic.git" % instance.hostname
-
     parent_sha1 = work.run(["rev-parse", "HEAD"]).strip()
 
     work.run(["checkout", "-b", BRANCH, "--no-track", "origin/master"])

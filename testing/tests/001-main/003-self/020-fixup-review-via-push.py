@@ -11,8 +11,7 @@ SETTINGS = { "review.createViaPush": True }
 
 with testing.utils.settings("alice", SETTINGS), frontend.signin("alice"):
     with repository.workcopy() as work:
-        work.run(["remote", "add", "critic",
-                  "alice@%s:/var/git/critic.git" % instance.hostname])
+        REMOTE_URL = instance.repository_url("alice")
 
         with open(os.path.join(work.path, FILENAME), "w") as text_file:
             print >>text_file, "Some content."
@@ -27,7 +26,7 @@ Relevant summary
                  GIT_AUTHOR_EMAIL="alice@example.org",
                  GIT_COMMITTER_NAME="Alice von Testing",
                  GIT_COMMITTER_EMAIL="alice@example.org")
-        work.run(["push", "-q", "critic",
+        work.run(["push", "-q", REMOTE_URL,
                   "HEAD:refs/heads/r/020-fixup-review-via-push"])
 
         mailbox.pop(accept=[to("alice"), about("New Review: Relevant summary")])

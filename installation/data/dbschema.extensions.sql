@@ -119,6 +119,6 @@ CREATE TABLE extensionlog
   ( extension INTEGER NOT NULL REFERENCES extensions,
     uid INTEGER NOT NULL REFERENCES users,
     category VARCHAR(64) NOT NULL DEFAULT 'default',
-    time TIMESTAMP NOT NULL DEFAULT now(),
+    time TIMESTAMP NOT NULL DEFAULT NOW(),
     text TEXT NOT NULL );
 CREATE INDEX extensionlog_extension_uid_category ON extensionlog(extension, uid, category);

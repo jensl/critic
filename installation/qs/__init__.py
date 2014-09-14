@@ -14,10 +14,7 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-# The database server: "postgresql" for a real install, "sqlite" for a quick-
-# start.
-DRIVER = %(installation.database.driver)r
+__doc__ = "Quick-start utilities."
 
-# Dictionary whose members are passed as keyword arguments to
-# psycopg2.connect().
-PARAMETERS = %(installation.database.parameters)r
+import sqlite
+import data

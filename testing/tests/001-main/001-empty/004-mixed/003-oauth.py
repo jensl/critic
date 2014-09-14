@@ -117,10 +117,10 @@ frontend.page(
     expect={ "message": message_check })
 
 # Connect the account manually.
-instance.execute(["sudo", "criticctl", "connect",
-                  "--name", "alice",
-                  "--provider", "alice",
-                  "--account", "account-alice"])
+instance.criticctl(["connect",
+                    "--name", "alice",
+                    "--provider", "alice",
+                    "--account", "account-alice"])
 
 # Sign in for real now.
 state = start_externalauth("alice")

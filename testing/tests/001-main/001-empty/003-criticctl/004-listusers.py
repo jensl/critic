@@ -1,8 +1,8 @@
 # Scenario: Invalid format.
 try:
-    instance.execute(
-        ["sudo", "criticctl", "listusers", "--format", "oranges"])
-except testing.virtualbox.GuestCommandError as error:
+    instance.criticctl(
+        ["listusers", "--format", "oranges"])
+except testing.CriticctlError as error:
     if "invalid choice: 'oranges'" not in error.stderr:
         logger.error("criticctl failed with unexpected error message:\n%s"
                      % error.stderr)
@@ -24,26 +24,24 @@ expected = """\
 
 # Scenario: Default / human readable format.
 try:
-    output = instance.execute(["sudo", "criticctl", "listusers"])
-except testing.virtualbox.GuestCommandError as error:
+    output = instance.criticctl(["listusers"])
+except testing.CriticctlError as error:
     logger.error("correct criticctl usage failed:\n%s"
                  % error.stdout)
 else:
     testing.expect.check(expected, output)
 
 try:
-    output = instance.execute(["sudo", "criticctl", "listusers",
-                               "-f", "table"])
-except testing.virtualbox.GuestCommandError as error:
+    output = instance.criticctl(["listusers", "-f", "table"])
+except testing.CriticctlError as error:
     logger.error("correct criticctl usage failed:\n%s"
                  % error.stdout)
 else:
     testing.expect.check(expected, output)
 
 try:
-    output = instance.execute(["sudo", "criticctl", "listusers",
-                               "--format", "table"])
-except testing.virtualbox.GuestCommandError as error:
+    output = instance.criticctl(["listusers", "--format", "table"])
+except testing.CriticctlError as error:
     logger.error("correct criticctl usage failed:\n%s"
                  % error.stdout)
 else:
@@ -64,18 +62,16 @@ expected = """\
 
 # Scenario: Tuples format.
 try:
-    output = instance.execute(["sudo", "criticctl", "listusers",
-                               "-f", "tuples"])
-except testing.virtualbox.GuestCommandError as error:
+    output = instance.criticctl(["listusers", "-f", "tuples"])
+except testing.CriticctlError as error:
     logger.error("correct criticctl usage failed:\n%s"
                  % error.stdout)
 else:
     testing.expect.check(expected, output)
 
 try:
-    output = instance.execute(["sudo", "criticctl", "listusers",
-                               "--format", "tuples"])
-except testing.virtualbox.GuestCommandError as error:
+    output = instance.criticctl(["listusers", "--format", "tuples"])
+except testing.CriticctlError as error:
     logger.error("correct criticctl usage failed:\n%s"
                  % error.stdout)
 else:
@@ -95,18 +91,16 @@ expected = """\
 
 # Scenario: Dicts format.
 try:
-    output = instance.execute(["sudo", "criticctl", "listusers",
-                               "-f", "dicts"])
-except testing.virtualbox.GuestCommandError as error:
+    output = instance.criticctl(["listusers", "-f", "dicts"])
+except testing.CriticctlError as error:
     logger.error("correct criticctl usage failed:\n%s"
                  % error.stdout)
 else:
     testing.expect.check(expected, output)
 
 try:
-    output = instance.execute(["sudo", "criticctl", "listusers",
-                               "--format", "dicts"])
-except testing.virtualbox.GuestCommandError as error:
+    output = instance.criticctl(["listusers", "--format", "dicts"])
+except testing.CriticctlError as error:
     logger.error("correct criticctl usage failed:\n%s"
                  % error.stdout)
 else:

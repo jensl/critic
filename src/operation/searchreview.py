@@ -17,6 +17,7 @@
 import re
 import urllib
 
+import configuration
 import dbutils
 import gitutils
 
@@ -94,14 +95,18 @@ class PathFilter(Filter):
         query.addTable("reviewfiles", "reviewfiles.review=reviews.id")
         query.addTable("files", "files.id=reviewfiles.file")
 
-        static_components = []
-        for component in self.value.split("/"):
-            if component and not ("*" in component or "?" in component):
-                static_components.append(component)
+        if configuration.database.DRIVER == "postgresql":
+            # This is just an optimization; with PostgreSQL we have an index
+            # that avoids matching the pattern against most paths.
 
-        if static_components:
-            query.conditions.append("%s <@ STRING_TO_ARRAY(path, '/')")
-            query.arguments.append(static_components)
+            static_components = []
+            for component in self.value.split("/"):
+                if component and not ("*" in component or "?" in component):
+                    static_components.append(component)
+
+            if static_components:
+                query.conditions.append("%s <@ STRING_TO_ARRAY(path, '/')")
+                query.arguments.append(static_components)
 
         query.conditions.append("files.path ~ %s")
         query.arguments.append(pathToSQLRegExp(self.value))

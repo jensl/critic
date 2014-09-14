@@ -19,6 +19,9 @@ __doc__ = "Installation utilities."
 import os
 import sys
 
+quiet = False
+is_quick_start = False
+
 root_dir = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
 sys.path.insert(0, os.path.join(root_dir, "src"))

@@ -89,6 +89,10 @@ backup of the database first is strongly recommended.
                      data["installation.system.username"]],
                     stdout=output_file)
 
+    data["installation.database.driver"] = "postgresql"
+    data["installation.database.parameters"] = { "database": "critic",
+                                                 "user": data["installation.system.username"] }
+
     return True
 
 SCHEMA_FILES = ["installation/data/dbschema.sql",

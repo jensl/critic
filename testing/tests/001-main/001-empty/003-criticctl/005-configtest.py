@@ -1,6 +1,6 @@
 try:
-    output = instance.execute(["sudo", "criticctl", "configtest"])
-except testing.virtualbox.GuestCommandError as error:
+    output = instance.criticctl(["configtest"])
+except testing.CriticctlError as error:
     logger.error("correct criticctl usage failed:\n%s"
                  % error.stdout)
 else:

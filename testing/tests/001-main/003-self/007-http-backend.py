@@ -26,7 +26,7 @@ try:
     # This should not require a password.
     try:
         git(["clone", "--quiet", "--branch", "master",
-             "http://alice@%s/critic.git" % instance.hostname],
+             "%s/critic.git" % frontend.prefix("alice")],
             cwd=work_dir)
     except subprocess.CalledProcessError as error:
         logger.error("'git clone' failed: %s\n%s"
@@ -64,7 +64,7 @@ try:
     # This should not require a password.
     try:
         git(["clone", "--quiet", "--branch", "master",
-             "http://alice@%s/critic" % instance.hostname],
+             "%s/critic" % frontend.prefix("alice")],
             cwd=work_dir)
     except subprocess.CalledProcessError as error:
         logger.error("'git clone' failed: %s\n%s"

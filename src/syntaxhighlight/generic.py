@@ -15,21 +15,25 @@
 # the License.
 
 import re
-import pygments.lexers
-import pygments.token
+
+try:
+    import pygments.lexers
+    import pygments.token
+except ImportError:
+    LANGUAGES = {}
+else:
+    LANGUAGES = { "python": pygments.lexers.PythonLexer,
+                  "perl": pygments.lexers.PerlLexer,
+                  "java": pygments.lexers.JavaLexer,
+                  "ruby": pygments.lexers.RubyLexer,
+                  "php": pygments.lexers.PhpLexer,
+                  "makefile": pygments.lexers.MakefileLexer,
+                  "javascript": pygments.lexers.JavascriptLexer,
+                  "sql": pygments.lexers.SqlLexer,
+                  "objective-c": pygments.lexers.ObjectiveCLexer,
+                  "xml": pygments.lexers.XmlLexer }
 
 import htmlutils
-
-LANGUAGES = { "python": pygments.lexers.PythonLexer,
-              "perl": pygments.lexers.PerlLexer,
-              "java": pygments.lexers.JavaLexer,
-              "ruby": pygments.lexers.RubyLexer,
-              "php": pygments.lexers.PhpLexer,
-              "makefile": pygments.lexers.MakefileLexer,
-              "javascript": pygments.lexers.JavascriptLexer,
-              "sql": pygments.lexers.SqlLexer,
-              "objective-c": pygments.lexers.ObjectiveCLexer,
-              "xml": pygments.lexers.XmlLexer }
 
 class HighlightGeneric:
     def __init__(self, lexer):

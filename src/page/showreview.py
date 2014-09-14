@@ -722,11 +722,19 @@ def renderShowReview(req, db, user):
                             GROUP BY reviewuserfiles.uid""",
                            (review.id,))
 
-            def total_seconds(delta):
+            now = datetime.datetime.now()
+
+            def seconds_since(timestamp):
+                if isinstance(timestamp, int):
+                    # We tell sqlite3 to convert TIMESTAMP values into datetime
+                    # objects, but apparently MIN(timestamp) as used in the
+                    # query above isn't typed as TIMESTAMP by SQLite, so doesn't
+                    # get converted automatically.
+                    timestamp = datetime.datetime.fromtimestamp(timestamp)
+                delta = now - timestamp
                 return delta.days * 60 * 60 * 24 + delta.seconds
 
-            now = datetime.datetime.now()
-            pending_reviewers = [(dbutils.User.fromId(db, user_id), total_seconds(now - timestamp)) for (user_id, timestamp) in cursor.fetchall() if total_seconds(now - timestamp) > 60 * 60 * 8]
+            pending_reviewers = [(dbutils.User.fromId(db, user_id), seconds_since(timestamp)) for (user_id, timestamp) in cursor.fetchall() if seconds_since(timestamp) > 60 * 60 * 8]
 
             if pending_reviewers:
                 progress.tr().td('stragglers', colspan=3).text("Needs review from")

@@ -522,6 +522,7 @@ web server to redirect all HTTP accesses to HTTPS.
     data["installation.config.minimum_password_hash_time"] = minimum_password_hash_time
     data["installation.config.minimum_rounds"] = minimum_rounds
 
+    data["installation.config.is_quickstart"] = False
     data["installation.config.is_development"] = is_development
     data["installation.config.is_testing"] = is_testing
     data["installation.config.coverage_dir"] = coverage_dir
@@ -576,7 +577,9 @@ def set_file_mode_and_owner(path):
         mode = 0640
 
     os.chmod(path, mode)
-    os.chown(path, uid, gid)
+
+    if not installation.is_quick_start:
+        os.chown(path, uid, gid)
 
 def copy_file_mode_and_owner(src_path, dst_path):
     status = os.stat(src_path)

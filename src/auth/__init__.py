@@ -26,7 +26,24 @@ class NoSuchUser(CheckFailed): pass
 class WrongPassword(CheckFailed): pass
 
 def createCryptContext():
-    from passlib.context import CryptContext
+    try:
+        from passlib.context import CryptContext
+    except ImportError:
+        if not configuration.debug.IS_QUICKSTART:
+            raise
+
+        # Support quick-starting without 'passlib' installed by falling back to
+        # completely bogus unsalted SHA-256-based hashing.
+
+        import hashlib
+
+        class CryptContext:
+            def __init__(self, **kwargs):
+                pass
+            def encrypt(self, password):
+                return hashlib.sha256(password).hexdigest()
+            def verify_and_update(self, password, hashed):
+                return self.encrypt(password) == hashed, None
 
     kwargs = {}
 

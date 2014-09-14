@@ -1,10 +1,10 @@
 # Create user 'iris' with no password.
 
-instance.execute(["sudo", "criticctl", "adduser",
-                  "--name", "iris",
-                  "--email", "iris@example.org",
-                  "--fullname", "'Iris von Testing'",
-                  "--no-password"])
+instance.criticctl(["adduser",
+                    "--name", "iris",
+                    "--email", "iris@example.org",
+                    "--fullname", "'Iris von Testing'",
+                    "--no-password"])
 
 with_class = testing.expect.with_class
 
@@ -87,8 +87,8 @@ with frontend.signin("iris"):
         expect={ "password UI": check_password_ui("****", "Change password") })
 
 with frontend.signin("iris", "custom"):
-    instance.execute(["sudo", "criticctl", "passwd",
-                      "--name", "iris", "--no-password"])
+    instance.criticctl(["passwd",
+                        "--name", "iris", "--no-password"])
 
     frontend.page(
         "home",
@@ -111,8 +111,8 @@ with frontend.signin("iris", "custom"):
         "home",
         expect={ "password UI": check_password_ui("****", "Change password") })
 
-instance.execute(["sudo", "criticctl", "passwd",
-                  "--name", "iris", "--password", "other"])
+instance.criticctl(["passwd",
+                    "--name", "iris", "--password", "other"])
 
 with frontend.signin("iris", "other"):
     frontend.page(

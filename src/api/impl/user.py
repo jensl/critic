@@ -33,7 +33,9 @@ class User(object):
                            WHERE useremails.uid=%s
                         ORDER BY useremails.id ASC""",
                        (self.id,))
-        return [api.user.User.PrimaryEmail(*row) for row in cursor]
+        return [api.user.User.PrimaryEmail(address, bool(selected),
+                                           dbutils.boolean(verified))
+                for address, selected, verified in cursor]
 
     def getGitEmails(self, critic):
         cursor = critic.getDatabaseCursor()

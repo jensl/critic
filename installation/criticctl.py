@@ -26,7 +26,7 @@ def install(data):
     global criticctl_path
 
     source_path = os.path.join(installation.root_dir, "installation", "templates", "criticctl")
-    target_path = criticctl_path = os.path.join("/usr", "bin", "criticctl")
+    target_path = criticctl_path = os.path.join(installation.paths.bin_dir, "criticctl")
 
     with open(target_path, "w") as target:
         created_file.append(target_path)
@@ -39,7 +39,7 @@ def install(data):
     return True
 
 def upgrade(arguments, data):
-    target_path = "/usr/bin/criticctl"
+    target_path = os.path.join(installation.paths.bin_dir, "criticctl")
     backup_path = installation.utils.update_from_template(
         arguments, data,
         template_path="installation/templates/criticctl",

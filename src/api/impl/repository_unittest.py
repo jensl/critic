@@ -2,6 +2,7 @@ import sys
 
 HEAD = None
 SHA1 = None
+PATH = None
 
 def basic():
     import api
@@ -22,13 +23,12 @@ def basic():
     assert isinstance(repository.name, str)
     assert repository.name == "critic"
     assert isinstance(repository.path, str)
-    assert repository.path == "/var/git/critic.git"
+    assert repository.path == PATH
 
     # FIXME: repository.url is currently broken.
 
     assert api.repository.fetch(critic, name="critic") is repository
-    assert api.repository.fetch(
-        critic, path="/var/git/critic.git") is repository
+    assert api.repository.fetch(critic, path=PATH) is repository
 
     all_repositories = api.repository.fetchAll(critic)
     assert len(all_repositories) == 1
@@ -123,6 +123,8 @@ if __name__ == "__main__":
             SHA1 = arg[len("--sha1="):]
         if arg.startswith("--head="):
             HEAD = arg[len("--head="):]
+        if arg.startswith("--path="):
+            PATH = arg[len("--path="):]
 
     if "basic" in sys.argv[1:]:
         coverage.call("unittest", basic)

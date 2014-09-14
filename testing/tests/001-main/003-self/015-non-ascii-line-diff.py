@@ -6,8 +6,7 @@ import BeautifulSoup
 TESTNAME = "015-non-ascii-line-diff"
 
 with repository.workcopy() as work:
-    work.run(["remote", "add", "critic",
-              "alice@%s:/var/git/critic.git" % instance.hostname])
+    REMOTE_URL = instance.repository_url("alice")
 
     def commit(encoding, content, index):
         filename = "%s.%s.txt" % (TESTNAME, encoding)
@@ -32,7 +31,7 @@ with repository.workcopy() as work:
     latin1_from_sha1 = commit("latin-1", u"Non-ascii: \xf6\n", 1)
     latin1_to_sha1 = commit("latin-1", u"Non-ascii: \xf7\n", 2)
 
-    work.run(["push", "critic", "HEAD"])
+    work.run(["push", REMOTE_URL, "HEAD"])
 
 def check_line_diff(document):
     tbody_lines = document.findAll("tbody", attrs={ "class": "lines" })
@@ -73,11 +72,11 @@ frontend.page(
     params={ "repository": "critic",
              "from": utf8_from_sha1,
              "to": utf8_to_sha1 },
-    expect={ "line_diff": check_line_diff })
+    expect={ "utf8_line_diff": check_line_diff })
 
 frontend.page(
     "showcommit",
     params={ "repository": "critic",
              "from": latin1_from_sha1,
              "to": latin1_to_sha1 },
-    expect={ "line_diff": check_line_diff })
+    expect={ "latin1_line_diff": check_line_diff })

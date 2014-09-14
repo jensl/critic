@@ -18,7 +18,7 @@
 import os
 import re
 
-REMOTE_URL = "alice@%s:/var/git/critic.git" % instance.hostname
+REMOTE_URL = instance.repository_url("alice")
 
 to_recipient = testing.mailbox.ToRecipient
 with_subject = testing.mailbox.WithSubject

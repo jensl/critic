@@ -97,6 +97,9 @@ class AddRepository(Operation):
         git(["config", "receive.denyNonFastforwards", "false"], cwd=main_path)
         git(["config", "critic.name", name], cwd=main_path)
 
+        if configuration.debug.IS_QUICKSTART:
+            git(["config", "critic.socket", os.path.join(configuration.paths.SOCKETS_DIR, "githook.unix")], cwd=main_path)
+
         os.symlink(os.path.join(configuration.paths.INSTALL_DIR, "hooks", "pre-receive"), os.path.join(main_path, "hooks", "pre-receive"))
 
         cursor.execute("""INSERT INTO repositories (name, path)

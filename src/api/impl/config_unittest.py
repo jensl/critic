@@ -4,7 +4,7 @@ def basic():
     assert api.config.getBoolean("debug", "IS_TESTING") is True
     assert api.config.getBoolean("smtp", "USE_SSL") is False
     assert api.config.getInteger("smtp", "MAX_ATTEMPTS") == 10
-    assert api.config.getString("base", "SYSTEM_USER_NAME") == "critic"
+    assert api.config.getString("base", "SYSTEM_IDENTITY") == "main"
     assert api.config.getValue("base", "REPOSITORY_URL_TYPES") == ["http"]
 
     try:

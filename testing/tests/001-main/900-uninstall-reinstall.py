@@ -1,3 +1,5 @@
+# @flag uninstall
+
 # Uninstall Critic.
 instance.uninstall()
 

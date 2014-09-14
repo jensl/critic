@@ -15,30 +15,15 @@
 # the License.
 
 import os
-import subprocess
+import sys
 
 import testing
 
-class CommandError(Exception):
-    def __init__(self, stdout, stderr):
-        self.stdout = stdout
-        self.stderr = stderr
-
 class Instance(testing.Instance):
+    flags_on = ["local"]
+
     def has_flag(self, flag):
         return testing.has_flag("HEAD", flag)
-
-    def execute(self, args, log_stdout=True, log_stderr=True, **kwargs):
-        process = subprocess.Popen(
-            args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, **kwargs)
-        stdout, stderr = process.communicate()
-        if stdout.strip() and log_stdout:
-            testing.logger.log(testing.STDOUT, stdout.rstrip("\n"))
-        if stderr.strip() and log_stderr:
-            testing.logger.log(testing.STDERR, stderr.rstrip("\n"))
-        if process.returncode != 0:
-            raise CommandError(stdout, stderr)
-        return stdout
 
     def unittest(self, module, tests, args=None):
         testing.logger.info("Running unit tests: %s (%s)"
@@ -48,9 +33,9 @@ class Instance(testing.Instance):
             args = []
         for test in tests:
             try:
-                self.execute(["python", path, test] + args,
-                             cwd="src", log_stderr=False)
-            except CommandError as error:
+                self.executeProcess([sys.executable, path, test] + args,
+                                    cwd="src", log_stderr=False)
+            except testing.CommandError as error:
                 output = "\n  ".join(error.stderr.splitlines())
                 testing.logger.error("Unit tests failed: %s: %s\nOutput:\n  %s"
                                      % (module, test, output))

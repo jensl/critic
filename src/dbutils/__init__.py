@@ -18,7 +18,7 @@ from dbaccess import (IntegrityError, OperationalError, ProgrammingError,
                       TransactionRollbackError)
 
 from dbutils.session import Session
-from dbutils.database import FailedToLock, NOWAIT, Database
+from dbutils.database import FailedToLock, NOWAIT, Database, boolean
 from dbutils.user import InvalidUserId, NoSuchUser, User
 from dbutils.review import NoSuchReview, ReviewState, Review
 from dbutils.branch import Branch

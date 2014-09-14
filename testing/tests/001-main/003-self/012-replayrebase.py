@@ -25,14 +25,14 @@ SETTINGS = { "review.createViaPush": True,
 
 with testing.utils.settings("alice", SETTINGS), frontend.signin("alice"):
     with repository.workcopy() as work:
-        work.run(["remote", "add", "critic",
-                  "alice@%s:/var/git/critic.git" % instance.hostname])
+        REMOTE_URL = instance.repository_url("alice")
+
         work.run(["checkout", "-b", "r/012-checkrebase", PARENT_SHA1])
         work.run(["cherry-pick", COMMIT_SHA1],
                  GIT_COMMITTER_NAME="Alice von Testing",
                  GIT_COMMITTER_EMAIL="alice@example.org")
 
-        output = work.run(["push", "critic", "HEAD"])
+        output = work.run(["push", REMOTE_URL, "HEAD"])
         next_is_review_url = False
 
         for line in output.splitlines():
@@ -78,7 +78,7 @@ with testing.utils.settings("alice", SETTINGS), frontend.signin("alice"):
             work.run(["add", "testing%d" % index])
         work.run(["commit", "--amend", "--reuse-message=HEAD"])
 
-        work.run(["push", "--force", "critic", "HEAD"])
+        work.run(["push", "--force", REMOTE_URL, "HEAD"])
 
         mailbox.pop(accept=[to("alice"),
                             about("Updated Review: %s" % SUMMARY)])
