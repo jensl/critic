@@ -78,6 +78,9 @@ class User(object):
     def isAnonymous(self):
         return self.status == 'anonymous'
 
+    def isSystem(self):
+        return self.status == 'system'
+
     def hasRole(self, db, role):
         cursor = db.cursor()
         cursor.execute("SELECT 1 FROM userroles WHERE uid=%s AND role=%s", (self.id, role))
@@ -370,6 +373,12 @@ class User(object):
     @staticmethod
     def makeAnonymous():
         return User(None, None, None, 'anonymous', None, None)
+
+    @staticmethod
+    def makeSystem():
+        import configuration
+        return User(0, configuration.base.SYSTEM_USER_NAME, "Critic System",
+                    "system", configuration.base.SYSTEM_USER_EMAIL, None)
 
     @staticmethod
     def _fromQuery(db, where, *values):

@@ -58,7 +58,7 @@ def timestamp(time):
 
 def getUser(db, user_name):
     if user_name == configuration.base.SYSTEM_USER_NAME:
-        return user_name
+        return dbutils.User.makeSystem()
     try:
         return dbutils.User.fromName(db, user_name)
     except dbutils.NoSuchUser:
@@ -70,16 +70,10 @@ def getUser(db, user_name):
             return user
         raise
 
-db = None
-
 class IndexException(Exception):
     pass
 
-def processCommits(repository_name, sha1):
-    repository = gitutils.Repository.fromName(db, repository_name)
-
-    if not repository: raise IndexException("No such repository: %r" % repository_name)
-
+def processCommits(db, repository, sha1):
     sha1 = repository.run("rev-parse", "--verify", "--quiet", sha1 + "^{commit}").strip()
 
     stack = []
@@ -155,31 +149,7 @@ perhaps pushing to the wrong repository?""" % count)
 
     db.commit()
 
-def init():
-    global db
-
-    db = dbutils.Database()
-
-def finish():
-    global db
-
-    if db:
-        db.commit()
-        db.close()
-        db = None
-
-def abort():
-    global db
-
-    if db:
-        db.rollback()
-        db.close()
-        db = None
-
-def createBranches(user_name, repository_name, branches, flags):
-    user = getUser(db, user_name)
-    repository = gitutils.Repository.fromName(db, repository_name)
-
+def createBranches(db, user, repository, branches, flags):
     if len(branches) > 1:
         try:
             from customization.branches import compareBranchNames
@@ -231,9 +201,9 @@ def createBranches(user_name, repository_name, branches, flags):
     multiple = len(branches) > 1
 
     for name, head in branches:
-        createBranch(user, repository, name, head, multiple, flags)
+        createBranch(db, user, repository, name, head, multiple, flags)
 
-def createBranch(user, repository, name, head, multiple, flags):
+def createBranch(db, user, repository, name, head, multiple, flags):
     try:
         update(repository.path, "refs/heads/" + name, None, head)
     except Reject as rejected:
@@ -271,7 +241,7 @@ associated with the branch.  You can do this from the review's front-page:
             #
             # We can trigger that handling by calling updateBranch() with any
             # "wrong" old value.
-            updateBranch(user.name, repository.name, name, "0" * 40, head, multiple, flags)
+            updateBranch(db, user, repository, name, "0" * 40, head, multiple, flags)
             return
 
     def commit_id(sha1):
@@ -303,7 +273,9 @@ associated with the branch.  You can do this from the review's front-page:
         except ValueError:
             pass
 
-        if user.getPreference(db, "review.createViaPush"):
+        if user.isSystem():
+            raise IndexException("Refusing to create review this way.")
+        elif user.getPreference(db, "review.createViaPush"):
             the_commit = gitutils.Commit.fromSHA1(db, repository, head, commit_id(head))
             all_commits = [the_commit]
 
@@ -412,14 +384,6 @@ associated with the branch.  You can do this from the review's front-page:
             if stack: sha1 = stack.pop(0)
             else: break
 
-    if isinstance(user, dbutils.User):
-        # Push by regular user.
-        user_name = user.name
-    else:
-        # Push by the Critic system user, i.e. by the branch tracker service or
-        # other internal mechanism.
-        user_name = user
-
     if not base:
         cursor.execute("INSERT INTO branches (repository, name, head) VALUES (%s, %s, %s) RETURNING id", (repository.id, name, commit_id(head)))
         branch_id = cursor.fetchone()[0]
@@ -429,10 +393,7 @@ associated with the branch.  You can do this from the review's front-page:
 
         # Suppress the "user friendly" feedback if the push is performed by the
         # Critic system user, since there wouldn't be a human being reading it.
-        #
-        # Also, the calls to user.getCriticURLs() obvious don't work if 'user'
-        # isn't a dbutils.User object, which it isn't in that case.
-        if user_name != configuration.base.SYSTEM_USER_NAME:
+        if not user.isSystem():
             cursor.execute("SELECT name FROM branches WHERE id=%s", [base])
 
             print "Added branch based on %s containing %d commit%s:" % (cursor.fetchone()[0], len(commit_list), "s" if len(commit_list) > 1 else "")
@@ -448,12 +409,12 @@ associated with the branch.  You can do this from the review's front-page:
     reachable_values = [(branch_id, commit.sha1) for commit in commit_list]
     cursor.executemany("INSERT INTO reachable (branch, commit) SELECT %s, id FROM commits WHERE sha1=%s", reachable_values)
 
-    if not repository.hasMainBranch() and user_name == configuration.base.SYSTEM_USER_NAME:
+    # FIXME: Drop the "main branch" concept already!  Use the repository's HEAD
+    # or all tracked branches instead, depending on the situation.
+    if not repository.hasMainBranch() and user.isSystem():
         cursor.execute("UPDATE repositories SET branch=%s WHERE id=%s", (branch_id, repository.id))
 
-def updateBranch(user_name, repository_name, name, old, new, multiple, flags):
-    repository = gitutils.Repository.fromName(db, repository_name)
-
+def updateBranch(db, user, repository, name, old, new, multiple, flags):
     try:
         update(repository.path, "refs/heads/" + name, old, new)
     except Reject as rejected:
@@ -508,7 +469,7 @@ to resynchronize the Git repository with Critic's database.  Note that 'critic' 
 
         assert not forced or not name.startswith("r/")
 
-        if user_name != configuration.base.SYSTEM_USER_NAME \
+        if not user.isSystem() \
                 or flags.get("trackedbranch_id") != str(trackedbranch_id):
             raise IndexException("""\
 The branch '%s' is set up to track '%s' in
@@ -533,8 +494,8 @@ Please don't push it manually to this repository.""" % (name, remote_name, remot
                     else:
                         print "Non-fast-forward update detected; deleting and recreating branch."
 
-                        deleteBranch(user_name, repository.name, branch.name, old)
-                        createBranches(user_name, repository.name, [(branch.name, new)], flags)
+                        deleteBranch(db, user, repository, branch.name, old)
+                        createBranches(db, user, repository, [(branch.name, new)], flags)
 
                         return
                 else:
@@ -569,13 +530,6 @@ first, and then repeat this push.""" % name)
     else:
         tracked_branch = False
 
-    user = getUser(db, user_name)
-
-    if isinstance(user, str):
-        user = dbutils.User(
-            0, configuration.base.SYSTEM_USER_NAME, "Critic System", "current",
-            configuration.base.SYSTEM_USER_EMAIL, None)
-
     cursor.execute("SELECT id FROM reviews WHERE branch=%s", (branch.id,))
     row = cursor.fetchone()
 
@@ -605,7 +559,7 @@ review branch at a time.""")
             rebaser = dbutils.User.fromId(db, rebaser_id)
 
             if rebaser.id != user.id:
-                if user_name == configuration.base.SYSTEM_USER_NAME:
+                if user.isSystem():
                     user = rebaser
                 else:
                     raise IndexException("""\
@@ -868,9 +822,7 @@ Perhaps you should request a new review of the follow-up commits?""")
                                                gitutils.Commit.fromSHA1(db, repository, new),
                                                sys.stdout)
 
-def deleteBranch(user_name, repository_name, name, old):
-    repository = gitutils.Repository.fromName(db, repository_name)
-
+def deleteBranch(db, user, repository, name, old):
     try:
         update(repository.path, "refs/heads/" + name, old, None)
     except Reject as rejected:
@@ -898,12 +850,10 @@ def deleteBranch(user_name, repository_name, name, old):
 
         # Suppress the "user friendly" feedback if the push is performed by the
         # Critic system user, since there wouldn't be a human being reading it.
-        if user_name != configuration.base.SYSTEM_USER_NAME:
+        if not user.isSystem():
             print "Deleted branch containing %d commit%s." % (ncommits, "s" if ncommits > 1 else "")
 
-def createTag(repository_name, name, sha1):
-    repository = gitutils.Repository.fromName(db, repository_name)
-
+def createTag(db, user, repository, name, sha1):
     sha1 = gitutils.getTaggedCommit(repository, sha1)
 
     if sha1:
@@ -911,9 +861,7 @@ def createTag(repository_name, name, sha1):
         cursor.execute("INSERT INTO tags (name, repository, sha1) VALUES (%s, %s, %s)",
                        (name, repository.id, sha1))
 
-def updateTag(repository_name, name, old_sha1, new_sha1):
-    repository = gitutils.Repository.fromName(db, repository_name)
-
+def updateTag(db, user, repository, name, old_sha1, new_sha1):
     sha1 = gitutils.getTaggedCommit(repository, new_sha1)
     cursor = db.cursor()
 
@@ -924,9 +872,7 @@ def updateTag(repository_name, name, old_sha1, new_sha1):
         cursor.execute("DELETE FROM tags WHERE name=%s AND repository=%s",
                        (name, repository.id))
 
-def deleteTag(repository_name, name):
-    repository = gitutils.Repository.fromName(db, repository_name)
-
+def deleteTag(db, user, repository, name):
     cursor = db.cursor()
     cursor.execute("DELETE FROM tags WHERE name=%s AND repository=%s",
                    (name, repository.id))

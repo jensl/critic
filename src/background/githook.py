@@ -31,6 +31,8 @@ def slave():
     import StringIO
     import traceback
 
+    import dbutils
+    import gitutils
     import index
 
     def reject(message):
@@ -40,6 +42,8 @@ def slave():
     def error(message):
         sys_stdout.write(json_encode({ "status": "error", "error": message }))
         sys.exit(0)
+
+    db = dbutils.Database()
 
     try:
         data = sys.stdin.read()
@@ -53,17 +57,15 @@ def slave():
         delete_tags = []
         update_tags = []
 
-        user_name = request["user_name"]
-        repository_name = request["repository_name"]
+        repository = gitutils.Repository.fromName(db, request["repository_name"])
+        user = index.getUser(db, request["user_name"])
 
-        if request["flags"] and user_name == configuration.base.SYSTEM_USER_NAME:
+        if request["flags"] and user.isSystem():
             flags = dict(flag.split("=", 1) for flag in request["flags"].split(","))
         else:
             flags = {}
 
         sys.stdout = StringIO.StringIO()
-
-        index.init()
 
         commits_to_process = set()
 
@@ -110,36 +112,36 @@ def slave():
         info = []
 
         for sha1 in commits_to_process:
-            index.processCommits(repository_name, sha1)
+            index.processCommits(db, repository, sha1)
 
         for name, old in delete_branches:
-            index.deleteBranch(user_name, repository_name, name, old)
+            index.deleteBranch(db, user, repository, name, old)
             info.append("branch deleted: %s" % name)
 
         for name, old, new in update_branches:
-            index.updateBranch(user_name, repository_name, name, old, new, multiple, flags)
+            index.updateBranch(db, user, repository, name, old, new, multiple, flags)
             info.append("branch updated: %s (%s..%s)" % (name, old[:8], new[:8]))
 
-        index.createBranches(user_name, repository_name, create_branches, flags)
+        index.createBranches(db, user, repository, create_branches, flags)
 
         for name, new in create_branches:
             info.append("branch created: %s (%s)" % (name, new[:8]))
 
         for name in delete_tags:
-            index.deleteTag(repository_name, name)
+            index.deleteTag(db, user, repository, name)
             info.append("tag deleted: %s" % name)
 
         for name, old, new in update_tags:
-            index.updateTag(repository_name, name, old, new)
+            index.updateTag(db, user, repository, name, old, new)
             info.append("tag updated: %s (%s..%s)" % (name, old[:8], new[:8]))
 
         for name, new in create_tags:
-            index.createTag(repository_name, name, new)
+            index.createTag(db, user, repository, name, new)
             info.append("tag created: %s (%s)" % (name, new[:8]))
 
         sys_stdout.write(json_encode({ "status": "ok", "accept": True, "output": sys.stdout.getvalue(), "info": info }))
 
-        index.finish()
+        db.commit()
     except index.IndexException as exception:
         sys_stdout.write(json_encode({ "status": "ok", "accept": False, "output": exception.message, "info": info }))
     except SystemExit:
@@ -156,7 +158,7 @@ Request:
 
         sys_stdout.write(json_encode({ "status": "error", "error": message }))
     finally:
-        index.abort()
+        db.close()
 
 class GitHookServer(background.utils.PeerServer):
     class ChildProcess(background.utils.PeerServer.ChildProcess):
