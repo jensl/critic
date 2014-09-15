@@ -25,6 +25,7 @@ import tempfile
 import shutil
 import stat
 import contextlib
+import base64
 
 import base
 import configuration
@@ -491,13 +492,19 @@ class Repository:
         assert name.startswith("refs/")
         self.run("update-ref", name, str(value), "0" * 40)
 
-    def updateref(self, name, new_value, old_value):
+    def updateref(self, name, new_value, old_value=None):
         assert name.startswith("refs/")
-        self.run("update-ref", name, str(new_value), str(old_value))
+        args = ["update-ref", name, str(new_value)]
+        if old_value is not None:
+            args.append(str(old_value))
+        self.run(*args)
 
-    def deleteref(self, name, value):
+    def deleteref(self, name, value=None):
         assert name.startswith("refs/")
-        self.run("update-ref", "-d", name, str(value))
+        args = ["update-ref", "-d", name]
+        if value is not None:
+            args.append(str(value))
+        self.run(*args)
 
     def keepalive(self, commit):
         sha1 = str(commit)
@@ -594,10 +601,15 @@ class Repository:
         return True
 
     @contextlib.contextmanager
-    def temporaryref(self, commit):
-        sha1 = self.revparse(str(commit))
-        name = "refs/temporary/%s" % sha1
-        self.createref(name, sha1)
+    def temporaryref(self, commit=None):
+        if commit:
+            sha1 = self.revparse(str(commit))
+            name = "refs/temporary/%s" % sha1
+            self.createref(name, sha1)
+        else:
+            sha1 = None
+            name = "refs/temporary/%s-%s" % (time.strftime("%Y%m%d%H%M%S"),
+                                             base64.b32encode(os.urandom(10)))
         try:
             yield name
         finally:
@@ -742,10 +754,12 @@ class Repository:
             relay.run("push", "-f", "origin", "FETCH_HEAD:%s" % branch_name)
 
     @contextlib.contextmanager
-    def fetchTemporaryFromRemote(self, remote, ref):
-        with self.relaycopy("fetchTemporaryFromRemote") as relay:
+    def fetchTemporaryFromRemote(self, db, remote, ref):
+        import index
+
+        with self.temporaryref() as temporary_ref:
             try:
-                relay.run("fetch", remote, ref)
+                self.run("fetch", remote, "%s:%s" % (ref, temporary_ref))
             except GitCommandError as error:
                 if error.output.startswith("fatal: Couldn't find remote ref "):
                     raise GitReferenceError("Couldn't find ref %s in %s." % (ref, remote), ref=ref, repository=remote)
@@ -753,15 +767,11 @@ class Repository:
                     raise GitReferenceError("Invalid ref %r." % ref, ref=ref)
                 raise
 
-            sha1 = relay.run("rev-parse", "--verify", "FETCH_HEAD").strip()
-            name = "refs/temporary/%s" % sha1
+            sha1 = self.run("rev-parse", "--verify", temporary_ref).strip()
 
-            relay.run("push", "-f", "origin", "%s:%s" % (sha1, name))
+            index.processCommits(db, self, sha1)
 
-        try:
             yield sha1
-        finally:
-            self.deleteref(name, sha1)
 
     @staticmethod
     def readObject(repository_path, object_type, object_sha1):

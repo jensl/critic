@@ -235,7 +235,7 @@ class FetchRemoteBranch(Operation):
             branch = "refs/heads/%s" % branch
 
         try:
-            with repository.fetchTemporaryFromRemote(remote, branch) as sha1:
+            with repository.fetchTemporaryFromRemote(db, remote, branch) as sha1:
                 head_sha1 = repository.keepalive(sha1)
         except gitutils.GitReferenceError as error:
             if error.repository:
@@ -265,7 +265,7 @@ class FetchRemoteBranch(Operation):
 
         if upstream.startswith("refs/"):
             try:
-                with repository.fetchTemporaryFromRemote(remote, upstream) as sha1:
+                with repository.fetchTemporaryFromRemote(db, remote, upstream) as sha1:
                     upstream_sha1 = repository.keepalive(sha1)
             except gitutils.GitReferenceError:
                 raise OperationFailure(
