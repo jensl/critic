@@ -230,7 +230,7 @@ def read_file(git, commit_sha1, path):
     return run_git([git, "cat-file", "blob", file_sha1],
                    cwd=installation.root_dir)
 
-def get_intial_commit_date(git, path):
+def get_initial_commit_date(git, path):
     initial_commit_timestamp = run_git([git, "log", "--oneline",
             "--format=%ct", "--", path], cwd=installation.root_dir).splitlines()[-1]
     return datetime.datetime.fromtimestamp(int(initial_commit_timestamp))
