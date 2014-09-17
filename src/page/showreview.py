@@ -1207,10 +1207,13 @@ def renderShowReview(req, db, user):
                 replies = per_batch.get("reply")
                 if replies:
                     items.append("wrote %d %s" % with_plural(replies, "reply", "replies"))
-                if len(items) == 1:
-                    items = items[0]
+                if items:
+                    if len(items) == 1:
+                        items = items[0]
+                    else:
+                        items = "%s and %s" % (", ".join(items[:-1]), items[-1])
                 else:
-                    items = "%s and %s" % (", ".join(items[:-1]), items[-1])
+                    items = "nothing"
                 title.span("numbers").text(items)
 
             row.td("when").text(user.formatTimestamp(db, timestamp))
