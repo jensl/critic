@@ -27,7 +27,7 @@ with testing.utils.settings("alice", SETTINGS), frontend.signin("alice"):
     with repository.workcopy() as work:
         REMOTE_URL = instance.repository_url("alice")
 
-        work.run(["checkout", "-b", "r/012-checkrebase", PARENT_SHA1])
+        work.run(["checkout", "-b", "r/012-replayrebase", PARENT_SHA1])
         work.run(["cherry-pick", COMMIT_SHA1],
                  GIT_COMMITTER_NAME="Alice von Testing",
                  GIT_COMMITTER_EMAIL="alice@example.org")

@@ -43,8 +43,8 @@ except:
             return None
 
 class SummaryColumn(log.html.SummaryColumn):
-    def __init__(self, review, linkToCommit):
-        log.html.SummaryColumn.__init__(self, linkToCommit)
+    def __init__(self, review):
+        log.html.SummaryColumn.__init__(self)
         self.__review = review
         self.__cache = {}
 
@@ -221,11 +221,17 @@ def renderShowReview(req, db, user):
 
     profiler.check("commits (query)")
 
-    cursor.execute("""SELECT old_head, commits1.sha1, new_head, commits2.sha1, new_upstream, commits3.sha1
+    cursor.execute("""SELECT old_head, old_head_commit.sha1,
+                             new_head, new_head_commit.sha1,
+                             new_upstream, new_upstream_commit.sha1,
+                             equivalent_merge, equivalent_merge_commit.sha1,
+                             replayed_rebase, replayed_rebase_commit.sha1
                         FROM reviewrebases
-             LEFT OUTER JOIN commits AS commits1 ON (commits1.id=old_head)
-             LEFT OUTER JOIN commits AS commits2 ON (commits2.id=new_head)
-             LEFT OUTER JOIN commits AS commits3 ON (commits3.id=new_upstream)
+             LEFT OUTER JOIN commits AS old_head_commit ON (old_head_commit.id=old_head)
+             LEFT OUTER JOIN commits AS new_head_commit ON (new_head_commit.id=new_head)
+             LEFT OUTER JOIN commits AS new_upstream_commit ON (new_upstream_commit.id=new_upstream)
+             LEFT OUTER JOIN commits AS equivalent_merge_commit ON (equivalent_merge_commit.id=equivalent_merge)
+             LEFT OUTER JOIN commits AS replayed_rebase_commit ON (replayed_rebase_commit.id=replayed_rebase)
                        WHERE review=%s""",
                    (review.id,))
 
@@ -234,7 +240,11 @@ def renderShowReview(req, db, user):
     if rebases:
         has_finished_rebases = False
 
-        for old_head_id, old_head_sha1, new_head_id, new_head_sha1, new_upstream_id, new_upstream_sha1 in rebases:
+        for (old_head_id, old_head_sha1,
+             new_head_id, new_head_sha1,
+             new_upstream_id, new_upstream_sha1,
+             equivalent_merge_id, equivalent_merge_sha1,
+             replayed_rebase_id, replayed_rebase_sha1) in rebases:
             if old_head_id:
                 prefetch_commits[old_head_sha1] = old_head_id
             if new_head_id:
@@ -242,6 +252,10 @@ def renderShowReview(req, db, user):
                 has_finished_rebases = True
             if new_upstream_id:
                 prefetch_commits[new_upstream_sha1] = new_upstream_id
+            if equivalent_merge_id:
+                prefetch_commits[equivalent_merge_sha1] = equivalent_merge_id
+            if replayed_rebase_id:
+                prefetch_commits[replayed_rebase_sha1] = replayed_rebase_id
 
         profiler.check("auxiliary commits (query)")
 
@@ -771,19 +785,13 @@ def renderShowReview(req, db, user):
 
     check = profiler.start("ApprovalColumn.fillCache")
 
-    def linkToCommit(commit, overrides={}):
-        if "rebase_conflicts" in overrides:
-            return "%s..%s?review=%d&conflicts=yes" % (overrides["rebase_conflicts"].sha1[:8], commit.sha1[:8], review.id)
-        else:
-            return "%s?review=%d" % (commit.sha1[:8], review.id)
-
     approval_cache = {}
 
     ApprovalColumn.fillCache(db, user, review, approval_cache, profiler)
 
     check.stop()
 
-    summary_column = SummaryColumn(review, linkToCommit)
+    summary_column = SummaryColumn(review)
     summary_column.fillCache(db, review)
 
     profiler.check("SummaryColumn.fillCache")
@@ -826,26 +834,22 @@ def renderShowReview(req, db, user):
 
         profiler.check("FetchCommits.getCommits()")
 
-        cursor.execute("""SELECT DISTINCT type, parent, child
+        cursor.execute("""SELECT DISTINCT parent, child
                             FROM changesets
                             JOIN reviewchangesets ON (reviewchangesets.changeset=changesets.id)
                             JOIN commits ON (commits.id=changesets.child)
-                           WHERE review=%s""",
+                           WHERE review=%s
+                             AND type!='conflicts'""",
                        (review.id,))
 
         commits = set()
-        conflicts = {}
 
-        for changeset_type, parent_id, child_id in cursor:
-            child = gitutils.Commit.fromId(db, repository, child_id)
-            if changeset_type == "conflicts":
-                conflicts[child] = gitutils.Commit.fromId(db, repository, parent_id)
-            else:
-                commits.add(child)
+        for parent_id, child_id in cursor:
+            commits.add(gitutils.Commit.fromId(db, repository, child_id))
 
         commits = list(commits)
 
-        cursor.execute("""SELECT id, old_head, new_head, new_upstream, uid, branch
+        cursor.execute("""SELECT id, old_head, new_head, new_upstream, equivalent_merge, replayed_rebase, uid, branch
                             FROM reviewrebases
                            WHERE review=%s""",
                        (review.id,))
@@ -855,8 +859,10 @@ def renderShowReview(req, db, user):
                         gitutils.Commit.fromId(db, repository, new_head) if new_head else None,
                         dbutils.User.fromId(db, user_id),
                         gitutils.Commit.fromId(db, repository, new_upstream) if new_upstream is not None else None,
+                        gitutils.Commit.fromId(db, repository, equivalent_merge) if equivalent_merge is not None else None,
+                        gitutils.Commit.fromId(db, repository, replayed_rebase) if replayed_rebase is not None else None,
                         branch_name)
-                       for rebase_id, old_head, new_head, new_upstream, user_id, branch_name in cursor]
+                       for rebase_id, old_head, new_head, new_upstream, equivalent_merge, replayed_rebase, user_id, branch_name in cursor]
 
         bottom_right = None
 
@@ -887,7 +893,7 @@ def renderShowReview(req, db, user):
         else:
             actual_commits = []
 
-        log.html.render(db, target, "Commits (%d)", commits=commits, columns=columns, title_right=renderReviewPending, rebases=finished_rebases, branch_name=review.branch.name, bottom_right=bottom_right, review=review, highlight=highlight, profiler=profiler, user=user, extra_commits=actual_commits, conflicts=conflicts)
+        log.html.render(db, target, "Commits (%d)", commits=commits, columns=columns, title_right=renderReviewPending, rebases=finished_rebases, branch_name=review.branch.name, bottom_right=bottom_right, review=review, highlight=highlight, profiler=profiler, user=user, extra_commits=actual_commits)
 
         yield flush(target)
 

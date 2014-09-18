@@ -642,6 +642,11 @@ the new upstream specified and then push that instead.""")
 
                     repository.keepalive(old_head)
                     repository.keepalive(replayed_rebase)
+
+                    cursor.execute("""UPDATE reviewrebases
+                                         SET replayed_rebase=%s
+                                       WHERE id=%s""",
+                                   (replayed_rebase.getId(db), rebase_id))
                 else:
                     reviewing.utils.addCommitsToReview(
                         db, user, review, [merge], pending_mails=pending_mails,
@@ -649,16 +654,16 @@ the new upstream specified and then push that instead.""")
 
                     repository.keepalive(merge)
 
-                if not unrelated_move:
                     cursor.execute("""UPDATE reviewrebases
-                                         SET old_head=%s
-                                       WHERE review=%s AND new_head IS NULL""",
-                                   (merge.id, review.id))
+                                         SET equivalent_merge=%s
+                                       WHERE id=%s""",
+                                   (merge.getId(db), rebase_id))
 
                 cursor.execute("""UPDATE reviewrebases
-                                     SET new_head=%s, new_upstream=%s
-                                   WHERE review=%s AND new_head IS NULL""",
-                               (new_head.getId(db), new_upstream.getId(db), review.id))
+                                     SET new_head=%s,
+                                         new_upstream=%s
+                                   WHERE id=%s""",
+                               (new_head.getId(db), new_upstream.getId(db), rebase_id))
 
                 cursor.execute("""INSERT INTO previousreachable (rebase, commit)
                                        SELECT %s, commit
@@ -712,8 +717,8 @@ the rebased local branch to see what those changes are.""")
 
                 cursor.execute("""UPDATE reviewrebases
                                      SET new_head=%s
-                                   WHERE review=%s AND new_head IS NULL""",
-                               (new_head.getId(db), review.id))
+                                   WHERE id=%s""",
+                               (new_head.getId(db), rebase_id))
 
                 cursor.execute("""INSERT INTO previousreachable (rebase, commit)
                                        SELECT %s, commit

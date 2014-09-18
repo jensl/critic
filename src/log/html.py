@@ -41,6 +41,11 @@ def renderWhen(target, when):
     target.innerHTML(formatWhen(when))
 
 def linkToCommit(commit, overrides={}):
+    if "review" in overrides:
+        review = overrides["review"]
+        if "replayed_rebase" in overrides:
+            return "%s..%s?review=%d&conflicts=yes" % (overrides["replayed_rebase"].sha1[:8], commit.sha1[:8], review.id)
+        return "%s?review=%d" % (commit.sha1[:8], review.id)
     return "%s/%s" % (commit.repository.name, commit.sha1)
 
 re_remote_into_local = re.compile("^Merge (?:branch|commit) '([^']+)' of [^ ]+ into \\1$")
@@ -116,7 +121,7 @@ DEFAULT_COLUMNS = [(10, WhenColumn()),
                    (65, SummaryColumn()),
                    (20, AuthorColumn())]
 
-def render(db, target, title, branch=None, commits=None, columns=DEFAULT_COLUMNS, title_right=None, listed_commits=None, rebases=None, branch_name=None, bottom_right=None, review=None, highlight=None, profiler=None, collapsable=False, user=None, extra_commits=None, conflicts=set()):
+def render(db, target, title, branch=None, commits=None, columns=DEFAULT_COLUMNS, title_right=None, listed_commits=None, rebases=None, branch_name=None, bottom_right=None, review=None, highlight=None, profiler=None, collapsable=False, user=None, extra_commits=None):
     addResources(target)
 
     if not profiler: profiler = Profiler()
@@ -142,12 +147,15 @@ def render(db, target, title, branch=None, commits=None, columns=DEFAULT_COLUMNS
     if rebases:
         class Rebase(object):
             def __init__(self, rebase_id, old_head, new_head, user,
-                         new_upstream, target_branch_name):
+                         new_upstream, equivalent_merge, replayed_rebase,
+                         target_branch_name):
                 self.id = rebase_id
-                self.old_head = Commit.fromId(db, repository, old_head)
-                self.new_head = Commit.fromId(db, repository, new_head)
+                self.old_head = equivalent_merge or old_head
+                self.new_head = new_head
                 self.user = user
-                self.new_upstream = new_upstream and Commit.fromId(db, repository, new_upstream)
+                self.new_upstream = new_upstream
+                self.equivalent_merge = equivalent_merge
+                self.replayed_rebase = replayed_rebase
                 self.target_branch_name = target_branch_name
 
         # The first element in the tuples in 'rebases' is the rebase id, which
@@ -222,6 +230,9 @@ def render(db, target, title, branch=None, commits=None, columns=DEFAULT_COLUMNS
                 classes.append("highlight")
                 row_id = commit.sha1
 
+            if review:
+                overrides["review"] = review
+
             row = table.tr(" ".join(classes), id=row_id)
             profiler.check("log: rendering: row")
             for index, (width, column) in enumerate(columns):
@@ -235,14 +246,24 @@ def render(db, target, title, branch=None, commits=None, columns=DEFAULT_COLUMNS
 
     cursor = db.cursor()
 
-    def emptyCommit(commit):
-        cursor.execute("""SELECT 1
-                            FROM fileversions
-                            JOIN changesets ON (changesets.id=fileversions.changeset)
-                            JOIN reviewchangesets ON (reviewchangesets.changeset=changesets.id)
-                           WHERE changesets.child=%s
-                             AND reviewchangesets.review=%s""",
-                       (commit.getId(db), review.id))
+    def emptyChangeset(child, parent=None):
+        if parent is None:
+            cursor.execute("""SELECT 1
+                                FROM fileversions
+                                JOIN changesets ON (changesets.id=fileversions.changeset)
+                                JOIN reviewchangesets ON (reviewchangesets.changeset=changesets.id)
+                               WHERE changesets.child=%s
+                                 AND reviewchangesets.review=%s""",
+                           (child.getId(db), review.id))
+        else:
+            cursor.execute("""SELECT 1
+                                FROM fileversions
+                                JOIN changesets ON (changesets.id=fileversions.changeset)
+                                JOIN reviewchangesets ON (reviewchangesets.changeset=changesets.id)
+                               WHERE changesets.parent=%s
+                                 AND changesets.child=%s
+                                 AND reviewchangesets.review=%s""",
+                           (parent.getId(db), child.getId(db), review.id))
         return not cursor.fetchone()
 
     def inner(target, head, tails, align='right', title=None, table=None, silent_if_empty=set(), upstream=None):
@@ -286,7 +307,7 @@ def render(db, target, title, branch=None, commits=None, columns=DEFAULT_COLUMNS
             optional_merge = False
             listed = listed_commits is None or commit.getId(db) in listed_commits
 
-            if commit in silent_if_empty and emptyCommit(commit):
+            if commit in silent_if_empty and emptyChangeset(commit):
                 # This is a clean automatically generated merge commit; pretend it isn't here at all.
                 suppress = True
 
@@ -483,8 +504,8 @@ def render(db, target, title, branch=None, commits=None, columns=DEFAULT_COLUMNS
 
     if rebases:
         for rebase in rebases:
-            if rebase.new_upstream or rebase.target_branch_name:
-                silent_if_empty.add(rebase.old_head)
+            if rebase.equivalent_merge:
+                silent_if_empty.add(rebase.equivalent_merge)
 
         top_rebases = []
 
@@ -528,13 +549,14 @@ def render(db, target, title, branch=None, commits=None, columns=DEFAULT_COLUMNS
             else:
                 cell.text(".")
 
-            if rebase.new_head in conflicts and not emptyCommit(rebase.new_head):
+            if rebase.replayed_rebase and not emptyChangeset(parent=rebase.replayed_rebase,
+                                                             child=rebase.new_head):
                 output(table, rebase.new_head,
                        overrides={ "type": "Rebase",
                                    "summary": "Changes introduced by rebase",
                                    "summary_classnames": ["rebase"],
                                    "author": rebase.user,
-                                   "rebase_conflicts": conflicts[rebase.new_head] })
+                                   "replayed_rebase": rebase.replayed_rebase })
 
     while True:
         # 'local_tails' is the set of commits that, when reached, should make
@@ -588,14 +610,14 @@ def render(db, target, title, branch=None, commits=None, columns=DEFAULT_COLUMNS
                 else:
                     cell.text(".")
 
-                if rebase.new_head in conflicts:
-                    if len(rebase.new_head.parents) < 2 and not emptyCommit(rebase.new_head):
-                        output(table, rebase.new_head,
-                               overrides={ "type": "Rebase",
-                                           "summary": "Changes introduced by rebase",
-                                           "summary_classnames": ["rebase"],
-                                           "author": rebase.user,
-                                           "rebase_conflicts": conflicts[rebase.new_head] })
+                if rebase.replayed_rebase and not emptyChangeset(parent=rebase.replayed_rebase,
+                                                                 child=rebase.new_head):
+                    output(table, rebase.new_head,
+                           overrides={ "type": "Rebase",
+                                       "summary": "Changes introduced by rebase",
+                                       "summary_classnames": ["rebase"],
+                                       "author": rebase.user,
+                                       "replayed_rebase": rebase.replayed_rebase })
 
                 if rebases and rebases[-1].new_head == head:
                     rebase = rebases.pop()

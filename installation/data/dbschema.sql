@@ -340,6 +340,8 @@ CREATE TABLE reviewrebases
     new_head INTEGER REFERENCES commits,
     old_upstream INTEGER REFERENCES commits,
     new_upstream INTEGER REFERENCES commits,
+    equivalent_merge INTEGER REFERENCES commits,
+    replayed_rebase INTEGER REFERENCES commits,
     uid INTEGER NOT NULL REFERENCES users,
     branch VARCHAR(256),
 

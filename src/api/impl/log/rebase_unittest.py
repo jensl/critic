@@ -7,9 +7,12 @@ def basic():
     repository = api.repository.fetch(critic, name="critic")
     alice = api.user.fetch(critic, name="alice")
 
-    def fetch_review(number):
-        branch = api.branch.fetch(critic, repository=repository,
-                                  name="r/020-reviewrebase/%d" % number)
+    def fetch_review(number=None):
+        if number is None:
+            name = "r/012-replayrebase"
+        else:
+            name = "r/020-reviewrebase/%d" % number
+        branch = api.branch.fetch(critic, repository=repository, name=name)
         return api.review.fetch(critic, branch=branch)
 
     def check_history_rewrite(rebase, old_head_summary, new_head_summary):
@@ -39,6 +42,20 @@ def basic():
         else:
             assert rebase.replayed_rebase is None
         assert rebase.creator is alice
+
+    #
+    # 012-replayrebase
+    #
+
+    rebases = fetch_review().rebases
+
+    assert len(rebases) == 1
+    check_move_rebase(rebases[0],
+                      old_head_summary="Use temporary clones for relaying instead of temporary remotes",
+                      new_head_summary="Use temporary clones for relaying instead of temporary remotes",
+                      old_upstream_summary="Add test for diffs including the initial commit",
+                      new_upstream_summary="Add utility function for creating a user",
+                      expect="replayed_rebase")
 
     #
     # 020-reviewrebase, test 1

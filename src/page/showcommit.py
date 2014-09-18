@@ -469,13 +469,9 @@ def render(db, target, user, repository, review, changesets, commits, listed_com
 
     if len(changesets) == 1:
         if commits and len(commits) > 1:
-            def linkToCommit(commit, overrides={}):
-                if review: return "%s/%s?review=%d" % (repository.name, commit.sha1, review.id)
-                else: return "%s/%s" % (repository.name, commit.sha1)
-
             columns = [(10, log_html.WhenColumn()),
                        (5, log_html.TypeColumn()),
-                       (65, log_html.SummaryColumn(linkToCommit)),
+                       (65, log_html.SummaryColumn()),
                        (20, log_html.AuthorColumn())]
 
             log_html.render(db, main, "Squashed History", commits=commits, listed_commits=listed_commits, rebases=rebases, review=review, columns=columns, collapsable=True)
@@ -1109,7 +1105,7 @@ def renderShowCommit(req, db, user):
                 # filtered by file) => include rebase information when rendering
                 # the "Squashed History" log.
 
-                cursor.execute("""SELECT id, old_head, new_head, new_upstream, uid, branch
+                cursor.execute("""SELECT id, old_head, new_head, new_upstream, equivalent_merge, replayed_rebase, uid, branch
                                     FROM reviewrebases
                                    WHERE review=%s AND new_head IS NOT NULL""",
                                (review.id,))
@@ -1119,8 +1115,10 @@ def renderShowCommit(req, db, user):
                             gitutils.Commit.fromId(db, repository, new_head),
                             dbutils.User.fromId(db, user_id),
                             gitutils.Commit.fromId(db, repository, new_upstream) if new_upstream is not None else None,
+                            gitutils.Commit.fromId(db, repository, equivalent_merge) if equivalent_merge is not None else None,
+                            gitutils.Commit.fromId(db, repository, replayed_rebase) if replayed_rebase is not None else None,
                             branch_name)
-                           for rebase_id, old_head, new_head, new_upstream, user_id, branch_name in cursor]
+                           for rebase_id, old_head, new_head, new_upstream, equivalent_merge, replayed_rebase, user_id, branch_name in cursor]
 
             if all_commits:
                 commits = all_commits

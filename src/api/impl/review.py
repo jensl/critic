@@ -125,13 +125,12 @@ class Review(object):
                      FROM commits
                      JOIN changesets ON (changesets.child=commits.id)
                      JOIN reviewchangesets ON (reviewchangesets.changeset=changesets.id)
-          LEFT OUTER JOIN reviewrebases ON (reviewrebases.old_head=commits.id
-                                        AND reviewrebases.new_head IS NOT NULL
-                                        AND reviewrebases.new_upstream IS NOT NULL)
+          LEFT OUTER JOIN reviewrebases ON (reviewrebases.review=%s
+                                        AND reviewrebases.equivalent_merge=commits.id)
                     WHERE reviewchangesets.review=%s
                       AND changesets.type='merge'
                       AND reviewrebases.id IS NULL""",
-                (self.id,))
+                (self.id, self.id))
             commit_ids_sha1s.update(cursor)
             repository = self.getRepository(critic)
             commits = [api.commit.fetch(repository, commit_id, sha1)
@@ -144,7 +143,8 @@ class Review(object):
             critic = wrapper.critic
             cursor = critic.getDatabaseCursor()
             cursor.execute(
-                """SELECT id, old_head, new_head, old_upstream, new_upstream, uid
+                """SELECT id, old_head, new_head, old_upstream, new_upstream,
+                          equivalent_merge, replayed_rebase, uid
                      FROM reviewrebases
                     WHERE review=%s
                       AND new_head IS NOT NULL

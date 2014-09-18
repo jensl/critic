@@ -60,13 +60,15 @@ function CriticReviewFilter(review, user_id, path, type, creator_id)
   Object.freeze(this);
 }
 
-function CriticReviewRebase(review, user_id, old_head_id, new_head_id, new_upstream_id, branch_name)
+function CriticReviewRebase(review, user_id, old_head_id, new_head_id, new_upstream_id, equivalent_merge_id, replayed_rebase_id, branch_name)
 {
   this.review = review;
   this.user = new CriticUser(user_id);
   this.oldHead = review.repository.getCommit(old_head_id);
   this.newHead = review.repository.getCommit(new_head_id);
   this.newUpstream = new_upstream_id && review.repository.getCommit(new_upstream_id);
+  this.equivalentMerge = equivalent_merge_id && review.repository.getCommit(equivalent_merge_id);
+  this.replayedRebase = replayed_rebase_id && review.repository.getCommit(replayed_rebase_id);
   this.branchName = branch_name;
 
   Object.freeze(this);
@@ -313,12 +315,12 @@ function CriticReview(arg)
     {
       rebases = [];
 
-      var result = db.execute("SELECT id, uid, old_head, new_head, new_upstream, branch FROM reviewrebases WHERE review=%d AND new_head IS NOT NULL ORDER BY id DESC", self.id);
+      var result = db.execute("SELECT id, uid, old_head, new_head, new_upstream, equivalent_merge, replayed_rebase, branch FROM reviewrebases WHERE review=%d AND new_head IS NOT NULL ORDER BY id DESC", self.id);
 
       for (var index = 0; index < result.length; ++index)
       {
         var row = result[index];
-        rebases.push(new CriticReviewRebase(self, row.uid, row.old_head, row.new_head, row.new_upstream, row.branch));
+        rebases.push(new CriticReviewRebase(self, row.uid, row.old_head, row.new_head, row.new_upstream, row.equivalent_merge, row.replayed_rebase, row.branch));
       }
 
       Object.freeze(rebases);

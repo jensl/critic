@@ -2,13 +2,16 @@ import api
 
 class Rebase(object):
     def __init__(self, review, rebase_id, old_head_id, new_head_id,
-                 old_upstream_id, new_upstream_id, creator_id):
+                 old_upstream_id, new_upstream_id, equivalent_merge_id,
+                 replayed_rebase_id, creator_id):
         self.review = review
         self.id = rebase_id
         self.old_head_id = old_head_id
         self.new_head_id = new_head_id
         self.old_upstream_id = old_upstream_id
         self.new_upstream_id = new_upstream_id
+        self.equivalent_merge_id = equivalent_merge_id
+        self.replayed_rebase_id = replayed_rebase_id
         self.creator_id = creator_id
 
         # Fetched on demand.
@@ -16,9 +19,7 @@ class Rebase(object):
         self.__new_head = None
         self.__old_upstream = None
         self.__new_upstream = None
-        self.__has_equivalent_merge = None
         self.__equivalent_merge = None
-        self.__has_replayed_rebase = None
         self.__replayed_rebase = None
         self.__creator = None
 
@@ -30,8 +31,6 @@ class Rebase(object):
         if self.__old_head is None:
             self.__old_head = api.commit.fetch(
                 self.repository, commit_id=self.old_head_id)
-            if self.new_upstream_id and self.getEquivalentMerge():
-                self.__old_head = self.__old_head.parents[0]
         return self.__old_head
 
     def getNewHead(self):
@@ -54,48 +53,20 @@ class Rebase(object):
 
     def getEquivalentMerge(self):
         assert self.new_upstream_id is not None
-        if self.__has_equivalent_merge is None:
-            critic = self.review.critic
-            cursor = critic.getDatabaseCursor()
-            cursor.execute(
-                """SELECT DISTINCT commits.id, commits.sha1
-                     FROM commits
-                     JOIN changesets ON (changesets.child=commits.id)
-                     JOIN reviewchangesets ON (reviewchangesets.changeset=changesets.id)
-                    WHERE reviewchangesets.review=%s
-                      AND changesets.type='merge'
-                      AND commits.id=%s""",
-                (self.review.id, self.old_head_id))
-            row = cursor.fetchone()
-            if row is None:
-                self.__has_equivalent_merge = False
-            else:
-                self.__has_equivalent_merge = True
-                self.__equivalent_merge = api.commit.fetch(
-                    self.repository, *row)
+        if self.equivalent_merge_id is None:
+            return None
+        if self.__equivalent_merge is None:
+            self.__equivalent_merge = api.commit.fetch(
+                self.repository, commit_id=self.equivalent_merge_id)
         return self.__equivalent_merge
 
     def getReplayedRebase(self):
         assert self.new_upstream_id is not None
-        if self.__has_replayed_rebase is None:
-            critic = self.review.critic
-            cursor = critic.getDatabaseCursor()
-            cursor.execute(
-                """SELECT DISTINCT commits.id, commits.sha1
-                     FROM commits
-                     JOIN changesets ON (changesets.child=commits.id)
-                     JOIN reviewchangesets ON (reviewchangesets.changeset=changesets.id)
-                    WHERE reviewchangesets.review=%s
-                      AND changesets.type='conflicts'
-                      AND commits.id=%s""",
-                (self.review.id, self.new_head_id))
-            row = cursor.fetchone()
-            if row is None:
-                self.__has_replayed_rebase = False
-            else:
-                self.__has_replayed_rebase = True
-                self.__replayed_rebase = api.commit.fetch(
-                    self.repository, *row)
+        if self.replayed_rebase_id is None:
+            return None
+        if self.__replayed_rebase is None:
+            self.__replayed_rebase = api.commit.fetch(
+                self.repository, commit_id=self.replayed_rebase_id)
         return self.__replayed_rebase
 
     def getCreator(self, critic):

@@ -101,7 +101,7 @@ def check_squashed_history(sha1s):
 
         for link in links:
             testing.expect.check(
-                "critic/%s?review=%d" % (sha1s[-1], review_id), link["href"])
+                "%s?review=%d" % (sha1s[-1][:8], review_id), link["href"])
             del sha1s[-1]
 
         if sha1s:
