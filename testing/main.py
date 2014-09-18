@@ -85,6 +85,8 @@ def run():
     parser.add_argument("--cache-dir", default="testing/cache",
                         help="Directory where cache files are stored")
 
+    parser.add_argument("--upgrade-after",
+                        help="Upgrade after specified test")
     parser.add_argument("--pause-before", action="append",
                         help="Pause testing before specified test(s)")
     parser.add_argument("--pause-after", action="append",
@@ -134,7 +136,6 @@ Critic Testing Framework
 ========================
 
 """)
-
 
     key_arguments = [arguments.local,
                      arguments.quickstart,
@@ -311,6 +312,30 @@ first or run this script without --test-extensions.""")
         logger.error("No tests selected!")
         return
 
+    if arguments.upgrade_after:
+        upgrade_after = testing.findtests.filterPatterns([arguments.upgrade_after])
+        upgrade_after_tests, _ = testing.findtests.selectTests(upgrade_after,
+                                                               strict=True)
+        upgrade_after_tests = set(upgrade_after_tests)
+        upgrade_after_groups = set(upgrade_after)
+
+        def maybe_upgrade_after(test):
+            def do_upgrade(what):
+                logger.info("Upgrading after: %s" % what)
+                instance.upgrade(is_after_test=True)
+
+            if test in upgrade_after_tests:
+                do_upgrade(test)
+            else:
+                for group in test.groups:
+                    if group in upgrade_after_groups \
+                            and test == all_groups[group][-1]:
+                        do_upgrade(group)
+                        break
+    else:
+        def maybe_upgrade_after(test):
+            pass
+
     def pause(failed_test=None):
         if arguments.pause_upgrade_loop \
                 or (failed_test and arguments.pause_upgrade_retry):
@@ -328,18 +353,17 @@ first or run this script without --test-extensions.""")
                 for command in arguments.pause_upgrade_hook:
                     subprocess.check_call(command, shell=True)
 
-                repository.push("HEAD")
+                if isinstance(instance, testing.virtualbox.Instance):
+                    repository.push("HEAD")
 
-                instance.execute(["git", "fetch", "origin", "master"], cwd="critic")
-                instance.upgrade_commit = "FETCH_HEAD"
-                instance.upgrade()
+                    instance.execute(["git", "fetch", "origin", "master"], cwd="critic")
+                    instance.upgrade_commit = "FETCH_HEAD"
+                    instance.upgrade()
 
                 if failed_test and arguments.pause_upgrade_retry:
                     return "retry"
         else:
             testing.pause("Testing paused.  Press ENTER to continue: ")
-
-    pause_before = pause_after = set()
 
     if arguments.pause_before:
         pause_before = testing.findtests.filterPatterns(arguments.pause_before)
@@ -476,6 +500,7 @@ first or run this script without --test-extensions.""")
                         logger.info("Test not supported: %s"
                                     % not_supported.message)
                     else:
+                        maybe_upgrade_after(test)
                         maybe_pause_after(test)
                     break
         except KeyboardInterrupt:

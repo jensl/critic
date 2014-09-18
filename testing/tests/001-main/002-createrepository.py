@@ -50,20 +50,12 @@ with frontend.signin():
     # if it's already handled for some reason, that check won't be reliable.
     frontend.page("critic/master", expected_http_status=404)
 
-    if instance.has_flag("addrepository-has-mirror-parameter"):
-        mirror = "mirror"
-        mirror_data = { "remote_url": repository.url,
-                        "remote_branch": "master",
-                        "local_branch": "master" }
-    else:
-        mirror = "remote"
-        mirror_data = { "url": repository.url,
-                        "branch": "master" }
-
     frontend.operation("addrepository",
                        data={ "name": "critic",
                               "path": "critic",
-                              mirror: mirror_data })
+                              "mirror": { "remote_url": repository.url,
+                                          "remote_branch": "master",
+                                          "local_branch": "master" } })
 
     instance.synchronize_service("branchtracker")
 

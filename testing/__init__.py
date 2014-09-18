@@ -70,9 +70,6 @@ class Instance(object):
     def userid(self, name):
         return self.__user_ids.get(name)
 
-    def check_late_upgrade(self):
-        raise NotSupported("late upgrade not supported")
-
     def filter_service_log(self, service_name, level="warning"):
         data = self.filter_service_logs(level, [service_name])
         if data is None:
