@@ -18,12 +18,13 @@
 
 $(document).ready(function ()
   {
-    var space = $('<span class="sourcefont" style="white-space: pre"> </span>');
+    var spaces = (new Array(rulerColumn + 1)).join(" ");
+    var space = $('<span class="sourcefont" style="white-space: pre">' + spaces + '</span>');
     $("body").append(space);
     var space_width = space.width();
     space.remove();
 
     $("head").append('<style>td.line { background-image: url(/static-resource/ruler.png);' +
-      'background-position: ' + rulerColumn * space_width + 'px 0;' +
+      'background-position: ' + space_width + 'px 0;' +
       'background-repeat: repeat-y; }</style>');
   });
