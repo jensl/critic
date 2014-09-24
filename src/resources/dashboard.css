@@ -32,6 +32,7 @@ div.main table.reviews tr.review td {
     padding-bottom: 3px
 }
 
+div.main table.reviews tr.review td.repo_name,
 div.main table.reviews tr.review td.name {
     font-weight: bold
 }

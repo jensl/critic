@@ -122,9 +122,15 @@ def renderDashboard(req, db, user):
 
         branch_names = dict(cursor)
 
+        cursor.execute("SELECT branches.id, repositories.name FROM branches LEFT JOIN repositories ON (repositories.id = branches.repository) WHERE branches.id=ANY (%s)",
+                       (list(branch_id for _, (_, branch_id, _, _) in reviews),))
+
+        repo_names = dict(cursor)
+
         for review_id, (summary, branch_id, lines, comments) in reviews:
             row = target.tr("review")
             row.td("name").text(branch_names[branch_id])
+            row.td("repo_name").text(repo_names[branch_id]) 
             row.td("title").a(href="r/%d" % review_id).text(summary)
 
             if lines_and_comments:
@@ -178,7 +184,8 @@ def renderDashboard(req, db, user):
         if owned_accepted or owned_open:
             table = target.table("paleyellow reviews", id="owned", align="center", cellspacing=0)
             table.col(width="15%")
-            table.col(width="55%")
+            table.col(width="15%")
+            table.col(width="40%")
             table.col(width="15%")
             table.col(width="15%")
             header = table.tr().td("h1", colspan=4).h1()
@@ -244,7 +251,8 @@ def renderDashboard(req, db, user):
         if draft_both or draft_changes or draft_comments:
             table = target.table("paleyellow reviews", id="draft", align="center", cellspacing=0)
             table.col(width="15%")
-            table.col(width="55%")
+            table.col(width="15%")
+            table.col(width="40%")
             table.col(width="15%")
             table.col(width="15%")
             header = table.tr().td("h1", colspan=4).h1()
@@ -327,7 +335,8 @@ def renderDashboard(req, db, user):
         if active["both"] or active["changes"] or active["comments"]:
             table = target.table("paleyellow reviews", id="active", align="center", cellspacing=0)
             table.col(width="15%")
-            table.col(width="55%")
+            table.col(width="15%")
+            table.col(width="40%")
             table.col(width="15%")
             table.col(width="15%")
             header = table.tr().td("h1", colspan=4).h1()
@@ -417,7 +426,8 @@ def renderDashboard(req, db, user):
 
         if accepted or pending:
             table = target.table("paleyellow reviews", id="watched", align="center", cellspacing=0)
-            table.col(width="30%")
+            table.col(width="15%")
+            table.col(width="15%")
             table.col(width="70%")
             header = table.tr().td("h1", colspan=4).h1()
             header.text("Watched Reviews")
@@ -442,7 +452,8 @@ def renderDashboard(req, db, user):
 
         if owned_closed or other_closed:
             table = target.table("paleyellow reviews", id="closed", align="center", cellspacing=0)
-            table.col(width="30%")
+            table.col(width="15%")
+            table.col(width="15%")
             table.col(width="70%")
             header = table.tr().td("h1", colspan=4).h1()
             header.text("Closed Reviews")
@@ -491,7 +502,8 @@ def renderDashboard(req, db, user):
                     pending.append((review_id, (summary, branch_id, lines, comments)))
 
             table = target.table("paleyellow reviews", id="open", align="center", cellspacing=0)
-            table.col(width="30%")
+            table.col(width="15%")
+            table.col(width="15%")
             table.col(width="70%")
             header = table.tr().td("h1", colspan=4).h1()
             header.text("Open Reviews" if user.isAnonymous() else "Other Open Reviews")
