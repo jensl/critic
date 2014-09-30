@@ -399,6 +399,17 @@ first or run this script without --test-extensions.""")
 
     failed_tests = set()
 
+    def run_test(test, scope):
+        prefix = "testing/tests"
+        path = ""
+        for component in test.filename.split("/")[:-1]:
+            path = os.path.join(path, component)
+            init_filename = os.path.join(path, "__init__.py")
+            if os.path.isfile(os.path.join(prefix, init_filename)):
+                logger.debug("Including: %s" % init_filename)
+                execfile(os.path.join(prefix, init_filename), scope)
+        execfile(os.path.join(prefix, test.filename), scope)
+
     def run_group(group_name, tests):
         scope = { "testing": testing,
                   "logger": logger,
@@ -427,8 +438,7 @@ first or run this script without --test-extensions.""")
                 while True:
                     try:
                         errors_before = counters.errors_logged
-                        execfile(os.path.join("testing/tests", test.filename),
-                                 scope.copy())
+                        run_test(test, scope.copy())
                         if mailbox:
                             mailbox.check_empty()
                         instance.check_service_logs()
