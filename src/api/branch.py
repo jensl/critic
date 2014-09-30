@@ -5,7 +5,7 @@ class BranchError(api.APIError):
     pass
 
 class InvalidBranchId(BranchError):
-    """Raised when an invalid user id is used."""
+    """Raised when an invalid branch id is used."""
 
     def __init__(self, branch_id):
         """Constructor"""
@@ -13,7 +13,7 @@ class InvalidBranchId(BranchError):
             "Invalid branch id: %d" % branch_id)
 
 class InvalidBranchName(BranchError):
-    """Raised when an invalid user id is used."""
+    """Raised when an invalid branch name is used."""
 
     def __init__(self, name):
         """Constructor"""
@@ -76,3 +76,13 @@ def fetch(critic, branch_id=None, repository=None, name=None):
     assert (branch_id is None) != (name is None)
     assert name is None or repository is not None
     return api.impl.branch.fetch(critic, branch_id, repository, name)
+
+def fetchAll(critic, repository=None):
+    """Fetch Branch objects for all branches
+
+       If a repository is provided, restrict the return value to branches in the
+       specified repository."""
+    import api.impl
+    assert (repository is None or
+            isinstance(repository, api.repository.Repository))
+    return api.impl.branch.fetchAll(critic, repository)

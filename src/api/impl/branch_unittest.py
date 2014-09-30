@@ -27,6 +27,16 @@ def basic():
 
     assert api.branch.fetch(critic, branch_id=branch.id) is branch
 
+    branches = api.branch.fetchAll(critic)
+    assert isinstance(branches, list)
+    assert all(isinstance(branch, api.branch.Branch) for branch in branches)
+    assert branch in branches
+
+    branches = api.branch.fetchAll(critic, repository=repository)
+    assert isinstance(branches, list)
+    assert all(isinstance(branch, api.branch.Branch) for branch in branches)
+    assert branch in branches
+
     try:
         api.branch.fetch(critic, branch_id=4711)
     except api.branch.InvalidBranchId:

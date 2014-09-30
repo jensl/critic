@@ -34,6 +34,13 @@ class Branch(object):
     def wrap(self, critic):
         return api.branch.Branch(critic, self)
 
+def make(critic, repository, args):
+    for branch_id, name, repository_id, head_id in args:
+        def callback():
+            return Branch(branch_id, name, repository_id, head_id,
+                          repository=repository).wrap(critic)
+        yield critic._impl.cached(api.branch.Branch, branch_id, callback)
+
 def fetch(critic, branch_id, repository, name):
     cursor = critic.getDatabaseCursor()
     if branch_id is not None:
@@ -53,10 +60,18 @@ def fetch(critic, branch_id, repository, name):
         row = cursor.fetchone()
         if not row:
             raise api.branch.InvalidBranchName(name)
-    branch_id, name, repository_id, head_id = row
+    return next(make(critic, repository, (row,)))
 
-    def callback():
-        return Branch(branch_id, name, repository_id, head_id,
-                      repository=repository).wrap(critic)
-
-    return critic._impl.cached(api.branch.Branch, branch_id, callback)
+def fetchAll(critic, repository):
+    cursor = critic.getDatabaseCursor()
+    if repository is not None:
+        cursor.execute("""SELECT id, name, repository, head
+                            FROM branches
+                           WHERE repository=%s
+                        ORDER BY name""",
+                       (repository.id,))
+    else:
+        cursor.execute("""SELECT id, name, repository, head
+                            FROM branches
+                        ORDER BY name""")
+    return list(make(critic, repository, cursor))
