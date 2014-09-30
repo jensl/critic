@@ -95,8 +95,8 @@ def basic():
 
     assert isinstance(commit.author, api.commit.Commit.UserAndTimestamp), \
         type(commit.author)
-    assert isinstance(commit.author.fullname, str), type(commit.author.fullname)
-    assert commit.author.fullname == COMMIT_AUTHOR_NAME, commit.author.fullname
+    assert isinstance(commit.author.name, str), type(commit.author.name)
+    assert commit.author.name == COMMIT_AUTHOR_NAME, commit.author.name
     assert isinstance(commit.author.email, str), type(commit.author.email)
     assert commit.author.email == COMMIT_AUTHOR_EMAIL, commit.author.email
     assert isinstance(commit.author.timestamp, datetime.datetime), \
@@ -105,10 +105,10 @@ def basic():
 
     assert isinstance(commit.committer, api.commit.Commit.UserAndTimestamp), \
         type(commit.committer)
-    assert isinstance(commit.committer.fullname, str), \
-        type(commit.committer.fullname)
-    assert commit.committer.fullname == COMMIT_COMMITTER_NAME, \
-        commit.committer.fullname
+    assert isinstance(commit.committer.name, str), \
+        type(commit.committer.name)
+    assert commit.committer.name == COMMIT_COMMITTER_NAME, \
+        commit.committer.name
     assert isinstance(commit.committer.email, str), type(commit.committer.email)
     assert commit.committer.email == COMMIT_COMMITTER_EMAIL, \
         commit.committer.email

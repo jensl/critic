@@ -77,8 +77,8 @@ class Commit(api.APIObject):
     class UserAndTimestamp(object):
         """Representation of the author or committer meta-data of a commit"""
 
-        def __init__(self, fullname, email, timestamp):
-            self.fullname = fullname
+        def __init__(self, name, email, timestamp):
+            self.name = name
             self.email = email
             self.timestamp = timestamp
 
