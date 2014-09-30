@@ -7,9 +7,18 @@ def basic():
 
     alice = api.user.fetch(critic, name="alice")
     bob = api.user.fetch(critic, name="bob")
+    carol = api.user.fetch(critic, name="carol")
     dave = api.user.fetch(critic, name="dave")
     erin = api.user.fetch(critic, name="erin")
+    felix = api.user.fetch(critic, name="felix")
+    howard = api.user.fetch(critic, name="howard")
+    gina = api.user.fetch(critic, name="gina")
+    iris = api.user.fetch(critic, name="iris")
     admin = api.user.fetch(critic, name="admin")
+    extra = api.user.fetch(critic, name="extra")
+
+    all_users = [admin, alice, bob, dave, erin, howard,
+                 carol, felix, gina, iris, extra]
 
     assert isinstance(alice, api.user.User)
     assert isinstance(alice.id, int)
@@ -20,6 +29,7 @@ def basic():
 
     assert alice.name == "alice"
     assert alice.fullname == "Alice von Testing"
+    assert alice.status == "current"
     assert alice.email == "alice@example.org"
     assert alice.is_anonymous is False
 
@@ -54,15 +64,6 @@ def basic():
     assert all(isinstance(delegate, api.user.User)
                for delegate in filters[0].delegates)
     assert erin in filters[0].delegates
-    assert isinstance(filters[0].json, dict)
-
-    assert isinstance(alice.json, dict)
-    assert alice.json == { "id": alice.id,
-                           "name": "alice",
-                           "fullname": "Alice von Testing",
-                           "email": "alice@example.org",
-                           "gitEmails": list(alice.git_emails),
-                           "isAnonymous": False }, repr(alice.json)
 
     assert not (alice == bob)
     assert alice != bob
@@ -179,6 +180,55 @@ def basic():
     assert isinstance(alice_bob_and_dave, list), type(alice_bob_and_dave)
     assert alice_bob_and_dave == [alice, bob, dave], repr(alice_bob_and_dave)
 
+    users = api.user.fetchAll(critic)
+    assert isinstance(users, list)
+    assert users == sorted(all_users, key=lambda user: user.id)
+
+    users = api.user.fetchAll(critic, status="current")
+    assert isinstance(users, list)
+    assert users == sorted([user for user in all_users
+                            if user.status == "current"],
+                           key=lambda user: user.id)
+
+    users = api.user.fetchAll(critic, status=["current", "absent"])
+    assert isinstance(users, list)
+    assert users == sorted([user for user in all_users
+                            if user.status in ("current", "absent")],
+                           key=lambda user: user.id)
+
+    users = api.user.fetchAll(critic, status=["retired", "absent"])
+    assert isinstance(users, list)
+    assert users == sorted([user for user in all_users
+                            if user.status in ("retired", "absent")],
+                           key=lambda user: user.id)
+
+    users = api.user.fetchAll(critic, status=["absent"])
+    assert isinstance(users, list)
+    assert users == []
+
+    users = api.user.fetchAll(
+        critic, status=(status for status in ["current", "absent"]))
+    assert isinstance(users, list)
+    assert users == sorted([user for user in all_users
+                            if user.status in ("current", "absent")],
+                           key=lambda user: user.id)
+
+    try:
+        api.user.fetchAll(critic, status="lost")
+    except api.user.InvalidStatus as error:
+        assert error.message == "Invalid user status: %r" % "lost"
+        assert error.status == "lost"
+    else:
+        assert False
+
+    try:
+        api.user.fetchAll(critic, status=["missing", "current", "lost"])
+    except api.user.InvalidStatus as error:
+        assert error.message == "Invalid user status: %r" % ["lost", "missing"]
+        assert error.status == ["lost", "missing"]
+    else:
+        assert False
+
     assert alice.hasRole("administrator") is False
     assert alice.hasRole("repositories") is False
     assert alice.hasRole("newswriter") is False
@@ -211,12 +261,6 @@ def basic():
     assert anonymous.primary_emails == []
     assert anonymous.git_emails == set([])
     assert anonymous.repository_filters == {}
-    assert anonymous.json == { "id": None,
-                               "name": None,
-                               "fullname": None,
-                               "email": None,
-                               "gitEmails": [],
-                               "isAnonymous": True }
 
 def preferences():
     import api

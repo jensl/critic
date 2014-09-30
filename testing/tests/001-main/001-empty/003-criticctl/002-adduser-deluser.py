@@ -37,6 +37,8 @@ except testing.CriticctlError as error:
     logger.error("correct criticctl usage failed:\n%s"
                  % error.stdout)
 else:
+    instance.registeruser("extra")
+
     try:
         instance.criticctl(
             ["deluser",

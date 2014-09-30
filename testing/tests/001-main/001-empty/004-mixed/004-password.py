@@ -6,6 +6,8 @@ instance.criticctl(["adduser",
                     "--fullname", "'Iris von Testing'",
                     "--no-password"])
 
+instance.registeruser("iris")
+
 with_class = testing.expect.with_class
 
 def check_password_ui(expected_value, expected_action):

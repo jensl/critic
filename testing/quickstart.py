@@ -36,12 +36,12 @@ class Instance(testing.Instance):
     tested_commit = "HEAD"
 
     def __init__(self, frontend):
+        super(Instance, self).__init__()
         self.frontend = frontend
         self.mailbox = None
         self.process = None
         self.hostname = "localhost"
-        self.__users = ["admin"]
-        self.__user_ids = { "admin": 1 }
+        self.registeruser("admin")
 
     def __enter__(self):
         return self
@@ -110,11 +110,7 @@ class Instance(testing.Instance):
                         "--fullname", fullname,
                         "--password", password])
 
-        self.__users.append(name)
-        self.__user_ids[name] = len(self.__users)
-
-    def userid(self, name):
-        return self.__user_ids.get(name)
+        self.registeruser(name)
 
     def has_flag(self, flag):
         return testing.has_flag("HEAD", flag)

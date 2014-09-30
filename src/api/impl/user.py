@@ -2,10 +2,11 @@ import api
 import dbutils
 
 class User(object):
-    def __init__(self, user_id, name, fullname, email):
+    def __init__(self, user_id, name, fullname, status, email):
         self.id = user_id
         self.name = name
         self.fullname = fullname
+        self.status = status
         self.email = email
 
         # Things that are fetched on demand.
@@ -139,6 +140,12 @@ class User(object):
     def wrap(self, critic):
         return api.user.User(critic, self)
 
+def make(critic, args):
+    for user_id, name, fullname, status, email in args:
+        def callback():
+            return User(user_id, name, fullname, status, email).wrap(critic)
+        yield critic._impl.cached(api.user.User, user_id, callback)
+
 def fetch(critic, user_id, name):
     return fetchMany(critic,
                      user_ids=None if user_id is None else [user_id],
@@ -161,7 +168,7 @@ def fetchMany(critic, user_ids, names):
         column_index = 1
 
     cursor = critic.getDatabaseCursor()
-    cursor.execute("""SELECT users.id, name, fullname, useremails.email
+    cursor.execute("""SELECT users.id, name, fullname, status, useremails.email
                         FROM users
              LEFT OUTER JOIN useremails ON (useremails.id=users.email
                                         AND (useremails.verified IS NULL
@@ -179,15 +186,37 @@ def fetchMany(critic, user_ids, names):
         values = [value for value in values if value not in found]
         raise exception_type(values)
 
-    def make(user_id, name, fullname, email):
-        def callback():
-            return User(user_id, name, fullname, email).wrap(critic)
-        return critic._impl.cached(api.user.User, user_id, callback)
-
     rows = dict((row[column_index], row) for row in rows)
-    return return_type(make(*rows[key]) for key in values)
+    return return_type(make(critic, (rows[key] for key in values)))
+
+def fetchAll(critic, status):
+    cursor = critic.getDatabaseCursor()
+    if status is None:
+        condition = ""
+        values = ()
+    elif isinstance(status, basestring):
+        if status not in api.user.User.STATUS_VALUES:
+            raise api.user.InvalidStatus(status)
+        condition = " WHERE status=%s"
+        values = (status,)
+    else:
+        status = set(status)
+        invalid = status - api.user.User.STATUS_VALUES
+        if invalid:
+            raise api.user.InvalidStatus(sorted(invalid))
+        condition = " WHERE status IN (%s)" % ", ".join(["%s"] * len(status))
+        values = tuple(status)
+    cursor.execute("""SELECT users.id, name, fullname, status, useremails.email
+                        FROM users
+             LEFT OUTER JOIN useremails ON (useremails.id=users.email
+                                        AND (useremails.verified IS NULL
+                                          OR useremails.verified))
+                       """ + condition + """
+                    ORDER BY users.id""",
+                   values)
+    return list(make(critic, cursor))
 
 def anonymous(critic):
     def callback():
-        return User(None, None, None, None).wrap(critic)
+        return User(None, None, None, "anonymous", None).wrap(critic)
     return critic._impl.cached(api.user.User, None, callback)

@@ -192,6 +192,8 @@ frontend.operation(
                          "account": "account-carol",
                          "token": token }})
 
+instance.registeruser("carol")
+
 with frontend.session("/registeruser"):
     # Check that the email address isn't unverified.
     def email_not_unverified(document):
@@ -218,6 +220,8 @@ with frontend.session("/registeruser"):
 state = start_externalauth("felix")
 
 redirect_url = finish_externalauth("felix", state)
+
+instance.registeruser("felix")
 
 with frontend.session("/oauth/felix"):
     document_title_check = testing.expect.document_title(
@@ -256,8 +260,10 @@ frontend.operation(
                          "account": "account-gina",
                          "token": token }})
 
+instance.registeruser("gina")
+
 with frontend.session("/registeruser"):
-    # Check that the email address isn't unverified.
+    # Check that the email address is unverified.
     def email_unverified(document):
         address = document.find(attrs=with_class("address"))
         if not address.find(attrs=with_class("unverified")):

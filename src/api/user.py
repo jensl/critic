@@ -29,8 +29,18 @@ class InvalidRole(UserError):
         super(InvalidRole, self).__init__("Invalid role: %r" % role)
         self.role = role
 
+class InvalidStatus(UserError):
+    """Raised when an invalid user status is used"""
+
+    def __init__(self, status):
+        """Constructor"""
+        super(InvalidStatus, self).__init__("Invalid user status: %r" % status)
+        self.status = status
+
 class User(api.APIObject):
     """Representation of a Critic user"""
+
+    STATUS_VALUES = frozenset(["current", "absent", "retired"])
 
     def __int__(self):
         return self.id
@@ -53,6 +63,17 @@ class User(api.APIObject):
     def fullname(self):
         """The user's full name"""
         return self._impl.fullname
+
+    @property
+    def status(self):
+        """The user's status
+
+           For regular users, the value is one of the strings in the
+           User.STATUS_VALUES set.
+
+           For the anonymous user, the value is "anonymous".
+           For the Critic system user, the value is "system"."""
+        return self._impl.status
 
     @property
     def is_anonymous(self):
@@ -174,8 +195,17 @@ def fetchMany(critic, user_ids=None, names=None):
     import api.impl
     assert isinstance(critic, api.critic.Critic)
     assert (user_ids is None) != (names is None)
-    users = api.impl.user.fetchMany(critic, user_ids, names)
-    return users
+    return api.impl.user.fetchMany(critic, user_ids, names)
+
+def fetchAll(critic, status=None):
+    """Fetch User objects for all users of the system
+
+       If |status| is not None, it must be one of the user statuses "current",
+       "absent" or "retired", or an iterable containing one or more of those
+       strings."""
+    import api.impl
+    assert isinstance(critic, api.critic.Critic)
+    return api.impl.user.fetchAll(critic, status)
 
 def anonymous(critic):
     """Fetch a User object representing an anonymous user"""

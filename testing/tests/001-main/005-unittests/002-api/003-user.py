@@ -1,3 +1,6 @@
+# @dependency 001-main/001-empty/003-criticctl/002-adduser-deluser.py
+# @dependency 001-main/001-empty/004-mixed/003-oauth.py
+# @dependency 001-main/001-empty/004-mixed/004-password.py
 # @dependency 001-main/003-self/028-gitemails.py
 
 args = []

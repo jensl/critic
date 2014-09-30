@@ -51,6 +51,7 @@ class GuestCommandError(testing.InstanceError):
 class Instance(testing.Instance):
     def __init__(self, arguments, install_commit=None, upgrade_commit=None,
                  frontend=None):
+        super(Instance, self).__init__()
         self.arguments = arguments
         self.vboxhost = getattr(arguments, "vbox_host", "host")
         self.identifier = arguments.vm_identifier
@@ -99,8 +100,8 @@ class Instance(testing.Instance):
         self.__started = False
         self.__installed = False
         self.__upgraded = False
-        self.__users = ["admin"]
-        self.__user_ids = { "admin": 1 }
+        self.resetusers()
+        self.registeruser("admin")
 
     def __enter__(self):
         return self
@@ -379,11 +380,7 @@ class Instance(testing.Instance):
             email],
                      cwd="/home/%s" % name)
 
-        self.__users.append(name)
-        self.__user_ids[name] = len(self.__users)
-
-    def userid(self, name):
-        return self.__user_ids.get(name)
+        self.registeruser(name)
 
     def has_flag(self, flag):
         if self.upgrade_commit and self.__upgraded:

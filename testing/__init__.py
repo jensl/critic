@@ -50,11 +50,25 @@ class Instance(object):
     flags_on = []
     flags_off = []
 
+    def __init__(self):
+        self.resetusers()
+
     def __enter__(self):
         return self
 
     def __exit__(self, *args):
         return False
+
+    def resetusers(self):
+        self.__users = []
+        self.__user_ids = {}
+
+    def registeruser(self, name):
+        self.__users.append(name)
+        self.__user_ids[name] = len(self.__users)
+
+    def userid(self, name):
+        return self.__user_ids.get(name)
 
     def check_late_upgrade(self):
         raise NotSupported("late upgrade not supported")
