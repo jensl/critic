@@ -3,6 +3,7 @@ import subprocess
 import api
 
 import configuration
+import dbutils
 import gitutils
 
 class Repository(object):
@@ -20,10 +21,12 @@ class Repository(object):
         return self.__internal
 
     def getURL(self, critic):
+        if critic.effective_user:
+            user = critic.effective_user._impl
+        else:
+            user = dbutils.User.makeAnonymous()
         return gitutils.Repository.constructURL(
-            critic.getDatabase(),
-            critic.effective_user._impl.getInternal(critic),
-            self.path)
+            critic.database, user, self.path)
 
     def run(self, *args):
         argv = [configuration.executables.GIT] + list(args)
