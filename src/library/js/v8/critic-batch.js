@@ -300,12 +300,13 @@ function createCommentChain(text, data, type)
     users[user.id] = user;
   }
 
-  function insertUsers(chain_id, comment_id)
+  function insertUsers(chain_id, comment_id, mark_comment_as_read)
   {
     for (var user_id in users)
     {
       db.execute("INSERT INTO commentchainusers (chain, uid) VALUES (%d, %d)", chain_id, user_id);
-      db.execute("INSERT INTO commentstoread (uid, comment) VALUES (%d, %d)", user_id, comment_id);
+      if (!mark_comment_as_read)
+        db.execute("INSERT INTO commentstoread (uid, comment) VALUES (%d, %d)", user_id, comment_id);
     }
   }
 
@@ -365,7 +366,7 @@ function createCommentChain(text, data, type)
       parent = child = file_version.commit;
     }
 
-    operations.push(function (batch_id)
+    operations.push(function (batch_id, data)
       {
         var chain_id = db.execute("INSERT INTO commentchains (review, batch, uid, type, state, origin, file, first_commit, last_commit) VALUES (%d, %d, %d, %s, %s, %s, %d, %d, %d) RETURNING id",
                                   this.review.id, batch_id, this.user.id, type, state, origin, file_version.id, parent.id, child.id)[0].id;
@@ -386,7 +387,7 @@ function createCommentChain(text, data, type)
                      chain_id, this.user.id, line[0].id, line[1], line[2] + 1, line[2] + line[3]);
         }
 
-        insertUsers(chain_id, comment_id);
+        insertUsers(chain_id, comment_id, data.silent);
       });
   }
   else if (data.commit)
@@ -401,7 +402,7 @@ function createCommentChain(text, data, type)
     if (data.lineIndex >= lines.length || data.lineIndex + data.lineCount > lines.length || data.lineCount == 0)
       throw CriticError("data.lineIndex/data.lineCount: out of range or invalid");
 
-    operations.push(function (batch_id)
+    operations.push(function (batch_id, data)
       {
         var chain_id = db.execute("INSERT INTO commentchains (review, batch, uid, type, state, first_commit, last_commit) VALUES (%d, %d, %d, %s, 'open', %d, %d) RETURNING id",
                                   this.review.id, batch_id, this.user.id, type, data.commit.id, data.commit.id)[0].id;
@@ -414,11 +415,11 @@ function createCommentChain(text, data, type)
         db.execute("INSERT INTO commentchainlines (chain, uid, state, commit, sha1, first_line, last_line) VALUES (%d, %d, 'current', %d, %s, %d, %d)",
                    chain_id, this.user.id, data.commit.id, data.commit.sha1, data.lineIndex, data.lineIndex + data.lineCount - 1);
 
-        insertUsers(chain_id, comment_id);
+        insertUsers(chain_id, comment_id, data.silent);
       });
   }
   else
-    operations.push(function (batch_id)
+    operations.push(function (batch_id, data)
       {
         var chain_id = db.execute("INSERT INTO commentchains (review, batch, uid, type, state) VALUES (%d, %d, %d, %s, 'open') RETURNING id",
                                   this.review.id, batch_id, this.user.id, type)[0].id;
@@ -428,7 +429,7 @@ function createCommentChain(text, data, type)
 
         db.execute("UPDATE commentchains SET first_comment=%d WHERE id=%d", comment_id, chain_id);
 
-        insertUsers(chain_id, comment_id);
+        insertUsers(chain_id, comment_id, data.silent);
       });
 }
 
@@ -454,14 +455,15 @@ CriticBatch.prototype.addReply = function (chain, text)
       throw CriticError("can't add two replies to a comment chain in one batch");
     internals.replied_to_chains[chain.id] = true;
 
-    operations.push(function (batch_id)
+    operations.push(function (batch_id, data)
       {
         var comment_id = db.execute("INSERT INTO comments (chain, batch, uid, state, comment) VALUES (%d, %d, %d, 'current', %s) RETURNING id",
                                     chain.id, batch_id, this.user.id, text)[0].id;
 
-        for (var user_id in chain.users)
-          if (user_id != this.user.id)
-            db.execute("INSERT INTO commentstoread (uid, comment) VALUES (%d, %d)", user_id, comment_id);
+        if (!data.silent)
+          for (var user_id in chain.users)
+            if (user_id != this.user.id)
+              db.execute("INSERT INTO commentstoread (uid, comment) VALUES (%d, %d)", user_id, comment_id);
 
         if (!db.execute("SELECT 1 FROM commentchainusers WHERE chain=%d AND uid=%d", chain.id, this.user.id)[0])
           db.execute("INSERT INTO commentchainusers (chain, uid) VALUES (%d, %d)", chain.id, this.user.id);
@@ -1000,7 +1002,7 @@ CriticBatch.prototype.finish = function (data)
 
       if (comment_operations.length)
         for (var index = 0; index < comment_operations.length; ++index)
-          comment_operations[index].call(this, batch_id);
+          comment_operations[index].call(this, batch_id, data);
 
       db.execute("UPDATE reviews SET serial=serial+1 WHERE id=%d", this.review.id);
 
