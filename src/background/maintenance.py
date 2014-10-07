@@ -87,7 +87,11 @@ class Maintenance(background.utils.BackgroundProcess):
                     self.info("  " + branch_name)
 
                     branch = dbutils.Branch.fromId(db, branch_id, repository=repository)
-                    branch.archive(db)
+
+                    try:
+                        branch.archive(db)
+                    except Exception:
+                        self.exception(as_warning=True)
 
                 # Since NOW() returns the same value each time within a single
                 # transaction, this is guaranteed to delete only the set of

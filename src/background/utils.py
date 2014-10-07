@@ -194,11 +194,14 @@ class BackgroundProcess(object):
     def debug(self, message):
         self.__logger.debug(message)
 
-    def exception(self, message=None):
+    def exception(self, message=None, as_warning=False):
         backtrace = traceback.format_exc()
         if message is None:
             message = "unhandled exception: " + backtrace.splitlines()[-1]
-        self.__logger.error(message + "\n" + indent(backtrace))
+        if as_warning:
+            self.__logger.warning(message + "\n" + indent(backtrace))
+        else:
+            self.__logger.error(message + "\n" + indent(backtrace))
 
     def register_maintenance(self, hour, minute, callback):
         self.__maintenance_hooks.append(

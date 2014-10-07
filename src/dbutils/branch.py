@@ -159,8 +159,29 @@ class Branch(object):
         return old_count, new_count, base_old_count, base_new_count
 
     def archive(self, db):
-        self.repository.keepalive(self.head)
-        self.repository.deleteref("refs/heads/" + self.name, self.head)
+        import gitutils
+
+        try:
+            head = self.getHead(db)
+        except gitutils.GitReferenceError:
+            # The head commit appears to be missing from the repository.
+            head = None
+        else:
+            self.repository.keepalive(head.sha1)
+
+        if head:
+            try:
+                self.repository.deleteref("refs/heads/" + self.name, head)
+            except gitutils.GitError:
+                # Branch either doesn't exist, or points to the wrong commit.
+                try:
+                    sha1 = self.repository.revparse("refs/heads/" + self.name)
+                except gitutils.GitReferenceError:
+                    # Branch doesn't exist.  Pretend it's been archived already.
+                    pass
+                else:
+                    # Branch points to the wrong commit.  Don't delete the ref.
+                    return
 
         cursor = db.cursor()
         cursor.execute("""UPDATE branches
@@ -171,7 +192,7 @@ class Branch(object):
         self.archived = True
 
     def resurrect(self, db):
-        self.repository.createref("refs/heads/" + self.name, self.head)
+        self.repository.createref("refs/heads/" + self.name, self.getHead(db))
 
         cursor = db.cursor()
         cursor.execute("""UPDATE branches
@@ -207,19 +228,23 @@ class Branch(object):
             if profiler: profiler.check("Branch.fromId: repository")
 
             if load_commits:
-                try: head_commit = gitutils.Commit.fromId(db, repository, head_commit_id)
-                except: head_commit = None
+                try:
+                    head_commit = gitutils.Commit.fromId(db, repository, head_commit_id)
+                except Exception:
+                    head_commit = None
 
                 if profiler: profiler.check("Branch.fromId: head")
             else:
                 head_commit = None
 
             if load_commits:
-                base_branch = Branch.fromId(db, base_branch_id) if base_branch_id is not None else None
+                base_branch = (Branch.fromId(db, base_branch_id)
+                               if base_branch_id is not None else None)
 
                 if profiler: profiler.check("Branch.fromId: base")
 
-                tail_commit = gitutils.Commit.fromId(db, repository, tail_commit_id) if tail_commit_id is not None else None
+                tail_commit = (gitutils.Commit.fromId(db, repository, tail_commit_id)
+                               if tail_commit_id is not None else None)
 
                 if profiler: profiler.check("Branch.fromId: tail")
             else:
