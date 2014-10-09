@@ -226,8 +226,7 @@ class Propagation:
         Returns the value of the 'active' attribute.
         """
 
-        self.review.branch.loadCommits(self.db)
-        self.head = self.review.branch.head
+        self.head = self.review.branch.getHead(self.db)
 
         self.__propagate(self.review.getCommitSet(self.db))
         return self.active

@@ -305,7 +305,7 @@ def addCommitsToReview(db, user, review, commits, new_review=False, commitset=No
         import index
 
         new_commits = log_commitset.CommitSet(commits)
-        old_commits = log_commitset.CommitSet(review.branch.commits)
+        old_commits = log_commitset.CommitSet(review.branch.getCommits(db))
         merges = new_commits.getMerges()
 
         for merge in merges:

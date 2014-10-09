@@ -46,7 +46,7 @@ def addNote(req, db, user):
     if review and review.repository.id == repository_id:
         repository = gitutils.Repository.fromId(db, repository_id)
         commit = gitutils.Commit.fromSHA1(db, repository, sha1)
-        commitset = log.commitset.CommitSet(review.branch.commits)
+        commitset = log.commitset.CommitSet(review.branch.getCommits(db))
 
         upstreams = commitset.getFilteredTails(repository)
         if len(upstreams) == 1:
@@ -229,7 +229,8 @@ def renderCheckBranch(req, db, user):
 
                     for (review_id,) in cursor:
                         candidate_review = dbutils.Review.fromId(db, review_id)
-                        candidate_reviewed = filter(lambda commit: commit in merged, candidate_review.branch.commits)
+                        candidate_reviewed = filter(lambda commit: commit in merged,
+                                                    candidate_review.branch.getCommits(db))
 
                         if len(candidate_reviewed) > best:
                             review = candidate_review

@@ -282,7 +282,7 @@ class CommentChain:
                     addressed_by_is_draft = True
 
             if review is None:
-                review = dbutils.Review.fromId(db, review_id, load_commits=False)
+                review = dbutils.Review.fromId(db, review_id)
             else:
                 assert review.id == review_id
 
@@ -498,7 +498,7 @@ def validateCommentChain(db, review, origin, parent_id, child_id, file_id, offse
     if propagation.active:
         file_path = dbutils.describe_file(db, file_id)
 
-        if commit.getFileSHA1(file_path) != review.branch.head.getFileSHA1(file_path):
+        if commit.getFileSHA1(file_path) != review.branch.getHead(db).getFileSHA1(file_path):
             return "transferred", {}
         else:
             return "clean", {}
@@ -529,7 +529,7 @@ def propagateCommentChains(db, user, review, commits, replayed_rebases={}):
 
     for file_id, chains in chains_by_file.items():
         file_path = dbutils.describe_file(db, file_id)
-        file_sha1 = review.branch.head.getFileSHA1(file_path)
+        file_sha1 = review.branch.getHead(db).getFileSHA1(file_path)
 
         cursor.execute("""SELECT chain, first_line, last_line
                             FROM commentchainlines
@@ -546,7 +546,7 @@ def propagateCommentChains(db, user, review, commits, replayed_rebases={}):
                 head = replayed_rebases[head]
 
             propagation = reviewing.comment.propagate.Propagation(db)
-            propagation.setExisting(review, chain_id, review.branch.head, file_id, first_line, last_line)
+            propagation.setExisting(review, chain_id, review.branch.getHead(db), file_id, first_line, last_line)
             propagation.calculateAdditionalLines(commits, head)
 
             chain_user_id, chain_type, chain_state = chains[chain_id]

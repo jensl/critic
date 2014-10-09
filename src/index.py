@@ -474,8 +474,8 @@ def updateBranch(user_name, repository_name, name, old, new, multiple, flags):
             raise IndexException("The branch '%s' is not in the database!" % name)
         base_branch_id = branch.base.id if branch.base else None
 
-    if branch.head.sha1 != old:
-        if new == branch.head.sha1:
+    if branch.head_sha1 != old:
+        if new == branch.head_sha1:
             # This is what we think the ref ought to be already.  Do nothing,
             # and let the repository "catch up."
             return
@@ -483,7 +483,7 @@ def updateBranch(user_name, repository_name, name, old, new, multiple, flags):
             data = { "name": name,
                      "old": old[:8],
                      "new": new[:8],
-                     "current": branch.head.sha1[:8] }
+                     "current": branch.head_sha1[:8] }
 
             message = """CONFUSED!  Git thinks %(name)s points to %(old)s, but Critic thinks it points to %(current)s.  Rejecting push since it would only makes matters worse.  To resolve this problem, use
 
@@ -518,8 +518,8 @@ Please don't push it manually to this repository.""" % (name, remote_name, remot
         assert updating
 
         if not name.startswith("r/"):
-            conflicting = repository.revlist([branch.head.sha1], [new])
-            added = repository.revlist([new], [branch.head.sha1])
+            conflicting = repository.revlist([branch.head_sha1], [new])
+            added = repository.revlist([new], [branch.head_sha1])
 
             if conflicting:
                 if forced:
@@ -614,7 +614,7 @@ This review is currently being rebased by
 and can't be otherwise updated right now.""" % (rebaser.fullname, rebaser.email))
 
             old_head = gitutils.Commit.fromId(db, repository, old_head_id)
-            old_commitset = log.commitset.CommitSet(review.branch.commits)
+            old_commitset = log.commitset.CommitSet(review.branch.getCommits(db))
 
             if old_head.sha1 != old:
                 raise IndexException("""\
@@ -721,7 +721,7 @@ the new upstream specified and then push that instead.""")
                 cursor.execute("UPDATE branches SET head=%s WHERE id=%s",
                                (new_head.getId(db), review.branch.id))
             else:
-                old_commitset = log.commitset.CommitSet(review.branch.commits)
+                old_commitset = log.commitset.CommitSet(review.branch.getCommits(db))
                 new_sha1s = repository.revlist([new], old_commitset.getTails(), '--topo-order')
 
                 if old_head.sha1 in new_sha1s:
@@ -795,9 +795,22 @@ first, and then repeat this push.""" % name)
     root_branch_id = cursor.fetchone()[0]
 
     def isreachable(sha1):
-        if is_review and sha1 == branch.tail: return True
-        if base_branch_id: cursor.execute("SELECT 1 FROM commits, reachable WHERE commits.sha1=%s AND commits.id=reachable.commit AND reachable.branch IN (%s, %s, %s)", [sha1, branch.id, base_branch_id, root_branch_id])
-        else: cursor.execute("SELECT 1 FROM commits, reachable WHERE commits.sha1=%s AND commits.id=reachable.commit AND reachable.branch IN (%s, %s)", [sha1, branch.id, root_branch_id])
+        if is_review and sha1 == branch.tail_sha1:
+            return True
+        if base_branch_id:
+            cursor.execute("""SELECT 1
+                                FROM commits
+                                JOIN reachable ON (reachable.commit=commits.id)
+                               WHERE commits.sha1=%s
+                                 AND reachable.branch IN (%s, %s, %s)""",
+                           (sha1, branch.id, base_branch_id, root_branch_id))
+        else:
+            cursor.execute("""SELECT 1
+                                FROM commits
+                                JOIN reachable ON (reachable.commit=commits.id)
+                               WHERE commits.sha1=%s
+                                 AND reachable.branch IN (%s, %s)""",
+                           (sha1, branch.id, root_branch_id))
         return cursor.fetchone() is not None
 
     stack = [new]

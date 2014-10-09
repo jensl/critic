@@ -158,8 +158,6 @@ def renderShowBranch(req, db, user):
 
             return document
 
-    branch.loadCommits(db)
-
     log_html.render(db, target, branch.name, branch=branch, title_right=title_right)
 
     return document

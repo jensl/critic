@@ -22,7 +22,7 @@ from operation import (Operation, OperationResult, OperationError, Optional,
                        Review)
 
 def doPrepareRebase(db, user, review, new_upstream_arg=None, branch=None):
-    commitset = log.commitset.CommitSet(review.branch.commits)
+    commitset = log.commitset.CommitSet(review.branch.getCommits(db))
     tails = commitset.getFilteredTails(review.branch.repository)
 
     cursor = db.cursor()
@@ -80,7 +80,7 @@ class CheckRebase(Operation):
 
     def process(self, db, user, review_id):
         review = dbutils.Review.fromId(db, review_id)
-        tails = review.getFilteredTails()
+        tails = review.getFilteredTails(db)
         available = "both" if len(tails) == 1 else "inplace"
 
         return OperationResult(available=available)
@@ -91,7 +91,7 @@ class SuggestUpstreams(Operation):
 
     def process(self, db, user, review_id):
         review = dbutils.Review.fromId(db, review_id)
-        tails = review.getFilteredTails()
+        tails = review.getFilteredTails(db)
 
         if len(tails) > 1:
             raise OperationError("Multiple tail commits.")
@@ -161,7 +161,7 @@ class RebaseReview(Operation):
         if trackedbranch and not trackedbranch.disabled:
             cursor.execute("UPDATE trackedbranches SET disabled=TRUE WHERE id=%s", (trackedbranch.id,))
 
-        commitset = log.commitset.CommitSet(review.branch.commits)
+        commitset = log.commitset.CommitSet(review.branch.getCommits(db))
         tails = commitset.getFilteredTails(review.branch.repository)
 
         if len(tails) == 1 and tails.pop() == new_upstream_sha1:
@@ -217,7 +217,7 @@ class RevertRebase(Operation):
             # before the rebase.
             raise OperationError("Automatic revert not supported; rebase is pre-historic.")
 
-        if review.branch.head.getId(db) != new_head_id:
+        if review.branch.getHead(db).getId(db) != new_head_id:
             raise OperationError("Commits added to review after rebase; need to remove them first.")
 
         old_head = gitutils.Commit.fromId(db, review.repository, old_head_id)

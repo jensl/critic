@@ -348,7 +348,7 @@ def suggestreview(req, db, _user):
 
     def addSuggestions():
         for review_id, summary in cursor:
-            review = dbutils.Review.fromId(db, review_id, load_commits=False)
+            review = dbutils.Review.fromId(db, review_id)
             if review.state != 'dropped':
                 suggestions[str(review_id)] = "(%s) %s" % (review.getReviewState(db), summary)
 

@@ -132,7 +132,7 @@ class SubmitChanges(Operation):
 
         profiler.check("start")
 
-        review = dbutils.Review.fromId(db, review_id, load_commits=False)
+        review = dbutils.Review.fromId(db, review_id)
 
         profiler.check("create review")
 

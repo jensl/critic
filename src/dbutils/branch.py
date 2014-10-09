@@ -15,18 +15,20 @@
 # the License.
 
 class Branch(object):
-    def __init__(self, id, repository, name, head, base, tail, branch_type, archived, review_id):
+    def __init__(self, id, repository, name, head_sha1, base, tail_sha1, branch_type, archived, review_id):
         self.id = id
         self.repository = repository
         self.name = name
-        self.head = head
+        self.head_sha1 = head_sha1
         self.base = base
-        self.tail = tail
+        self.tail_sha1 = tail_sha1
         self.type = branch_type
         self.archived = archived
         self.review_id = review_id
         self.review = None
-        self.commits = None
+        self.__commits = None
+        self.__head = None
+        self.__tail = None
 
     def __eq__(self, other):
         return self.id == other.id
@@ -45,16 +47,15 @@ class Branch(object):
 
     def getHead(self, db):
         import gitutils
-        if not self.head:
-            cursor = db.cursor()
-            cursor.execute("""SELECT commits.id, commits.sha1
-                                FROM commits
-                                JOIN branches ON (commits.id=branches.head)
-                               WHERE branches.id=%s""",
-                           (self.id,))
-            head_id, head_sha1 = cursor.fetchone()
-            self.head = gitutils.Commit.fromSHA1(db, self.repository, head_sha1, head_id)
-        return self.head
+        if not self.__head:
+            self.__head = gitutils.Commit.fromSHA1(db, self.repository, self.head_sha1)
+        return self.__head
+
+    def getTail(self, db):
+        import gitutils
+        if not self.__tail:
+            self.__tail = gitutils.Commit.fromSHA1(db, self.repository, self.tail_sha1)
+        return self.__tail
 
     def getJSConstructor(self):
         from htmlutils import jsify
@@ -66,22 +67,18 @@ class Branch(object):
     def getJS(self):
         return "var branch = %s;" % self.getJSConstructor()
 
-    def loadCommits(self, db):
+    def getCommits(self, db):
         import gitutils
-        if self.commits is None:
+        if self.__commits is None:
             cursor = db.cursor()
-            cursor.execute("SELECT commits.id, commits.sha1 FROM reachable, commits WHERE reachable.branch=%s AND reachable.commit=commits.id", [self.id])
-            self.commits = []
-            for commit_id, sha1 in cursor:
-                self.commits.append(gitutils.Commit.fromSHA1(db, self.repository, sha1, commit_id=commit_id))
-            cursor.execute("SELECT commits.id, commits.sha1 FROM branches, commits WHERE branches.id=%s AND branches.head=commits.id", [self.id])
-            commit_id, sha1 = cursor.fetchone()
-            self.head = gitutils.Commit.fromSHA1(db, self.repository, sha1, commit_id=commit_id)
-            cursor.execute("SELECT commits.id, commits.sha1 FROM branches, commits WHERE branches.id=%s AND branches.tail=commits.id", [self.id])
-            row = cursor.fetchone()
-            if row:
-                commit_id, sha1 = row
-                self.tail = gitutils.Commit.fromSHA1(db, self.repository, sha1, commit_id=commit_id)
+            cursor.execute("""SELECT commits.id, commits.sha1
+                                FROM reachable
+                                JOIN commits ON (commits.id=reachable.commit)
+                               WHERE reachable.branch=%s""",
+                           (self.id,))
+            self.__commits = [gitutils.Commit.fromSHA1(db, self.repository, sha1, commit_id=commit_id)
+                              for commit_id, sha1 in cursor]
+        return self.__commits
 
     def rebase(self, db, base):
         import gitutils
@@ -128,12 +125,10 @@ class Branch(object):
         old_count = cursor.fetchone()[0]
 
         if base.base and base.base.id == self.id:
-            self.loadCommits(db)
-
             cursor.execute("SELECT count(*) FROM reachable WHERE branch=%s", (base.id,))
             base_old_count = cursor.fetchone()[0]
 
-            base_reachable = findReachable(base.head, self.base.id, set([commit.sha1 for commit in self.commits]))
+            base_reachable = findReachable(base.getHead(db), self.base.id, set(commit.sha1 for commit in self.getCommits(db)))
             base_new_count = len(base_reachable)
 
             cursor.execute("DELETE FROM reachable WHERE branch=%s", [base.id])
@@ -141,12 +136,12 @@ class Branch(object):
             cursor.execute("UPDATE branches SET base=%s WHERE id=%s", [self.base.id, base.id])
 
             base.base = self.base
-            base.commits = None
+            base.__commits = None
         else:
             base_old_count = None
             base_new_count = None
 
-        our_reachable = findReachable(self.head, base.id)
+        our_reachable = findReachable(self.getHead(db), base.id)
         new_count = len(our_reachable)
 
         cursor.execute("DELETE FROM reachable WHERE branch=%s", [self.id])
@@ -154,7 +149,7 @@ class Branch(object):
         cursor.execute("UPDATE branches SET base=%s WHERE id=%s", [base.id, self.id])
 
         self.base = base
-        self.commits = None
+        self.__commits = None
 
         return old_count, new_count, base_old_count, base_new_count
 
@@ -203,7 +198,7 @@ class Branch(object):
         self.archived = False
 
     @staticmethod
-    def fromId(db, branch_id, load_review=False, load_commits=True, repository=None, for_update=False, profiler=None):
+    def fromId(db, branch_id, load_review=False, repository=None, for_update=False, profiler=None):
         import gitutils
 
         cursor = db.cursor()
@@ -218,6 +213,14 @@ class Branch(object):
         else:
             branch_name, repository_id, head_commit_id, base_branch_id, tail_commit_id, type, archived, review_id = row
 
+            def commit_sha1(commit_id):
+                cursor.execute("SELECT sha1 FROM commits WHERE id=%s", (commit_id,))
+                return cursor.fetchone()[0]
+
+            head_commit_sha1 = commit_sha1(head_commit_id)
+            tail_commit_sha1 = (commit_sha1(tail_commit_id)
+                                if tail_commit_id is not None else None)
+
             if profiler: profiler.check("Branch.fromId: basic")
 
             if repository is None:
@@ -227,31 +230,12 @@ class Branch(object):
 
             if profiler: profiler.check("Branch.fromId: repository")
 
-            if load_commits:
-                try:
-                    head_commit = gitutils.Commit.fromId(db, repository, head_commit_id)
-                except Exception:
-                    head_commit = None
+            base_branch = (Branch.fromId(db, base_branch_id, repository=repository)
+                           if base_branch_id is not None else None)
 
-                if profiler: profiler.check("Branch.fromId: head")
-            else:
-                head_commit = None
+            if profiler: profiler.check("Branch.fromId: base")
 
-            if load_commits:
-                base_branch = (Branch.fromId(db, base_branch_id)
-                               if base_branch_id is not None else None)
-
-                if profiler: profiler.check("Branch.fromId: base")
-
-                tail_commit = (gitutils.Commit.fromId(db, repository, tail_commit_id)
-                               if tail_commit_id is not None else None)
-
-                if profiler: profiler.check("Branch.fromId: tail")
-            else:
-                base_branch = None
-                tail_commit = None
-
-            branch = Branch(branch_id, repository, branch_name, head_commit, base_branch, tail_commit, type, archived, review_id)
+            branch = Branch(branch_id, repository, branch_name, head_commit_sha1, base_branch, tail_commit_sha1, type, archived, review_id)
 
             if load_review:
                 from dbutils import Review

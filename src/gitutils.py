@@ -199,7 +199,7 @@ class Repository:
         import dbutils
         if not self.__main_branch:
             if self.__main_branch_id is not None:
-                self.__main_branch = dbutils.Branch.fromId(db, self.__main_branch_id, load_commits=False)
+                self.__main_branch = dbutils.Branch.fromId(db, self.__main_branch_id)
         return self.__main_branch
 
     @staticmethod

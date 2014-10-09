@@ -84,7 +84,7 @@ class RebaseTrackingReview(page.Page):
                 new_head = new_heads.pop()
                 new_upstream_sha1 = new_upstreams.pop()
 
-                old_commits = log.commitset.CommitSet(self.review.branch.commits)
+                old_commits = log.commitset.CommitSet(self.review.branch.getCommits(self.db))
                 old_upstreams = old_commits.getFilteredTails(self.review.repository)
 
                 if len(old_upstreams) != 1:
@@ -106,7 +106,7 @@ class RebaseTrackingReview(page.Page):
 
                 self.document.addInternalScript("var check = { rebase_type: %s, old_head_sha1: %s, new_head_sha1: %s, new_upstream_sha1: %s, new_trackedbranch: %s };"
                                                 % (htmlutils.jsify(rebase_type),
-                                                   htmlutils.jsify(self.review.branch.head.sha1),
+                                                   htmlutils.jsify(self.review.branch.head_sha1),
                                                    htmlutils.jsify(new_head.sha1),
                                                    htmlutils.jsify(new_upstream_sha1),
                                                    htmlutils.jsify(self.newbranch[len("refs/heads/"):])))

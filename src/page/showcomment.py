@@ -222,8 +222,7 @@ def renderShowComments(req, db, user):
 
         if blame is not None:
             annotators = {}
-            review.branch.loadCommits(db)
-            commits = log.commitset.CommitSet(review.branch.commits)
+            commits = log.commitset.CommitSet(review.branch.getCommits(db))
 
         for chain_id in chain_ids:
             if chain_id in processed:

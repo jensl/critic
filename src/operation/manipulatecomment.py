@@ -92,13 +92,11 @@ class ReopenAddressedCommentChain(SetCommentChainState):
         if not existing:
             assert commit_id == chain.addressed_by.getId(db)
 
-            chain.review.branch.loadCommits(db)
-
             commits = chain.review.getCommitSet(db).without(chain.addressed_by.parents)
 
             propagation = propagate.Propagation(db)
             propagation.setExisting(chain.review, chain.id, chain.addressed_by, chain.file_id, offset, offset + count - 1, True)
-            propagation.calculateAdditionalLines(commits, chain.review.branch.head)
+            propagation.calculateAdditionalLines(commits, chain.review.branch.getHead(db))
 
             commentchainlines_values = []
 

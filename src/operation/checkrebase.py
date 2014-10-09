@@ -30,7 +30,7 @@ class CheckMergeStatus(Operation):
 
     def process(self, db, user, review_id, new_head_sha1, new_upstream_sha1):
         review = dbutils.Review.fromId(db, review_id)
-        upstreams = log.commitset.CommitSet(review.branch.commits).getFilteredTails(review.repository)
+        upstreams = log.commitset.CommitSet(review.branch.getCommits(db)).getFilteredTails(review.repository)
 
         if len(upstreams) > 1:
             return OperationResult(rebase_supported=False)
@@ -80,7 +80,7 @@ class CheckConflictsStatus(Operation):
             if len(upstreams) > 1:
                 return OperationResult(rebase_supported=False)
 
-            old_head = review.branch.head
+            old_head = review.branch.getHead(db)
             old_upstream = gitutils.Commit.fromSHA1(db, review.repository, upstreams.pop())
             new_head = gitutils.Commit.fromSHA1(db, review.repository, new_head_sha1)
             new_upstream = gitutils.Commit.fromSHA1(db, review.repository, new_upstream_sha1)
@@ -122,7 +122,7 @@ class CheckHistoryRewriteStatus(Operation):
     def process(self, db, user, review_id, new_head_sha1):
         review = dbutils.Review.fromId(db, review_id)
 
-        old_head = review.branch.head
+        old_head = review.branch.getHead(db)
         new_head = gitutils.Commit.fromSHA1(db, review.repository, new_head_sha1)
 
         mergebase = review.repository.mergebase([old_head, new_head])

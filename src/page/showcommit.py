@@ -701,7 +701,7 @@ def commitRangeFromReview(db, user, review, filter_value, file_ids):
         cursor.execute("SELECT child FROM changesets JOIN reviewchangesets ON (changeset=id) WHERE review=%s", (review.id,))
         all_commits = [gitutils.Commit.fromId(db, review.repository, commit_id) for (commit_id,) in cursor]
 
-        commitset = CommitSet(review.branch.commits)
+        commitset = CommitSet(review.branch.getCommits(db))
         tails = commitset.getFilteredTails(review.repository)
 
         if len(commitset) == 0:
@@ -747,7 +747,7 @@ def commitRangeFromReview(db, user, review, filter_value, file_ids):
             if not candidates:
                 paths.sort(cmp=lambda a, b: cmp(len(a[1]), len(b[1])))
 
-                url = "/%s/%s..%s?file=%s" % (review.repository.name, paths[0][0][:8], review.branch.head.sha1[:8], ",".join(map(str, sorted(files_in_review))))
+                url = "/%s/%s..%s?file=%s" % (review.repository.name, paths[0][0][:8], review.branch.head_sha1[:8], ",".join(map(str, sorted(files_in_review))))
 
                 message = """\
 <p>It is not possible to generate a diff of the requested set of
@@ -767,7 +767,7 @@ including the unrelated changes.</p>
             else:
                 candidates.sort(cmp=lambda a, b: cmp(len(b[1]), len(a[1])))
 
-                return candidates[0][0], review.branch.head.sha1, all_commits, listed_commits
+                return candidates[0][0], review.branch.head_sha1, all_commits, listed_commits
 
         if tails:
             from_sha1 = tails.pop()
@@ -775,7 +775,7 @@ including the unrelated changes.</p>
             # Review starts with the initial commit.
             from_sha1 = None
 
-        return from_sha1, review.branch.head.sha1, all_commits, listed_commits
+        return from_sha1, review.branch.head_sha1, all_commits, listed_commits
 
     if not with_pending:
         if filter_value == "pending":

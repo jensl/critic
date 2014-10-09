@@ -320,7 +320,9 @@ the review is currently stuck; it cannot finish unless there are reviewers.
 
         if contextLines < 0: contextLines = 0
 
-        commits = list(reversed(review.branch.commits))
+        # FIXME: The order here is essentially random.  We shouldn't depend on
+        # it, and reversing it doesn't make much sense...
+        commits = list(reversed(review.branch.getCommits(db)))
 
         if diffMaxLines == 0: diffs = None
         else:

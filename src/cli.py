@@ -104,7 +104,7 @@ try:
                 filters = reviewing.filters.Filters()
                 user = dbutils.User.fromId(db, data["user_id"]) if "user_id" in data else None
                 if "review_id" in data:
-                    review = dbutils.Review.fromId(db, data["review_id"], load_commits=False)
+                    review = dbutils.Review.fromId(db, data["review_id"])
                     filters.setFiles(db, review=review)
                     filters.load(db, review=review, user=user,
                                  added_review_filters=data.get("added_review_filters", []),

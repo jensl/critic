@@ -221,7 +221,6 @@ class Review(object):
         self.description = description
         self.reviewers = []
         self.watchers = {}
-        self.changesets = []
         self.commentchains = None
         self.applyfilters = applyfilters
         self.applyparentfilters = applyparentfilters
@@ -353,7 +352,7 @@ class Review(object):
             return True
 
         if include_head_and_tails:
-            head_and_tails = set([self.branch.head])
+            head_and_tails = set([self.branch.getHead(db)])
 
             commitset = self.getCommitSet(db)
 
@@ -600,9 +599,9 @@ class Review(object):
         cursor.execute("SELECT uid, path, type, NULL FROM reviewfilters WHERE review=%s", (self.id,))
         return cursor.fetchall() or None
 
-    def getFilteredTails(self):
+    def getFilteredTails(self, db):
         import log.commitset
-        commitset = log.commitset.CommitSet(self.branch.commits)
+        commitset = log.commitset.CommitSet(self.branch.getCommits(db))
         return commitset.getFilteredTails(self.branch.repository)
 
     def getRelevantFiles(self, db, user):
@@ -655,7 +654,7 @@ class Review(object):
         return ", ".join(association)
 
     @staticmethod
-    def fromId(db, review_id, branch=None, load_commits=True, profiler=None):
+    def fromId(db, review_id, branch=None, profiler=None):
         from dbutils import User
 
         cursor = db.cursor()
@@ -669,7 +668,7 @@ class Review(object):
 
         if branch is None:
             from dbutils import Branch
-            branch = Branch.fromId(db, branch_id, load_review=False, load_commits=load_commits, profiler=profiler)
+            branch = Branch.fromId(db, branch_id, load_review=False, profiler=profiler)
 
         cursor.execute("SELECT uid FROM reviewusers WHERE review=%s AND owner", (review_id,))
 
@@ -704,19 +703,6 @@ class Review(object):
             review.watchers[watcher] = watcher_types[watcher]
 
         if profiler: profiler.check("Review.fromId: users")
-
-        if load_commits:
-            review.branch.loadCommits(db)
-
-            cursor.execute("""SELECT id
-                                FROM reviewchangesets
-                                JOIN changesets ON (id=changeset)
-                               WHERE review=%s
-                                 AND child=ANY (%s)""", (review_id, [commit.id for commit in review.branch.commits]))
-
-            review.changesets = [changeset_id for (changeset_id,) in cursor.fetchall()]
-
-            if profiler: profiler.check("Review.fromId: load commits")
 
         return review
 

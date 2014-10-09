@@ -194,7 +194,7 @@ def renderShowReview(req, db, user):
     highlight = req.getParameter("highlight", None)
 
     review_id = req.getParameter("id", filter=int)
-    review = dbutils.Review.fromId(db, review_id, load_commits=False, profiler=profiler)
+    review = dbutils.Review.fromId(db, review_id, profiler=profiler)
 
     profiler.check("create review")
 
@@ -1223,11 +1223,19 @@ def renderShowReview(req, db, user):
 
     yield flush()
 
-    if review.branch.head:
-        try: head_according_to_git = repository.revparse(review.branch.name)
-        except: head_according_to_git = None
+    try:
+        head = review.branch.getHead(db)
+    except gitutils.GitReferenceError:
+        # Commit missing from repository.
+        pass
+    else:
+        try:
+            head_according_to_git = repository.revparse(review.branch.name)
+        except gitutils.GitReferenceError:
+            # Branch missing from repository.
+            head_according_to_git = None
 
-        head_according_to_us = review.branch.head.sha1
+        head_according_to_us = head.sha1
 
         if head_according_to_git != head_according_to_us:
             # The git repository disagrees with us.  Potentially harmful updates

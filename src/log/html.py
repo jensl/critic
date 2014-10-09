@@ -125,9 +125,8 @@ def render(db, target, title, branch=None, commits=None, columns=DEFAULT_COLUMNS
 
     if branch is not None:
         repository = branch.repository
-        branch.loadCommits(db)
-        commits = branch.commits[:]
-        commit_set = log.commitset.CommitSet(branch.commits)
+        commits = branch.getCommits(db)[:]
+        commit_set = log.commitset.CommitSet(commits)
     else:
         assert commits is not None
         repository = commits[0].repository if len(commits) else None
@@ -459,8 +458,7 @@ def render(db, target, title, branch=None, commits=None, columns=DEFAULT_COLUMNS
         cell = row.td(colspan=len(columns), align='center')
         cell.text("No commits. ")
         if review:
-            review.branch.loadCommits(db)
-            cell.a(href="showtree?sha1=%s&review=%d" % (review.branch.head.sha1, review.id)).text("[Browse tree]")
+            cell.a(href="showtree?sha1=%s&review=%d" % (review.branch.head_sha1, review.id)).text("[Browse tree]")
         return
     elif len(heads) > 1:
         error_message = "Invalid commit set: Multiple heads."
