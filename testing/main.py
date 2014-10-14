@@ -432,14 +432,22 @@ first or run this script without --test-extensions.""")
 
     def run_test(test, scope):
         prefix = "testing/tests"
+        def run_file(filename):
+            try:
+                execfile(os.path.join(prefix, filename), scope)
+            except testing.Error:
+                raise
+            except Exception as error:
+                logger.exception("Unexpected exception!")
+                raise testing.TestFailure
         path = ""
         for component in test.filename.split("/")[:-1]:
             path = os.path.join(path, component)
             init_filename = os.path.join(path, "__init__.py")
             if os.path.isfile(os.path.join(prefix, init_filename)):
                 logger.debug("Including: %s" % init_filename)
-                execfile(os.path.join(prefix, init_filename), scope)
-        execfile(os.path.join(prefix, test.filename), scope)
+                run_file(init_filename)
+        run_file(test.filename)
 
     def run_group(group_name, tests):
         scope = { "testing": testing,
