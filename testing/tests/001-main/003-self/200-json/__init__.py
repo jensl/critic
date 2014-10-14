@@ -38,3 +38,30 @@ generic_commit_json = {
         "timestamp": float
     },
 }
+
+def reply_json(author):
+    return { "id": int,
+             "is_draft": bool,
+             "author": instance.userid(author),
+             "timestamp": float,
+             "text": "This is a reply from %s." % author.capitalize() }
+
+def fetch_changeset(params, repository="critic"):
+    params.setdefault("repository", repository)
+
+    result = frontend.json(
+        "changesets",
+        params=params)
+
+    if result["id"] is None:
+        instance.synchronize_service("changeset")
+
+        result = frontend.json(
+            "changesets",
+            params=params,
+            expect={
+                "id": int,
+                "*": "*"
+            })
+
+    return result

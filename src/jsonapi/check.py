@@ -304,6 +304,18 @@ class Review(PositiveInteger):
     def process(self, context, review):
         context.review = review
 
+class Comment(PositiveInteger):
+    convert_exception = api.comment.InvalidCommentId
+    def convert(self, context, value):
+        return api.comment.fetch(context.critic, comment_id=value)
+    def process(self, context, comment):
+        context.review = comment.review
+
+class Reply(PositiveInteger):
+    convert_exception = api.reply.InvalidReplyId
+    def convert(self, context, value):
+        return api.reply.fetch(context.critic, reply_id=value)
+
 class CommitId(PositiveInteger):
     convert_exception = api.commit.InvalidCommitId
     def convert(self, context, value):
@@ -359,6 +371,8 @@ CHECKER_MAP = { int: IntegerChecker(),
                 api.user.User: User,
                 api.repository.Repository: Repository,
                 api.review.Review: Review,
+                api.comment.Comment: Comment,
+                api.reply.Reply: Reply,
                 api.commit.Commit: Commit,
                 api.file.File: File,
                 api.changeset.Changeset: Changeset,

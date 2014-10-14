@@ -28,10 +28,25 @@ class Error(Exception):
     pass
 
 class PathError(Error):
+    """Raised for valid paths that don't match a resource
+
+       Results in a 404 "Not Found" response.
+
+       Note: A "valid" path is one that could have returned a resource, had the
+             system's dynamic state (database + repositories) been different."""
+
     http_status = 404
     title = "No such resource"
 
 class UsageError(Error):
+    """Raised for invalid paths and/or query parameters
+
+       Results in a 400 "Bad Request" response.
+
+       Note: An "invalid" path is one that could never (in this version of
+             Critic) return any other response, regardless of the system's
+             dynamic state (database + repositories.)"""
+
     http_status = 400
     title = "Invalid API request"
 
@@ -374,6 +389,10 @@ def finishGET(critic, req, parameters, resource_class, value, values):
                 all_linked[resource_type] |= linked[resource_type]
 
             linked = additional_linked
+
+            for linked_items in linked_json.values():
+                if linked_items and "id" in linked_items[0]:
+                    linked_items.sort(key=lambda item: item["id"])
 
     if critic.database.profiling and "dbqueries" in parameters.debug:
         import profiling

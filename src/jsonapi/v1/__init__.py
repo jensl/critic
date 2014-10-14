@@ -15,6 +15,12 @@
 # the License.
 
 import configuration
+import datetime
+
+EPOCH = datetime.datetime.utcfromtimestamp(0)
+
+def timestamp(timestamp):
+    return (timestamp - EPOCH).total_seconds()
 
 import users
 import sessions
@@ -26,6 +32,8 @@ import rebases
 import changesets
 import filechanges
 import files
+import comments
+import replies
 
 if configuration.auth.ENABLE_ACCESS_TOKENS:
     import accesstokens

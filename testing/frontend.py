@@ -415,6 +415,8 @@ class Frontend(object):
                 return "object"
             if isinstance(value, list) or value is list:
                 return "array"
+            if isinstance(value, set):
+                return "one of: " % ",".join(sorted(value))
             if isinstance(value, type):
                 return { int: "integer", float: "float", str: "string" }[value]
             if isinstance(value, (str, int, float)):
@@ -456,6 +458,14 @@ class Frontend(object):
             for index, (expected, actual) in enumerate(zip(expected, actual)):
                 check("%s[%d]" % (path, index), expected, actual)
 
+        def check_set(path, expected, actual):
+            if not isinstance(actual, str):
+                errors.append("%s: value is %s, expected string"
+                              % (path, describe(actual)))
+            if actual not in expected:
+                errors.append("%s: value is %s, expected %s"
+                              % (path, describe(actual), describe(expected)))
+
         def check_null(path, actual):
             if actual is not None:
                 errors.append("%s: value is %s, expected null"
@@ -481,6 +491,8 @@ class Frontend(object):
                 check_object(path, expected, actual)
             elif isinstance(expected, list) or expected is list:
                 check_array(path, expected, actual)
+            elif isinstance(expected, set):
+                check_set(path, expected, actual)
             elif expected is None:
                 check_null(path, actual)
             else:

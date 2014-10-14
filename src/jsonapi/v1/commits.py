@@ -17,8 +17,6 @@
 import datetime
 import re
 
-EPOCH = datetime.datetime.utcfromtimestamp(0)
-
 import api
 import jsonapi
 
@@ -65,10 +63,10 @@ class Commits(object):
         # linked objects, just not recursively.
 
         def userAndTimestamp(user_and_timestamp):
-            timestamp_delta = (user_and_timestamp.timestamp - EPOCH)
+            timestamp = jsonapi.v1.timestamp(user_and_timestamp.timestamp)
             return { "name": user_and_timestamp.name,
                      "email": user_and_timestamp.email,
-                     "timestamp": timestamp_delta.total_seconds() }
+                     "timestamp": timestamp }
 
         return parameters.filtered(
             "branches", { "id": value.id,
@@ -127,6 +125,20 @@ class Commits(object):
             raise jsonapi.UsageError(
                 "Commit reference must have repository specified.")
         return api.commit.fetch(repository, sha1=sha1_parameter)
+
+    @staticmethod
+    def deduce(parameters):
+        commit = parameters.context.get(Commits.name)
+        commit_parameter = parameters.getQueryParameter("commit")
+        if commit_parameter is not None:
+            if commit is not None:
+                raise jsonapi.UsageError(
+                    "Redundant query parameter: commit=%s"
+                    % commit_parameter)
+            repository = jsonapi.deduce("v1/repositories", parameters)
+            commit_id, ref = jsonapi.id_or_name(commit_parameter)
+            commit = api.commit.fetch(repository, commit_id, ref=ref)
+        return commit
 
     @staticmethod
     def setAsContext(parameters, commit):

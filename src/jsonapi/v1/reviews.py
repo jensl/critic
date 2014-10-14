@@ -24,6 +24,7 @@ class Reviews(object):
     name = "reviews"
     value_class = api.review.Review
     exceptions = (api.review.InvalidReviewId, api.repository.RepositoryError)
+    lists = ("issues", "notes")
 
     @staticmethod
     def json(value, parameters):
@@ -38,6 +39,8 @@ class Reviews(object):
              "reviewers": integer[],
              "watchers": integer[],
              "partitions": Partition[],
+             "issues": integer[],
+             "notes": integer[],
            }
 
            Partition {
@@ -71,7 +74,9 @@ class Reviews(object):
                          "owners": jsonapi.sorted_by_id(value.owners),
                          "reviewers": jsonapi.sorted_by_id(value.reviewers),
                          "watchers": jsonapi.sorted_by_id(value.watchers),
-                         "partitions": partitions })
+                         "partitions": partitions,
+                         "issues": jsonapi.sorted_by_id(value.issues),
+                         "notes": jsonapi.sorted_by_id(value.notes) })
 
     @staticmethod
     def single(parameters, argument):
@@ -113,6 +118,24 @@ class Reviews(object):
             parameters.critic, repository=repository, state=state)
 
     @staticmethod
+    def create(parameters, value, values, data):
+        critic = parameters.critic
+        path = parameters.subresource_path
+        review = value
+
+        if review:
+            if path == ["issues"] or path == ["notes"]:
+                Reviews.setAsContext(parameters, review)
+                if path == ["issues"]:
+                    comment_type = "issue"
+                else:
+                    comment_type = "note"
+                jsonapi.ensure(data, "type", comment_type)
+                raise jsonapi.InternalRedirect("v1/comments")
+
+        raise jsonapi.UsageError("Review creation not yet supported")
+
+    @staticmethod
     def deduce(parameters):
         review = parameters.context.get("reviews")
         review_parameter = parameters.getQueryParameter("review")
@@ -121,7 +144,8 @@ class Reviews(object):
                 raise jsonapi.UsageError(
                     "Redundant query parameter: review=%s" % review_parameter)
             review = api.review.fetch(
-                critic, review_id=jsonapi.numeric_id(review_parameter))
+                parameters.critic,
+                review_id=jsonapi.numeric_id(review_parameter))
         return review
 
     @staticmethod
