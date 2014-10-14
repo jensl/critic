@@ -354,10 +354,13 @@ first or run this script without --test-extensions.""")
                     testing.pause("Press ENTER to upgrade (to HEAD), "
                                   "CTRL-c to stop: ")
 
-                for command in arguments.pause_upgrade_hook:
-                    subprocess.check_call(command, shell=True)
+                if arguments.pause_upgrade_hook:
+                    for command in arguments.pause_upgrade_hook:
+                        subprocess.check_call(command, shell=True)
 
-                if isinstance(instance, testing.virtualbox.Instance):
+                if arguments.quickstart:
+                    instance.restart()
+                elif not arguments.local:
                     repository.push("HEAD")
 
                     instance.execute(["git", "fetch", "origin", "master"], cwd="critic")

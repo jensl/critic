@@ -186,11 +186,6 @@ class Instance(testing.Instance):
         if line != "STARTED":
             raise testing.InstanceError("Unexpected output: %r" % line)
 
-        stdout_thread = threading.Thread(
-            target=consume, args=(self.process.stdout, testing.STDOUT))
-        stdout_thread.daemon = True
-        stdout_thread.start()
-
         # Add some regular users.
         for name in ("alice", "bob", "dave", "erin"):
             self.adduser(name)
@@ -226,9 +221,6 @@ class Instance(testing.Instance):
 
     def extend(self, repository):
         self.check_extend(repository)
-
-    def restart(self):
-        raise testing.NotSupported("quick-started instance can't be restarted")
 
     def uninstall(self):
         raise testing.NotSupported("quick-started instance can't be uninstalled")
@@ -279,3 +271,11 @@ class Instance(testing.Instance):
                      for logfile_path, entries in sorted(data.items()) }
         except testing.CommandError:
             return None
+
+    def restart(self):
+        self.process.send_signal(signal.SIGUSR1)
+
+        line = self.process.stdout.readline().strip()
+
+        if line != "RESTARTED":
+            raise testing.InstanceError("Unexpected output: %r" % line)

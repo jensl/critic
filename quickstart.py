@@ -31,6 +31,8 @@ import contextlib
 
 sys.path.insert(0, os.path.dirname(__file__))
 
+admin_username = os.environ.get("LOGNAME", "admin")
+
 parser = argparse.ArgumentParser("python quickstart.py",
                                  description="Critic instance quick-start utility script.")
 parser.add_argument("--quiet", action="store_true",
@@ -38,11 +40,11 @@ parser.add_argument("--quiet", action="store_true",
 parser.add_argument("--testing", action="store_true",
                     help=argparse.SUPPRESS)
 
-parser.add_argument("--admin-username", default=os.getlogin(),
+parser.add_argument("--admin-username", default=admin_username,
                     help=argparse.SUPPRESS)
-parser.add_argument("--admin-fullname", default=os.getlogin(),
+parser.add_argument("--admin-fullname", default=admin_username,
                     help=argparse.SUPPRESS)
-parser.add_argument("--admin-email", default=os.getlogin() + "@localhost",
+parser.add_argument("--admin-email", default=admin_username + "@localhost",
                     help=argparse.SUPPRESS)
 parser.add_argument("--admin-password", default="1234",
                     help=argparse.SUPPRESS)
@@ -414,8 +416,18 @@ try:
     if arguments.testing:
         print "STARTED"
 
-    if arguments.testing:
-        time.sleep(3600)
+        restart_requested = False
+        def handle_sigusr1(signum, frame):
+            global restart_requested
+            restart_requested = True
+        signal.signal(signal.SIGUSR1, handle_sigusr1)
+
+        while True:
+            time.sleep(3600)
+            if restart_requested:
+                restart_requested = False
+                restartTheSystem()
+                print "RESTARTED"
     else:
         while True:
             current_mtime = getNewestModificationTime()
