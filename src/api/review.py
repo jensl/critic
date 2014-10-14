@@ -131,6 +131,20 @@ class Review(api.APIObject):
         return self._impl.getRebases(self)
 
     @property
+    def issues(self):
+        """The issues in the review
+
+           The issues are returned as a list of api.comment.Issue objects."""
+        return self._impl.getIssues(self)
+
+    @property
+    def notes(self):
+        """The notes in the review
+
+           The notes are returned as a list of api.comment.Note objects."""
+        return self._impl.getNotes(self)
+
+    @property
     def first_partition(self):
         return api.log.partition.create(
             self.critic, self.commits, self.rebases)

@@ -251,6 +251,10 @@ class Repository:
             return Repository.fromId(db, repository_id, for_modify=for_modify)
         raise NoSuchRepository(path)
 
+    @staticmethod
+    def fromAPI(api_repository):
+        return api_repository._impl.getInternal(api_repository.critic)
+
     def __terminate(self, db=None):
         self.stopBatch()
 
@@ -1073,6 +1077,12 @@ class Commit:
             sha1 = cursor.fetchone()[0]
             commit = Commit.fromSHA1(db, repository, sha1, commit_id)
         return commit
+
+    @staticmethod
+    def fromAPI(api_commit):
+        return Commit.fromSHA1(api_commit.critic.database,
+                               Repository.fromAPI(api_commit.repository),
+                               api_commit.sha1, api_commit.id)
 
     def __hash__(self): return hash(self.sha1)
     def __eq__(self, other): return self.sha1 == str(other)

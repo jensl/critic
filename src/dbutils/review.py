@@ -752,3 +752,7 @@ class Review(object):
             branch = Branch.fromName(db, str(argument))
             if not branch: return None
             return Review.fromBranch(db, branch)
+
+    @staticmethod
+    def fromAPI(api_review):
+        return Review.fromId(api_review.critic.database, api_review.id)

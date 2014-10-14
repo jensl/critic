@@ -39,6 +39,11 @@ class Changeset(api.APIObject):
         return self._impl.id
 
     @property
+    def repository(self):
+        """The repository containing the compared commits"""
+        return self._impl.repository
+
+    @property
     def type(self):
         return self._impl.type
 

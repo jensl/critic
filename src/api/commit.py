@@ -55,6 +55,11 @@ class Commit(api.APIObject):
         return self._impl.getId(self.critic)
 
     @property
+    def repository(self):
+        """The repository containing the commit"""
+        return self._impl.repository
+
+    @property
     def sha1(self):
         """The commit's full 40 character SHA-1"""
         return self._impl.sha1

@@ -37,5 +37,7 @@ import accesscontrolprofile
 import labeledaccesscontrolprofile
 import extension
 import file
+import comment
+import reply
 
 import transaction

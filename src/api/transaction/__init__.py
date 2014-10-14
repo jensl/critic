@@ -21,6 +21,7 @@ class Transaction(object):
         self.critic = critic
         self.tables = set()
         self.items = []
+        self.callbacks = []
 
     def modifyUser(self, subject):
         from user import ModifyUser
@@ -65,6 +66,11 @@ class Transaction(object):
             api.labeledaccesscontrolprofile.LabeledAccessControlProfile)
         return ModifyLabeledAccessControlProfile(self, labeled_profile)
 
+    def modifyReview(self, review):
+        from review import ModifyReview
+        assert isinstance(review, api.review.Review)
+        return ModifyReview(self, review)
+
     def __enter__(self):
         return self
 
@@ -79,6 +85,8 @@ class Transaction(object):
         with self.critic.getUpdatingDatabaseCursor(*self.tables) as cursor:
             for item in self.items:
                 item(self.critic, cursor)
+            for callback in self.callbacks:
+                callback()
 
 class Query(object):
     def __init__(self, statement, *values, **kwargs):
@@ -117,17 +125,30 @@ class LazyStr(LazyValue):
     def evaluate(self):
         return self.source()
 
-class LazyAPIObject(LazyValue):
-    def __init__(self, critic, fetch, callback=None):
-        self.critic = critic
-        self.fetch = fetch
+class LazyObject(LazyValue):
+    def __init__(self, callback=None):
+        self.object_id = None
         self.callback = callback
     def __call__(self, object_id):
         self.object_id = object_id
-        if self.callback is not None:
-            self.callback(self.fetch(self.critic, object_id))
+        if self.callback:
+            self.callback(self)
     @property
     def id(self):
         return LazyInt(self.evaluate)
     def evaluate(self):
+        assert self.object_id is not None
         return self.object_id
+
+class LazyAPIObject(LazyObject):
+    def __init__(self, critic, fetch, callback=None):
+        super(LazyAPIObject, self).__init__(
+            callback=self.callback_wrapper if callback else None)
+        self.critic = critic
+        self.__fetch = fetch
+        self.__callback = callback
+    def fetch(self):
+        return self.__fetch(self.critic, self.evaluate())
+    @staticmethod
+    def callback_wrapper(self):
+        self.__callback(self.fetch())

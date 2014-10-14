@@ -37,6 +37,8 @@ class Review(apiobject.APIObject):
         self.__filters = None
         self.__commits = None
         self.__rebases = None
+        self.__issues = None
+        self.__notes = None
 
     def getRepository(self, critic):
         return api.repository.fetch(critic, repository_id=self.__repository_id)
@@ -145,6 +147,18 @@ class Review(apiobject.APIObject):
 
     def getRebases(self, wrapper):
         return api.log.rebase.fetchAll(wrapper.critic, wrapper)
+
+    def getIssues(self, wrapper):
+        if self.__issues is None:
+            self.__issues = api.comment.fetchAll(
+                wrapper.critic, review=wrapper, comment_type="issue")
+        return self.__issues
+
+    def getNotes(self, wrapper):
+        if self.__notes is None:
+            self.__notes = api.comment.fetchAll(
+                wrapper.critic, review=wrapper, comment_type="note")
+        return self.__notes
 
     @classmethod
     def create(Review, critic, *args):
