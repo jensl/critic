@@ -188,101 +188,6 @@ function commitFromFileVersion(file_version)
     return file_version.commit;
 }
 
-function propagateCommentChain(review, start, line_index, line_count, forward, chain)
-{
-  var lines = [];
-  var commits = review.commits;
-  var path = start.path;
-  var commit = commitFromFileVersion(start);
-
-  if (!forward && !(commit.sha1 in commits.parents))
-    return [lines, "clean"];
-
-  while (true)
-  {
-    var next;
-
-    if (forward)
-      if (commits.children[commit.sha1].length > 1)
-        return [lines, "merge", commit];
-      else
-        next = commits.children[commit.sha1][0];
-    else
-      if (commit.parents.length != 1)
-        return [lines, "merge", commit];
-      else
-        next = commits.parents[commit.sha1][0];
-
-    if (!next)
-      return [lines, "clean"];
-
-    var parent, child;
-
-    if (forward)
-    {
-      parent = commit;
-      child = next;
-    }
-    else
-    {
-      parent = next;
-      child = commit;
-    }
-
-    var changeset = review.repository.getChangeset({ parent: parent, child: child });
-    var file = changeset.files[path];
-
-    if (file)
-    {
-      var next_version = forward ? file.newVersion : file.oldVersion;
-
-      if (!next_version)
-        if (forward)
-          /* File was removed. */
-          return [lines, "modified", next];
-        else
-          /* File was added. */
-          return [lines, "clean"];
-
-      var delta = 0, sha1 = next_version.sha1;
-
-      if (chain && !forward && sha1 in chain.lines)
-        return [lines, "clean"];
-
-      for (var index = 0; index < file.chunks.length; ++index)
-      {
-        var chunk = file.chunks[index], chunk_start, chunk_end, chunk_delta;
-
-        if (forward)
-        {
-          chunk_start = chunk.deleteOffset;
-          chunk_end = chunk.deleteOffset + chunk.deleteCount;
-          chunk_delta = chunk.insertCount - chunk.deleteCount;
-        }
-        else
-        {
-          chunk_start = chunk.insertOffset;
-          chunk_end = chunk.insertOffset + chunk.insertCount;
-          chunk_delta = chunk.deleteCount - chunk.insertCount;
-        }
-
-        if (chunk_end <= line_index)
-          delta += chunk_delta;
-        else if (chunk_start <= line_index + line_count)
-          return [lines, "modified", next];
-        else
-          break;
-      }
-
-      line_index += delta;
-
-      lines.push([next, sha1, line_index, line_count]);
-    }
-
-    commit = next;
-  }
-}
-
 function createCommentChain(text, data, type)
 {
   data = data || {};
@@ -326,32 +231,43 @@ function createCommentChain(text, data, type)
       throw CriticError("data.lineCount: invalid argument; expected number");
 
     var file_version = data.fileVersion;
-    var propagation_back = propagateCommentChain(this.review, file_version, data.lineIndex, data.lineCount, false);
-    var propagation_forward = propagateCommentChain(this.review, file_version, data.lineIndex, data.lineCount, true);
-    var state = 'open';
-    var addressed_by = null;
 
-    if (type == "issue")
-      switch (propagation_forward[1])
-      {
-      case "clean":
-        break;
-      case "merge":
-        throw CriticError(format("cannot raise issue; commit is followed by a merge commit: %s", propagation_forward[2].sha1));
-      case "modified":
-        if (data.allowInitiallyAddressed)
-        {
-          state = 'addressed';
-          addressed_by = propagation_forward[2];
-        }
-        else
-          throw CriticError(format("cannot raise issue; lines are modified by a later commit: %s", propagation_forward[2].sha1));
+    var cli_command = {
+      name: "propagate-comment",
+      data: {
+        review_id: this.review.id,
+        commit_id: commitFromFileVersion(file_version).id,
+        file_id: file_version.file.id,
+        first_line: data.lineIndex + 1,
+        last_line: data.lineIndex + data.lineCount
       }
+    };
 
-    var sha1s = {};
-    var lines = [[commitFromFileVersion(file_version), file_version.sha1, data.lineIndex, data.lineCount]]
-                  .concat(propagation_back[0], propagation_forward[0])
-                  .filter(function (data) { if (data[1] in sha1s) return false; sha1s[data[1]] = true; return true; });
+    var cli_result = JSON.parse(executeCLI([cli_command])[0]);
+
+    if (typeof cli_result == "string")
+      throw CriticError(format("comment propagation failed: %s", cli_result));
+
+    var state, addressed_by;
+
+    if (cli_result.status == "clean")
+    {
+      state = "open";
+      addressed_by = null;
+    }
+    else if (data.allowInitiallyAddressed)
+    {
+      state = 'addressed';
+      addressed_by = cli_result.addressed_by;
+    }
+    else
+    {
+      var addressed_by_commit = this.review.repository.getCommit(cli_result.addressed_by);
+      throw CriticError(format("cannot raise issue; lines are modified by a later commit: %s", addressed_by_commit.sha1));
+    }
+
+    var lines = cli_result.lines;
+
     var origin, parent, child;
 
     if (file_version instanceof CriticChangesetFileVersion)
@@ -372,7 +288,7 @@ function createCommentChain(text, data, type)
                                   this.review.id, batch_id, this.user.id, type, state, origin, file_version.id, parent.id, child.id)[0].id;
 
         if (addressed_by)
-          db.execute("UPDATE commentchains SET addressed_by=%d WHERE id=%d", addressed_by.id, chain_id);
+          db.execute("UPDATE commentchains SET addressed_by=%d WHERE id=%d", addressed_by, chain_id);
 
         var comment_id = db.execute("INSERT INTO comments (chain, batch, uid, state, comment) VALUES (%d, %d, %d, 'current', %s) RETURNING id",
                                     chain_id, batch_id, this.user.id, text)[0].id;
@@ -383,8 +299,8 @@ function createCommentChain(text, data, type)
         {
           var line = lines[index];
 
-          db.execute("INSERT INTO commentchainlines (chain, uid, state, commit, sha1, first_line, last_line) VALUES (%d, %d, 'current', %d, %s, %d, %d)",
-                     chain_id, this.user.id, line[0].id, line[1], line[2] + 1, line[2] + line[3]);
+          db.execute("INSERT INTO commentchainlines (chain, uid, state, sha1, first_line, last_line) VALUES (%d, %d, 'current', %s, %d, %d)",
+                     chain_id, this.user.id, line[0], line[1], line[2]);
         }
 
         insertUsers(chain_id, comment_id, data.silent);
@@ -535,24 +451,31 @@ CriticBatch.prototype.reopenIssue = function (chain, data)
           throw CriticError("data.lineCount: invalid argument; expected number");
 
         var file_version = data.fileVersion;
-        var propagation_back = propagateCommentChain(this.review, file_version, data.lineIndex, data.lineCount, false, chain);
-        var propagation_forward = propagateCommentChain(this.review, file_version, data.lineIndex, data.lineCount, true, chain);
 
-        switch (propagation_forward[1])
+        var cli_command = {
+          name: "propagate-comment",
+          data: {
+            review_id: this.review.id,
+            chain_id: chain.id,
+            commit_id: commitFromFileVersion(file_version).id,
+            file_id: file_version.file.id,
+            first_line: data.lineIndex + 1,
+            last_line: data.lineIndex + data.lineCount
+          }
+        };
+
+        var cli_result = JSON.parse(executeCLI([cli_command])[0]);
+
+        if (typeof cli_result == "string")
+          throw CriticError(format("comment propagation failed: %s", cli_result));
+
+        if (cli_result.status == "modified")
         {
-        case "clean":
-          break;
-        case "merge":
-          throw CriticError(format("cannot reopen issue; commit is followed by a merge commit: %s", propagation_forward[2].sha1));
-        case "modified":
-          throw CriticError(format("cannot reopen issue; lines are modified by a later commit: %s", propagation_forward[2].sha1));
+          var addressed_by_commit = this.review.repository.getCommit(cli_result.addressed_by);
+          throw CriticError(format("cannot reopen issue; lines are modified by a later commit: %s", addressed_by_commit.sha1));
         }
 
-        var sha1s = {};
-
-        lines = [[commitFromFileVersion(file_version), file_version.sha1, data.lineIndex, data.lineCount]]
-                  .concat(propagation_back[0], propagation_forward[0])
-                  .filter(function (data) { if (data[1] in sha1s) return false; sha1s[data[1]] = true; return true; });
+        lines = cli_result.lines;
       }
     }
     else
@@ -569,8 +492,8 @@ CriticBatch.prototype.reopenIssue = function (chain, data)
           {
             var line = lines[index];
 
-            db.execute("INSERT INTO commentchainlines (chain, uid, state, commit, sha1, first_line, last_line) VALUES (%d, %d, 'current', %d, %s, %d, %d)",
-                       chain.id, this.user.id, line[0].id, line[1], line[2] + 1, line[2] + line[3]);
+            db.execute("INSERT INTO commentchainlines (chain, uid, state, sha1, first_line, last_line) VALUES (%d, %d, 'current', %s, %d, %d)",
+                       chain.id, this.user.id, line[0], line[1], line[2]);
           }
       });
   };

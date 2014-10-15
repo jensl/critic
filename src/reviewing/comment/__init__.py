@@ -255,31 +255,32 @@ class CommentChain:
             last_commit_is_draft = False
             addressed_by_is_draft = False
 
-            cursor.execute("""SELECT from_type, to_type,
-                                     from_state, to_state,
-                                     from_last_commit, to_last_commit,
-                                     from_addressed_by, to_addressed_by
-                                FROM commentchainchanges
-                               WHERE chain=%s
-                                 AND uid=%s
-                                 AND state='draft'""",
-                           [id, user.id])
+            if user is not None:
+                cursor.execute("""SELECT from_type, to_type,
+                                         from_state, to_state,
+                                         from_last_commit, to_last_commit,
+                                         from_addressed_by, to_addressed_by
+                                    FROM commentchainchanges
+                                   WHERE chain=%s
+                                     AND uid=%s
+                                     AND state='draft'""",
+                               [id, user.id])
 
-            for from_type, to_type, from_state, to_state, from_last_commit_id, to_last_commit_id, from_addressed_by_id, to_addressed_by_id in cursor:
-                if from_state == state:
-                    state = to_state
-                    state_is_draft = True
-                    if to_state != "open":
-                        closed_by_id = user.id
-                if from_type == type:
-                    type = to_type
-                    type_is_draft = True
-                if from_last_commit_id == last_commit_id:
-                    last_commit_id = from_last_commit_id
-                    last_commit_is_draft = True
-                if from_addressed_by_id == addressed_by_id:
-                    addressed_by_id = to_addressed_by_id
-                    addressed_by_is_draft = True
+                for from_type, to_type, from_state, to_state, from_last_commit_id, to_last_commit_id, from_addressed_by_id, to_addressed_by_id in cursor:
+                    if from_state == state:
+                        state = to_state
+                        state_is_draft = True
+                        if to_state != "open":
+                            closed_by_id = user.id
+                    if from_type == type:
+                        type = to_type
+                        type_is_draft = True
+                    if from_last_commit_id == last_commit_id:
+                        last_commit_id = from_last_commit_id
+                        last_commit_is_draft = True
+                    if from_addressed_by_id == addressed_by_id:
+                        addressed_by_id = to_addressed_by_id
+                        addressed_by_is_draft = True
 
             if review is None:
                 review = dbutils.Review.fromId(db, review_id)
@@ -307,17 +308,20 @@ class CommentChain:
             if not skip or 'lines' not in skip:
                 if chain.state == "draft":
                     draft_user_id = chain.user.id
-                else:
+                elif user is not None:
                     draft_user_id = user.id
+                else:
+                    draft_user_id = None
 
-                cursor.execute("""SELECT sha1, first_line, last_line
-                                    FROM commentchainlines
-                                   WHERE chain=%s
-                                     AND (state='current' OR uid=%s)""",
-                               (id, draft_user_id))
+                if draft_user_id is not None:
+                    cursor.execute("""SELECT sha1, first_line, last_line
+                                        FROM commentchainlines
+                                       WHERE chain=%s
+                                         AND (state='current' OR uid=%s)""",
+                                   (id, draft_user_id))
 
-                for sha1, first_line, last_line in cursor.fetchall():
-                    chain.setLines(sha1, first_line, last_line - first_line + 1)
+                    for sha1, first_line, last_line in cursor.fetchall():
+                        chain.setLines(sha1, first_line, last_line - first_line + 1)
 
             return chain
 

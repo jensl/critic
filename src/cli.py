@@ -23,6 +23,8 @@ import mailutils
 import reviewing.utils
 import reviewing.filters
 import reviewing.mail
+import reviewing.comment
+import reviewing.comment.propagate
 
 from textutils import json_encode, json_decode
 
@@ -81,6 +83,48 @@ def sendCustomMail(from_user, recipients, subject, headers, body, review):
         files.append(filename)
 
     return files
+
+def propagateComment(data):
+    try:
+        review = dbutils.Review.fromId(db, data["review_id"])
+        commit = gitutils.Commit.fromId(db, review.repository, data["commit_id"])
+        propagation = reviewing.comment.propagate.Propagation(db)
+        if "chain_id" in data:
+            chain = reviewing.comment.CommentChain.fromId(
+                db, data["chain_id"], user=None, review=review)
+            if chain is None:
+                return "invalid chain id"
+            if commit != chain.addressed_by:
+                return "wrong commit: must be current addressed_by"
+            propagation.setExisting(
+                review, chain.id, commit, data["file_id"],
+                data["first_line"], data["last_line"], True)
+            commits = review.getCommitSet(db).without(commit.parents)
+            propagation.calculateAdditionalLines(
+                commits, review.branch.getHead(db))
+        else:
+            if not propagation.setCustom(
+                    review, commit, data["file_id"],
+                    data["first_line"], data["last_line"]):
+                return "invalid location"
+            propagation.calculateInitialLines()
+        data = {
+            "status": "clean" if propagation.active else "modified",
+            "lines": [[sha1, first_line, last_line]
+                      for sha1, (first_line, last_line)
+                      in propagation.new_lines.items()]
+            }
+        if not propagation.active:
+            data["addressed_by"] = propagation.addressed_by[0].child.getId(db)
+        return data
+    except dbutils.NoSuchReview:
+        return "invalid review id"
+    except gitutils.GitReferenceError:
+        return "invalid commit id"
+    except Exception as exception:
+        return str(exception)
+
+HANDLERS = { "propagate-comment": propagateComment }
 
 try:
     if len(sys.argv) > 1:
@@ -155,6 +199,10 @@ try:
                 except Exception as error:
                     error = str(error)
                 sys.stdout.write(error + "\n")
+            elif command in HANDLERS:
+                data_in = json_decode(sys.stdin.readline())
+                data_out = HANDLERS[command](data_in)
+                sys.stdout.write(json_encode(data_out) + "\n")
             else:
                 sys.stdout.write(json_encode("unknown command: %s" % command) + "\n")
                 sys.exit(0)
