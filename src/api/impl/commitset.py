@@ -51,13 +51,18 @@ class CommitSet(object):
             commit = queue.pop(0)
             if commit in included:
                 continue
-            if commit in self.__children and self.__children[commit] - included:
-                # Some descendants of this commit have not yet been emitted; we
-                # have to delay this commit.  We can only delay this commit if
-                # the queue is non-empty, so assert that it isn't.
-                assert queue
-                queue.insert(1, commit)
-                continue
+            if commit in self.__children:
+                remaining_children = self.__children[commit] - included
+                if remaining_children:
+                    # Some descendants of this commit have not yet been emitted;
+                    # we have to delay this commit.  Insert the commit after the
+                    # earliest remaining descendant in the list.  This means
+                    # that as soon as we've processed all descendants, we retry
+                    # the commit.
+                    queue.insert(max(queue.index(child)
+                                     for child in remaining_children) + 1,
+                                 commit)
+                    continue
             yield commit
             included.add(commit)
 

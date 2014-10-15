@@ -22,9 +22,11 @@ with repository.workcopy() as work:
     #   |   |\
     #   F   K \
     #    \ /   I
-    #     L    |
+    #     M    |
     #     |    J
-    #     M
+    #     N
+    #     |
+    #     L
     #
     # Commits are named in (committer date) chronological order; A is oldest, M
     # is youngest.  X and Y are the tails of the set.
@@ -32,21 +34,21 @@ with repository.workcopy() as work:
     commits = {}
     timestamp = int(time.time()) - 3600
 
-    def commit(letter):
+    def commit(letter, delta=0):
         global timestamp
         filename = os.path.join(work.path, "009-commitset", letter)
         with open(filename, "w") as file:
             print >>file, letter
         work.run(["add", os.path.join("009-commitset", letter)])
         work.run(["commit", "-m" + letter],
-                 GIT_COMMITTER_DATE="%d +0000" % timestamp)
+                 GIT_COMMITTER_DATE="%d +0000" % (timestamp + delta))
         timestamp += 10
         commits[letter] = work.run(["rev-parse", "HEAD"]).strip()
 
-    def merge(letter, what):
+    def merge(letter, what, delta=0):
         global timestamp
         work.run(["merge", "-m" + letter, what],
-                 GIT_COMMITTER_DATE="%d +0000" % timestamp)
+                 GIT_COMMITTER_DATE="%d +0000" % (timestamp + delta))
         timestamp += 10
         commits[letter] = work.run(["rev-parse", "HEAD"]).strip()
 
@@ -81,9 +83,10 @@ with repository.workcopy() as work:
     work.run(["checkout", "GHK"])
     commit("K")
 
-    work.run(["checkout", "-b", "LM", commits["F"]])
-    merge("L", "GHK")
-    commit("M")
+    work.run(["checkout", "-b", "MNL", commits["F"]])
+    merge("M", "GHK", delta=10)
+    commit("N", delta=10)
+    commit("L", delta=-20)
 
     work.run(["push", REMOTE_URL] +
              ["%s:refs/heads/009-commitset/%s" % (sha1, letter)
