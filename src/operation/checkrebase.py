@@ -35,7 +35,7 @@ class CheckMergeStatus(Operation):
         if len(upstreams) > 1:
             return OperationResult(rebase_supported=False)
 
-        old_head = review.branch.head
+        old_head = review.branch.getHead(db)
         old_upstream = gitutils.Commit.fromSHA1(db, review.repository, upstreams.pop())
         new_head = gitutils.Commit.fromSHA1(db, review.repository, new_head_sha1)
         new_upstream = gitutils.Commit.fromSHA1(db, review.repository, new_upstream_sha1)
