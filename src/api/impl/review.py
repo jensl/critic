@@ -18,10 +18,12 @@ import api
 import api.impl.filters
 
 class Review(object):
-    def __init__(self, review_id, repository_id, branch_id, summary, description):
+    def __init__(self, review_id, repository_id, branch_id, state, summary,
+                 description):
         self.id = review_id
         self.__repository_id = repository_id
         self.__branch_id = branch_id
+        self.state = state
         self.summary = summary
         self.description = description
         self.__owners_ids = None
@@ -156,18 +158,26 @@ class Review(object):
     def wrap(self, critic):
         return api.review.Review(critic, self)
 
+def make(critic, args):
+    for (review_id, repository_id, branch_id,
+         state, summary, description) in args:
+        def callback():
+            return Review(review_id, repository_id, branch_id,
+                          state, summary, description).wrap(critic)
+        yield critic._impl.cached(api.review.Review, review_id, callback)
+
 def fetch(critic, review_id, branch):
     cursor = critic.getDatabaseCursor()
     if review_id is not None:
         cursor.execute("""SELECT reviews.id, branches.repository, branches.id,
-                                 summary, description
+                                 state, summary, description
                             FROM reviews
                             JOIN branches ON (branches.id=reviews.branch)
                            WHERE reviews.id=%s""",
                        (review_id,))
     else:
         cursor.execute("""SELECT reviews.id, branches.repository, branches.id,
-                                 summary, description
+                                 state, summary, description
                             FROM reviews
                             JOIN branches ON (branches.id=reviews.branch)
                            WHERE branches.id=%s""",
@@ -178,10 +188,24 @@ def fetch(critic, review_id, branch):
             raise api.review.InvalidReviewId(review_id)
         else:
             raise api.review.InvalidReviewBranch(branch)
-    review_id, repository_id, branch_id, summary, description = row
+    return next(make(critic, [row]))
 
-    def callback():
-        return Review(review_id, repository_id, branch_id,
-                      summary, description).wrap(critic)
-
-    return critic._impl.cached(api.review.Review, review_id, callback)
+def fetchAll(critic, repository, state):
+    cursor = critic.getDatabaseCursor()
+    conditions = ["TRUE"]
+    values = []
+    if repository is not None:
+        conditions.append("branches.repository=%s")
+        values.append(repository.id)
+    if state is not None:
+        conditions.append("reviews.state IN (%s)"
+                          % ", ".join(["%s"] * len(state)))
+        values.extend(state)
+    cursor.execute("""SELECT reviews.id, branches.repository, branches.id,
+                             state, summary, description
+                        FROM reviews
+                        JOIN branches ON (branches.id=reviews.branch)
+                       WHERE """ + " AND ".join(conditions) + """
+                    ORDER BY reviews.id""",
+                   values)
+    return list(make(critic, cursor))

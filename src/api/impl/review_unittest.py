@@ -14,14 +14,19 @@ def basic():
 
     assert api.review.fetch(critic, branch=review.branch) is review
 
+    assert review.state == "open"
+
     assert isinstance(review.summary, basestring)
     assert review.summary == "Minor /dashboard query optimizations"
 
     assert review.description is None
 
+    assert isinstance(review.repository, api.repository.Repository)
+    assert review.repository.name == "critic"
+
     assert isinstance(review.branch, api.branch.Branch)
     assert review.branch.name == "r/004-createreview"
-    assert review.branch.repository.name == "critic"
+    assert review.branch.repository is review.repository
 
     assert isinstance(review.owners, frozenset)
     assert all(isinstance(owner, api.user.User) for owner in review.owners)
@@ -99,6 +104,40 @@ def basic():
         assert False, "wrong exception raised: %s" % error
     else:
         assert False, "no exception raised"
+
+    all_reviews = api.review.fetchAll(critic)
+
+    assert isinstance(all_reviews, list)
+    assert len(all_reviews) >= 1
+    assert review in all_reviews
+
+    critic_reviews = api.review.fetchAll(critic, repository=review.repository)
+
+    assert isinstance(critic_reviews, list)
+    assert review in critic_reviews
+
+    open_reviews = api.review.fetchAll(critic, state="open")
+
+    assert isinstance(open_reviews, list)
+    assert review in open_reviews
+    assert all(review.state == "open" for review in open_reviews)
+
+    closed_reviews = api.review.fetchAll(critic, state="closed")
+
+    assert isinstance(closed_reviews, list)
+    assert review not in closed_reviews
+    assert all(review.state == "closed" for review in closed_reviews)
+
+    dropped_reviews = api.review.fetchAll(critic, state="dropped")
+
+    assert isinstance(dropped_reviews, list)
+    assert review not in dropped_reviews
+    assert all(review.state == "dropped" for review in dropped_reviews)
+
+    any_reviews = api.review.fetchAll(
+        critic, state=(state for state in ["open", "closed", "dropped"]))
+
+    assert any_reviews == all_reviews
 
 if __name__ == "__main__":
     import coverage

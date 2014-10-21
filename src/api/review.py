@@ -39,6 +39,8 @@ class InvalidReviewBranch(ReviewError):
 class Review(api.APIObject):
     """Representation of a Critic review"""
 
+    STATE_VALUES = frozenset(["open", "closed", "dropped"])
+
     def __int__(self):
         return self.id
     def __hash__(self):
@@ -52,6 +54,11 @@ class Review(api.APIObject):
         return self._impl.id
 
     @property
+    def state(self):
+        """The review's state"""
+        return self._impl.state
+
+    @property
     def summary(self):
         """The review's summary"""
         return self._impl.summary
@@ -62,10 +69,17 @@ class Review(api.APIObject):
         return self._impl.description
 
     @property
+    def repository(self):
+        """The review's repository
+
+           The repository is returned as an api.repository.Repository object."""
+        return self._impl.getRepository(self.critic)
+
+    @property
     def branch(self):
         """The review's branch
 
-           The branch is returned as a api.branch.Branch object."""
+           The branch is returned as an api.branch.Branch object."""
         return self._impl.getBranch(self.critic)
 
     @property
@@ -135,3 +149,17 @@ def fetch(critic, review_id=None, branch=None):
     assert (review_id is None) != (branch is None)
     assert branch is None or isinstance(branch, api.branch.Branch)
     return api.impl.review.fetch(critic, review_id, branch)
+
+def fetchAll(critic, repository=None, state=None):
+    """Fetch a Review object with the given id or branch"""
+    import api.impl
+    assert isinstance(critic, api.critic.Critic)
+    assert (repository is None or
+            isinstance(repository, api.repository.Repository))
+    if state is not None:
+        if isinstance(state, basestring):
+            state = set([state])
+        else:
+            state = set(state)
+        assert not (state - Review.STATE_VALUES)
+    return api.impl.review.fetchAll(critic, repository, state)
