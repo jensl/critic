@@ -373,7 +373,7 @@ class Extension(object):
 
         if configuration.extensions.USER_EXTENSIONS_DIR:
             cursor = db.cursor()
-            cursor.execute("SELECT name FROM users ORDER BY name ASC")
+            cursor.execute("SELECT name FROM users WHERE status!='retired' ORDER BY name ASC")
 
             for (user_name,) in cursor:
                 try:
