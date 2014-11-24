@@ -22,7 +22,13 @@ import dbutils
 class Critic(object):
     def __init__(self, database):
         self.database = database
+        self.actual_user = None
         self.__cache = {}
+
+    def getEffectiveUser(self, critic):
+        if self.actual_user:
+            return self.actual_user
+        return api.user.anonymous(critic)
 
     def cached(self, cls, key, callback):
         wvd = self.__cache.setdefault(cls, weakref.WeakValueDictionary())

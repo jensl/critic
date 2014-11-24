@@ -23,12 +23,12 @@ class InvalidCommitId(CommitError):
     """Raised when an invalid commit id is used"""
     def __init__(self, commit_id):
         super(InvalidCommitId, self).__init__(
-            "invalid commit id: %r" % commit_id)
+            "Invalid commit id: %r" % commit_id)
 
 class InvalidSHA1(CommitError):
     """Raised when a given SHA-1 is invalid as a commit reference"""
     def __init__(self, sha1):
-        super(InvalidSHA1, self).__init__("invalid SHA-1: %r" % sha1)
+        super(InvalidSHA1, self).__init__("Invalid commit SHA-1: %r" % sha1)
         self.sha1 = sha1
 
 class Commit(api.APIObject):

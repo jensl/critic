@@ -337,6 +337,10 @@ class Request:
 
         return value
 
+    def getParameters(self):
+        return { name: value[0] if len(value) == 1 else value
+                 for name, value in self.parsed_query.items() }
+
     def getRequestHeader(self, name, default=None):
         """\
         Get HTTP request header by name.

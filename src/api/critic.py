@@ -20,11 +20,25 @@ class Critic(object):
     def __init__(self, impl):
         self._impl = impl
 
-    def getDatabase(self):
+    @property
+    def effective_user(self):
+        return self._impl.getEffectiveUser(self)
+
+    @property
+    def actual_user(self):
+        return self._impl.actual_user
+
+    @property
+    def database(self):
         return self._impl.database
 
     def getDatabaseCursor(self):
         return self._impl.database.cursor()
+
+    def setActualUser(self, user):
+        assert isinstance(user, api.user.User)
+        assert self._impl.actual_user is None
+        self._impl.actual_user = user
 
 def startSession():
     import api.impl

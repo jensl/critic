@@ -153,7 +153,11 @@ def renderFormatted(db, user, table, lines, toc=False, title_right=None):
 
         if block[0].startswith("|"):
             pre = text.div().table("pre callout").tr().td().preformatted()
-            pre.text("\n".join([line[2:] for line in block]))
+            contents = "\n".join([line[2:] for line in block])
+            if block[0].startswith("||"):
+                pre.innerHTML(contents)
+            else:
+                pre.text(contents)
         elif block[0].startswith("* ") or block[0].startswith("1 "):
             if block[0].startswith("* "):
                 items = text.div().ul()

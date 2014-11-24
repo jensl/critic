@@ -36,6 +36,8 @@ import mailutils
 import configuration
 import auth
 import htmlutils
+import api
+import jsonapi
 
 import operation.createcomment
 import operation.createreview
@@ -714,7 +716,8 @@ def finishOAuth(db, req, provider):
 def process_request(environ, start_response):
     request_start = time.time()
 
-    db = dbutils.Database()
+    critic = api.critic.startSession()
+    db = critic.database
     user = None
 
     try:
@@ -769,6 +772,9 @@ def process_request(environ, start_response):
                     else:
                         # This can't really happen.
                         raise
+
+            if not user.isAnonymous():
+                critic.setActualUser(api.user.fetch(critic, user_id=user.id))
 
             user.loadPreferences(db)
 
@@ -861,6 +867,23 @@ def process_request(environ, start_response):
 
             if req.path.startswith("download/"):
                 operationfn = download
+            elif req.path == "api" or req.path.startswith("api/"):
+                try:
+                    result = jsonapi.handle(critic, req)
+                except jsonapi.Error as error:
+                    req.setStatus(error.http_status)
+                    accept_header = req.getRequestHeader("Accept")
+                    if accept_header != "application/vnd.api+json":
+                        raise page.utils.DisplayMessage(
+                            title=error.title, body=error.message)
+                    result = { "error": { "title": error.title,
+                                          "message": error.message }}
+                else:
+                    req.setStatus(200)
+
+                req.setContentType("application/vnd.api+json")
+                req.start()
+                return [json_encode(result)]
             else:
                 operationfn = OPERATIONS.get(req.path)
 
@@ -1078,6 +1101,17 @@ authentication in apache2, see:
             document = page.utils.displayMessage(
                 db, req, user, title=message.title, message=message.body,
                 review=message.review, is_html=message.html)
+
+            req.setContentType("text/html")
+            req.start()
+
+            return [str(document)]
+        except page.utils.DisplayFormattedText as formatted_text:
+            if user is None:
+                user = dbutils.User.makeAnonymous()
+
+            document = page.utils.displayFormattedText(
+                db, req, user, formatted_text.source)
 
             req.setContentType("text/html")
             req.start()

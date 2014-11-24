@@ -86,8 +86,6 @@ def basic():
     assert commits[3] == commit1
     assert commits[4] == commit0
 
-    # FIXME: repository.json is currently broken (uses .url which is broken.)
-
     try:
         api.repository.fetch(critic, repository_id=4711)
     except api.repository.InvalidRepositoryId:

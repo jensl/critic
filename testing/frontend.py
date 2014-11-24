@@ -284,6 +284,147 @@ class Frontend(object):
 
         return result
 
+    def json(self, path, expect, params={}, expected_http_status=200):
+        url = "api/v1/" + path
+        full_url = "http://%s:%d/%s" % (self.hostname, self.http_port, url)
+
+        log_url = full_url
+        if params:
+            query = urllib.urlencode(sorted(params.items()))
+            log_url = "%s?%s" % (log_url, query)
+
+        headers = { "Accept": "application/vnd.api+json" }
+
+        testing.logger.debug("Fetching JSON: %s ..." % log_url)
+
+        response = requests.get(full_url, params=params, headers=headers)
+
+        testing.logger.debug("Fetched JSON: %s ..." % log_url)
+
+        try:
+            if response.status_code != expected_http_status:
+                raise HTTPError(url, expected_http_status, response.status_code)
+
+            if hasattr(response, "json"):
+                if callable(response.json):
+                    try:
+                        result = response.json()
+                    except:
+                        raise OperationError(url, message="malformed response (not JSON)")
+                else:
+                    result = response.json
+                    if result is None:
+                        raise OperationError(url, message="malformed response (not JSON)")
+            else:
+                try:
+                    result = json.loads(response.content)
+                except ValueError:
+                    raise OperationError(url, message="malformed response (not JSON)")
+        except testing.TestFailure as error:
+            testing.logger.error("JSON '%s': %s" % (path, error.message))
+            raise testing.TestFailure
+
+        def deunicode(value):
+            if isinstance(value, list):
+                return [deunicode(v) for v in value]
+            elif isinstance(value, dict):
+                return { deunicode(k): deunicode(v) for k, v in value.items() }
+            elif isinstance(value, unicode):
+                return value.encode("utf-8")
+            return value
+
+        result = deunicode(result)
+
+        testing.logger.debug("Checking JSON: %s" % log_url)
+
+        errors = []
+
+        def describe(value):
+            if isinstance(value, dict) or value is dict:
+                return "object"
+            if isinstance(value, list) or value is list:
+                return "array"
+            if isinstance(value, type):
+                return { int: "integer", float: "float", str: "string" }[value]
+            if isinstance(value, (str, int, float)):
+                return repr(value)
+            if value is None:
+                return "null"
+            return "unexpected"
+
+        def check_object(path, expected, actual):
+            if not isinstance(actual, dict):
+                errors.append("%s: value is %s, expected object"
+                              % (path, describe(actual)))
+                return
+            if expected is dict:
+                return
+            expected_keys = set(expected.keys())
+            actual_keys = set(actual.keys())
+            if expected_keys - actual_keys:
+                errors.append("%s: missing keys: %r"
+                              % (path, tuple(expected_keys - actual_keys)))
+            if actual_keys - expected_keys:
+                errors.append("%s: unexpected keys: %r"
+                              % (path, tuple(actual_keys - expected_keys)))
+            for key in sorted(expected_keys & actual_keys):
+                check("%s/%s" % (path, key), expected[key], actual[key])
+
+        def check_array(path, expected, actual):
+            if not isinstance(actual, list):
+                errors.append("%s: value is %s, expected array"
+                            % (path, describe(actual)))
+            if expected is list:
+                return
+            if len(actual) != len(expected):
+                errors.append("%s: wrong array length: got %s, expected %s"
+                              % (path, len(actual), len(expected)))
+                return
+            for index, (expected, actual) in enumerate(zip(expected, actual)):
+                check("%s[%d]" % (path, index), expected, actual)
+
+        def check_null(path, actual):
+            if actual is not None:
+                errors.append("%s: value is %s, expected null"
+                              % (path, describe(actual)))
+
+        def check_value(path, expected, actual):
+            if isinstance(actual, (dict, list)):
+                errors.append("%s: value is %s, expected %s"
+                              % (path, describe(actual), describe(expected)))
+            if isinstance(expected, type):
+                if not isinstance(actual, expected):
+                    errors.append("%s: wrong value: got %r, expected %r"
+                                  % (path, actual, describe(expected)))
+            elif actual != expected:
+                errors.append("%s: wrong value: got %r, expected %r"
+                              % (path, actual, expected))
+
+        def check(path, expected, actual):
+            errors_before = len(errors)
+            if callable(expected) and not isinstance(expected, type):
+                errors.extend(expected(path, actual, check) or ())
+            elif isinstance(expected, dict) or expected is dict:
+                check_object(path, expected, actual)
+            elif isinstance(expected, list) or expected is list:
+                check_array(path, expected, actual)
+            elif expected is None:
+                check_null(path, actual)
+            else:
+                check_value(path, expected, actual)
+            return errors_before == len(errors)
+
+        check(path, expect, result)
+
+        if errors:
+            testing.logger.error("Wrong JSON received for %s:\n  %s"
+                                 % (path, "\n  ".join(errors)))
+            testing.logger.error("Received JSON: %r" % result)
+
+        testing.logger.debug("Checked JSON: %s" % log_url)
+
+        return result
+
     @contextlib.contextmanager
     def session(self, operation):
         if not self.pending_session_id:

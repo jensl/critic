@@ -227,7 +227,7 @@ def renderShortcuts(target, page, **kwargs):
         for index, (keyCode, keyName, description) in enumerate(shortcuts):
             renderShortcut(keyCode, keyName, description, index == len(shortcuts) - 1)
 
-def generateFooter(target, db, user, current_page):
+def generateFooter(target, db, user, current_page=None):
     renderShortcuts(target, current_page)
 
 def displayMessage(db, req, user, title, review=None, message=None, page_title=None, is_html=False):
@@ -387,3 +387,34 @@ def generateRepositorySelect(db, user, target, allow_selecting_none=False,
                                  value=name, selected=is_selected,
                                  data_text=name, data_html=html)
         option.text(name)
+
+def displayFormattedText(db, req, user, source):
+    document = htmlutils.Document(req)
+    document.setBase(None)
+    document.addExternalStylesheet("resource/tutorial.css")
+    document.addInternalStylesheet("div.main table td.text { %s }"
+                                   % user.getPreference(db, "style.tutorialFont"))
+
+    html = document.html()
+    head = html.head()
+    body = html.body()
+
+    generateHeader(body, db, user)
+
+    if isinstance(source, basestring):
+        lines = source.splitlines()
+    else:
+        lines = source
+
+    import textformatting
+
+    textformatting.renderFormatted(
+        db, user, body.div("main").table("paleyellow"), source, toc=True)
+
+    generateFooter(body, db, user)
+
+    return document
+
+class DisplayFormattedText(Exception):
+    def __init__(self, source):
+        self.source = source

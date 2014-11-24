@@ -45,7 +45,6 @@ def basic():
     assert review.filters[0].review is review
     assert isinstance(review.filters[0].creator, api.user.User)
     assert review.filters[0].creator.name == "alice"
-    assert isinstance(review.filters[0].json, dict)
 
     assert isinstance(review.filters[1].subject, api.user.User)
     assert review.filters[1].subject.name == "dave"
@@ -56,7 +55,6 @@ def basic():
     assert review.filters[1].review is review
     assert isinstance(review.filters[1].creator, api.user.User)
     assert review.filters[1].creator.name == "alice"
-    assert isinstance(review.filters[1].json, dict)
 
     assert isinstance(review.filters[2].subject, api.user.User)
     assert review.filters[2].subject.name == "erin"
@@ -68,7 +66,6 @@ def basic():
     assert review.filters[2].review is review
     assert isinstance(review.filters[2].creator, api.user.User)
     assert review.filters[2].creator.name == "alice"
-    assert isinstance(review.filters[2].json, dict)
 
     assert isinstance(review.commits, api.commitset.CommitSet)
     assert all(isinstance(commit, api.commit.Commit)

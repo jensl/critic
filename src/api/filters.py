@@ -67,16 +67,6 @@ class RepositoryFilter(Filter):
            None."""
         return self._impl.getDelegates(self.critic)
 
-    @property
-    def json(self):
-        """A dictionary suitable for JSON encoding"""
-        return { "id": self.id,
-                 "subject": self.subject.json,
-                 "type": self.type,
-                 "path": self.path,
-                 "delegates": ([delegate.json for delegate in self.delegates]
-                               if self.delegates else None) }
-
 class ReviewFilter(Filter):
     """Representation of a review filter
 
@@ -99,12 +89,3 @@ class ReviewFilter(Filter):
            This is the user that created the review filter, which can be
            different from the filter's subject."""
         return self._impl.getCreator(self.critic)
-
-    @property
-    def json(self):
-        """A dictionary suitable for JSON encoding"""
-        return { "id": self.id,
-                 "subject": self.subject.json,
-                 "type": self.type,
-                 "path": self.path,
-                 "creator": self.creator.json }

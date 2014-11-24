@@ -159,14 +159,11 @@ class User(api.APIObject):
         return self._impl.getRepositoryFilters(self.critic)
 
     @property
-    def json(self):
-        """A dictionary suitable for JSON encoding"""
-        return { "id": self.id,
-                 "name": self.name,
-                 "fullname": self.fullname,
-                 "email": self.email,
-                 "gitEmails": sorted(self.git_emails),
-                 "isAnonymous": self.is_anonymous }
+    def internal(self):
+        """The corresponding internal dbutils.User object
+
+           Should only be used when interfacing with legacy code."""
+        return self._impl.getInternal(self.critic)
 
     def hasRole(self, role):
         """Return True if the user has the named role

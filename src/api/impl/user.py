@@ -36,8 +36,7 @@ class User(object):
             if self.isAnonymous():
                 self.__internal = dbutils.User.makeAnonymous()
             else:
-                self.__internal = dbutils.User.fromId(
-                    critic.getDatabase(), self.id)
+                self.__internal = dbutils.User.fromId(critic.database, self.id)
         return self.__internal
 
     def getPrimaryEmails(self, critic):

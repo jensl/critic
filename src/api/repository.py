@@ -138,13 +138,6 @@ class Repository(api.APIObject):
         assert all(isinstance(path, basestring) for path in paths)
         return self._impl.listCommits(self, include, exclude, args, paths)
 
-    @property
-    def json(self):
-        return { "id": self.id,
-                 "name": self.name,
-                 "path": self.path,
-                 "url": self.url }
-
 def fetch(critic, repository_id=None, name=None, path=None):
     """Fetch a Repository object with the given id, name or path"""
     import api.impl

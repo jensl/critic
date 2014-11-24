@@ -9,7 +9,7 @@ def about(subject):
     return testing.mailbox.WithSubject(subject)
 
 BASE = "100-reviewing/"
-TEST = BASE + "001-comment"
+TEST = BASE + "001-comment.basic"
 BRANCH = "r/" + TEST
 FILENAME = TEST + ".txt"
 SUMMARY = "Added " + FILENAME

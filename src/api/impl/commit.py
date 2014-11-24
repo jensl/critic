@@ -37,7 +37,7 @@ class Commit(object):
         return api.repository.fetch(critic, repository_id=self.__repository_id)
 
     def getId(self, critic):
-        return self.internal.getId(critic.getDatabase())
+        return self.internal.getId(critic.database)
 
     def getSummary(self):
         match = RE_FOLLOWUP.match(self.message)
@@ -51,8 +51,7 @@ class Commit(object):
                 for sha1 in self.internal.parents]
 
     def getDescription(self, critic):
-        return self.internal.repository.describe(
-            critic.getDatabase(), self.sha1)
+        return self.internal.repository.describe(critic.database, self.sha1)
 
     def getAuthor(self, critic):
         return api.commit.Commit.UserAndTimestamp(
@@ -92,7 +91,7 @@ def fetch(repository, commit_id=None, sha1=None, ref=None):
     def callback():
         try:
             internal = gitutils.Commit.fromSHA1(
-                db=critic.getDatabase(),
+                db=critic.database,
                 repository=repository._impl.getInternal(critic),
                 sha1=sha1,
                 commit_id=commit_id)
