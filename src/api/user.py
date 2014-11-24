@@ -28,6 +28,15 @@ class InvalidUserIds(UserError):
         super(InvalidUserIds, self).__init__("Invalid user ids: %r" % values)
         self.values = values
 
+class InvalidUserId(InvalidUserIds):
+    """Raised when a single invalid user id is used"""
+
+    def __init__(self, value):
+        """Constructor"""
+        super(InvalidUserId, self).__init__([value])
+        self.message = "Invalid user id: %r" % value
+        self.value = value
+
 class InvalidUserNames(UserError):
     """Raised when one or more invalid user names is used"""
 
@@ -37,6 +46,15 @@ class InvalidUserNames(UserError):
             "Invalid user names: %r" % values)
         self.values = values
 
+class InvalidUserName(InvalidUserNames):
+    """Raised when a single user name is used"""
+
+    def __init__(self, value):
+        """Constructor"""
+        super(InvalidUserName, self).__init__([value])
+        self.message = "Invalid user name: %r" % value
+        self.value = value
+
 class InvalidRole(UserError):
     """Raised when an invalid role is used"""
 
@@ -44,14 +62,6 @@ class InvalidRole(UserError):
         """Constructor"""
         super(InvalidRole, self).__init__("Invalid role: %r" % role)
         self.role = role
-
-class InvalidStatus(UserError):
-    """Raised when an invalid user status is used"""
-
-    def __init__(self, status):
-        """Constructor"""
-        super(InvalidStatus, self).__init__("Invalid user status: %r" % status)
-        self.status = status
 
 class User(api.APIObject):
     """Representation of a Critic user"""
@@ -221,6 +231,12 @@ def fetchAll(critic, status=None):
        strings."""
     import api.impl
     assert isinstance(critic, api.critic.Critic)
+    if status is not None:
+        if isinstance(status, basestring):
+            status = set([status])
+        else:
+            status = set(status)
+        assert not (status - User.STATUS_VALUES)
     return api.impl.user.fetchAll(critic, status)
 
 def anonymous(critic):

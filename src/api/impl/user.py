@@ -163,9 +163,14 @@ def make(critic, args):
         yield critic._impl.cached(api.user.User, user_id, callback)
 
 def fetch(critic, user_id, name):
-    return fetchMany(critic,
-                     user_ids=None if user_id is None else [user_id],
-                     names=None if name is None else [name])[0]
+    try:
+        return fetchMany(critic,
+                         user_ids=None if user_id is None else [user_id],
+                         names=None if name is None else [name])[0]
+    except api.user.InvalidUserIds as error:
+        raise api.user.InvalidUserId(error.values[0])
+    except api.user.InvalidUserNames as error:
+        raise api.user.InvalidUserName(error.values[0])
 
 def fetchMany(critic, user_ids, names):
     return_type = list
@@ -210,16 +215,7 @@ def fetchAll(critic, status):
     if status is None:
         condition = ""
         values = ()
-    elif isinstance(status, basestring):
-        if status not in api.user.User.STATUS_VALUES:
-            raise api.user.InvalidStatus(status)
-        condition = " WHERE status=%s"
-        values = (status,)
     else:
-        status = set(status)
-        invalid = status - api.user.User.STATUS_VALUES
-        if invalid:
-            raise api.user.InvalidStatus(sorted(invalid))
         condition = " WHERE status IN (%s)" % ", ".join(["%s"] * len(status))
         values = tuple(status)
     cursor.execute("""SELECT users.id, name, fullname, status, useremails.email

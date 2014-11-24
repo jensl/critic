@@ -98,17 +98,17 @@ def basic():
 
     try:
         api.user.fetch(critic, user_id=4711)
-    except api.user.InvalidUserIds as error:
-        assert error.message == "Invalid user ids: %r" % [4711]
-        assert error.values == [4711]
+    except api.user.InvalidUserId as error:
+        assert error.message == "Invalid user id: %r" % 4711
+        assert error.value == 4711
     else:
         assert False
 
     try:
         api.user.fetch(critic, name="nobody")
-    except api.user.InvalidUserNames as error:
-        assert error.message == "Invalid user names: %r" % ["nobody"]
-        assert error.values == ["nobody"]
+    except api.user.InvalidUserName as error:
+        assert error.message == "Invalid user name: %r" % "nobody"
+        assert error.value == "nobody"
     else:
         assert False
 
@@ -212,22 +212,6 @@ def basic():
     assert users == sorted([user for user in all_users
                             if user.status in ("current", "absent")],
                            key=lambda user: user.id)
-
-    try:
-        api.user.fetchAll(critic, status="lost")
-    except api.user.InvalidStatus as error:
-        assert error.message == "Invalid user status: %r" % "lost"
-        assert error.status == "lost"
-    else:
-        assert False
-
-    try:
-        api.user.fetchAll(critic, status=["missing", "current", "lost"])
-    except api.user.InvalidStatus as error:
-        assert error.message == "Invalid user status: %r" % ["lost", "missing"]
-        assert error.status == ["lost", "missing"]
-    else:
-        assert False
 
     assert alice.hasRole("administrator") is False
     assert alice.hasRole("repositories") is False
