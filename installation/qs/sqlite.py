@@ -178,6 +178,10 @@ class Connection(object):
         self.connection.create_function("regexp", 2, regexp)
         self.connection.create_function("interval_seconds", 1, interval_seconds)
         self.connection.text_factory = str
+        # Foreign keys are disabled by default by SQLite; this enables them.
+        # This is a safe-guard against incorrect inserts or updates, but most
+        # importantly, it makes cascading deletes work, which we depend on.
+        self.connection.execute("PRAGMA foreign_keys=ON")
     def cursor(self):
         return Cursor(self.connection)
     def commit(self):
