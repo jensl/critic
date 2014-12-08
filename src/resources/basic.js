@@ -143,7 +143,7 @@ Operation.prototype.execute = function ()
         var handler = self.failure[result.code];
 
         if (!handler || !handler(result))
-          showMessage("Oups...", result.title, result.message, function () { callback(null); });
+          showMessage("Oops...", result.title, result.message, function () { callback(null); });
 
         return null;
       }
