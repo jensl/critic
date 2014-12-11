@@ -1,6 +1,3 @@
-import sys
-import os
-
 def keepalives():
     # Run Repository.packKeepaliveRefs() and make sure it seems to do its job
     # correctly.  Since it's run as a nightly maintenance task, it would
@@ -54,6 +51,4 @@ def keepalives():
         assert chain_before == chain_after, ("%s != %s"
                                              % (chain_before, chain_after))
 
-if __name__ == "__main__":
-    if "keepalives" in sys.argv[1:]:
-        keepalives()
+    print "keepalives: ok"

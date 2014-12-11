@@ -1,5 +1,3 @@
-import sys
-
 def basic():
     import api
 
@@ -136,8 +134,4 @@ def basic():
 
     assert any_reviews == all_reviews
 
-if __name__ == "__main__":
-    import coverage
-
-    if "basic" in sys.argv[1:]:
-        coverage.call("unittest", basic)
+    print "basic: ok"

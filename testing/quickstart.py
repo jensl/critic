@@ -235,24 +235,13 @@ class Instance(testing.Instance):
     def finish(self):
         pass
 
-    def unittest(self, module, tests, args=None):
-        testing.logger.info("Running unit tests: %s (%s)"
-                             % (module, ",".join(tests)))
+    def run_unittest(self, args):
         PYTHONPATH = ":".join([os.path.join(self.state_dir, "etc/main"),
-                               os.path.join(os.getcwd(), "src")])
-        path = self.translateUnittestPath(module)
-        if not args:
-            args = []
-        for test in tests:
-            try:
-                self.executeProcess(
-                    [sys.executable, "-u", path, test] + args,
-                    cwd="src", log_stderr=False,
-                    env={ "PYTHONPATH": PYTHONPATH })
-            except testing.CommandError as error:
-                output = "\n  ".join(error.stderr.splitlines())
-                testing.logger.error("Unit tests failed: %s: %s\nOutput:\n  %s"
-                                     % (module, test, output))
+                               os.path.join(os.getcwd(), "src"),
+                               os.getcwd()])
+        argv = [sys.executable, "-u", "-m", "run_unittest"] + args
+        return self.executeProcess(argv, cwd="src", log_stderr=False,
+                                   env={ "PYTHONPATH": PYTHONPATH })
 
     def gc(self, repository):
         self.executeProcess(

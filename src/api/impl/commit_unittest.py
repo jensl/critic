@@ -1,4 +1,3 @@
-import sys
 import datetime
 
 # This is the commit that added the testing framework:
@@ -135,8 +134,4 @@ def basic():
     else:
         assert False, "no exception raised"
 
-if __name__ == "__main__":
-    import coverage
-
-    if "basic" in sys.argv[1:]:
-        coverage.call("unittest", basic)
+    print "basic: ok"

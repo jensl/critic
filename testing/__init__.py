@@ -28,8 +28,10 @@ class TestFailure(Error):
     """Error raised for "expected" test failures."""
     pass
 
-class CommandError(Exception):
-    def __init__(self, stdout, stderr):
+class CommandError(InstanceError):
+    def __init__(self, argv, stdout, stderr=None):
+        self.argv = argv
+        self.command = " ".join(argv)
         self.stdout = stdout
         self.stderr = stderr
 
@@ -94,15 +96,18 @@ class Instance(object):
                 % (service_name, "\n  ".join(lines.splitlines())))
 
     def executeProcess(self, args, log_stdout=True, log_stderr=True, **kwargs):
-        process = subprocess.Popen(
-            args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, **kwargs)
+        try:
+            process = subprocess.Popen(
+                args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, **kwargs)
+        except OSError as error:
+            raise CommandError(args, None, str(error))
         stdout, stderr = process.communicate()
         if stdout.strip() and log_stdout:
             logger.log(STDOUT, stdout.rstrip("\n"))
         if stderr.strip() and log_stderr:
             logger.log(STDERR, stderr.rstrip("\n"))
         if process.returncode != 0:
-            raise CommandError(stdout, stderr)
+            raise CommandError(args, stdout, stderr)
         return stdout
 
     def translateUnittestPath(self, module):
@@ -116,6 +121,23 @@ class Instance(object):
         else:
             path += "_unittest.py"
         return path
+
+    def unittest(self, module, tests, args=None):
+        path = self.translateUnittestPath(module)
+        if not args:
+            args = []
+        for test in tests:
+            logger.info("Running unit test: %s (%s)" % (module, test))
+            try:
+                output = self.run_unittest([path] + args + [test])
+                if output.strip() != test + ": ok":
+                    logger.warning("No unit test confirmation: %s (%s)"
+                                   % (module, test))
+            except CommandError as error:
+                output = "\n  ".join(error.stderr.splitlines())
+                logger.error(
+                    "Unit tests failed: %s: %s\nCommand: %s\nOutput:\n  %s"
+                    % (module, test, error.command, output))
 
 import local
 import virtualbox

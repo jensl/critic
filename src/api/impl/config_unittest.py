@@ -45,9 +45,4 @@ def basic():
     else:
         assert False
 
-if __name__ == "__main__":
-    import sys
-    import coverage
-
-    if "basic" in sys.argv[1:]:
-        coverage.call("unittest", basic)
+    print "basic: ok"

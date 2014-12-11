@@ -25,20 +25,11 @@ class Instance(testing.Instance):
     def has_flag(self, flag):
         return testing.has_flag("HEAD", flag)
 
-    def unittest(self, module, tests, args=None):
-        testing.logger.info("Running unit tests: %s (%s)"
-                             % (module, ",".join(tests)))
-        path = self.translateUnittestPath(module)
-        if not args:
-            args = []
-        for test in tests:
-            try:
-                self.executeProcess([sys.executable, path, test] + args,
-                                    cwd="src", log_stderr=False)
-            except testing.CommandError as error:
-                output = "\n  ".join(error.stderr.splitlines())
-                testing.logger.error("Unit tests failed: %s: %s\nOutput:\n  %s"
-                                     % (module, test, output))
+    def run_unittest(self, args):
+        PYTHONPATH = os.path.join(os.getcwd(), "src")
+        argv = [sys.executable, "-u", "-m", "run_unittest"] + args
+        return self.executeProcess(argv, cwd="src", log_stderr=False,
+                                   env={ "PYTHONPATH": PYTHONPATH })
 
     def filter_service_logs(self, level, service_names):
         # We have no services.

@@ -1,6 +1,4 @@
-import sys
-
-def basic():
+def basic(arguments):
     import api
 
     critic = api.critic.startSession()
@@ -42,7 +40,7 @@ def basic():
 
     assert isinstance(alice.git_emails, set)
     if len(alice.git_emails) == 0:
-        assert "--unreliable-git-emails" in sys.argv
+        assert arguments.unreliable_git_emails
     else:
         assert len(alice.git_emails) == 2
         assert "alice@example.org" in alice.git_emails
@@ -220,7 +218,7 @@ def basic():
 
     assert admin.hasRole("administrator") is True
     assert admin.hasRole("repositories") is True
-    if "--unreliable-admin-newswriter" in sys.argv:
+    if arguments.unreliable_admin_newswriter:
         assert isinstance(admin.hasRole("newswriter"), bool)
     else:
         assert admin.hasRole("newswriter") is True
@@ -245,6 +243,8 @@ def basic():
     assert anonymous.primary_emails == []
     assert anonymous.git_emails == set([])
     assert anonymous.repository_filters == {}
+
+    print "basic: ok"
 
 def preferences():
     import api
@@ -308,10 +308,21 @@ def preferences():
     assert expandAllFiles.user is alice
     assert expandAllFiles.repository is repository
 
-if __name__ == "__main__":
-    import coverage
+    print "preferences: ok"
 
-    if "basic" in sys.argv[1:]:
-        coverage.call("unittest", basic)
-    if "preferences" in sys.argv[1:]:
-        coverage.call("unittest", preferences)
+def main(argv):
+    import argparse
+
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument("--unreliable-git-emails", action="store_true")
+    parser.add_argument("--unreliable-admin-newswriter", action="store_true")
+    parser.add_argument("tests", nargs=argparse.REMAINDER)
+
+    arguments = parser.parse_args(argv)
+
+    for test in arguments.tests:
+        if test == "basic":
+            basic(arguments)
+        elif test == "preferences":
+            preferences()

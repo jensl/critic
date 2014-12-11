@@ -1,25 +1,21 @@
-import sys
-
-SHA1 = None
-NAME = None
-
-def basic():
+def basic(arguments):
     import api
 
-    assert SHA1 is not None, "missing argument: --sha1"
-    assert NAME is not None, "missing argument: --name"
+    assert arguments.sha1 is not None, "missing argument: --sha1"
+    assert arguments.name is not None, "missing argument: --name"
 
     critic = api.critic.startSession()
     repository = api.repository.fetch(critic, repository_id=1)
-    branch = api.branch.fetch(critic, repository=repository, name=NAME)
+    branch = api.branch.fetch(
+        critic, repository=repository, name=arguments.name)
 
     assert isinstance(branch, api.branch.Branch)
     assert isinstance(branch.id, int)
     assert isinstance(branch.name, str)
-    assert branch.name == NAME
+    assert branch.name == arguments.name
     assert branch.repository is repository
     assert isinstance(branch.head, api.commit.Commit)
-    assert branch.head.sha1 == SHA1
+    assert branch.head.sha1 == arguments.sha1
     assert isinstance(branch.commits, api.commitset.CommitSet)
     assert len(branch.commits) == 5
     assert len(branch.commits.heads) == 1
@@ -47,7 +43,8 @@ def basic():
         assert False, "no exception raised"
 
     try:
-        api.branch.fetch(critic, repository=repository, name=NAME + "-wrong")
+        api.branch.fetch(
+            critic, repository=repository, name=arguments.name + "-wrong")
     except api.branch.InvalidBranchName:
         pass
     except Exception as error:
@@ -55,14 +52,19 @@ def basic():
     else:
         assert False, "no exception raised"
 
-if __name__ == "__main__":
-    import coverage
+    print "basic: ok"
 
-    for arg in sys.argv[1:]:
-        if arg.startswith("--sha1="):
-            SHA1 = arg[len("--sha1="):]
-        if arg.startswith("--name="):
-            NAME = arg[len("--name="):]
+def main(argv):
+    import argparse
 
-    if "basic" in sys.argv[1:]:
-        coverage.call("unittest", basic)
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument("--sha1")
+    parser.add_argument("--name")
+    parser.add_argument("tests", nargs=argparse.REMAINDER)
+
+    arguments = parser.parse_args(argv)
+
+    for test in arguments.tests:
+        if test == "basic":
+            basic(arguments)

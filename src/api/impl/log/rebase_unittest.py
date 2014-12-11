@@ -1,5 +1,3 @@
-import sys
-
 def basic():
     import api
 
@@ -146,8 +144,4 @@ def basic():
                           old_head_summary="Test #5, commit 3",
                           new_head_summary="Test #5, commit 1")
 
-if __name__ == "__main__":
-    import coverage
-
-    if "basic" in sys.argv[1:]:
-        coverage.call("unittest", basic)
+    print "basic: ok"

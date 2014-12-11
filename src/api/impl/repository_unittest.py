@@ -1,17 +1,13 @@
-import sys
-
-HEAD = None
-SHA1 = None
-PATH = None
-
-def basic():
+def basic(arguments):
     import api
 
-    assert HEAD is not None
-    assert len(HEAD) == 40
+    assert arguments.sha1 is not None
+    assert len(arguments.sha1) == 40
 
-    assert SHA1 is not None
-    assert len(SHA1) == 40
+    assert arguments.head is not None
+    assert len(arguments.head) == 40
+
+    assert arguments.path is not None
 
     critic = api.critic.startSession()
     repository = api.repository.fetch(critic, repository_id=1)
@@ -23,12 +19,12 @@ def basic():
     assert isinstance(repository.name, str)
     assert repository.name == "critic"
     assert isinstance(repository.path, str)
-    assert repository.path == PATH
+    assert repository.path == arguments.path
 
     # FIXME: repository.url is currently broken.
 
     assert api.repository.fetch(critic, name="critic") is repository
-    assert api.repository.fetch(critic, path=PATH) is repository
+    assert api.repository.fetch(critic, path=arguments.path) is repository
 
     all_repositories = api.repository.fetchAll(critic)
     assert len(all_repositories) == 1
@@ -38,12 +34,12 @@ def basic():
     assert len(highlighted_repositories) == 1
     assert highlighted_repositories[0] is repository
 
-    head = api.commit.fetch(repository, sha1=HEAD)
+    head = api.commit.fetch(repository, sha1=arguments.head)
 
-    assert HEAD == repository.resolveRef("HEAD")
-    assert HEAD == repository.resolveRef("HEAD", expect="commit")
-    assert HEAD.startswith(repository.resolveRef("HEAD", short=True))
-    assert HEAD.startswith(repository.resolveRef("HEAD", short=8))
+    assert arguments.head == repository.resolveRef("HEAD")
+    assert arguments.head == repository.resolveRef("HEAD", expect="commit")
+    assert arguments.head.startswith(repository.resolveRef("HEAD", short=True))
+    assert arguments.head.startswith(repository.resolveRef("HEAD", short=8))
     assert len(repository.resolveRef("HEAD", short=8)) == 8
     assert head.tree == repository.resolveRef("HEAD", expect="tree")
 
@@ -56,7 +52,7 @@ def basic():
                                           expect="commit")
     assert annotated_tag == head.sha1
 
-    commit0 = api.commit.fetch(repository, sha1=SHA1)
+    commit0 = api.commit.fetch(repository, sha1=arguments.sha1)
     commit1 = commit0.parents[0]
     commit2 = commit1.parents[0]
     commit3 = commit2.parents[0]
@@ -113,16 +109,20 @@ def basic():
     else:
         assert False, "no exception raised"
 
-if __name__ == "__main__":
-    import coverage
+    print "basic: ok"
 
-    for arg in sys.argv[1:]:
-        if arg.startswith("--sha1="):
-            SHA1 = arg[len("--sha1="):]
-        if arg.startswith("--head="):
-            HEAD = arg[len("--head="):]
-        if arg.startswith("--path="):
-            PATH = arg[len("--path="):]
+def main(argv):
+    import argparse
 
-    if "basic" in sys.argv[1:]:
-        coverage.call("unittest", basic)
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument("--sha1")
+    parser.add_argument("--head")
+    parser.add_argument("--path")
+    parser.add_argument("tests", nargs=argparse.REMAINDER)
+
+    arguments = parser.parse_args(argv)
+
+    for test in arguments.tests:
+        if test == "basic":
+            basic(arguments)

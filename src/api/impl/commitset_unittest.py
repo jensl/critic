@@ -1,17 +1,13 @@
-import sys
-
-PREFIX = None
-
-def basic():
+def basic(arguments):
     import api
 
-    assert PREFIX is not None, "missing argument: --prefix"
+    assert arguments.prefix is not None, "missing argument: --prefix"
 
     critic = api.critic.startSession()
     repository = api.repository.fetch(critic, name="critic")
 
     # This set of commits should exist in the repository; each referenced by a
-    # branch named PREFIX + letter.
+    # branch named prefix + letter.
     #
     #  (X)
     #   |
@@ -33,7 +29,8 @@ def basic():
 
     ALL_LETTERS = "ABCDEFGHIJKLMN"
 
-    commits = { letter: api.commit.fetch(repository, ref=PREFIX + letter)
+    commits = { letter: api.commit.fetch(repository,
+                                         ref=arguments.prefix + letter)
                 for letter in ALL_LETTERS + "XY" }
 
     def make(letters, fn=lambda commits: api.commitset.create(critic, commits)):
@@ -145,12 +142,18 @@ def basic():
     assert (make("ABC") - make("BCD")) == make("A")
     assert (make("ABC") ^ make("BCD")) == make("AD")
 
-if __name__ == "__main__":
-    import coverage
+    print "basic: ok"
 
-    for arg in sys.argv[1:]:
-        if arg.startswith("--prefix="):
-            PREFIX = arg[len("--prefix="):]
+def main(argv):
+    import argparse
 
-    if "basic" in sys.argv[1:]:
-        coverage.call("unittest", basic)
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument("--prefix")
+    parser.add_argument("tests", nargs=argparse.REMAINDER)
+
+    arguments = parser.parse_args(argv)
+
+    for test in arguments.tests:
+        if test == "basic":
+            basic(arguments)

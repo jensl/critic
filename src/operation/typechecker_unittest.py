@@ -1,5 +1,3 @@
-import sys
-import os
 import copy
 import json
 
@@ -219,9 +217,4 @@ def basic():
                      title="Invalid data parameter",
                      message="invalid input: data must be 1 or higher")
 
-if __name__ == "__main__":
-    # sys.path[0] is the directory containing this file.
-    sys.path[0] = os.path.dirname(sys.path[0])
-
-    if "basic" in sys.argv[1:]:
-        basic()
+    print "basic: ok"

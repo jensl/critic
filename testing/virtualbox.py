@@ -33,20 +33,11 @@ COVERAGE_DIR = "/var/tmp/critic/coverage"
 def setnonblocking(fd):
     fcntl.fcntl(fd, fcntl.F_SETFL, fcntl.fcntl(fd, fcntl.F_GETFL) | os.O_NONBLOCK)
 
-class HostCommandError(testing.InstanceError):
-    def __init__(self, command, output):
-        super(HostCommandError, self).__init__(
-            "HostCommandError: %s\nOutput:\n%s" % (command, output))
-        self.command = command
-        self.output = output
+class HostCommandError(testing.CommandError):
+    pass
 
-class GuestCommandError(testing.InstanceError):
-    def __init__(self, command, stdout, stderr=None):
-        super(GuestCommandError, self).__init__(
-            "GuestCommandError: %s\nOutput:\n%s" % (command, stderr or stdout))
-        self.command = command
-        self.stdout = stdout
-        self.stderr = stderr
+class GuestCommandError(testing.CommandError):
+    pass
 
 class Instance(testing.Instance):
     def __init__(self, arguments, install_commit=None, upgrade_commit=None,
@@ -118,7 +109,7 @@ class Instance(testing.Instance):
             testing.logger.debug("Running: " + " ".join(argv))
             return subprocess.check_output(argv, stderr=subprocess.STDOUT)
         except subprocess.CalledProcessError as error:
-            raise HostCommandError(" ".join(argv), error.output)
+            raise HostCommandError(argv, error.output)
 
     def __isincluded(self, output):
         name = '"%s"' % self.identifier
@@ -317,7 +308,7 @@ class Instance(testing.Instance):
         process.wait()
 
         if process.returncode != 0:
-            raise GuestCommandError(" ".join(argv), stdout_data, stderr_data)
+            raise GuestCommandError(argv, stdout_data, stderr_data)
 
         return stdout_data
 
@@ -330,7 +321,7 @@ class Instance(testing.Instance):
             testing.logger.debug("Running: " + " ".join(argv))
             return subprocess.check_output(argv, stderr=subprocess.STDOUT)
         except subprocess.CalledProcessError as error:
-            raise GuestCommandError(" ".join(argv), error.output)
+            raise GuestCommandError(argv, error.output)
 
     def copyfrom(self, source, target, as_user=None):
         source = "%s:%s" % (self.hostname, source)
@@ -341,7 +332,7 @@ class Instance(testing.Instance):
             testing.logger.debug("Running: " + " ".join(argv))
             return subprocess.check_output(argv, stderr=subprocess.STDOUT)
         except subprocess.CalledProcessError as error:
-            raise GuestCommandError(" ".join(argv), error.output)
+            raise GuestCommandError(argv, error.output)
 
     def criticctl(self, argv):
         try:
@@ -754,23 +745,15 @@ class Instance(testing.Instance):
         self.execute(["chmod", "-R", "a+r", "critic"])
         self.execute(["rm", "-r", "critic"])
 
-    def unittest(self, module, tests, args=None):
-        testing.logger.info("Running unit tests: %s (%s)"
-                            % (module, ",".join(tests)))
-        path = self.translateUnittestPath(module)
-        if not args:
-            args = []
-        for test in tests:
-            try:
-                self.execute(["cd", "/usr/share/critic", "&&",
-                              "sudo", "-H", "-u", "critic",
-                              "PYTHONPATH=/etc/critic/main:/usr/share/critic",
-                              "python", path, test] + args,
-                             log_stderr=False)
-            except GuestCommandError as error:
-                output = "\n  ".join(error.stderr.splitlines())
-                testing.logger.error("Unit tests failed: %s: %s\nOutput:\n  %s"
-                                     % (module, test, output))
+    def run_unittest(self, args):
+        if self.coverage:
+            args = ["--coverage"] + args
+        return self.execute(
+            ["cd", "/usr/share/critic", "&&",
+             "sudo", "-H", "-u", "critic",
+             "PYTHONPATH=/etc/critic/main:/usr/share/critic",
+             "python", "-u", "-m", "run_unittest"] + args,
+            log_stderr=False)
 
     def gc(self, repository):
         self.execute(["git", "gc", "--prune=now"],
