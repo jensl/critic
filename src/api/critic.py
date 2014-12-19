@@ -33,7 +33,23 @@ class Critic(object):
         return self._impl.database
 
     def getDatabaseCursor(self):
-        return self._impl.database.cursor()
+        """Return a read-only database cursor object
+
+           This cursor object can only be used to execute SELECT queries."""
+        return self._impl.database.readonly_cursor()
+
+    def getUpdatingDatabaseCursor(self, *tables):
+        """Return a database cursor for updating
+
+           The return value is a "context manager", which returns the actual
+           cursor object when entered and either commits or rolls back the
+           current transaction when exited.  The actual cursor object can only
+           be used to update the tables specified as arguments, using INSERT,
+           UPDATE or DELETE queries.
+
+           The cursor object can also be used to execute SELECT queries (against
+           any tables.)"""
+        return self._impl.database.updating_cursor(*tables)
 
     def setActualUser(self, user):
         assert isinstance(user, api.user.User)

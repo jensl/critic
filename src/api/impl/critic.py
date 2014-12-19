@@ -39,5 +39,5 @@ class Critic(object):
         assert isinstance(value, cls)
         return value
 
-def startSession():
-    return api.critic.Critic(Critic(dbutils.Database()))
+def startSession(allow_unsafe_cursors=True):
+    return api.critic.Critic(Critic(dbutils.Database(allow_unsafe_cursors)))
