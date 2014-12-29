@@ -371,18 +371,20 @@ try:
     if arguments.testing:
         print "STARTED"
 
-    while True:
-        current_mtime = getNewestModificationTime()
-        if current_mtime > running_mtime:
-            if not arguments.testing:
+    if arguments.testing:
+        time.sleep(3600)
+    else:
+        while True:
+            current_mtime = getNewestModificationTime()
+            if current_mtime > running_mtime:
                 print
                 print "Sources changed, restarting the system ..."
                 print
 
-            restartTheSystem()
-            running_mtime = current_mtime
-        else:
-            time.sleep(1)
+                restartTheSystem()
+                running_mtime = current_mtime
+            else:
+                time.sleep(1)
 except KeyboardInterrupt:
     pass
 finally:
