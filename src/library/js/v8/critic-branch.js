@@ -26,7 +26,7 @@ function CriticBranch(options)
   {
     branch_id = options.id;
 
-    result = db.execute("SELECT repository, name, head, base, review FROM branches WHERE id=%d", branch_id)[0];
+    result = db.execute("SELECT repository, name, head, base FROM branches WHERE id=%d", branch_id)[0];
 
     if (!result)
       throw CriticError(format("%d: invalid branch ID", branch_id));
@@ -39,7 +39,7 @@ function CriticBranch(options)
     repository = options.repository;
     name = options.name;
 
-    result = db.execute("SELECT id, head, base, review FROM branches WHERE repository=%d AND name=%s", repository.id, name)[0];
+    result = db.execute("SELECT id, head, base FROM branches WHERE repository=%d AND name=%s", repository.id, name)[0];
 
     if (!result)
       throw CriticError(format("%s: no such branch", name));
@@ -52,7 +52,7 @@ function CriticBranch(options)
   var self = this;
   var head_id = result.head, head = options.head || null;
   var base_id = result.base, base = options.base || null;
-  var review_id = result.review, review = options.review || null;
+  var review = options.review || void 0;
   var commits;
 
   result = null;
@@ -78,16 +78,14 @@ function CriticBranch(options)
 
   function getReview()
   {
-    if (!review)
+    if (review === void 0)
     {
       var result = db.execute("SELECT id FROM reviews WHERE branch=%d", self.id)[0];
 
       if (result)
         review = new CriticReview(result.id);
-      else if (review_id === null)
-        throw CriticError("branch not associated with a review");
       else
-        review = new CriticReview(review_id);
+        review = null;
     }
 
     return review;

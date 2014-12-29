@@ -66,9 +66,10 @@ def renderBranches(req, db, user):
         cursor.execute("""SELECT branches.id, branches.name, branches.base, branches.review,
                                  branches.commit_time, COUNT(reachable.branch)
                             FROM (SELECT branches.id AS id, branches.name AS name, bases.name AS base,
-                                         branches.review AS review, commits.commit_time AS commit_time
+                                         reviews.id AS review, commits.commit_time AS commit_time
                                     FROM branches
                                     JOIN commits ON (commits.id=branches.head)
+                         LEFT OUTER JOIN reviews ON (reviews.origin=branches.id)
                          LEFT OUTER JOIN branches AS bases ON (branches.base=bases.id)
                                    WHERE branches.type='normal'
                                      AND branches.repository=%s

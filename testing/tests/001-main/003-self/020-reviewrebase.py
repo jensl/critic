@@ -80,6 +80,7 @@ with work, settings, signin:
             data={ "repository": "critic",
                    "commit_sha1s": [commit["sha1"] for commit in commits],
                    "branch": "r/" + branch,
+                   "frombranch": branch,
                    "summary": summary })
         reviews.append({ "id": result["review_id"],
                          "branch": "r/" + branch,

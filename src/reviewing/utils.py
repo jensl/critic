@@ -512,18 +512,45 @@ using the command<p>
     createChangesetsForCommits(db, commits)
 
     try:
-        cursor.execute("INSERT INTO branches (repository, name, head, tail, type) VALUES (%s, %s, %s, %s, 'review') RETURNING id", [repository.id, branch_name, head.getId(db), tail_id])
+        cursor.execute("""INSERT INTO branches (repository, name, head, tail, type)
+                               VALUES (%s, %s, %s, %s, 'review')
+                            RETURNING id""",
+                       (repository.id, branch_name, head.getId(db), tail_id))
 
         branch_id = cursor.fetchone()[0]
         reachable_values = [(branch_id, commit.getId(db)) for commit in commits]
 
-        cursor.executemany("INSERT INTO reachable (branch, commit) VALUES (%s, %s)", reachable_values)
+        cursor.executemany("""INSERT INTO reachable (branch, commit)
+                                   VALUES (%s, %s)""",
+                           reachable_values)
 
-        cursor.execute("INSERT INTO reviews (type, branch, state, summary, description, applyfilters, applyparentfilters) VALUES ('official', %s, 'open', %s, %s, %s, %s) RETURNING id", (branch_id, summary, description, applyfilters, applyparentfilters))
+        from_branch_id = None
+        if from_branch_name is not None:
+            cursor.execute("""SELECT id
+                                FROM branches
+                               WHERE repository=%s
+                                 AND name=%s""",
+                           (repository.id, from_branch_name))
+            row = cursor.fetchone()
+            if row:
+                from_branch_id = row[0]
+
+        cursor.execute("""INSERT INTO reviews (type, branch, origin, state,
+                                               summary, description,
+                                               applyfilters, applyparentfilters)
+                               VALUES ('official', %s, %s, 'open',
+                                       %s, %s,
+                                       %s, %s)
+                            RETURNING id""",
+                       (branch_id, from_branch_id,
+                        summary, description,
+                        applyfilters, applyparentfilters))
 
         review = dbutils.Review.fromId(db, cursor.fetchone()[0])
 
-        cursor.execute("INSERT INTO reviewusers (review, uid, owner) VALUES (%s, %s, TRUE)", (review.id, user.id))
+        cursor.execute("""INSERT INTO reviewusers (review, uid, owner)
+                               VALUES (%s, %s, TRUE)""",
+                       (review.id, user.id))
 
         if reviewfilters is not None:
             cursor.executemany("""INSERT INTO reviewfilters (review, uid, path, type, creator)
@@ -534,18 +561,17 @@ using the command<p>
         is_opt_in = False
 
         if recipientfilters is not None:
-            cursor.executemany("INSERT INTO reviewrecipientfilters (review, uid, include) VALUES (%s, %s, %s)",
-                               [(review.id, filter_user_id, filter_include)
-                                for filter_user_id, filter_include in recipientfilters])
+            cursor.executemany(
+                """INSERT INTO reviewrecipientfilters (review, uid, include)
+                        VALUES (%s, %s, %s)""",
+                [(review.id, filter_user_id, filter_include)
+                 for filter_user_id, filter_include in recipientfilters])
 
             for filter_user_id, filter_include in recipientfilters:
                 if filter_user_id is None and not filter_include:
                     is_opt_in = True
 
         addCommitsToReview(db, user, review, commits, new_review=True)
-
-        if from_branch_name is not None:
-            cursor.execute("UPDATE branches SET review=%s WHERE repository=%s AND name=%s", (review.id, repository.id, from_branch_name))
 
         # Reload to get list of changesets added by addCommitsToReview().
         review = dbutils.Review.fromId(db, review.id)

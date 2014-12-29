@@ -15,7 +15,7 @@
 # the License.
 
 class Branch(object):
-    def __init__(self, id, repository, name, head_sha1, base, tail_sha1, branch_type, archived, review_id):
+    def __init__(self, id, repository, name, head_sha1, base, tail_sha1, branch_type, archived):
         self.id = id
         self.repository = repository
         self.name = name
@@ -24,7 +24,6 @@ class Branch(object):
         self.tail_sha1 = tail_sha1
         self.type = branch_type
         self.archived = archived
-        self.review_id = review_id
         self.review = None
         self.__commits = None
         self.__head = None
@@ -202,7 +201,7 @@ class Branch(object):
         import gitutils
 
         cursor = db.cursor()
-        cursor.execute("""SELECT name, repository, head, base, tail, branches.type, archived, review
+        cursor.execute("""SELECT name, repository, head, base, tail, branches.type, archived
                             FROM branches
                            WHERE branches.id=%s""",
                        (branch_id,),
@@ -211,7 +210,7 @@ class Branch(object):
 
         if not row: return None
         else:
-            branch_name, repository_id, head_commit_id, base_branch_id, tail_commit_id, type, archived, review_id = row
+            branch_name, repository_id, head_commit_id, base_branch_id, tail_commit_id, type, archived = row
 
             def commit_sha1(commit_id):
                 cursor.execute("SELECT sha1 FROM commits WHERE id=%s", (commit_id,))
@@ -235,7 +234,7 @@ class Branch(object):
 
             if profiler: profiler.check("Branch.fromId: base")
 
-            branch = Branch(branch_id, repository, branch_name, head_commit_sha1, base_branch, tail_commit_sha1, type, archived, review_id)
+            branch = Branch(branch_id, repository, branch_name, head_commit_sha1, base_branch, tail_commit_sha1, type, archived)
 
             if load_review:
                 from dbutils import Review

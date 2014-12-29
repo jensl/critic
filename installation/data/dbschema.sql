@@ -179,7 +179,6 @@ CREATE TABLE branches
     base INTEGER REFERENCES branches,
     tail INTEGER REFERENCES commits,
     type branchtype NOT NULL DEFAULT 'normal',
-    review INTEGER, -- Foreign key constraint "REFERENCES reviews" set up later.
     archived BOOLEAN NOT NULL DEFAULT FALSE,
 
     UNIQUE (repository, name) );
@@ -272,7 +271,10 @@ CREATE TYPE reviewstate AS ENUM
 CREATE TABLE reviews
   ( id SERIAL PRIMARY KEY,
     type reviewtype NOT NULL,
+    -- The review branch.
     branch INTEGER NOT NULL REFERENCES branches,
+    -- The (non-review) branch from which this review was created, if any.
+    origin INTEGER REFERENCES branches ON DELETE SET NULL,
     state reviewstate NOT NULL,
     serial INTEGER NOT NULL DEFAULT 0,
     closed_by INTEGER REFERENCES users,
@@ -283,8 +285,6 @@ CREATE TABLE reviews
     summary TEXT,
     description TEXT );
 CREATE INDEX reviews_branch ON reviews (branch);
-
-ALTER TABLE branches ADD CONSTRAINT branches_review_fkey FOREIGN KEY (review) REFERENCES reviews ON DELETE SET NULL;
 
 CREATE TABLE scheduledreviewbrancharchivals
   ( review INTEGER PRIMARY KEY REFERENCES reviews (id),
