@@ -723,8 +723,8 @@ CriticReview.create = function (data)
 
     repository.run("branch", branch, upstream.sha1);
 
-    var branch_id = db.execute("INSERT INTO branches (name, head, base, tail, repository) VALUES (%s, %d, %d, %d, %d) RETURNING id",
-                               branch, upstream.id, repository.branch.id, upstream.id, repository.id)[0].id;
+    var branch_id = db.execute("INSERT INTO branches (name, head, tail, repository) VALUES (%s, %d, %d, %d, %d) RETURNING id",
+                               branch, upstream.id, upstream.id, repository.id)[0].id;
 
     var review_id = db.execute("INSERT INTO reviews (type, branch, state, summary, description) VALUES (%s, %d, %s, %s, %s) RETURNING id",
                                "official", branch_id, "open", summary, description)[0].id;

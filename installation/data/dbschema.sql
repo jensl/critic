@@ -87,7 +87,6 @@ CREATE TABLE userroles
 CREATE TABLE repositories
   ( id SERIAL PRIMARY KEY,
     parent INTEGER REFERENCES repositories,
-    branch INTEGER, -- Foreign key constraint "REFERENCES branches" set up later.
     name VARCHAR(64) NOT NULL UNIQUE,
     path VARCHAR(256) NOT NULL UNIQUE );
 
@@ -184,8 +183,6 @@ CREATE TABLE branches
     archived BOOLEAN NOT NULL DEFAULT FALSE,
 
     UNIQUE (repository, name) );
-
-ALTER TABLE repositories ADD CONSTRAINT repositories_branch_fkey FOREIGN KEY (branch) REFERENCES branches;
 
 CREATE TABLE reachable
   ( branch INTEGER NOT NULL REFERENCES branches ON DELETE CASCADE,

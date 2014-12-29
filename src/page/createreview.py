@@ -138,30 +138,34 @@ def renderSelectSource(req, db, user):
     def renderLocalRepository(target):
         page.utils.generateRepositorySelect(db, user, target)
 
-        cursor.execute("""SELECT repositories.id, repositories.name, repositories.path, branches.name
+        cursor.execute("""SELECT repositories.id, repositories.name, repositories.path
                             FROM repositories
-                 LEFT OUTER JOIN branches ON (branches.id=repositories.branch)
                         ORDER BY repositories.id""")
 
-        for repository_id, name, path, branch_name in cursor.fetchall():
-            local_names = ["*"]
+        for repository_id, name, path in cursor.fetchall():
+            def findRemote(local_name):
+                cursor.execute("""SELECT remote
+                                    FROM trackedbranches
+                                   WHERE repository=%s
+                                     AND local_name=%s""",
+                               (repository_id, local_name))
+                row = cursor.fetchone()
+                if row:
+                    return row[0]
 
-            if branch_name:
-                local_names.append(branch_name)
+            repository = gitutils.Repository.fromId(db, repository_id)
+            remote = branch_name = None
 
-            cursor.execute("""SELECT remote
-                                FROM trackedbranches
-                               WHERE repository=%s
-                                 AND local_name=ANY (%s)
-                            ORDER BY local_name
-                               LIMIT 1""",
-                           (repository_id, local_names))
+            for branch in repository.getSignificantBranches(db):
+                remote = findRemote(branch.name)
+                if remote:
+                    branch_name = branch.name
+                    break
 
-            row = cursor.fetchone()
+            if not remote:
+                remote = findRemote("*")
 
-            if row: default_remotes[name] = row[0]
-            else: default_remotes[name] = None
-
+            default_remotes[name] = remote
             default_branches[name] = branch_name
 
         document.addInternalScript("var default_remotes = %s;" % json_encode(default_remotes))

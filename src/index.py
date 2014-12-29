@@ -409,11 +409,6 @@ associated with the branch.  You can do this from the review's front-page:
     reachable_values = [(branch_id, commit.sha1) for commit in commit_list]
     cursor.executemany("INSERT INTO reachable (branch, commit) SELECT %s, id FROM commits WHERE sha1=%s", reachable_values)
 
-    # FIXME: Drop the "main branch" concept already!  Use the repository's HEAD
-    # or all tracked branches instead, depending on the situation.
-    if not repository.hasMainBranch() and user.isSystem():
-        cursor.execute("UPDATE repositories SET branch=%s WHERE id=%s", (branch_id, repository.id))
-
 def updateBranch(db, user, repository, name, old, new, multiple, flags):
     try:
         update(repository.path, "refs/heads/" + name, old, new)

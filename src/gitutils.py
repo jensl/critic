@@ -134,7 +134,7 @@ class Repository:
         def __init__(self, db): self.db = db
         def __call__(self, value): return Repository.fromParameter(self.db, value)
 
-    def __init__(self, db=None, repository_id=None, parent=None, main_branch_id=None, name=None, path=None):
+    def __init__(self, db=None, repository_id=None, parent=None, name=None, path=None):
         assert path
 
         self.id = repository_id
@@ -142,8 +142,6 @@ class Repository:
         self.path = path
         self.parent = parent
 
-        self.__main_branch = None
-        self.__main_branch_id = main_branch_id
         self.__batch = None
         self.__batchCheck = None
         self.__cacheBlobs = False
@@ -193,27 +191,17 @@ class Repository:
     def disableCache(self):
         self.__cacheDisabled = True
 
-    def hasMainBranch(self):
-        return self.__main_branch_id is not None
-
-    def getMainBranch(self, db):
-        import dbutils
-        if not self.__main_branch:
-            if self.__main_branch_id is not None:
-                self.__main_branch = dbutils.Branch.fromId(db, self.__main_branch_id)
-        return self.__main_branch
-
     @staticmethod
     def fromId(db, repository_id):
         if repository_id in db.storage["Repository"]:
             return db.storage["Repository"][repository_id]
         else:
             cursor = db.cursor()
-            cursor.execute("SELECT parent, branch, name, path FROM repositories WHERE id=%s", (repository_id,))
+            cursor.execute("SELECT parent, name, path FROM repositories WHERE id=%s", (repository_id,))
             try:
-                parent_id, main_branch_id, name, path = cursor.fetchone()
+                parent_id, name, path = cursor.fetchone()
                 parent = None if parent_id is None else Repository.fromId(db, parent_id)
-                return Repository(db, repository_id=repository_id, parent=parent, main_branch_id=main_branch_id, name=name, path=path)
+                return Repository(db, repository_id=repository_id, parent=parent, name=name, path=path)
             except:
                 return None
 
@@ -714,6 +702,31 @@ class Repository:
             # Finally, return the resulting commit.
             return commit
 
+    def getSignificantBranches(self, db):
+        """Return an iterator of "significant" branches
+
+           A branch is considered significant if it is referenced by the
+           repository's HEAD (if that's a symbolic ref) or if it is set up to
+           track a remote branch."""
+        import dbutils
+        head_branch = self.getHeadBranch(db)
+        if head_branch:
+            yield head_branch
+        cursor = db.cursor()
+        cursor.execute(
+            """SELECT local_name
+                 FROM trackedbranches
+                 JOIN branches ON (branches.repository=trackedbranches.repository
+                               AND branches.name=trackedbranches.local_name)
+                WHERE branches.repository=%s
+                  AND branches.type='normal'
+             ORDER BY trackedbranches.id ASC""",
+                       (self.id,))
+        for (branch_name,) in cursor:
+            if head_branch and head_branch.name == branch_name:
+                continue
+            yield dbutils.Branch.fromName(db, self, branch_name)
+
     def getDefaultRemote(self, db):
         cursor = db.cursor()
         cursor.execute("""SELECT remote
@@ -828,6 +841,22 @@ class Repository:
     def getHead(self, db):
         return Commit.fromSHA1(db, self, self.revparse("HEAD"))
 
+    def getHeadBranch(self, db):
+        """Return the branch that HEAD references
+
+           None is returned if HEAD is not a symbolic ref or if it references a
+           ref not under refs/heads/."""
+        import dbutils
+        try:
+            ref_name = self.run("symbolic-ref", "--quiet", "HEAD").strip()
+        except GitCommandError:
+            # HEAD is not a symbolic ref.
+            pass
+        else:
+            if ref_name.startswith("refs/heads/"):
+                branch_name = ref_name[len("refs/heads/"):]
+                return dbutils.Branch.fromName(db, self, branch_name)
+
     def isEmpty(self):
         try:
             self.revparse("HEAD")
@@ -907,42 +936,16 @@ class Repository:
 
     def describe(self, db, sha1):
         tag = self.findInterestingTag(db, sha1)
-        if tag: return tag
+        if tag:
+            return tag
 
-        cursor = db.cursor()
-        cursor.execute("""SELECT branches.name, commits.sha1
-                            FROM repositories
-                            JOIN branches ON (branches.id=repositories.branch)
-                            JOIN commits ON (commits.id=branches.head)
-                           WHERE repositories.id=%s""",
-                       (self.id,))
+        commit = Commit.fromSHA1(db, self, sha1)
 
-        for branch_name, head_sha1 in cursor:
-            if sha1 == head_sha1:
-                return "tip of " + branch_name
-            try:
-                if self.mergebase([sha1, head_sha1]) == sha1:
-                    return branch_name
-            except GitError:
-                pass
-
-        cursor.execute("""SELECT branches.name, commits.sha1
-                            FROM trackedbranches
-                            JOIN branches ON (branches.repository=trackedbranches.repository
-                                          AND branches.name=trackedbranches.local_name)
-                            JOIN commits ON (commits.id=branches.head)
-                           WHERE trackedbranches.repository=%s
-                             AND branches.type='normal'""",
-                       (self.id,))
-
-        for branch_name, head_sha1 in cursor:
-            if sha1 == head_sha1:
-                return "tip of " + branch_name
-            try:
-                if self.mergebase([sha1, head_sha1]) == sha1:
-                    return branch_name
-            except GitError:
-                pass
+        for branch in self.getSignificantBranches(db):
+            if commit == branch.head_sha1:
+                return "tip of " + branch.name
+            elif commit.isAncestorOf(branch.head_sha1):
+                return branch.name
 
         return None
 

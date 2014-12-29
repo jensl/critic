@@ -261,7 +261,6 @@ function CriticRepository(name_or_id)
 
   var self = this;
   var catfile = null, catfile_in, catfile_out, catfile_buffer;
-  var branch = null;
   var filters = null;
 
   this.fetch = function (sha1)
@@ -327,18 +326,6 @@ function CriticRepository(name_or_id)
     };
 
   all_repositories.push(this);
-
-  function getBranch()
-  {
-    if (!branch)
-    {
-      var result = db.execute("SELECT MIN(id) AS id FROM branches WHERE repository=%d", self.id)[0];
-
-      branch = new CriticBranch({ id: result.id, repository: self });
-    }
-
-    return branch;
-  }
 
   function getFilters()
   {
@@ -411,8 +398,7 @@ function CriticRepository(name_or_id)
     return filters;
   }
 
-  Object.defineProperties(this, { branch: { get: getBranch, enumerable: true },
-                                  filters: { get: getFilters, enumerable: true }});
+  Object.defineProperties(this, { filters: { get: getFilters, enumerable: true }});
   Object.freeze(this);
 }
 
@@ -849,17 +835,25 @@ function CriticRepositoryWorkCopy(repository, branch)
 
     if (branch)
     {
-      this.run("fetch", "origin", format("+refs/heads/%s:refs/remotes/origin/%s", branch, branch));
-      this.run("checkout", "-q", this.run("rev-parse", "HEAD").trim());
+      this.run("fetch", "origin", "refs/heads/" + branch);
+      this.run("checkout", "-q", "FETCH_HEAD");
       try { this.run("branch", "-D", branch); } catch (e) {}
-      this.run("checkout", "-q", "-b", branch, "-t", format("refs/remotes/origin/%s", branch));
+      this.run("checkout", "-q", "-b", branch);
     }
     else
     {
-      branch = repository.branch.name;
+      try
+      {
+        var ref = repository.run("symblic-ref", "--quiet", "HEAD").trim();
+        this.run("fetch", "origin", ref);
+        ref = "FETCH_HEAD";
+      }
+      catch (error)
+      {
+        ref = repository.run("rev-parse", "HEAD").trim();
+      }
 
-      this.run("fetch", "origin", format("+refs/heads/%s:refs/remotes/origin/%s", branch, branch));
-      this.run("checkout", "-q", this.run("rev-parse", format("refs/remotes/origin/%s", branch)).trim());
+      this.run("checkout", "-q", ref);
     }
 
     IO.File.utimes(path);

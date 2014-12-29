@@ -44,17 +44,16 @@ def renderRepositories(req, db, user):
         document.addInternalScript("user.administrator = true;")
 
     cursor = db.cursor()
-    cursor.execute("SELECT id, name, path, parent, branch FROM repositories ORDER BY name ASC")
+    cursor.execute("SELECT id, name, path, parent FROM repositories ORDER BY name ASC")
 
     rows = cursor.fetchall()
 
     class Repository:
-        def __init__(self, repository_id, name, path, parent_id, branch_id):
+        def __init__(self, repository_id, name, path, parent_id):
             self.id = repository_id
             self.name = name
             self.path = path
             self.parent_id = parent_id
-            self.branch_id = branch_id
             self.default_remote = None
             self.location = gitutils.Repository.constructURL(db, user, path)
 
