@@ -313,15 +313,14 @@ class CommentChain:
                 else:
                     draft_user_id = None
 
-                if draft_user_id is not None:
-                    cursor.execute("""SELECT sha1, first_line, last_line
-                                        FROM commentchainlines
-                                       WHERE chain=%s
-                                         AND (state='current' OR uid=%s)""",
-                                   (id, draft_user_id))
+                cursor.execute("""SELECT sha1, first_line, last_line
+                                    FROM commentchainlines
+                                   WHERE chain=%s
+                                     AND (state='current' OR uid=%s)""",
+                               (id, draft_user_id))
 
-                    for sha1, first_line, last_line in cursor.fetchall():
-                        chain.setLines(sha1, first_line, last_line - first_line + 1)
+                for sha1, first_line, last_line in cursor.fetchall():
+                    chain.setLines(sha1, first_line, last_line - first_line + 1)
 
             return chain
 
