@@ -39,7 +39,7 @@ def sqltokens(command):
     return re.findall(r"""\$\d+|!=|<>|<=|>=|'(?:''|[^'])*'|"(?:[^"])*"|\w+|[^\s]""", command)
 
 def sqlcommands(filename):
-    path = os.path.join(installation.root_dir, "installation", "data", filename)
+    path = os.path.join(installation.root_dir, filename)
     script = []
     with open(path) as script_file:
         for line in script_file:

@@ -1,6 +1,6 @@
 -- -*- mode: sql -*-
 --
--- Copyright 2012 Jens Lindström, Opera Software ASA
+-- Copyright 2015 the Critic contributors, Opera Software ASA
 --
 -- Licensed under the Apache License, Version 2.0 (the "License"); you may not
 -- use this file except in compliance with the License.  You may obtain a copy of
@@ -17,9 +17,11 @@
 -- Disable notices about implicitly created indexes and sequences.
 SET client_min_messages TO WARNING;
 
-INSERT INTO roles (name, description)
-     VALUES ('administrator', 'Almighty system administrator.'),
-            ('repositories', 'Allowed to add and configure repositories.'),
-            ('developer', 'System developer.'),
-            ('newswriter', 'Allowed to add and edit news items.');
+CREATE TABLE newsitems
+  ( id SERIAL PRIMARY KEY,
+    date DATE DEFAULT NOW(),
+    text TEXT NOT NULL );
 
+CREATE TABLE newsread
+  ( item INTEGER NOT NULL REFERENCES newsitems ON DELETE CASCADE,
+    uid INTEGER NOT NULL REFERENCES users ON DELETE CASCADE );

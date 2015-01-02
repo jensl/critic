@@ -181,10 +181,7 @@ try:
     if initialize_database:
         installation.qs.sqlite.import_schema(
             database_path,
-            filenames=["dbschema.sql",
-                       "dbschema.comments.sql",
-                       "dbschema.extensions.sql",
-                       "roles.sql"],
+            filenames=installation.database.SCHEMA_FILES,
             quiet=quiet)
 
     installation.system.uid = os.getuid()

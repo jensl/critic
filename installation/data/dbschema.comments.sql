@@ -52,6 +52,8 @@ CREATE INDEX commentchains_review_file ON commentchains(review, file);
 CREATE INDEX commentchains_review_type_state ON commentchains(review, type, state);
 CREATE INDEX commentchains_batch ON commentchains(batch);
 
+-- FIXME: This circular relation is unnecessary.  Should have a separate table
+-- for mapping batches to comments intead.
 ALTER TABLE batches ADD CONSTRAINT batches_comment_fkey FOREIGN KEY (comment) REFERENCES commentchains ON DELETE CASCADE;
 
 CREATE TYPE commentchainchangestate AS ENUM
@@ -124,6 +126,10 @@ CREATE INDEX comments_chain_uid_state ON comments (chain, uid, state);
 CREATE INDEX comments_batch ON comments(batch);
 CREATE INDEX comments_id_chain ON comments(id, chain);
 
+-- FIXME: This is an unfortunate circular relation.  It's here to optimize
+-- accessing a group of comment chains and their first comment (i.e. accessing
+-- comments but not their replies.)  This matters (supposedly) when loading
+-- review front-pages, but it's questionable whether this is really necessary.
 ALTER TABLE commentchains ADD CONSTRAINT commentchains_first_comment_fkey FOREIGN KEY (first_comment) REFERENCES comments;
 
 CREATE TABLE commentstoread

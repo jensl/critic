@@ -95,10 +95,38 @@ backup of the database first is strongly recommended.
 
     return True
 
-SCHEMA_FILES = ["installation/data/dbschema.sql",
-                "installation/data/dbschema.comments.sql",
-                "installation/data/dbschema.extensions.sql",
-                "installation/data/roles.sql"]
+SCHEMA_FILES = [
+    # No dependencies.
+    "installation/data/dbschema.base.sql",
+    "installation/data/dbschema.users.sql",
+
+    # Depends on: base[files].
+    "installation/data/dbschema.git.sql",
+
+    # Depends on: users.
+    "installation/data/dbschema.news.sql",
+
+    # Depends on: git, users.
+    "installation/data/dbschema.trackedbranches.sql",
+
+    # Depends on: base[files], git.
+    "installation/data/dbschema.changesets.sql",
+
+    # Depends on: git, users.
+    "installation/data/dbschema.filters.sql",
+
+    # Depends on: git, users, filters.
+    "installation/data/dbschema.preferences.sql",
+
+    # Depends on: base[files], git, users, changesets.
+    "installation/data/dbschema.reviews.sql",
+
+    # Depends on: base[files], git, users, reviews.
+    "installation/data/dbschema.comments.sql",
+
+    # Depends on: base[files], git, users, reviews.
+    "installation/data/dbschema.extensions.sql",
+]
 
 PGSQL_FILES = ["installation/data/comments.pgsql"]
 
