@@ -45,17 +45,18 @@ class Branches(object):
                           "head": value.head.id })
 
     @staticmethod
-    def single(critic, context, argument, parameters):
+    def single(critic, argument, parameters):
         """Retrieve one (or more) branches in the Git repositories.
 
            BRANCH_ID : integer
 
            Retrieve a branch identified by its unique numeric id."""
 
-        return api.branch.fetch(critic, branch_id=jsonapi.numeric_id(argument))
+        return Branches.setAsContext(parameters, api.branch.fetch(
+            critic, branch_id=jsonapi.numeric_id(argument)))
 
     @staticmethod
-    def multiple(critic, context, parameters):
+    def multiple(critic, parameters):
         """Retrieve all branches in the Git repositories.
 
            repository : REPOSITORY : -
@@ -71,7 +72,7 @@ class Branches(object):
            resource path or using the <code>repository</code> parameter."""
 
         repository = jsonapi.v1.repositories.Repositories.deduce(
-            critic, context, parameters)
+            critic, parameters)
         name_parameter = parameters.getQueryParameter("name")
         if name_parameter:
             if repository is None:
@@ -80,6 +81,11 @@ class Branches(object):
             return api.branch.fetch(
                 critic, repository=repository, name=name_parameter)
         return api.branch.fetchAll(critic, repository=repository)
+
+    @staticmethod
+    def setAsContext(parameters, branch):
+        parameters.setContext(Branches.name, branch)
+        return branch
 
 import commits
 
@@ -93,14 +99,14 @@ class BranchCommits(object):
        new commits are also associated with the branch."""
 
     name = "commits"
-    contexts = ("branches",)
+    contexts = ("branches", "reviews")
     value_class = api.commit.Commit
     exceptions = (api.commit.CommitError,)
 
     json = staticmethod(commits.Commits.json)
 
     @staticmethod
-    def multiple(critic, context, parameters):
+    def multiple(critic, parameters):
         """Retrieve all commits associated with the branch.
 
            sort : SORT_KEY : -
@@ -113,11 +119,11 @@ class BranchCommits(object):
            with the most recent commit date.  Topological order is the
            default."""
 
-        assert isinstance(context, api.branch.Branch)
+        branch = parameters.context["branches"]
         sort_parameter = parameters.getQueryParameter("sort")
         if sort_parameter is None or sort_parameter == "topological":
-            return context.commits.topo_ordered
+            return branch.commits.topo_ordered
         elif sort_parameter != "date":
             raise jsonapi.UsageError("Invalid commits sort parameter: %r"
                                      % sort_parameter)
-        return context.commits.date_ordered
+        return branch.commits.date_ordered

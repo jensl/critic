@@ -44,6 +44,10 @@ frontend.json(
                                    user_json("dave"),
                                    user_json("erin")] } })
 
+frontend.json(
+    "reviews/%d/commits" % review_id,
+    expect={ "commits": [generic_commit_json] })
+
 def check_description(path, description, check):
     if description is not None:
         check(path, expected=str, actual=description)

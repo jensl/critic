@@ -45,17 +45,18 @@ class Users(object):
                        "email": value.email })
 
     @staticmethod
-    def single(critic, context, argument, parameters):
+    def single(critic, argument, parameters):
         """Retrieve one (or more) users of this system.
 
            USER_ID : integer
 
            Retrieve a user identified by the user's unique numeric id."""
 
-        return api.user.fetch(critic, user_id=jsonapi.numeric_id(argument))
+        return Users.setAsContext(parameters, api.user.fetch(
+            critic, user_id=jsonapi.numeric_id(argument)))
 
     @staticmethod
-    def multiple(critic, resource, parameters):
+    def multiple(critic, parameters):
         """Retrieve a single named user or all users of this system.
 
            name : NAME : string
@@ -99,6 +100,11 @@ class Users(object):
             sort_key = lambda user: user.id
         return sorted(api.user.fetchAll(critic, status=status), key=sort_key)
 
+    @staticmethod
+    def setAsContext(parameters, user):
+        parameters.setContext(Users.name, user)
+        return user
+
 @jsonapi.PrimaryResource
 class Emails(object):
     """A user's primary email addresses.
@@ -129,11 +135,10 @@ class Emails(object):
                         "verified": value.verified })
 
     @staticmethod
-    def multiple(critic, context, parameters):
+    def multiple(critic, parameters):
         """All primary email addresses."""
 
-        assert isinstance(context, api.user.User)
-        return context.primary_emails
+        return parameters.context["users"].primary_emails
 
 @jsonapi.PrimaryResource
 class Filters(object):
@@ -167,7 +172,7 @@ class Filters(object):
                          "delegates": sorted(delegates_ids) })
 
     @staticmethod
-    def multiple(critic, context, parameters):
+    def multiple(critic, parameters):
         """All repository filters.
 
            repository : REPOSITORY : -
@@ -175,7 +180,7 @@ class Filters(object):
            Include only filters for the specified repository, identified by its
            unique numeric id or short-name."""
 
-        assert isinstance(context, api.user.User)
+        user = parameters.context["users"]
         repository_parameter = parameters.getQueryParameter("repository")
         if repository_parameter:
             repository_id = name = None
@@ -185,10 +190,10 @@ class Filters(object):
                 name = repository_parameter
             repository = api.repository.fetch(
                 critic, repository_id=repository_id, name=name)
-            repository_filters = context.repository_filters.get(
+            repository_filters = user.repository_filters.get(
                 repository, [])
         else:
             repository_filters = itertools.chain(
-                *context.repository_filters.values())
+                *user.repository_filters.values())
         return sorted(repository_filters,
                       key=lambda repository_filter: repository_filter.id)

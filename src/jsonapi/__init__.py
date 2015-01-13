@@ -47,6 +47,7 @@ class Parameters(object):
             if name not in SPECIAL_QUERY_PARAMETERS }
         self.__resource_name = None
         self.range_accessed = False
+        self.context = {}
 
     def __prepareType(self, resource_type):
         if resource_type not in self.fields_per_type:
@@ -104,6 +105,14 @@ class Parameters(object):
         if offset and count:
             return offset, offset + count
         return offset, count
+
+    def setContext(self, key, value):
+        if key in self.context:
+            existing = self.context[key]
+            if existing is None or existing != value:
+                self.context[key] = None
+        else:
+            self.context[key] = value
 
 class Linked(object):
     def __init__(self, req):
@@ -233,17 +242,16 @@ def handle(critic, req):
                     raise UsageError("Invalid resource path: %s" % req.path)
                 if len(arguments) == 1:
                     with parameters.forResource(resource_class):
-                        value = resource_class.single(critic, context,
-                                                      arguments[0], parameters)
+                        value = resource_class.single(critic, arguments[0],
+                                                      parameters)
                     if not path:
                         break
                     else:
                         assert isinstance(value, resource_class.value_class)
-                        context = value
                 else:
                     with parameters.forResource(resource_class):
-                        values = [resource_class.single(
-                                      critic, context, argument, parameters)
+                        values = [resource_class.single(critic, argument,
+                                                        parameters)
                                   for argument in arguments]
                     break
             else:
@@ -251,8 +259,7 @@ def handle(critic, req):
                     raise UsageError("Resource requires an argument: %s"
                                      % resource_id)
                 with parameters.forResource(resource_class):
-                    values = resource_class.multiple(
-                        critic, context, parameters)
+                    values = resource_class.multiple(critic, parameters)
                 if isinstance(values, resource_class.value_class):
                     value, values = values, None
                 elif not parameters.range_accessed:
@@ -287,7 +294,7 @@ def handle(critic, req):
                         linked_value = resource_id
                     else:
                         linked_value = resource_class.single(
-                            critic, None, resource_id, parameters)
+                            critic, resource_id, parameters)
 
                     linked_json[resource_type].append(resource_class.json(
                         linked_value, parameters, additional_linked))

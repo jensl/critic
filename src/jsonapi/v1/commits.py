@@ -76,7 +76,7 @@ class Commits(object):
                           "committer": userAndTimestamp(value.committer) })
 
     @staticmethod
-    def single(critic, context, argument, parameters):
+    def single(critic, argument, parameters):
         """Retrieve one (or more) commits from a Git repository.
 
            COMMIT_ID : integer
@@ -90,15 +90,15 @@ class Commits(object):
            resource path."""
 
         repository = jsonapi.v1.repositories.Repositories.deduce(
-            critic, context, parameters)
+            critic, parameters)
         if repository is None:
             raise jsonapi.UsageError(
                 "Commit reference must have repository specified.")
-        return api.commit.fetch(
-            repository, commit_id=jsonapi.numeric_id(argument))
+        return Commits.setAsContext(parameters, api.commit.fetch(
+            repository, commit_id=jsonapi.numeric_id(argument)))
 
     @staticmethod
-    def multiple(critic, context, parameters):
+    def multiple(critic, parameters):
         """Retrieve a single commit identified by its SHA-1 sum.
 
            sha1 : COMMIT_SHA1 : string
@@ -120,8 +120,13 @@ class Commits(object):
             raise jsonapi.UsageError(
                 "Invalid SHA-1 parameter: %r" % sha1_parameter)
         repository = jsonapi.v1.repositories.Repositories.deduce(
-            critic, context, parameters)
+            critic, parameters)
         if repository is None:
             raise jsonapi.UsageError(
                 "Commit reference must have repository specified.")
         return api.commit.fetch(repository, sha1=sha1_parameter)
+
+    @staticmethod
+    def setAsContext(parameters, commit):
+        parameters.setContext(Commits.name, commit)
+        return commit

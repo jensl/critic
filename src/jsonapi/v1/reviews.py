@@ -61,17 +61,18 @@ class Reviews(object):
                          "commits": commits_ids })
 
     @staticmethod
-    def single(critic, context, argument, parameters):
+    def single(critic, argument, parameters):
         """Retrieve one (or more) reviews in this system.
 
            REVIEW_ID : integer
 
            Retrieve a review identified by its unique numeric id."""
 
-        return api.review.fetch(critic, review_id=jsonapi.numeric_id(argument))
+        return Reviews.setAsContext(parameters, api.review.fetch(
+            critic, review_id=jsonapi.numeric_id(argument)))
 
     @staticmethod
-    def multiple(critic, context, parameters):
+    def multiple(critic, parameters):
         """Retrieve all reviews in this system.
 
            repository : REPOSITORY : -
@@ -85,7 +86,7 @@ class Reviews(object):
            <code>open</code>, <code>closed</code>, <code>dropped</code>."""
 
         repository = jsonapi.v1.repositories.Repositories.deduce(
-            critic, context, parameters)
+            critic, parameters)
         state_parameter = parameters.getQueryParameter("state")
         if state_parameter:
             state = set(state_parameter.split(","))
@@ -97,3 +98,24 @@ class Reviews(object):
         else:
             state = None
         return api.review.fetchAll(critic, repository=repository, state=state)
+
+    @staticmethod
+    def deduce(critic, parameters):
+        review = parameters.context.get("reviews")
+        review_parameter = parameters.getQueryParameter("review")
+        if review_parameter is not None:
+            if review is not None:
+                raise jsonapi.UsageError(
+                    "Redundant query parameter: review=%s" % review_parameter)
+            review = api.review.fetch(
+                critic, review_id=jsonapi.numeric_id(review_parameter))
+        return review
+
+    @staticmethod
+    def setAsContext(parameters, review):
+        parameters.setContext(Reviews.name, review)
+        # Also set the review's repository and branch as context.
+        jsonapi.v1.repositories.Repositories.setAsContext(
+            parameters, review.repository)
+        jsonapi.v1.branches.Branches.setAsContext(parameters, review.branch)
+        return review

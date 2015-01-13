@@ -38,13 +38,11 @@ frontend.json(
 
 result = frontend.json(
     "repositories/1/commits",
-    params={ "sha1": SHA1,
-             "repository": "critic" },
+    params={ "sha1": SHA1 },
     expect=commit_json)
 
 frontend.json(
     "repositories/1/commits/%d" % result["id"],
-    params={ "repository": "critic" },
     expect=commit_json)
 
 frontend.json(

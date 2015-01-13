@@ -185,11 +185,11 @@ A primary resource is implemented by decorating a class with the decorator
       return { "name": value.name }
 
     @staticmethod
-    def single(critic, context, argument, parameters):
+    def single(critic, argument, parameters):
       return User(argument)
 
     @staticmethod
-    def multiple(critic, context, parameters):
+    def multiple(critic, parameters):
       return [User("alice"), User("bob")]
 
 A resource class is never instantiated; it is only expected to have class
@@ -234,7 +234,8 @@ can then be converted into a JSON string.  It must be implemented.
 The |value| parameter is the value being converted.  It is guaranteed to be an
 instance of the resource class's internal value class.
 
-The |parameters| parameter gives access to query string parameters.
+The |parameters| parameter gives access to query string parameters, and to
+context objects introduced by earlier path segments (all but the last).
 
 The |linked| parameter holds an object that can be used to register other
 primary resources referenced by this resource.
@@ -250,14 +251,6 @@ the |argument| parameter to the method.  If the single() method is not
 implemented, this type of path is invalid.
 
 The |critic| parameter is an api.critic.Critic instance.
-
-The |context| parameter is the value of the previous segment of the path.  In the
-case of path "/api/v1/repositories/1/branches/1" for instance, the single()
-method of the resource class whose name is "repositories" is called first, with
-|context=None|.  It would return an object (an instance of its value class)
-representing the repository with id=1.  Next, the single() method of the
-resource class whose name is "branches" would be called, with that repository
-object as its |context|.
 
 The |argument| parameter is the next path component, as described above.
 
@@ -276,7 +269,7 @@ and would normally return "all resources of this type."  It can also filter its
 return value using query parameters.  If the multiple() method is not
 implemented, this type of path is invalid.
 
-The |critic|, |context| and |parameters| parameters are the same as to single().
+The |critic| and |parameters| parameters are the same as to single().
 
 The return value must be an iterable of the resource class's internal value
 class, or an instance of it.  The return value can be an iterator or generator.

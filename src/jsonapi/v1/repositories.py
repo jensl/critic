@@ -46,18 +46,18 @@ class Repositories(object):
                               "url": value.url })
 
     @staticmethod
-    def single(critic, context, argument, parameters):
+    def single(critic, argument, parameters):
         """Retrieve one (or more) repositories on this system.
 
            REPOSITORY_ID : integer
 
            Retrieve a repository identified by its unique numeric id."""
 
-        return api.repository.fetch(
-            critic, repository_id=jsonapi.numeric_id(argument))
+        return Repositories.setAsContext(parameters, api.repository.fetch(
+            critic, repository_id=jsonapi.numeric_id(argument)))
 
     @staticmethod
-    def multiple(critic, context, parameters):
+    def multiple(critic, parameters):
         """Retrieve a single named repository or all repositories on this
            system.
 
@@ -90,9 +90,18 @@ class Repositories(object):
         return repositories
 
     @staticmethod
-    def deduce(critic, context, parameters):
-        if isinstance(context, api.repository.Repository):
-            return context
+    def deduce(critic, parameters):
+        repository = parameters.context.get("repositories")
         repository_parameter = parameters.getQueryParameter("repository")
         if repository_parameter is not None:
-            return from_argument(critic, repository_parameter)
+            if repository is not None:
+                raise jsonapi.UsageError(
+                    "Redundant query parameter: repository=%s"
+                    % repository_parameter)
+            repository = from_argument(critic, repository_parameter)
+        return repository
+
+    @staticmethod
+    def setAsContext(parameters, repository):
+        parameters.setContext(Repositories.name, repository)
+        return repository
