@@ -872,18 +872,26 @@ def process_request(environ, start_response):
                     result = jsonapi.handle(critic, req)
                 except jsonapi.Error as error:
                     req.setStatus(error.http_status)
-                    accept_header = req.getRequestHeader("Accept")
-                    if accept_header != "application/vnd.api+json":
-                        raise page.utils.DisplayMessage(
-                            title=error.title, body=error.message)
                     result = { "error": { "title": error.title,
                                           "message": error.message }}
                 else:
                     req.setStatus(200)
 
+                accept_header = req.getRequestHeader("Accept")
+                if accept_header == "application/vnd.api+json":
+                    default_indent = None
+                else:
+                    default_indent = 2
+                indent = req.getParameter("indent", default_indent, filter=int)
+                if indent == 0:
+                    # json.encode(..., indent=0) still gives line-breaks, just
+                    # no indentation.  This is not so useful, so set indent to
+                    # None instead, which disables formatting entirely.
+                    indent = None
+
                 req.setContentType("application/vnd.api+json")
                 req.start()
-                return [json_encode(result)]
+                return [json_encode(result, indent=indent)]
             else:
                 operationfn = OPERATIONS.get(req.path)
 
