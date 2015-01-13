@@ -139,21 +139,7 @@ class Review(object):
         return self.__commits
 
     def getRebases(self, wrapper):
-        if self.__rebases is None:
-            critic = wrapper.critic
-            cursor = critic.getDatabaseCursor()
-            cursor.execute(
-                """SELECT id, old_head, new_head, old_upstream, new_upstream,
-                          equivalent_merge, replayed_rebase, uid
-                     FROM reviewrebases
-                    WHERE review=%s
-                      AND new_head IS NOT NULL
-                 ORDER BY id DESC""",
-                (self.id,))
-            rebases = [api.impl.log.rebase.Rebase(wrapper, *row)
-                       for row in cursor]
-            self.__rebases = [rebase.wrap(critic) for rebase in rebases]
-        return self.__rebases
+        return api.log.rebase.fetchAll(wrapper.critic, wrapper)
 
     def wrap(self, critic):
         return api.review.Review(critic, self)

@@ -15,6 +15,7 @@ def basic():
 
     def check_history_rewrite(rebase, old_head_summary, new_head_summary):
         assert isinstance(rebase, api.log.rebase.HistoryRewrite)
+        assert api.log.rebase.fetch(critic, rebase_id=rebase.id) is rebase
         assert rebase.old_head.summary == old_head_summary, (rebase.old_head.summary, old_head_summary)
         assert rebase.new_head.summary == new_head_summary, (rebase.new_head.summary, new_head_summary)
 
@@ -22,6 +23,7 @@ def basic():
                           old_upstream_summary, new_upstream_summary,
                           expect=None):
         assert isinstance(rebase, api.log.rebase.MoveRebase)
+        assert api.log.rebase.fetch(critic, rebase_id=rebase.id) is rebase
         assert all(isinstance(commit, api.commit.Commit)
                    for commit in (rebase.old_head, rebase.new_head,
                                   rebase.old_upstream, rebase.new_upstream))
@@ -143,5 +145,14 @@ def basic():
     check_history_rewrite(rebases[1],
                           old_head_summary="Test #5, commit 3",
                           new_head_summary="Test #5, commit 1")
+
+    try:
+        api.log.rebase.fetch(critic, rebase_id=10000)
+    except api.log.rebase.InvalidRebaseId:
+        pass
+    except Exception as error:
+        assert False, "wrong exception raised: %s" % error
+    else:
+        assert False, "no exception raised"
 
     print "basic: ok"
