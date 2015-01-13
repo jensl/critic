@@ -28,7 +28,7 @@ class Branches(object):
 
     @staticmethod
     def json(value, parameters, linked):
-        """{
+        """Branch {
              "id": integer, // the branch's id
              "name": string, // the branch's name
              "repository": integer, // the branch's repository's id

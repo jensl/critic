@@ -228,6 +228,8 @@ def describeResource(resource_path):
     structure_lines = splitAndDeindentDocstring(resource_class.json, level=2)
     if structure_lines:
         def massage_line(line):
+            if line.strip().startswith("// "):
+                return "  // <b>" + line.strip()[3:] + "</b>"
             line, _, description = line.partition(" // ")
             if description:
                 line += " <i style='float: right'>%s</i>" % description

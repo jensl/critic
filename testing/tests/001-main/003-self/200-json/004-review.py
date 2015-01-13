@@ -18,7 +18,8 @@ review_json = {
     "reviewers": [instance.userid("bob")],
     "watchers": [instance.userid("dave"),
                  instance.userid("erin")],
-    "commits": [int]
+    "partitions": [{ "commits": [int],
+                     "rebase": None }]
 }
 
 frontend.json(
@@ -38,7 +39,8 @@ frontend.json(
              "reviewers": [instance.userid("bob")],
              "watchers": [instance.userid("dave"),
                           instance.userid("erin")],
-             "commits": [int],
+             "partitions": [{ "commits": [int],
+                              "rebase": None }],
              "linked": { "users": [user_json("alice"),
                                    user_json("bob"),
                                    user_json("dave"),
@@ -67,7 +69,7 @@ def check_reviews(expected_state=str):
                              "owners": list,
                              "reviewers": list,
                              "watchers": list,
-                             "commits": list },
+                             "partitions": list },
                   actual=review)
     return checker
 

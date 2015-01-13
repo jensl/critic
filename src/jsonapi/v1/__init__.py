@@ -19,5 +19,6 @@ import repositories
 import commits
 import branches
 import reviews
+import rebases
 
 import documentation

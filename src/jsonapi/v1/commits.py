@@ -33,7 +33,7 @@ class Commits(object):
 
     @staticmethod
     def json(value, parameters, linked):
-        """{
+        """Commit {
              "id": integer, // the commit's id
              "sha1": string, // the commit's SHA-1 sum
              "summary": string, // (processed) commit summary

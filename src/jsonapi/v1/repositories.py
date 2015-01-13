@@ -32,7 +32,7 @@ class Repositories(object):
 
     @staticmethod
     def json(value, parameters, linked):
-        """{
+        """Repository {
              "id": integer, // the repository's id
              "name": string, // the repository's (unique) short name
              "path": string, // absolute file-system path

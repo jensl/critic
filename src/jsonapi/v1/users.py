@@ -29,7 +29,7 @@ class Users(object):
 
     @staticmethod
     def json(value, parameters, linked):
-        """{
+        """User {
              "id": integer, // the user's id
              "name": string, // the user's unique user name
              "fullname": string, // the user's full name
@@ -123,7 +123,7 @@ class Emails(object):
 
     @staticmethod
     def json(value, parameters, linked):
-        """{
+        """Email {
              "address": string, // the email address
              "selected": string, // true if address is selected
              "verified": string, // true if address is verified
@@ -151,7 +151,7 @@ class Filters(object):
 
     @staticmethod
     def json(value, parameters, linked):
-        """{
+        """Filter {
              "id": integer, // the filter's id
              "type": string, // "reviewer", "watcher" or "ignored"
              "path": string, // the filtered path

@@ -27,7 +27,7 @@ class Reviews(object):
 
     @staticmethod
     def json(value, parameters, linked):
-        """{
+        """Review {
              "id": integer,
              "state": string,
              "summary": string,
@@ -37,19 +37,47 @@ class Reviews(object):
              "owners": integer[],
              "reviewers": integer[],
              "watchers": integer[],
+             "partitions": Partition[],
+           }
+
+           Partition {
              "commits": integer[],
+             "rebase": integer or null,
            }"""
         owners_ids = sorted(owner.id for owner in value.owners)
         reviewers_ids = sorted(reviewer.id for reviewer in value.reviewers)
         watchers_ids = sorted(watcher.id for watcher in value.watchers)
-        commits_ids = sorted(commit.id for commit in value.commits)
 
         linked_users = value.owners | value.reviewers | value.watchers
-        linked_commits = set(value.commits)
+        linked_commits = set()
+        linked_rebases = set()
+
+        partitions = []
+
+        def add_partition(partition):
+            partition_commits = list(partition.commits.topo_ordered)
+            linked_commits.update(partition_commits)
+            partition_commits_ids = [commit.id for commit in partition_commits]
+
+            if partition.following:
+                partition_rebase = partition.following.rebase
+                linked_rebases.add(partition_rebase)
+                rebase_id = partition_rebase.id
+            else:
+                rebase_id = None
+
+            partitions.append({ "commits": partition_commits_ids,
+                                "rebase": rebase_id })
+
+            if partition.following:
+                add_partition(partition.following.partition)
+
+        add_partition(value.first_partition)
 
         linked.add(jsonapi.v1.branches.Branches, value.branch)
         linked.add(jsonapi.v1.users.Users, *linked_users)
         linked.add(jsonapi.v1.commits.Commits, *linked_commits)
+        linked.add(jsonapi.v1.rebases.Rebases, *linked_rebases)
 
         return parameters.filtered(
             "reviews", { "id": value.id,
@@ -61,7 +89,7 @@ class Reviews(object):
                          "owners": sorted(owners_ids),
                          "reviewers": sorted(reviewers_ids),
                          "watchers": sorted(watchers_ids),
-                         "commits": commits_ids })
+                         "partitions": partitions })
 
     @staticmethod
     def single(critic, argument, parameters):
