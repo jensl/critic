@@ -39,14 +39,17 @@ class Reviews(object):
              "watchers": integer[],
              "commits": integer[],
            }"""
-        owners_ids = set(owner.id for owner in value.owners)
-        reviewers_ids = set(reviewer.id for reviewer in value.reviewers)
-        watchers_ids = set(watcher.id for watcher in value.watchers)
-        commits_ids = [commit.id for commit in value.commits]
+        owners_ids = sorted(owner.id for owner in value.owners)
+        reviewers_ids = sorted(reviewer.id for reviewer in value.reviewers)
+        watchers_ids = sorted(watcher.id for watcher in value.watchers)
+        commits_ids = sorted(commit.id for commit in value.commits)
 
-        linked.add("branches", value.branch.id)
-        linked.add("users", *(owners_ids | reviewers_ids | watchers_ids))
-        linked.add("commits", *commits_ids)
+        linked_users = value.owners | value.reviewers | value.watchers
+        linked_commits = set(value.commits)
+
+        linked.add(jsonapi.v1.branches.Branches, value.branch)
+        linked.add(jsonapi.v1.users.Users, *linked_users)
+        linked.add(jsonapi.v1.commits.Commits, *linked_commits)
 
         return parameters.filtered(
             "reviews", { "id": value.id,

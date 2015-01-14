@@ -159,17 +159,17 @@ class Filters(object):
              "delegates": integer[], // list of user ids
            }"""
 
-        delegates_ids = set(delegate.id for delegate in value.delegates)
+        delegates_ids = sorted(delegate.id for delegate in value.delegates)
 
-        linked.add("repositories", value.repository.id)
-        linked.add("users", *delegates_ids)
+        linked.add(jsonapi.v1.repositories.Repositories, value.repository)
+        linked.add(jsonapi.v1.users.Users, *value.delegates)
 
         return parameters.filtered(
             "filters", { "id": value.id,
                          "type": value.type,
                          "path": value.path,
                          "repository": value.repository.id,
-                         "delegates": sorted(delegates_ids) })
+                         "delegates": delegates_ids })
 
     @staticmethod
     def multiple(critic, parameters):

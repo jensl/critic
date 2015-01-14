@@ -178,7 +178,7 @@ A primary resource is implemented by decorating a class with the decorator
   @jsonapi.PrimaryResource
   class Users(object):
     name = "apples"
-    value_type = User
+    value_class = User
 
     @staticmethod
     def json(value, parameters, linked):
@@ -194,7 +194,7 @@ A primary resource is implemented by decorating a class with the decorator
 
 A resource class is never instantiated; it is only expected to have class
 attributes and static (or class) methods.  Two attributes are required: |name|
-and |value_type|.
+and |value_class|.
 
 In addition, these attributes are used if present: |contexts| and |exceptions|.
 
@@ -207,8 +207,8 @@ If the |name| attribute is "users", the resource class handles the path
 /api/v1/users/, unless the |contexts| attribute is present and overrides this
 (see below).
 
-value_type
-----------
+value_class
+-----------
 The internal type of the values being "wrapped".
 
 contexts

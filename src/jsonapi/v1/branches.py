@@ -35,8 +35,8 @@ class Branches(object):
              "head": integer, // the branch's head commit's id
            }"""
 
-        linked.add("repositories", value.repository.id)
-        linked.add("commits", value.head)
+        linked.add(jsonapi.v1.repositories.Repositories, value.repository)
+        linked.add(jsonapi.v1.commits.Commits, value.head)
 
         return parameters.filtered(
             "branches", { "id": value.id,

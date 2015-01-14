@@ -130,10 +130,12 @@ class Linked(object):
     def isEmpty(self):
         return not any(self.linked_per_type.values())
 
-    def add(self, resource_type, *ids):
-        linked = self.linked_per_type.get(resource_type)
+    def add(self, resource_class, *values):
+        assert all(isinstance(value, resource_class.value_class)
+                   for value in values)
+        linked = self.linked_per_type.get(resource_class.name)
         if linked is not None:
-            linked.update(ids)
+            linked.update(values)
 
     def copy(self):
         return copy.deepcopy(self)
@@ -286,16 +288,10 @@ def handle(critic, req):
         while not linked.isEmpty():
             additional_linked = Linked(req)
 
-            for resource_type, ids in linked.linked_per_type.items():
+            for resource_type, linked_values in linked.linked_per_type.items():
                 resource_class = lookup([api_version, resource_type])
 
-                for resource_id in ids:
-                    if isinstance(resource_id, resource_class.value_class):
-                        linked_value = resource_id
-                    else:
-                        linked_value = resource_class.single(
-                            critic, resource_id, parameters)
-
+                for linked_value in linked_values:
                     linked_json[resource_type].append(resource_class.json(
                         linked_value, parameters, additional_linked))
 
