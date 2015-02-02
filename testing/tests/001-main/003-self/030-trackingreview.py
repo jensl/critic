@@ -105,7 +105,7 @@ with testing.utils.settings("alice", SETTINGS), frontend.signin("alice"):
     frontend.page(
         "rebasetrackingreview",
         params={
-            "id": review_id })
+            "review": review_id })
     result = frontend.operation(
         "fetchremotebranch",
         data={
@@ -125,7 +125,7 @@ with testing.utils.settings("alice", SETTINGS), frontend.signin("alice"):
     frontend.page(
         "rebasetrackingreview",
         params={
-            "id": review_id,
+            "review": review_id,
             "newbranch": BRANCH_NAME[1],
             "upstream": UPSTREAM_NAME[1],
             "newhead": REVIEWED_SHA1[1],

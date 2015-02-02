@@ -78,11 +78,12 @@ class DisplayMessage(base.Error):
     Utility exception raised by pages to display a simply message.
     """
 
-    def __init__(self, title, body=None, review=None, html=False):
+    def __init__(self, title, body=None, review=None, html=False, status=200):
         self.title = title
         self.body = body
         self.review = review
         self.html = html
+        self.status = status
 
 class InvalidParameterValue(DisplayMessage):
     """\
@@ -93,7 +94,7 @@ class InvalidParameterValue(DisplayMessage):
     """
 
     def __init__(self, name, value, expected):
-        DisplayMessage.__init__(self, "Invalid URI Parameter Value!", "Got '%s=%s', expected %s." % (name, value, expected))
+        DisplayMessage.__init__(self, "Invalid URI Parameter Value!", "Got '%s=%s', expected %s." % (name, value, expected), status=400)
 
 class MissingParameter(DisplayMessage):
     """\
@@ -104,7 +105,7 @@ class MissingParameter(DisplayMessage):
     """
 
     def __init__(self, name):
-        DisplayMessage.__init__(self, "Missing URI Parameter!", "Expected '%s' parameter." % name)
+        DisplayMessage.__init__(self, "Missing URI Parameter!", "Expected '%s' parameter." % name, status=400)
 
 class MissingWSGIRemoteUser(Exception):
     """\

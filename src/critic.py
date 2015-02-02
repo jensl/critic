@@ -143,11 +143,37 @@ def handleStaticResource(req):
 
 def download(req, db, user):
     sha1 = req.getParameter("sha1")
-    repository = gitutils.Repository.fromParameter(db, req.getParameter("repository", user.getPreference(db, "defaultRepository")))
+
+    try:
+        repository_arg = req.getParameter("repository", default=None)
+        if repository_arg:
+            repository = gitutils.Repository.fromParameter(db, repository_arg)
+        else:
+            repository = user.getDefaultRepository(db)
+    except gitutils.NoSuchRepository as error:
+        raise page.utils.DisplayMessage(
+            title="No such repository",
+            body=error.message,
+            status=404)
+
+    try:
+        git_object = repository.fetch(sha1)
+    except gitutils.GitReferenceError as error:
+        raise page.utils.DisplayMessage(
+            title="File not found",
+            body=error.message,
+            status=404)
+
+    if git_object.type != "blob":
+        raise page.utils.DisplayMessage(
+            title="File not found",
+            body=("%s is a %s, not a blob"
+                  % (git_object.sha1[:8], git_object.type)),
+            status=404)
 
     setContentTypeFromPath(req)
 
-    return repository.fetch(sha1).data
+    return git_object.data
 
 def watchreview(req, db, user):
     review_id = req.getParameter("review", filter=int)
@@ -1054,10 +1080,10 @@ def process_request(environ, start_response):
 
                 break
 
-            req.setStatus(404)
             raise page.utils.DisplayMessage(
                 title="Not found!",
-                body="Page not handled: /%s" % path)
+                body="Page not handled: /%s" % path,
+                status=404)
         except GeneratorExit:
             raise
         except page.utils.NotModified:
@@ -1111,6 +1137,7 @@ authentication in apache2, see:
                 review=message.review, is_html=message.html)
 
             req.setContentType("text/html")
+            req.setStatus(message.status)
             req.start()
 
             return [str(document)]

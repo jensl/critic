@@ -11,7 +11,8 @@ expected = testing.expect.message("Missing URI Parameter!",
 frontend.page(
     url="log",
     params={ "branch": "branch_that_does_not_exist" },
-    expect={ "message": expected })
+    expect={ "message": expected },
+    expected_http_status=400)
 
 
 expected = testing.expect.message("'nyetvetka' doesn't name a branch!", None)
