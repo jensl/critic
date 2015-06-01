@@ -150,13 +150,16 @@ class ReviewState(object):
             else: return progress
 
 class ReviewRebase(object):
-    def __init__(self, review, old_head, new_head, old_upstream, new_upstream, user):
+    def __init__(self, review, old_head, new_head, old_upstream, new_upstream, user,
+                 equivalent_merge, replayed_rebase):
         self.review = review
         self.old_head = old_head
         self.new_head = new_head
         self.old_upstream = old_upstream
         self.new_upstream = new_upstream
         self.user = user
+        self.equivalent_merge = equivalent_merge
+        self.replayed_rebase = replayed_rebase
 
 class ReviewRebases(list):
     def __init__(self, db, review):
@@ -167,13 +170,15 @@ class ReviewRebases(list):
         self.__new_head_map = {}
 
         cursor = db.cursor()
-        cursor.execute("""SELECT old_head, new_head, old_upstream, new_upstream, uid
+        cursor.execute("""SELECT old_head, new_head, old_upstream, new_upstream, uid,
+                                 equivalent_merge, replayed_rebase
                             FROM reviewrebases
                            WHERE review=%s
                              AND new_head IS NOT NULL""",
                        (review.id,))
 
-        for old_head_id, new_head_id, old_upstream_id, new_upstream_id, user_id in cursor:
+        for (old_head_id, new_head_id, old_upstream_id, new_upstream_id, user_id,
+             equivalent_merge_id, replayed_rebase_id) in cursor:
             old_head = gitutils.Commit.fromId(db, review.repository, old_head_id)
             new_head = gitutils.Commit.fromId(db, review.repository, new_head_id)
 
@@ -183,12 +188,26 @@ class ReviewRebases(list):
             else:
                 old_upstream = new_upstream = None
 
+            if equivalent_merge_id:
+                equivalent_merge = gitutils.Commit.fromId(db, review.repository, equivalent_merge_id)
+            else:
+                equivalent_merge = None
+
+            if replayed_rebase_id:
+                replayed_rebase = gitutils.Commit.fromId(db, review.repository, replayed_rebase_id)
+            else:
+                replayed_rebase = None
+
             user = User.fromId(db, user_id)
-            rebase = ReviewRebase(review, old_head, new_head, old_upstream, new_upstream, user)
+            rebase = ReviewRebase(review, old_head, new_head, old_upstream, new_upstream, user,
+                                  equivalent_merge, replayed_rebase)
 
             self.append(rebase)
             self.__old_head_map[old_head] = rebase
             self.__new_head_map[new_head] = rebase
+
+            if equivalent_merge:
+                self.__old_head_map[equivalent_merge] = rebase
 
         if review.performed_rebase:
             self.__old_head_map[review.performed_rebase.old_head] = review.performed_rebase
@@ -272,8 +291,10 @@ class Review(object):
 
         return ReviewState(self, self.accepted(db), pending, reviewed, issues)
 
-    def setPerformedRebase(self, old_head, new_head, old_upstream, new_upstream, user):
-        self.performed_rebase = ReviewRebase(self, old_head, new_head, old_upstream, new_upstream, user)
+    def setPerformedRebase(self, old_head, new_head, old_upstream, new_upstream, user,
+                           equivalent_merge, replayed_rebase):
+        self.performed_rebase = ReviewRebase(self, old_head, new_head, old_upstream, new_upstream, user,
+                                             equivalent_merge, replayed_rebase)
 
     def getReviewRebases(self, db):
         return ReviewRebases(db, self)

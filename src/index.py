@@ -603,12 +603,14 @@ the new upstream specified and then push that instead.""")
                 if not old_upstream.isAncestorOf(new_upstream):
                     unrelated_move = True
 
+                equivalent_merge = replayed_rebase = None
+
                 if unrelated_move:
                     replayed_rebase = reviewing.rebase.replayRebase(
                         db, review, user, old_head, old_upstream, new_head,
                         new_upstream, onto_branch)
                 else:
-                    merge = reviewing.rebase.createEquivalentMergeCommit(
+                    equivalent_merge = reviewing.rebase.createEquivalentMergeCommit(
                         db, review, user, old_head, old_upstream, new_head,
                         new_upstream, onto_branch)
 
@@ -626,7 +628,8 @@ the new upstream specified and then push that instead.""")
 
                 print "Rebase performed."
 
-                review.setPerformedRebase(old_head, new_head, old_upstream, new_upstream, user)
+                review.setPerformedRebase(old_head, new_head, old_upstream, new_upstream, user,
+                                          equivalent_merge, replayed_rebase)
 
                 if unrelated_move:
                     reviewing.utils.addCommitsToReview(
@@ -644,15 +647,15 @@ the new upstream specified and then push that instead.""")
                                    (replayed_rebase.getId(db), rebase_id))
                 else:
                     reviewing.utils.addCommitsToReview(
-                        db, user, review, [merge], pending_mails=pending_mails,
-                        silent_if_empty=set([merge]), full_merges=set([merge]))
+                        db, user, review, [equivalent_merge], pending_mails=pending_mails,
+                        silent_if_empty=set([equivalent_merge]), full_merges=set([equivalent_merge]))
 
-                    repository.keepalive(merge)
+                    repository.keepalive(equivalent_merge)
 
                     cursor.execute("""UPDATE reviewrebases
                                          SET equivalent_merge=%s
                                        WHERE id=%s""",
-                                   (merge.getId(db), rebase_id))
+                                   (equivalent_merge.getId(db), rebase_id))
 
                 cursor.execute("""UPDATE reviewrebases
                                      SET new_head=%s,
