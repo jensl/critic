@@ -475,7 +475,7 @@ def createComment(db, user, chain_id, comment, first=False):
 
     return comment_id
 
-def validateCommentChain(db, review, origin, parent_id, child_id, file_id, offset, count):
+def validateCommentChain(db, review, origin, parent, child, file, offset, count):
     """
     Check whether the commented lines are changed by later commits in the
     review.
@@ -487,21 +487,19 @@ def validateCommentChain(db, review, origin, parent_id, child_id, file_id, offse
     import reviewing.comment.propagate
 
     if origin == "old":
-        commit = gitutils.Commit.fromId(db, review.repository, parent_id)
+        commit = parent
     else:
-        commit = gitutils.Commit.fromId(db, review.repository, child_id)
+        commit = child
 
     propagation = reviewing.comment.propagate.Propagation(db)
 
-    if not propagation.setCustom(review, commit, file_id, offset, offset + count - 1):
+    if not propagation.setCustom(review, commit, file.id, offset, offset + count - 1):
         return "invalid", {}
 
     propagation.calculateInitialLines()
 
     if propagation.active:
-        file_path = dbutils.describe_file(db, file_id)
-
-        if commit.getFileSHA1(file_path) != review.branch.getHead(db).getFileSHA1(file_path):
+        if commit.getFileSHA1(file.path) != review.branch.getHead(db).getFileSHA1(file.path):
             return "transferred", {}
         else:
             return "clean", {}
