@@ -416,3 +416,58 @@ with work, settings, signin:
     expectlog([commits[2],
                commits[1],
                commits[0]])
+
+    # TEST #7: Test reverting a ff-move rebase with conflicts.
+
+    work.run(["checkout", "-b", "020-reviewrebase-7-base", start_sha1])
+    base_commits = [commit("Test #7 base, commit 1", write),
+                    commit("Test #7 base, commit 2", write, 2)]
+    work.run(["push", REMOTE_URL, "020-reviewrebase-7-base"])
+    work.run(["checkout", "-b", "020-reviewrebase-7", base_commits[0]["sha1"]])
+    commits = [commit("Test #7, commit 1", write, 5),
+               commit("Test #7, commit 2", write, 5, 6),
+               commit("Test #7, commit 3", write, 5, 6, 7)]
+    createreview(commits)
+    work.run(["reset", "--hard", base_commits[1]["sha1"]])
+    commits.extend([commit("Test #7, commit 4", write, 2, 5),
+                    commit("Test #7, commit 5", write, 2, 5, 6),
+                    commit("Test #7, commit 6", write, 2, 5, 6, 7)])
+    moverebase(base_commits[1], commits[-1])
+    expectmail("Updated Review")
+    expectlog(["rebased onto " + base_commits[1]["sha1"],
+               "Merge commit '%s' into %s" % (base_commits[1]["sha1"],
+                                              reviews[-1]["branch"]),
+               commits[2],
+               commits[1],
+               commits[0]])
+    revertrebase()
+    expectlog([commits[2],
+               commits[1],
+               commits[0]])
+
+    # TEST #8: Test reverting a non-ff-move rebase with conflicts.
+
+    work.run(["checkout", "-b", "020-reviewrebase-8-base", start_sha1])
+    base_commits = [commit("Test #8 base, commit 1", write),
+                    commit("Test #8 base, commit 2", write, 2)]
+    work.run(["push", REMOTE_URL, "020-reviewrebase-8-base"])
+    work.run(["checkout", "-b", "020-reviewrebase-8", base_commits[1]["sha1"]])
+    commits = [commit("Test #8, commit 1", write, 2, 3),
+               commit("Test #8, commit 2", write, 2, 3, 6),
+               commit("Test #8, commit 3", write, 2, 3, 6, 7)]
+    createreview(commits)
+    work.run(["reset", "--hard", base_commits[0]["sha1"]])
+    commits.extend([commit("Test #8, commit 4", write, 3),
+                    commit("Test #8, commit 5", write, 3, 6),
+                    commit("Test #8, commit 6", write, 3, 6, 7)])
+    moverebase(base_commits[0], commits[-1])
+    expectmail("Updated Review")
+    expectlog(["rebased onto " + base_commits[0]["sha1"],
+               "Changes introduced by rebase",
+               commits[2],
+               commits[1],
+               commits[0]])
+    revertrebase()
+    expectlog([commits[2],
+               commits[1],
+               commits[0]])

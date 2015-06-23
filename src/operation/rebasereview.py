@@ -205,8 +205,11 @@ class RevertRebase(Operation):
     def process(self, db, user, review, rebase_id):
         cursor = db.cursor()
 
-        cursor.execute("SELECT old_head, new_head, new_upstream FROM reviewrebases WHERE id=%s", (rebase_id,))
-        old_head_id, new_head_id, new_upstream_id = cursor.fetchone()
+        cursor.execute("""SELECT old_head, new_head, new_upstream, equivalent_merge, replayed_rebase
+                            FROM reviewrebases
+                           WHERE id=%s""",
+                       (rebase_id,))
+        old_head_id, new_head_id, new_upstream_id, equivalent_merge_id, replayed_rebase_id = cursor.fetchone()
 
         cursor.execute("SELECT commit FROM previousreachable WHERE rebase=%s", (rebase_id,))
         reachable = [commit_id for (commit_id,) in cursor]
@@ -224,50 +227,47 @@ class RevertRebase(Operation):
         new_head = gitutils.Commit.fromId(db, review.repository, new_head_id)
 
         cursor.execute("DELETE FROM reachable WHERE branch=%s", (review.branch.id,))
-        cursor.executemany("INSERT INTO reachable (branch, commit) VALUES (%s, %s)", [(review.branch.id, commit_id) for commit_id in reachable])
+        cursor.executemany("INSERT INTO reachable (branch, commit) VALUES (%s, %s)",
+                           ((review.branch.id, commit_id) for commit_id in reachable))
 
         if new_upstream_id:
-            new_upstream = gitutils.Commit.fromId(db, review.repository, new_upstream_id)
+            generated_commit_id = equivalent_merge_id or replayed_rebase_id
+            if generated_commit_id is not None:
+                # A generated commit (equivalent merge or replayed rebase) was
+                # added when performing the rebase; remove it.
 
-            if len(old_head.parents) == 2 and old_head.parents[1] == new_upstream.sha1:
-                # Equivalent merge commit was added; remove it too.
-
-                # Reopen any issues marked as addressed by the merge commit.
+                # Reopen any issues marked as addressed by the rebase.  If the
+                # rebase was a fast-forward one, issues will have been addressed
+                # by the equivalent merge commit.  Otherwise, issues will have
+                # been addressed by the new head commit (not the replayed rebase
+                # commit.)
+                addressed_by_commit_id = equivalent_merge_id or new_head_id
                 cursor.execute("""UPDATE commentchains
                                      SET state='open', addressed_by=NULL
                                    WHERE review=%s
                                      AND state='addressed'
                                      AND addressed_by=%s""",
-                               (review.id, old_head_id))
+                               (review.id, addressed_by_commit_id))
 
                 # Delete the review changesets (and, via cascade, all related
-                # assignments.)
-                cursor.execute("""DELETE FROM reviewchangesets
-                                        WHERE review=%s
-                                          AND changeset IN (SELECT id
-                                                              FROM changesets
-                                                             WHERE child=%s)""",
-                               (review.id, old_head_id))
+                # assignments and state changes.)
+                cursor.execute(
+                    """DELETE FROM reviewchangesets
+                             WHERE review=%s
+                               AND changeset IN (SELECT id
+                                                   FROM changesets
+                                                  WHERE child=%s OR parent=%s)""",
+                    (review.id, generated_commit_id, generated_commit_id))
 
-                old_head = gitutils.Commit.fromSHA1(db, review.repository, old_head.parents[0])
-                old_head_id = old_head.getId(db)
-            else:
-                # Delete the review changesets (and, via cascade, all related
-                # assignments.)
-                cursor.execute("""DELETE FROM reviewchangesets
-                                        WHERE review=%s
-                                          AND changeset IN (SELECT id
-                                                              FROM changesets
-                                                             WHERE child=%s
-                                                               AND type='conflicts')""",
-                               (review.id, new_head_id))
-
-        cursor.execute("UPDATE branches SET head=%s WHERE id=%s", (old_head_id, review.branch.id))
+        cursor.execute("UPDATE branches SET head=%s WHERE id=%s",
+                       (old_head_id, review.branch.id))
         cursor.execute("DELETE FROM reviewrebases WHERE id=%s", (rebase_id,))
 
         review.incrementSerial(db)
         db.commit()
 
-        review.repository.run("update-ref", "refs/heads/%s" % review.branch.name, old_head.sha1, new_head.sha1)
+        review.repository.run(
+            "update-ref", "refs/heads/%s" % review.branch.name,
+            old_head.sha1, new_head.sha1)
 
         return OperationResult()
