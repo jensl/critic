@@ -27,7 +27,8 @@ default_site = "000-default"
 apache_stopped = False
 
 def get_apache2_version():
-    output = subprocess.check_output([installation.prereqs.apache2ctl, "-v"])
+    output = subprocess.check_output(
+        [installation.prereqs.apache2ctl.path, "-v"])
     match = re.search("Server version:\s*Apache/([^\s\n]*)", output, re.M)
     if not match:
         return None
@@ -73,17 +74,12 @@ def restart():
     return start()
 
 def prepare(mode, arguments, data):
-    global pass_auth, site_suffix, default_site
+    global pass_auth
 
     if installation.config.auth_mode == "critic":
         pass_auth = "On"
 
     data["installation.apache.pass_auth"] = pass_auth
-
-    version = get_apache2_version()
-    if version and version.startswith("2.2."):
-        site_suffix = ""
-        default_site = "default"
 
     return True
 
@@ -93,7 +89,12 @@ site_enabled = False
 default_site_disabled = False
 
 def install(data):
-    global site_enabled, default_site_disabled
+    global site_suffix, default_site, site_enabled, default_site_disabled
+
+    version = get_apache2_version()
+    if version and version.startswith("2.2."):
+        site_suffix = ""
+        default_site = "default"
 
     site = "site.%s" % installation.config.access_scheme
 
@@ -108,23 +109,31 @@ def install(data):
         with open(source_path, "r") as source:
             target.write((source.read().decode("utf-8") % data).encode("utf-8"))
 
-    if installation.prereqs.a2enmod:
-        subprocess.check_call([installation.prereqs.a2enmod, "expires"])
-        subprocess.check_call([installation.prereqs.a2enmod, "rewrite"])
-        subprocess.check_call([installation.prereqs.a2enmod, "wsgi"])
+    if installation.prereqs.a2enmod.path:
+        subprocess.check_call([installation.prereqs.a2enmod.path, "expires"])
+        subprocess.check_call([installation.prereqs.a2enmod.path, "rewrite"])
+        subprocess.check_call([installation.prereqs.a2enmod.path, "wsgi"])
 
-    if installation.prereqs.a2ensite:
-        subprocess.check_call([installation.prereqs.a2ensite, "critic-main"])
+    if installation.prereqs.a2ensite.path:
+        subprocess.check_call(
+            [installation.prereqs.a2ensite.path, "critic-main"])
         site_enabled = True
-    if installation.prereqs.a2dissite:
-        output = subprocess.check_output([installation.prereqs.a2dissite, default_site],
-                                         env={ "LANG": "C" })
-        if "Site default disabled." in output:
+    if installation.prereqs.a2dissite.path:
+        output = subprocess.check_output(
+            [installation.prereqs.a2dissite.path, default_site],
+            env={ "LANG": "C" })
+        if ("Site %s disabled." % default_site) in output:
             default_site_disabled = True
 
     return stop() and start()
 
 def upgrade(arguments, data):
+    global site_suffix
+
+    version = get_apache2_version()
+    if version and version.startswith("2.2."):
+        site_suffix = ""
+
     site = "site.%s" % installation.config.access_scheme
 
     source_path = os.path.join(installation.root_dir, "installation", "templates", site)
@@ -179,13 +188,16 @@ likely to break.
 
 def undo():
     if site_enabled:
-        subprocess.check_call([installation.prereqs.a2dissite, "critic-main"])
+        subprocess.check_call(
+            [installation.prereqs.a2dissite.path, "critic-main"])
 
         if default_site_disabled:
-            subprocess.check_call([installation.prereqs.a2ensite, default_site])
+            subprocess.check_call(
+                [installation.prereqs.a2ensite.path, default_site])
 
-        if installation.prereqs.apache2ctl:
-            subprocess.check_call([installation.prereqs.apache2ctl, "restart"])
+        if installation.prereqs.apache2ctl.path:
+            subprocess.check_call(
+                [installation.prereqs.apache2ctl.path, "restart"])
 
     map(os.unlink, created_file)
 

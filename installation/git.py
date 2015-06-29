@@ -20,6 +20,8 @@ import subprocess
 import installation
 
 def install(data):
-    socket_path = os.path.join(installation.paths.run_dir, "main", "sockets", "githook.unix")
-    subprocess.check_call([installation.prereqs.git, "config", "--system", "critic.socket", socket_path])
+    socket_path = os.path.join(installation.paths.run_dir,
+                               "main", "sockets", "githook.unix")
+    subprocess.check_call([installation.prereqs.git.path,
+                           "config", "--system", "critic.socket", socket_path])
     return True

@@ -179,18 +179,6 @@ Please commit or stash the changes and then try again.
     sys.exit(1)
 
 try:
-    try:
-        if not installation.prereqs.check("upgrade", arguments):
-            abort()
-    except KeyboardInterrupt:
-        abort()
-    except SystemExit:
-        raise
-    except:
-        print >>sys.stderr, "FAILED: installation.prereqs.check()"
-        traceback.print_exc()
-        abort()
-
     for module in installation.modules:
         try:
             if hasattr(module, "prepare") and not module.prepare("upgrade", arguments, data):

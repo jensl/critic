@@ -185,12 +185,12 @@ if prereqs:
     packages = missing_packages()
 
     if packages:
-        installation.prereqs.install_packages(arguments, *packages)
+        installation.prereqs.install_packages(*packages)
 
     if not check_libcurl():
         if arguments.libcurl_flavor:
             installation.prereqs.install_packages(
-                arguments, "libcurl4-%s-dev" % arguments.libcurl_flavor)
+                "libcurl4-%s-dev" % arguments.libcurl_flavor)
         else:
             print """
 No version of libcurl-dev appears to be install.  There are usually multiple
@@ -212,7 +212,7 @@ Also: "none", "abort"
             choice = installation.input.string("Install libcurl-dev version?", "none")
 
             if choice in ("openssl", "gnutls", "nss"):
-                installation.prereqs.install_packages(arguments, "libcurl4-%s-dev" % choice)
+                installation.prereqs.install_packages("libcurl4-%s-dev" % choice)
             elif choice == "abort":
                 print """
 ERROR: Installation aborted.

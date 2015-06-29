@@ -22,25 +22,16 @@ import subprocess
 
 import installation
 
+this_module = sys.modules[__name__]
+
 def find_executable(name):
     for search_path in os.environ["PATH"].split(":"):
         path = os.path.join(search_path, name)
         if os.path.isfile(path) and os.access(path, os.X_OK):
             return path
+    return None
 
-python = sys.executable
-git = None
-tar = None
-psql = None
-apache2ctl = None
-a2enmod = None
-a2ensite = None
-a2dissite = None
-
-psycopg2_available = False
-pygments_available = False
-passlib_available = False
-requests_available = False
+headless = False
 
 aptget = None
 aptget_approved = False
@@ -48,13 +39,15 @@ aptget_updated = False
 
 need_blankline = False
 
+installed_packages = []
+
 def blankline():
     global need_blankline
     if need_blankline:
         print
         need_blankline = False
 
-def install_packages(arguments, *packages):
+def install_packages(*packages):
     global aptget, aptget_approved, aptget_updated, need_blankline, all_ok
     if aptget is None:
         aptget = find_executable("apt-get")
@@ -70,7 +63,7 @@ missing software using it.
         if not aptget_approved: aptget = False
     if aptget:
         aptget_env = os.environ.copy()
-        if arguments.headless:
+        if headless:
             aptget_env["DEBIAN_FRONTEND"] = "noninteractive"
         if not aptget_updated:
             subprocess.check_output(
@@ -87,309 +80,228 @@ missing software using it.
                 package_name, version = match.groups()
                 if package_name in packages:
                     need_blankline = True
+                    installed_packages.append((package_name, version))
                     installed[package_name] = version
                     print "Installed: %s (%s)" % (package_name, version)
         return installed
     else:
         return False
 
-def check(mode, arguments):
-    global git, tar, psql, passlib_available, apache2ctl, a2enmod, a2ensite, a2dissite
+class Prerequisite(object):
+    def __init__(self, name, packages, message):
+        self.name = name
+        self.packages = packages
+        self.message = message
 
-    if mode == "install":
-        print """
-Critic Installation: Prerequisites
-==================================
-"""
+        setattr(this_module, name, self)
 
-    success = True
-    all_ok = True
+    def install(self):
+        if self.check():
+            return True
+        if self.packages is None:
+            print "ERROR: Installing '%s' is not supported!" % self.name
+            return False
+        if aptget_approved and install_packages(*self.packages):
+            if self.check():
+                return True
+        blankline()
+        print self.message
+        print
+        if not aptget_approved:
+            install_packages(*self.packages)
+        if self.check():
+            return True
+        print "ERROR: Installing '%s' failed!" % self.name
+        return False
 
-    git = find_executable("git")
-    if not git:
-        if aptget_approved and install_packages(arguments, "git-core"):
-            git = find_executable("git")
-        if not git:
-            blankline()
-            all_ok = False
-            print """\
-No 'git' executable found in $PATH.  Make sure the Git version control system
-is installed.  Is Debian/Ubuntu the package you need to install is 'git-core'
-(or 'git' in newer versions, but 'git-core' typically still works.)  The source
-code can be downloaded here:
+class Executable(Prerequisite):
+    def __init__(self, name, packages, message):
+        super(Executable, self).__init__(name, packages, message)
+        self.path = None
 
-  https://github.com/git/git
-"""
-            if not aptget_approved and install_packages(arguments, "git-core"):
-                git = find_executable("git")
-            if not git: success = False
+    def check(self):
+        if not self.path:
+            self.path = find_executable(self.name)
+        return bool(self.path)
 
-    tar = find_executable("tar")
-    assert tar, "System has no 'tar'?!?"
+    def install(self):
+        if self.check():
+            return True
+        blankline()
+        print "No '%s' executable found in $PATH" % self.name
+        print
+        return super(Executable, self).install()
 
-    psql = find_executable("psql")
-    if not psql:
-        if aptget_approved and install_packages(arguments, "postgresql", "postgresql-client"):
-            psql = find_executable("psql")
-        if not psql:
-            blankline()
-            all_ok = False
-            print """\
-No 'psql' executable found in $PATH.  Make sure the PostgreSQL database server
-and its client utilities are installed.  In Debian/Ubuntu, the packages you need
-to install are 'postgresql' and 'postgresql-client'.
-"""
-            if not aptget_approved and install_packages(arguments, "postgresql", "postgresql-client"):
-                psql = find_executable("psql")
-            if not psql: success = False
+class PythonLibrary(Prerequisite):
+    def __init__(self, name, packages, message):
+        super(PythonLibrary, self).__init__(name, packages, message)
+        self.available = False
 
-    if psql:
-        postgresql_version = subprocess.check_output([psql, "--version"]).splitlines()[0].split()[-1].split(".")
+    def check(self):
+        if not self.available:
+            try:
+                subprocess.check_output(
+                    [sys.executable, "-c", "import " + self.name],
+                    stderr=subprocess.STDOUT)
+                self.available = True
+            except subprocess.CalledProcessError:
+                pass
+        return self.available
 
-        postgresql_major = postgresql_version[0]
-        postgresql_minor = postgresql_version[1]
+    def install(self):
+        if self.check():
+            return True
+        blankline()
+        print "Failed to import '%s'" % self.name
+        print
+        return super(PythonLibrary, self).install()
 
-        if postgresql_major < 9 or (postgresql_major == 9 and postgresql_minor < 1):
-            blankline()
-            all_ok = False
-            print """\
-Unsupported PostgreSQL version!  Critic requires PostgreSQL 9.1.x or later.
-"""
-            sys.exit(1)
+class CustomCheck(Prerequisite):
+    """Perform a custom check, and otherwise install packages"""
 
-    apache2ctl = find_executable("apache2ctl")
-    if not apache2ctl:
-        if aptget_approved and install_packages(arguments, "apache2"):
-            apache2ctl = find_executable("apache2ctl")
-        if not apache2ctl:
-            blankline()
-            all_ok = False
-            print """\
-No 'apache2ctl' executable found in $PATH.  Make sure the Apache web server is
-installed.  In Debian/Ubuntu, the package you need to install is 'apache2'.
-"""
-            if not aptget_approved and install_packages(arguments, "apache2"):
-                apache2ctl = find_executable("apache2ctl")
-            if not apache2ctl: success = False
+    def __init__(self, callback, name, packages, message):
+        super(CustomCheck, self).__init__(name, packages, message)
+        self.callback = callback
+        self.available = False
 
-    a2enmod = find_executable("a2enmod")
-    if not a2enmod:
-        if aptget_approved and install_packages(arguments, "apache2"):
-            a2enmod = find_executable("a2enmod")
-        if not a2enmod:
-            blankline()
-            all_ok = False
-            print """\
-No 'a2enmod' executable found in $PATH.  Make sure the Apache web server is
-installed.  In Debian/Ubuntu, the package you need to install is 'apache2'.
-"""
-            if not aptget_approved and install_packages(arguments, "apache2"):
-                a2enmod = find_executable("a2enmod")
-            if not a2enmod: success = False
+    def check(self):
+        if not self.available:
+            if self.callback():
+                self.available = True
+        return self.available
 
-    a2ensite = find_executable("a2ensite")
-    if not a2ensite:
-        if aptget_approved and install_packages(arguments, "apache2"):
-            a2ensite = find_executable("a2ensite")
-        if not a2ensite:
-            blankline()
-            all_ok = False
-            print """\
-No 'a2ensite' executable found in $PATH.  Make sure the Apache web server is
-installed.  In Debian/Ubuntu, the package you need to install is 'apache2'.
-"""
-            if not aptget_approved and install_packages(arguments, "apache2"):
-                a2ensite = find_executable("a2ensite")
-            if not a2ensite: success = False
+    def install(self):
+        if self.check():
+            return True
+        return super(CustomCheck, self).install()
 
-    a2dissite = find_executable("a2dissite")
-    if not a2dissite:
-        if aptget_approved and install_packages(arguments, "apache2"):
-            a2dissite = find_executable("a2dissite")
-        if not a2dissite:
-            blankline()
-            all_ok = False
-            print """\
-No 'a2dissite' executable found in $PATH.  Make sure the Apache web server is
-installed.  In Debian/Ubuntu, the package you need to install is 'apache2'.
-"""
-            if not aptget_approved and install_packages(arguments, "apache2"):
-                a2dissite = find_executable("a2dissite")
-            if not a2dissite: success = False
+def check_mod_wsgi():
+    return os.path.isfile("/etc/apache2/mods-available/wsgi.load")
 
-    if not os.path.isdir(os.path.join("/etc", "apache2", "mods-available")):
-        print """\
-There's no /etc/apache2/mods-available/ directory.  This means I don't know how
-to determine whether the 'wsgi' Apache module is available, and will just have
-to assume it is.  If you know it *isn't* available, you should install it, or
-abort this script now.
-"""
-        abort = installation.input.yes_or_no(
-            prompt="Do you want to abort this script now?",
-            default=False)
-        if abort: sys.exit(1)
-        else: mod_wsgi_available = True
-    else:
-        mod_wsgi_available_path = os.path.join("/etc", "apache2", "mods-available", "wsgi.load")
-        mod_wsgi_available = os.path.isfile(mod_wsgi_available_path)
-        if not mod_wsgi_available:
-            if aptget_approved and install_packages(arguments, "libapache2-mod-wsgi"):
-                mod_wsgi_available = os.path.isfile(mod_wsgi_available_path)
-            if not mod_wsgi_available:
-                blankline()
-                all_ok = False
-                print """\
-The WSGI Apache module (mod_wsgi) doesn't appear to be installed.  Make sure
-it's installed.  In Debian/Ubuntu, the package you need to install is
-'libapache2-mod-wsgi'.  The source code can be downloaded here:
+# This one is hardcoded to the running interpreter (rather than what we might
+# find in the search path.)
+Executable("python", None, None).path = sys.executable
 
-  http://code.google.com/p/modwsgi/wiki/DownloadTheSoftware?tm=2
-"""
-                if not aptget_approved and install_packages(arguments, "libapache2-mod-wsgi"):
-                    mod_wsgi_available = os.path.isfile(mod_wsgi_available_path)
-                if not mod_wsgi_available: success = False
+prerequisites = [
 
-    def check_psycopg2():
-        global psycopg2_available
-        try:
-            import psycopg2
-            psycopg2_available = True
-        except ImportError: pass
+    # We won't bother trying to install this; it won't be missing.
+    Executable("tar", None, None),
 
-    check_psycopg2()
-    if not psycopg2_available:
-        if aptget_approved and install_packages(arguments, "python-psycopg2"):
-            check_psycopg2()
-        if not psycopg2_available:
-            blankline()
-            all_ok = False
-            print """\
+    Executable("git", ["git-core"], """\
+Make sure the Git version control system is installed.  Is Debian/Ubuntu the
+package you need to install is 'git-core' (or 'git' in newer versions, but
+'git-core' typically still works.)  The source code can be downloaded here:
+
+  https://github.com/git/git"""),
+
+    Executable("psql", ["postgresql", "postgresql-client"], """\
+Make sure the PostgreSQL database server and its client utilities are installed.
+In Debian/Ubuntu, the packages you need to install are 'postgresql' and
+'postgresql-client'."""),
+
+    PythonLibrary("psycopg2", ["python-psycopg2"], """\
 Failed to import the 'psycopg2' module, which is used to access the PostgreSQL
 database from Python.  In Debian/Ubuntu, the module is provided by the
 'python-psycopg2' package.  The source code can be downloaded here:
 
-  http://www.initd.org/psycopg/download/
-"""
-        if not aptget_approved and install_packages(arguments, "python-psycopg2"):
-            check_psycopg2()
-        if not psycopg2_available:
-            success = False
+  http://www.initd.org/psycopg/download/"""),
 
-    def check_pygments():
-        global pygments_available
-        try:
-            import pygments
-            pygments_available = True
-        except ImportError: pass
-
-    check_pygments()
-    if not pygments_available:
-        if aptget_approved and install_packages(arguments, "python-pygments"):
-            check_pygments()
-        if not pygments_available:
-            blankline()
-            all_ok = False
-            print """\
-Failed to import the 'pygments' module, which is used for syntax highlighting.
-In Debian/Ubuntu, the module is provided by the 'python-pygments' package.  The
-source code can be downloaded here:
-
-  http://pygments.org/download/
-"""
-        if not aptget_approved and install_packages(arguments, "python-pygments"):
-            check_pygments()
-        if not pygments_available:
-            success = False
-
-    def check_passlib():
-        global passlib_available
-        try:
-            subprocess.check_output(
-                [sys.executable, "-c", "import passlib"],
-                stderr=subprocess.STDOUT)
-            passlib_available = True
-        except subprocess.CalledProcessError:
-            pass
-
-    global passlib_available
-
-    check_passlib()
-    if not passlib_available:
-        if mode == "install":
-            auth_mode = arguments.auth_mode
-        else:
-            import configuration
-            auth_mode = configuration.base.AUTHENTICATION_MODE
-
-        if auth_mode == "critic":
-            install_passlib = True
-        else:
-            blankline()
-            all_ok = False
-            print """\
-Failed to import the 'passlib' module, which is required if you want Critic to
-handle user authentication itself.  If user authentication is to be handled by
-Apache instead there is no need to install the passlib module.
-
-In Debian/Ubuntu, the module is provided by the 'python-passlib' package.  The
-source code can be downloaded here:
-
-  https://pypi.python.org/pypi/passlib
-"""
-            install_passlib = installation.input.yes_or_no(
-                "Do you want to install the 'passlib' module?",
-                default=False)
-        if install_passlib:
-            if install_packages(arguments, "python-passlib"):
-                check_passlib()
-                if not passlib_available:
-                    print """
-Failed to import 'passlib' module!  Installing it appeared to go fine, though,
-so you might just need to restart this script."""
-        if install_passlib and not passlib_available:
-            success = False
-
-    def check_requests():
-        global requests_available
-        try:
-            import requests
-            requests_available = True
-        except ImportError: pass
-
-    check_requests()
-    if not requests_available:
-        if aptget_approved and install_packages(arguments, "python-requests"):
-            check_requests()
-        if not requests_available:
-            blankline()
-            all_ok = False
-            print """\
+    PythonLibrary("requests", ["python-requests"], """\
 Failed to import the 'requests' module, which is used to perform URL requests.
 In Debian/Ubuntu, the module is provided by the 'python-requests' package.  The
 source code can be downloaded here:
 
-  https://github.com/kennethreitz/requests
-"""
-        if not aptget_approved and install_packages(arguments, "python-requests"):
-            check_requests()
-        if not requests_available:
-            success = False
+  https://github.com/kennethreitz/requests"""),
 
-    if mode == "install" and all_ok:
-        print "All prerequisites available."
+    PythonLibrary("pygments", ["python-pygments"], """\
+Failed to import the 'pygments' module, which is used for syntax highlighting.
+In Debian/Ubuntu, the module is provided by the 'python-pygments' package.  The
+source code can be downloaded here:
 
-    return success
+  http://pygments.org/download/"""),
+
+    Executable("apache2ctl", ["apache2", "libapache2-mod-wsgi"], """\
+Make sure the Apache web server is installed.  In Debian/Ubuntu, the package you
+need to install is 'apache2'.
+
+In addition, the mod_wsgi Apache module needs to be installed.  In
+Debian/Ubuntu, the package you need to install is 'libapache2-mod-wsgi'."""),
+
+    # Additional executables that we use but that should have been installed
+    # along with apache2ctl.
+    Executable("a2enmod", None, None),
+    Executable("a2ensite", None, None),
+    Executable("a2dismod", None, None),
+    Executable("a2dissite", None, None),
+
+    # This extra check is really only needed if Apache was already installed
+    # (and thus not installed by the prerequisite above).
+    CustomCheck(check_mod_wsgi, "mod_wsgi", ["libapache2-mod-wsgi"], """\
+The WSGI Apache module (mod_wsgi) doesn't appear to be installed.  Make sure
+it's installed.  In Debian/Ubuntu, the package you need to install is
+'libapache2-mod-wsgi'.  The source code can be downloaded here:
+
+  http://code.google.com/p/modwsgi/wiki/DownloadTheSoftware?tm=2"""),
+
+]
+
+# The passlib library is only needed if Critic is configured to do
+# authentication, so doesn't go into the list above yet.
+passlib_library = PythonLibrary("passlib", ["python-passlib"], """\
+Failed to import the 'passlib' module, which is required when Critic is
+configured to handle user authentication itself.  In Debian/Ubuntu, the module
+is provided by the 'python-passlib' package.  The source code can be downloaded
+here:
+
+  https://pypi.python.org/pypi/passlib""")
+
+def resolve_prerequisites():
+    if installation.config.auth_mode == "critic":
+        prerequisites.append(passlib_library)
 
 def prepare(mode, arguments, data):
-    if mode == "install":
-        data["installation.prereqs.python"] = python
-        data["installation.prereqs.git"] = git
-        data["installation.prereqs.tar"] = tar
-    else:
-        import configuration
+    global headless
+    headless = arguments.headless
+    return True
 
-        data["installation.prereqs.python"] = configuration.executables.PYTHON
-        data["installation.prereqs.git"] = configuration.executables.GIT
-        data["installation.prereqs.tar"] = configuration.executables.TAR
+def install(data):
+    resolve_prerequisites()
+
+    print """
+Critic Installation: Prerequisites
+==================================
+"""
+
+    if not all(prerequisite.install() for prerequisite in prerequisites):
+        return False
+
+    if installed_packages:
+        blankline()
+        print "Installed %d packages." % len(installed_packages)
+        print
+    else:
+        print "All prerequisites available."
+
+    data["installation.prereqs.python"] = python.path
+    data["installation.prereqs.git"] = git.path
+    data["installation.prereqs.tar"] = tar.path
+
+    return True
+
+def upgrade(arguments, data):
+    import configuration
+
+    python.path = configuration.executables.PYTHON
+    git.path = configuration.executables.GIT
+    tar.path = configuration.executables.TAR
+
+    resolve_prerequisites()
+
+    if not all(prerequisite.install() for prerequisite in prerequisites):
+        return False
+
+    data["installation.prereqs.python"] = python.path
+    data["installation.prereqs.git"] = git.path
+    data["installation.prereqs.tar"] = tar.path
 
     return True

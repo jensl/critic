@@ -17,7 +17,6 @@
 import os
 import sys
 import stat
-import traceback
 
 # To avoid accidentally creating files owned by root.
 sys.dont_write_bytecode = True
@@ -38,6 +37,8 @@ ERROR: Please run this script without -O or -OO options.
 
 import argparse
 import installation
+import subprocess
+import traceback
 
 parser = argparse.ArgumentParser(description="Critic installation script")
 
@@ -84,43 +85,43 @@ def abort():
     print "ERROR: Installation aborted."
     print
 
-    # for module in reversed(installation.modules):
-    #     try:
-    #         if hasattr(module, "undo"):
-    #             module.undo()
-    #     except:
-    #         print >>sys.stderr, "FAILED: %s.undo()" % module.__name__
-    #         traceback.print_exc()
+    for module in reversed(installation.modules):
+        try:
+            if hasattr(module, "undo"):
+                module.undo()
+        except:
+            print >>sys.stderr, "FAILED: %s.undo()" % module.__name__
+            traceback.print_exc()
 
     sys.exit(1)
 
 try:
-    try:
-        if not installation.prereqs.check("install", arguments):
-            abort()
-    except KeyboardInterrupt:
-        abort()
-    except SystemExit:
-        raise
-    except:
-        print >>sys.stderr, "FAILED: installation.prereqs.check()"
-        traceback.print_exc()
-        abort()
+    sha1 = "0" * 40
 
-    git = installation.prereqs.git
+    # If Git is already installed, check for local modifications.  If Git isn't
+    # installed (no 'git' executable in $PATH) then presumably we're not
+    # installing from a repository clone, but from an exported tree, and in that
+    # case we can't check for local modifications anyway.
+    if installation.prereqs.git.check():
+        git = installation.prereqs.git.path
 
-    if installation.utils.run_git([git, "status", "--porcelain"],
-                                  cwd=installation.root_dir).strip():
-        print """
+        try:
+            if installation.utils.run_git([git, "status", "--porcelain"],
+                                          cwd=installation.root_dir).strip():
+                print """
 ERROR: This Git repository has local modifications.
 
 Installing from a Git repository with local changes is not supported.
 Please commit or stash the changes and then try again.
 """
-        sys.exit(1)
+                sys.exit(1)
 
-    sha1 = installation.utils.run_git([git, "rev-parse", "HEAD"],
-                                      cwd=installation.root_dir).strip()
+            sha1 = installation.utils.run_git([git, "rev-parse", "HEAD"],
+                                              cwd=installation.root_dir).strip()
+        except subprocess.CalledProcessError:
+            # Probably not a Git repository at all.
+            pass
+
     data = { "sha1": sha1 }
 
     for module in installation.modules:
@@ -153,7 +154,7 @@ Please commit or stash the changes and then try again.
         except SystemExit:
             raise
         except:
-            print >>sys.stderr, "FAILED: %s.execute()" % module.__name__
+            print >>sys.stderr, "FAILED: %s.install()" % module.__name__
             traceback.print_exc()
             abort()
 

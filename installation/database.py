@@ -133,6 +133,24 @@ PGSQL_FILES = ["installation/data/comments.pgsql"]
 def install(data):
     global user_created, database_created, language_created
 
+    postgresql_version_output = subprocess.check_output(
+        [installation.prereqs.psql.path, "--version"])
+
+    postgresql_version = postgresql_version_output.splitlines()[0].split()[-1]
+    postgresql_version_components = postgresql_version.split(".")
+
+    postgresql_major = postgresql_version_components[0]
+    postgresql_minor = postgresql_version_components[1]
+
+    if postgresql_major < 9 or (postgresql_major == 9 and postgresql_minor < 1):
+        print
+        print """\
+Unsupported PostgreSQL version: %s
+
+ERROR: Critic requires PostgreSQL 9.1.x or later!
+""" % postgresql_version
+        return False
+
     print "Creating database ..."
 
     # Several subsequent commands will run as Critic system user or "postgres"

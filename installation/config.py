@@ -274,21 +274,20 @@ def prepare(mode, arguments, data):
                     print "No URL types specified!"
                 return False
 
-        if installation.prereqs.passlib_available:
-            def check_auth_mode(value):
-                if value.strip() not in ("host", "critic"):
-                    return "must be one of 'host' and 'critic'"
+        def check_auth_mode(value):
+            if value.strip() not in ("host", "critic"):
+                return "must be one of 'host' and 'critic'"
 
-            if arguments.auth_mode:
-                error = check_auth_mode(arguments.auth_mode)
-                if error:
-                    print "Invalid --auth-mode argument: %s." % arguments.auth_mode
-                    return False
-                auth_mode = arguments.auth_mode
-            else:
-                header_printed = True
+        if arguments.auth_mode:
+            error = check_auth_mode(arguments.auth_mode)
+            if error:
+                print "Invalid --auth-mode argument: %s." % arguments.auth_mode
+                return False
+            auth_mode = arguments.auth_mode
+        else:
+            header_printed = True
 
-                print """
+            print """
 Critic Installation: Authentication
 ===================================
 
@@ -303,9 +302,9 @@ the Web front-end.  This can be handled in two different ways:
           stored (encrypted) in its database.
 """
 
-                auth_mode = installation.input.string(
-                    "Which authentication mode should be used?",
-                    default="critic", check=check_auth_mode)
+            auth_mode = installation.input.string(
+                "Which authentication mode should be used?",
+                default="critic", check=check_auth_mode)
 
         is_development = arguments.is_development
         is_testing = arguments.is_testing
@@ -514,13 +513,9 @@ web server to redirect all HTTP accesses to HTTPS.
     data["installation.config.verify_email_addresses"] = verify_email_addresses
     data["installation.config.archive_review_branches"] = archive_review_branches
 
-    if auth_mode == "critic":
-        calibrate_minimum_rounds()
-
     data["installation.config.password_hash_schemes"] = password_hash_schemes
     data["installation.config.default_password_hash_scheme"] = default_password_hash_scheme
     data["installation.config.minimum_password_hash_time"] = minimum_password_hash_time
-    data["installation.config.minimum_rounds"] = minimum_rounds
 
     data["installation.config.is_quickstart"] = False
     data["installation.config.is_development"] = is_development
@@ -588,6 +583,10 @@ def copy_file_mode_and_owner(src_path, dst_path):
     os.chown(dst_path, status.st_uid, status.st_gid)
 
 def install(data):
+    if auth_mode == "critic":
+        calibrate_minimum_rounds()
+    data["installation.config.minimum_rounds"] = minimum_rounds
+
     source_dir = os.path.join(installation.root_dir, "installation", "templates", "configuration")
     target_dir = os.path.join(installation.paths.etc_dir, "main", "configuration")
     compilation_failed = False
@@ -714,6 +713,10 @@ def upgrade(arguments, data):
     global modified_files
 
     import configuration
+
+    if auth_mode == "critic":
+        calibrate_minimum_rounds()
+    data["installation.config.minimum_rounds"] = minimum_rounds
 
     source_dir = os.path.join(installation.root_dir, "installation", "templates", "configuration")
     target_dir = os.path.join(data["installation.paths.etc_dir"], arguments.identity, "configuration")
