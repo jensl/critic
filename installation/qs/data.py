@@ -83,7 +83,8 @@ def generate(arguments, database_path):
              # Setting changeset.max_workers to 1 is a workaround for some race
              # conditions causing duplicate rows in (at least) the files table.
              config("changeset.max_workers"): 1,
-             config("archive_review_branches"): True }
+             config("archive_review_branches"): True,
+             config("web_server_integration"): "none" }
 
     def provider(name):
         prefix = "provider_%s." % name

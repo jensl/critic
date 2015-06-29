@@ -232,17 +232,21 @@ else:
         print >>sys.stderr, "%s: file exists; daemon already running?" % pidfile_path
         sys.exit(1)
 
-    pidfile_dir = os.path.dirname(pidfile_path)
-    try:
-        # /var/run is typically a tmpfs that gets nuked on reboot,
-        # so recreate /var/run/critic/IDENTITY if it doesn't exist.
-        os.makedirs(pidfile_dir)
-    except OSError as error:
-        if error.errno != errno.EEXIST:
-            raise
-    else:
-        os.chown(pidfile_dir, uid, gid)
-        os.chmod(pidfile_dir, 0750 | stat.S_ISUID | stat.S_ISGID)
+    # Our RUN_DIR (/var/run/critic/IDENTITY) is typically on a tmpfs that gets
+    # nuked on reboot, so recreate it with the right access if it doesn't exist.
+
+    def mkdir(path, mode):
+        if not os.path.isdir(path):
+            if not os.path.isdir(os.path.dirname(path)):
+                mkdir(os.path.dirname(path), mode)
+            os.mkdir(path, mode)
+        else:
+            os.chmod(path, mode)
+        os.chown(path, uid, gid)
+
+    mkdir(configuration.paths.RUN_DIR, 0755 | stat.S_ISUID | stat.S_ISGID)
+    mkdir(os.path.join(configuration.paths.RUN_DIR, "sockets"), 0755)
+    mkdir(os.path.join(configuration.paths.RUN_DIR, "wsgi"), 0750)
 
     os.environ["HOME"] = home
     os.chdir(home)
@@ -294,6 +298,8 @@ else:
     with open(pidfile_path, "w") as pidfile:
         daemon.detach(parent_exit_hook=wait_for_startup_sync)
         pidfile.write("%s\n" % os.getpid())
+
+    os.umask(022)
 
     was_terminated = False
 

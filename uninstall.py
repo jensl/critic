@@ -120,8 +120,18 @@ This step cannot be undone! To abort the uninstall script, press CTRL-C now.
         run_command(arguments, ["rm", "-rf", configuration.paths.DATA_DIR, configuration.paths.LOG_DIR])
         run_command(arguments, ["rm", "-rf", configuration.paths.CACHE_DIR, configuration.paths.RUN_DIR])
         run_command(arguments, ["rm", "-rf", configuration.paths.INSTALL_DIR, configuration.paths.GIT_DIR])
-        run_command(arguments, ["rm", "-f", "/etc/apache2/sites-available/critic-%s" % configuration.base.SYSTEM_IDENTITY])
-        run_command(arguments, ["rm", "-f", "/etc/apache2/sites-enabled/critic-%s" % configuration.base.SYSTEM_IDENTITY])
+        if configuration.base.WEB_SERVER_INTEGRATION == "apache":
+            run_command(arguments, ["rm", "-f", "/etc/apache2/sites-available/critic-%s" % configuration.base.SYSTEM_IDENTITY])
+            run_command(arguments, ["rm", "-f", "/etc/apache2/sites-enabled/critic-%s" % configuration.base.SYSTEM_IDENTITY])
+        elif configuration.base.WEB_SERVER_INTEGRATION == "nginx+uwsgi":
+            run_command(arguments, ["rm", "-f", "/etc/nginx/sites-available/critic-%s" % configuration.base.SYSTEM_IDENTITY])
+            run_command(arguments, ["rm", "-f", "/etc/nginx/sites-enabled/critic-%s" % configuration.base.SYSTEM_IDENTITY])
+        else:
+            run_command(arguments, ["rm", "-f", "/etc/uwsgi/apps-available/critic-frontend-%s.ini" % configuration.base.SYSTEM_IDENTITY])
+            run_command(arguments, ["rm", "-f", "/etc/uwsgi/apps-enabled/critic-frontend-%s.ini" % configuration.base.SYSTEM_IDENTITY])
+        if configuration.base.WEB_SERVER_INTEGRATION in ("nginx+uwsgi", "uwsgi"):
+            run_command(arguments, ["rm", "-f", "/etc/uwsgi/apps-available/critic-backend-%s.ini" % configuration.base.SYSTEM_IDENTITY])
+            run_command(arguments, ["rm", "-f", "/etc/uwsgi/apps-enabled/critic-backend-%s.ini" % configuration.base.SYSTEM_IDENTITY])
         run_command(arguments, ["rm", "-f", "/etc/init.d/critic-%s" % configuration.base.SYSTEM_IDENTITY])
         run_command(arguments, ["update-rc.d", "critic-%s" % configuration.base.SYSTEM_IDENTITY, "remove"])
 
@@ -148,7 +158,13 @@ This step cannot be undone! To abort the uninstall script, press CTRL-C now.
 
     # Delete non-instance specific parts.
     run_command(arguments, ["rm", "-rf", arguments.etc_dir, "/usr/bin/criticctl"])
-    run_command(arguments, ["service", "apache2", "restart"])
+
+    if configuration.base.WEB_SERVER_INTEGRATION == "apache":
+        run_command(arguments, ["service", "apache2", "restart"])
+    elif configuration.base.WEB_SERVER_INTEGRATION == "nginx+uwsgi":
+        run_command(arguments, ["service", "nginx", "restart"])
+    if configuration.base.WEB_SERVER_INTEGRATION in ("nginx+uwsgi", "uwsgi"):
+        run_command(arguments, ["service", "uwsgi", "restart"])
 
     # When default paths are used in install.py we put some extra effort into
     # completely cleaning the system on uninstall, with custom paths it's

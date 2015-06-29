@@ -39,7 +39,7 @@ import files
 import database
 import smtp
 import config
-import apache
+import httpd
 import criticctl
 import admin
 import initd
@@ -55,7 +55,7 @@ modules = [prereqs,
            database,
            extensions,
            config,
-           apache,
+           httpd,
            criticctl,
            admin,
            smtp,

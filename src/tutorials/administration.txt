@@ -65,6 +65,51 @@ otherwise has.  It is strongly recommended that the offer is accepted, since the
 changes made by such a migration script are generally not reversible in any
 other than to restore an earlier backup copy of the database.
 
+Change Host Web Server
+----------------------
+Critic's installation/upgrading scripts support a few different host web server
+configurations:
+
+* Apache 2.x (with mod_wsgi)
+* nginx (HTTP front-end) + uWSGI (WSGI back-end)
+* uWSGI (as both HTTP front-end and WSGI back-end)
+
+The Apache configuration used to be the only supported, so an old Critic system
+probably runs that one.  The nginx+uWSGI configuration is the currently
+preferred (and default) one, but the installation script will ask which one to
+use when a new system is installed.
+
+The <code>upgrade.py</code> script can be used switch to a different
+configuration, i.e. replicate how a new install would have configured the
+desired new web server configuration.  Doing this requires just a little bit of
+manual administration work:
+
+1 Stop the current host web server.  This is required so that it stops listening
+  at the HTTP/HTTPS ports, so that the new web server can do so instead.  You
+  can typically do that by running the command
+    <code>service &lt;name&gt; stop</code>
+  as root, where <i>name</i> is one of <code>apache2</code>, <code>nginx</code>
+  and <code>uwsgi</code>.
+2 Edit <code>%(configuration.paths.CONFIG_DIR)s/configuration/base.py</code>,
+  changing the <code>WEB_SERVER_INTEGRATION</code> setting to the desired value.
+  See the inline documentation in the file for details.
+3 Run <code>python upgrade.py</code> as root.  Note that unless you're also
+  upgrading Critic to a new version, you may need to add the
+  <code>--force</code> command-line argument to force the upgrading script to
+  run despite there being no changes to install.
+
+The upgrading script will, if necessary, install the new web server, and
+then install configuration files for it.
+
+  Note that the script may warn that it failed to stop the <i>new</i> web server
+  before the actual upgrade.  This is expected, since the new web server may not
+  have been running, or even been installed, at that time.
+
+After this, Critic should be set up and running in the new web server.  You may
+need to make sure the previous web server doesn't start up again the next time
+the system boots.  The easiest way to do that is probably to uninstall it
+completely.
+
 Configuring Critic
 ------------------
 

@@ -77,6 +77,16 @@ def doTestConfiguration():
         finally:
             del values[-1]
 
+    try:
+        with value(configuration.base, "WEB_SERVER_INTEGRATION") \
+                as web_server_integration:
+            if web_server_integration not in ("apache", "nginx+uwsgi",
+                                              "uwsgi", "none"):
+                error("Invalid web server integration: must be one of "
+                      "'apache', 'nginx+uwsgi', 'uwsgi' and 'none'.")
+    except MissingValue:
+        pass
+
     def checkProvider(providers, name):
         provider = providers[name]
         if provider.get("enabled"):

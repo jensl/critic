@@ -175,9 +175,6 @@ class CustomCheck(Prerequisite):
             return True
         return super(CustomCheck, self).install()
 
-def check_mod_wsgi():
-    return os.path.isfile("/etc/apache2/mods-available/wsgi.load")
-
 # This one is hardcoded to the running interpreter (rather than what we might
 # find in the search path.)
 Executable("python", None, None).path = sys.executable
@@ -220,6 +217,24 @@ source code can be downloaded here:
 
   http://pygments.org/download/"""),
 
+]
+
+# The passlib library is only needed if Critic is configured to do
+# authentication, so doesn't go into the list above yet.
+passlib_library = PythonLibrary("passlib", ["python-passlib"], """\
+Failed to import the 'passlib' module, which is required when Critic is
+configured to handle user authentication itself.  In Debian/Ubuntu, the module
+is provided by the 'python-passlib' package.  The source code can be downloaded
+here:
+
+  https://pypi.python.org/pypi/passlib""")
+
+def check_mod_wsgi():
+    return os.path.isfile("/etc/apache2/mods-available/wsgi.load")
+
+# Things to check and install if Apache is to be used.
+apache_prerequisites = [
+
     Executable("apache2ctl", ["apache2", "libapache2-mod-wsgi"], """\
 Make sure the Apache web server is installed.  In Debian/Ubuntu, the package you
 need to install is 'apache2'.
@@ -245,19 +260,44 @@ it's installed.  In Debian/Ubuntu, the package you need to install is
 
 ]
 
-# The passlib library is only needed if Critic is configured to do
-# authentication, so doesn't go into the list above yet.
-passlib_library = PythonLibrary("passlib", ["python-passlib"], """\
-Failed to import the 'passlib' module, which is required when Critic is
-configured to handle user authentication itself.  In Debian/Ubuntu, the module
-is provided by the 'python-passlib' package.  The source code can be downloaded
-here:
+# Things to check and install if nginx is to be used.
+nginx_prerequisites = [
 
-  https://pypi.python.org/pypi/passlib""")
+    Executable("nginx", ["nginx"], """\
+Make sure the nginx web server is installed.  In Debian/Ubuntu, the package you
+need to install is 'nginx'."""),
+
+]
+
+# Things to check and install if uWSGI is to be used.
+uwsgi_prerequisites = [
+
+    Executable("uwsgi", ["uwsgi", "uwsgi-plugin-python"], """\
+Make sure the uWSGI application container server is installed.  In
+Debian/Ubuntu, the package you need to install is 'uwsgi'.
+
+In addition, the uWSGI Python plugin needs to be installed.  In Debian/Ubuntu,
+the package you need to install is 'uwsgi-plugin-python'."""),
+
+    # This extra check is really only needed if uWSGI was already installed (and
+    # thus not installed by the prerequisite above).
+    Executable("uwsgi_python", ["uwsgi-plugin-python"], """\
+The uWSGI Python plugin doesn't appear to be installed.  Make sure it's
+installed.  In Debian/Ubuntu, the package you need to install is
+'uwsgi-plugin-python'."""),
+
+]
 
 def resolve_prerequisites():
     if installation.config.auth_mode == "critic":
         prerequisites.append(passlib_library)
+
+    if installation.config.web_server_integration == "apache":
+        prerequisites.extend(apache_prerequisites)
+    if "nginx" in installation.config.web_server_integration:
+        prerequisites.extend(nginx_prerequisites)
+    if "uwsgi" in installation.config.web_server_integration:
+        prerequisites.extend(uwsgi_prerequisites)
 
 def prepare(mode, arguments, data):
     global headless

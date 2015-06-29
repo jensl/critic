@@ -47,6 +47,9 @@ def start(identity="main"):
     except subprocess.CalledProcessError:
         return False
 
+    global servicemanager_started
+    servicemanager_started = True
+
     return True
 
 def restart(identity="main"):
@@ -76,8 +79,7 @@ def install(data):
     subprocess.check_call(["update-rc.d", "critic-main", "defaults"])
     rclinks_added = True
 
-    subprocess.check_call([target_path, "start"])
-    servicemanager_started = True
+    start()
 
     return True
 
@@ -138,7 +140,9 @@ likely to break.
 
 def undo():
     if servicemanager_started:
-        subprocess.check_call([os.path.join("/etc", "init.d", "critic-main"), "stop"])
+        stop()
+    elif servicemanager_stopped:
+        start()
 
     map(os.unlink, created_file)
 

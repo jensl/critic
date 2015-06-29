@@ -441,6 +441,9 @@ class Instance(testing.Instance):
         if self.has_flag("is-testing"):
             use_arguments["--is-testing"] = True
 
+        if self.has_flag("web-server-integration") and self.arguments.vm_web_server:
+            use_arguments["--web-server-integration"] = self.arguments.vm_web_server
+
         for name, value in override_arguments.items():
             if value is None:
                 if name in use_arguments:

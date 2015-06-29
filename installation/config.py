@@ -26,6 +26,7 @@ import installation
 auth_mode = "host"
 session_type = None
 allow_anonymous_user = None
+web_server_integration = None
 access_scheme = None
 repository_url_types = ["http"]
 allow_user_registration = None
@@ -183,6 +184,10 @@ def add_arguments(mode, parser):
         action="store_const", const=False,
         help=H("do not allow unattended user registration"))
     parser.add_argument(
+        "--web-server-integration", choices=["apache", "nginx+uwsgi",
+                                             "uwsgi", "none"],
+        help=H("web server to set up and integrate with"))
+    parser.add_argument(
         "--access-scheme", choices=["http", "https", "both"],
         help=H("scheme used to access Critic"))
     parser.add_argument(
@@ -239,7 +244,8 @@ def add_arguments(mode, parser):
 default_encodings = ["utf-8", "latin-1"]
 
 def prepare(mode, arguments, data):
-    global auth_mode, session_type, allow_anonymous_user, access_scheme
+    global auth_mode, session_type, allow_anonymous_user
+    global web_server_integration, access_scheme
     global repository_url_types, default_encodings, allow_user_registration
     global verify_email_addresses, archive_review_branches
     global password_hash_schemes, default_password_hash_scheme
@@ -319,6 +325,9 @@ the Web front-end.  This can be handled in two different ways:
 
         try: allow_anonymous_user = configuration.base.ALLOW_ANONYMOUS_USER
         except AttributeError: pass
+
+        try: web_server_integration = configuration.base.WEB_SERVER_INTEGRATION
+        except AttributeError: web_server_integration = "apache"
 
         try: access_scheme = configuration.base.ACCESS_SCHEME
         except AttributeError: pass
@@ -438,6 +447,63 @@ contact the system administrator(s).
     else:
         session_type = "cookie"
 
+    if web_server_integration is None:
+        if arguments.web_server_integration:
+            web_server_integration = arguments.web_server_integration
+        else:
+            print """
+Critic Installation: Web Server Integration
+===========================================
+
+This installation script can install and do basic configuration of a
+few different host web servers.  Supported web servers are:
+
+  1) nginx + uWSGI
+
+     Use the nginx web server together with uWSGI as the WSGI
+     application server to actually run Critic.
+
+     This is the recommended option for new installs.
+
+  2) uWSGI
+
+     Use uWSGI as both HTTP(S) front-end and as the WSGI application
+     server to actually run Critic.
+
+  3) Apache + mod_wsgi
+
+     Use the Apache web server and its third-party WSGI module
+     (mod_wsgi) to actually run Critic.  This is the traditional
+     configuration used to run Critic, but mod_wsgi is not actively
+     maintained, and has some known issues.
+
+  4) no integration
+
+     Don't configure any web server.  The installation performed by
+     this script will be incomplete and the system administrator will
+     need to set the integration up themselves.
+"""
+
+            def check_web_server_integration(value):
+                if value not in ("1", "nginx+uwsgi",
+                                 "2", "uwsgi",
+                                 "3", "apache",
+                                 "4", "none"):
+                    return ("must be one of '1'/'nginx+uwsgi', '2'/'uwsgi', "
+                            "'3'/'apache' and '4'/'none'")
+
+            web_server_integration = installation.input.string(
+                "What web server should be set up?", default="nginx+uwsgi",
+                check=check_web_server_integration)
+
+            aliases = { "1": "nginx+uwsgi",
+                        "2": "uwsgi",
+                        "3": "apache",
+                        "4": "none" }
+
+            if web_server_integration in aliases:
+                web_server_integration = aliases[web_server_integration]
+
     if access_scheme is None:
         if arguments.access_scheme:
             access_scheme = arguments.access_scheme
@@ -506,6 +572,7 @@ web server to redirect all HTTP accesses to HTTPS.
     data["installation.config.auth_mode"] = auth_mode
     data["installation.config.session_type"] = session_type
     data["installation.config.allow_anonymous_user"] = allow_anonymous_user
+    data["installation.config.web_server_integration"] = web_server_integration
     data["installation.config.access_scheme"] = access_scheme
     data["installation.config.repository_url_types"] = repository_url_types
     data["installation.config.default_encodings"] = default_encodings

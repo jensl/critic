@@ -1,0 +1,31 @@
+server {
+	listen 80;
+	listen [::]:80;
+	listen 443 ssl;
+	listen [::]:443 ssl;
+
+	server_name %(installation.system.hostname)s;
+
+	# Further SSL configuration is required!
+	#
+	#ssl_certificate ???.crt
+	#ssl_certificate_key ???.key
+	#ssl_protocols ???
+	#ssl_ciphers ???
+
+	location / {
+		uwsgi_pass unix://%(installation.paths.run_dir)s/main/sockets/uwsgi.unix;
+		include uwsgi_params;
+	}
+
+	location /static-resource/ {
+		alias %(installation.paths.install_dir)s/resources/;
+		expires 30d;
+
+		types {
+			text/css css;
+			text/javascript js;
+			image/png png;
+		}
+	}
+}

@@ -54,6 +54,16 @@ SESSION_MAX_AGE = 0
 # AUTHENTICATION_MODE!="host" and SESSION_TYPE="cookie".
 ALLOW_ANONYMOUS_USER = %(installation.config.allow_anonymous_user)r
 
+# Web server (HTTPD) integration.
+#
+# Supported alternatives:
+#
+#  "apache"      => Apache (2.2 or 2.4) with mod_wsgi.
+#  "nginx+uwsgi" => nginx with uWSGI as WSGI back-end.
+#  "uwsgi"       => uWSGI as both HTTP front-end and WSGI back-end.
+#  "none"        => no supported integration (manual by system administrator).
+WEB_SERVER_INTEGRATION = "%(installation.config.web_server_integration)s"
+
 # Access scheme: "http", "https" or "both".
 ACCESS_SCHEME = "%(installation.config.access_scheme)s"
 

@@ -7,8 +7,8 @@ set -e
 # Required-Stop:	postgresql $local_fs $remote_fs $network $time
 # Should-Start:
 # Should-Stop:
-# X-Start-Before:	apache2
-# X-Stop-After:		apache2
+# X-Start-Before:	%(installation.httpd.backend_service)s
+# X-Stop-After:		%(installation.httpd.backend_service)s
 # Default-Start:	2 3 4 5
 # Default-Stop:		0 1 6
 # Short-Description:	Critic code review system (main)

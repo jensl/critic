@@ -79,6 +79,8 @@ def run():
                         help="VirtualBox instance SSH port [default=22]")
     parser.add_argument("--vm-http-port", type=int, default=80,
                         help="VirtualBox instance HTTP port [default=80]")
+    parser.add_argument("--vm-web-server", choices=("apache", "nginx+uwsgi", "uwsgi"),
+                        help="Web server to tell Critic to install and configure")
 
     parser.add_argument("--git-daemon-port", type=int,
                         help="Port to tell 'git daemon' to bind to")

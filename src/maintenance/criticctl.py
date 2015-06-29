@@ -412,9 +412,18 @@ def restart(command, argv):
         print >>sys.stderr, "ERROR: 'criticctl restart' must be run as root."
         return 1
 
-    subprocess.check_call(["service", "apache2", "stop"])
+    if configuration.base.WEB_SERVER_INTEGRATION == "apache":
+        web_server_service = "apache2"
+    elif configuration.base.WEB_SERVER_INTEGRATION in ("nginx+uwsgi", "uwsgi"):
+        web_server_service = "uwsgi"
+    else:
+        web_server_service = None
+
+    if web_server_service:
+        subprocess.check_call(["service", web_server_service, "stop"])
     subprocess.check_call(["service", "critic-" + system_identity, "restart"])
-    subprocess.check_call(["service", "apache2", "start"])
+    if web_server_service:
+        subprocess.check_call(["service", web_server_service, "start"])
 
     return 0
 
@@ -437,7 +446,15 @@ def stop(command, argv):
         print >>sys.stderr, "ERROR: 'criticctl stop' must be run as root."
         return 1
 
-    subprocess.check_call(["service", "apache2", "stop"])
+    if configuration.base.WEB_SERVER_INTEGRATION == "apache":
+        web_server_service = "apache2"
+    elif configuration.base.WEB_SERVER_INTEGRATION in ("nginx+uwsgi", "uwsgi"):
+        web_server_service = "uwsgi"
+    else:
+        web_server_service = None
+
+    if web_server_service:
+        subprocess.check_call(["service", web_server_service, "stop"])
     subprocess.check_call(["service", "critic-" + system_identity, "stop"])
 
     return 0

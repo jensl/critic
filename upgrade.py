@@ -78,11 +78,6 @@ def abort():
             print >>sys.stderr, "FAILED: %s.undo()" % module.__name__
             traceback.print_exc()
 
-    if installation.initd.servicemanager_stopped and not installation.initd.start():
-        print "WARNING: Undo failed to start Critic background services again..."
-    if installation.apache.apache_stopped and not installation.apache.start():
-        print "WARNING: Undo failed to start Apache again..."
-
     sys.exit(1)
 
 data = installation.utils.read_install_data(arguments)
@@ -193,7 +188,7 @@ try:
             abort()
 
     if not arguments.dry_run:
-        if not installation.apache.stop():
+        if not installation.httpd.stop():
             abort()
         if not installation.initd.stop():
             abort()
@@ -228,7 +223,7 @@ try:
 
         if not installation.initd.start():
             abort()
-        if not installation.apache.start():
+        if not installation.httpd.start():
             abort()
 
     data["sha1"] = new_critic_sha1

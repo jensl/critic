@@ -193,7 +193,7 @@ def mkdirs():
     mkdir(os.path.join(cache_dir, "main", "highlight"))
     mkdir(git_dir)
     mkdir(os.path.join(log_dir, "main"))
-    mkdir(os.path.join(run_dir, "main", "sockets"))
+    mkdir(os.path.join(run_dir, "main", "sockets"), mode=0755)
     mkdir(os.path.join(run_dir, "main", "wsgi"))
 
     if installation.config.coverage_dir:
