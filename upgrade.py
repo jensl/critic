@@ -49,6 +49,7 @@ parser.add_argument("--headless", help=argparse.SUPPRESS, action="store_true")
 parser.add_argument("--etc-dir", default="/etc/critic", help="directory where the Critic system configuration is stored", action="store")
 parser.add_argument("--identity", "-i", default="main", help="system identity to upgrade", action="store")
 parser.add_argument("--dry-run", "-n", help="produce output but don't modify the system at all", action="store_true")
+parser.add_argument("--force", "-f", help="force upgrade even if same commit is checked out", action="store_true")
 
 for module in installation.modules:
     if hasattr(module, "add_arguments"):
@@ -151,7 +152,7 @@ Previously installed version: %s
 Will now upgrade to version:  %s
 """ % (old_critic_sha1, new_critic_sha1)
 
-if old_critic_sha1 == new_critic_sha1:
+if old_critic_sha1 == new_critic_sha1 and not arguments.force:
     print "Old and new commit are the same, nothing to do."
     sys.exit(0)
 
