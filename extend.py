@@ -374,5 +374,4 @@ if enable and not configuration.extensions.ENABLED:
             installation.config.undo()
             sys.exit(1)
 
-        installation.initd.restart(arguments.identity)
-        installation.apache.restart()
+        subprocess.check_call(["criticctl", "restart"])

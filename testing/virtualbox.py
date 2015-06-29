@@ -729,8 +729,7 @@ class Instance(testing.Instance):
             return
 
         if self.__installed:
-            self.execute(["sudo", "service", "critic-main", "stop"])
-            self.execute(["sudo", "service", "apache2", "stop"])
+            self.execute(["sudo", "criticctl", "stop"])
 
         if self.coverage:
             sys.stdout.write(self.execute(

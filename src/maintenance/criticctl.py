@@ -418,6 +418,30 @@ def restart(command, argv):
 
     return 0
 
+def stop(command, argv):
+    parser = argparse.ArgumentParser(
+        description="Critic administration interface: stop",
+        prog="criticctl [options] stop")
+
+    parser.parse_args(argv)
+
+    import os
+    import subprocess
+
+    system_identity = configuration.base.SYSTEM_IDENTITY
+
+    try:
+        os.seteuid(0)
+        os.setegid(0)
+    except OSError:
+        print >>sys.stderr, "ERROR: 'criticctl stop' must be run as root."
+        return 1
+
+    subprocess.check_call(["service", "apache2", "stop"])
+    subprocess.check_call(["service", "critic-" + system_identity, "stop"])
+
+    return 0
+
 def main(parser, show_help, command, argv):
     returncode = 0
 
@@ -445,6 +469,8 @@ def main(parser, show_help, command, argv):
             return configtest(command, argv)
         elif command == "restart":
             return restart(command, argv)
+        elif command == "stop":
+            return stop(command, argv)
         else:
             print >>sys.stderr, "ERROR: Invalid command: %s" % command
             returncode = 1
@@ -464,7 +490,8 @@ Available commands are:
   disconnect Remove such connection.
 
   configtest Test system configuration.
-  restart    Restart host web server and Critic's background services.
+  restart    Restart host WSGI container and Critic's background services.
+  stop       Stop host WSGI container and Critic's background services.
 
 Use 'criticctl COMMAND --help' to see per command options."""
 
