@@ -468,13 +468,16 @@ first or run this script without --test-extensions.""")
                         instance.check_service_logs()
                         if errors_before < counters.errors_logged:
                             raise testing.TestFailure
-                    except testing.TestFailure as failure:
+                    except testing.Error as error:
                         counters.tests_failed += 1
 
                         failed_tests.add(test)
 
-                        if failure.message:
-                            logger.error(failure.message)
+                        if not isinstance(error, testing.TestFailure):
+                            raise
+
+                        if error.message:
+                            logger.error(error.message)
 
                         if mailbox:
                             try:
@@ -524,7 +527,8 @@ first or run this script without --test-extensions.""")
             repository = None
             mailbox = None
 
-            run_group(group_name, all_groups[group_name])
+            if not run_group(group_name, all_groups[group_name]):
+                return False
         else:
             repository = testing.repository.Repository(
                 "localhost" if arguments.quickstart else arguments.vbox_host,
@@ -539,7 +543,7 @@ first or run this script without --test-extensions.""")
             with repository:
                 with mailbox:
                     if not repository.export():
-                        return
+                        return False
 
                     with instance:
                         instance.mailbox = mailbox
@@ -547,17 +551,24 @@ first or run this script without --test-extensions.""")
                         testing.utils.instance = instance
                         testing.utils.frontend = frontend
 
-                        if run_group(group_name, all_groups[group_name]):
-                            instance.finish()
+                        if not run_group(group_name, all_groups[group_name]):
+                            return False
+
+                        instance.finish()
 
                     mailbox.instance = None
                     mailbox.check_empty()
+
+    return True
 
 def main():
     start_time = time.time()
 
     try:
-        run()
+        run_failed = not run()
+
+        if run_failed:
+            logger.error("Tests did not run as expected.")
 
         time_taken = str(datetime.timedelta(seconds=round(time.time() - start_time)))
 
@@ -575,7 +586,7 @@ Time taken:      %9s
        counters.warnings_logged,
        time_taken))
 
-        if counters.tests_failed or counters.errors_logged:
+        if run_failed or counters.tests_failed or counters.errors_logged:
             sys.exit(1)
     except TestingAborted:
         logger.error("Testing aborted.")
