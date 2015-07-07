@@ -175,7 +175,7 @@ def renderHome(req, db, user):
     row("User Name", user.name)
     row("Display Name", renderFullname, "This is the name used when displaying commits or comments.")
     row("Primary Email", renderEmail, "This is the primary email address, to which emails are sent.", extra_class="email")
-    row("Git Emails", renderGitEmails, "These email addresses are used to map Git commits to the user.")
+    row("Git Emails", renderGitEmails, "These email addresses (comma-separated) are used to map Git commits to the user.")
 
     if configuration.base.AUTHENTICATION_MODE == "critic":
         row("Password", renderPassword, extra_class="password")
