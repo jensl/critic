@@ -536,7 +536,7 @@ web server to redirect all HTTP accesses to HTTPS.
         cpu_count = multiprocessing.cpu_count()
 
         data["installation.config.highlight.max_workers"] = cpu_count
-        data["installation.config.changeset.max_workers"] = cpu_count / 2
+        data["installation.config.changeset.max_workers"] = max(1, cpu_count / 2)
 
     for provider in providers:
         provider.store(data)
