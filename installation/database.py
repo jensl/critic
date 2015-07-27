@@ -26,7 +26,7 @@ import installation
 user_created = False
 database_created = False
 language_created = False
-database_host = "localhost"
+database_host = "/tmp"
 
 def psql_import(sql_file, as_user=None):
     if as_user is None:
@@ -41,8 +41,8 @@ def psql_import(sql_file, as_user=None):
 
 def add_arguments(mode, parser):
     if mode == "install":
-        parser.add_argument("--database-host", dest="database_host", default="localhost",
-                            help="database host to use for Critic, defaults to localhost")
+        parser.add_argument("--database-host", dest="database_host", default="/tmp",
+                            help="database host to use for Critic, defaults to UNIX domain socket in /tmp")
 
     if mode == "upgrade":
         parser.add_argument("--backup-database", dest="database_backup", action="store_const", const=True,
