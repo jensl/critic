@@ -55,15 +55,18 @@ $(function ()
           {
             var item = result.items[index];
 
-            html += "<tr><td class='when'>" + new Date(item.time * 1000) + "</td>" +
-                        "<td class='range'>" +
-                          "<a href='" + result.repository.name + "/" + item.from_sha1 + ".." + item.to_sha1 + "'>" +
-                            item.from_sha1.substring(0, 8) + ".." + item.to_sha1.substring(0, 8) +
-                          "</a>" +
-                        "</td></tr>";
+            if (item.from_sha1 !== null && item.to_sha1 !== null) 
+            {
+              html += "<tr><td class='when'>" + new Date(item.time * 1000) + "</td>" +
+                          "<td class='range'>" +
+                            "<a href='" + result.repository.name + "/" + item.from_sha1 + ".." + item.to_sha1 + "'>" +
+                              item.from_sha1.substring(0, 8) + ".." + item.to_sha1.substring(0, 8) +
+                            "</a>" +
+                          "</td></tr>";
 
-            if (item.hook_output.trim())
-              html += "<tr><td class='output' colspan=2><pre>" + htmlify(item.hook_output) + "</pre></td></tr>";
+              if (item.hook_output.trim())
+                html += "<tr><td class='output' colspan=2><pre>" + htmlify(item.hook_output) + "</pre></td></tr>";
+            }
           }
 
           html += "</table></div>";
