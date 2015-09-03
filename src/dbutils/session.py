@@ -30,6 +30,9 @@ class Session(object):
         self.__authentication_labels = set()
         self.__profiles = set()
 
+    def refresh(self):
+        self.storage["User"].clear()
+
     def atexit(self, fn):
         self.__atexit.append(fn)
 

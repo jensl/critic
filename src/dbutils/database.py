@@ -280,6 +280,15 @@ class Database(Session):
             if do_commit:
                 self.commit()
 
+    def refresh(self):
+        if self.__updating_cursor:
+            raise InvalidCursorError("refresh with active updating cursor")
+        if self.unsafe_queries:
+            raise InvalidCursorError("refresh with unsafe queries: %r"
+                                     % self.unsafe_queries)
+        self.commit()
+        super(Database, self).refresh()
+
     def commit(self):
         if self.__updating_cursor:
             raise InvalidCursorError("manual commit when using updating cursor")
