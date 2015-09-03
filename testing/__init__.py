@@ -206,6 +206,7 @@ import mailbox
 import findtests
 import utils
 import quickstart
+import execute
 
 logger = None
 

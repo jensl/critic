@@ -51,10 +51,10 @@ def _git(args, **kwargs):
     env.setdefault("GIT_COMMITTER_EMAIL", "tester@example.org")
     kwargs["env"] = env
     try:
-        return subprocess.check_output(
-            argv, stdin=open("/dev/null"), stderr=subprocess.STDOUT, **kwargs)
-    except subprocess.CalledProcessError as error:
-        raise GitCommandError(" ".join(argv), error.output)
+        return testing.execute.execute(
+            argv, mix_stdout_and_stderr=True, **kwargs)
+    except testing.CommandError as error:
+        raise GitCommandError(" ".join(argv), error.stdout)
 
 def submodule_sha1(repository_path, parent_sha1, submodule_path):
     try:
