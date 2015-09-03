@@ -165,7 +165,7 @@ class Filters:
     def setFiles(self, db, file_ids=None, review=None):
         assert (file_ids is None) != (review is None)
 
-        cursor = db.cursor()
+        cursor = db.readonly_cursor()
 
         if file_ids is None:
             cursor.execute("SELECT DISTINCT file FROM reviewfiles WHERE review=%s", (review.id,))
@@ -313,7 +313,7 @@ class Filters:
              added_review_filters=[], removed_review_filters=[]):
         assert (repository is None) != (review is None)
 
-        cursor = db.cursor()
+        cursor = db.readonly_cursor()
 
         if user is not None: user_filter = " AND uid=%d" % user.id
         else: user_filter = ""

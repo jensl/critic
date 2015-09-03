@@ -82,13 +82,13 @@ class User(object):
         return self.status == 'system'
 
     def hasRole(self, db, role):
-        cursor = db.cursor()
+        cursor = db.readonly_cursor()
         cursor.execute("SELECT 1 FROM userroles WHERE uid=%s AND role=%s", (self.id, role))
         return bool(cursor.fetchone())
 
     def loadPreferences(self, db):
         if not self.preferences:
-            cursor = db.cursor()
+            cursor = db.readonly_cursor()
             cursor.execute("""SELECT uid, item, type, integer, string
                                 FROM preferences
                                 JOIN userpreferences USING (item)
@@ -111,7 +111,7 @@ class User(object):
 
     @staticmethod
     def fetchPreference(db, item, user=None, repository=None, filter_id=None):
-        cursor = db.cursor()
+        cursor = db.readonly_cursor()
         cursor.execute("SELECT type FROM preferences WHERE item=%s", (item,))
         row = cursor.fetchone()
         if not row:
@@ -273,7 +273,7 @@ class User(object):
         if name in self.__resources:
             return self.__resources[name]
 
-        cursor = db.cursor()
+        cursor = db.readonly_cursor()
         cursor.execute("SELECT revision, source FROM userresources WHERE uid=%s AND name=%s ORDER BY revision DESC FETCH FIRST ROW ONLY", (self.id, name))
 
         row = cursor.fetchone()
@@ -299,7 +299,7 @@ class User(object):
     def getCriticURLs(self, db):
         url_types = self.getPreference(db, 'email.urlType').split(",")
 
-        cursor = db.cursor()
+        cursor = db.readonly_cursor()
         cursor.execute("""SELECT key, anonymous_scheme, authenticated_scheme, hostname
                             FROM systemidentities""")
 
@@ -344,7 +344,7 @@ class User(object):
                  "displayName": self.fullname }
 
     def getAbsence(self, db):
-        cursor = db.cursor()
+        cursor = db.readonly_cursor()
         cursor.execute("SELECT until FROM userabsence WHERE uid=%s", (self.id,))
         row = cursor.fetchone()
         if row[0] is None:
@@ -353,7 +353,7 @@ class User(object):
             return "absent until %04d-%02d-%02d" % (row[0].year, row[0].month, row[0].day)
 
     def hasGitEmail(self, db, address):
-        cursor = db.cursor()
+        cursor = db.readonly_cursor()
         cursor.execute("""SELECT 1
                             FROM usergitemails
                            WHERE email=%s
@@ -381,7 +381,7 @@ class User(object):
 
     @staticmethod
     def _fromQuery(db, where, *values):
-        cursor = db.cursor()
+        cursor = db.readonly_cursor()
         cursor.execute("""SELECT users.id, name, fullname, status,
                                  useremails.email, verified
                             FROM users
@@ -431,7 +431,7 @@ class User(object):
 
     @staticmethod
     def withRole(db, role):
-        cursor = db.cursor()
+        cursor = db.readonly_cursor()
         cursor.execute("""SELECT uid
                             FROM userroles
                            WHERE role=%s""",

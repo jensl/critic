@@ -197,7 +197,7 @@ class Repository:
         if repository_id in db.storage["Repository"]:
             repository = db.storage["Repository"][repository_id]
         else:
-            cursor = db.cursor()
+            cursor = db.readonly_cursor()
             cursor.execute("SELECT parent, name, path FROM repositories WHERE id=%s", (repository_id,))
 
             parent_id, name, path = cursor.fetchone()
@@ -217,7 +217,7 @@ class Repository:
         if name in db.storage["Repository"]:
             return db.storage["Repository"][name]
         else:
-            cursor = db.cursor()
+            cursor = db.readonly_cursor()
             cursor.execute("SELECT id FROM repositories WHERE name=%s", (name,))
             row = cursor.fetchone()
             if not row:
@@ -234,7 +234,7 @@ class Repository:
 
     @staticmethod
     def fromSHA1(db, sha1):
-        cursor = db.cursor()
+        cursor = db.readonly_cursor()
         cursor.execute("SELECT id FROM repositories ORDER BY id ASC")
         for (repository_id,) in cursor:
             repository = Repository.fromId(db, repository_id)
@@ -245,7 +245,7 @@ class Repository:
 
     @staticmethod
     def fromPath(db, path, for_modify=False):
-        cursor = db.cursor()
+        cursor = db.readonly_cursor()
         cursor.execute("SELECT id FROM repositories WHERE path=%s", (path,))
         for (repository_id,) in cursor:
             return Repository.fromId(db, repository_id, for_modify=for_modify)
@@ -315,7 +315,7 @@ class Repository:
             if key == "url":
                 path = os.path.abspath(os.path.join(self.path, value))
 
-                cursor = db.cursor()
+                cursor = db.readonly_cursor()
                 cursor.execute("SELECT id FROM repositories WHERE path=%s", (path,))
 
                 row = cursor.fetchone()
@@ -722,7 +722,7 @@ class Repository:
         head_branch = self.getHeadBranch(db)
         if head_branch:
             yield head_branch
-        cursor = db.cursor()
+        cursor = db.readonly_cursor()
         cursor.execute(
             """SELECT local_name
                  FROM trackedbranches
@@ -738,7 +738,7 @@ class Repository:
             yield dbutils.Branch.fromName(db, self, branch_name)
 
     def getDefaultRemote(self, db):
-        cursor = db.cursor()
+        cursor = db.readonly_cursor()
         cursor.execute("""SELECT remote
                             FROM trackedbranches
                            WHERE repository=%s
@@ -750,7 +750,7 @@ class Repository:
         return row[0] if row else None
 
     def updateBranchFromRemote(self, db, remote, branch_name):
-        cursor = db.cursor()
+        cursor = db.readonly_cursor()
         cursor.execute("""SELECT 1
                             FROM trackedbranches
                            WHERE repository=%s
@@ -833,7 +833,7 @@ class Repository:
             raise GitCommandError(cmdline, output, cwd)
 
     def findInterestingTag(self, db, sha1):
-        cursor = db.cursor()
+        cursor = db.readonly_cursor()
         cursor.execute("SELECT name FROM tags WHERE repository=%s AND sha1=%s",
                        (self.id, sha1))
 
@@ -1072,7 +1072,7 @@ class Commit:
     def fromId(db, repository, commit_id):
         commit = db.storage["Commit"].get(commit_id)
         if not commit:
-            cursor = db.cursor()
+            cursor = db.readonly_cursor()
             cursor.execute("SELECT sha1 FROM commits WHERE id=%s", (commit_id,))
             sha1 = cursor.fetchone()[0]
             commit = Commit.fromSHA1(db, repository, sha1, commit_id)
@@ -1117,7 +1117,7 @@ class Commit:
 
     def getId(self, db):
         if self.id is None:
-            cursor = db.cursor()
+            cursor = db.readonly_cursor()
             cursor.execute("SELECT id FROM commits WHERE sha1=%s", (self.sha1,))
             self.id = cursor.fetchone()[0]
             self.__cache(db)
@@ -1138,7 +1138,7 @@ class Commit:
             decorations = []
             if self == self.repository.getHead(db):
                 decorations.append("HEAD")
-            cursor = db.cursor()
+            cursor = db.readonly_cursor()
             cursor.execute("""SELECT branches.name
                                 FROM branches
                                 JOIN reachable ON (reachable.branch=branches.id)

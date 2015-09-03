@@ -19,7 +19,7 @@ import time
 import base
 
 def countDraftItems(db, user, review):
-    cursor = db.cursor()
+    cursor = db.readonly_cursor()
 
     cursor.execute("""SELECT reviewfilechanges.to_state, SUM(deleted) + SUM(inserted)
                         FROM reviewfiles
@@ -250,7 +250,7 @@ class Review(object):
 
     @staticmethod
     def isAccepted(db, review_id):
-        cursor = db.cursor()
+        cursor = db.readonly_cursor()
 
         cursor.execute("SELECT 1 FROM reviewfiles WHERE review=%s AND state='pending' LIMIT 1", (review_id,))
         if cursor.fetchone(): return False
@@ -265,7 +265,7 @@ class Review(object):
         else: return Review.isAccepted(db, self.id)
 
     def getReviewState(self, db):
-        cursor = db.cursor()
+        cursor = db.readonly_cursor()
 
         cursor.execute("""SELECT state, SUM(deleted) + SUM(inserted)
                             FROM reviewfiles
@@ -300,7 +300,7 @@ class Review(object):
         return ReviewRebases(db, self)
 
     def getTrackedBranch(self, db):
-        cursor = db.cursor()
+        cursor = db.readonly_cursor()
         cursor.execute("""SELECT trackedbranches.id, remote, remote_name, disabled
                             FROM trackedbranches
                             JOIN branches ON (trackedbranches.repository=branches.repository
@@ -316,7 +316,7 @@ class Review(object):
         import gitutils
         import log.commitset
 
-        cursor = db.cursor()
+        cursor = db.readonly_cursor()
         cursor.execute("""SELECT DISTINCT commits.id, commits.sha1
                             FROM commits
                             JOIN changesets ON (changesets.child=commits.id)
@@ -349,7 +349,7 @@ class Review(object):
         else:
             raise TypeError
 
-        cursor = db.cursor()
+        cursor = db.readonly_cursor()
 
         if commit_id is not None:
             cursor.execute("""SELECT 1
@@ -418,7 +418,7 @@ class Review(object):
     def getETag(self, db, user=None):
         import configuration
 
-        cursor = db.cursor()
+        cursor = db.readonly_cursor()
         etag = ""
 
         if configuration.debug.IS_DEVELOPMENT:
@@ -458,7 +458,7 @@ class Review(object):
     def getRecipients(self, db):
         from dbutils import User
 
-        cursor = db.cursor()
+        cursor = db.readonly_cursor()
         cursor.execute("SELECT uid, include FROM reviewrecipientfilters WHERE review=%s", (self.id,))
 
         default_include = True
@@ -616,7 +616,7 @@ class Review(object):
                 cursor.execute("DELETE FROM trackedbranchusers WHERE branch=%s AND uid=%s", (trackedbranch_id, owner.id))
 
     def getReviewFilters(self, db):
-        cursor = db.cursor()
+        cursor = db.readonly_cursor()
         cursor.execute("SELECT uid, path, type, NULL FROM reviewfilters WHERE review=%s", (self.id,))
         return cursor.fetchall() or None
 
@@ -634,7 +634,7 @@ class Review(object):
             self.filters.load(db, review=self)
             self.relevant_files = self.filters.getRelevantFiles()
 
-            cursor = db.cursor()
+            cursor = db.readonly_cursor()
             cursor.execute("SELECT assignee, file FROM fullreviewuserfiles WHERE review=%s", (self.id,))
             for user_id, file_id in cursor:
                 self.relevant_files.setdefault(user_id, set()).add(file_id)
@@ -642,7 +642,7 @@ class Review(object):
         return self.relevant_files.get(user.id, set())
 
     def getUserAssociation(self, db, user):
-        cursor = db.cursor()
+        cursor = db.readonly_cursor()
 
         association = []
 
@@ -678,7 +678,7 @@ class Review(object):
     def fromId(db, review_id, branch=None, profiler=None):
         from dbutils import User
 
-        cursor = db.cursor()
+        cursor = db.readonly_cursor()
         cursor.execute("SELECT type, branch, state, serial, summary, description, applyfilters, applyparentfilters FROM reviews WHERE id=%s", [review_id])
         row = cursor.fetchone()
         if not row: raise NoSuchReview(review_id)
@@ -730,7 +730,7 @@ class Review(object):
     @staticmethod
     def fromBranch(db, branch):
         if branch:
-            cursor = db.cursor()
+            cursor = db.readonly_cursor()
             cursor.execute("SELECT id FROM reviews WHERE branch=%s", [branch.id])
             row = cursor.fetchone()
             if not row: return None

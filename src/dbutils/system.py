@@ -16,14 +16,14 @@
 
 def getInstalledSHA1(db):
     import configuration
-    cursor = db.cursor()
+    cursor = db.readonly_cursor()
     cursor.execute("SELECT installed_sha1 FROM systemidentities WHERE name=%s",
                    (configuration.base.SYSTEM_IDENTITY,))
     return cursor.fetchone()[0]
 
 def getURLPrefix(db, user=None):
     import configuration
-    cursor = db.cursor()
+    cursor = db.readonly_cursor()
     cursor.execute("""SELECT anonymous_scheme, authenticated_scheme, hostname
                         FROM systemidentities
                        WHERE name=%s""",

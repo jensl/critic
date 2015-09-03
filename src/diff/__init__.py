@@ -653,7 +653,7 @@ class Changeset:
                 if reviewer is not None: reviewers.add(reviewer)
 
         if self.type in ("merge", "conflicts"):
-            cursor = db.cursor()
+            cursor = db.readonly_cursor()
             cursor.execute("""SELECT reviewfiles.file, reviewfiles.state, reviewfiles.reviewer, reviewuserfiles.uid IS NOT NULL, reviewfilechanges.from_state, reviewfilechanges.to_state
                                 FROM reviewfiles
                      LEFT OUTER JOIN reviewuserfiles ON (reviewuserfiles.file=reviewfiles.id AND reviewuserfiles.uid=%s)
@@ -663,7 +663,7 @@ class Changeset:
                            (user.id, user.id, review.id, self.id))
             process(cursor)
         elif self.__commits:
-            cursor = db.cursor()
+            cursor = db.readonly_cursor()
             cursor.execute("""SELECT reviewfiles.file, reviewfiles.state, reviewfiles.reviewer, reviewuserfiles.uid IS NOT NULL, reviewfilechanges.from_state, reviewfilechanges.to_state
                                 FROM reviewfiles
                                 JOIN changesets ON (changesets.id=reviewfiles.changeset)
@@ -678,7 +678,7 @@ class Changeset:
 
     @staticmethod
     def fromId(db, repository, id):
-        cursor = db.cursor()
+        cursor = db.readonly_cursor()
 
         cursor.execute("SELECT parent, child, type FROM changesets WHERE id=%s", [id])
         parent_id, child_id, type = cursor.fetchone()

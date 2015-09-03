@@ -70,7 +70,7 @@ def find_files(db, files):
         file.id = find_file(db, file.path)
 
 def describe_file(db, file_id):
-    cursor = db.cursor()
+    cursor = db.readonly_cursor()
     cursor.execute("SELECT path FROM files WHERE id=%s", (file_id,))
     row = cursor.fetchone()
     if not row:

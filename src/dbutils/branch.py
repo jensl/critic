@@ -37,7 +37,7 @@ class Branch(object):
 
     def contains(self, db, commit):
         import gitutils
-        cursor = db.cursor()
+        cursor = db.readonly_cursor()
         if isinstance(commit, gitutils.Commit) and commit.id is not None:
             cursor.execute("SELECT 1 FROM reachable WHERE branch=%s AND commit=%s", [self.id, commit.id])
         else:
@@ -69,7 +69,7 @@ class Branch(object):
     def getCommits(self, db):
         import gitutils
         if self.__commits is None:
-            cursor = db.cursor()
+            cursor = db.readonly_cursor()
             cursor.execute("""SELECT commits.id, commits.sha1
                                 FROM reachable
                                 JOIN commits ON (commits.id=reachable.commit)
@@ -247,7 +247,7 @@ class Branch(object):
 
     @staticmethod
     def fromName(db, repository, name, **kwargs):
-        cursor = db.cursor()
+        cursor = db.readonly_cursor()
         cursor.execute("""SELECT id
                             FROM branches
                            WHERE repository=%s

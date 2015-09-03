@@ -55,7 +55,7 @@ is used as a key in the dictionary instead of a real user ID."""
         for commit in commits:
             changesets.extend(changeset_utils.createChangeset(db, None, repository, commit, do_highlight=False))
 
-    cursor = db.cursor()
+    cursor = db.readonly_cursor()
 
     filters = Filters()
     filters.setFiles(db, list(getFileIdsFromChangesets(changesets)))
@@ -106,7 +106,7 @@ def getReviewedReviewers(db, review):
 Returns a dictionary, like the ones returned by getReviewersAndWatchers(), but
 with details about all reviewed changes in the review."""
 
-    cursor = db.cursor()
+    cursor = db.readonly_cursor()
 
     cursor.execute("""SELECT reviewfiles.reviewer, reviewfiles.changeset, reviewfiles.file
                         FROM reviewfiles
@@ -128,7 +128,7 @@ Returns a dictionary, like the ones returned by getReviewersAndWatchers(), but
 with details about remaining unreviewed changes in the review.  Changes not
 assigned to a reviewer are handled the same way."""
 
-    cursor = db.cursor()
+    cursor = db.readonly_cursor()
 
     cursor.execute("""SELECT reviewuserfiles.uid, reviewfiles.changeset, reviewfiles.file
                         FROM reviewfiles
