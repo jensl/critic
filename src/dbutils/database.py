@@ -296,6 +296,7 @@ class Database(Session):
         self.__connection.commit()
         after = time.time()
         self.recordProfiling("<commit>", after - before, 0)
+        super(Database, self).commit()
         self.__call_transaction_callbacks("commit")
         self.unsafe_queries = []
 
@@ -306,6 +307,7 @@ class Database(Session):
         self.__connection.rollback()
         after = time.time()
         self.recordProfiling("<rollback>", after - before, 0)
+        super(Database, self).rollback()
         self.__call_transaction_callbacks("rollback")
         self.unsafe_queries = []
 

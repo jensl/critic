@@ -953,7 +953,7 @@ def applyFilters(db, user, review, globalfilters=False, parentfilters=False):
     mail.sendPendingMails(pending_mails)
 
 def generateMailsForBatch(db, batch_id, was_accepted, is_accepted, profiler=None):
-    cursor = db.cursor()
+    cursor = db.readonly_cursor()
     cursor.execute("SELECT review, uid FROM batches WHERE id=%s", (batch_id,))
 
     review_id, user_id = cursor.fetchone()
@@ -961,13 +961,9 @@ def generateMailsForBatch(db, batch_id, was_accepted, is_accepted, profiler=None
     review = dbutils.Review.fromId(db, review_id)
     from_user = dbutils.User.fromId(db, user_id)
 
-    pending_mails = []
-
     recipients = review.getRecipients(db)
     for to_user in recipients:
-        pending_mails.extend(mail.sendReviewBatch(db, from_user, to_user, recipients, review, batch_id, was_accepted, is_accepted, profiler=profiler))
-
-    return pending_mails
+        db.pending_mails.extend(mail.sendReviewBatch(db, from_user, to_user, recipients, review, batch_id, was_accepted, is_accepted, profiler=profiler))
 
 def generateMailsForAssignmentsTransaction(db, transaction_id):
     cursor = db.cursor()

@@ -112,11 +112,22 @@ def sendExceptionMessage(db, source, exception):
 
 def sendPendingMails(filenames):
     for filename in filenames:
-        if filename.endswith(".txt.pending"):
+        assert filename.endswith(".txt.pending")
+        try:
             os.rename(filename, filename[:-len(".pending")])
+        except OSError:
+            pass
 
     try:
         pid = int(open(configuration.services.MAILDELIVERY["pidfile_path"]).read().strip())
         os.kill(pid, signal.SIGHUP)
     except:
         pass
+
+def cancelPendingMails(filenames):
+    for filename in filenames:
+        assert filename.endswith(".txt.pending")
+        try:
+            os.unlink(filename)
+        except OSError:
+            pass

@@ -25,6 +25,7 @@ class Session(object):
                          "CommitUserTime": {},
                          "Timezones": {} }
         self.profiling = {}
+        self.pending_mails = []
 
         self.__user = None
         self.__authentication_labels = set()
@@ -86,3 +87,15 @@ class Session(object):
 
     def addProfile(self, profile):
         self.__profiles.add(profile)
+
+    def commit(self):
+        if self.pending_mails:
+            import mailutils
+            mailutils.sendPendingMails(self.pending_mails)
+            self.pending_mails = []
+
+    def rollback(self):
+        if self.pending_mails:
+            import mailutils
+            mailutils.cancelPendingMails(self.pending_mails)
+            self.pending_mails = []

@@ -179,7 +179,10 @@ def main():
                 batch_id = data["batch_id"]
                 was_accepted = data["was_accepted"]
                 is_accepted = data["is_accepted"]
-                pending_mails = reviewing.utils.generateMailsForBatch(db, batch_id, was_accepted, is_accepted)
+                with db.updating_cursor("reviewmessageids",
+                                        "commentmessageids"):
+                    reviewing.utils.generateMailsForBatch(
+                        db, batch_id, was_accepted, is_accepted)
             elif command == "generate-mails-for-assignments-transaction":
                 data = json_decode(sys.stdin.readline())
                 transaction_id = data["transaction_id"]
