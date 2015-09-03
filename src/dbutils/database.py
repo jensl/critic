@@ -95,8 +95,9 @@ class _CursorBase(object):
         else:
             return self.__rows
 
-    def execute(self, query, params=(), for_update=False):
-        self.validate(query, for_update)
+    def execute(self, query, params=(), for_update=False, validate_query=True):
+        if validate_query:
+            self.validate(query, for_update)
         if for_update:
             assert query.upper().startswith("SELECT ")
             query += " FOR UPDATE"
@@ -145,7 +146,7 @@ class _UnsafeCursor(_CursorBase):
         except ValueError:
             command = None
         if command != "SELECT" or for_update:
-            self.db.unsafe_queries = True
+            self.db.unsafe_queries.append(query)
 
 class _ReadOnlyCursor(_CursorBase):
     def validate(self, query, for_update):
@@ -158,7 +159,7 @@ class _ReadOnlyCursor(_CursorBase):
                 "invalid SQL query for read-only cursor: " +
                 query.split(None, 1)[0])
 
-class _UpdatingCursor(_ReadOnlyCursor):
+class _UpdatingCursor(_CursorBase):
     def __init__(self, tables, *args):
         super(_UpdatingCursor, self).__init__(*args)
         self.__disabled = False
@@ -176,18 +177,38 @@ class _UpdatingCursor(_ReadOnlyCursor):
         except ValueError as error:
             raise InvalidCursorError(error.message)
         if command == "SELECT":
-            return True
+            return
         elif command not in ("INSERT", "UPDATE", "DELETE"):
             raise InvalidCursorError(
                 "invalid query for updating cursor: " + command)
         elif table not in self.__tables:
             raise InvalidCursorError(
                 "invalid table for updating cursor: " + table)
-        else:
-            return True
 
     def disable(self):
         self.__disabled = True
+
+    @contextlib.contextmanager
+    def restrict(self, tables):
+        restricted_tables = set(tables)
+        if restricted_tables - self.__tables:
+            raise InvalidCursorError(
+                "invalid table(s) for nested updating cursor: " +
+                ", ".join(sorted(restricted_tables - self.__tables)))
+        all_tables = self.__tables
+        self.__tables = restricted_tables
+        try:
+            yield self
+        finally:
+            self.__tables = all_tables
+
+class _DependentCursor(_CursorBase):
+    def __init__(self, updating_cursor, *args):
+        super(_DependentCursor, self).__init__(*args)
+        self.__updating_cursor = updating_cursor
+
+    def validate(self, query, for_update):
+        self.__updating_cursor.validate(query, for_update)
 
 RE_COMMAND = re.compile(
     # Optional WITH clause first:
@@ -205,7 +226,7 @@ class Database(Session):
         self.__transaction_callbacks = []
         self.__allow_unsafe_cursors = allow_unsafe_cursors
         self.__updating_cursor = None
-        self.unsafe_queries = False
+        self.unsafe_queries = []
 
     def __call_transaction_callbacks(self, *args):
         keep_transaction_callbacks = []
@@ -217,6 +238,13 @@ class Database(Session):
     def cursor(self):
         if not self.__allow_unsafe_cursors:
             raise InvalidCursorError("unsafe cursors are not allowed")
+        if self.__updating_cursor:
+            # Return a new cursor that is allowed to update the same tables as
+            # the current updating cursor.  Changes will be committed when the
+            # updating cursor goes out of scope, as usual.
+            return _DependentCursor(
+                self.__updating_cursor,
+                self, self.__connection.cursor(), self.profiling)
         return _UnsafeCursor(self, self.__connection.cursor(), self.profiling)
 
     def readonly_cursor(self):
@@ -225,7 +253,9 @@ class Database(Session):
     @contextlib.contextmanager
     def updating_cursor(self, *tables):
         if self.__updating_cursor:
-            raise InvalidCursorError("concurrent updating cursor requested")
+            with self.__updating_cursor.restrict(tables) as restricted:
+                yield restricted
+            return
         if self.unsafe_queries:
             raise InvalidCursorError("mixed unsafe and updating cursors")
         # Commit the current transaction.  It's guaranteed to have made no
@@ -258,7 +288,7 @@ class Database(Session):
         after = time.time()
         self.recordProfiling("<commit>", after - before, 0)
         self.__call_transaction_callbacks("commit")
-        self.unsafe_queries = False
+        self.unsafe_queries = []
 
     def rollback(self):
         if self.__updating_cursor:
@@ -268,7 +298,7 @@ class Database(Session):
         after = time.time()
         self.recordProfiling("<rollback>", after - before, 0)
         self.__call_transaction_callbacks("rollback")
-        self.unsafe_queries = False
+        self.unsafe_queries = []
 
     def close(self):
         super(Database, self).close()

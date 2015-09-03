@@ -77,12 +77,23 @@ def cursors():
         ro_cursor.execute("SELECT y FROM playground1 WHERE x=2")
         assert ro_cursor.fetchone()[0] == -2
 
+        with db.updating_cursor("playground1", "playground2") as cursor1:
+            with db.updating_cursor("playground1") as cursor2:
+                cursor2.execute("UPDATE playground1 SET y=-2 WHERE x=2")
+                try:
+                    cursor2.execute("UPDATE playground2 SET y=-2 WHERE x=2")
+                    assert False
+                except dbutils.InvalidCursorError as error:
+                    assert error.message == "invalid table for updating cursor: playground2"
+            cursor2.execute("UPDATE playground1 SET y=1 WHERE x=10")
+            cursor2.execute("UPDATE playground2 SET y=1 WHERE x=10")
+
         with db.updating_cursor("playground1") as cursor:
             try:
                 with db.updating_cursor("playground2"):
                     assert False
             except dbutils.InvalidCursorError as error:
-                assert error.message == "concurrent updating cursor requested"
+                assert error.message == "invalid table(s) for nested updating cursor: playground2"
 
         stored_cursor = None
         with db.updating_cursor("playground1") as cursor:
