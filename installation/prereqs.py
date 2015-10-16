@@ -48,53 +48,105 @@ aptget_updated = False
 
 need_blankline = False
 
+use_yum = False
+apache_name = None
+
 def blankline():
     global need_blankline
     if need_blankline:
         print
         need_blankline = False
 
+def is_yum():
+    yum = find_executable("yum")    
+    if not yum:
+        return False
+    else:
+        return True    
+
+
 def install_packages(arguments, *packages):
-    global aptget, aptget_approved, aptget_updated, need_blankline, all_ok
-    if aptget is None:
-        aptget = find_executable("apt-get")
-    if aptget and not aptget_approved:
-        all_ok = False
-        print """\
+    global aptget, aptget_approved, aptget_updated, need_blankline, all_ok, use_yum
+    if not use_yum:
+        if aptget is None:
+            aptget = find_executable("apt-get")
+        if aptget and not aptget_approved:
+            all_ok = False
+            print """\
 Found 'apt-get' executable in your $PATH.  This script can attempt to install
 missing software using it.
 """
-        aptget_approved = installation.input.yes_or_no(
-            prompt="Do you want to use 'apt-get' to install missing packages?",
-            default=True)
-        if not aptget_approved: aptget = False
-    if aptget:
-        aptget_env = os.environ.copy()
-        if arguments.headless:
-            aptget_env["DEBIAN_FRONTEND"] = "noninteractive"
-        if not aptget_updated:
-            subprocess.check_output(
-                [aptget, "-qq", "update"],
+            aptget_approved = installation.input.yes_or_no(
+                prompt="Do you want to use 'apt-get' to install missing packages?",
+                default=True)
+            if not aptget_approved: aptget = False
+        if aptget:
+            aptget_env = os.environ.copy()
+            if arguments.headless:
+                aptget_env["DEBIAN_FRONTEND"] = "noninteractive"
+            if not aptget_updated:
+                subprocess.check_output(
+                    [aptget, "-qq", "update"],
+                    env=aptget_env)
+                aptget_updated = True
+            aptget_output = subprocess.check_output(
+                [aptget, "-qq", "-y", "install"] + list(packages),
                 env=aptget_env)
-            aptget_updated = True
-        aptget_output = subprocess.check_output(
-            [aptget, "-qq", "-y", "install"] + list(packages),
-            env=aptget_env)
-        installed = {}
-        for line in aptget_output.splitlines():
-            match = re.match(r"^Setting up ([^ ]+) \(([^)]+)\) \.\.\.", line)
-            if match:
-                package_name, version = match.groups()
-                if package_name in packages:
-                    need_blankline = True
-                    installed[package_name] = version
-                    print "Installed: %s (%s)" % (package_name, version)
-        return installed
+            installed = {}
+            for line in aptget_output.splitlines():
+                match = re.match(r"^Setting up ([^ ]+) \(([^)]+)\) \.\.\.", line)
+                if match:
+                    package_name, version = match.groups()
+                    if package_name in packages:
+                        need_blankline = True
+                        installed[package_name] = version
+                        print "Installed: %s (%s)" % (package_name, version)
+            return installed
+        else:
+            return False
     else:
-        return False
+        if aptget is None:
+            aptget = find_executable("yum")
+        if aptget and not aptget_approved:
+            all_ok = False
+            print """\
+Found 'yum' executable in your $PATH.  This script can attempt to install
+missing software using it.
+"""
+            aptget_approved = installation.input.yes_or_no(
+                prompt="Do you want to use 'yum' to install missing packages?",
+                default=True)
+            if not aptget_approved: aptget = False
+        if aptget:
+            aptget_env = os.environ.copy()
+            aptget_updated = True
+            aptget_output = subprocess.check_output(
+                [aptget, "-y", "install"] + list(packages),
+                env=aptget_env)
+            installed = {}
+            find_installed_string = False
+            for line in aptget_output.splitlines():
+                if not find_installed_string:
+                    match = re.match(r"^Installed:", line)
+                    if match:
+                        find_installed_string = True
+                else:
+                    find_installed_string = False
+                    match = re.match(r"^ +([^.]+).[^:]+:([^ ]+)", line)
+                    if match:
+                        package_name, version = match.groups()
+                        if package_name in packages:
+                            need_blankline = True
+                            installed[package_name] = version
+                            print "Installed: %s (%s)" % (package_name, version)
+
+            return installed
+        else:
+            return False
+
 
 def check(mode, arguments):
-    global git, tar, psql, passlib_available, apache2ctl, a2enmod, a2ensite, a2dissite
+    global git, tar, psql, passlib_available, apache2ctl, a2enmod, a2ensite, a2dissite, use_yum, apache_name
 
     if mode == "install":
         print """
@@ -105,10 +157,16 @@ Critic Installation: Prerequisites
     success = True
     all_ok = True
 
+    use_yum = is_yum()
+
     git = find_executable("git")
     if not git:
-        if aptget_approved and install_packages(arguments, "git-core"):
-            git = find_executable("git")
+        if use_yum:
+            if aptget_approved and install_packages(arguments, "git"):
+                git = find_executable("git")
+        else:
+            if aptget_approved and install_packages(arguments, "git-core"):
+                git = find_executable("git")
         if not git:
             blankline()
             all_ok = False
@@ -120,8 +178,12 @@ code can be downloaded here:
 
   https://github.com/git/git
 """
-            if not aptget_approved and install_packages(arguments, "git-core"):
-                git = find_executable("git")
+            if use_yum:
+                if not aptget_approved and install_packages(arguments, "git"):
+                    git = find_executable("git")
+            else:
+                if not aptget_approved and install_packages(arguments, "git-core"):
+                    git = find_executable("git")
             if not git: success = False
 
     tar = find_executable("tar")
@@ -149,7 +211,7 @@ to install are 'postgresql' and 'postgresql-client'.
         postgresql_major = postgresql_version[0]
         postgresql_minor = postgresql_version[1]
 
-        if postgresql_major < 9 or (postgresql_major == 9 and postgresql_minor < 1):
+        if int(postgresql_major) < 9 or (int(postgresql_major) == 9 and int(postgresql_minor) < 1):
             blankline()
             all_ok = False
             print """\
@@ -157,83 +219,101 @@ Unsupported PostgreSQL version!  Critic requires PostgreSQL 9.1.x or later.
 """
             sys.exit(1)
 
-    apache2ctl = find_executable("apache2ctl")
+    if use_yum:
+        apachectl_name = "apachectl"
+        apache_name = "httpd"
+    else:
+        apachectl_name = "apache2ctl"
+        apache_name = "apache2"
+    apache2ctl = find_executable(apachectl_name)
     if not apache2ctl:
-        if aptget_approved and install_packages(arguments, "apache2"):
-            apache2ctl = find_executable("apache2ctl")
+        if aptget_approved and install_packages(arguments, apache_name):
+            apache2ctl = find_executable(apachectl_name)
         if not apache2ctl:
             blankline()
             all_ok = False
             print """\
-No 'apache2ctl' executable found in $PATH.  Make sure the Apache web server is
-installed.  In Debian/Ubuntu, the package you need to install is 'apache2'.
-"""
-            if not aptget_approved and install_packages(arguments, "apache2"):
-                apache2ctl = find_executable("apache2ctl")
+No '%s' executable found in $PATH.  Make sure the Apache web server is
+installed.  In Debian/Ubuntu, the package you need to install is 'Apache2'.
+In RedHat/SentOS the package is 'httpd'.
+""" % (apachectl_name)
+            if not aptget_approved and install_packages(arguments, apache_name):
+                apache2ctl = find_executable(apachectl_name)
             if not apache2ctl: success = False
 
-    a2enmod = find_executable("a2enmod")
-    if not a2enmod:
-        if aptget_approved and install_packages(arguments, "apache2"):
-            a2enmod = find_executable("a2enmod")
+    if not use_yum: # In CentOS and Red Hat there is no such scripts like a2enmod, a2ensite, a2dissite
+        a2enmod = find_executable("a2enmod")
         if not a2enmod:
-            blankline()
-            all_ok = False
-            print """\
+            if aptget_approved and install_packages(arguments, "apache2"):
+                a2enmod = find_executable("a2enmod")
+            if not a2enmod:
+                blankline()
+                all_ok = False
+                print """\
 No 'a2enmod' executable found in $PATH.  Make sure the Apache web server is
 installed.  In Debian/Ubuntu, the package you need to install is 'apache2'.
 """
-            if not aptget_approved and install_packages(arguments, "apache2"):
-                a2enmod = find_executable("a2enmod")
-            if not a2enmod: success = False
+                if not aptget_approved and install_packages(arguments, "apache2"):
+                    a2enmod = find_executable("a2enmod")
+                if not a2enmod: success = False
 
-    a2ensite = find_executable("a2ensite")
-    if not a2ensite:
-        if aptget_approved and install_packages(arguments, "apache2"):
-            a2ensite = find_executable("a2ensite")
+        a2ensite = find_executable("a2ensite")
         if not a2ensite:
-            blankline()
-            all_ok = False
-            print """\
+            if aptget_approved and install_packages(arguments, "apache2"):
+                a2ensite = find_executable("a2ensite")
+            if not a2ensite:
+                blankline()
+                all_ok = False
+                print """\
 No 'a2ensite' executable found in $PATH.  Make sure the Apache web server is
 installed.  In Debian/Ubuntu, the package you need to install is 'apache2'.
 """
-            if not aptget_approved and install_packages(arguments, "apache2"):
-                a2ensite = find_executable("a2ensite")
-            if not a2ensite: success = False
+                if not aptget_approved and install_packages(arguments, "apache2"):
+                    a2ensite = find_executable("a2ensite")
+                if not a2ensite: success = False
 
-    a2dissite = find_executable("a2dissite")
-    if not a2dissite:
-        if aptget_approved and install_packages(arguments, "apache2"):
-            a2dissite = find_executable("a2dissite")
+        a2dissite = find_executable("a2dissite")
         if not a2dissite:
-            blankline()
-            all_ok = False
-            print """\
+            if aptget_approved and install_packages(arguments, "apache2"):
+                a2dissite = find_executable("a2dissite")
+            if not a2dissite:
+                blankline()
+                all_ok = False
+                print """\
 No 'a2dissite' executable found in $PATH.  Make sure the Apache web server is
 installed.  In Debian/Ubuntu, the package you need to install is 'apache2'.
 """
-            if not aptget_approved and install_packages(arguments, "apache2"):
-                a2dissite = find_executable("a2dissite")
-            if not a2dissite: success = False
+                if not aptget_approved and install_packages(arguments, "apache2"):
+                    a2dissite = find_executable("a2dissite")
+                if not a2dissite: success = False
 
-    if not os.path.isdir(os.path.join("/etc", "apache2", "mods-available")):
+    if use_yum:
+        dir_with_mods = "conf.d"
+        full_dir_mods = "/etc/httpd/conf.d/"
+        wsgi_script = "wsgi.conf"
+        wsgi_mod = "mod_wsgi"
+    else:
+        dir_with_mods = "mods-available"        
+        full_dir_mods = "/etc/apache2/mods-available/"
+        wsgi_script = "wsgi.load"
+        wsgi_mod = "libapache2-mod-wsgi"
+    if not os.path.isdir(os.path.join("/etc", apache_name, dir_with_mods)):
         print """\
-There's no /etc/apache2/mods-available/ directory.  This means I don't know how
+There's no %s directory.  This means I don't know how
 to determine whether the 'wsgi' Apache module is available, and will just have
 to assume it is.  If you know it *isn't* available, you should install it, or
 abort this script now.
-"""
+""" % full_dir_mods
         abort = installation.input.yes_or_no(
             prompt="Do you want to abort this script now?",
             default=False)
         if abort: sys.exit(1)
         else: mod_wsgi_available = True
     else:
-        mod_wsgi_available_path = os.path.join("/etc", "apache2", "mods-available", "wsgi.load")
+        mod_wsgi_available_path = os.path.join("/etc", apache_name, dir_with_mods, wsgi_script)
         mod_wsgi_available = os.path.isfile(mod_wsgi_available_path)
         if not mod_wsgi_available:
-            if aptget_approved and install_packages(arguments, "libapache2-mod-wsgi"):
+            if aptget_approved and install_packages(arguments, wsgi_mod):
                 mod_wsgi_available = os.path.isfile(mod_wsgi_available_path)
             if not mod_wsgi_available:
                 blankline()
@@ -241,11 +321,11 @@ abort this script now.
                 print """\
 The WSGI Apache module (mod_wsgi) doesn't appear to be installed.  Make sure
 it's installed.  In Debian/Ubuntu, the package you need to install is
-'libapache2-mod-wsgi'.  The source code can be downloaded here:
+'%s'.  The source code can be downloaded here:
 
   http://code.google.com/p/modwsgi/wiki/DownloadTheSoftware?tm=2
-"""
-                if not aptget_approved and install_packages(arguments, "libapache2-mod-wsgi"):
+""" % wsgi_mod
+                if not aptget_approved and install_packages(arguments, wsgi_mod):
                     mod_wsgi_available = os.path.isfile(mod_wsgi_available_path)
                 if not mod_wsgi_available: success = False
 
@@ -268,7 +348,7 @@ Failed to import the 'psycopg2' module, which is used to access the PostgreSQL
 database from Python.  In Debian/Ubuntu, the module is provided by the
 'python-psycopg2' package.  The source code can be downloaded here:
 
-  http://www.initd.org/psycopg/download/
+  http://initd.org/psycopg/download/
 """
         if not aptget_approved and install_packages(arguments, "python-psycopg2"):
             check_psycopg2()

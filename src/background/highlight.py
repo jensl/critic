@@ -91,6 +91,13 @@ else:
             else:
                 super(HighlightServer, self).execute_command(client, command)
 
+        def find_bzip2():
+            for search_path in os.environ["PATH"].split(":"):
+                path = os.path.join(search_path, "bzip2")
+                if os.path.isfile(path) and os.access(path, os.X_OK):
+                    return path
+            return "/bin/bzip2"
+
         def __compact(self):
             import syntaxhighlight
 
@@ -128,7 +135,7 @@ else:
                             cursor.execute("DELETE FROM purged WHERE sha1=%s", (section + filename[:38],))
                             if age > max_age_uncompressed:
                                 self.debug("compressing: %s/%s" % (section, filename))
-                                worker = process(["/bin/bzip2", fullname])
+                                worker = process([find_bzip2(), fullname])
                                 worker.wait()
                                 compressed_count += 1
                             else:

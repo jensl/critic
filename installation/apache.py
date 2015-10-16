@@ -37,7 +37,7 @@ def start():
     global apache_stopped
     print
     try:
-        subprocess.check_call(["service", "apache2", "start"])
+        subprocess.check_call(["service", installation.prereqs.apache_name, "start"])
     except subprocess.CalledProcessError:
         print """
 WARNING: Apache failed to start.
@@ -46,11 +46,11 @@ You can now either abort this Critic installation/upgrade, or you can
 go ahead anyway, fix the Apache configuration problem manually (now or
 later), and then start Apache yourself using the command
 
-  service apache2 start
+  service %s start
 
 Note that if you don't abort, the Critic system will most likely not
 be accessible until the Apache configuration has been fixed.
-"""
+""" % installation.prereqs.apache_name
         return not installation.input.yes_or_no(
             "Do you want to abort this Critic installation/upgrade?")
     apache_stopped = False
@@ -61,7 +61,7 @@ def stop():
     apache_stopped = True
     print
     try:
-        subprocess.check_call(["service", "apache2", "stop"])
+        subprocess.check_call(["service", installation.prereqs.apache_name, "stop"])
     except subprocess.CalledProcessError:
         return False
     return True
@@ -98,7 +98,10 @@ def install(data):
     site = "site.%s" % installation.config.access_scheme
 
     source_path = os.path.join(installation.root_dir, "installation", "templates", site)
-    target_path = os.path.join("/etc", "apache2", "sites-available", "critic-main%s" % site_suffix)
+    if installation.prereqs.use_yum:
+            target_path = os.path.join("/etc", "httpd", "conf.d", "critic-main%s.conf" % site_suffix)
+    else:
+            target_path = os.path.join("/etc", "apache2", "sites-available", "critic-main%s" % site_suffix)
 
     with open(target_path, "w") as target:
         created_file.append(target_path)
@@ -108,19 +111,20 @@ def install(data):
         with open(source_path, "r") as source:
             target.write((source.read().decode("utf-8") % data).encode("utf-8"))
 
-    if installation.prereqs.a2enmod:
-        subprocess.check_call([installation.prereqs.a2enmod, "expires"])
-        subprocess.check_call([installation.prereqs.a2enmod, "rewrite"])
-        subprocess.check_call([installation.prereqs.a2enmod, "wsgi"])
+    if not installation.prereqs.use_yum:
+        if installation.prereqs.a2enmod:
+            subprocess.check_call([installation.prereqs.a2enmod, "expires"])
+            subprocess.check_call([installation.prereqs.a2enmod, "rewrite"])
+            subprocess.check_call([installation.prereqs.a2enmod, "wsgi"])
 
-    if installation.prereqs.a2ensite:
-        subprocess.check_call([installation.prereqs.a2ensite, "critic-main"])
-        site_enabled = True
-    if installation.prereqs.a2dissite:
-        output = subprocess.check_output([installation.prereqs.a2dissite, default_site],
-                                         env={ "LANG": "C" })
-        if "Site default disabled." in output:
-            default_site_disabled = True
+        if installation.prereqs.a2ensite:
+            subprocess.check_call([installation.prereqs.a2ensite, "critic-main"])
+            site_enabled = True
+        if installation.prereqs.a2dissite:
+            output = subprocess.check_output([installation.prereqs.a2dissite, default_site],
+                                             env={ "LANG": "C" })
+            if "Site default disabled." in output:
+                default_site_disabled = True
 
     return stop() and start()
 
@@ -128,7 +132,10 @@ def upgrade(arguments, data):
     site = "site.%s" % installation.config.access_scheme
 
     source_path = os.path.join(installation.root_dir, "installation", "templates", site)
-    target_path = os.path.join("/etc", "apache2", "sites-available", "critic-main%s" % site_suffix)
+    if installation.prereqs.use_yum:
+        target_path = os.path.join("/etc", "httpd", "conf.d", "critic-main%s.conf" % site_suffix)
+    else:
+        target_path = os.path.join("/etc", "apache2", "sites-available", "critic-main%s" % site_suffix)
     backup_path = os.path.join(os.path.dirname(target_path), "_" + os.path.basename(target_path))
 
     source = open(source_path, "r").read().decode("utf-8") % data
@@ -179,10 +186,11 @@ likely to break.
 
 def undo():
     if site_enabled:
-        subprocess.check_call([installation.prereqs.a2dissite, "critic-main"])
+        if not installation.prereqs.use_yum:
+            subprocess.check_call([installation.prereqs.a2dissite, "critic-main"])
 
-        if default_site_disabled:
-            subprocess.check_call([installation.prereqs.a2ensite, default_site])
+            if default_site_disabled:
+                subprocess.check_call([installation.prereqs.a2ensite, default_site])
 
         if installation.prereqs.apache2ctl:
             subprocess.check_call([installation.prereqs.apache2ctl, "restart"])

@@ -22,6 +22,13 @@ import subprocess
 
 import installation
 
+def is_yum():
+    for search_path in os.environ["PATH"].split(":"):
+        path = os.path.join(search_path, "yum")
+        if os.path.isfile(path) and os.access(path, os.X_OK):
+            return True
+    return False
+
 def enum(*sequential, **named):
     enums = dict(zip(sequential, range(len(sequential))), **named)
     return type('Enum', (), enums)
@@ -76,6 +83,11 @@ def rmdir_if_empty(directories):
             pass
 
 def main():
+    if is_yum():
+        apache_name = "httpd"
+    else:
+        apache_name = "apache2"
+
     parser = argparse.ArgumentParser(description="Critic uninstall script")
     parser.add_argument("--headless", help=argparse.SUPPRESS, action="store_true")
     parser.add_argument("--etc-dir", default="/etc/critic", help="root directory for Critic system configurations i.e. specifying /etc/critic will read configuration data from /etc/critic/*/configuration/*.py", action="store")
@@ -106,7 +118,7 @@ This step cannot be undone! To abort the uninstall script, press CTRL-C now.
         print "%s: no such directory.  Invalid --etc-dir parameter." % arguments.etc_dir
         sys.exit(ExitStatus.INVALID_ETC_DIR)
 
-    run_command(arguments, ["service", "apache2", "stop"])
+    run_command(arguments, ["service", apache_name, "stop"])
 
     # Sets of system users/groups to delete will be collected (to avoid trying to delete the same user/group twice).
     users_to_delete = set()
@@ -120,10 +132,13 @@ This step cannot be undone! To abort the uninstall script, press CTRL-C now.
         run_command(arguments, ["rm", "-rf", configuration.paths.DATA_DIR, configuration.paths.LOG_DIR])
         run_command(arguments, ["rm", "-rf", configuration.paths.CACHE_DIR, configuration.paths.RUN_DIR])
         run_command(arguments, ["rm", "-rf", configuration.paths.INSTALL_DIR, configuration.paths.GIT_DIR])
-        run_command(arguments, ["rm", "-f", "/etc/apache2/sites-available/critic-%s" % configuration.base.SYSTEM_IDENTITY])
-        run_command(arguments, ["rm", "-f", "/etc/apache2/sites-enabled/critic-%s" % configuration.base.SYSTEM_IDENTITY])
-        run_command(arguments, ["rm", "-f", "/etc/init.d/critic-%s" % configuration.base.SYSTEM_IDENTITY])
-        run_command(arguments, ["update-rc.d", "critic-%s" % configuration.base.SYSTEM_IDENTITY, "remove"])
+        if installation.prereqs.use_yum:
+            run_command(arguments, ["rm", "-f", "/etc/httpd/conf.d/critic-%s.conf" % configuration.base.SYSTEM_IDENTITY])
+        else:
+            run_command(arguments, ["rm", "-f", "/etc/apache2/sites-available/critic-%s" % configuration.base.SYSTEM_IDENTITY])
+            run_command(arguments, ["rm", "-f", "/etc/apache2/sites-enabled/critic-%s" % configuration.base.SYSTEM_IDENTITY])
+            run_command(arguments, ["rm", "-f", "/etc/init.d/critic-%s" % configuration.base.SYSTEM_IDENTITY])
+            run_command(arguments, ["update-rc.d", "critic-%s" % configuration.base.SYSTEM_IDENTITY, "remove"])
 
         # Typically the postgres user does not have access to the cwd during uninstall so we use "-i"
         # with sudo which makes the command run with the postgres user's homedir as cwd instead.
@@ -133,7 +148,10 @@ This step cannot be undone! To abort the uninstall script, press CTRL-C now.
         run_command(arguments, ["sudo", "-u", "postgres", "-i", "psql", "-v", "ON_ERROR_STOP=1", "-c", "DROP ROLE IF EXISTS %s;" % configuration.database.PARAMETERS["user"]])
 
     for user in users_to_delete:
-        run_command(arguments, ["deluser", "--system", user])
+        if is_yum():
+            run_command(arguments, ["userdel", "--force", user])
+        else:
+            run_command(arguments, ["deluser", "--system", user])
 
     for group in groups_to_delete:
         try:
@@ -144,11 +162,14 @@ This step cannot be undone! To abort the uninstall script, press CTRL-C now.
                 subprocess.check_output(["gpasswd", "-d", group_member, group])
         except KeyError:
             abort_if_no_keep_going_param(arguments, "ERROR: Could not find group '%s'." % group)
-        run_command(arguments, ["delgroup", "--system", group])
+        if is_yum():
+            run_command(arguments, ["groupdel", group])
+        else:
+            run_command(arguments, ["delgroup", "--system", group])
 
     # Delete non-instance specific parts.
     run_command(arguments, ["rm", "-rf", arguments.etc_dir, "/usr/bin/criticctl"])
-    run_command(arguments, ["service", "apache2", "restart"])
+    run_command(arguments, ["service", apache_name, "restart"])
 
     # When default paths are used in install.py we put some extra effort into
     # completely cleaning the system on uninstall, with custom paths it's

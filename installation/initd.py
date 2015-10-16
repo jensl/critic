@@ -61,7 +61,10 @@ def restart(identity="main"):
 def install(data):
     global servicemanager_started, rclinks_added
 
-    source_path = os.path.join(installation.root_dir, "installation", "templates", "initd")
+    if installation.prereqs.use_yum:
+        source_path = os.path.join(installation.root_dir, "installation", "templates", "initd_yum")
+    else:
+        source_path = os.path.join(installation.root_dir, "installation", "templates", "initd")
     target_path = os.path.join("/etc", "init.d", "critic-main")
 
     with open(target_path, "w") as target:
@@ -73,7 +76,10 @@ def install(data):
         with open(source_path, "r") as source:
             target.write((source.read().decode("utf-8") % data).encode("utf-8"))
 
-    subprocess.check_call(["update-rc.d", "critic-main", "defaults"])
+    if installation.prereqs.use_yum:
+        subprocess.check_call(["chkconfig", "--add", "critic-main"])
+    else:
+        subprocess.check_call(["update-rc.d", "critic-main", "defaults"])
     rclinks_added = True
 
     subprocess.check_call([target_path, "start"])
@@ -82,7 +88,10 @@ def install(data):
     return True
 
 def upgrade(arguments, data):
-    source_path = os.path.join(installation.root_dir, "installation", "templates", "initd")
+    if installation.prereqs.use_yum:
+        source_path = os.path.join(installation.root_dir, "installation", "templates", "initd_yum")
+    else:
+        source_path = os.path.join(installation.root_dir, "installation", "templates", "initd")
     target_path = os.path.join("/etc", "init.d", "critic-main")
     backup_path = os.path.join(os.path.dirname(target_path), "_" + os.path.basename(target_path))
 
@@ -145,7 +154,10 @@ def undo():
     for target, backup in renamed: os.rename(backup, target)
 
     if rclinks_added:
-        subprocess.check_call(["update-rc.d", "critic-main", "remove"])
+        if installation.prereqs.use_yum:
+            subprocess.check_call(["chkconfig", "--del", "critic-main"])
+        else:
+            subprocess.check_call(["update-rc.d", "critic-main", "remove"])
 
 def finish(mode, arguments, data):
     for target, backup in renamed: os.unlink(backup)

@@ -18,5 +18,6 @@ HOST = %(installation.smtp.host)r
 PORT = %(installation.smtp.port)r
 USE_SSL = %(installation.smtp.use_ssl)r
 USE_STARTTLS = %(installation.smtp.use_starttls)r
+USE_SYSTEM_MAIL_FOR_FROM_FIELD = %(installation.smtp.use_system_mail_for_from_field)r
 
 MAX_ATTEMPTS = 10
