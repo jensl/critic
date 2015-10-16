@@ -566,7 +566,7 @@ Review
 |
 |   readonly attribute long           id;
 |   readonly attribute string         state;
-|   readonly attribute User           owner;
+|   readonly attribute User[]         owners;
 |   readonly attribute User?          closedBy;
 |   readonly attribute User?          droppedBy;
 |   readonly attribute string         summary;
