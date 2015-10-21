@@ -61,6 +61,17 @@ class RepositoryFilter(apiobject.APIObject):
             return RepositoryFilter(*row)
         return self
 
+def fetchRepositoryFilter(critic, filter_id):
+    cursor = critic.getDatabaseCursor()
+    cursor.execute("""SELECT id, uid, type, path, repository, delegate
+                        FROM filters
+                       WHERE id=%s""",
+                   (filter_id,))
+    try:
+        return next(RepositoryFilter.make(critic, cursor))
+    except StopIteration:
+        raise api.filters.InvalidRepositoryFilterId(filter_id)
+
 class ReviewFilter(object):
     wrapper_class = api.filters.ReviewFilter
 

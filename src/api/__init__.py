@@ -17,7 +17,7 @@
 """Critic API"""
 
 from apiobject import APIObject
-from apierror import APIError
+from apierror import APIError, PermissionDenied
 
 import config
 import critic
@@ -30,3 +30,5 @@ import commit
 import commitset
 import log
 import preference
+
+import transaction

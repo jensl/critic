@@ -18,3 +18,18 @@ class APIError(Exception):
     """Base exception for all errors caused by incorrect API usage (including
        invalid input.)"""
     pass
+
+class PermissionDenied(Exception):
+    """Exception raised on correct API usage that the current user is not
+       allowed."""
+
+    @staticmethod
+    def raiseUnlessAdministrator(critic):
+        if not (critic.actual_user and
+                critic.actual_user.hasRole("administrator")):
+            raise PermissionDenied("Must be an administrator")
+
+    @staticmethod
+    def raiseUnlessUser(critic, required_user):
+        if critic.actual_user != required_user:
+            PermissionDenied.raiseUnlessAdministrator(critic)

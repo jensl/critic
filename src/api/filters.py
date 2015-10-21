@@ -42,6 +42,15 @@ class Filter(api.APIObject):
         """The filter's path"""
         return self._impl.path
 
+class InvalidRepositoryFilterId(FilterError):
+    """Raised when an invalid repository filter id is used"""
+
+    def __init__(self, value):
+        """Constructor"""
+        super(InvalidRepositoryFilterId, self).__init__(
+            "Invalid repository filter id: %r" % value)
+        self.value = value
+
 class RepositoryFilter(Filter):
     """Representation of a repository filter
 
@@ -66,6 +75,11 @@ class RepositoryFilter(Filter):
            If the filter's type is not "reviewer", this attribute's value is
            None."""
         return self._impl.getDelegates(self.critic)
+
+def fetchRepositoryFilter(critic, filter_id):
+    """Fetch a RepositoryFilter object with the given filter id"""
+    assert isinstance(critic, api.critic.Critic)
+    return api.impl.filters.fetchRepositoryFilter(critic, int(filter_id))
 
 class ReviewFilter(Filter):
     """Representation of a review filter
