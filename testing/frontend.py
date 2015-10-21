@@ -301,7 +301,8 @@ class Frontend(object):
 
         return result
 
-    def json(self, path, expect=None, params={}, expected_http_status=200):
+    def json(self, path, expect=None, params={}, expected_http_status=200,
+             post=None, put=None, delete=False):
         url = "api/v1/" + path
         full_url = "http://%s:%d/%s" % (self.hostname, self.http_port, url)
 
@@ -312,18 +313,34 @@ class Frontend(object):
 
         kwargs = { "params": params,
                    "headers": { "Accept": "application/vnd.api+json" } }
+        method = "GET"
 
         self.sessions[-1].apply(kwargs)
 
-        testing.logger.debug("Fetching JSON: %s ..." % log_url)
+        if post:
+            method = "POST"
+            kwargs["data"] = json.dumps(post)
+        elif put:
+            method = "PUT"
+            kwargs["data"] = json.dumps(put)
+        elif delete:
+            method = "DELETE"
 
-        response = requests.get(full_url, **kwargs)
+        testing.logger.debug("Accessing JSON API: %s %s ..."
+                             % (method, log_url))
 
-        testing.logger.debug("Fetched JSON: %s ..." % log_url)
+        response = requests.request(method, full_url, **kwargs)
+
+        testing.logger.debug("Accessed JSON API: %s %s ..."
+                             % (method, log_url))
 
         try:
             if response.status_code != expected_http_status:
                 raise HTTPError(url, expected_http_status, response.status_code)
+
+            if response.status_code == 204:
+                # No content.
+                return None
 
             if hasattr(response, "json"):
                 if callable(response.json):

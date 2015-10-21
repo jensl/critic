@@ -737,7 +737,7 @@ def process_request(environ, start_response):
 
             if req.path == "api" or req.path.startswith("api/"):
                 try:
-                    result = jsonapi.handle(critic, req)
+                    result = jsonapi.handleRequest(critic, req)
                 except jsonapi.Error as error:
                     req.setStatus(error.http_status)
                     result = { "error": { "title": error.title,

@@ -183,7 +183,7 @@ def registerHandler(path, resource_class):
 def PrimaryResource(resource_class):
     assert hasattr(resource_class, "name")
     assert hasattr(resource_class, "value_class")
-    for name in ("single", "multiple"):
+    for name in ("single", "multiple", "create", "update", "delete"):
         if not hasattr(resource_class, name):
             setattr(resource_class, name, None)
     for name in ("exceptions", "lists", "maps"):
@@ -243,6 +243,10 @@ def deduce(resource_path, parameters):
 def sorted_by_id(items):
     return sorted(items, key=lambda item: item.id)
 
+import check
+
+from check import convert
+
 import v1
 import documentation
 
@@ -279,7 +283,7 @@ def finishGET(critic, req, parameters, resource_class, value, values):
     except IndexError:
         raise PathError("List index out of range")
 
-    if parameters.subresource_path:
+    if req.method != "DELETE" and parameters.subresource_path:
         subresource_json = resource_json
         for component in parameters.subresource_path:
             subresource_json = subresource_json[component]
@@ -318,11 +322,59 @@ def finishGET(critic, req, parameters, resource_class, value, values):
 
     return resource_json
 
-def handle(critic, req):
+def finishPOST(critic, req, parameters, resource_class, value, values, data):
+    if (value or values) and len(parameters.subresource_path) != 1:
+        raise UsageError("Invalid POST request")
+
+    if not resource_class.create:
+        raise UsageError("Resource class does not support creating: "
+                         % resource_class.name)
+
+    value, values = resource_class.create(parameters, value, values, data)
+
+    return finishGET(critic, req, parameters, resource_class, value, values)
+
+def finishPUT(critic, req, parameters, resource_class, value, values, data):
+    if not (value or values):
+        raise UsageError("Invalid PUT request")
+
+    if not resource_class.update:
+        raise UsageError("Resource class does not support updating: "
+                         % resource_class.name)
+
+    resource_class.update(parameters, value, values, data)
+
+    return finishGET(critic, req, parameters, resource_class, value, values)
+
+def finishDELETE(critic, req, parameters, resource_class, value, values):
+    if not (value or values):
+        raise UsageError("Invalid DELETE request")
+
+    if not resource_class.delete:
+        raise UsageError("Resource class does not support deleting: "
+                         % resource_class.name)
+
+    return_value = resource_class.delete(parameters, value, values)
+
+    if return_value is None:
+        raise request.NoContent()
+
+    value, values = return_value
+
+    return finishGET(critic, req, parameters, resource_class, value, values)
+
+def handleRequestInternal(critic, req):
+    if req.method in ("POST", "PUT", "DELETE"):
+        if critic.actual_user is None:
+            raise UsageError("Sign-in required")
+
     api_version = getAPIVersion(req)
 
     if not api_version:
-        documentation.describeRoot()
+        if req.method == "GET":
+            documentation.describeRoot()
+        else:
+            raise UsageError("Invalid %s request" % req.method)
 
     prefix = [api_version]
     parameters = Parameters(critic, req)
@@ -330,10 +382,19 @@ def handle(critic, req):
     path = req.path.rstrip("/").split("/")[2:]
 
     if not path:
-        describe_parameter = parameters.getQueryParameter("describe")
-        if describe_parameter:
-            v1.documentation.describeResource(describe_parameter)
-        v1.documentation.describeVersion()
+        if req.method == "GET":
+            describe_parameter = parameters.getQueryParameter("describe")
+            if describe_parameter:
+                v1.documentation.describeResource(describe_parameter)
+            v1.documentation.describeVersion()
+        else:
+            raise UsageError("Invalid %s request" % req.method)
+
+    if req.method in ("POST", "PUT"):
+        try:
+            data = textutils.json_decode(req.read())
+        except ValueError:
+            raise UsageError("Invalid %s request body" % req.method)
 
     context = None
     resource_class = None
@@ -403,6 +464,8 @@ def handle(critic, req):
                                for value in values)
                     break
             elif not path:
+                if req.method == "POST":
+                    break
                 if not resource_class.multiple:
                     raise UsageError("Resource requires an argument: %s"
                                      % resource_id)
@@ -420,4 +483,20 @@ def handle(critic, req):
     if values and not isinstance(values, list):
         values = list(values)
 
-    return finishGET(critic, req, parameters, resource_class, value, values)
+    if req.method == "GET":
+        return finishGET(critic, req, parameters, resource_class, value, values)
+    elif req.method == "POST":
+        return finishPOST(
+            critic, req, parameters, resource_class, value, values, data)
+    elif req.method == "PUT":
+        return finishPUT(
+            critic, req, parameters, resource_class, value, values, data)
+    elif req.method == "DELETE":
+        return finishDELETE(
+            critic, req, parameters, resource_class, value, values)
+
+def handleRequest(critic, req):
+    try:
+        return handleRequestInternal(critic, req)
+    except api.PermissionDenied as error:
+        raise PermissionDenied(error.message)
