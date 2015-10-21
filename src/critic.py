@@ -22,6 +22,7 @@ import itertools
 import traceback
 import cStringIO
 import wsgiref.util
+import calendar
 
 from htmlutils import htmlify, Document
 from profiling import formatDBProfiling
@@ -64,6 +65,7 @@ import operation.savesettings
 import operation.searchreview
 import operation.registeruser
 import operation.brancharchiving
+import operation.miscellaneous
 
 import page.utils
 import page.createreview
@@ -95,6 +97,7 @@ import page.rebasetrackingreview
 import page.createuser
 import page.verifyemail
 import page.manageextensions
+import page.showfilters
 
 try:
     from customization.email import getUserEmailAddress
@@ -116,24 +119,28 @@ def setContentTypeFromPath(req):
 
 def handleStaticResource(req):
     if req.path == "static-resource/":
-        req.setStatus(403)
-        req.setContentType("text/plain")
-        req.start()
-        return ["Directory listing disabled!"]
-    resource_path = os.path.join(configuration.paths.INSTALL_DIR,
-                                 "resources",
-                                 req.path.split("/", 1)[1])
-    if os.path.abspath(resource_path) != resource_path:
-        raise OperationError("invalid path")
+        raise request.Forbidden("Directory listing disabled!")
+    resources_path = os.path.join(
+        configuration.paths.INSTALL_DIR, "resources")
+    resource_path = os.path.abspath(os.path.join(
+        resources_path, req.path.split("/", 1)[1]))
+    if not resource_path.startswith(resources_path + "/"):
+        raise request.Forbidden()
     if not os.path.isfile(resource_path):
-        req.setStatus(404)
-        req.setContentType("text/plain")
-        req.start()
-        return ["No such resource!"]
+        raise request.NotFound()
     last_modified = htmlutils.mtime(resource_path)
+    HTTP_DATE = "%a, %d %b %Y %H:%M:%S GMT"
+    if_modified_since = req.getRequestHeader("If-Modified-Since")
+    if if_modified_since:
+        try:
+            if_modified_since = time.strptime(if_modified_since, HTTP_DATE)
+        except ValueError:
+            pass
+        else:
+            if last_modified <= calendar.timegm(if_modified_since):
+                raise request.NotModified()
+    req.addResponseHeader("Last-Modified", time.strftime(HTTP_DATE, time.gmtime(last_modified)))
     if req.query and req.query == htmlutils.base36(last_modified):
-        HTTP_DATE = "%a, %d %b %Y %H:%M:%S GMT"
-        req.addResponseHeader("Last-Modified", time.strftime(HTTP_DATE, time.gmtime(last_modified)))
         req.addResponseHeader("Expires", time.strftime(HTTP_DATE, time.gmtime(time.time() + 2592000)))
         req.addResponseHeader("Cache-Control", "max-age=2592000")
     setContentTypeFromPath(req)
@@ -141,7 +148,7 @@ def handleStaticResource(req):
     with open(resource_path, "r") as resource_file:
         return [resource_file.read()]
 
-def download(req, db, user):
+def handleDownload(db, req, user):
     sha1 = req.getParameter("sha1")
 
     try:
@@ -172,171 +179,19 @@ def download(req, db, user):
             status=404)
 
     setContentTypeFromPath(req)
+    req.start()
+    return [git_object.data]
 
-    return git_object.data
-
-def watchreview(req, db, user):
-    review_id = req.getParameter("review", filter=int)
-    user_name = req.getParameter("user")
-
-    cursor = db.cursor()
-
-    user = dbutils.User.fromName(db, user_name)
-
-    cursor.execute("SELECT 1 FROM reviewusers WHERE review=%s AND uid=%s", (review_id, user.id))
-
-    if not cursor.fetchone():
-        cursor.execute("INSERT INTO reviewusers (review, uid, type) VALUES (%s, %s, 'manual')", (review_id, user.id))
-
-        cursor.execute("""SELECT uid, include
-                            FROM reviewrecipientfilters
-                           WHERE review=%s
-                             AND (uid=%s OR uid IS NULL)""",
-                       (review_id, user.id))
-
-        default_include = True
-        user_include = None
-
-        for user_id, include in cursor:
-            if user_id is None:
-                default_include = include
-            else:
-                user_include = include
-
-        if not default_include and user_include is None:
-            cursor.execute("""INSERT INTO reviewrecipientfilters (review, uid, include)
-                                   VALUES (%s, %s, true)""",
-                           (review_id, user.id))
-
-        db.commit()
-
-    return "ok"
-
-def unwatchreview(req, db, user):
-    review_id = req.getParameter("review", filter=int)
-    user_name = req.getParameter("user")
-
-    cursor = db.cursor()
-
-    user = dbutils.User.fromName(db, user_name)
-
-    cursor.execute("SELECT 1 FROM fullreviewuserfiles WHERE review=%s AND assignee=%s", (review_id, user.id))
-
-    if cursor.fetchone():
-        return "error:isreviewer"
-
-    cursor.execute("DELETE FROM reviewusers WHERE review=%s AND uid=%s", (review_id, user.id))
-    db.commit()
-
-    return "ok"
-
-def setfullname(req, db, user):
-    fullname = req.getParameter("fullname")
-
-    cursor = db.cursor()
-    cursor.execute("UPDATE users SET fullname=%s WHERE id=%s", (fullname, user.id))
-
-    db.commit()
-
-    return "ok"
-
-def showfilters(req, db, user):
-    path = req.getParameter("path", "/")
-    repo_name = req.getParameter("repository", None)
-    if not repo_name:
-        user = req.getParameter("user", req.user)
-        if not user:
-            raise page.utils.DisplayMessage("The URL must contain either a repository or a user parameter or both.")
-        repo_name = dbutils.User.fromName(db, user).getPreference(db, "defaultRepository")
-    repository = gitutils.Repository.fromParameter(db, repo_name)
-
-    path = path.rstrip("/")
-
-    if repository.getHead(db).isDirectory(path):
-        show_path = path + "/"
-        path += "/dummy.txt"
-    else:
-        show_path = path
-
-    file_id = dbutils.find_file(db, path=path)
-
-    filters = review_filters.Filters()
-    filters.setFiles(db, [file_id])
-    filters.load(db, repository=repository, recursive=True)
-
-    reviewers = []
-    watchers = []
-
-    for user_id, (filter_type, _delegate) in filters.listUsers(file_id).items():
-        if filter_type == 'reviewer': reviewers.append(user_id)
-        else: watchers.append(user_id)
-
-    result = "Path: %s\n" % show_path
-
-    reviewers_found = False
-    watchers_found = False
-
-    for reviewer_id in sorted(reviewers):
-        if not reviewers_found:
-            result += "\nReviewers:\n"
-            reviewers_found = True
-
-        reviewer = dbutils.User.fromId(db, reviewer_id)
-        result += "  %s <%s>\n" % (reviewer.fullname, reviewer.email)
-
-    for watcher_id in sorted(watchers):
-        if not watchers_found:
-            result += "\nWatchers:\n"
-            watchers_found = True
-
-        watcher = dbutils.User.fromId(db, watcher_id)
-        result += "  %s <%s>\n" % (watcher.fullname, watcher.email)
-
-    if not reviewers_found and not watchers_found:
-        result += "\nNo matching filters found.\n"
-
-    return result
-
-def rebasebranch(req, db, user):
-    repository = gitutils.Repository.fromParameter(db, req.getParameter("repository", user.getPreference(db, "defaultRepository")))
-
-    branch_name = req.getParameter("name")
-    base_name = req.getParameter("base")
-
-    branch = dbutils.Branch.fromName(db, repository, branch_name)
-    base = dbutils.Branch.fromName(db, repository, base_name)
-
-    branch.rebase(db, base)
-
-    db.commit()
-
-    return "ok"
-
-def checkserial(req, db, user):
-    review_id = req.getParameter("review", filter=int)
-    check_serial = req.getParameter("serial", filter=int)
-
-    cursor = db.cursor()
-    cursor.execute("SELECT serial FROM reviews WHERE id=%s", (review_id,))
-
-    (current_serial,) = cursor.fetchone()
-
-    req.content_type = "text/plain"
-
-    if check_serial == current_serial: return "current:%d" % user.getPreference(db, "review.updateCheckInterval")
-    elif check_serial < current_serial: return "old"
-    else: return "invalid"
-
-def findreview(req, db, _user):
+def findreview(req, db):
     sha1 = req.getParameter("sha1")
 
     try:
         repository = gitutils.Repository.fromSHA1(db, sha1)
         commit = gitutils.Commit.fromSHA1(db, repository, repository.revparse(sha1))
     except gitutils.GitReferenceError as error:
-        raise page.utils.DisplayMessage(error.message)
+        raise request.DisplayMessage(error.message)
 
-    cursor = db.cursor()
+    cursor = db.readonly_cursor()
     cursor.execute("""SELECT reviews.id
                         FROM reviews
                         JOIN branches ON (branches.id=reviews.branch)
@@ -360,93 +215,9 @@ def findreview(req, db, _user):
         if row:
             review_id = row[0]
         else:
-            raise page.utils.DisplayMessage("No review found!")
+            raise request.DisplayMessage("No review found!")
 
-    raise page.utils.MovedTemporarily("/r/%d?highlight=%s#%s" % (review_id, sha1, sha1))
-
-def suggestreview(req, db, _user):
-    repository_id = req.getParameter("repository", filter=int)
-    sha1 = req.getParameter("sha1")
-
-    repository = gitutils.Repository.fromId(db, repository_id)
-    commit = gitutils.Commit.fromSHA1(db, repository, sha1)
-
-    cursor = db.cursor()
-    suggestions = {}
-
-    def addSuggestions():
-        for review_id, summary in cursor:
-            review = dbutils.Review.fromId(db, review_id)
-            if review.state != 'dropped':
-                suggestions[str(review_id)] = "(%s) %s" % (review.getReviewState(db), summary)
-
-    summary = commit.summary()
-    while True:
-        match = re.search("[A-Z][A-Z0-9]*-[0-9]+", summary)
-        if match:
-            pattern = "r/%" + match.group(0) + "%"
-            cursor.execute("""SELECT reviews.id, reviews.summary
-                                FROM reviews
-                                JOIN branches ON (reviews.branch=branches.id)
-                               WHERE branches.name LIKE %s""",
-                           (pattern,))
-            addSuggestions()
-
-            summary = summary[match.end():]
-        else:
-            break
-
-    cursor.execute("""SELECT reviews.id, reviews.summary
-                        FROM reviews
-                       WHERE reviews.summary=%s""",
-                   (commit.summary(),))
-    addSuggestions()
-
-    return json_encode(suggestions)
-
-def loadmanifest(req, _db, _user):
-    key = req.getParameter("key")
-
-    if "/" in key:
-        author_name, extension_name = key.split("/", 1)
-    else:
-        author_name, extension_name = None, key
-
-    try:
-        extension = extensions.extension.Extension(author_name, extension_name)
-    except extensions.extension.ExtensionError as error:
-        return str(error)
-
-    try:
-        extension.getManifest()
-        return "That's a valid manifest, friend."
-    except extensions.manifest.ManifestError as error:
-        return str(error)
-
-def processcommits(req, db, user):
-    review_id = req.getParameter("review", filter=int)
-    commit_ids = map(int, req.getParameter("commits").split(","))
-
-    review = dbutils.Review.fromId(db, review_id)
-    all_commits = [gitutils.Commit.fromId(db, review.repository, commit_id) for commit_id in commit_ids]
-    commitset = log_commitset.CommitSet(all_commits)
-
-    heads = commitset.getHeads()
-    tails = commitset.getTails()
-
-    if len(heads) != 1:
-        return "invalid commit-set; multiple heads"
-    if len(tails) != 1:
-        return "invalid commit-set; multiple tails"
-
-    old_head = gitutils.Commit.fromSHA1(db, review.repository, tails.pop())
-    new_head = heads.pop()
-
-    output = cStringIO.StringIO()
-
-    extensions.role.processcommits.execute(db, user, review, all_commits, old_head, new_head, output)
-
-    return output.getvalue()
+    raise request.MovedTemporarily("/r/%d?highlight=%s#%s" % (review_id, sha1, sha1))
 
 OPERATIONS = { "fetchlines": operation.fetchlines.FetchLines(),
                "reviewersandwatchers": operation.createreview.ReviewersAndWatchers(),
@@ -477,8 +248,8 @@ OPERATIONS = { "fetchlines": operation.fetchlines.FetchLines(),
                "addemailaddress": operation.manipulateuser.AddEmailAddress(),
                "getassignedchanges": operation.manipulateassignments.GetAssignedChanges(),
                "setassignedchanges": operation.manipulateassignments.SetAssignedChanges(),
-               "watchreview": watchreview,
-               "unwatchreview": unwatchreview,
+               "watchreview": operation.manipulatereview.WatchReview(),
+               "unwatchreview": operation.manipulatereview.UnwatchReview(),
                "addreviewfilters": operation.manipulatefilters.AddReviewFilters(),
                "removereviewfilter": operation.manipulatefilters.RemoveReviewFilter(),
                "queryglobalfilters": operation.applyfilters.QueryGlobalFilters(),
@@ -501,12 +272,10 @@ OPERATIONS = { "fetchlines": operation.fetchlines.FetchLines(),
                "abortchanges": operation.draftchanges.AbortChanges(),
                "reviewstatechange": operation.draftchanges.ReviewStateChange(),
                "savesettings": operation.savesettings.SaveSettings(),
-               "showfilters": showfilters,
-               "rebasebranch": rebasebranch,
-               "checkserial": checkserial,
-               "suggestreview": suggestreview,
+               "rebasebranch": operation.miscellaneous.RebaseBranch(),
+               "checkserial": operation.miscellaneous.CheckSerial(),
+               "suggestreview": operation.miscellaneous.SuggestReview(),
                "blame": operation.blame.Blame(),
-               "checkbranchtext": page.checkbranch.renderCheckBranch,
                "addcheckbranchnote": page.checkbranch.addNote,
                "deletecheckbranchnote": page.checkbranch.deleteNote,
                "addrepository": operation.addrepository.AddRepository(),
@@ -550,9 +319,9 @@ PAGES = { "showreview": page.showreview.renderShowReview,
           "managereviewers": page.managereviewers.renderManageReviewers,
           "log": page.showbranch.renderShowBranch,
           "checkbranch": page.checkbranch.renderCheckBranch,
+          "checkbranchtext": page.checkbranch.renderCheckBranch,
           "filterchanges": page.filterchanges.renderFilterChanges,
           "showtree": page.showtree.renderShowTree,
-          "findreview": findreview,
           "showbatch": page.showbatch.renderShowBatch,
           "showreviewlog": page.showreviewlog.renderShowReviewLog,
           "createreview": page.createreview.renderCreateReview,
@@ -565,13 +334,16 @@ PAGES = { "showreview": page.showreview.renderShowReview,
           "rebasetrackingreview": page.rebasetrackingreview.RebaseTrackingReview(),
           "createuser": page.createuser.CreateUser(),
           "verifyemail": page.verifyemail.renderVerifyEmail,
-          "manageextensions": page.manageextensions.renderManageExtensions }
+          "manageextensions": page.manageextensions.renderManageExtensions,
+          "showfilters": page.showfilters.renderShowFilters }
 
 if configuration.extensions.ENABLED:
     import extensions
     import extensions.role.page
     import extensions.role.processcommits
     import operation.extensioninstallation
+    import page.loadmanifest
+    import page.processcommits
 
     OPERATIONS["installextension"] = operation.extensioninstallation.InstallExtension()
     OPERATIONS["uninstallextension"] = operation.extensioninstallation.UninstallExtension()
@@ -579,8 +351,8 @@ if configuration.extensions.ENABLED:
     OPERATIONS["clearextensionstorage"] = operation.extensioninstallation.ClearExtensionStorage()
     OPERATIONS["addextensionhookfilter"] = operation.extensioninstallation.AddExtensionHookFilter()
     OPERATIONS["deleteextensionhookfilter"] = operation.extensioninstallation.DeleteExtensionHookFilter()
-    OPERATIONS["loadmanifest"] = loadmanifest
-    OPERATIONS["processcommits"] = processcommits
+    PAGES["loadmanifest"] = page.loadmanifest.renderLoadManifest
+    PAGES["processcommits"] = page.processcommits.renderProcessCommits
 
 if configuration.base.AUTHENTICATION_MODE != "host" and configuration.base.SESSION_TYPE == "cookie":
     import operation.usersession
@@ -901,6 +673,10 @@ def process_request(environ, start_response):
                 else:
                     raise request.MovedTemporarily(target)
 
+            if req.path == "findreview":
+                # This raises either DisplayMessage or MovedTemporarily.
+                findreview(req, db)
+
             # Require a .git suffix on HTTP(S) repository URLs unless the user-
             # agent starts with "git/" (as Git's normally does.)
             #
@@ -956,6 +732,9 @@ def process_request(environ, start_response):
                         req.start()
                         return []
 
+            if req.path.startswith("download/"):
+                return handleDownload(db, req, user)
+
             if req.path == "api" or req.path.startswith("api/"):
                 try:
                     result = jsonapi.handle(critic, req)
@@ -982,11 +761,7 @@ def process_request(environ, start_response):
                 req.start()
                 return [json_encode(result, indent=indent)]
 
-            if req.path.startswith("download/"):
-                operationfn = download
-            else:
-                operationfn = OPERATIONS.get(req.path)
-
+            operationfn = OPERATIONS.get(req.path)
             if operationfn:
                 result = operationfn(req, db, user)
 
@@ -1017,8 +792,6 @@ def process_request(environ, start_response):
             while True:
                 pagefn = PAGES.get(req.path)
                 if pagefn:
-                    req.setContentType("text/html")
-
                     try:
                         result = pagefn(req, db, impersonate_user)
 
@@ -1029,7 +802,13 @@ def process_request(environ, start_response):
                                 source += fragment
                             result = source
 
+                        if isinstance(result, page.utils.ResponseBody):
+                            req.setContentType(result.content_type)
+                            req.start()
+                            return [result.data]
+
                         if isinstance(result, str) or isinstance(result, Document):
+                            req.setContentType("text/html")
                             req.start()
                             result = str(result)
                             result += ("<!-- total request time: %.2f ms -->"
@@ -1038,15 +817,17 @@ def process_request(environ, start_response):
                                 result += ("<!--\n\n%s\n\n -->"
                                            % formatDBProfiling(db))
                             return [result]
-                        else:
-                            result = WrappedResult(db, req, user, result)
-                            req.start()
 
-                            # Prevent the finally clause below from closing the
-                            # connection.  WrappedResult does it instead.
-                            db = None
+                        result = WrappedResult(db, req, user, result)
 
-                            return result
+                        req.setContentType("text/html")
+                        req.start()
+
+                        # Prevent the finally clause below from closing the
+                        # connection.  WrappedResult does it instead.
+                        db = None
+
+                        return result
                     except gitutils.NoSuchRepository as error:
                         raise page.utils.DisplayMessage(
                             title="Invalid URI Parameter!",

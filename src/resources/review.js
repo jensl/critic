@@ -518,27 +518,43 @@ $(document).ready(function ()
       });
 
     if (typeof updateCheckInterval != "undefined" && updateCheckInterval)
-      setTimeout(function ()
+    {
+      function processResult(result)
+      {
+        if (result.stale)
         {
-          var callback = arguments.callee;
-          $.ajax({ url: "/checkserial?review=" + review.id + "&serial=" + review.serial + "&time=" + Date.now(),
-                   dataType: "text",
-                   success: function (data)
-                     {
-                       var match = /^current:(\d+)$/.exec(data);
-                       if (match)
-                       {
-                         updateCheckInterval = parseInt(match[1]);
+          var content = $("<div title='Review Updated'>" +
+                          "<p>The review has been updated since you loaded " +
+                          "this page.  Would you like to reload?</p>" +
+                          "</div>");
 
-                         if (updateCheckInterval)
-                           setTimeout(callback, updateCheckInterval * 1000);
-                       }
+          content.dialog({
+            modal: true,
+            buttons: { "Reload": function () { content.dialog("close"); location.reload(); },
+                       "Do Nothing": function () { content.dialog("close"); }}
+          });
 
-                       if (data == "old")
-                       {
-                         var content = $("<div title='Review Updated'><p>The review has been updated since you loaded this page.  Would you like to reload?</p></div>");
-                         content.dialog({ modal: true, buttons: { Reload: function () { content.dialog("close"); location.reload(); }, "Do Nothing": function () { content.dialog("close"); }}});
-                       }
-                     }});
-        }, updateCheckInterval * 1000);
+          return;
+        }
+        else
+        {
+          updateCheckInterval = result.interval;
+        }
+
+        if (updateCheckInterval)
+          setTimeout(checkSerial, updateCheckInterval * 1000);
+      }
+
+      function checkSerial()
+      {
+        var operation = new Operation({ action: "check serial",
+                                        url: "checkserial",
+                                        data: { "review_id": review.id,
+                                                "serial": review.serial },
+                                        callback: processResult });
+        operation.execute();
+      }
+
+      setTimeout(checkSerial, updateCheckInterval * 1000);
+    }
   });

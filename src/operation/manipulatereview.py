@@ -20,7 +20,8 @@ import gitutils
 import reviewing.mail as review_mail
 import mailutils
 
-from operation import Operation, OperationResult, OperationError, Optional
+from operation import (Operation, OperationResult, OperationError, Optional,
+                       OperationFailure, Review, User)
 
 class CloseReview(Operation):
     def __init__(self):
@@ -139,5 +140,105 @@ class UpdateReview(Operation):
         review.incrementSerial(db)
 
         db.commit()
+
+        return OperationResult()
+
+class WatchReview(Operation):
+    def __init__(self):
+        super(WatchReview, self).__init__({ "review": Review,
+                                            "subject": User })
+
+    def process(self, db, user, review, subject):
+        if user != subject:
+            Operation.requireRole(db, "administrator", user)
+
+        cursor = db.readonly_cursor()
+        cursor.execute("""SELECT 1
+                            FROM reviewusers
+                           WHERE review=%s
+                             AND uid=%s""",
+                       (review.id, subject.id))
+
+        if cursor.fetchone():
+            # Already a watcher (or reviewer/owner).
+            return OperationResult()
+
+        cursor.execute("""SELECT uid, include
+                            FROM reviewrecipientfilters
+                           WHERE review=%s
+                             AND (uid=%s OR uid IS NULL)""",
+                       (review.id, subject.id))
+
+        default_include = True
+        user_include = None
+
+        for user_id, include in cursor:
+            if user_id is None:
+                default_include = include
+            else:
+                user_include = include
+
+        with db.updating_cursor(
+                "reviewusers", "reviewrecipientfilters") as cursor:
+            cursor.execute("""INSERT INTO reviewusers (review, uid, type)
+                                   VALUES (%s, %s, 'manual')""",
+                           (review.id, subject.id))
+
+            if not default_include and user_include is None:
+                cursor.execute(
+                    """INSERT INTO reviewrecipientfilters (review, uid, include)
+                            VALUES (%s, %s, TRUE)""",
+                    (review.id, subject.id))
+
+        return OperationResult()
+
+class UnwatchReview(Operation):
+    def __init__(self):
+        super(UnwatchReview, self).__init__({ "review": Review,
+                                            "subject": User })
+
+    def process(self, db, user, review, subject):
+        if user != subject:
+            Operation.requireRole(db, "administrator", user)
+
+        cursor = db.readonly_cursor()
+        cursor.execute("""SELECT owner
+                            FROM reviewusers
+                           WHERE review=%s
+                             AND uid=%s""",
+                       (review.id, subject.id))
+        row = cursor.fetchone()
+
+        if not row:
+            # Already not associated.
+            return OperationResult()
+
+        is_owner, = row
+
+        if is_owner:
+            raise OperationFailure(
+                code="isowner",
+                title="Is owner",
+                message="Cannot unwatch review since user owns the review.")
+
+        cursor.execute("""SELECT 1
+                            FROM fullreviewuserfiles
+                           WHERE review=%s
+                             AND assignee=%s""",
+                       (review.id, subject.id))
+
+        if cursor.fetchone():
+            raise OperationFailure(
+                code="isreviewer",
+                title="Is reviewer",
+                message=("Cannot unwatch review since user is assigned to "
+                         "review changes."))
+
+        with db.updating_cursor("reviewusers") as cursor:
+            cursor.execute("""DELETE
+                                FROM reviewusers
+                               WHERE review=%s
+                                 AND uid=%s""",
+                           (review.id, subject.id))
 
         return OperationResult()

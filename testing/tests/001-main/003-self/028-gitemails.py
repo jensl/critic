@@ -23,6 +23,23 @@ REMOTE_URL = instance.repository_url("alice")
 to_recipient = testing.mailbox.ToRecipient
 with_subject = testing.mailbox.WithSubject
 
+showfilters_output = frontend.page(
+    "showfilters",
+    params={ "repository": "critic" },
+    expected_content_type="text/plain")
+testing.expect.check(
+    "Path: /\n\nNo matching filters found.\n",
+    showfilters_output)
+
+showfilters_output = frontend.page(
+    "showfilters",
+    params={ "repository": "critic",
+             "path": "028-gitemails/" },
+    expected_content_type="text/plain")
+testing.expect.check(
+    "Path: 028-gitemails/\n\nNo matching filters found.\n",
+    showfilters_output)
+
 with repository.workcopy() as workcopy:
     def commit(filename, author):
         path = os.path.join(workcopy.path, "028-gitemails", filename)
@@ -132,3 +149,26 @@ with repository.workcopy() as workcopy:
     expect_mail("bob", ["fish.txt", "mouse.txt", "snake.txt"])
     expect_mail("dave", ["bird.txt", "dog.txt", "fish.txt"])
     expect_mail("erin", ["bird.txt"])
+
+showfilters_output = frontend.page(
+    "showfilters",
+    params={ "repository": "critic" },
+    expected_content_type="text/plain")
+testing.expect.check(
+    "Path: /\n\nNo matching filters found.\n",
+    showfilters_output)
+
+showfilters_output = frontend.page(
+    "showfilters",
+    params={ "repository": "critic",
+             "path": "028-gitemails/" },
+    expected_content_type="text/plain")
+testing.expect.check(
+    """\
+Path: 028-gitemails/
+
+Reviewers:
+  Alice von Testing <alice@example.org>
+  Bob von Testing <bob@example.org>
+  Dave von Testing <dave@example.org>
+""", showfilters_output)

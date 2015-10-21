@@ -165,42 +165,24 @@ function disableTracking(branch_id)
 
 function watchReview()
 {
-  $.ajax({ async: false,
-           url: "/watchreview?review=" + review.id + "&user=" + user.name,
-           dataType: "text",
-           success: function (data)
-             {
-               if (data == "ok")
-                 location.reload();
-               else
-                 reportError("watch review", "Server reply: <i style='white-space: pre'>" + htmlify(data) + "</i>");
-             },
-           error: function ()
-             {
-               reportError("watch review", "Request failed.");
-             }
-         });
+  var operation = new Operation({ "action": "watch review",
+                                  "url": "watchreview",
+                                  "data": { "review_id": review.id,
+                                            "subject_name": user.name }});
+
+  if (operation.execute())
+    location.reload();
 }
 
 function unwatchReview()
 {
-  $.ajax({ async: false,
-           url: "/unwatchreview?review=" + review.id + "&user=" + user.name,
-           dataType: "text",
-           success: function (data)
-             {
-               if (data == "ok")
-                 location.reload();
-               else if (data == "error:isreviewer")
-                 reportError("stop watching review", "The user is a reviewer!");
-               else
-                 reportError("stop watching review", "Server reply: <i style='white-space: pre'>" + htmlify(data) + "</i>");
-             },
-           error: function ()
-             {
-               reportError("stop watching review", "Request failed.");
-             }
-         });
+  var operation = new Operation({ "action": "unwatch review",
+                                  "url": "unwatchreview",
+                                  "data": { "review_id": review.id,
+                                            "subject_name": user.name }});
+
+  if (operation.execute())
+    location.reload();
 }
 
 function filterPartialChanges()

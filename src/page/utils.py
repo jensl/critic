@@ -415,3 +415,8 @@ def displayFormattedText(db, req, user, source):
 class DisplayFormattedText(Exception):
     def __init__(self, source):
         self.source = source
+
+class ResponseBody(object):
+    def __init__(self, data, content_type="text/html"):
+        self.data = data
+        self.content_type = content_type

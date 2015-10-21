@@ -54,49 +54,26 @@ function editCommit(sha1, commit_id, has_note, old_review_id)
 {
   var row = $("tr.commit#" + sha1);
   var text = row.parent("tbody.note").find("span.text").text();
-
   var suggestions = "";
-  var abort = false;
 
   if (old_review_id == void 0)
-    $.ajax({ async: false,
-             url: "/suggestreview?repository=" + repository.id + "&sha1=" + sha1,
-             dataType: "text",
-             success: function (data)
-               {
-                 if (data != "{}")
-                   try
-                   {
-                     var by_id = [], data = JSON.parse(data);
-                     for (var id in data)
-                       by_id[id] = data[id];
+  {
+    var operation = new Operation({ action: "suggest reviews",
+                                    url: "suggestreviews",
+                                    data: { repository_id: repository.id,
+                                            sha1: sha1 }});
+    var result = operation.execute();
 
-                     suggestions = "<p><b>Suggested reviews:</b><br><select><option>(nothing selected)</option>";
-                     for (var id in by_id)
-                     {
-                       var summary = by_id[id];
-                       if (summary.length > 60)
-                         summary = htmlify(summary.substring(0, 60)) + "&#8230;";
-                       else
-                         summary = htmlify(summary);
-                       suggestions += "<option value=" + id + ">[r/" + id + "] " + summary+ "</option>";
-                     }
-                     suggestions += "</select></p>";
-                   }
-                   catch (e)
-                   {
-                     reportError("suggest reviews", "Server reply: <i>" + data + "</i>");
-                     abort = true;
-                   }
-               },
-             error: function ()
-               {
-                 reportError("suggest reviews", "Request failed.");
-               }
-           });
-
-  if (abort)
-    return;
+    if (result)
+    {
+      suggestions = "<p><b>Suggested reviews:</b><br><select><option>(nothing selected)</option>";
+      for (var id in result.reviews)
+        suggestions += "<option value=" + id + ">[r/" + id + "] " + result.reviews[id] + "</option>";
+      suggestions += "</select></p>";
+    }
+    else
+      return;
+  }
 
   function rebase(review_id)
   {

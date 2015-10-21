@@ -20,6 +20,7 @@ import page.utils
 import gitutils
 import re
 import log.commitset
+import request
 
 def addNote(req, db, user):
     repository_id = req.getParameter("repository", filter=int)
@@ -72,7 +73,7 @@ def deleteNote(req, db, user):
 def renderCheckBranch(req, db, user):
     mode = "html" if req.path == "checkbranch" else "text"
 
-    repository_arg = req.getParameter("repository", None)
+    repository_arg = req.getParameter("repository", None if mode == "html" else request.NoDefault)
 
     cursor = db.cursor()
     header_right = []
@@ -364,7 +365,7 @@ def renderCheckBranch(req, db, user):
 
             return document
         else:
-            return result
+            return page.utils.ResponseBody(result, content_type="text/plain")
     else:
         header_right[0].a("button", href="tutorial?item=checkbranch").text("Help")
 
