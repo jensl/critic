@@ -153,6 +153,21 @@ class Emails(object):
                         "verified": value.verified })
 
     @staticmethod
+    def single(parameters, argument):
+        """A primary email address by index.
+
+           INDEX : integer
+
+           Retrieve a primary email address identified by its index."""
+
+        emails = list(parameters.context["users"].primary_emails)
+
+        try:
+            return emails[jsonapi.numeric_id(argument) - 1]
+        except IndexError:
+            raise jsonapi.PathError("List index out of range")
+
+    @staticmethod
     def multiple(parameters):
         """All primary email addresses."""
 
@@ -165,7 +180,7 @@ class Filters(object):
     name = "filters"
     contexts = ("users",)
     value_class = api.filters.RepositoryFilter
-    exceptions = (api.repository.RepositoryError,)
+    exceptions = (api.repository.RepositoryError, KeyError)
 
     lists = frozenset(("delegates",))
 
@@ -186,6 +201,24 @@ class Filters(object):
             "repository": value.repository,
             "delegates": jsonapi.sorted_by_id(value.delegates)
         })
+
+    @staticmethod
+    def single(parameters, argument):
+        """Retrieve one (or more) of a user's repository filters.
+
+           FILTER_ID : integer
+
+           Retrieve a filter identified by the filters's unique numeric id."""
+
+        user = parameters.context["users"]
+        filter_id = jsonapi.numeric_id(argument)
+
+        for repository_filters in user.repository_filters.values():
+            for repository_filter in repository_filters:
+                if repository_filter.id == filter_id:
+                    return repository_filter
+
+        raise KeyError("invalid filter id: %d" % filter_id)
 
     @staticmethod
     def multiple(parameters):

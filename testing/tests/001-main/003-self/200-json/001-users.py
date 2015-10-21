@@ -100,6 +100,12 @@ frontend.json(
                           "selected": True,
                           "verified": None }] })
 
+frontend.json(
+    "users/%d/emails/1" % instance.userid("alice"),
+    expect={ "address": "alice@example.org",
+             "selected": True,
+             "verified": None })
+
 filter_json = { "id": int,
                 "type": "reviewer",
                 "path": "028-gitemails/",
@@ -115,7 +121,7 @@ frontend.json(
     params={ "repository": "critic" },
     expect={ "filters": [filter_json] })
 
-frontend.json(
+result = frontend.json(
     "users/%d/filters" % instance.userid("alice"),
     params={ "repository": "1" },
     expect={ "filters": [filter_json] })
@@ -129,6 +135,30 @@ frontend.json(
                            "repository": 1,
                            "delegates": [instance.userid("erin")] }],
              "linked": { "repositories": [critic_json],
+                         "users": [user_json("erin")] }})
+
+frontend.json(
+    "users/%d/filters/%d" % (instance.userid("alice"),
+                             result["filters"][0]["id"]),
+    expect={ "id": result["filters"][0]["id"],
+             "type": "reviewer",
+             "path": "028-gitemails/",
+             "repository": 1,
+             "delegates": [instance.userid("erin")] })
+
+# Test asking for just the list of delegates.
+frontend.json(
+    "users/%d/filters/%d/delegates" % (instance.userid("alice"),
+                                       result["filters"][0]["id"]),
+    expect={ "delegates": [instance.userid("erin")] })
+
+# Check that the repository is not linked when we ask for just delegates.
+frontend.json(
+    "users/%d/filters/%d/delegates" % (instance.userid("alice"),
+                                       result["filters"][0]["id"]),
+    params={ "include": "users,repositories" },
+    expect={ "delegates": [instance.userid("erin")],
+             "linked": { "repositories": [],
                          "users": [user_json("erin")] }})
 
 frontend.json(
@@ -187,15 +217,3 @@ frontend.json(
     expect={ "error": { "title": "Invalid API request",
                         "message": "Invalid user sort parameter: 'age'" }},
     expected_http_status=400)
-
-frontend.json(
-    "users/%d/emails/1" % instance.userid("alice"),
-    expect={ "error": { "title": "No such resource",
-                        "message": "Invalid resource: 'v1/users/emails/1'" }},
-    expected_http_status=404)
-
-frontend.json(
-    "users/%d/filters/1" % instance.userid("alice"),
-    expect={ "error": { "title": "No such resource",
-                        "message": "Invalid resource: 'v1/users/filters/1'" }},
-    expected_http_status=404)
