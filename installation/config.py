@@ -39,6 +39,14 @@ minimum_password_hash_time = 0.25
 minimum_rounds = {}
 auth_database = "internal"
 
+ldap_url = "ldap://ldap.example.com:389"
+ldap_search_base = "dc=example,dc=com"
+ldap_create_user = True
+ldap_username_attribute = "uid"
+ldap_fullname_attribute = "cn"
+ldap_email_attribute = "mail"
+ldap_cache_max_age = 600
+
 is_development = False
 is_testing = False
 coverage_dir = None
@@ -253,6 +261,9 @@ def prepare(mode, arguments, data):
     global minimum_password_hash_time, minimum_rounds, auth_database
     global is_development, is_testing, coverage_dir
 
+    global ldap_url, ldap_search_base, ldap_create_user, ldap_username_attribute
+    global ldap_fullname_attribute, ldap_email_attribute, ldap_cache_max_age
+
     header_printed = False
 
     if mode == "install":
@@ -372,6 +383,23 @@ the Web front-end.  This can be handled in two different ways:
 
         try: archive_review_branches = configuration.base.ARCHIVE_REVIEW_BRANCHES
         except AttributeError: pass
+
+        try:
+            ldap = configuration.auth.DATABASES["ldap"]
+        except (AttributeError, KeyError):
+            pass
+        else:
+            ldap_url = ldap.get("ldap_url", ldap_url)
+            ldap_search_base = ldap.get("ldap_search_base", ldap_search_base)
+            ldap_create_user = ldap.get("ldap_create_user", ldap_create_user)
+            ldap_username_attribute = ldap.get("ldap_username_attribute",
+                                               ldap_username_attribute)
+            ldap_fullname_attribute = ldap.get("ldap_fullname_attribute",
+                                               ldap_fullname_attribute)
+            ldap_email_attribute = ldap.get("ldap_email_attribute",
+                                            ldap_email_attribute)
+            ldap_cache_max_age = ldap.get("ldap_cache_max_age",
+                                          ldap_cache_max_age)
 
     if auth_mode == "critic":
         if session_type is None:
@@ -609,6 +637,14 @@ web server to redirect all HTTP accesses to HTTPS.
 
     for provider in providers:
         provider.store(data)
+
+    data["installation.config.ldap_url"] = ldap_url
+    data["installation.config.ldap_search_base"] = ldap_search_base
+    data["installation.config.ldap_create_user"] = ldap_create_user
+    data["installation.config.ldap_username_attribute"] = ldap_username_attribute
+    data["installation.config.ldap_fullname_attribute"] = ldap_fullname_attribute
+    data["installation.config.ldap_email_attribute"] = ldap_email_attribute
+    data["installation.config.ldap_cache_max_age"] = ldap_cache_max_age
 
     return True
 

@@ -87,6 +87,106 @@ DATABASES = {
     # Using Critic's own user database for authentication.
     "internal": {},
 
+    # Using an LDAP database for authentication.
+    "ldap": {
+        # Input fields.
+        #
+        # Each element is a tuple containing:
+        #  [0]: True if the field should use <input type=password>
+        #  [1]: Internal field identifier
+        #  [2]: Field label
+        #  [3]: (Optional) Longer description / help text
+        "fields": [
+            (False, "username", "Username:"),
+            (True, "password", "Password:"),
+        ],
+
+        # LDAP server URL.
+        "url": "%(installation.config.ldap_url)s",
+
+        # Use TLS when connecting to LDAP server.
+        "use_tls": True,
+
+        # Credentials field.
+        #
+        # Identifier of the field whose value will be used as the credentials
+        # (e.g. password) in the bind request used for authentication.
+        "credentials": "password",
+
+        # The following two values are all interpreted as Python format strings
+        # that can reference field values, e.g. using "%%(username)s".  The input
+        # values will have been escaped for safe usage in LDAP expressions.
+
+        # LDAP search base.
+        "search_base": "%(installation.config.ldap_search_base)s",
+
+        # LDAP search filter.
+        "search_filter": "(uid=%%(username)s)",
+
+        # The following settings control if and how Critic user records are
+        # created after successful authentication of a user.
+
+        # If true, Critic user records are created automatically if
+        # authentication succeeds but a matching record is not found.
+        "create_user": %(installation.config.ldap_create_user)r,
+
+        # User name LDAP attribute.
+        #
+        # This is the LDAP attribute whose value is used as the Critic username,
+        # both when looking for an existing user record and when creating a new
+        # one (if one isn't found.)
+        #
+        # If the attribute is missing or empty it will be considered an
+        # authentication error.
+        "username_attribute": "%(installation.config.ldap_username_attribute)s",
+
+        # Full name LDAP attribute.
+        #
+        # This is the LDAP attribute to use as the (initial) full name when
+        # creating a new Critic user record.  It is not used if an existing user
+        # record is found.
+        #
+        # If the attribute is missing or empty, the user is created with the
+        # username as full name.
+        "fullname_attribute": "%(installation.config.ldap_fullname_attribute)s",
+
+        # Email LDAP attribute.
+        #
+        # This is the LDAP attribute to use as the (initial) primary email
+        # address when creating a new Critic user record.  It is not used if an
+        # existing user record is found.
+        #
+        # If the attribute is missing or empty, the user is created with no
+        # primary email address.
+        "email_attribute": "%(installation.config.ldap_email_attribute)s",
+
+        # List of required LDAP groups.
+        #
+        # If the list is empty, no group membership is required.
+        "require_groups": [
+
+            # {
+            #     # Distinguished name of the required group.
+            #     "dn": "cn=SomeGroup,ou=Groups,dc=example,dc=com",
+            #
+            #     # Group attribute containing the list of members.
+            #     "members_attribute": "memberUid",
+            #
+            #     # Value to search for in the list of members.
+            #     #
+            #     # The value is interpreted as a Python format string, and can
+            #     # reference field values.  It can also reference the
+            #     # distinguished name of the user signing in as "%%(dn)s".
+            #     "member_value": "%%(username)s",
+            # },
+
+        ],
+
+        # Maximum age of cached successful authentication attempts, in seconds.
+        # If set to zero, caching is disabled altogether.
+        "cache_max_age": %(installation.config.ldap_cache_max_age)r,
+    },
+
 }
 
 DATABASE = %(installation.config.auth_database)r

@@ -15,3 +15,4 @@
 # the License.
 
 import internaldb
+import ldapdb
