@@ -26,6 +26,8 @@ import requests
 import json
 import signal
 import time
+import py_compile
+import contextlib
 
 sys.path.insert(0, os.path.dirname(__file__))
 
@@ -160,7 +162,7 @@ if arguments.testing:
 import installation
 import installation.qs
 
-installation.quiet = quiet
+installation.quiet = True
 
 if arguments.state_dir:
     state_dir = arguments.state_dir
@@ -175,14 +177,54 @@ database_path = os.path.join(state_dir, "critic.db")
 initialize_database = not os.path.exists(database_path)
 add_repository = None
 
+class CompilationFailed(Exception):
+    pass
+
+def compile_all_sources():
+    success = True
+    for dirname, _, filenames in os.walk("src"):
+        for filename in filenames:
+            if filename[0] == ".":
+                continue
+            if not filename.endswith(".py"):
+                continue
+            path = os.path.join(dirname, filename)
+            try:
+                py_compile.compile(path, doraise=True)
+            except py_compile.PyCompileError as error:
+                if success:
+                    # First error.  Create some space.
+                    print "\n"
+                print "ERROR: Failed to compile %s:\n%s" % (path, error)
+                success = False
+    if not success:
+        raise CompilationFailed()
+
+@contextlib.contextmanager
+def activity(what):
+    if quiet:
+        yield
+    else:
+        sys.stdout.write(what + " ...")
+        sys.stdout.flush()
+        yield
+        sys.stdout.write(" done.\n")
+
 try:
+    try:
+        with activity("Compiling all sources"):
+            compile_all_sources()
+    except CompilationFailed:
+        sys.exit(1)
+
     installation.is_quick_start = True
 
     if initialize_database:
-        installation.qs.sqlite.import_schema(
-            database_path,
-            filenames=installation.database.SCHEMA_FILES,
-            quiet=quiet)
+        with activity("Initializing database"):
+            installation.qs.sqlite.import_schema(
+                database_path,
+                filenames=installation.database.SCHEMA_FILES,
+                quiet=quiet)
 
     installation.system.uid = os.getuid()
     installation.system.gid = os.getgid()
@@ -198,16 +240,17 @@ try:
 
     data = installation.qs.data.generate(arguments, database_path)
 
-    installation.paths.install(data)
+    with activity("Installing the system"):
+        installation.paths.install(data)
 
-    if not os.path.isfile(os.path.join(installation.paths.bin_dir, "criticctl")):
-        installation.criticctl.install(data)
+        if not os.path.isfile(os.path.join(installation.paths.bin_dir, "criticctl")):
+            installation.criticctl.install(data)
 
-    if not os.path.isfile(os.path.join(installation.paths.etc_dir, "main", "configuration", "__init__.py")):
-        installation.config.install(data)
+        if not os.path.isfile(os.path.join(installation.paths.etc_dir, "main", "configuration", "__init__.py")):
+            installation.config.install(data)
 
-    if initialize_database:
-        installation.prefs.install(data)
+        if initialize_database:
+            installation.prefs.install(data)
 
     config_dir = os.path.join(installation.paths.etc_dir, "main")
     install_dir = installation.paths.install_dir
@@ -291,6 +334,7 @@ try:
         the_system = None
 
     def restartTheSystem():
+        compile_all_sources()
         stopTheSystem()
         startTheSystem()
 
@@ -308,10 +352,7 @@ try:
     startTheSystem()
 
     if not arguments.testing:
-        if not arguments.quiet:
-            print
-
-        print "Listening at http://%s:%s/ ..." % (server_name, server_port)
+        print "Listening at: http://%s:%s/" % (server_name, server_port)
 
         import dbutils
 
@@ -375,10 +416,14 @@ try:
             current_mtime = getNewestModificationTime()
             if current_mtime > running_mtime:
                 print
-                print "Sources changed, restarting the system ..."
-                print
+                try:
+                    with activity("Sources changed, restarting the system"):
+                        restartTheSystem()
+                except CompilationFailed:
+                    pass
+                else:
+                    print
 
-                restartTheSystem()
                 running_mtime = current_mtime
             else:
                 time.sleep(1)

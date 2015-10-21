@@ -194,7 +194,7 @@ class Connection(object):
 def connect(**parameters):
     return Connection(**parameters)
 
-def import_schema(database_path, filenames, quiet=False):
+def import_schema(database_path, filenames, quiet=False, verbose=False):
     failed = False
     enumerations = {}
     commands = []
@@ -243,7 +243,7 @@ def import_schema(database_path, filenames, quiet=False):
             print "Unrecognized:", command
             failed = True
 
-        if not quiet:
+        if verbose:
             words = command.split()
             for word in words:
                 if word.upper() != word:

@@ -211,7 +211,8 @@ class Instance(testing.Instance):
             # instance; it seems to be properly broken.
             raise testing.InstanceError
 
-        testing.logger.info("Quick-started Critic")
+        testing.logger.info("Quick-started Critic in %s (%d)"
+                            % (self.state_dir, self.frontend.http_port))
 
     def check_upgrade(self):
         raise testing.NotSupported("quick-started instance can't be upgraded")
