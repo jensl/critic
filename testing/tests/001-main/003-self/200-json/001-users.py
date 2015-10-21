@@ -217,3 +217,22 @@ frontend.json(
     expect={ "error": { "title": "Invalid API request",
                         "message": "Invalid user sort parameter: 'age'" }},
     expected_http_status=400)
+
+with frontend.signin("alice"):
+    frontend.json(
+        "users/%d" % instance.userid("alice"),
+        put={ "fullname": "Alice has a new name" },
+        expect=user_json("alice", fullname="Alice has a new name"))
+
+    frontend.json(
+        "users/%d" % instance.userid("alice"),
+        expect=user_json("alice", fullname="Alice has a new name"))
+
+    frontend.json(
+        "users/%d" % instance.userid("alice"),
+        put={ "fullname": user_json("alice")["fullname"] },
+        expect=user_json("alice"))
+
+    frontend.json(
+        "users/%d" % instance.userid("alice"),
+        expect=user_json("alice"))

@@ -107,6 +107,25 @@ class Users(object):
                       key=sort_key)
 
     @staticmethod
+    def update(parameters, value, values, data):
+        if values and len(values) != 1:
+            raise UsageError("Updating multiple users not supported")
+
+        critic = parameters.critic
+
+        if values:
+            value = values[0]
+
+        converted = jsonapi.convert(parameters, { "fullname?": str }, data)
+
+        with api.transaction.Transaction(critic) as transaction:
+            if "fullname" in converted:
+                new_fullname = converted["fullname"].strip()
+                if not new_fullname:
+                    raise jsonapi.InputError("Empty new fullname")
+                transaction.modifyUser(value).setFullname(new_fullname)
+
+    @staticmethod
     def deduce(parameters):
         user = parameters.context.get("users")
         user_parameter = parameters.getQueryParameter("user")
