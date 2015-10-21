@@ -263,5 +263,144 @@ class Filters(object):
         else:
             repository_filters = itertools.chain(
                 *user.repository_filters.values())
-        return sorted(repository_filters,
-                      key=lambda repository_filter: repository_filter.id)
+        return jsonapi.sorted_by_id(repository_filters)
+
+    @staticmethod
+    def create(parameters, value, values, data):
+        import reviewing.filters
+
+        class FilterPath(jsonapi.check.StringChecker):
+            def check(self, context, value):
+                path = reviewing.filters.sanitizePath(value)
+                try:
+                    reviewing.filters.validatePattern(path)
+                except reviewing.filters.PatternError as error:
+                    return error.message
+
+            def convert(self, context, value):
+                return reviewing.filters.sanitizePath(value)
+
+        critic = parameters.critic
+        subject = parameters.context["users"]
+
+        if parameters.subresource_path:
+            if value:
+                repository_filters = [value]
+            else:
+                repository_filters = values
+
+            assert parameters.subresource_path[0] == "delegates"
+            assert len(parameters.subresource_path) == 1
+
+            converted = jsonapi.convert(parameters, api.user.User, data)
+
+            with api.transaction.Transaction(critic) as transaction:
+                for repository_filter in repository_filters:
+                    delegates = set(repository_filter.delegates)
+
+                    if converted not in delegates:
+                        delegates.add(converted)
+                        transaction \
+                            .modifyUser(subject) \
+                            .modifyFilter(repository_filter) \
+                            .setDelegates(delegates)
+
+            return value, values
+
+        converted = jsonapi.convert(
+            parameters,
+            { "type": set(("reviewer", "watcher", "ignore")),
+              "path": FilterPath,
+              "repository": api.repository.Repository,
+              "delegates?": [api.user.User] },
+            data)
+
+        result = []
+
+        with api.transaction.Transaction(critic, result) as transaction:
+            transaction.modifyUser(subject).createFilter(
+                filter_type=converted["type"],
+                repository=converted["repository"],
+                path=converted["path"],
+                delegates=converted.get("delegates", []))
+
+        assert len(result) == 1
+        assert isinstance(result[0], api.filters.RepositoryFilter)
+
+        return result[0], None
+
+    @staticmethod
+    def update(parameters, value, values, data):
+        critic = parameters.critic
+
+        if parameters.subresource_path:
+            assert parameters.subresource_path[0] == "delegates"
+
+            if len(parameters.subresource_path) == 2:
+                raise jsonapi.UsageError("can't update specific delegate")
+
+            delegates = jsonapi.convert(
+                parameters, [api.user.User], data)
+        else:
+            converted = jsonapi.convert(
+                parameters,
+                { "delegates?": [api.user.User] },
+                data)
+
+            delegates = converted.get("delegates")
+
+        if value:
+            repository_filters = [value]
+        else:
+            repository_filters = values
+
+        with api.transaction.Transaction(critic) as transaction:
+            for repository_filter in repository_filters:
+                if delegates is not None:
+                    transaction \
+                        .modifyUser(repository_filter.subject) \
+                        .modifyFilter(repository_filter) \
+                        .setDelegates(delegates)
+
+        return value, values
+
+    @staticmethod
+    def delete(parameters, value, values):
+        critic = parameters.critic
+
+        if parameters.subresource_path:
+            assert value and not values
+            assert parameters.subresource_path[0] == "delegates"
+
+            repository_filter = value
+            delegates = jsonapi.sorted_by_id(repository_filter.delegates)
+
+            if len(parameters.subresource_path) == 1:
+                # Delete all delegates.
+                delegates = []
+            else:
+                del delegates[parameters.subresource_path[1] - 1]
+
+            with api.transaction.Transaction(critic) as transaction:
+                transaction \
+                    .modifyUser(repository_filter.subject) \
+                    .modifyFilter(repository_filter) \
+                    .setDelegates(delegates)
+
+            # Remove the last component from the sub-resource path, since we've
+            # just deleted the specified sub-resource(s).
+            del parameters.subresource_path[-1]
+
+            return value, values
+
+        if value:
+            repository_filters = [value]
+        else:
+            repository_filters = values
+
+        with api.transaction.Transaction(critic) as transaction:
+            for repository_filter in repository_filters:
+                transaction \
+                    .modifyUser(repository_filter.subject) \
+                    .modifyFilter(repository_filter) \
+                    .delete()
