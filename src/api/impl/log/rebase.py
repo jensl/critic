@@ -1,6 +1,9 @@
 import api
+from .. import apiobject
 
-class Rebase(object):
+class Rebase(apiobject.APIObject):
+    wrapper_class = api.log.rebase.Rebase
+
     def __init__(self, rebase_id, review_id, creator_id,
                  old_head_id, new_head_id, old_upstream_id, new_upstream_id,
                  equivalent_merge_id, replayed_rebase_id):
@@ -13,6 +16,11 @@ class Rebase(object):
         self.equivalent_merge_id = equivalent_merge_id
         self.replayed_rebase_id = replayed_rebase_id
         self.creator_id = creator_id
+
+        if self.new_upstream_id is None:
+            self.wrapper_class = api.log.rebase.HistoryRewrite
+        else:
+            self.wrapper_class = api.log.rebase.MoveRebase
 
     def getReview(self, critic):
         return api.review.fetch(critic, review_id=self.review_id)
@@ -53,23 +61,6 @@ class Rebase(object):
     def getCreator(self, critic):
         return api.user.fetch(critic, user_id=self.creator_id)
 
-    def wrap(self, critic):
-        if self.new_upstream_id is None:
-            return api.log.rebase.HistoryRewrite(critic, self)
-        else:
-            return api.log.rebase.MoveRebase(critic, self)
-
-def make(critic, args):
-    for (rebase_id, review_id, creator_id,
-         old_head_id, new_head_id, old_upstream_id, new_upstream_id,
-         equivalent_merge_id, replayed_rebase_id) in args:
-        def callback():
-            return Rebase(
-                rebase_id, review_id, creator_id,
-                old_head_id, new_head_id, old_upstream_id, new_upstream_id,
-                equivalent_merge_id, replayed_rebase_id).wrap(critic)
-        yield critic._impl.cached(api.log.rebase.Rebase, rebase_id, callback)
-
 def fetch(critic, rebase_id):
     cursor = critic.getDatabaseCursor()
     cursor.execute(
@@ -81,7 +72,7 @@ def fetch(critic, rebase_id):
               AND new_head IS NOT NULL""",
         (rebase_id,))
     try:
-        return next(make(critic, cursor))
+        return next(Rebase.make(critic, cursor))
     except StopIteration:
         raise api.log.rebase.InvalidRebaseId(rebase_id)
 
@@ -105,4 +96,4 @@ def fetchAll(critic, review):
                  FROM reviewrebases
                 WHERE new_head IS NOT NULL
              ORDER BY id DESC""")
-    return list(make(critic, cursor))
+    return list(Rebase.make(critic, cursor))

@@ -15,9 +15,12 @@
 # the License.
 
 import api
+import apiobject
 
-class Branch(object):
-    def __init__(self, branch_id, name, repository_id, head_id, repository=None):
+class Branch(apiobject.APIObject):
+    wrapper_class = api.branch.Branch
+
+    def __init__(self, branch_id, name, repository_id, head_id):
         self.id = branch_id
         self.name = name
         self.__repository_id = repository_id
@@ -47,16 +50,6 @@ class Branch(object):
                          for (commit_id,) in cursor))
         return self.__commits
 
-    def wrap(self, critic):
-        return api.branch.Branch(critic, self)
-
-def make(critic, repository, args):
-    for branch_id, name, repository_id, head_id in args:
-        def callback():
-            return Branch(branch_id, name, repository_id, head_id,
-                          repository=repository).wrap(critic)
-        yield critic._impl.cached(api.branch.Branch, branch_id, callback)
-
 def fetch(critic, branch_id, repository, name):
     cursor = critic.getDatabaseCursor()
     if branch_id is not None:
@@ -64,19 +57,19 @@ def fetch(critic, branch_id, repository, name):
                             FROM branches
                            WHERE id=%s""",
                        (branch_id,))
-        row = cursor.fetchone()
-        if not row:
-            raise api.branch.InvalidBranchId(branch_id)
     else:
         cursor.execute("""SELECT id, name, repository, head
                             FROM branches
                            WHERE repository=%s
                              AND name=%s""",
                        (repository.id, name,))
-        row = cursor.fetchone()
-        if not row:
+    try:
+        return next(Branch.make(critic, cursor))
+    except StopIteration:
+        if branch_id is not None:
+            raise api.branch.InvalidBranchId(branch_id)
+        else:
             raise api.branch.InvalidBranchName(name)
-    return next(make(critic, repository, (row,)))
 
 def fetchAll(critic, repository):
     cursor = critic.getDatabaseCursor()
@@ -90,4 +83,4 @@ def fetchAll(critic, repository):
         cursor.execute("""SELECT id, name, repository, head
                             FROM branches
                         ORDER BY name""")
-    return list(make(critic, repository, cursor))
+    return list(Branch.make(critic, cursor))

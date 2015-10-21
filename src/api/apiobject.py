@@ -31,6 +31,14 @@ class APIObject(object):
         """The Critic session object used to create the API object"""
         return self.__critic
 
+    def refresh(self):
+        """Refresh cached information from the database
+
+           This function is called automatically when the current database
+           transaction is committed, so there is normally no reason to call it
+           directly."""
+        self.__impl = self.__impl.refresh(self.__critic)
+
     @property
     def _impl(self):
         """Underlying object implementation

@@ -25,19 +25,29 @@ class Critic(object):
         self.actual_user = None
         self.__cache = {}
 
+        database.registerTransactionCallback(self.__refreshCache)
+
     def getEffectiveUser(self, critic):
         if self.actual_user:
             return self.actual_user
         return api.user.anonymous(critic)
 
-    def cached(self, cls, key, callback):
+    def cached(self, cls, key, create):
         wvd = self.__cache.setdefault(cls, weakref.WeakValueDictionary())
         try:
             value = wvd[key]
         except KeyError:
-            value = wvd[key] = callback()
+            value = wvd[key] = create()
         assert isinstance(value, cls)
         return value
+
+    def __refreshCache(self, event):
+        # |event| is either "commit" or "rollback".  In either case, we may have
+        # stale values in our cache that we want to refresh at this point.
+        for wvd in self.__cache.values():
+            for value in wvd.values():
+                value.refresh()
+        return True
 
 def startSession(for_user, for_system, for_testing):
     if for_user:

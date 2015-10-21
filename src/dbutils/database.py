@@ -201,10 +201,17 @@ class Database(Session):
     def __init__(self, allow_unsafe_cursors=True):
         super(Database, self).__init__()
         self.__connection = dbaccess.connect()
-        self.__commit_callbacks = []
+        self.__transaction_callbacks = []
         self.__allow_unsafe_cursors = allow_unsafe_cursors
         self.__updating_cursor = None
         self.unsafe_queries = False
+
+    def __call_transaction_callbacks(self, *args):
+        keep_transaction_callbacks = []
+        for callback in self.__transaction_callbacks:
+            if callback(*args):
+                keep_transaction_callbacks.append(callback)
+        self.__transaction_callbacks = keep_transaction_callbacks
 
     def cursor(self):
         if not self.__allow_unsafe_cursors:
@@ -249,9 +256,7 @@ class Database(Session):
         self.__connection.commit()
         after = time.time()
         self.recordProfiling("<commit>", after - before, 0)
-        for callback in self.__commit_callbacks:
-            callback()
-        self.__commit_callbacks = []
+        self.__call_transaction_callbacks("commit")
         self.unsafe_queries = False
 
     def rollback(self):
@@ -261,7 +266,7 @@ class Database(Session):
         self.__connection.rollback()
         after = time.time()
         self.recordProfiling("<rollback>", after - before, 0)
-        self.__commit_callbacks = []
+        self.__call_transaction_callbacks("rollback")
         self.unsafe_queries = False
 
     def close(self):
@@ -281,8 +286,8 @@ class Database(Session):
         self.close()
         return False
 
-    def registerCommitCallback(self, callback):
-        self.__commit_callbacks.append(callback)
+    def registerTransactionCallback(self, callback):
+        self.__transaction_callbacks.append(callback)
 
     @staticmethod
     def analyzeQuery(query):

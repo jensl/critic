@@ -15,9 +15,13 @@
 # the License.
 
 import api
+import apiobject
+
 import dbutils
 
-class User(object):
+class User(apiobject.APIObject):
+    wrapper_class = api.user.User
+
     def __init__(self, user_id, name, fullname, status, email):
         self.id = user_id
         self.name = name
@@ -62,6 +66,8 @@ class User(object):
         return set(email for (email,) in cursor)
 
     def getRepositoryFilters(self, critic):
+        from api.impl.filters import RepositoryFilter
+
         all_repositories = {}
         filters = {}
 
@@ -72,20 +78,15 @@ class User(object):
             return all_repositories[repository_id]
 
         cursor = critic.getDatabaseCursor()
-        cursor.execute("""SELECT uid, type, path, id, repository, delegate
+        cursor.execute("""SELECT id, uid, type, path, repository, delegate
                             FROM filters
                            WHERE uid=%s
                         ORDER BY id ASC""",
                        (self.id,))
 
-        for subject_id, filter_type, path, filter_id, repository_id, delegate_string in cursor:
-            repository = processRepository(repository_id)
-            filters.setdefault(repository, []).append(
-                api.filters.RepositoryFilter(
-                    critic,
-                    api.impl.filters.RepositoryFilter(
-                        subject_id, filter_type, path, filter_id, repository_id,
-                        delegate_string, repository=repository)))
+        for repository_filter in RepositoryFilter.make(critic, cursor):
+            filters.setdefault(repository_filter.repository, []).append(
+                repository_filter)
 
         return filters
 
@@ -152,14 +153,18 @@ class User(object):
 
         return api.preference.Preference(item, value, user, repository)
 
-    def wrap(self, critic):
-        return api.user.User(critic, self)
-
-def make(critic, args):
-    for user_id, name, fullname, status, email in args:
-        def callback():
-            return User(user_id, name, fullname, status, email).wrap(critic)
-        yield critic._impl.cached(api.user.User, user_id, callback)
+    def refresh(self, critic):
+        cursor = critic.getDatabaseCursor()
+        cursor.execute("""SELECT users.id, name, fullname, status, useremails.email
+                            FROM users
+                 LEFT OUTER JOIN useremails ON (useremails.id=users.email
+                                            AND (useremails.verified IS NULL
+                                              OR useremails.verified))
+                           WHERE users.id=%s""",
+                       (self.id,))
+        for user_id, name, fullname, status, email in cursor:
+            return User(user_id, name, fullname, status, email)
+        return self
 
 def fetch(critic, user_id, name):
     try:
@@ -207,7 +212,7 @@ def fetchMany(critic, user_ids, names):
         raise exception_type(values)
 
     rows = dict((row[column_index], row) for row in rows)
-    return return_type(make(critic, (rows[key] for key in values)))
+    return return_type(User.make(critic, (rows[key] for key in values)))
 
 def fetchAll(critic, status):
     cursor = critic.getDatabaseCursor()
@@ -225,9 +230,7 @@ def fetchAll(critic, status):
                        """ + condition + """
                     ORDER BY users.id""",
                    values)
-    return list(make(critic, cursor))
+    return list(User.make(critic, cursor))
 
 def anonymous(critic):
-    def callback():
-        return User(None, None, None, "anonymous", None).wrap(critic)
-    return critic._impl.cached(api.user.User, None, callback)
+    return next(User.make(critic, [(None, None, None, "anonymous", None)]))

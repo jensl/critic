@@ -15,8 +15,11 @@
 # the License.
 
 import api
+import apiobject
 
-class CommitSet(object):
+class CommitSet(apiobject.APIObject):
+    wrapper_class = api.commitset.CommitSet
+
     def __init__(self, commits):
         self.commits = frozenset(commits)
         self.__children = {}

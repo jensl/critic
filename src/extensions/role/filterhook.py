@@ -139,7 +139,11 @@ def queueFilterHookEvent(db, filter_id, review, user, commits, file_ids):
                                VALUES (%s, %s)""",
                        [(event_id, file_id) for file_id in file_ids])
 
-    db.registerCommitCallback(signalExtensionTasksService)
+    def transactionCallback(event):
+        if event == "commit":
+            signalExtensionTasksService()
+
+    db.registerTransactionCallback(transactionCallback)
 
 def processFilterHookEvent(db, event_id, logfn):
     cursor = db.cursor()

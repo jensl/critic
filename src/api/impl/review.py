@@ -15,9 +15,12 @@
 # the License.
 
 import api
+import apiobject
 import api.impl.filters
 
-class Review(object):
+class Review(apiobject.APIObject):
+    wrapper_class = api.review.Review
+
     def __init__(self, review_id, repository_id, branch_id, state, summary,
                  description):
         self.id = review_id
@@ -141,17 +144,6 @@ class Review(object):
     def getRebases(self, wrapper):
         return api.log.rebase.fetchAll(wrapper.critic, wrapper)
 
-    def wrap(self, critic):
-        return api.review.Review(critic, self)
-
-def make(critic, args):
-    for (review_id, repository_id, branch_id,
-         state, summary, description) in args:
-        def callback():
-            return Review(review_id, repository_id, branch_id,
-                          state, summary, description).wrap(critic)
-        yield critic._impl.cached(api.review.Review, review_id, callback)
-
 def fetch(critic, review_id, branch):
     cursor = critic.getDatabaseCursor()
     if review_id is not None:
@@ -168,13 +160,13 @@ def fetch(critic, review_id, branch):
                             JOIN branches ON (branches.id=reviews.branch)
                            WHERE branches.id=%s""",
                        (int(branch),))
-    row = cursor.fetchone()
-    if not row:
+    try:
+        return next(Review.make(critic, cursor))
+    except StopIteration:
         if review_id is not None:
             raise api.review.InvalidReviewId(review_id)
         else:
             raise api.review.InvalidReviewBranch(branch)
-    return next(make(critic, [row]))
 
 def fetchAll(critic, repository, state):
     cursor = critic.getDatabaseCursor()
@@ -194,4 +186,4 @@ def fetchAll(critic, repository, state):
                        WHERE """ + " AND ".join(conditions) + """
                     ORDER BY reviews.id""",
                    values)
-    return list(make(critic, cursor))
+    return list(Review.make(critic, cursor))

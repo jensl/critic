@@ -15,15 +15,18 @@
 # the License.
 
 import api
+import apiobject
 
-class RepositoryFilter(object):
-    def __init__(self, subject_id, filter_type, path, filter_id, repository_id,
+class RepositoryFilter(apiobject.APIObject):
+    wrapper_class = api.filters.RepositoryFilter
+
+    def __init__(self, filter_id, subject_id, filter_type, path, repository_id,
                  delegate_string, repository=None):
+        self.id = filter_id
         self.__subject_id = subject_id
         self.__subject = None
         self.type = filter_type
         self.path = path
-        self.id = filter_id
         self.__repository_id = repository_id
         self.__repository = repository
         self.__delegate_string = delegate_string
@@ -47,7 +50,20 @@ class RepositoryFilter(object):
                 for name in filter(None, self.__delegate_string.split(",")))
         return self.__delegates
 
+    def refresh(self, critic):
+        cursor = critic.getDatabaseCursor()
+        cursor.execute("""SELECT id, uid, type, path, repository, delegate
+                            FROM filters
+                           WHERE id=%s""",
+                       (self.id,))
+        row = cursor.fetchone()
+        if row:
+            return RepositoryFilter(*row)
+        return self
+
 class ReviewFilter(object):
+    wrapper_class = api.filters.ReviewFilter
+
     def __init__(self, subject_id, filter_type, path, filter_id, review_id,
                  creator_id):
         self.__subject_id = subject_id

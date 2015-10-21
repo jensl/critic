@@ -17,12 +17,15 @@
 import subprocess
 
 import api
+import apiobject
 
 import configuration
 import dbutils
 import gitutils
 
-class Repository(object):
+class Repository(apiobject.APIObject):
+    wrapper_class = api.repository.Repository
+
     def __init__(self, repository_id, name, path):
         self.id = repository_id
         self.name = name
@@ -77,14 +80,9 @@ class Repository(object):
         return [api.commit.fetch(repository, sha1=sha1)
                 for sha1 in self.run(*args).split()]
 
-    def wrap(self, critic):
-        return api.repository.Repository(critic, self)
-
-def make(critic, repository_id, name, path):
-    def callback():
+    @classmethod
+    def create(Repository, critic, repository_id, name, path):
         return Repository(repository_id, name, path).wrap(critic)
-    return critic._impl.cached(
-        api.repository.Repository, repository_id, callback)
 
 def fetch(critic, repository_id, name, path):
     cursor = critic.getDatabaseCursor()
@@ -103,22 +101,22 @@ def fetch(critic, repository_id, name, path):
                             FROM repositories
                            WHERE path=%s""",
                        (path,))
-    row = cursor.fetchone()
-    if not row:
+    try:
+        return next(Repository.make(critic, cursor))
+    except StopIteration:
         if repository_id is not None:
             raise api.repository.InvalidRepositoryId(repository_id)
         elif name is not None:
             raise api.repository.InvalidRepositoryName(name)
         else:
             raise api.repository.InvalidRepositoryPath(path)
-    return make(critic, *row)
 
 def fetchAll(critic):
     cursor = critic.getDatabaseCursor()
     cursor.execute("""SELECT id, name, path
                         FROM repositories
                     ORDER BY name""")
-    return [make(critic, *row) for row in cursor]
+    return list(Repository.make(critic, cursor))
 
 def fetchHighlighted(critic, user):
     highlighted = set()
@@ -145,4 +143,4 @@ def fetchHighlighted(critic, user):
                        WHERE id=ANY (%s)
                     ORDER BY name""",
                    (list(highlighted),))
-    return [make(critic, *row) for row in cursor]
+    return list(Repository.make(critic, cursor))

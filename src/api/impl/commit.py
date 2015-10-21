@@ -19,13 +19,16 @@ import datetime
 import re
 
 import api
+import apiobject
 import api.impl
 
 import gitutils
 
 RE_FOLLOWUP = re.compile("(fixup|squash)!.*(?:\n[ \t]*)+(.*)")
 
-class Commit(object):
+class Commit(apiobject.APIObject):
+    wrapper_class = api.commit.Commit
+
     def __init__(self, repository_id, internal):
         self.__repository_id = repository_id
         self.internal = internal
@@ -69,9 +72,6 @@ class Commit(object):
 
     def isAncestorOf(self, commit):
         return self.internal.isAncestorOf(commit.internal)
-
-    def wrap(self, critic):
-        return api.commit.Commit(critic, self)
 
 def fetch(repository, commit_id=None, sha1=None, ref=None):
     critic = repository.critic
