@@ -185,11 +185,11 @@ A primary resource is implemented by decorating a class with the decorator
       return { "name": value.name }
 
     @staticmethod
-    def single(critic, argument, parameters):
+    def single(parameters, argument):
       return User(argument)
 
     @staticmethod
-    def multiple(critic, parameters):
+    def multiple(parameters):
       return [User("alice"), User("bob")]
 
 A resource class is never instantiated; it is only expected to have class

@@ -17,10 +17,10 @@
 import api
 import jsonapi
 
-def from_argument(critic, argument):
+def from_argument(parameters, argument):
     repository_id, name = jsonapi.id_or_name(argument)
     return api.repository.fetch(
-        critic, repository_id=repository_id, name=name)
+        parameters.critic, repository_id=repository_id, name=name)
 
 @jsonapi.PrimaryResource
 class Repositories(object):
@@ -31,7 +31,7 @@ class Repositories(object):
     exceptions = (api.repository.RepositoryError,)
 
     @staticmethod
-    def json(value, parameters, linked):
+    def json(value, parameters):
         """Repository {
              "id": integer, // the repository's id
              "name": string, // the repository's (unique) short name
@@ -46,7 +46,7 @@ class Repositories(object):
                               "url": value.url })
 
     @staticmethod
-    def single(critic, argument, parameters):
+    def single(parameters, argument):
         """Retrieve one (or more) repositories on this system.
 
            REPOSITORY_ID : integer
@@ -54,10 +54,10 @@ class Repositories(object):
            Retrieve a repository identified by its unique numeric id."""
 
         return Repositories.setAsContext(parameters, api.repository.fetch(
-            critic, repository_id=jsonapi.numeric_id(argument)))
+            parameters.critic, repository_id=jsonapi.numeric_id(argument)))
 
     @staticmethod
-    def multiple(critic, parameters):
+    def multiple(parameters):
         """Retrieve a single named repository or all repositories on this
            system.
 
@@ -76,21 +76,22 @@ class Repositories(object):
 
         name_parameter = parameters.getQueryParameter("name")
         if name_parameter:
-            return api.repository.fetch(critic, name=name_parameter)
+            return api.repository.fetch(parameters.critic, name=name_parameter)
         filter_parameter = parameters.getQueryParameter("filter")
         if filter_parameter is not None:
             if filter_parameter == "highlighted":
-                repositories = api.repository.fetchHighlighted(critic)
+                repositories = api.repository.fetchHighlighted(
+                    parameters.critic)
             else:
                 raise jsonapi.UsageError(
                     "Invalid repository filter parameter: %r"
                     % filter_parameter)
         else:
-            repositories = api.repository.fetchAll(critic)
+            repositories = api.repository.fetchAll(parameters.critic)
         return repositories
 
     @staticmethod
-    def deduce(critic, parameters):
+    def deduce(parameters):
         repository = parameters.context.get("repositories")
         repository_parameter = parameters.getQueryParameter("repository")
         if repository_parameter is not None:
@@ -98,7 +99,7 @@ class Repositories(object):
                 raise jsonapi.UsageError(
                     "Redundant query parameter: repository=%s"
                     % repository_parameter)
-            repository = from_argument(critic, repository_parameter)
+            repository = from_argument(parameters, repository_parameter)
         return repository
 
     @staticmethod

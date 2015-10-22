@@ -1,3 +1,4 @@
+# @dependency 001-main/003-self/020-reviewrebase.py
 # @dependency 001-main/003-self/100-reviewing/001-comments.basic.py
 
 # Fetch the id of a review which contains some comments.
@@ -28,7 +29,7 @@ frontend.json(
 
 frontend.json(
     "reviews/%d" % review_id,
-    params={ "include": "users" },
+    params={ "include": "users,commits" },
     expect={ "id": review_id,
              "state": "open",
              "summary": "Added 100-reviewing/001-comment.basic.txt",
@@ -44,7 +45,8 @@ frontend.json(
              "linked": { "users": [user_json("alice"),
                                    user_json("bob"),
                                    user_json("dave"),
-                                   user_json("erin")] } })
+                                   user_json("erin")],
+                         "commits": [generic_commit_json] }})
 
 frontend.json(
     "reviews/%d/commits" % review_id,

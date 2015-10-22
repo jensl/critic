@@ -27,7 +27,7 @@ class Branches(object):
     exceptions = (api.branch.BranchError, api.repository.RepositoryError)
 
     @staticmethod
-    def json(value, parameters, linked):
+    def json(value, parameters):
         """Branch {
              "id": integer, // the branch's id
              "name": string, // the branch's name
@@ -35,17 +35,14 @@ class Branches(object):
              "head": integer, // the branch's head commit's id
            }"""
 
-        linked.add(jsonapi.v1.repositories.Repositories, value.repository)
-        linked.add(jsonapi.v1.commits.Commits, value.head)
-
         return parameters.filtered(
             "branches", { "id": value.id,
                           "name": value.name,
-                          "repository": value.repository.id,
-                          "head": value.head.id })
+                          "repository": value.repository,
+                          "head": value.head })
 
     @staticmethod
-    def single(critic, argument, parameters):
+    def single(parameters, argument):
         """Retrieve one (or more) branches in the Git repositories.
 
            BRANCH_ID : integer
@@ -53,10 +50,10 @@ class Branches(object):
            Retrieve a branch identified by its unique numeric id."""
 
         return Branches.setAsContext(parameters, api.branch.fetch(
-            critic, branch_id=jsonapi.numeric_id(argument)))
+            parameters.critic, branch_id=jsonapi.numeric_id(argument)))
 
     @staticmethod
-    def multiple(critic, parameters):
+    def multiple(parameters):
         """Retrieve all branches in the Git repositories.
 
            repository : REPOSITORY : -
@@ -71,16 +68,15 @@ class Branches(object):
            is specified a repository must be specified as well, either in the
            resource path or using the <code>repository</code> parameter."""
 
-        repository = jsonapi.v1.repositories.Repositories.deduce(
-            critic, parameters)
+        repository = jsonapi.deduce("v1/repositories", parameters)
         name_parameter = parameters.getQueryParameter("name")
         if name_parameter:
             if repository is None:
                 raise jsonapi.UsageError(
                     "Named branch access must have repository specified.")
             return api.branch.fetch(
-                critic, repository=repository, name=name_parameter)
-        return api.branch.fetchAll(critic, repository=repository)
+                parameters.critic, repository=repository, name=name_parameter)
+        return api.branch.fetchAll(parameters.critic, repository=repository)
 
     @staticmethod
     def setAsContext(parameters, branch):
@@ -106,7 +102,7 @@ class BranchCommits(object):
     json = staticmethod(commits.Commits.json)
 
     @staticmethod
-    def multiple(critic, parameters):
+    def multiple(parameters):
         """Retrieve all commits associated with the branch.
 
            sort : SORT_KEY : -

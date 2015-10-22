@@ -26,7 +26,7 @@ class Reviews(object):
     exceptions = (api.review.InvalidReviewId, api.repository.RepositoryError)
 
     @staticmethod
-    def json(value, parameters, linked):
+    def json(value, parameters):
         """Review {
              "id": integer,
              "state": string,
@@ -44,55 +44,37 @@ class Reviews(object):
              "commits": integer[],
              "rebase": integer or null,
            }"""
-        owners_ids = sorted(owner.id for owner in value.owners)
-        reviewers_ids = sorted(reviewer.id for reviewer in value.reviewers)
-        watchers_ids = sorted(watcher.id for watcher in value.watchers)
-
-        linked_users = value.owners | value.reviewers | value.watchers
-        linked_commits = set()
-        linked_rebases = set()
 
         partitions = []
 
         def add_partition(partition):
-            partition_commits = list(partition.commits.topo_ordered)
-            linked_commits.update(partition_commits)
-            partition_commits_ids = [commit.id for commit in partition_commits]
-
             if partition.following:
                 partition_rebase = partition.following.rebase
-                linked_rebases.add(partition_rebase)
-                rebase_id = partition_rebase.id
             else:
-                rebase_id = None
+                partition_rebase = None
 
-            partitions.append({ "commits": partition_commits_ids,
-                                "rebase": rebase_id })
+            partitions.append({ "commits": list(partition.commits.topo_ordered),
+                                "rebase": partition_rebase })
 
             if partition.following:
                 add_partition(partition.following.partition)
 
         add_partition(value.first_partition)
 
-        linked.add(jsonapi.v1.branches.Branches, value.branch)
-        linked.add(jsonapi.v1.users.Users, *linked_users)
-        linked.add(jsonapi.v1.commits.Commits, *linked_commits)
-        linked.add(jsonapi.v1.rebases.Rebases, *linked_rebases)
-
         return parameters.filtered(
             "reviews", { "id": value.id,
                          "state": value.state,
                          "summary": value.summary,
                          "description": value.description,
-                         "repository": value.repository.id,
-                         "branch": value.branch.id,
-                         "owners": sorted(owners_ids),
-                         "reviewers": sorted(reviewers_ids),
-                         "watchers": sorted(watchers_ids),
+                         "repository": value.repository,
+                         "branch": value.branch,
+                         "owners": jsonapi.sorted_by_id(value.owners),
+                         "reviewers": jsonapi.sorted_by_id(value.reviewers),
+                         "watchers": jsonapi.sorted_by_id(value.watchers),
                          "partitions": partitions })
 
     @staticmethod
-    def single(critic, argument, parameters):
+    def single(parameters, argument):
         """Retrieve one (or more) reviews in this system.
 
            REVIEW_ID : integer
@@ -100,10 +82,10 @@ class Reviews(object):
            Retrieve a review identified by its unique numeric id."""
 
         return Reviews.setAsContext(parameters, api.review.fetch(
-            critic, review_id=jsonapi.numeric_id(argument)))
+            parameters.critic, review_id=jsonapi.numeric_id(argument)))
 
     @staticmethod
-    def multiple(critic, parameters):
+    def multiple(parameters):
         """Retrieve all reviews in this system.
 
            repository : REPOSITORY : -
@@ -116,8 +98,7 @@ class Reviews(object):
            Include only reviews in the specified state.  Valid values are:
            <code>open</code>, <code>closed</code>, <code>dropped</code>."""
 
-        repository = jsonapi.v1.repositories.Repositories.deduce(
-            critic, parameters)
+        repository = jsonapi.deduce("v1/repositories", parameters)
         state_parameter = parameters.getQueryParameter("state")
         if state_parameter:
             state = set(state_parameter.split(","))
@@ -128,10 +109,11 @@ class Reviews(object):
                     % ", ".join(map(repr, sorted(invalid))))
         else:
             state = None
-        return api.review.fetchAll(critic, repository=repository, state=state)
+        return api.review.fetchAll(
+            parameters.critic, repository=repository, state=state)
 
     @staticmethod
-    def deduce(critic, parameters):
+    def deduce(parameters):
         review = parameters.context.get("reviews")
         review_parameter = parameters.getQueryParameter("review")
         if review_parameter is not None:

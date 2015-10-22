@@ -19,6 +19,8 @@ import copy
 import contextlib
 import itertools
 
+import api
+import auth
 import request
 import textutils
 
@@ -33,10 +35,19 @@ class UsageError(Error):
     http_status = 400
     title = "Invalid API request"
 
+class InputError(Error):
+    http_status = 400
+    title = "Invalid API input"
+
+class PermissionDenied(Error):
+    http_status = 403
+    title = "Permission denied"
+
 SPECIAL_QUERY_PARAMETERS = frozenset(["fields", "include"])
 
 class Parameters(object):
-    def __init__(self, req):
+    def __init__(self, critic, req):
+        self.critic = critic
         self.req = req
         self.fields = req.getParameter(
             "fields", set(), filter=lambda value: set(value.split(",")))
@@ -48,6 +59,7 @@ class Parameters(object):
         self.__resource_name = None
         self.range_accessed = False
         self.context = {}
+        self.subresource_path = []
 
     def __prepareType(self, resource_type):
         if resource_type not in self.fields_per_type:
@@ -130,30 +142,53 @@ class Linked(object):
     def isEmpty(self):
         return not any(self.linked_per_type.values())
 
-    def add(self, resource_class, *values):
+    def add(self, resource_path, *values):
+        resource_class = lookup(resource_path)
         assert all(isinstance(value, resource_class.value_class)
                    for value in values)
         linked = self.linked_per_type.get(resource_class.name)
         if linked is not None:
             linked.update(values)
 
+    def filter_referenced(self, json):
+        if isinstance(json, dict):
+            return {
+                key: self.filter_referenced(value)
+                for key, value in json.items()
+            }
+        elif isinstance(json, list):
+            return [self.filter_referenced(value) for value in json]
+        elif type(json) in VALUE_CLASSES:
+            resource_path = VALUE_CLASSES[type(json)]
+            self.add(resource_path, json)
+            return json.id
+        else:
+            return json
+
     def copy(self):
         return copy.deepcopy(self)
 
 HANDLERS = {}
+VALUE_CLASSES = {}
 
 def registerHandler(path, resource_class):
     HANDLERS[path] = resource_class
+    if not path.startswith("..."):
+        if isinstance(resource_class.value_class, tuple):
+            for value_class in resource_class.value_class:
+                VALUE_CLASSES[value_class] = path
+        else:
+            VALUE_CLASSES[resource_class.value_class] = path
 
 def PrimaryResource(resource_class):
     assert hasattr(resource_class, "name")
     assert hasattr(resource_class, "value_class")
-    if not hasattr(resource_class, "single"):
-        resource_class.single = None
-    if not hasattr(resource_class, "multiple"):
-        resource_class.multiple = None
-    if not hasattr(resource_class, "exceptions"):
-        resource_class.exceptions = ()
+    for name in ("single", "multiple"):
+        if not hasattr(resource_class, name):
+            setattr(resource_class, name, None)
+    for name in ("exceptions", "lists", "maps"):
+        if not hasattr(resource_class, name):
+            setattr(resource_class, name, ())
     contexts = getattr(resource_class, "contexts", (None,))
     if None in contexts:
         registerHandler("v1/" + resource_class.name, resource_class)
@@ -191,29 +226,108 @@ def id_or_name(argument):
 
 def numeric_id(argument):
     try:
-        return int(argument)
+        value = int(argument)
+        if value < 1:
+            raise ValueError
+        return value
     except ValueError:
         raise UsageError("Invalid numeric id: %r" % argument)
+
+def deduce(resource_path, parameters):
+    resource_class = lookup(resource_path)
+    try:
+        return resource_class.deduce(parameters)
+    except resource_class.exceptions as error:
+        raise PathError("Resource not found: %s" % error.message)
+
+def sorted_by_id(items):
+    return sorted(items, key=lambda item: item.id)
 
 import v1
 import documentation
 
-def handle(critic, req):
-    path = req.path.rstrip("/").split("/")
+def getAPIVersion(req):
+    path = req.path.split("/")
 
-    assert len(path) >= 1 and path.pop(0) == "api"
+    assert len(path) >= 1 and path[0] == "api"
 
-    if not path:
-        documentation.describeRoot()
+    if len(path) < 2:
+        return None
 
-    api_version = path.pop(0)
-    prefix = [api_version]
+    api_version = path[1]
 
     if api_version != "v1":
         raise PathError("Unsupported API version: %r" % api_version)
 
-    parameters = Parameters(req)
+    return api_version
+
+def finishGET(critic, req, parameters, resource_class, value, values):
+    assert (value is None) != (values is None)
+
+    api_version = getAPIVersion(req)
+
+    try:
+        if values is not None:
+            resource_json = {
+                resource_class.name: [resource_class.json(value, parameters)
+                                      for value in values]
+            }
+        else:
+            resource_json = resource_class.json(value, parameters)
+    except resource_class.exceptions as error:
+        raise PathError("Resource not found: %s" % error.message)
+    except IndexError:
+        raise PathError("List index out of range")
+
+    if parameters.subresource_path:
+        subresource_json = resource_json
+        for component in parameters.subresource_path:
+            subresource_json = subresource_json[component]
+        resource_json = {
+            "/".join(parameters.subresource_path): subresource_json
+        }
+
     linked = Linked(req)
+
+    resource_json = linked.filter_referenced(resource_json)
+
+    if linked.linked_per_type:
+        all_linked = linked.copy()
+
+        linked_json = resource_json["linked"] = {
+            resource_type: []
+            for resource_type in linked.linked_per_type
+        }
+
+        while not linked.isEmpty():
+            additional_linked = Linked(req)
+
+            for resource_type, linked_values in linked.linked_per_type.items():
+                resource_class = lookup([api_version, resource_type])
+
+                for linked_value in linked_values:
+                    linked_json[resource_type].append(
+                        additional_linked.filter_referenced(
+                            resource_class.json(linked_value, parameters)))
+
+            for resource_type in linked.linked_per_type.keys():
+                additional_linked[resource_type] -= all_linked[resource_type]
+                all_linked[resource_type] |= linked[resource_type]
+
+            linked = additional_linked
+
+    return resource_json
+
+def handle(critic, req):
+    api_version = getAPIVersion(req)
+
+    if not api_version:
+        documentation.describeRoot()
+
+    prefix = [api_version]
+    parameters = Parameters(critic, req)
+
+    path = req.path.rstrip("/").split("/")[2:]
 
     if not path:
         describe_parameter = parameters.getQueryParameter("describe")
@@ -222,9 +336,45 @@ def handle(critic, req):
         v1.documentation.describeVersion()
 
     context = None
+    resource_class = None
 
     while True:
-        resource_path = prefix + [path.pop(0)]
+        next_component = path.pop(0)
+
+        if resource_class and next_component in resource_class.lists:
+            subresource_id = []
+            subresource_path = []
+
+            while True:
+                subresource_id.append(next_component)
+                subresource_path.append(next_component)
+
+                if "/".join(subresource_id) in resource_class.lists:
+                    if path:
+                        try:
+                            subresource_path.append(int(path[0]) - 1)
+                        except ValueError:
+                            raise UsageError(
+                                "List index must be an integer: %r" % path[0])
+                        else:
+                            del path[0]
+                elif "/".join(subresource_id) in resource_class.maps:
+                    if path:
+                        subresource_path.append(path[0])
+                else:
+                    raise PathError("Invalid resource: %r / %r"
+                                    % ("/".join(resource_path),
+                                       "/".join(subresource_id)))
+
+                if not path:
+                    break
+
+                next_component = path.pop(0)
+
+            parameters.subresource_path = subresource_path
+            break
+
+        resource_path = prefix + [next_component]
         resource_class = lookup(resource_path)
 
         prefix.append(resource_class.name)
@@ -235,33 +385,29 @@ def handle(critic, req):
         resource_id = "/".join(resource_path)
 
         try:
-            if path:
-                if not resource_class.single:
-                    raise UsageError("Resource does not support arguments: %s"
-                                     % resource_id)
+            if path and resource_class.single:
                 arguments = filter(None, path.pop(0).split(","))
                 if len(arguments) == 0 or (len(arguments) > 1 and path):
                     raise UsageError("Invalid resource path: %s" % req.path)
                 if len(arguments) == 1:
                     with parameters.forResource(resource_class):
-                        value = resource_class.single(critic, arguments[0],
-                                                      parameters)
+                        value = resource_class.single(parameters, arguments[0])
+                    assert isinstance(value, resource_class.value_class)
                     if not path:
                         break
-                    else:
-                        assert isinstance(value, resource_class.value_class)
                 else:
                     with parameters.forResource(resource_class):
-                        values = [resource_class.single(critic, argument,
-                                                        parameters)
+                        values = [resource_class.single(parameters, argument)
                                   for argument in arguments]
+                    assert all(isinstance(value, resource_class.value_class)
+                               for value in values)
                     break
-            else:
+            elif not path:
                 if not resource_class.multiple:
                     raise UsageError("Resource requires an argument: %s"
                                      % resource_id)
                 with parameters.forResource(resource_class):
-                    values = resource_class.multiple(critic, parameters)
+                    values = resource_class.multiple(parameters)
                 if isinstance(values, resource_class.value_class):
                     value, values = values, None
                 elif not parameters.range_accessed:
@@ -271,34 +417,7 @@ def handle(critic, req):
         except resource_class.exceptions as error:
             raise PathError("Resource not found: %s" % error.message)
 
-    if values:
-        resource_json = {
-            resource_class.name: [resource_class.json(value, parameters, linked)
-                                  for value in values] }
-    else:
-        resource_json = resource_class.json(value, parameters, linked)
+    if values and not isinstance(values, list):
+        values = list(values)
 
-    if linked.linked_per_type:
-        all_linked = linked.copy()
-
-        linked_json = resource_json["linked"] = {
-            resource_type: []
-            for resource_type in linked.linked_per_type }
-
-        while not linked.isEmpty():
-            additional_linked = Linked(req)
-
-            for resource_type, linked_values in linked.linked_per_type.items():
-                resource_class = lookup([api_version, resource_type])
-
-                for linked_value in linked_values:
-                    linked_json[resource_type].append(resource_class.json(
-                        linked_value, parameters, additional_linked))
-
-            for resource_type in linked.linked_per_type.keys():
-                additional_linked[resource_type] -= all_linked[resource_type]
-                all_linked[resource_type] |= linked[resource_type]
-
-            linked = additional_linked
-
-    return resource_json
+    return finishGET(critic, req, parameters, resource_class, value, values)

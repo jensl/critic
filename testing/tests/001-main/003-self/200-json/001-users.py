@@ -190,12 +190,12 @@ frontend.json(
 
 frontend.json(
     "users/%d/emails/1" % instance.userid("alice"),
-    expect={ "error": { "title": "Invalid API request",
-                        "message": "Resource does not support arguments: v1/users/emails" }},
-    expected_http_status=400)
+    expect={ "error": { "title": "No such resource",
+                        "message": "Invalid resource: 'v1/users/emails/1'" }},
+    expected_http_status=404)
 
 frontend.json(
     "users/%d/filters/1" % instance.userid("alice"),
-    expect={ "error": { "title": "Invalid API request",
-                        "message": "Resource does not support arguments: v1/users/filters" }},
-    expected_http_status=400)
+    expect={ "error": { "title": "No such resource",
+                        "message": "Invalid resource: 'v1/users/filters/1'" }},
+    expected_http_status=404)

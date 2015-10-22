@@ -32,7 +32,7 @@ class Commits(object):
     exceptions = (api.commit.CommitError,)
 
     @staticmethod
-    def json(value, parameters, linked):
+    def json(value, parameters):
         """Commit {
              "id": integer, // the commit's id
              "sha1": string, // the commit's SHA-1 sum
@@ -53,12 +53,16 @@ class Commits(object):
 
         parents_ids = [parent.id for parent in value.parents]
 
-        # Note: We're not adding parent commits to |linked| here.  Doing so
-        # would typically lead to recursively dumping all commits in a
-        # repository a lot of the time, which wouldn't generally be useful.
+        # Important:
         #
-        # Instead, we'll add commits as linked resources when a different type
-        # of resource, e.g. a review, references a more limited set of commits.
+        # We're returning parents as integers instead of as api.commit.Commit
+        # objects here, to disable expansion of them as linked objects.  Not
+        # doing this would typically lead to recursively dumping all commits in
+        # a repository a lot of the time, which wouldn't generally be useful.
+        #
+        # Limited sets of commits are returned as api.commit.Commit objects from
+        # other resources, like reviews, which does enable expansion of them as
+        # linked objects, just not recursively.
 
         def userAndTimestamp(user_and_timestamp):
             timestamp_delta = (user_and_timestamp.timestamp - EPOCH)
@@ -76,7 +80,7 @@ class Commits(object):
                           "committer": userAndTimestamp(value.committer) })
 
     @staticmethod
-    def single(critic, argument, parameters):
+    def single(parameters, argument):
         """Retrieve one (or more) commits from a Git repository.
 
            COMMIT_ID : integer
@@ -89,8 +93,7 @@ class Commits(object):
            short-name.  Required unless a repository is specified in the
            resource path."""
 
-        repository = jsonapi.v1.repositories.Repositories.deduce(
-            critic, parameters)
+        repository = jsonapi.deduce("v1/repositories", parameters)
         if repository is None:
             raise jsonapi.UsageError(
                 "Commit reference must have repository specified.")
@@ -98,7 +101,7 @@ class Commits(object):
             repository, commit_id=jsonapi.numeric_id(argument)))
 
     @staticmethod
-    def multiple(critic, parameters):
+    def multiple(parameters):
         """Retrieve a single commit identified by its SHA-1 sum.
 
            sha1 : COMMIT_SHA1 : string
@@ -119,8 +122,7 @@ class Commits(object):
         if not re.match("[0-9A-Fa-f]{4,40}$", sha1_parameter):
             raise jsonapi.UsageError(
                 "Invalid SHA-1 parameter: %r" % sha1_parameter)
-        repository = jsonapi.v1.repositories.Repositories.deduce(
-            critic, parameters)
+        repository = jsonapi.deduce("v1/repositories", parameters)
         if repository is None:
             raise jsonapi.UsageError(
                 "Commit reference must have repository specified.")

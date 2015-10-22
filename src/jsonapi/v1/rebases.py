@@ -23,11 +23,11 @@ class Rebases(object):
 
     name = "rebases"
     contexts = (None, "reviews")
-    value_class = api.log.rebase.Rebase
+    value_class = (api.log.rebase.MoveRebase, api.log.rebase.HistoryRewrite)
     exceptions = api.log.rebase.InvalidRebaseId
 
     @staticmethod
-    def json(value, parameters, linked):
+    def json(value, parameters):
         """{
              "id": integer,
              "review": integer,
@@ -46,45 +46,24 @@ class Rebases(object):
         new_head = value.new_head
 
         data = { "id": value.id,
-                 "review": value.review.id,
-                 "creator": value.creator.id,
-                 "old_head": old_head.id,
-                 "new_head": new_head.id }
-
-        linked_commits = set([old_head, new_head])
+                 "review": value.review,
+                 "creator": value.creator,
+                 "old_head": old_head,
+                 "new_head": new_head }
 
         if isinstance(value, api.log.rebase.HistoryRewrite):
             data.update({ "type": "history-rewrite" })
         else:
-            old_upstream = value.old_upstream
-            new_upstream = value.new_upstream
-
-            linked_commits.update([old_upstream, new_upstream])
-
-            equivalent_merge = value.equivalent_merge
-            if equivalent_merge:
-                linked_commits.add(equivalent_merge)
-                equivalent_merge = equivalent_merge.id
-
-            replayed_rebase = value.replayed_rebase
-            if replayed_rebase:
-                linked_commits.add(replayed_rebase)
-                replayed_rebase = replayed_rebase.id
-
             data.update({ "type": "move",
-                          "old_upstream": old_upstream.id,
-                          "new_upstream": new_upstream.id,
-                          "equivalent_merge": equivalent_merge,
-                          "replayed_rebase": replayed_rebase })
-
-        linked.add(jsonapi.v1.reviews.Reviews, value.review)
-        linked.add(jsonapi.v1.users.Users, value.creator)
-        linked.add(jsonapi.v1.commits.Commits, *linked_commits)
+                          "old_upstream": value.old_upstream,
+                          "new_upstream": value.new_upstream,
+                          "equivalent_merge": value.equivalent_merge,
+                          "replayed_rebase": value.replayed_rebase })
 
         return parameters.filtered("rebases", data)
 
     @staticmethod
-    def single(critic, argument, parameters):
+    def single(parameters, argument):
         """Retrieve one (or more) rebases in this system.
 
            REBASE_ID : integer
@@ -92,10 +71,10 @@ class Rebases(object):
            Retrieve a rebase identified by its unique numeric id."""
 
         return Rebases.setAsContext(parameters, api.log.rebase.fetch(
-            critic, rebase_id=jsonapi.numeric_id(argument)))
+            parameters.critic, rebase_id=jsonapi.numeric_id(argument)))
 
     @staticmethod
-    def multiple(critic, parameters):
+    def multiple(parameters):
         """Retrieve all rebases in this system.
 
            review : REVIEW_ID : -
@@ -103,8 +82,8 @@ class Rebases(object):
            Include only rebases of one review, identified by the review's unique
            numeric id."""
 
-        review = jsonapi.v1.reviews.Reviews.deduce(critic, parameters)
-        return api.log.rebase.fetchAll(critic, review=review)
+        review = jsonapi.deduce("v1/reviews", parameters)
+        return api.log.rebase.fetchAll(parameters.critic, review=review)
 
     @staticmethod
     def setAsContext(parameters, rebase):

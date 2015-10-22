@@ -19,6 +19,11 @@ import itertools
 import api
 import jsonapi
 
+def from_argument(parameters, argument):
+    user_id, name = jsonapi.id_or_name(argument)
+    return api.user.fetch(
+        parameters.critic, user_id=user_id, name=name)
+
 @jsonapi.PrimaryResource
 class Users(object):
     """The users of this system."""
@@ -28,7 +33,7 @@ class Users(object):
     exceptions = (api.user.UserError,)
 
     @staticmethod
-    def json(value, parameters, linked):
+    def json(value, parameters):
         """User {
              "id": integer, // the user's id
              "name": string, // the user's unique user name
@@ -45,7 +50,7 @@ class Users(object):
                        "email": value.email })
 
     @staticmethod
-    def single(critic, argument, parameters):
+    def single(parameters, argument):
         """Retrieve one (or more) users of this system.
 
            USER_ID : integer
@@ -53,10 +58,10 @@ class Users(object):
            Retrieve a user identified by the user's unique numeric id."""
 
         return Users.setAsContext(parameters, api.user.fetch(
-            critic, user_id=jsonapi.numeric_id(argument)))
+            parameters.critic, user_id=jsonapi.numeric_id(argument)))
 
     @staticmethod
-    def multiple(critic, parameters):
+    def multiple(parameters):
         """Retrieve a single named user or all users of this system.
 
            name : NAME : string
@@ -79,7 +84,7 @@ class Users(object):
 
         name_parameter = parameters.getQueryParameter("name")
         if name_parameter:
-            return api.user.fetch(critic, name=name_parameter)
+            return api.user.fetch(parameters.critic, name=name_parameter)
         status_parameter = parameters.getQueryParameter("status")
         if status_parameter:
             status = set(status_parameter.split(","))
@@ -98,7 +103,20 @@ class Users(object):
             sort_key = lambda user: getattr(user, sort_parameter)
         else:
             sort_key = lambda user: user.id
-        return sorted(api.user.fetchAll(critic, status=status), key=sort_key)
+        return sorted(api.user.fetchAll(parameters.critic, status=status),
+                      key=sort_key)
+
+    @staticmethod
+    def deduce(parameters):
+        user = parameters.context.get("users")
+        user_parameter = parameters.getQueryParameter("user")
+        if user_parameter is not None:
+            if user is not None:
+                raise jsonapi.UsageError(
+                    "Redundant query parameter: user=%s"
+                    % user_parameter)
+            user = from_argument(parameters, user_parameter)
+        return user
 
     @staticmethod
     def setAsContext(parameters, user):
@@ -122,7 +140,7 @@ class Emails(object):
     value_class = api.user.User.PrimaryEmail
 
     @staticmethod
-    def json(value, parameters, linked):
+    def json(value, parameters):
         """Email {
              "address": string, // the email address
              "selected": string, // true if address is selected
@@ -135,7 +153,7 @@ class Emails(object):
                         "verified": value.verified })
 
     @staticmethod
-    def multiple(critic, parameters):
+    def multiple(parameters):
         """All primary email addresses."""
 
         return parameters.context["users"].primary_emails
@@ -149,8 +167,10 @@ class Filters(object):
     value_class = api.filters.RepositoryFilter
     exceptions = (api.repository.RepositoryError,)
 
+    lists = frozenset(("delegates",))
+
     @staticmethod
-    def json(value, parameters, linked):
+    def json(value, parameters):
         """Filter {
              "id": integer, // the filter's id
              "type": string, // "reviewer", "watcher" or "ignored"
@@ -159,20 +179,16 @@ class Filters(object):
              "delegates": integer[], // list of user ids
            }"""
 
-        delegates_ids = sorted(delegate.id for delegate in value.delegates)
-
-        linked.add(jsonapi.v1.repositories.Repositories, value.repository)
-        linked.add(jsonapi.v1.users.Users, *value.delegates)
-
-        return parameters.filtered(
-            "filters", { "id": value.id,
-                         "type": value.type,
-                         "path": value.path,
-                         "repository": value.repository.id,
-                         "delegates": delegates_ids })
+        return parameters.filtered("filters", {
+            "id": value.id,
+            "type": value.type,
+            "path": value.path,
+            "repository": value.repository,
+            "delegates": jsonapi.sorted_by_id(value.delegates)
+        })
 
     @staticmethod
-    def multiple(critic, parameters):
+    def multiple(parameters):
         """All repository filters.
 
            repository : REPOSITORY : -
@@ -189,7 +205,7 @@ class Filters(object):
             except ValueError:
                 name = repository_parameter
             repository = api.repository.fetch(
-                critic, repository_id=repository_id, name=name)
+                parameters.critic, repository_id=repository_id, name=name)
             repository_filters = user.repository_filters.get(
                 repository, [])
         else:
