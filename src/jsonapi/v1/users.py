@@ -53,12 +53,19 @@ class Users(object):
     def single(parameters, argument):
         """Retrieve one (or more) users of this system.
 
-           USER_ID : integer
+           USER_ID : integer or "me"
 
-           Retrieve a user identified by the user's unique numeric id."""
+           Retrieve a user identified by the user's unique numeric id, or the
+           identifier "me" to retrieve the current user."""
 
-        return Users.setAsContext(parameters, api.user.fetch(
-            parameters.critic, user_id=jsonapi.numeric_id(argument)))
+        if argument == "me":
+            user = parameters.critic.actual_user
+            if user is None:
+                raise api.user.UserError("'users/me' (not signed in)")
+        else:
+            user = api.user.fetch(parameters.critic,
+                                  user_id=jsonapi.numeric_id(argument))
+        return Users.setAsContext(parameters, user)
 
     @staticmethod
     def multiple(parameters):

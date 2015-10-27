@@ -220,6 +220,10 @@ frontend.json(
 
 with frontend.signin("alice"):
     frontend.json(
+        "users/me",
+        expect=user_json("alice"))
+
+    frontend.json(
         "users/%d" % instance.userid("alice"),
         put={ "fullname": "Alice has a new name" },
         expect=user_json("alice", fullname="Alice has a new name"))
@@ -236,3 +240,13 @@ with frontend.signin("alice"):
     frontend.json(
         "users/%d" % instance.userid("alice"),
         expect=user_json("alice"))
+
+frontend.json(
+    "users/me",
+    expected_http_status=404,
+    expect={
+        "error": {
+            "title": "No such resource",
+            "message": "Resource not found: 'users/me' (not signed in)"
+        }
+    })
