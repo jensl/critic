@@ -86,7 +86,7 @@ class Redirect(HTTPResponse):
 
     def execute(self, db, req):
         from htmlutils import htmlify
-        if not req.allowRedirect():
+        if not req.allowRedirect(self.status):
             self.status = 403
             self.body = ["Cowardly refusing to redirect %s request."
                          % req.method]
@@ -101,6 +101,10 @@ class Redirect(HTTPResponse):
 class Found(Redirect):
     def __init__(self, location):
         super(Found, self).__init__(302, location)
+
+class SeeOther(Redirect):
+    def __init__(self, location):
+        super(SeeOther, self).__init__(303, location)
 
 class MovedTemporarily(Redirect):
     def __init__(self, location, no_cache=False):
@@ -531,6 +535,6 @@ class Request:
         self.addResponseHeader("WWW-Authenticate", "Basic realm=\"%s\"" % realm)
         self.start()
 
-    def allowRedirect(self):
+    def allowRedirect(self, status):
         """Return true if it is safe to redirect this request"""
-        return self.method not in ("POST", "PUT")
+        return self.method in ("GET", "HEAD") or status == 303

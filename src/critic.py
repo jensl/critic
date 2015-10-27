@@ -662,16 +662,7 @@ def process_request(environ, start_response):
 
             if req.path == "redirect":
                 target = req.getParameter("target", "/")
-
-                if req.method == "POST":
-                    # Don't use HTTP redirect for POST requests.
-
-                    req.setContentType("text/html")
-                    req.start()
-
-                    return ["<meta http-equiv='refresh' content='0; %s'>" % htmlify(target)]
-                else:
-                    raise request.MovedTemporarily(target)
+                raise request.SeeOther(target)
 
             if req.path == "findreview":
                 # This raises either DisplayMessage or MovedTemporarily.

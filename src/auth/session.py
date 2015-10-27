@@ -152,7 +152,7 @@ def checkSession(db, req):
             # link (if anonymous access is allowed.)
             #
             # Exception: Don't do this if /login is being requested.
-            if req.allowRedirect() and req.path != "login":
+            if req.allowRedirect(307) and req.path != "login":
                 raise request.NeedLogin(req, optional=True)
 
         elif req.cookies.get("has_sid") == "1":
@@ -250,7 +250,7 @@ def checkSession(db, req):
     # Step 6: Cookie based sessions are enabled, and not anonymous access.  If
     #         this is a POST or PUT request, respond with 403 Forbidden, and
     #         otherwise redirect to the login page.
-    if not req.allowRedirect():
+    if not req.allowRedirect(307):
         raise request.Forbidden("Valid user session required")
 
     raise request.NeedLogin(req, optional=req.cookies.has_key("has_sid"))
