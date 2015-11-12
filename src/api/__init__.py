@@ -31,5 +31,6 @@ import commitset
 import log
 import preference
 import accesstoken
+import extension
 
 import transaction

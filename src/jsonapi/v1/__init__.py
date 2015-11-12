@@ -26,4 +26,7 @@ import rebases
 if configuration.auth.ENABLE_ACCESS_TOKENS:
     import accesstokens
 
+if configuration.extensions.ENABLED:
+    import extensions
+
 import documentation

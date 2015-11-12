@@ -26,3 +26,4 @@ import commitset
 import review
 import log
 import accesstoken
+import extension

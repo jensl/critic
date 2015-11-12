@@ -242,10 +242,25 @@ class Repository(VariantChecker):
     def __init__(self):
         super(Repository, self).__init__(RepositoryId, RepositoryName)
 
+class ExtensionId(PositiveInteger):
+    convert_exception = api.extension.InvalidExtensionId
+    def convert(self, context, value):
+        return api.extension.fetch(context.critic, extension_id=value)
+
+class ExtensionKey(StringChecker):
+    convert_exception = api.extension.InvalidExtensionKey
+    def convert(self, context, value):
+        return api.extension.fetch(context.critic, key=value)
+
+class Extension(VariantChecker):
+    def __init__(self):
+        super(Extension, self).__init__(ExtensionId, ExtensionKey)
+
 CHECKER_MAP = { int: IntegerChecker(),
                 str: StringChecker(),
                 api.user.User: User(),
-                api.repository.Repository: Repository() }
+                api.repository.Repository: Repository(),
+                api.extension.Extension: Extension() }
 
 def convert(parameters, checker, value):
     context = TypeCheckerContext(parameters.critic)
