@@ -68,25 +68,20 @@ class ModifyUser(object):
         import auth
         import base64
 
+        from accesstoken import CreatedAccessToken
+
         critic = self.transaction.critic
 
         if access_type != "user":
             api.PermissionDenied.raiseUnlessAdministrator(critic)
-
-        class CreatedAccessToken(api.transaction.LazyValue):
-            def __call__(self, token_id):
-                self.token_id = token_id
-                if callback is not None:
-                    callback(api.accesstoken.fetch(critic, token_id))
-            def evaluate(self):
-                return self.token_id
 
         user_id = self.user.id if access_type == "user" else None
 
         part1 = auth.getToken(encode=base64.b64encode, length=12)
         part2 = auth.getToken(encode=base64.b64encode, length=21)
 
-        collector = CreatedAccessToken()
+        access_token = CreatedAccessToken(
+            critic, self.user if access_type == "user" else None, callback)
 
         self.transaction.tables.update(("accesstokens",
                                         "accesscontrolprofiles"))
@@ -97,7 +92,17 @@ class ModifyUser(object):
                    VALUES (%s, %s, %s, %s, %s)
                 RETURNING id""",
                 (access_type, user_id, part1, part2, title),
-                collector=collector))
+                collector=access_token))
+        self.transaction.items.append(
+            api.transaction.Query(
+                """INSERT
+                     INTO accesscontrolprofiles (access_token)
+                   VALUES (%s)
+                RETURNING id""",
+                (access_token,),
+                collector=access_token.profile))
+
+        return access_token
 
     def modifyAccessToken(self, access_token):
         from accesstoken import ModifyAccessToken

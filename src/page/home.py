@@ -256,7 +256,11 @@ def renderHome(req, db, user):
         for (repository_id, repository_name, repository_path,
              filter_id, filter_type, filter_path, filter_name, filter_data) in rows:
             if not repository or repository.id != repository_id:
-                repository = gitutils.Repository.fromId(db, repository_id)
+                try:
+                    repository = gitutils.Repository.fromId(db, repository_id)
+                except auth.AccessDenied:
+                    continue
+
                 repository_url = repository.getURL(db, user)
                 filters.addSection(repository_name, repository_url)
                 repository_filters = filters.addCentered().table("filters callout")

@@ -18,6 +18,8 @@ import api
 import apiobject
 import api.impl.filters
 
+import auth
+
 class Review(apiobject.APIObject):
     wrapper_class = api.review.Review
 
@@ -144,6 +146,13 @@ class Review(apiobject.APIObject):
     def getRebases(self, wrapper):
         return api.log.rebase.fetchAll(wrapper.critic, wrapper)
 
+    @classmethod
+    def create(Review, critic, *args):
+        review = Review(*args).wrap(critic)
+        # Access the repository object to trigger an access control check.
+        review.repository
+        return review
+
 def fetch(critic, review_id, branch):
     cursor = critic.getDatabaseCursor()
     if review_id is not None:
@@ -186,4 +195,5 @@ def fetchAll(critic, repository, state):
                        WHERE """ + " AND ".join(conditions) + """
                     ORDER BY reviews.id""",
                    values)
-    return list(Review.make(critic, cursor))
+    return list(Review.make(
+        critic, cursor, ignored_errors=(auth.AccessDenied,)))

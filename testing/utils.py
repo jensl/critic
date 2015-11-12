@@ -29,6 +29,34 @@ def settings(user, settings, repository=None):
         with frontend.signin(user):
             frontend.operation("savesettings", data=data)
 
+@contextlib.contextmanager
+def access_token(user, profile):
+    with frontend.signin(user):
+        access_token = frontend.json(
+            "users/me/accesstokens",
+            post={
+                "title": "by testing.utils.access_token()",
+                "profile": profile
+            },
+            expect={
+                "id": int,
+                "access_type": "user",
+                "user": instance.userid(user),
+                "title": "by testing.utils.access_token()",
+                "part1": str,
+                "part2": str,
+                "profile": dict
+            })
+
+    try:
+        yield access_token
+    finally:
+        with frontend.signin(user):
+            frontend.json(
+                "accesstokens/%d" % access_token["id"],
+                delete=True,
+                expected_http_status=204)
+
 def createReviewViaPush(work, owner, commit="HEAD"):
     with settings(owner, { "review.createViaPush": True }):
         remote_url = instance.repository_url(owner)

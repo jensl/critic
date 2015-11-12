@@ -385,6 +385,20 @@ class DatabaseSchema(object):
             # table didn't exist, but it didn't, so the table must exist.
             return True
 
+    def column_exists(self, table_name, column_name):
+        import psycopg2
+
+        try:
+            self.db.cursor().execute("SELECT %s FROM %s LIMIT 1"
+                                     % (column_name, table_name))
+        except psycopg2.ProgrammingError:
+            self.db.rollback()
+            return False
+        else:
+            # Above statement would have thrown a psycopg2.ProgrammingError if the
+            # table didn't exist, but it didn't, so the table must exist.
+            return True
+
     def create_table(self, statement):
         import re
 
@@ -404,6 +418,13 @@ class DatabaseSchema(object):
         cursor.execute("DROP INDEX IF EXISTS %s" % index_name)
         cursor.execute(statement)
         self.db.commit()
+
+    def create_column(self, table_name, column_name, column_definition):
+        if not self.column_exists(table_name, column_name):
+            self.db.cursor().execute(
+                "ALTER TABLE %s ADD %s %s"
+                % (table_name, column_name, column_definition))
+            self.db.commit()
 
     def type_exists(self, type_name):
         import psycopg2

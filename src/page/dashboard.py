@@ -19,6 +19,7 @@ import gitutils
 import htmlutils
 import profiling
 import page.utils
+import auth
 
 def renderDashboard(req, db, user):
     if user.isAnonymous(): default_show = "open"
@@ -116,15 +117,29 @@ def renderDashboard(req, db, user):
 
         return dict(cursor)
 
+    checked_repositories = {}
+    def accessRepository(repository_id):
+        already_checked = checked_repositories.get(repository_id)
+        if already_checked is not None:
+            return already_checked
+        is_allowed = auth.AccessControlProfile.isAllowedRepository(
+            db.profiles, "read", repository_id)
+        checked_repositories[repository_id] = is_allowed
+        return is_allowed
+
     def renderReviews(target, reviews, lines_and_comments=True, links=True):
-        cursor.execute("SELECT id, name FROM branches WHERE id=ANY (%s)",
+        cursor.execute("SELECT id, repository, name FROM branches WHERE id=ANY (%s)",
                        (list(branch_id for _, (_, branch_id, _, _) in reviews),))
 
-        branch_names = dict(cursor)
+        branch_data = { branch_id: (repository_id, name)
+                        for branch_id, repository_id, name in cursor }
 
         for review_id, (summary, branch_id, lines, comments) in reviews:
+            repository_id, branch_name = branch_data[branch_id]
+            if not accessRepository(repository_id):
+                continue
             row = target.tr("review")
-            row.td("name").text(branch_names[branch_id])
+            row.td("name").text(branch_name)
             row.td("title").a(href="r/%d" % review_id).text(summary)
 
             if lines_and_comments:

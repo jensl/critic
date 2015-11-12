@@ -19,6 +19,7 @@ import urlparse
 
 import configuration
 
+from auth import AccessDenied
 from communicate import ProcessTimeout, ProcessError
 from htmlutils import jsify
 from request import decodeURIComponent
@@ -30,6 +31,8 @@ from extensions.execute import executeProcess
 from extensions.manifest import Manifest, ManifestError, InjectRole
 
 class InjectError(Exception):
+    pass
+class InjectIgnored(Exception):
     pass
 
 def processLine(paths, line):
@@ -222,7 +225,7 @@ def execute(db, req, user, document, links, injected, profiler=None):
 
                 try:
                     stdout_data = executeProcess(
-                        manifest, "inject", script, function, extension_id, user.id, argv,
+                        db, manifest, "inject", script, function, extension_id, user.id, argv,
                         configuration.extensions.SHORT_TIMEOUT)
                 except ProcessTimeout:
                     raise InjectError("Timeout after %d seconds." % configuration.extensions.SHORT_TIMEOUT)
@@ -231,6 +234,8 @@ def execute(db, req, user, document, links, injected, profiler=None):
                         raise InjectError("Process terminated by signal %d." % -error.returncode)
                     else:
                         raise InjectError("Process returned %d.\n%s" % (error.returncode, error.stderr))
+                except AccessDenied:
+                    raise InjectIgnored()
 
                 for line in stdout_data.splitlines():
                     if line.strip():
@@ -270,3 +275,5 @@ def execute(db, req, user, document, links, injected, profiler=None):
         except InjectError as error:
             document.comment("\n\n[%s] Extension error:\n%s\n\n"
                              % (extension.getKey(), error.message))
+        except InjectIgnored:
+            pass

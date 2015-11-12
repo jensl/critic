@@ -29,10 +29,41 @@ class Transaction(object):
         return ModifyUser(self, subject)
 
     def modifyAccessToken(self, access_token):
-        from accesstoken import ModifyAccessToken
-        assert isinstance(access_token, api.accesstoken.AccessToken)
+        from accesstoken import ModifyAccessToken, CreatedAccessToken
+        assert isinstance(access_token, (api.accesstoken.AccessToken,
+                                         CreatedAccessToken))
         api.PermissionDenied.raiseUnlessAdministrator(self.critic)
         return ModifyAccessToken(self, access_token)
+
+    def createAccessControlProfile(self, callback=None):
+        from accesscontrolprofile import ModifyAccessControlProfile
+        api.PermissionDenied.raiseUnlessAdministrator(self.critic)
+        return ModifyAccessControlProfile.create(self, callback)
+
+    def modifyAccessControlProfile(self, profile):
+        from accesscontrolprofile import ModifyAccessControlProfile
+        assert isinstance(
+            profile, api.accesscontrolprofile.AccessControlProfile)
+        api.PermissionDenied.raiseUnlessAdministrator(self.critic)
+        return ModifyAccessControlProfile(self, profile)
+
+    def createLabeledAccessControlProfile(self, labels, profile, callback=None):
+        from labeledaccesscontrolprofile \
+            import ModifyLabeledAccessControlProfile
+        api.PermissionDenied.raiseUnlessAdministrator(self.critic)
+        assert isinstance(
+            profile, api.accesscontrolprofile.AccessControlProfile)
+        return ModifyLabeledAccessControlProfile.create(
+            self, labels, profile, callback)
+
+    def modifyLabeledAccessControlProfile(self, labeled_profile):
+        from labeledaccesscontrolprofile \
+            import ModifyLabeledAccessControlProfile
+        api.PermissionDenied.raiseUnlessAdministrator(self.critic)
+        assert isinstance(
+            labeled_profile,
+            api.labeledaccesscontrolprofile.LabeledAccessControlProfile)
+        return ModifyLabeledAccessControlProfile(self, labeled_profile)
 
     def __enter__(self):
         return self
@@ -73,3 +104,30 @@ class Query(object):
 class LazyValue(object):
     def evaluate(self):
         raise Exception("LazyValue.evaluate() must be implemented!")
+
+class LazyInt(LazyValue):
+    def __init__(self, source):
+        self.source = source
+    def evaluate(self):
+        return self.source()
+
+class LazyStr(LazyValue):
+    def __init__(self, source):
+        self.source = source
+    def evaluate(self):
+        return self.source()
+
+class LazyAPIObject(LazyValue):
+    def __init__(self, critic, fetch, callback=None):
+        self.critic = critic
+        self.fetch = fetch
+        self.callback = callback
+    def __call__(self, object_id):
+        self.object_id = object_id
+        if self.callback is not None:
+            self.callback(self.fetch(self.critic, object_id))
+    @property
+    def id(self):
+        return LazyInt(self.evaluate)
+    def evaluate(self):
+        return self.object_id

@@ -26,4 +26,6 @@ import commitset
 import review
 import log
 import accesstoken
+import accesscontrolprofile
+import labeledaccesscontrolprofile
 import extension

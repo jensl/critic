@@ -38,3 +38,17 @@ class ModifyAccessToken(object):
                      FROM accesstokens
                     WHERE id=%s""",
                 (self.access_token.id,)))
+
+    def modifyProfile(self):
+        from accesscontrolprofile import ModifyAccessControlProfile
+        assert self.access_token.profile
+        return ModifyAccessControlProfile(
+            self.transaction, self.access_token.profile)
+
+class CreatedAccessToken(api.transaction.LazyAPIObject):
+    def __init__(self, critic, user, callback=None):
+        from accesscontrolprofile import CreatedAccessControlProfile
+        super(CreatedAccessToken, self).__init__(
+            critic, api.accesstoken.fetch, callback)
+        self.user = user
+        self.profile = CreatedAccessControlProfile(critic, self)

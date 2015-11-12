@@ -254,19 +254,18 @@ class User(object):
         return User.storePreference(db, item, value, self, repository, filter_id)
 
     def getDefaultRepository(self, db):
+        import auth
         import gitutils
 
         default_repo = self.getPreference(db, "defaultRepository")
+
         if not default_repo:
-            cursor = db.cursor()
-            cursor.execute("SELECT COUNT(*) FROM repositories")
+            return None
 
-            repo_count = cursor.fetchone()[0]
-            if repo_count == 1:
-                cursor.execute("SELECT name FROM repositories")
-                default_repo = cursor.fetchone()[0]
-
-        return gitutils.Repository.fromName(db, default_repo)
+        try:
+            return gitutils.Repository.fromName(db, default_repo)
+        except auth.AccessDenied:
+            return None
 
     def getResource(self, db, name):
         import configuration

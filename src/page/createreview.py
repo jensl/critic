@@ -17,6 +17,7 @@
 import itertools
 import re
 
+import auth
 import dbutils
 import gitutils
 import reviewing.utils
@@ -131,7 +132,7 @@ def renderSelectSource(req, db, user):
     table = page.utils.PaleYellowTable(target, "Create Review")
     table.titleRight.innerHTML("Step 1")
 
-    default_repository = user.getPreference(db, "defaultRepository")
+    default_repository = user.getDefaultRepository(db)
     default_remotes = {}
     default_branches = {}
 
@@ -153,7 +154,11 @@ def renderSelectSource(req, db, user):
                 if row:
                     return row[0]
 
-            repository = gitutils.Repository.fromId(db, repository_id)
+            try:
+                repository = gitutils.Repository.fromId(db, repository_id)
+            except auth.AccessDenied:
+                continue
+
             remote = branch_name = None
 
             for branch in repository.getSignificantBranches(db):
@@ -172,14 +177,15 @@ def renderSelectSource(req, db, user):
         document.addInternalScript("var default_branches = %s;" % json_encode(default_branches))
 
     def renderRemoteRepository(target):
-        target.input("remote", value=default_remotes.get(default_repository))
+        value = default_remotes.get(default_repository.name) if default_repository else None
+        target.input("remote", value=value)
 
     def renderWorkBranch(target):
         target.text("refs/heads/")
         target.input("workbranch")
 
     def renderUpstreamCommit(target):
-        default_branch = default_branches.get(default_repository)
+        default_branch = default_branches.get(default_repository.name) if default_repository else None
         target.input("upstreamcommit", value=("refs/heads/%s" % default_branch) if default_branch else "")
 
     table.addItem("Local Repository", renderLocalRepository, "Critic repository to create review in.")

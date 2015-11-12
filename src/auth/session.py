@@ -43,13 +43,17 @@ except ImportError:
     def getUserEmailAddress(_username):
         return None
 
-def createSessionId(db, req, user):
+def createSessionId(db, req, user, authentication_labels=None):
     sid = auth.getToken()
+    if authentication_labels:
+        labels = "|".join(sorted(authentication_labels))
+    else:
+        labels = ""
 
     with db.updating_cursor("usersessions") as cursor:
-        cursor.execute("""INSERT INTO usersessions (key, uid)
-                               VALUES (%s, %s)""",
-                       (sid, user.id))
+        cursor.execute("""INSERT INTO usersessions (key, uid, labels)
+                               VALUES (%s, %s, %s)""",
+                       (sid, user.id, labels))
 
     req.setCookie("sid", sid, secure=True)
     req.setCookie("has_sid", "1")
@@ -120,19 +124,25 @@ def checkSession(db, req):
         sid = req.cookies.get("sid")
         if sid:
             cursor = db.cursor()
-            cursor.execute("""SELECT uid, EXTRACT('epoch' FROM NOW() - atime) AS age
-                                FROM usersessions
-                               WHERE key=%s""",
-                           (sid,))
+            cursor.execute(
+                """SELECT uid, labels, EXTRACT('epoch' FROM NOW() - atime) AS age
+                     FROM usersessions
+                    WHERE key=%s""",
+                (sid,))
 
             row = cursor.fetchone()
             if row:
-                user_id, session_age = row
+                user_id, labels, session_age = row
 
                 if configuration.base.SESSION_MAX_AGE == 0 \
                         or session_age < configuration.base.SESSION_MAX_AGE:
                     # This is a valid session cookie.
-                    db.setUser(dbutils.User.fromId(db, user_id))
+                    user = dbutils.User.fromId(db, user_id)
+                    if labels is None:
+                        labels = auth.DATABASE.getAuthenticationLabels(user)
+                    else:
+                        labels = labels.split("|") if labels else ()
+                    db.setUser(user, labels)
                     return
 
                 # The session cookie is too old.  Delete it from the database.
@@ -233,6 +243,9 @@ def checkSession(db, req):
     #            no such challenge would normally be returned, we'd rather
     #            redirect to the login page.)
     if req.cookies.get("use_httpauth"):
+        raise request.RequestHTTPAuthentication()
+    # Also do this for requests with a "httpauth=yes" query parameter.
+    if req.getParameter("httpauth", "no") == "yes":
         raise request.RequestHTTPAuthentication()
 
     # Step 4: If anonymous access is supported or if it should be allowed as an

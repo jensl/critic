@@ -19,6 +19,7 @@ import subprocess
 import api
 import apiobject
 
+import auth
 import configuration
 import dbutils
 import gitutils
@@ -82,7 +83,10 @@ class Repository(apiobject.APIObject):
 
     @classmethod
     def create(Repository, critic, repository_id, name, path):
-        return Repository(repository_id, name, path).wrap(critic)
+        import auth
+        repository = Repository(repository_id, name, path).wrap(critic)
+        auth.AccessControl.accessRepository(critic.database, "read", repository)
+        return repository
 
 def fetch(critic, repository_id, name, path):
     cursor = critic.getDatabaseCursor()
@@ -116,7 +120,8 @@ def fetchAll(critic):
     cursor.execute("""SELECT id, name, path
                         FROM repositories
                     ORDER BY name""")
-    return list(Repository.make(critic, cursor))
+    return list(Repository.make(
+        critic, cursor, ignored_errors=(auth.AccessDenied,)))
 
 def fetchHighlighted(critic, user):
     highlighted = set()
@@ -143,4 +148,5 @@ def fetchHighlighted(critic, user):
                        WHERE id=ANY (%s)
                     ORDER BY name""",
                    (list(highlighted),))
-    return list(Repository.make(critic, cursor))
+    return list(Repository.make(
+        critic, cursor, ignored_errors=(auth.AccessDenied,)))

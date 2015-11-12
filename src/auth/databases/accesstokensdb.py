@@ -29,6 +29,9 @@ class AccessTokens(auth.Database):
     def authenticate(self, db, fields):
         self.authdb.authenticate(db, fields)
 
+    def getAuthenticationLabels(self, user):
+        return self.authdb.getAuthenticationLabels(user)
+
     def supportsHTTPAuthentication(self):
         # HTTP authentication is the primary use-case.
         return True
@@ -50,10 +53,23 @@ class AccessTokens(auth.Database):
             elif access_type == "system":
                 db.setUser(dbutils.User.makeSystem())
             else:
-                db.setUser(dbutils.User.fromId(db, user_id))
+                user = dbutils.User.fromId(db, user_id)
+                authentication_labels = self.getAuthenticationLabels(user)
+                db.setUser(user, authentication_labels)
 
             import api
             db.critic.setAccessToken(api.accesstoken.fetch(db.critic, token_id))
+
+            cursor.execute("""SELECT id
+                                FROM accesscontrolprofiles
+                               WHERE access_token=%s""",
+                           (token_id,))
+            row = cursor.fetchone()
+
+            if row:
+                profile_id, = row
+                db.addProfile(auth.AccessControlProfile.fromId(db, profile_id))
+
             return
 
         return self.authdb.performHTTPAuthentication(db, username, password)

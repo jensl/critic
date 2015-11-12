@@ -93,3 +93,20 @@ CREATE TABLE relevantcommits
     relevant INTEGER REFERENCES commits ON DELETE CASCADE,
 
     PRIMARY KEY (commit, parent, file, relevant) );
+
+CREATE TYPE repositoryaccesstype AS ENUM
+  ( 'read',
+    'modify' );
+
+CREATE TABLE accesscontrol_repositories
+  ( id SERIAL PRIMARY KEY,
+
+    -- The profile this exception belongs to.
+    profile INTEGER NOT NULL REFERENCES accesscontrolprofiles ON DELETE CASCADE,
+
+    -- Type of access.  NULL means "any type".
+    access_type repositoryaccesstype,
+    -- Repository to access.  NULL means "any repository".
+    repository INTEGER REFERENCES repositories ON DELETE CASCADE );
+CREATE INDEX accesscontrol_repositories_profile
+          ON accesscontrol_repositories (profile);

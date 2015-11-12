@@ -331,7 +331,9 @@ def generateRepositorySelect(db, user, target, allow_selecting_none=False,
         return
 
     if selected is None:
-        selected = user.getPreference(db, "defaultRepository")
+        default_repository = user.getDefaultRepository(db)
+        if default_repository:
+            selected = default_repository.name
 
     if not selected or allow_selecting_none:
         if placeholder_text is None:

@@ -122,3 +122,21 @@ CREATE TABLE extensionlog
     time TIMESTAMP NOT NULL DEFAULT NOW(),
     text TEXT NOT NULL );
 CREATE INDEX extensionlog_extension_uid_category ON extensionlog(extension, uid, category);
+
+CREATE TYPE extensionaccesstype AS ENUM
+  ( 'install',
+    'execute' );
+
+CREATE TABLE accesscontrol_extensions
+  ( id SERIAL PRIMARY KEY,
+
+    -- The profile this exception belongs to.
+    profile INTEGER NOT NULL REFERENCES accesscontrolprofiles ON DELETE CASCADE,
+
+    -- Type of extension access.  NULL means "any type".
+    access_type extensionaccesstype,
+    -- Extension key: <auther username>/<extension name> for user extensions and
+    -- <extension name> for system extensions.  NULL means "any extension".
+    extension_key TEXT );
+CREATE INDEX accesscontrol_extensions_profile
+          ON accesscontrol_extensions (profile);

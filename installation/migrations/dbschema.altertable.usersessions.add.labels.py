@@ -1,6 +1,6 @@
 # -*- mode: python; encoding: utf-8 -*-
 #
-# Copyright 2014 the Critic contributors, Opera Software ASA
+# Copyright 2015 the Critic contributors, Opera Software ASA
 #
 # Licensed under the Apache License, Version 2.0 (the "License"); you may not
 # use this file except in compliance with the License.  You may obtain a copy of
@@ -14,21 +14,10 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-import configuration
+import installation
 
-import users
-import repositories
-import commits
-import branches
-import reviews
-import rebases
+# Handles command line arguments and sets uid/gid.
+installation.utils.start_migration()
 
-if configuration.auth.ENABLE_ACCESS_TOKENS:
-    import accesstokens
-    import accesscontrolprofiles
-    import labeledaccesscontrolprofiles
-
-if configuration.extensions.ENABLED:
-    import extensions
-
-import documentation
+dbschema = installation.utils.DatabaseSchema()
+dbschema.create_column("usersessions", "labels", "VARCHAR(256)")

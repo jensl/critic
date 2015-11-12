@@ -18,11 +18,38 @@ import os
 import subprocess
 
 import configuration
+import auth
+import dbutils
+
+from extensions.extension import Extension
 from textutils import json_encode
 from communicate import Communicate
 
-def executeProcess(manifest, role_name, script, function, extension_id, user_id,
-                   argv, timeout, stdin=None, rlimit_rss=256):
+def executeProcess(db, manifest, role_name, script, function, extension_id,
+                   user_id, argv, timeout, stdin=None, rlimit_rss=256):
+    # If |user_id| is not the same as |db.user|, then one user's access of the
+    # system is triggering an extension on behalf of another user.  This will
+    # for instance happen when one user is adding changes to a review,
+    # triggering an extension filter hook set up by another user.
+    #
+    # In this case, we need to check that the other user can access the
+    # extension.
+    #
+    # If |user_id| is the same as |db.user|, we need to use |db.profiles|, which
+    # may contain a profile associated with an access token that was used to
+    # authenticate the user.
+    if user_id != db.user.id:
+        user = dbutils.User.fromId(db, user_id)
+        profiles = [auth.AccessControlProfile.forUser(db, user)]
+    else:
+        profiles = db.profiles
+
+    extension = Extension.fromId(db, extension_id)
+    if not auth.AccessControlProfile.isAllowedExtension(
+            profiles, "execute", extension):
+        raise auth.AccessDenied("Access denied to extension: execute %s"
+                                % extension.getKey())
+
     flavor = manifest.flavor
 
     if manifest.flavor not in configuration.extensions.FLAVORS:

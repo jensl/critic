@@ -22,6 +22,10 @@ import auth
 import dbutils
 import configuration
 
+def escaped(fields, fn):
+    return { identifier: fn(value)
+             for identifier, value in fields.items() }
+
 class LDAPCache(object):
     def __init__(self, max_age):
         self.lock = threading.Lock()
@@ -39,15 +43,15 @@ class LDAPCache(object):
             return None
         with self.lock:
             key = LDAPCache.__key(fields)
-            user_id, timestamp = self.cache.get(key, (None, None))
-            if user_id is None:
+            value, timestamp = self.cache.get(key, (None, None))
+            if value is None:
                 return None
             if time.time() - timestamp > self.max_age:
                 del self.cache[key]
                 return None
-            return user_id
+            return value
 
-    def set(self, fields, user_id):
+    def set(self, fields, value):
         # A max age of zero (or less) means the cache is disabled.
         if self.max_age <= 0:
             return
@@ -55,12 +59,37 @@ class LDAPCache(object):
             # Note: We might overwrite an existing (presumably identical) entry
             # here, due to two threads racing to authenticate the same user.
             key = LDAPCache.__key(fields)
-            self.cache[key] = (user_id, time.time())
+            self.cache[key] = (value, time.time())
 
 class LDAP(auth.Database):
     def __init__(self):
         super(LDAP, self).__init__("ldap")
         self.cache = LDAPCache(self.configuration["cache_max_age"])
+
+    def __startConnection(self):
+        import ldap
+        connection = ldap.initialize(self.configuration["url"])
+        if self.configuration["use_tls"]:
+            connection.start_tls_s()
+        return connection
+
+    def __isMemberOfGroup(self, connection, group, fields):
+        import ldap
+        result = connection.search_s(
+            group["dn"], ldap.SCOPE_BASE,
+            attrlist=[group["members_attribute"]])
+        if len(result) != 1:
+            raise auth.AuthenticationError(
+                "Required group '%s' not found" % group["dn"])
+        group_dn, group_attributes = result[0]
+        if group["members_attribute"] not in group_attributes:
+            raise auth.AuthenticationError(
+                "Required group '%s' has no attribute '%s'"
+                % (group["dn"], group["members_attribute"]))
+        members = group_attributes[group["members_attribute"]]
+        member_value = (group["member_value"]
+                        % escaped(fields, ldap.dn.escape_dn_chars))
+        return member_value in members
 
     def getFields(self):
         return self.configuration["fields"]
@@ -69,24 +98,18 @@ class LDAP(auth.Database):
         import ldap
         import ldap.filter
 
-        cached_user_id = self.cache.get(fields)
-        if cached_user_id is not None:
+        cached_data = self.cache.get(fields)
+        if cached_data is not None:
+            cached_user_id, cached_authentication_labels = cached_data
             try:
                 user = dbutils.User.fromId(db, cached_user_id)
             except dbutils.InvalidUserId:
                 pass
             else:
-                db.setUser(user)
+                db.setUser(user, cached_authentication_labels)
                 return
 
-        connection = ldap.initialize(self.configuration["url"])
-
-        if self.configuration["use_tls"]:
-            connection.start_tls_s()
-
-        def escaped(fields, fn):
-            return { identifier: fn(value)
-                     for identifier, value in fields.items() }
+        connection = self.__startConnection()
 
         search_base = (self.configuration["search_base"]
                        % escaped(fields, ldap.dn.escape_dn_chars))
@@ -110,8 +133,8 @@ class LDAP(auth.Database):
 
         dn, attributes = result[0]
 
-        fields_with_dn = fields.copy()
-        fields_with_dn["dn"] = dn
+        # fields_with_dn = fields.copy()
+        # fields_with_dn["dn"] = dn
 
         try:
             connection.simple_bind_s(
@@ -122,27 +145,20 @@ class LDAP(auth.Database):
             # Might be raised for e.g. empty password.
             raise auth.AuthenticationFailed("Invalid credentials")
 
+        authentication_labels = set()
+
         if "require_groups" in self.configuration:
-            for require_group in self.configuration["require_groups"]:
-                result = connection.search_s(
-                    require_group["dn"], ldap.SCOPE_BASE,
-                    attrlist=[require_group["members_attribute"]])
-                if len(result) != 1:
-                    raise auth.AuthenticationError(
-                        "Required group '%s' not found" % require_group["dn"])
-                group_dn, group_attributes = result[0]
-                if require_group["members_attribute"] not in group_attributes:
-                    raise auth.AuthenticationError(
-                        "Required group '%s' has no attribute '%s'"
-                        % (require_group["dn"],
-                           require_group["members_attribute"]))
-                members = group_attributes[require_group["members_attribute"]]
-                member_value = (require_group["member_value"]
-                                % escaped(fields_with_dn,
-                                          ldap.dn.escape_dn_chars))
-                if member_value not in members:
+            for group in self.configuration["require_groups"]:
+                if not self.__isMemberOfGroup(connection, group, fields):
                     raise auth.AuthenticationFailed(
                         "Not member of required LDAP groups")
+                if "label" in group:
+                    authentication_labels.add(group["label"])
+
+        if "additional_groups" in self.configuration:
+            for group in self.configuration["additional_groups"]:
+                if self.__isMemberOfGroup(connection, group, fields):
+                    authentication_labels.add(group["label"])
 
         connection.unbind_s()
 
@@ -171,9 +187,28 @@ class LDAP(auth.Database):
             user = dbutils.User.create(
                 db, username, fullname, email, email_verified=None)
 
-        db.setUser(user)
+        db.setUser(user, authentication_labels)
 
-        self.cache.set(fields, user.id)
+        self.cache.set(fields, (user.id, authentication_labels))
+
+    def getAuthenticationLabels(self, user):
+        connection = self.__startConnection()
+
+        fields = self.configuration["fields_from_user"](user)
+        authentication_labels = set()
+
+        if "require_groups" in self.configuration:
+            for group in self.configuration["require_groups"]:
+                if "label" in group \
+                        and self.__isMemberOfGroup(connection, group, fields):
+                    authentication_labels.add(group["label"])
+
+        if "additional_groups" in self.configuration:
+            for group in self.configuration["additional_groups"]:
+                if self.__isMemberOfGroup(connection, group, fields):
+                    authentication_labels.add(group["label"])
+
+        return authentication_labels
 
 if configuration.auth.DATABASE == "ldap":
     auth.DATABASE = LDAP()

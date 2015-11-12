@@ -116,7 +116,7 @@ def execute(db, req, user):
 
             try:
                 stdout_data = executeProcess(
-                    manifest, "page", script, function, extension_id, user.id,
+                    db, manifest, "page", script, function, extension_id, user.id,
                     argv, configuration.extensions.LONG_TIMEOUT, stdin=stdin_data)
             except ProcessTimeout:
                 req.setStatus(500, "Extension Timeout")

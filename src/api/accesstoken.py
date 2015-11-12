@@ -72,7 +72,7 @@ class AccessToken(api.APIObject):
     @property
     def profile(self):
         """The access token's access control profile"""
-        return self._impl.getProfile(self.__critic)
+        return self._impl.getProfile(self.critic)
 
 def fetch(critic, token_id):
     """Fetch an AccessToken object with the given token id"""

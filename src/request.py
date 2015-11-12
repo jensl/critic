@@ -21,6 +21,7 @@ import httplib
 import wsgiref.util
 
 import base
+import auth
 import configuration
 import dbutils
 
@@ -322,7 +323,7 @@ class Request:
         def filter_value(value):
             try:
                 return filter(value)
-            except base.Error:
+            except (base.Error, auth.AccessDenied):
                 raise
             except Exception:
                 if filter is int:

@@ -81,6 +81,9 @@ class Database(object):
            to an AuthenticationError exception."""
         raise base.NotReached()
 
+    def getAuthenticationLabels(self, user):
+        return ()
+
     def supportsHTTPAuthentication(self):
         """Returns true if HTTP authentication is supported
 

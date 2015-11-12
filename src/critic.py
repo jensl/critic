@@ -152,11 +152,8 @@ def handleDownload(db, req, user):
     sha1 = req.getParameter("sha1")
 
     try:
-        repository_arg = req.getParameter("repository", default=None)
-        if repository_arg:
-            repository = gitutils.Repository.fromParameter(db, repository_arg)
-        else:
-            repository = user.getDefaultRepository(db)
+        repository_arg = req.getParameter("repository")
+        repository = gitutils.Repository.fromParameter(db, repository_arg)
     except gitutils.NoSuchRepository as error:
         raise page.utils.DisplayMessage(
             title="No such repository",
@@ -489,6 +486,12 @@ def handleRepositoryPath(db, req, user, suffix):
             if not repository_path.endswith(suffix):
                 continue
 
+        repository_path = os.path.join(configuration.paths.GIT_DIR,
+                                       repository_path)
+
+        if not repository_path.endswith(".git"):
+            repository_path += ".git"
+
         try:
             repository = gitutils.Repository.fromPath(db, repository_path)
         except gitutils.NoSuchRepository:
@@ -627,6 +630,7 @@ def process_request(environ, start_response):
                         finishOAuth(db, req, provider)
 
             auth.checkSession(db, req)
+            auth.AccessControl.accessHTTP(db, req)
 
             user = req.user
             user.loadPreferences(db)
@@ -885,8 +889,7 @@ def process_request(environ, start_response):
                             revparse = revparseWithReview
 
                 if repository is None:
-                    repository = gitutils.Repository.fromName(
-                        db, user.getPreference(db, "defaultRepository"))
+                    repository = user.getDefaultRepository(db)
 
                     if gitutils.re_sha1.match(req.path):
                         if repository and not repository.iscommit(req.path):
@@ -926,6 +929,12 @@ def process_request(environ, start_response):
                 status=404)
         except GeneratorExit:
             raise
+        except auth.AccessDenied as error:
+            return handleDisplayMessage(
+                db, req, request.DisplayMessage(
+                    title="Access denied",
+                    body=error.message,
+                    status=403))
         except request.HTTPResponse as response:
             return response.execute(db, req)
         except request.MissingWSGIRemoteUser as error:

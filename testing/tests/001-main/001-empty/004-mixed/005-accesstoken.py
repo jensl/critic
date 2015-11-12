@@ -24,7 +24,15 @@ with frontend.signin("alice"):
             "user": alice.id,
             "title": "005-accesstoken",
             "part1": str,
-            "part2": str
+            "part2": str,
+            "profile": {
+                "http": { "rule": "allow",
+                          "exceptions": [] },
+                "repositories": { "rule": "allow",
+                                  "exceptions": [] },
+                "extensions": { "rule": "allow",
+                                "exceptions": [] }
+            }
         })
 
     token_id = access_token["id"]
@@ -38,6 +46,26 @@ with frontend.signin("alice"):
     frontend.json(
         "users/me/accesstokens/%d" % token_id,
         expect=access_token)
+    frontend.json(
+        "accesstokens/%d/profile" % token_id,
+        expect={
+            "profile": access_token["profile"]
+        })
+    frontend.json(
+        "accesstokens/%d/profile/http" % token_id,
+        expect={
+            "profile/http": access_token["profile"]["http"]
+        })
+    frontend.json(
+        "accesstokens/%d/profile/repositories" % token_id,
+        expect={
+            "profile/repositories": access_token["profile"]["repositories"]
+        })
+    frontend.json(
+        "accesstokens/%d/profile/extensions" % token_id,
+        expect={
+            "profile/extensions": access_token["profile"]["extensions"]
+        })
 
 check_user(anonymous)
 
@@ -127,7 +155,15 @@ with frontend.signin():
             "user": None,
             "title": "005-accesstoken (anonymous)",
             "part1": str,
-            "part2": str
+            "part2": str,
+            "profile": {
+                "http": { "rule": "allow",
+                          "exceptions": [] },
+                "repositories": { "rule": "allow",
+                                  "exceptions": [] },
+                "extensions": { "rule": "allow",
+                                "exceptions": [] }
+            }
         })
 
     token_id = access_token["id"]

@@ -186,7 +186,7 @@ def PrimaryResource(resource_class):
     for name in ("single", "multiple", "create", "update", "delete"):
         if not hasattr(resource_class, name):
             setattr(resource_class, name, None)
-    for name in ("exceptions", "lists", "maps"):
+    for name in ("exceptions", "objects", "lists", "maps"):
         if not hasattr(resource_class, name):
             setattr(resource_class, name, ())
     contexts = getattr(resource_class, "contexts", (None,))
@@ -323,7 +323,7 @@ def finishGET(critic, req, parameters, resource_class, value, values):
     return resource_json
 
 def finishPOST(critic, req, parameters, resource_class, value, values, data):
-    if (value or values) and len(parameters.subresource_path) != 1:
+    if (value or values) and not parameters.subresource_path:
         raise UsageError("Invalid POST request")
 
     if not resource_class.create:
@@ -402,7 +402,9 @@ def handleRequestInternal(critic, req):
     while True:
         next_component = path.pop(0)
 
-        if resource_class and next_component in resource_class.lists:
+        if resource_class and (next_component in resource_class.objects or
+                               next_component in resource_class.lists or
+                               next_component in resource_class.maps):
             subresource_id = []
             subresource_path = []
 
@@ -410,13 +412,16 @@ def handleRequestInternal(critic, req):
                 subresource_id.append(next_component)
                 subresource_path.append(next_component)
 
-                if "/".join(subresource_id) in resource_class.lists:
+                if "/".join(subresource_id) in resource_class.objects:
+                    pass
+                elif "/".join(subresource_id) in resource_class.lists:
                     if path:
                         try:
-                            subresource_path.append(int(path[0]) - 1)
+                            subresource_path.append(int(path[0]))
                         except ValueError:
                             raise UsageError(
-                                "List index must be an integer: %r" % path[0])
+                                "Item identifier must be an integer: %r"
+                                % path[0])
                         else:
                             del path[0]
                 elif "/".join(subresource_id) in resource_class.maps:
@@ -498,5 +503,5 @@ def handleRequestInternal(critic, req):
 def handleRequest(critic, req):
     try:
         return handleRequestInternal(critic, req)
-    except api.PermissionDenied as error:
+    except (api.PermissionDenied, auth.AccessDenied) as error:
         raise PermissionDenied(error.message)

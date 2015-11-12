@@ -117,6 +117,8 @@ class Failure(Exception):
 
 from session import createSessionId, deleteSessionId, checkSession
 
+from accesscontrol import (AccessDenied, AccessControlError,
+                           AccessControlProfile, AccessControl)
 from database import AuthenticationError, AuthenticationFailed, Database
 
 DATABASE = None

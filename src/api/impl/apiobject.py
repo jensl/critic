@@ -26,9 +26,13 @@ class APIObject(object):
         return Implementation(*args).wrap(critic)
 
     @classmethod
-    def make(Implementation, critic, args_list):
+    def make(Implementation, critic, args_list, ignored_errors=()):
         for args in args_list:
-            object_id = args[0]
-            yield critic._impl.cached(
-                Implementation.wrapper_class, object_id,
-                lambda: Implementation.create(critic, *args))
+            try:
+                item = critic._impl.cached(
+                    Implementation.wrapper_class, args[0],
+                    lambda: Implementation.create(critic, *args))
+            except ignored_errors:
+                continue
+            else:
+                yield item

@@ -33,3 +33,7 @@ class PermissionDenied(Exception):
     def raiseUnlessUser(critic, required_user):
         if critic.actual_user != required_user:
             PermissionDenied.raiseUnlessAdministrator(critic)
+
+class TransactionError(APIError):
+    """Base exception for transaction errors."""
+    pass

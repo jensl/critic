@@ -149,8 +149,6 @@ class Repository:
 
         if db:
             self.__db = db
-            db.storage["Repository"][repository_id] = self
-            db.storage["Repository"][name] = self
             db.atexit(self.__terminate)
         else:
             self.__db = None
@@ -192,28 +190,40 @@ class Repository:
         self.__cacheDisabled = True
 
     @staticmethod
-    def fromId(db, repository_id):
+    def fromId(db, repository_id, for_modify=False):
         if repository_id in db.storage["Repository"]:
-            return db.storage["Repository"][repository_id]
+            repository = db.storage["Repository"][repository_id]
         else:
             cursor = db.cursor()
             cursor.execute("SELECT parent, name, path FROM repositories WHERE id=%s", (repository_id,))
-            try:
-                parent_id, name, path = cursor.fetchone()
-                parent = None if parent_id is None else Repository.fromId(db, parent_id)
-                return Repository(db, repository_id=repository_id, parent=parent, name=name, path=path)
-            except:
-                return None
+
+            parent_id, name, path = cursor.fetchone()
+            parent = None if parent_id is None else Repository.fromId(db, parent_id)
+            repository = Repository(db, repository_id=repository_id, parent=parent, name=name, path=path)
+
+        import auth
+
+        # Raises auth.AccessDenied if access should not be allowed.
+        auth.AccessControl.accessRepository(
+            db, "modify" if for_modify else "read", repository)
+
+        db.storage["Repository"][repository_id] = repository
+        db.storage["Repository"][repository.name] = repository
+
+        return repository
 
     @staticmethod
-    def fromName(db, name):
+    def fromName(db, name, for_modify=False):
         if name in db.storage["Repository"]:
             return db.storage["Repository"][name]
         else:
             cursor = db.cursor()
             cursor.execute("SELECT id FROM repositories WHERE name=%s", (name,))
-            try: return Repository.fromId(db, cursor.fetchone()[0])
-            except: return None
+            row = cursor.fetchone()
+            if not row:
+                return None
+            repository_id, = row
+            return Repository.fromId(db, repository_id, for_modify)
 
     @staticmethod
     def fromParameter(db, parameter):
@@ -234,15 +244,11 @@ class Repository:
             sha1=sha1)
 
     @staticmethod
-    def fromPath(db, path):
-        if not path.startswith(configuration.paths.GIT_DIR):
-            path = os.path.join(configuration.paths.GIT_DIR, path)
-        if not path.endswith(".git"):
-            path += ".git"
+    def fromPath(db, path, for_modify=False):
         cursor = db.cursor()
         cursor.execute("SELECT id FROM repositories WHERE path=%s", (path,))
         for (repository_id,) in cursor:
-            return Repository.fromId(db, repository_id)
+            return Repository.fromId(db, repository_id, for_modify=for_modify)
         raise NoSuchRepository(path)
 
     def __terminate(self, db=None):

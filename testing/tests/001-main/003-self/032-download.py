@@ -22,18 +22,11 @@ frontend.page(
     expected_content_type="text/javascript")
 
 # Download the resources/basic.js file in the initial released commit, this time
-# without the repository parameter.  Since there's only one repository in the
-# system, that one repository should be the default.
-frontend.page(
-    "download/resources/basic.js",
-    params={ "sha1": "2c7d6f87c11670f3c371cca0580553f01ec94340" },
-    expected_content_type="text/javascript")
-
-# Download the resources/basic.js file in the initial released commit, this time
 # with an abbreviated SHA-1 sum.
 frontend.page(
     "download/resources/basic.js",
-    params={ "sha1": "2c7d6f87c11" },
+    params={ "repository": "critic",
+             "sha1": "2c7d6f87c11" },
     expected_content_type="text/javascript")
 
 # Attempt to download the README file in the root directory but specify a SHA-1
@@ -72,4 +65,10 @@ frontend.page(
 frontend.page(
     "download/README",
     params={ "repository": "critic" },
+    expected_http_status=400)
+
+# Omit the repository parameter.
+frontend.page(
+    "download/README",
+    params={ "sha1": "f4c6e5fc09de47f7eb1a623cbc8820f67967d558" },
     expected_http_status=400)

@@ -78,6 +78,18 @@ with frontend.signin():
                  "content_title": testing.expect.paleyellow_title(0, u"Repositories"),
                  "repository": check_repository })
 
+    # Add another repository. This time, without a tracking branch, but we'll
+    # actually push the same branch (IOW our current branch of critic.git) to
+    # it, simply because we don't really have another available with anything
+    # useful in it.
+    frontend.operation("addrepository",
+                       data={ "name": "other",
+                              "path": "other" })
+
+    repository.run(
+        ["push", instance.repository_url("alice", repository="other"),
+         "HEAD:refs/heads/master"])
+
     frontend.operation("addrepository",
                        data={ "name": "a" * 65,
                               "path": "validpath2" },

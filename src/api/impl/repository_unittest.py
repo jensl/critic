@@ -27,7 +27,7 @@ def basic(arguments):
     assert api.repository.fetch(critic, path=arguments.path) is repository
 
     all_repositories = api.repository.fetchAll(critic)
-    assert len(all_repositories) == 1
+    assert len(all_repositories) == 2
     assert all_repositories[0] is repository
 
     highlighted_repositories = api.repository.fetchHighlighted(critic, alice)

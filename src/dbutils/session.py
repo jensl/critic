@@ -27,6 +27,8 @@ class Session(object):
         self.profiling = {}
 
         self.__user = None
+        self.__authentication_labels = set()
+        self.__profiles = set()
 
     def atexit(self, fn):
         self.__atexit.append(fn)
@@ -60,7 +62,21 @@ class Session(object):
     def user(self):
         return self.__user
 
-    def setUser(self, user):
+    @property
+    def authentication_labels(self):
+        return self.__authentication_labels
+
+    @property
+    def profiles(self):
+        return frozenset(self.__profiles)
+
+    def setUser(self, user, authentication_labels=()):
         import auth
         assert not self.__user or self.__user.isAnonymous()
         self.__user = user
+        self.__authentication_labels.update(authentication_labels)
+        self.__profiles.add(auth.AccessControlProfile.forUser(
+            self, user, self.__authentication_labels))
+
+    def addProfile(self, profile):
+        self.__profiles.add(profile)

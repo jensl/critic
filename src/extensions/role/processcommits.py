@@ -118,7 +118,7 @@ def execute(db, user, review, all_commits, old_head, new_head, output):
 
                 try:
                     stdout_data = executeProcess(
-                        manifest, "processcommits", script, function, extension_id, user.id,
+                        db, manifest, "processcommits", script, function, extension_id, user.id,
                         argv, configuration.extensions.SHORT_TIMEOUT)
                 except ProcessTimeout:
                     raise Error("Timeout after %d seconds." % configuration.extensions.SHORT_TIMEOUT)

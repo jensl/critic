@@ -99,7 +99,8 @@ class Frontend(object):
     def page(self, url, params={}, expect={},
              expected_content_type="text/html",
              expected_http_status=200,
-             disable_redirects=False):
+             disable_redirects=False,
+             post=None, put=None, delete=False):
         full_url = "%s/%s" % (self.prefix(), url)
 
         log_url = full_url
@@ -113,10 +114,22 @@ class Frontend(object):
 
         self.sessions[-1].apply(kwargs)
 
-        response = requests.get(full_url,
-                                params=params,
-                                allow_redirects=not disable_redirects,
-                                **kwargs)
+        if post is not None:
+            kwargs["data"] = post
+            method = "POST"
+        elif put is not None:
+            kwargs["data"] = put
+            method = "PUT"
+        elif delete:
+            method = "DELETE"
+        else:
+            method = "GET"
+
+        response = requests.request(method,
+                                    full_url,
+                                    params=params,
+                                    allow_redirects=not disable_redirects,
+                                    **kwargs)
 
         if "sid" in response.cookies:
             testing.logger.debug("Cookie: sid=%s" % response.cookies["sid"])
@@ -317,10 +330,10 @@ class Frontend(object):
 
         self.sessions[-1].apply(kwargs)
 
-        if post:
+        if post is not None:
             method = "POST"
             kwargs["data"] = json.dumps(post)
-        elif put:
+        elif put is not None:
             method = "PUT"
             kwargs["data"] = json.dumps(put)
         elif delete:
@@ -401,12 +414,14 @@ class Frontend(object):
                 return
             expected_keys = set(expected.keys())
             actual_keys = set(actual.keys())
+            if "*" in expected_keys:
+                expected_keys.remove("*")
+            elif actual_keys - expected_keys:
+                errors.append("%s: unexpected keys: %r"
+                              % (path, tuple(actual_keys - expected_keys)))
             if expected_keys - actual_keys:
                 errors.append("%s: missing keys: %r"
                               % (path, tuple(expected_keys - actual_keys)))
-            if actual_keys - expected_keys:
-                errors.append("%s: unexpected keys: %r"
-                              % (path, tuple(actual_keys - expected_keys)))
             for key in sorted(expected_keys & actual_keys):
                 check("%s/%s" % (path, key), expected[key], actual[key])
 

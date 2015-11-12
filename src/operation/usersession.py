@@ -37,7 +37,7 @@ class ValidateLogin(Operation):
         except auth.WrongPassword:
             return OperationResult(message="Wrong password!")
 
-        auth.createSessionId(db, req, db.user)
+        auth.createSessionId(db, req, db.user, db.authentication_labels)
 
         return OperationResult()
 

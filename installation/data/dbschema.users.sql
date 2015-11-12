@@ -58,6 +58,7 @@ ALTER TABLE users ADD CONSTRAINT users_email_fkey FOREIGN KEY (email) REFERENCES
 CREATE TABLE usersessions
   ( key CHAR(28) PRIMARY KEY,
     uid INTEGER NOT NULL REFERENCES users,
+    labels VARCHAR(256),
     atime TIMESTAMP DEFAULT NOW() );
 
 CREATE TABLE usergitemails
@@ -127,3 +128,67 @@ CREATE TABLE accesstokens
 
     CONSTRAINT valid_user CHECK ((access_type='user' AND uid IS NOT NULL) OR
                                  (access_type!='user' AND uid IS NULL)) );
+
+CREATE TYPE accesscontrolrule AS ENUM
+  ( 'allow',
+    'deny' );
+
+CREATE TABLE accesscontrolprofiles
+  ( id SERIAL PRIMARY KEY,
+    title TEXT,
+
+    -- Access token that this profile belongs to.
+    access_token INTEGER REFERENCES accesstokens ON DELETE CASCADE,
+
+    http accesscontrolrule NOT NULL DEFAULT 'allow',
+    repositories accesscontrolrule NOT NULL DEFAULT 'allow',
+    extensions accesscontrolrule NOT NULL DEFAULT 'allow',
+
+    UNIQUE (access_token) );
+
+CREATE TYPE httprequestmethod AS ENUM
+  ( 'GET',
+    'HEAD',
+    'OPTIONS',
+    'POST',
+    'PUT',
+    'DELETE' );
+
+-- Exceptions for HTTP requests.
+CREATE TABLE accesscontrol_http
+  ( id SERIAL PRIMARY KEY,
+
+    -- The profile this exception belongs to.
+    profile INTEGER NOT NULL REFERENCES accesscontrolprofiles ON DELETE CASCADE,
+
+    -- HTTP request method.  NULL means "all methods".
+    request_method httprequestmethod,
+    -- Python regular expression that must match the entire path.  NULL means
+    -- "all paths".
+    path_pattern TEXT );
+CREATE INDEX accesscontrol_http_profile
+          ON accesscontrol_http (profile);
+
+CREATE TABLE useraccesscontrolprofiles
+  ( -- The type of access that is controlled.
+    access_type systemaccesstype NOT NULL DEFAULT 'user',
+
+    -- The user (when access_type='user') or NULL.  If access_type='user' and
+    -- this is NULL, then this is the default profile association.
+    uid INTEGER REFERENCES users,
+
+    -- Access control profile.
+    profile INTEGER NOT NULL REFERENCES accesscontrolprofiles ON DELETE CASCADE,
+
+    CONSTRAINT valid_user CHECK (access_type='user' OR uid IS NULL) );
+CREATE INDEX useraccesscontrolprofiles_uid
+          ON useraccesscontrolprofiles (uid);
+
+CREATE TABLE labeledaccesscontrolprofiles
+  ( -- Authentication labels from user authentication, typically indicating some
+    -- type of group memberships. Labels should be sorted lexicographically and
+    -- separated by pipe ('|') characters.
+    labels VARCHAR(256) PRIMARY KEY,
+
+    -- Access control profile.
+    profile INTEGER NOT NULL REFERENCES accesscontrolprofiles ON DELETE CASCADE );

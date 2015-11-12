@@ -39,7 +39,7 @@ class AccessToken(apiobject.APIObject):
             cursor = critic.getDatabaseCursor()
             cursor.execute("""SELECT id
                                 FROM accesscontrolprofiles
-                               WHERE accesstoken=%s""",
+                               WHERE access_token=%s""",
                            (self.id,))
             row = cursor.fetchone()
             if not row:

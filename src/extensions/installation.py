@@ -14,6 +14,8 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
+import auth
+
 from extensions.extension import Extension, ExtensionError
 
 class InstallationError(Exception):
@@ -23,6 +25,8 @@ class InstallationError(Exception):
         self.is_html = is_html
 
 def doInstallExtension(db, user, extension, version):
+    auth.AccessControl.accessExtension(db, "install", extension)
+
     is_universal = user is None
     extension_id = extension.getExtensionID(db, create=True)
     manifest = extension.getManifest(version)

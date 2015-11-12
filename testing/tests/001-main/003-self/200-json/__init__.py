@@ -3,6 +3,11 @@ critic_json = { "id": 1,
                 "path": instance.repository_path(),
                 "url": str }
 
+other_json = { "id": 2,
+               "name": "other",
+               "path": instance.repository_path("other"),
+               "url": str }
+
 def user_json(name, fullname=None, status="current", no_email=False):
     if fullname is None:
         fullname = name.capitalize() + " von Testing"

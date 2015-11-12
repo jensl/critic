@@ -229,7 +229,7 @@ def processFilterHookEvent(db, event_id, logfn):
 
     try:
         executeProcess(
-            manifest, "filterhook", role.script, role.function, extension_id,
+            db, manifest, "filterhook", role.script, role.function, extension_id,
             filter_user_id, argv, configuration.extensions.LONG_TIMEOUT)
     except (ProcessTimeout, ProcessError) as error:
         review = dbutils.Review.fromId(db, review_id)

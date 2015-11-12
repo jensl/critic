@@ -1050,11 +1050,9 @@ def renderShowCommit(req, db, user):
         if not repository.iscommit(one_sha1):
             raise page.utils.DisplayMessage("'%s' is not a valid commit in the repository '%s'!" % (one_sha1, repository.name), review=review)
     else:
-        default = user.getPreference(db, "defaultRepository")
-        if default:
-            repository = gitutils.Repository.fromName(db, default)
-            if repository and not repository.iscommit(one_sha1):
-                repository = None
+        repository = user.getDefaultRepository(db)
+        if repository and not repository.iscommit(one_sha1):
+            repository = None
         if not repository:
             repository = gitutils.Repository.fromSHA1(db, one_sha1)
 

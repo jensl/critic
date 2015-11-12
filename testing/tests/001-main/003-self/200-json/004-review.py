@@ -136,3 +136,24 @@ frontend.json(
     expect={ "error": { "title": "Invalid API request",
                         "message": "Invalid review state values: 'rejected'" }},
     expected_http_status=400)
+
+no_repository_access = {
+    "repositories": {
+        "rule": "deny",
+        "exceptions": []
+    }
+}
+
+with testing.utils.access_token("alice", no_repository_access) as access_token:
+    with frontend.signin(access_token=access_token):
+        # Check that this review is inaccessible now.
+        frontend.json(
+            "reviews/%d" % review_id,
+            expected_http_status=403)
+
+        # Check that we can still list "all" reviews successfully.
+        frontend.json(
+            "reviews",
+            expect={
+                "reviews": []
+            })

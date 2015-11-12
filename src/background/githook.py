@@ -23,6 +23,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(sys.argv[0]), ".
 import configuration
 import background.utils
 import dbutils
+import auth
 
 from textutils import json_decode, json_encode
 
@@ -77,10 +78,15 @@ def slave():
         update_tags = []
 
         user = getUser(db, request["user_name"])
+        authentication_labels = auth.DATABASE.getAuthenticationLabels(user)
 
-        db.setUser(user)
+        db.setUser(user, authentication_labels)
 
-        repository = gitutils.Repository.fromName(db, request["repository_name"])
+        try:
+            repository = gitutils.Repository.fromName(
+                db, request["repository_name"], for_modify=True)
+        except auth.AccessDenied as error:
+            reject(error.message)
 
         if request["flags"] and user.isSystem():
             flags = dict(flag.split("=", 1) for flag in request["flags"].split(","))

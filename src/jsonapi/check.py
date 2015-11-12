@@ -74,21 +74,22 @@ class TypeChecker(object):
 
     @staticmethod
     def make(value):
+        if ishashable(value) and value in CHECKER_MAP:
+            value = CHECKER_MAP[value]
         if isinstance(value, TypeChecker):
             return value
-        elif isinstance(value, type) and issubclass(value, TypeChecker):
+        if isinstance(value, type) and issubclass(value, TypeChecker):
             return value()
-        elif ishashable(value) and value in CHECKER_MAP:
-            return CHECKER_MAP[value]
-        elif isinstance(value, list):
+        if isinstance(value, list):
             assert(len(value) == 1)
             return ListChecker(value[0])
-        elif isinstance(value, set):
+        if isinstance(value, (set, frozenset, tuple)):
             if all(isinstance(item, str) for item in value):
                 return EnumerationChecker(*value)
             return VariantChecker(*value)
-        elif isinstance(value, dict):
+        if isinstance(value, dict):
             return ObjectChecker(value)
+        raise Exception("invalid checked type: %r" % value)
 
 class ListChecker(TypeChecker):
     required_isinstance = list
@@ -132,12 +133,16 @@ class ObjectChecker(TypeChecker):
     def __init__(self, attributes):
         self.attributes = {}
         for attribute_name, attribute_type in attributes.items():
-            if attribute_name.endswith("?"):
-                required = False
+            required = False
+            default = False
+            if attribute_name.endswith("=null"):
+                default = True
+                attribute_name = attribute_name[:-5]
+            elif attribute_name.endswith("?"):
                 attribute_name = attribute_name[:-1]
             else:
                 required = True
-            self.attributes[attribute_name] = (required,
+            self.attributes[attribute_name] = (required, default,
                                                TypeChecker.make(attribute_type))
 
     def convert(self, context, value):
@@ -147,13 +152,16 @@ class ObjectChecker(TypeChecker):
                 if attribute_name not in self.attributes:
                     raise jsonapi.InputError(
                         "%s: unexpected attribute" % context)
-                result[attribute_name] = self.attributes[attribute_name][1](
+                result[attribute_name] = self.attributes[attribute_name][2](
                     context, attribute_value)
-        for attribute_name, (required, _) in self.attributes.items():
-            if required and attribute_name not in result:
-                with context.push(attribute_name):
-                    raise jsonapi.InputError(
-                        "%s: missing attribute" % context)
+        for attribute_name, (required, default, _) in self.attributes.items():
+            if attribute_name not in result:
+                if required:
+                    with context.push(attribute_name):
+                        raise jsonapi.InputError("%s: missing attribute"
+                                                 % context)
+                elif default:
+                    result[attribute_name] = None
         return result
 
 class IntegerChecker(TypeChecker):
@@ -256,11 +264,18 @@ class Extension(VariantChecker):
     def __init__(self):
         super(Extension, self).__init__(ExtensionId, ExtensionKey)
 
+class AccessControlProfile(PositiveInteger):
+    convert_exception = api.accesscontrolprofile.InvalidAccessControlProfileId
+    def convert(self, context, value):
+        return api.accesscontrolprofile.fetch(context.critic, profile_id=value)
+
 CHECKER_MAP = { int: IntegerChecker(),
                 str: StringChecker(),
-                api.user.User: User(),
-                api.repository.Repository: Repository(),
-                api.extension.Extension: Extension() }
+                api.user.User: User,
+                api.repository.Repository: Repository,
+                api.extension.Extension: Extension,
+                api.accesscontrolprofile.AccessControlProfile:
+                    AccessControlProfile }
 
 def convert(parameters, checker, value):
     context = TypeCheckerContext(parameters.critic)
