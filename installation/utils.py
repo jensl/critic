@@ -346,3 +346,107 @@ def write_install_data(arguments, install_data):
 
         os.chown(install_data_path, installation.system.uid, installation.system.gid)
         os.chmod(install_data_path, 0640)
+
+def start_migration():
+    import sys
+    import argparse
+    import os
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--uid", type=int)
+    parser.add_argument("--gid", type=int)
+
+    arguments = parser.parse_args()
+
+    os.setgid(arguments.gid)
+    os.setuid(arguments.uid)
+
+class DatabaseSchema(object):
+    """Database schema updating utility class
+
+       This class is primarily intended for use in migration scripts."""
+
+    def __init__(self):
+        import configuration
+        import psycopg2
+
+        self.db = psycopg2.connect(**configuration.database.PARAMETERS)
+
+    def table_exists(self, table_name):
+        import psycopg2
+
+        try:
+            self.db.cursor().execute("SELECT 1 FROM %s LIMIT 1" % table_name)
+        except psycopg2.ProgrammingError:
+            self.db.rollback()
+            return False
+        else:
+            # Above statement would have thrown a psycopg2.ProgrammingError if the
+            # table didn't exist, but it didn't, so the table must exist.
+            return True
+
+    def create_table(self, statement):
+        import re
+
+        (table_name,) = re.search("CREATE TABLE (\w+)", statement).groups()
+
+        # Make sure the table doesn't already exist.
+        if not self.table_exists(table_name):
+            self.db.cursor().execute(statement)
+            self.db.commit()
+
+    def create_index(self, statement):
+        import re
+
+        (index_name,) = re.search("CREATE INDEX (\w+)", statement).groups()
+
+        cursor = self.db.cursor()
+        cursor.execute("DROP INDEX IF EXISTS %s" % index_name)
+        cursor.execute(statement)
+        self.db.commit()
+
+    def type_exists(self, type_name):
+        import psycopg2
+
+        try:
+            self.db.cursor().execute("SELECT NULL::%s" % type_name)
+        except psycopg2.ProgrammingError:
+            self.db.rollback()
+            return False
+        else:
+            # Above statement would have thrown a psycopg2.ProgrammingError if the
+            # type didn't exist, but it didn't, so the table must exist.
+            return True
+
+    def create_type(self, statement):
+        import re
+
+        (type_name,) = re.search("CREATE TYPE (\w+)", statement).groups()
+
+        # Make sure the type doesn't already exist.
+        if not self.type_exists(type_name):
+            self.db.cursor().execute(statement)
+            self.db.commit()
+
+    def update(self, statements):
+        # Remove top-level comments; they interfere with out very simple
+        # statement identification below.  Other comments are fine.
+        lines = [line for line in statements.splitlines()
+                 if not line.startswith("--")]
+        statements = "\n".join(lines)
+
+        for statement in statements.split(";"):
+            statement = statement.strip()
+
+            if not statement:
+                continue
+
+            if statement.startswith("CREATE TABLE"):
+                self.create_table(statement)
+            elif statement.startswith("CREATE INDEX"):
+                self.create_index(statement)
+            elif statement.startswith("CREATE TYPE"):
+                self.create_type(statement)
+            else:
+                print >>sys.stderr, "Unexpected SQL statement: %r" % statement
+                sys.exit(1)

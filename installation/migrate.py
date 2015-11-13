@@ -72,7 +72,7 @@ def upgrade(arguments, data):
 
         # This is "/etc/critic/main", set by upgrade.py, or something else
         # if the --etc-dir/--identity arguments were used.
-        env["PYTHONPATH"] = sys.path[0]
+        env["PYTHONPATH"] = sys.path[0] + ":" + installation.root_dir
 
         installation.process.check_input([sys.executable, script_path,
                                           "--uid=%s" % installation.system.uid,
