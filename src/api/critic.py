@@ -29,6 +29,11 @@ class Critic(object):
         return self._impl.actual_user
 
     @property
+    def access_token(self):
+        """Access token used to authenticate"""
+        return self._impl.access_token
+
+    @property
     def database(self):
         return self._impl.database
 
@@ -55,6 +60,11 @@ class Critic(object):
         assert isinstance(user, api.user.User)
         assert self._impl.actual_user is None
         self._impl.actual_user = user
+
+    def setAccessToken(self, access_token):
+        """Set the access token used to authenticate"""
+        assert self._impl.access_token is None
+        self._impl.access_token = access_token
 
 def startSession(for_user=False, for_system=False, for_testing=False):
     import api.impl

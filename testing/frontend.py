@@ -523,7 +523,12 @@ class Frontend(object):
             expect=expect)
 
     @contextlib.contextmanager
-    def signin(self, username="admin", password="testing", use_httpauth=False):
+    def signin(self, username="admin", password="testing", use_httpauth=False,
+               access_token=None):
+        if access_token:
+            username = access_token["part1"]
+            password = access_token["part2"]
+            use_httpauth = True
         if use_httpauth:
             self.sessions.append(HTTPAuthSession(username, password))
             try:

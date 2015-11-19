@@ -86,8 +86,8 @@ def checkPassword(db, username, password):
 def hashPassword(password):
     return createCryptContext().encrypt(password)
 
-def getToken(encode=base64.b64encode):
-    return encode(os.urandom(20))
+def getToken(encode=base64.b64encode, length=20):
+    return encode(os.urandom(length))
 
 class InvalidUserName(Exception): pass
 

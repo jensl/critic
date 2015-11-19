@@ -16,3 +16,6 @@
 
 import internaldb
 import ldapdb
+
+# This must be last, since it wraps the other enabled database.
+import accesstokensdb

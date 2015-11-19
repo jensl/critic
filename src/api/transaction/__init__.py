@@ -17,17 +17,22 @@
 import api
 
 class Transaction(object):
-    def __init__(self, critic, result=None):
+    def __init__(self, critic):
         self.critic = critic
         self.tables = set()
         self.items = []
-        self.result = [] if result is None else result
 
     def modifyUser(self, subject):
         from user import ModifyUser
         assert isinstance(subject, api.user.User)
         api.PermissionDenied.raiseUnlessUser(self.critic, subject)
         return ModifyUser(self, subject)
+
+    def modifyAccessToken(self, access_token):
+        from accesstoken import ModifyAccessToken
+        assert isinstance(access_token, api.accesstoken.AccessToken)
+        api.PermissionDenied.raiseUnlessAdministrator(self.critic)
+        return ModifyAccessToken(self, access_token)
 
     def __enter__(self):
         return self
@@ -42,17 +47,29 @@ class Transaction(object):
             return
         with self.critic.getUpdatingDatabaseCursor(*self.tables) as cursor:
             for item in self.items:
-                self.result.append(item(self.critic, cursor))
+                item(self.critic, cursor)
 
 class Query(object):
     def __init__(self, statement, *values, **kwargs):
         self.statement = statement
-        self.values = values
-        self.transform = kwargs.get("transform")
+        self.__values = values
+        self.collector = kwargs.get("collector")
+
+    @property
+    def values(self):
+        for values in self.__values:
+            yield [value.evaluate() if isinstance(value, LazyValue) else value
+                   for value in values]
 
     def __call__(self, critic, cursor):
-        if self.transform:
-            assert len(self.values) == 1
-            cursor.execute(self.statement, self.values[0])
-            return self.transform(*cursor.fetchone())
-        cursor.executemany(self.statement, self.values)
+        if self.collector:
+            for values in self.values:
+                cursor.execute(self.statement, values)
+                for row in cursor:
+                    self.collector(*row)
+        else:
+            cursor.executemany(self.statement, self.values)
+
+class LazyValue(object):
+    def evaluate(self):
+        raise Exception("LazyValue.evaluate() must be implemented!")

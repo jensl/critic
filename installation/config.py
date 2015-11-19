@@ -38,6 +38,7 @@ default_password_hash_scheme = "pbkdf2_sha256"
 minimum_password_hash_time = 0.25
 minimum_rounds = {}
 auth_database = "internal"
+enable_access_tokens = True
 
 ldap_url = "ldap://ldap.example.com:389"
 ldap_search_base = "dc=example,dc=com"
@@ -259,6 +260,7 @@ def prepare(mode, arguments, data):
     global verify_email_addresses, archive_review_branches
     global password_hash_schemes, default_password_hash_scheme
     global minimum_password_hash_time, minimum_rounds, auth_database
+    global enable_access_tokens
     global is_development, is_testing, coverage_dir
 
     global ldap_url, ldap_search_base, ldap_create_user, ldap_username_attribute
@@ -360,6 +362,11 @@ the Web front-end.  This can be handled in two different ways:
 
         try:
             auth_database = configuration.auth.DATABASE
+        except AttributeError:
+            pass
+
+        try:
+            enable_access_tokens = configuration.auth.ENABLE_ACCESS_TOKENS
         except AttributeError:
             pass
 
@@ -618,6 +625,7 @@ web server to redirect all HTTP accesses to HTTPS.
     data["installation.config.default_password_hash_scheme"] = default_password_hash_scheme
     data["installation.config.minimum_password_hash_time"] = minimum_password_hash_time
     data["installation.config.auth_database"] = auth_database
+    data["installation.config.enable_access_tokens"] = enable_access_tokens
 
     data["installation.config.is_quickstart"] = False
     data["installation.config.is_development"] = is_development

@@ -14,11 +14,16 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
+import configuration
+
 import users
 import repositories
 import commits
 import branches
 import reviews
 import rebases
+
+if configuration.auth.ENABLE_ACCESS_TOKENS:
+    import accesstokens
 
 import documentation

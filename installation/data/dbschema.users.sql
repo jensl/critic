@@ -98,3 +98,32 @@ CREATE TABLE oauthstates
   ( state VARCHAR(64) PRIMARY KEY,
     url TEXT,
     time TIMESTAMP NOT NULL DEFAULT NOW() );
+
+CREATE TYPE systemaccesstype AS ENUM
+  ( -- The system is accessed as a named user.
+    'user',
+    -- The system is accessed by a system service or similar.
+    'system',
+    -- The system is accessed anonymously.
+    'anonymous' );
+
+CREATE TABLE accesstokens
+  ( id SERIAL PRIMARY KEY,
+
+    -- The type of access granted by this access token.
+    access_type systemaccesstype NOT NULL DEFAULT 'user',
+    -- The user (when access_type='user') or NULL.
+    uid INTEGER REFERENCES users ON DELETE CASCADE,
+
+    -- First part of access token ("username").
+    part1 VARCHAR(32) NOT NULL,
+    -- Second part of access token ("password").
+    part2 VARCHAR(32) NOT NULL,
+
+    -- Access token title.
+    title VARCHAR(256),
+
+    UNIQUE (part1, part2),
+
+    CONSTRAINT valid_user CHECK ((access_type='user' AND uid IS NOT NULL) OR
+                                 (access_type!='user' AND uid IS NULL)) );

@@ -190,3 +190,5 @@ DATABASES = {
 }
 
 DATABASE = %(installation.config.auth_database)r
+
+ENABLE_ACCESS_TOKENS = %(installation.config.enable_access_tokens)r

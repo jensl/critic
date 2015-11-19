@@ -15,7 +15,9 @@
 # the License.
 
 class Session(object):
-    def __init__(self):
+    def __init__(self, critic):
+        self.critic = critic
+
         self.__atexit = []
         self.storage = { "Repository": {},
                          "User": {},

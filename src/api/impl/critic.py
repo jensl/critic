@@ -20,12 +20,15 @@ import api
 import dbutils
 
 class Critic(object):
-    def __init__(self, database):
-        self.database = database
+    def __init__(self):
+        self.database = None
         self.actual_user = None
+        self.access_token = None
         self.__cache = {}
 
+    def setDatabase(self, database):
         database.registerTransactionCallback(self.__refreshCache)
+        self.database = database
 
     def getEffectiveUser(self, critic):
         if self.actual_user:
@@ -50,10 +53,14 @@ class Critic(object):
         return True
 
 def startSession(for_user, for_system, for_testing):
+    critic = api.critic.Critic(Critic())
+
     if for_user:
-        db = dbutils.Database.forUser()
+        database = dbutils.Database.forUser(critic)
     elif for_system:
-        db = dbutils.Database.forSystem()
+        database = dbutils.Database.forSystem(critic)
     else:
-        db = dbutils.Database.forTesting()
-    return api.critic.Critic(Critic(db))
+        database = dbutils.Database.forTesting(critic)
+
+    critic._impl.setDatabase(database)
+    return critic

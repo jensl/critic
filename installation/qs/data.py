@@ -53,6 +53,7 @@ def generate(arguments, database_path):
              config("allow_user_registration"): True,
              config("verify_email_addresses"): arguments.testing,
              config("access_scheme"): "http",
+             config("enable_access_tokens"): True,
              config("repository_url_types"): ["http"],
              config("default_encodings"): ["utf-8", "latin-1"],
              database("driver"): "sqlite",

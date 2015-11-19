@@ -9,16 +9,15 @@ def cursors():
 
     # Create some playground tables.  We'll drop them later if all goes well,
     # but it doesn't really matter if we don't.
-    db = dbutils.Database()
-    db.cursor().execute(
-        "CREATE TABLE playground1 ( x INTEGER PRIMARY KEY, y INTEGER )")
-    db.cursor().execute(
-        "CREATE TABLE playground2 ( x INTEGER PRIMARY KEY, y INTEGER )")
-    db.commit()
-    db.close()
+    with dbutils.Database.forTesting(critic) as db:
+        db.cursor().execute(
+            "CREATE TABLE playground1 ( x INTEGER PRIMARY KEY, y INTEGER )")
+        db.cursor().execute(
+            "CREATE TABLE playground2 ( x INTEGER PRIMARY KEY, y INTEGER )")
+        db.commit()
 
     # Basic testing of read-only / updating cursors.
-    with dbutils.Database() as db:
+    with dbutils.Database.forTesting(critic) as db:
         ro_cursor = db.readonly_cursor()
 
         with db.updating_cursor("playground1") as cursor:
@@ -115,7 +114,7 @@ def cursors():
         assert len(list(ro_cursor)) == 2
 
     # Test mixing of unsafe cursor and updating cursor.
-    with dbutils.Database() as db:
+    with dbutils.Database.forTesting(critic) as db:
         ro_cursor = db.readonly_cursor()
         unsafe_cursor = db.cursor()
 
@@ -180,11 +179,10 @@ def cursors():
         assert set(y for (y,) in ro_cursor) == set([-1, -2, -3])
 
     # Drop the playground table.
-    db = dbutils.Database()
-    db.cursor().execute("DROP TABLE playground1")
-    db.cursor().execute("DROP TABLE playground2")
-    db.commit()
-    db.close()
+    with dbutils.Database.forTesting(critic) as db:
+        db.cursor().execute("DROP TABLE playground1")
+        db.cursor().execute("DROP TABLE playground2")
+        db.commit()
 
     print "cursors: ok"
 

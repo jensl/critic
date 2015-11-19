@@ -324,16 +324,21 @@ class Filters(object):
 
         result = []
 
+        def collectFilter(repository_filter):
+            assert isinstance(repository_filter, api.filters.RepositoryFilter)
+            result.append(repository_filter)
+
         with api.transaction.Transaction(critic, result) as transaction:
-            transaction.modifyUser(subject).createFilter(
-                filter_type=converted["type"],
-                repository=converted["repository"],
-                path=converted["path"],
-                delegates=converted.get("delegates", []))
+            transaction \
+                .modifyUser(subject) \
+                .createFilter(
+                    filter_type=converted["type"],
+                    repository=converted["repository"],
+                    path=converted["path"],
+                    delegates=converted.get("delegates", []),
+                    callback=collectFilter)
 
         assert len(result) == 1
-        assert isinstance(result[0], api.filters.RepositoryFilter)
-
         return result[0], None
 
     @staticmethod

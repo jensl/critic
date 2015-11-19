@@ -198,8 +198,9 @@ RE_COMMAND = re.compile(
     re.DOTALL | re.IGNORECASE)
 
 class Database(Session):
-    def __init__(self, allow_unsafe_cursors=True):
-        super(Database, self).__init__()
+    def __init__(self, critic=None, allow_unsafe_cursors=True):
+        super(Database, self).__init__(critic)
+
         self.__connection = dbaccess.connect()
         self.__transaction_callbacks = []
         self.__allow_unsafe_cursors = allow_unsafe_cursors
@@ -326,19 +327,19 @@ class Database(Session):
         return command, table
 
     @staticmethod
-    def forUser():
-        return Database()
+    def forUser(critic=None):
+        return Database(critic)
 
     @staticmethod
-    def forSystem():
+    def forSystem(critic=None):
         import dbutils
 
-        db = Database()
+        db = Database(critic)
         db.setUser(dbutils.User.makeSystem())
         return db
 
     @staticmethod
-    def forTesting():
+    def forTesting(critic):
         try:
             import configuration
         except ImportError:
@@ -347,7 +348,7 @@ class Database(Session):
         else:
             assert configuration.debug.IS_TESTING
 
-        return Database.forSystem()
+        return Database.forSystem(critic)
 
 # This function performs a NULL-safe conversion from a "truth" value or
 # arbitrary type to True/False (or None.)  It's a utility for working around the
