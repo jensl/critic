@@ -40,7 +40,7 @@ if "--json-job" in sys.argv[1:]:
         request = json_decode(sys.stdin.read())
 
         try:
-            db = dbutils.Database()
+            db = dbutils.Database.forSystem()
 
             createChangeset(db, request)
 
@@ -100,7 +100,8 @@ else:
                                  request["repository_name"], job.pid))
 
         def __purge(self):
-            db = dbutils.Database()
+            db = dbutils.Database.forSystem()
+
             cursor = db.cursor()
 
             cursor.execute("""SELECT COUNT(*)

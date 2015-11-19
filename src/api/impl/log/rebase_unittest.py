@@ -1,7 +1,7 @@
 def basic():
     import api
 
-    critic = api.critic.startSession()
+    critic = api.critic.startSession(for_testing=True)
     repository = api.repository.fetch(critic, name="critic")
     alice = api.user.fetch(critic, name="alice")
 

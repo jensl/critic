@@ -125,10 +125,12 @@ instance.criticctl(["connect",
 # Sign in for real now.
 state = start_externalauth("alice")
 
+frontend.collect_session_cookie()
+
 redirect_url = finish_externalauth("alice", state)
 testing.expect.check("/", redirect_url)
 
-with frontend.session("/oauth/alice"):
+with frontend.cookie_session("/oauth/alice"):
     document_title_check = testing.expect.document_title(
         "Alice von Testing's Home")
 
@@ -182,6 +184,8 @@ frontend.operation(
                          "token": "wrong token" }},
     expect={ "message": "Invalid external authentication state." })
 
+frontend.collect_session_cookie()
+
 # Use right account and token.  This should leave us signed in as carol.
 frontend.operation(
     "registeruser",
@@ -194,7 +198,7 @@ frontend.operation(
 
 instance.registeruser("carol")
 
-with frontend.session("/registeruser"):
+with frontend.cookie_session("/registeruser"):
     # Check that the email address isn't unverified.
     def email_not_unverified(document):
         address = document.find(attrs=with_class("address"))
@@ -219,11 +223,13 @@ with frontend.session("/registeruser"):
 
 state = start_externalauth("felix")
 
+frontend.collect_session_cookie()
+
 redirect_url = finish_externalauth("felix", state)
 
 instance.registeruser("felix")
 
-with frontend.session("/oauth/felix"):
+with frontend.cookie_session("/oauth/felix"):
     document_title_check = testing.expect.document_title(
         "Felix von Testing's Home")
 
@@ -250,6 +256,8 @@ parsed_url = urlparse.urlparse(redirect_url)
 parsed_query = urlparse.parse_qs(parsed_url.query)
 token = parsed_query.get("token")[0]
 
+frontend.collect_session_cookie()
+
 # Use right account and token.  This should leave us signed in as carol.
 frontend.operation(
     "registeruser",
@@ -262,7 +270,7 @@ frontend.operation(
 
 instance.registeruser("gina")
 
-with frontend.session("/registeruser"):
+with frontend.cookie_session("/registeruser"):
     # Check that the email address is unverified.
     def email_unverified(document):
         address = document.find(attrs=with_class("address"))

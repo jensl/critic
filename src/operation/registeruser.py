@@ -126,30 +126,24 @@ class RegisterUser(Operation):
             # if the user changed the email address in the "Create user" form.
             # Also reset the 'token' column, which serves no further purpose
             # beyond this point.
-            cursor.execute("""UPDATE externalusers
-                                 SET email=NULL,
-                                     token=NULL
-                               WHERE id=%s""",
-                           (external_user_id,))
+            with db.updating_cursor("externalusers") as cursor:
+                cursor.execute("""UPDATE externalusers
+                                     SET email=NULL,
+                                         token=NULL
+                                   WHERE id=%s""",
+                               (external_user_id,))
 
         email_verified = False if email and verify_email_address else None
 
         user = dbutils.User.create(
-            db, username, fullname, email, email_verified, password)
-
-        if external:
-            cursor.execute("""UPDATE externalusers
-                                 SET uid=%s
-                               WHERE id=%s""",
-                           (user.id, external_user_id))
-
-        auth.startSession(db, req, user)
+            db, username, fullname, email, email_verified, password,
+            external_user_id=external_user_id)
 
         if email_verified is False:
             sendVerificationMail(db, user)
 
-        db.commit()
-
         user.sendUserCreatedMail("wsgi[registeruser]", external)
+
+        auth.createSessionId(db, req, user)
 
         return OperationResult()

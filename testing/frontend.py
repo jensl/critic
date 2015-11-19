@@ -61,12 +61,33 @@ class OperationError(Error):
         self.expected = expected
         self.actual = actual
 
+class NoSession(object):
+    def apply(self, kwargs):
+        pass
+
+class CookieSession(object):
+    def __init__(self, sid=None):
+        self.sid = sid
+
+    def apply(self, kwargs):
+        headers = kwargs.setdefault("headers", {})
+        headers["Cookie"] = "sid=%s; has_sid=1" % self.sid
+
+class HTTPAuthSession(object):
+    def __init__(self, username, password):
+        self.username = username
+        self.password = password
+
+    def apply(self, kwargs):
+        kwargs["auth"] = (self.username, self.password)
+
 class Frontend(object):
     def __init__(self, hostname, http_port=8080):
         self.hostname = hostname
         self.http_port = http_port
-        self.session_ids = []
-        self.pending_session_id = None
+        self.sessions = [NoSession()]
+        self.pending_session = None
+        self.instance = None
 
     def prefix(self, username=None):
         if username:
@@ -88,21 +109,19 @@ class Frontend(object):
 
         testing.logger.debug("Fetching page: %s ..." % log_url)
 
-        headers = {}
+        kwargs = {}
 
-        if self.session_ids and self.session_ids[-1]:
-            headers["Cookie"] = "sid=%s" % self.session_ids[-1]
+        self.sessions[-1].apply(kwargs)
 
         response = requests.get(full_url,
                                 params=params,
-                                headers=headers,
-                                allow_redirects=not disable_redirects)
+                                allow_redirects=not disable_redirects,
+                                **kwargs)
 
         if "sid" in response.cookies:
             testing.logger.debug("Cookie: sid=%s" % response.cookies["sid"])
-            self.pending_session_id = response.cookies["sid"]
-        else:
-            self.pending_session_id = None
+            if self.pending_session:
+                self.pending_session.sid = response.cookies["sid"]
 
         def text(response):
             if hasattr(response, "text"):
@@ -191,18 +210,17 @@ class Frontend(object):
 
         testing.logger.debug("Executing operation: %s ..." % full_url)
 
-        headers = {}
+        kwargs = {}
 
-        if self.session_ids and self.session_ids[-1]:
-            headers["Cookie"] = "sid=%s" % self.session_ids[-1]
+        self.sessions[-1].apply(kwargs)
 
         if not isinstance(data, basestring):
             data = json.dumps(data)
-            headers["Content-Type"] = "text/json"
+            kwargs.setdefault("headers", {})["Content-Type"] = "text/json"
 
         response = requests.post(full_url,
                                  data=data,
-                                 headers=headers)
+                                 **kwargs)
 
         try:
             if response.status_code != 200:
@@ -231,9 +249,8 @@ class Frontend(object):
 
         if "sid" in response.cookies:
             testing.logger.debug("Cookie: sid=%s" % response.cookies["sid"])
-            self.pending_session_id = response.cookies["sid"]
-        else:
-            self.pending_session_id = None
+            if self.pending_session:
+                self.pending_session.sid = response.cookies["sid"]
 
         testing.logger.debug("Executed operation: %s" % full_url)
 
@@ -284,7 +301,7 @@ class Frontend(object):
 
         return result
 
-    def json(self, path, expect, params={}, expected_http_status=200):
+    def json(self, path, expect=None, params={}, expected_http_status=200):
         url = "api/v1/" + path
         full_url = "http://%s:%d/%s" % (self.hostname, self.http_port, url)
 
@@ -293,11 +310,14 @@ class Frontend(object):
             query = urllib.urlencode(sorted(params.items()))
             log_url = "%s?%s" % (log_url, query)
 
-        headers = { "Accept": "application/vnd.api+json" }
+        kwargs = { "params": params,
+                   "headers": { "Accept": "application/vnd.api+json" } }
+
+        self.sessions[-1].apply(kwargs)
 
         testing.logger.debug("Fetching JSON: %s ..." % log_url)
 
-        response = requests.get(full_url, params=params, headers=headers)
+        response = requests.get(full_url, **kwargs)
 
         testing.logger.debug("Fetched JSON: %s ..." % log_url)
 
@@ -334,6 +354,9 @@ class Frontend(object):
             return value
 
         result = deunicode(result)
+
+        if expect is None:
+            return result
 
         testing.logger.debug("Checking JSON: %s" % log_url)
 
@@ -426,12 +449,13 @@ class Frontend(object):
         return result
 
     @contextlib.contextmanager
-    def session(self, operation):
-        if not self.pending_session_id:
+    def cookie_session(self, operation):
+        if not self.pending_session.sid:
             testing.expect.check("<signed in after %s>" % operation,
                                  "<no session cookie received>")
-        self.session_ids.append(self.pending_session_id)
-        self.pending_session_id = None
+        testing.logger.debug("Starting cookie session")
+        self.sessions.append(self.pending_session)
+        self.pending_session = None
         try:
             yield
         finally:
@@ -445,25 +469,56 @@ class Frontend(object):
 
             # Dropping the cookie effectively signs out even if the "endsession"
             # operation failed.
-            self.session_ids.pop()
+            self.sessions.pop()
+
+            testing.logger.debug("Ended cookie session")
 
     @contextlib.contextmanager
     def no_session(self):
-        self.session_ids.append(None)
+        self.sessions.append(NoSession())
         try:
             yield
         finally:
-            self.session_ids.pop()
+            self.sessions.pop()
+
+    def collect_session_cookie(self):
+        self.pending_session = CookieSession()
+
+    def validatelogin(self, username, password, expect_failure=False):
+        data = { "fields": { "username": username,
+                             "password": password }}
+
+        # Check if the current commit predates the user authentication
+        # restructuring that added the "fields" wrapper.
+        if self.instance.current_commit:
+            if not testing.exists_at(
+                    self.instance.current_commit, "src/auth/database.py"):
+                data = data["fields"]
+
+        if expect_failure:
+            expect = { "message": expect_failure }
+        else:
+            expect = { "message": None }
+
+        self.operation(
+            "validatelogin",
+            data=data,
+            expect=expect)
 
     @contextlib.contextmanager
-    def signin(self, username="admin", password="testing"):
-        with self.no_session():
-            self.operation(
-                "validatelogin",
-                data={ "username": username,
-                       "password": password })
-        with self.session("/validatelogin"):
-            yield
+    def signin(self, username="admin", password="testing", use_httpauth=False):
+        if use_httpauth:
+            self.sessions.append(HTTPAuthSession(username, password))
+            try:
+                yield
+            finally:
+                self.sessions.pop()
+        else:
+            with self.no_session():
+                self.collect_session_cookie()
+                self.validatelogin(username, password)
+                with self.cookie_session("/validatelogin"):
+                    yield
 
     def run_basic_tests(self):
         # The /tutorials page is essentially static content and doesn't require

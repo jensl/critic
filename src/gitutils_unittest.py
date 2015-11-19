@@ -3,16 +3,15 @@ def keepalives():
     # correctly.  Since it's run as a nightly maintenance task, it would
     # otherwise not be exercised by testing.
 
+    import api
     import gitutils
-    import dbutils
 
-    db = dbutils.Database()
+    critic = api.critic.startSession(for_testing=True)
 
-    cursor = db.cursor()
-    cursor.execute("SELECT id FROM repositories")
-
-    for (repository_id,) in cursor:
-        repository = gitutils.Repository.fromId(db, repository_id)
+    for repository in api.repository.fetchAll(critic):
+        # Fetch the "internal" repository object.  This is a bit ugly, but we
+        # can live with it in a test case.
+        repository = repository._impl.getInternal(critic)
 
         # Make sure there's at least one loose keepalive ref.
         repository.keepalive(repository.revparse("HEAD"))

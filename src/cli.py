@@ -33,7 +33,7 @@ db = None
 def init():
     global db
 
-    db = dbutils.Database()
+    db = dbutils.Database.forSystem()
 
 def finish():
     global db

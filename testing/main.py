@@ -297,6 +297,8 @@ first or run this script without --test-extensions.""")
                     install_commit=(install_commit, install_commit_description),
                     upgrade_commit=(upgrade_commit, upgrade_commit_description),
                     frontend=frontend)
+
+            frontend.instance = instance
     except testing.Error as error:
         logger.error(error.message)
         return

@@ -31,7 +31,7 @@ if "--wait-for-update" in sys.argv:
     timeout = data["timeout"]
     log_offset = data["log_offset"]
 
-    db = dbutils.Database()
+    db = dbutils.Database.forSystem()
 
     cursor = db.cursor()
     cursor.execute("SELECT MAX(time) FROM trackedbranchlog WHERE branch=%s", (branch_id,))
@@ -122,7 +122,7 @@ else:
 
                 self.server.info(message)
 
-                db = dbutils.Database()
+                db = dbutils.Database.forSystem()
 
                 try:
                     cursor = db.cursor()

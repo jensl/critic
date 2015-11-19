@@ -22,7 +22,7 @@ import configuration
 import dbutils
 import inpututils
 
-db = dbutils.Database()
+db = dbutils.Database.forSystem()
 
 cursor = db.cursor()
 cursor.execute("SELECT name FROM roles")
@@ -141,8 +141,6 @@ def adduser(argv):
 
     dbutils.User.create(db, name, fullname, email, email_verified=None,
                         password=hashed_password)
-
-    db.commit()
 
     print "%s: user added" % name
 

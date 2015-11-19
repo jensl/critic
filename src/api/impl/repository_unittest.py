@@ -9,7 +9,7 @@ def basic(arguments):
 
     assert arguments.path is not None
 
-    critic = api.critic.startSession()
+    critic = api.critic.startSession(for_testing=True)
     repository = api.repository.fetch(critic, repository_id=1)
     alice = api.user.fetch(critic, name="alice")
 

@@ -33,7 +33,7 @@ COMMIT_COMMITTER_TS = datetime.datetime.fromtimestamp(1365369848)
 def basic():
     import api
 
-    critic = api.critic.startSession()
+    critic = api.critic.startSession(for_testing=True)
     repository = api.repository.fetch(critic, name="critic")
 
     try:

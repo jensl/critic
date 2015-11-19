@@ -15,6 +15,7 @@
 # the License.
 
 import os
+import re
 import subprocess
 
 class Error(Exception):
@@ -48,9 +49,43 @@ class NotSupported(Error):
     """Error raised when a test is unsupported."""
     pass
 
+class User(object):
+    RE_DEFINITION = re.compile('var user = new User\\(([^,]+), ([^,]+),')
+
+    def __init__(self, user_id, name):
+        self.id = user_id
+        self.name = name
+
+    def __eq__(self, other):
+        if isinstance(other, User):
+            return self.id == other.id and self.name == other.name
+        return False
+
+    def __repr__(self):
+        if self.id is None:
+            return "<anonymous user>"
+        return "<user '%(name)s' (%(id)d)>" % self
+
+    @staticmethod
+    def from_script(script):
+        match = User.RE_DEFINITION.match(script)
+        if match:
+            if match.groups() == ("null", "null"):
+                return User.anonymous()
+            return User(int(match.group(1)), eval(match.group(2)))
+
+    @staticmethod
+    def anonymous():
+        return User(None, None)
+
 class Instance(object):
     flags_on = []
     flags_off = []
+
+    # This is used to keep track of which commit is currently running.  This is
+    # really only relevant for VM instances when upgrading from an older commit,
+    # so only testing.virtualbox.Instance actually sets this.
+    current_commit = None
 
     def __init__(self):
         self.resetusers()
@@ -63,14 +98,20 @@ class Instance(object):
 
     def resetusers(self):
         self.__users = []
-        self.__user_ids = {}
+        self.__user_map = {}
 
     def registeruser(self, name):
-        self.__users.append(name)
-        self.__user_ids[name] = len(self.__users)
+        user_id = len(self.__users) + 1
+        user = User(user_id, name)
+        self.__users.append(user)
+        self.__user_map[user_id] = user
+        self.__user_map[name] = user
+
+    def user(self, key):
+        return self.__user_map[key]
 
     def userid(self, name):
-        return self.__user_ids.get(name)
+        return self.user(name).id
 
     def filter_service_log(self, service_name, level="warning"):
         data = self.filter_service_logs(level, [service_name])

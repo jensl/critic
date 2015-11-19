@@ -3,7 +3,7 @@ def basic(arguments):
 
     assert arguments.prefix is not None, "missing argument: --prefix"
 
-    critic = api.critic.startSession()
+    critic = api.critic.startSession(for_testing=True)
     repository = api.repository.fetch(critic, name="critic")
 
     # This set of commits should exist in the repository; each referenced by a

@@ -90,6 +90,10 @@ class TypeChecker(object):
         if isinstance(source, TypeChecker):
             return source
         elif isinstance(source, dict):
+            if (len(source) == 1 and
+                all(key is str for key in source.keys()) and
+                all(isinstance(value, type) for value in source.values())):
+                return GenericDictionaryChecker(source)
             return DictionaryChecker(source)
         elif isinstance(source, list):
             return ArrayChecker(source)
@@ -301,6 +305,28 @@ def check(checker, value, context):
     if converted is None:
         return value
     return converted
+
+class GenericDictionaryChecker(TypeChecker):
+
+    """
+    Type checker for generic dictionary objects.
+
+    Simply checks that every key and every value is of the appropriate type.
+    """
+
+    def __init__(self, source):
+        assert len(source) == 1
+        self.__key_checker = TypeChecker.make(source.keys()[0])
+        self.__value_checker = TypeChecker.make(source.values()[0])
+
+    def __call__(self, value, context):
+        if not type(value) is dict:
+            raise OperationError("invalid input: %s is not a dictionary" % context)
+        for key in value:
+            context.push("." + key)
+            self.__key_checker(key, context)
+            value[key] = check(self.__value_checker, value[key], context)
+            context.pop()
 
 class DictionaryChecker(TypeChecker):
 

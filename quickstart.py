@@ -264,11 +264,15 @@ try:
         import auth
 
         db = dbutils.Database()
-        db.cursor().execute("""INSERT INTO systemidentities (key, name, anonymous_scheme,
-                                                             authenticated_scheme, hostname,
-                                                             description, installed_sha1)
-                                    VALUES ('main', 'main', 'http', 'http', 'localhost', 'Main', ?)""",
-                            (subprocess.check_output("git rev-parse HEAD", shell=True).strip(),))
+        cursor = db.cursor()
+
+        cursor.execute("""INSERT INTO systemidentities (key, name, anonymous_scheme,
+                                                        authenticated_scheme, hostname,
+                                                        description, installed_sha1)
+                               VALUES ('main', 'main', 'http', 'http', 'localhost', 'Main', ?)""",
+                       (subprocess.check_output("git rev-parse HEAD", shell=True).strip(),))
+
+        db.commit()
 
         admin = dbutils.User.create(
             db,
@@ -285,10 +289,10 @@ try:
             print ("Created administrator user %r with password '1234'"
                    % data["installation.admin.username"])
 
-        db.cursor().execute("""INSERT INTO userroles (uid, role)
-                                    SELECT %s, name
-                                      FROM roles""",
-                            (admin.id,))
+        cursor.execute("""INSERT INTO userroles (uid, role)
+                               SELECT %s, name
+                                 FROM roles""",
+                       (admin.id,))
 
         db.commit()
         db.close()
@@ -386,22 +390,23 @@ try:
         else:
             remote_branch = local_branch = "master"
 
+        kwargs = {}
+
         session = requests.Session()
         response = session.post(
             "http://%s/validatelogin" % server_address,
-            data=json.dumps({ "username": data["installation.admin.username"],
-                              "password": "1234" }))
-        if response.json().get("status") != "ok":
-            print repr(response.json())
+            data=json.dumps({ "fields": { "username": data["installation.admin.username"],
+                                          "password": "1234" }}))
+        if response.status_code in (401, 404):
+            kwargs["auth"] = (data["installation.admin.username"], "1234")
         response = session.post(
             "http://%s/addrepository" % server_address,
             data=json.dumps({ "name": "critic",
                               "path": "critic",
                               "mirror": { "remote_url": "file://" + installation.root_dir,
                                           "remote_branch": remote_branch,
-                                          "local_branch": local_branch }}))
-        if response.json().get("status") != "ok":
-            print repr(response.json())
+                                          "local_branch": local_branch }}),
+            **kwargs)
 
     if not quiet:
         print

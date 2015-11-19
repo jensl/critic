@@ -14,7 +14,7 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-from operation import Operation, OperationResult, OperationError, Request
+from operation import Operation, OperationResult, OperationFailure, Request
 
 import dbutils
 import configuration
@@ -23,33 +23,29 @@ import auth
 class ValidateLogin(Operation):
     def __init__(self):
         Operation.__init__(self, { "req": Request,
-                                   "username": str,
-                                   "password": str },
+                                   "fields": { str: str }},
                            accept_anonymous_user=True)
 
-    def process(self, db, user, req, username, password):
+    def process(self, db, user, req, fields):
         if not user.isAnonymous():
-            if user.name == username:
-                return OperationResult()
-            else:
-                return OperationResult(message="Already signed as '%s'!" % user.name)
+            return OperationResult()
 
         try:
-            user = auth.checkPassword(db, username, password)
-        except auth.NoSuchUser:
-            return OperationResult(message="No such user!")
+            auth.DATABASE.authenticate(db, fields)
+        except auth.AuthenticationFailed as error:
+            return OperationResult(message=error.message)
         except auth.WrongPassword:
             return OperationResult(message="Wrong password!")
 
-        auth.startSession(db, req, user)
-
-        db.commit()
+        auth.createSessionId(db, req, db.user)
 
         return OperationResult()
 
     def sanitize(self, value):
         sanitized = value.copy()
-        sanitized["password"] = "****"
+        for field in auth.DATABASE.getFields():
+            if field[0]:
+                sanitized["fields"][field[1]] = "****"
         return sanitized
 
 class EndSession(Operation):
@@ -57,12 +53,11 @@ class EndSession(Operation):
         Operation.__init__(self, { "req": Request })
 
     def process(self, db, user, req):
-        cursor = db.cursor()
-        cursor.execute("DELETE FROM usersessions WHERE uid=%s", (user.id,))
-
-        db.commit()
-
-        req.deleteCookie("sid")
-        req.deleteCookie("has_sid")
-
+        if not auth.deleteSessionId(db, req, user):
+            raise OperationFailure(
+                code="notsignedout",
+                title="Not signed out",
+                message="You were not signed out.")
+        if not configuration.base.ALLOW_ANONYMOUS_USER:
+            return OperationResult(target_url="/")
         return OperationResult()

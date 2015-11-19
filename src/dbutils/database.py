@@ -320,6 +320,30 @@ class Database(Session):
 
         return command, table
 
+    @staticmethod
+    def forUser():
+        return Database()
+
+    @staticmethod
+    def forSystem():
+        import dbutils
+
+        db = Database()
+        db.setUser(dbutils.User.makeSystem())
+        return db
+
+    @staticmethod
+    def forTesting():
+        try:
+            import configuration
+        except ImportError:
+            # Not an installed system.
+            pass
+        else:
+            assert configuration.debug.IS_TESTING
+
+        return Database.forSystem()
+
 # This function performs a NULL-safe conversion from a "truth" value or
 # arbitrary type to True/False (or None.)  It's a utility for working around the
 # fact that SQLite stores booleans as integers (zero or one.)

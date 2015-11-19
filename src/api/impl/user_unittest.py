@@ -1,7 +1,7 @@
 def basic(arguments):
     import api
 
-    critic = api.critic.startSession()
+    critic = api.critic.startSession(for_testing=True)
 
     alice = api.user.fetch(critic, name="alice")
     bob = api.user.fetch(critic, name="bob")
@@ -249,7 +249,7 @@ def basic(arguments):
 def preferences():
     import api
 
-    critic = api.critic.startSession()
+    critic = api.critic.startSession(for_testing=True)
     alice = api.user.fetch(critic, name="alice")
     repository = api.repository.fetch(critic, name="critic")
 

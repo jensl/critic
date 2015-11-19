@@ -56,6 +56,7 @@ class Critic(object):
         assert self._impl.actual_user is None
         self._impl.actual_user = user
 
-def startSession():
+def startSession(for_user=False, for_system=False, for_testing=False):
     import api.impl
-    return api.impl.critic.startSession()
+    assert sum((for_user, for_system, for_testing)) == 1
+    return api.impl.critic.startSession(for_user, for_system, for_testing)

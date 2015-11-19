@@ -1,8 +1,11 @@
 def cursors():
+    import api
     import dbutils
 
     class TestException(Exception):
         pass
+
+    critic = api.critic.startSession(for_testing=True)
 
     # Create some playground tables.  We'll drop them later if all goes well,
     # but it doesn't really matter if we don't.

@@ -4,7 +4,7 @@ def basic(arguments):
     assert arguments.sha1 is not None, "missing argument: --sha1"
     assert arguments.name is not None, "missing argument: --name"
 
-    critic = api.critic.startSession()
+    critic = api.critic.startSession(for_testing=True)
     repository = api.repository.fetch(critic, repository_id=1)
     branch = api.branch.fetch(
         critic, repository=repository, name=arguments.name)

@@ -191,7 +191,7 @@ Output from Critic's git hook
             return True
 
     def run(self):
-        self.db = dbutils.Database()
+        self.db = dbutils.Database.forSystem()
 
         while not self.terminated:
             self.interrupted = False

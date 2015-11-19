@@ -22,8 +22,27 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(sys.argv[0]), ".
 
 import configuration
 import background.utils
+import dbutils
 
 from textutils import json_decode, json_encode
+
+try:
+    from customization.email import getUserEmailAddress
+except ImportError:
+    def getUserEmailAddress(_username):
+        return None
+
+def getUser(db, user_name):
+    if user_name == configuration.base.SYSTEM_USER_NAME:
+        return dbutils.User.makeSystem()
+    try:
+        return dbutils.User.fromName(db, user_name)
+    except dbutils.NoSuchUser:
+        if configuration.base.AUTHENTICATION_MODE == "host":
+            email = getUserEmailAddress(user_name)
+            return dbutils.User.create(
+                db, user_name, user_name, email, email_verified=None)
+        raise
 
 sys_stdout = sys.stdout
 
@@ -43,7 +62,7 @@ def slave():
         sys_stdout.write(json_encode({ "status": "error", "error": message }))
         sys.exit(0)
 
-    db = dbutils.Database()
+    db = dbutils.Database.forUser()
 
     try:
         data = sys.stdin.read()
@@ -57,8 +76,11 @@ def slave():
         delete_tags = []
         update_tags = []
 
+        user = getUser(db, request["user_name"])
+
+        db.setUser(user)
+
         repository = gitutils.Repository.fromName(db, request["repository_name"])
-        user = index.getUser(db, request["user_name"])
 
         if request["flags"] and user.isSystem():
             flags = dict(flag.split("=", 1) for flag in request["flags"].split(","))

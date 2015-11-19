@@ -152,10 +152,11 @@ def sendVerificationMail(db, user, email_id=None):
     if verification_token is None:
         verification_token = auth.getToken(encode=base64.b16encode)
 
-        cursor.execute("""UPDATE useremails
-                             SET verification_token=%s
-                           WHERE id=%s""",
-                       (verification_token, email_id))
+        with db.updating_cursor("useremails") as cursor:
+            cursor.execute("""UPDATE useremails
+                                 SET verification_token=%s
+                               WHERE id=%s""",
+                           (verification_token, email_id))
 
     if configuration.base.ACCESS_SCHEME == "http":
         protocol = "http"
@@ -352,22 +353,21 @@ class AddEmailAddress(Operation):
         else:
             verified = None
 
-        cursor.execute("""INSERT INTO useremails (uid, email, verified)
-                               VALUES (%s, %s, %s)
-                            RETURNING id""",
-                       (subject.id, email, verified))
+        with db.updating_cursor("users", "useremails") as cursor:
+            cursor.execute("""INSERT INTO useremails (uid, email, verified)
+                                   VALUES (%s, %s, %s)
+                                RETURNING id""",
+                           (subject.id, email, verified))
 
-        email_id, = cursor.fetchone()
+            email_id, = cursor.fetchone()
+
+            if subject.email is None:
+                cursor.execute("""UPDATE users
+                                     SET email=%s
+                                   WHERE id=%s""",
+                               (email_id, subject.id))
 
         if verified is False:
             sendVerificationMail(db, subject, email_id)
-
-        if subject.email is None:
-            cursor.execute("""UPDATE users
-                                 SET email=%s
-                               WHERE id=%s""",
-                           (email_id, subject.id))
-
-        db.commit()
 
         return OperationResult()

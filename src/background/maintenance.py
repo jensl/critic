@@ -36,7 +36,7 @@ class Maintenance(background.utils.BackgroundProcess):
         self.register_maintenance(hour=hour, minute=minute, callback=self.__maintenance)
 
     def run(self):
-        with dbutils.Database() as db:
+        with dbutils.Database.forSystem() as db:
             # Do an initial load/update of timezones.
             #
             # The 'timezones' table initially (post-installation) only contains
@@ -47,7 +47,7 @@ class Maintenance(background.utils.BackgroundProcess):
         super(Maintenance, self).run()
 
     def __maintenance(self):
-        with dbutils.Database() as db:
+        with dbutils.Database.forSystem() as db:
             cursor = db.cursor()
 
             # Update the UTC offsets of all timezones.

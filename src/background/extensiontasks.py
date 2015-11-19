@@ -41,7 +41,7 @@ class ExtensionTasks(background.utils.BackgroundProcess):
         while not self.terminated:
             self.interrupted = False
 
-            with dbutils.Database() as db:
+            with dbutils.Database.forSystem() as db:
                 cursor = db.cursor()
                 cursor.execute("""SELECT id
                                     FROM extensionfilterhookevents

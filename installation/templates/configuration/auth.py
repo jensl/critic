@@ -80,3 +80,13 @@ PROVIDERS = {
     },
 
 }
+
+# Authentication databases.
+DATABASES = {
+
+    # Using Critic's own user database for authentication.
+    "internal": {},
+
+}
+
+DATABASE = %(installation.config.auth_database)r

@@ -372,9 +372,15 @@ function signOut()
   var operation = new Operation({ action: "sign out",
                                   url: "endsession",
                                   data: {}});
+  var result = operation.execute();
 
-  if (operation.execute())
-    location.href = "/";
+  if (result)
+  {
+    if (result.target_url)
+      location.href = result.target_url;
+    else
+      location.reload();
+  }
 }
 
 function repositionNotifications()

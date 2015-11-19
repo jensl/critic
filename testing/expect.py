@@ -55,11 +55,8 @@ class FailedCheck(testing.TestFailure):
         self.expected = expected
         self.actual = actual
 
-def simple_equal(expected, actual):
-    return expected == actual
-
-def check(expected, actual, equal=simple_equal, message=None):
-    if not equal(expected, actual):
+    @staticmethod
+    def current_location():
         location = []
         for filename, linenr, _, _ in reversed(traceback.extract_stack()):
             if filename.startswith("testing/tests/"):
@@ -68,7 +65,33 @@ def check(expected, actual, equal=simple_equal, message=None):
                 break
         else:
             location = None
+        return location
+
+def simple_equal(expected, actual):
+    return expected == actual
+
+def equal(expected, actual, equal=simple_equal, message=None):
+    if not equal(expected, actual):
+        location = FailedCheck.current_location()
         raise FailedCheck(expected, actual, location=location, message=message)
+
+def true(actual, message):
+    if not (actual is True):
+        location = FailedCheck.current_location()
+        raise FailedCheck(True, actual, location=location, message=message)
+
+def false(actual, message):
+    if not (actual is False):
+        location = FailedCheck.current_location()
+        raise FailedCheck(False, actual, location=location, message=message)
+
+def none(actual, message):
+    if not (actual is None):
+        location = FailedCheck.current_location()
+        raise FailedCheck(None, actual, location=location, message=message)
+
+# For backwards compatibility...
+check = equal
 
 def with_class(*names):
     def check(value):
@@ -170,27 +193,25 @@ def pageheader_links(*scopes):
         return check(",".join(expected), ",".join(actual), equal=re.match)
     return checker
 
-def script_user(username):
+def script_user(expected):
     def checker(document):
         for script in document.findAll("script"):
             if script.string:
-                match = re.match('var user = new User\\(\d+,\s*"([^"]+)"', script.string)
-                if match:
-                    return check(username, match.group(1))
-        raise FailedCheck(username, "<no user found>")
+                actual = testing.User.from_script(script.string)
+                if actual:
+                    testing.expect.equal(expected, actual)
+                    return
+        raise FailedCheck(expected, "<no user found>")
     return checker
 
 def script_anonymous_user():
-    def checker(document):
-        for script in document.findAll("script"):
-            if script.string and script.string.startswith("var user = new User(null,"):
-                return
-        raise FailedCheck("<anonymous user>", "<no user found>")
-    return checker
+    return script_user(testing.User.anonymous())
 
 def script_no_user():
     def checker(document):
         for script in document.findAll("script"):
-            if script.string and script.string.startswith("var user = new User("):
-                raise FailedCheck("<no user found>", "<user found>")
+            if script.string:
+                actual = testing.User.from_script(script.string)
+                if actual:
+                    raise FailedCheck("<no user found>", actual)
     return checker

@@ -46,7 +46,7 @@ class AdministratorMailHandler(logging.Handler):
         import mailutils
         try:
             import dbutils
-            db = dbutils.Database()
+            db = dbutils.Database.forSystem()
         except:
             db = None
         mailutils.sendAdministratorErrorReport(db, self.__logfile_name,

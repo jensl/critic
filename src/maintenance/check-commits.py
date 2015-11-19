@@ -24,7 +24,7 @@ import dbutils
 import gitutils
 import progress
 
-db = dbutils.Database()
+db = dbutils.Database.forSystem()
 cursor = db.cursor()
 
 commits = {}

@@ -37,6 +37,7 @@ password_hash_schemes = ["pbkdf2_sha256", "bcrypt"]
 default_password_hash_scheme = "pbkdf2_sha256"
 minimum_password_hash_time = 0.25
 minimum_rounds = {}
+auth_database = "internal"
 
 is_development = False
 is_testing = False
@@ -249,7 +250,7 @@ def prepare(mode, arguments, data):
     global repository_url_types, default_encodings, allow_user_registration
     global verify_email_addresses, archive_review_branches
     global password_hash_schemes, default_password_hash_scheme
-    global minimum_password_hash_time, minimum_rounds
+    global minimum_password_hash_time, minimum_rounds, auth_database
     global is_development, is_testing, coverage_dir
 
     header_printed = False
@@ -343,6 +344,11 @@ the Web front-end.  This can be handled in two different ways:
             default_password_hash_scheme = configuration.auth.DEFAULT_PASSWORD_HASH_SCHEME
             minimum_password_hash_time = configuration.auth.MINIMUM_PASSWORD_HASH_TIME
             minimum_rounds = configuration.auth.MINIMUM_ROUNDS
+        except AttributeError:
+            pass
+
+        try:
+            auth_database = configuration.auth.DATABASE
         except AttributeError:
             pass
 
@@ -583,6 +589,7 @@ web server to redirect all HTTP accesses to HTTPS.
     data["installation.config.password_hash_schemes"] = password_hash_schemes
     data["installation.config.default_password_hash_scheme"] = default_password_hash_scheme
     data["installation.config.minimum_password_hash_time"] = minimum_password_hash_time
+    data["installation.config.auth_database"] = auth_database
 
     data["installation.config.is_quickstart"] = False
     data["installation.config.is_development"] = is_development

@@ -77,8 +77,9 @@ def checkPassword(db, username, password):
         raise WrongPassword
 
     if new_hashed:
-        cursor.execute("UPDATE users SET password=%s WHERE id=%s",
-                       (new_hashed, user_id))
+        with db.updating_cursor("users") as cursor:
+            cursor.execute("UPDATE users SET password=%s WHERE id=%s",
+                           (new_hashed, user_id))
 
     return dbutils.User.fromId(db, user_id)
 
@@ -87,15 +88,6 @@ def hashPassword(password):
 
 def getToken(encode=base64.b64encode):
     return encode(os.urandom(20))
-
-def startSession(db, req, user):
-    sid = getToken()
-    cursor = db.cursor()
-    cursor.execute("""INSERT INTO usersessions (key, uid)
-                           VALUES (%s, %s)""",
-                   (sid, user.id))
-    req.setCookie("sid", sid, secure=True)
-    req.setCookie("has_sid", "1")
 
 class InvalidUserName(Exception): pass
 
@@ -122,6 +114,14 @@ class InvalidRequest(Exception):
 
 class Failure(Exception):
     pass
+
+from session import createSessionId, deleteSessionId, checkSession
+
+from database import AuthenticationError, AuthenticationFailed, Database
+
+DATABASE = None
+
+import databases
 
 from provider import Provider
 from oauth import OAuthProvider

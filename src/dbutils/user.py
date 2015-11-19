@@ -434,24 +434,37 @@ class User(object):
         return User.fromIds(db, [user_id for user_id, in cursor])
 
     @staticmethod
-    def create(db, name, fullname, email, email_verified, password=None, status="current"):
-        cursor = db.cursor()
-        cursor.execute("""INSERT INTO users (name, fullname, password, status)
-                               VALUES (%s, %s, %s, %s)
-                            RETURNING id""",
-                       (name, fullname, password, status))
-        user_id = cursor.fetchone()[0]
+    def create(db, name, fullname, email, email_verified, password=None,
+               status="current", external_user_id=None):
+        tables = ["users"]
         if email is not None:
-            cursor.execute("""INSERT INTO useremails (uid, email, verified)
-                                   VALUES (%s, %s, %s)
-                                RETURNING id""",
-                           (user_id, email, email_verified))
-            email_id = cursor.fetchone()[0]
-            cursor.execute("UPDATE users SET email=%s WHERE id=%s",
-                           (email_id, user_id))
-            cursor.execute("""INSERT INTO usergitemails (email, uid)
-                                   VALUES (%s, %s)""",
-                           (email, user_id))
+            tables.extend(["useremails", "usergitemails"])
+        if external_user_id is not None:
+            tables.append("externalusers")
+        with db.updating_cursor(*tables) as cursor:
+            cursor.execute(
+                """INSERT INTO users (name, fullname, password, status)
+                        VALUES (%s, %s, %s, %s)
+                     RETURNING id""",
+                (name, fullname, password, status))
+            user_id, = cursor.fetchone()
+            if email is not None:
+                cursor.execute(
+                    """INSERT INTO useremails (uid, email, verified)
+                            VALUES (%s, %s, %s)
+                         RETURNING id""",
+                    (user_id, email, email_verified))
+                email_id = cursor.fetchone()[0]
+                cursor.execute("UPDATE users SET email=%s WHERE id=%s",
+                               (email_id, user_id))
+                cursor.execute("""INSERT INTO usergitemails (email, uid)
+                                       VALUES (%s, %s)""",
+                               (email, user_id))
+            if external_user_id is not None:
+                cursor.execute("""UPDATE externalusers
+                                     SET uid=%s
+                                   WHERE id=%s""",
+                               (user_id, external_user_id))
         return User.fromId(db, user_id)
 
     def sendUserCreatedMail(self, source, external=None):

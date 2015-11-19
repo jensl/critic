@@ -37,12 +37,6 @@ if configuration.extensions.ENABLED:
     import extensions.role.processcommits
 
 try:
-    from customization.email import getUserEmailAddress
-except ImportError:
-    def getUserEmailAddress(_username):
-        return None
-
-try:
     from customization.githook import Reject, update
 except ImportError:
     class Reject(Exception):
@@ -55,20 +49,6 @@ def reflow(message):
 
 def timestamp(time):
     return strftime("%Y-%m-%d %H:%M:%S", time)
-
-def getUser(db, user_name):
-    if user_name == configuration.base.SYSTEM_USER_NAME:
-        return dbutils.User.makeSystem()
-    try:
-        return dbutils.User.fromName(db, user_name)
-    except dbutils.NoSuchUser:
-        if configuration.base.AUTHENTICATION_MODE == "host":
-            email = getUserEmailAddress(user_name)
-            user = dbutils.User.create(
-                db, user_name, user_name, email, email_verified=None)
-            db.commit()
-            return user
-        raise
 
 class IndexException(Exception):
     pass

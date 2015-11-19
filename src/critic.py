@@ -608,8 +608,13 @@ def handleException(db, req, user, as_html=False):
                 return match.group(1) + original_host
             url = re.sub("^([a-z]+://)[^/]+", replace_host, url)
 
+        if user and not user.isAnonymous():
+            user_string = str(user)
+        else:
+            user_string = "<anonymous>"
+
         mailutils.sendExceptionMessage(db,
-            "wsgi", "\n".join(["User:   %s" % (req.user or "<anonymous>"),
+            "wsgi", "\n".join(["User:   %s" % user_string,
                                "Method: %s" % req.method,
                                "URL:    %s" % url,
                                "",
@@ -728,9 +733,85 @@ def handleRepositoryPath(db, req, user, suffix):
 
     return False
 
+def handleDisplayMessage(db, req, message):
+    user = db.user
+
+    if user is None:
+        user = dbutils.User.makeAnonymous()
+
+    document = page.utils.displayMessage(
+        db, req, user, title=message.title, message=message.body,
+        review=message.review, is_html=message.html)
+
+    req.setContentType("text/html")
+    req.setStatus(message.status)
+    req.start()
+
+    return [str(document)]
+
+def handleDisplayFormattedText(db, req, formatted_text):
+    user = db.user
+
+    if user is None:
+        user = dbutils.User.makeAnonymous()
+
+    document = page.utils.displayFormattedText(
+        db, req, user, formatted_text.source)
+
+    req.setContentType("text/html")
+    req.start()
+
+    return [str(document)]
+
+def handleMissingWSGIRemoteUser(db, req):
+    return handleDisplayMessage(
+        db, req, request.DisplayMessage(
+            title="Configuration error",
+            body="""\
+<p>
+Critic was configured with "<code>--auth-mode host</code>", meaning the host web
+server will authenticate users, but there was no <code>REMOTE_USER</code>
+variable in the WSGI environment provided by the web server, indicating it is
+not actually configured to authenticate users.
+</p>
+
+<p>
+To fix this you can either reinstall Critic using "<code>--auth-mode
+critic</code>" (to let Critic handle user authentication internally using its
+own user database), or you can configure user authentication properly in the web
+server.  For Apache 2.x, the latter can be done by adding the something like the
+following to the apache site configuration for Critic:
+</p>
+
+<pre>
+  &lt;Location /&gt;
+    AuthType Basic
+    AuthName "Authentication Required"
+    AuthUserFile "/path/to/critic-main.htpasswd.users"
+    Require valid-user
+  &lt;/Location&gt;
+</pre>
+
+<p>
+If you need more dynamic http authentication you can instead setup mod_wsgi with
+a custom <code>WSGIAuthUserScript</code> directive.  This will cause the
+provided credentials to be passed to a Python function called check_password()
+that you can implement yourself.  This way you can validate the user/pass via
+any existing database or for example an LDAP server.
+</p>
+
+<p>
+For more information on setting up such authentication in Apache 2.x, see:
+<a href="%(url)s">Apache Authentication Provider</a>.
+</p>"""
+            % { "url": ("http://code.google.com/p/modwsgi/wiki/"
+                        "AccessControlMechanisms#Apache_Authentication_Provider") },
+            html=True,
+            status=500))
+
 def finishOAuth(db, req, provider):
     try:
-        return provider.finish(db, req)
+        provider.finish(db, req)
     except (auth.InvalidRequest, auth.Failure):
         _, error_body = handleException(
             db, req, dbutils.User.makeAnonymous(), as_html=True)
@@ -742,76 +823,59 @@ def finishOAuth(db, req, provider):
 def process_request(environ, start_response):
     request_start = time.time()
 
-    critic = api.critic.startSession()
+    critic = api.critic.startSession(for_user=True)
     db = critic.database
     user = None
 
     try:
         try:
             req = request.Request(db, environ, start_response)
-            req.setUser(db)
 
-            if req.user is None:
-                if configuration.base.AUTHENTICATION_MODE == "host":
-                    user = dbutils.User.makeAnonymous()
-                elif configuration.base.SESSION_TYPE == "httpauth":
-                    req.requestHTTPAuthentication()
-                    return []
-                elif req.path.startswith("externalauth/"):
-                    provider_name = req.path[len("externalauth/"):]
-                    raise request.DoExternalAuthentication(provider_name)
-                elif req.path.startswith("oauth/"):
-                    provider_name = req.path[len("oauth/"):]
-                    if provider_name in auth.PROVIDERS:
-                        provider = auth.PROVIDERS[provider_name]
-                        if isinstance(provider, auth.OAuthProvider):
-                            if finishOAuth(db, req, provider):
-                                return []
-                elif configuration.base.SESSION_TYPE == "cookie":
-                    if req.cookies.get("has_sid") == "1":
-                        req.ensureSecure()
-                    if configuration.base.ALLOW_ANONYMOUS_USER \
-                            or req.path in request.INSECURE_PATHS \
-                            or req.path.startswith("static-resource/"):
-                        user = dbutils.User.makeAnonymous()
-                    # Don't try to redirect POST requests to the login page.
-                    elif req.method == "GET":
-                        if configuration.base.AUTHENTICATION_MODE == "critic":
-                            raise request.NeedLogin(req)
-                        else:
-                            raise request.DoExternalAuthentication(
-                                configuration.base.AUTHENTICATION_MODE,
-                                req.getTargetURL())
-                if not user:
-                    req.setStatus(403)
-                    req.start()
-                    return []
-            else:
-                try:
-                    user = dbutils.User.fromName(db, req.user)
-                except dbutils.NoSuchUser:
-                    if configuration.base.AUTHENTICATION_MODE == "host":
-                        email = getUserEmailAddress(req.user)
-                        user = dbutils.User.create(
-                            db, req.user, req.user, email, email_verified=None)
-                        db.commit()
-                    else:
-                        # This can't really happen.
-                        raise
+            # Handle static resources very early.  We don't bother with checking
+            # for an authenticated user; static resources aren't sensitive, and
+            # are referenced from special-case resources like the login page and
+            # error messages that, that we want to display even if something
+            # went wrong with the authentication.
+            if req.path.startswith("static-resource/"):
+                return handleStaticResource(req)
+
+            if req.path.startswith("externalauth/"):
+                provider_name = req.path[len("externalauth/"):]
+                if provider_name in auth.PROVIDERS:
+                    provider = auth.PROVIDERS[provider_name]
+                    authorize_url = provider.start(db, req)
+                    if authorize_url:
+                        raise request.Found(authorize_url)
+
+            if req.path.startswith("oauth/"):
+                provider_name = req.path[len("oauth/"):]
+                if provider_name in auth.PROVIDERS:
+                    provider = auth.PROVIDERS[provider_name]
+                    if isinstance(provider, auth.OAuthProvider):
+                        finishOAuth(db, req, provider)
+
+            auth.checkSession(db, req)
+
+            user = req.user
+            user.loadPreferences(db)
 
             if not user.isAnonymous():
                 critic.setActualUser(api.user.fetch(critic, user_id=user.id))
 
-            user.loadPreferences(db)
-
             if user.status == 'retired':
-                cursor = db.cursor()
-                cursor.execute("UPDATE users SET status='current' WHERE id=%s", (user.id,))
-                user = dbutils.User.fromId(db, user.id)
-                db.commit()
+                # If a retired user accesses the system, change the status back
+                # to 'current' again.
+                with db.updating_cursor("users") as cursor:
+                    cursor.execute("""UPDATE users
+                                         SET status='current'
+                                       WHERE id=%s""",
+                                   (user.id,))
+                user.status = 'current'
 
             if not user.getPreference(db, "debug.profiling.databaseQueries"):
                 db.disableProfiling()
+
+            original_path = req.path
 
             if not req.path:
                 if user.isAnonymous():
@@ -822,10 +886,7 @@ def process_request(environ, start_response):
                 if req.query:
                     location += "?" + req.query
 
-                req.setStatus(307)
-                req.addResponseHeader("Location", location)
-                req.start()
-                return []
+                raise request.MovedTemporarily(location)
 
             if req.path == "redirect":
                 target = req.getParameter("target", "/")
@@ -861,6 +922,13 @@ def process_request(environ, start_response):
                 db = None
                 return []
 
+            # Extension "page" roles.  Prefixing a path with "!/" bypasses all
+            # extensions.
+            #
+            # Also bypass extensions if the user is anonymous unless general
+            # anonymous access is allowed.  If it's not and the user is still
+            # anonymous, access was allowed because of a path-based exception,
+            # which was not intended to allow access to an extension.
             if req.path.startswith("!/"):
                 req.path = req.path[2:]
             elif configuration.extensions.ENABLED:
@@ -868,9 +936,6 @@ def process_request(environ, start_response):
                 if isinstance(handled, basestring):
                     req.start()
                     return [handled]
-
-            if req.path.startswith("static-resource/"):
-                return handleStaticResource(req)
 
             if req.path.startswith("r/"):
                 req.updateQuery({ "id": [req.path[2:]] })
@@ -891,9 +956,7 @@ def process_request(environ, start_response):
                         req.start()
                         return []
 
-            if req.path.startswith("download/"):
-                operationfn = download
-            elif req.path == "api" or req.path.startswith("api/"):
+            if req.path == "api" or req.path.startswith("api/"):
                 try:
                     result = jsonapi.handle(critic, req)
                 except jsonapi.Error as error:
@@ -918,6 +981,9 @@ def process_request(environ, start_response):
                 req.setContentType("application/vnd.api+json")
                 req.start()
                 return [json_encode(result, indent=indent)]
+
+            if req.path.startswith("download/"):
+                operationfn = download
             else:
                 operationfn = OPERATIONS.get(req.path)
 
@@ -941,18 +1007,20 @@ def process_request(environ, start_response):
                 else:
                     return [str(result)]
 
-            override_user = req.getParameter("user", None)
+            impersonate_user = user
+
+            if not user.isAnonymous():
+                user_parameter = req.getParameter("user", None)
+                if user_parameter:
+                    impersonate_user = dbutils.User.fromName(db, user_parameter)
 
             while True:
                 pagefn = PAGES.get(req.path)
                 if pagefn:
+                    req.setContentType("text/html")
+
                     try:
-                        if not user.isAnonymous() and override_user:
-                            user = dbutils.User.fromName(db, override_user)
-
-                        req.setContentType("text/html")
-
-                        result = pagefn(req, db, user)
+                        result = pagefn(req, db, impersonate_user)
 
                         if db.profiling and not (isinstance(result, str) or
                                                  isinstance(result, Document)):
@@ -1004,11 +1072,11 @@ def process_request(environ, start_response):
                             title="Invalid URI Parameter!",
                             body=error.message)
 
-                path = req.path
-
-                if "/" in path:
-                    repository = gitutils.Repository.fromName(db, path.split("/", 1)[0])
-                    if repository: path = path.split("/", 1)[1]
+                if "/" in req.path:
+                    repository_name, _, rest = req.path.partition("/")
+                    repository = gitutils.Repository.fromName(db, repository_name)
+                    if repository:
+                        req.path = rest
                 else:
                     repository = None
 
@@ -1048,19 +1116,19 @@ def process_request(environ, start_response):
                     repository = gitutils.Repository.fromName(
                         db, user.getPreference(db, "defaultRepository"))
 
-                    if gitutils.re_sha1.match(path):
-                        if repository and not repository.iscommit(path):
+                    if gitutils.re_sha1.match(req.path):
+                        if repository and not repository.iscommit(req.path):
                             repository = None
 
                         if not repository:
                             try:
-                                repository = gitutils.Repository.fromSHA1(db, path)
+                                repository = gitutils.Repository.fromSHA1(db, req.path)
                             except gitutils.GitReferenceError:
                                 repository = None
 
                 if repository:
                     try:
-                        items = filter(None, map(revparse, path.split("..")))
+                        items = filter(None, map(revparse, req.path.split("..")))
                         updated_query = {}
 
                         if len(items) == 1:
@@ -1082,76 +1150,18 @@ def process_request(environ, start_response):
 
             raise page.utils.DisplayMessage(
                 title="Not found!",
-                body="Page not handled: /%s" % path,
+                body="Page not handled: /%s" % original_path,
                 status=404)
         except GeneratorExit:
             raise
-        except page.utils.NotModified:
-            req.setStatus(304)
-            req.start()
-            return []
-        except request.MovedTemporarily as redirect:
-            req.setStatus(307)
-            req.addResponseHeader("Location", redirect.location)
-            if redirect.no_cache:
-                req.addResponseHeader("Cache-Control", "no-cache")
-            req.start()
-            return []
-        except request.DoExternalAuthentication as command:
-            command.execute(db, req)
-            return []
+        except request.HTTPResponse as response:
+            return response.execute(db, req)
         except request.MissingWSGIRemoteUser as error:
-            # req object is not initialized yet.
-            start_response("200 OK", [("Content-Type", "text/html")])
-            return ["""\
-<pre>error: Critic was configured with '--auth-mode host' but there was no
-REMOTE_USER variable in the WSGI environ dict provided by the web server.
-
-To fix this you can either reinstall Critic using '--auth-mode critic' (to let
-Critic handle user authentication automatically), or you can configure user
-authentication properly in the web server.  For apache2, the latter can be done
-by adding the something like the following to the apache site configuration for
-Critic:
-
-        &lt;Location /&gt;
-                AuthType Basic
-                AuthName "Authentication Required"
-                AuthUserFile "/path/to/critic-main.htpasswd.users"
-                Require valid-user
-        &lt;/Location&gt;
-
-If you need more dynamic http authentication you can instead setup mod_wsgi with
-a custom WSGIAuthUserScript directive.  This will cause the provided credentials
-to be passed to a Python function called check_password() that you can implement
-yourself.  This way you can validate the user/pass via any existing database or
-for example an LDAP server.  For more information on setting up such
-authentication in apache2, see:
-
-  <a href="%(url)s">%(url)s</a></pre>""" % { "url": "http://code.google.com/p/modwsgi/wiki/AccessControlMechanisms#Apache_Authentication_Provider" }]
+            return handleMissingWSGIRemoteUser(db, req)
         except page.utils.DisplayMessage as message:
-            if user is None:
-                user = dbutils.User.makeAnonymous()
-
-            document = page.utils.displayMessage(
-                db, req, user, title=message.title, message=message.body,
-                review=message.review, is_html=message.html)
-
-            req.setContentType("text/html")
-            req.setStatus(message.status)
-            req.start()
-
-            return [str(document)]
+            return handleDisplayMessage(db, req, message)
         except page.utils.DisplayFormattedText as formatted_text:
-            if user is None:
-                user = dbutils.User.makeAnonymous()
-
-            document = page.utils.displayFormattedText(
-                db, req, user, formatted_text.source)
-
-            req.setContentType("text/html")
-            req.start()
-
-            return [str(document)]
+            return handleDisplayFormattedText(db, req, formatted_text)
         except Exception:
             # crash might be psycopg2.ProgrammingError so rollback to avoid
             # "InternalError: current transaction is aborted" inside handleException()

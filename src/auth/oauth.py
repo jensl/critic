@@ -19,31 +19,26 @@ import urllib
 import dbutils
 import auth
 import textutils
+import request
 
 class OAuthProvider(auth.Provider):
     def start(self, db, req, target_url=None):
-        cursor = db.cursor()
         state = auth.getToken()
 
         authorize_url = self.getAuthorizeURL(state)
 
         if authorize_url is None:
-            return False
+            return None
 
         if target_url is None:
             target_url = req.getParameter("target", None)
 
-        cursor.execute("""INSERT INTO oauthstates (state, url)
-                               VALUES (%s, %s)""",
-                       (state, target_url))
+        with db.updating_cursor("oauthstates") as cursor:
+            cursor.execute("""INSERT INTO oauthstates (state, url)
+                                   VALUES (%s, %s)""",
+                           (state, target_url))
 
-        req.setStatus(302)
-        req.addResponseHeader("Location", authorize_url)
-        req.start()
-
-        db.commit()
-
-        return True
+        return authorize_url
 
     def finish(self, db, req):
         if req.method != "GET":
@@ -92,43 +87,44 @@ class OAuthProvider(auth.Provider):
 
         row = cursor.fetchone()
 
-        if not row:
-            cursor.execute("""INSERT INTO externalusers (provider, account, email)
-                                   VALUES (%s, %s, %s)
-                                RETURNING id""",
-                           (self.name, account, email))
+        if row:
+            external_user_id, user_id = row
+        else:
+            with db.updating_cursor("externalusers") as updating_cursor:
+                updating_cursor.execute(
+                    """INSERT INTO externalusers (provider, account, email)
+                            VALUES (%s, %s, %s)
+                         RETURNING id""",
+                    (self.name, account, email))
+                external_user_id, = updating_cursor.fetchone()
+                user_id = None
 
-            row = (cursor.fetchone()[0], None)
-
-        external_user_id, user_id = row
         user = None
 
-        if user_id is None:
+        if user_id is not None:
+            user = dbutils.User.fromId(db, user_id)
+        else:
             if auth.isValidUserName(username) \
                     and self.configuration.get("bypass_createuser"):
                 try:
                     dbutils.User.fromName(db, username)
                 except dbutils.NoSuchUser:
-                    user = dbutils.User.create(db, username, fullname, email, None)
-                    cursor.execute("""UPDATE externalusers
-                                         SET uid=%s
-                                       WHERE id=%s""",
-                                   (user.id, external_user_id))
+                    user = dbutils.User.create(
+                        db, username, fullname, email, email_verified=None,
+                        external_user_id=external_user_id)
                     user.sendUserCreatedMail("wsgi[oauth/%s]" % self.name,
                                              { "provider": self.name,
                                                "account": account })
-        else:
-            user = dbutils.User.fromId(db, user_id)
 
-        if user is not None:
-            auth.startSession(db, req, user)
-        else:
+        if user is None:
             token = auth.getToken()
 
-            cursor.execute("""UPDATE externalusers
-                                 SET token=%s
-                               WHERE id=%s""",
-                           (token, external_user_id))
+            with db.updating_cursor("externalusers") as updating_cursor:
+                updating_cursor.execute(
+                    """UPDATE externalusers
+                          SET token=%s
+                        WHERE id=%s""",
+                    (token, external_user_id))
 
             data = { "provider": self.name,
                      "account": account,
@@ -145,13 +141,10 @@ class OAuthProvider(auth.Provider):
 
             target_url = "/createuser?%s" % urllib.urlencode(data)
 
-        req.setStatus(302)
-        req.addResponseHeader("Location", target_url or "/")
-        req.start()
+        if user is not None:
+            auth.createSessionId(db, req, user)
 
-        db.commit()
-
-        return True
+        raise request.Found(target_url or "/")
 
     def validateToken(self, db, account, token):
         cursor = db.cursor()

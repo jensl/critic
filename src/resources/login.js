@@ -16,47 +16,48 @@
 
 */
 
-$(function ()
-  {
-    var username = $("input.username");
-    var password = $("input.password");
-    var submit = $("input.login");
-    var form = $("form");
+$(function () {
+  var fields = $("input.field");
+  var submit = $("input.login");
+  var form = $("form");
 
-    submit.button();
-
-    username.keypress(
-      function (ev)
-      {
-        if (ev.keyCode == 13)
-          password.focus();
-      });
-
-    password.keypress(
-      function (ev)
-      {
-        if (ev.keyCode == 13)
+  fields.each(function (index) {
+    $(this).keypress(function (ev) {
+      if (ev.keyCode == 13) {
+        if (index == fields.length - 1)
           submit.click();
-      });
-
-    form.submit(
-      function (ev)
-      {
-        var operation = new Operation({ action: "login",
-                                        url: "validatelogin",
-                                        data: { username: username.val(),
-                                                password: password.val() }});
-        var result = operation.execute();
-
-        if (!result || result.message)
-        {
-          ev.preventDefault();
-
-          if (result)
-          {
-            $("tr.status td").text(result.message);
-            $("tr.status").removeClass("disabled");
-          }
-        }
-      });
+        else
+          fields[index + 1].focus();
+      }
+    });
   });
+
+  submit.button();
+
+  form.submit(function (ev) {
+    var data = {
+      fields: {}
+    };
+
+    fields.each(function () {
+      data.fields[this.name] = this.value;
+    });
+
+    var operation = new Operation({
+      action: "login",
+      url: "validatelogin",
+      data: data
+    });
+
+    var result = operation.execute();
+
+    if (!result || result.message) {
+      ev.preventDefault();
+
+      if (result) {
+        $("tr.status td").text(result.message);
+        $("tr.status").removeClass("disabled");
+      }
+    }
+  });
+});

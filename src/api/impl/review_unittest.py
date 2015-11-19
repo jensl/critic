@@ -1,7 +1,7 @@
 def basic():
     import api
 
-    critic = api.critic.startSession()
+    critic = api.critic.startSession(for_testing=True)
     review = api.review.fetch(critic, review_id=1)
 
     assert isinstance(review, api.review.Review)

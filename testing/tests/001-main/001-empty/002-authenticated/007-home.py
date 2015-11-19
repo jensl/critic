@@ -1,11 +1,13 @@
 with frontend.signin():
     frontend.page(
         "home",
-        expect={ "document_title": testing.expect.document_title(u"Testing Administrator's Home"),
-                 "content_title": testing.expect.paleyellow_title(0, u"Testing Administrator's Home"),
-                 "pageheader_links": testing.expect.pageheader_links("authenticated",
-                                                                     "administrator"),
-                 "script_user": testing.expect.script_user("admin") })
+        expect={
+            "document_title": testing.expect.document_title(u"Testing Administrator's Home"),
+            "content_title": testing.expect.paleyellow_title(0, u"Testing Administrator's Home"),
+            "pageheader_links": testing.expect.pageheader_links("authenticated",
+                                                                "administrator"),
+            "script_user": testing.expect.script_user(instance.user("admin"))
+        })
 
 with frontend.signin("bob"):
     frontend.operation(
@@ -15,9 +17,9 @@ with frontend.signin("bob"):
 
 frontend.operation(
     "validatelogin",
-    data={ "username": "bob",
-           "password": "testing" },
-    expect={ "message": "Wrong password!" })
+    data={ "fields": { "username": "bob",
+                       "password": "testing" }},
+    expect={ "message": "Wrong password" })
 
 with frontend.signin("bob", "gnitset"):
     pass

@@ -50,7 +50,7 @@ else:
 
             super(HighlightServer, self).__init__(service)
 
-            self.db = dbutils.Database()
+            self.db = dbutils.Database.forSystem()
 
             if "compact_at" in service:
                 hour, minute = service["compact_at"]
@@ -112,7 +112,8 @@ else:
 
             purged_paths = []
 
-            db = dbutils.Database()
+            db = dbutils.Database.forSystem()
+
             cursor = db.cursor()
 
             cursor.execute("CREATE TEMPORARY TABLE purged (sha1 CHAR(40) PRIMARY KEY)")

@@ -16,6 +16,7 @@
 
 import urllib
 
+import auth
 import page
 import page.utils
 import auth
@@ -56,13 +57,29 @@ class LoginHandler(page.Page.Handler):
             row = table.tr("status disabled")
             row.td(colspan=2).text()
 
-            row = table.tr("username")
-            row.td("key").text("Username:")
-            row.td("value").input("username", name="username", autofocus="autofocus")
+            autofocus = "autofocus"
 
-            row = table.tr("password")
-            row.td("key").text("Password:")
-            row.td("value").input("password", name="password", type="password")
+            for field in auth.DATABASE.getFields():
+                if len(field) == 3:
+                    hidden, identifier, label = field
+                    description = None
+                else:
+                    hidden, identifier, label, description = field
+
+                if hidden:
+                    field_type = "password"
+                else:
+                    field_type = None
+
+                row = table.tr("field")
+                row.td("key").text(label)
+                row.td("value").input("field",
+                                      name=identifier,
+                                      type=field_type,
+                                      autofocus=autofocus)
+
+                # Only autofocus the first field.
+                autofocus = None
 
             row = table.tr("login")
             row.td(colspan=2).input("login", type="submit", value="Sign in")
@@ -100,7 +117,7 @@ class LoginHandler(page.Page.Handler):
                 register.a(href="/createuser").text("Create a user")
                 register.text(" to start using it.")
 
-            if self.optional:
+            if self.optional and configuration.base.ALLOW_ANONYMOUS_USER:
                 table.tr("separator1").td(colspan=2)
                 table.tr("separator2").td(colspan=2)
 

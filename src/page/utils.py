@@ -19,9 +19,9 @@ import re
 import htmlutils
 import configuration
 
-from request import NoDefault, MovedTemporarily, DisplayMessage, \
-                    InvalidParameterValue, decodeURIComponent, Request, \
-                    NeedLogin
+from request import (NoDefault, MovedTemporarily, DisplayMessage,
+                     InvalidParameterValue, decodeURIComponent, Request,
+                     NeedLogin, NotModified)
 
 from textutils import json_encode, json_decode
 
@@ -30,9 +30,6 @@ LINK_RELS = { "Home": "home",
               "Branches": "index",
               "Tutorial": "help",
               "Back to Review": "up" }
-
-class NotModified:
-    pass
 
 def YesOrNo(value):
     if value == "yes": return True
@@ -128,7 +125,7 @@ def generateHeader(target, db, user, generate_right=None, current_page=None, ext
            and configuration.base.SESSION_TYPE == "cookie":
         if user.isAnonymous():
             links.append(["javascript:void(location.href='/login?target='+encodeURIComponent(location.href));", "Sign in", None, None])
-        elif not req or req.user == user.name:
+        elif not req or (req.user == user.name and req.session_type == "cookie"):
             links.append(["javascript:signOut();", "Sign out", None, None])
 
     for url, label in extra_links:

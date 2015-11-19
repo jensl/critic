@@ -44,7 +44,7 @@ elif arguments.dry_run and arguments.force:
 
 force = arguments.force
 
-db = dbutils.Database()
+db = dbutils.Database.forSystem()
 cursor = db.cursor()
 
 def getBranchCommits(repository, branch_id):

@@ -38,6 +38,7 @@ def generate(arguments, database_path):
              config("default_password_hash_scheme"): installation.config.default_password_hash_scheme,
              config("minimum_password_hash_time"): installation.config.minimum_password_hash_time,
              config("minimum_rounds"): { installation.config.default_password_hash_scheme: 100 },
+             config("auth_database"): "internal",
              system("username"): username(),
              system("email"): username() + "@localhost",
              system("groupname"): groupname(),

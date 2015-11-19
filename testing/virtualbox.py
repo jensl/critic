@@ -538,6 +538,9 @@ class Instance(testing.Instance):
                           "--name", "howard",
                           "--role", "newswriter"])
 
+        self.current_commit = self.install_commit
+
+        if not quick:
             try:
                 self.frontend.run_basic_tests()
                 self.mailbox.check_empty()
@@ -552,7 +555,6 @@ class Instance(testing.Instance):
         testing.logger.info("Installed Critic: %s" % self.install_commit_description)
 
         self.__installed = True
-        self.current_commit = self.install_commit
 
     def check_upgrade(self):
         if not self.upgrade_commit:
@@ -613,12 +615,12 @@ class Instance(testing.Instance):
             self.execute(["sudo", "python", "-u", upgrade_py] + arguments,
                          cwd=cwd, interactive="--headless" not in use_arguments)
 
+            self.current_commit = self.upgrade_commit
+
             if not quick:
                 self.frontend.run_basic_tests()
 
             testing.logger.info("Upgraded Critic: %s" % self.upgrade_commit_description)
-
-            self.current_commit = self.upgrade_commit
 
     def check_extend(self, repository, pre_upgrade=False):
         commit = self.install_commit if pre_upgrade else self.tested_commit

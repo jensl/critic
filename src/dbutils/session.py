@@ -24,6 +24,8 @@ class Session(object):
                          "Timezones": {} }
         self.profiling = {}
 
+        self.__user = None
+
     def atexit(self, fn):
         self.__atexit.append(fn)
 
@@ -51,3 +53,12 @@ class Session(object):
                 maximum_rows = max(maximum_rows, rows)
 
             self.profiling[item] = count, accumulated_ms, maximum_ms, accumulated_rows, maximum_rows
+
+    @property
+    def user(self):
+        return self.__user
+
+    def setUser(self, user):
+        import auth
+        assert not self.__user or self.__user.isAnonymous()
+        self.__user = user

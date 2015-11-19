@@ -22,6 +22,7 @@ import wsgiref.util
 
 import base
 import configuration
+import dbutils
 
 # Paths to which access should be allowed without authentication even if
 # anonymous users are not allowed in general.
@@ -46,10 +47,70 @@ class NoDefault:
 
     pass
 
-class MovedTemporarily(Exception):
-    def __init__(self, location, no_cache=False):
+class HTTPResponse(Exception):
+    def __init__(self, status):
+        self.status = status
+        self.body = []
+        self.content_type = "text/plain"
+
+    def execute(self, db, req):
+        req.setStatus(self.status)
+        if self.body:
+            req.setContentType(self.content_type)
+        req.start()
+        return self.body
+
+class NoContent(HTTPResponse):
+    def __init__(self):
+        super(NoContent, self).__init__(204)
+
+class NotModified(HTTPResponse):
+    def __init__(self):
+        super(NotModified, self).__init__(304)
+
+class Forbidden(HTTPResponse):
+    def __init__(self, message="Forbidden"):
+        super(Forbidden, self).__init__(403)
+        self.body = [message]
+
+class NotFound(HTTPResponse):
+    def __init__(self, message="Not found"):
+        super(NotFound, self).__init__(404)
+        self.body = [message]
+
+class Redirect(HTTPResponse):
+    def __init__(self, status, location, no_cache=False):
+        super(Redirect, self).__init__(status)
         self.location = location
         self.no_cache = no_cache
+
+    def execute(self, db, req):
+        from htmlutils import htmlify
+        if not req.allowRedirect():
+            self.status = 403
+            self.body = ["Cowardly refusing to redirect %s request."
+                         % req.method]
+        else:
+            req.addResponseHeader("Location", self.location)
+            self.body = ["<p>Please go here: <a href=%s>%s</a>."
+                         % (htmlify(self.location, attributeValue=True),
+                            htmlify(self.location))]
+            self.content_type = "text/html"
+        return super(Redirect, self).execute(db, req)
+
+class Found(Redirect):
+    def __init__(self, location):
+        super(Found, self).__init__(302, location)
+
+class MovedTemporarily(Redirect):
+    def __init__(self, location, no_cache=False):
+        super(MovedTemporarily, self).__init__(307, location)
+        self.no_cache = no_cache
+
+    def execute(self, db, req):
+        if self.no_cache:
+            req.addResponseHeader("Cache-Control", "no-cache")
+        return super(MovedTemporarily, self).execute(db, req)
 
 class NeedLogin(MovedTemporarily):
     def __init__(self, source, optional=False):
@@ -60,18 +121,24 @@ class NeedLogin(MovedTemporarily):
         location = "/login?target=%s" % urllib.quote(target)
         if optional:
             location += "&optional=yes"
-        super(NeedLogin, self).__init__(location, no_cache=True)
+        return super(NeedLogin, self).__init__(location, no_cache=True)
 
-class DoExternalAuthentication(Exception):
-    def __init__(self, provider_name, target_url=None):
-        self.provider_name = provider_name
-        self.target_url = target_url
+class RequestHTTPAuthentication(HTTPResponse):
+    def __init__(self):
+        super(RequestHTTPAuthentication, self).__init__(401)
+
     def execute(self, db, req):
-        import auth
-        provider = auth.PROVIDERS[self.provider_name]
-        if not provider.start(db, req, self.target_url):
-            req.setStatus(403)
-            req.start()
+        import page.utils
+
+        self.body = str(page.utils.displayMessage(
+            db, req, dbutils.User.makeAnonymous(),
+            title="Authentication required",
+            message=("You must provide valid HTTP authentication to access "
+                     "this system.")))
+        self.content_type = "text/html"
+
+        req.addResponseHeader("WWW-Authenticate", "Basic realm=\"Critic\"")
+        return super(RequestHTTPAuthentication, self).execute(db, req)
 
 class DisplayMessage(base.Error):
     """\
@@ -168,6 +235,7 @@ class Request:
         WSGI application object.
         """
 
+        self.__db = db
         self.__environ = environ
         self.__start_response = start_response
         self.__status = None
@@ -190,7 +258,6 @@ class Request:
         self.query = environ.get("QUERY_STRING", "")
         self.parsed_query = urlparse.parse_qs(self.query, keep_blank_values=True)
         self.original_query = self.query
-        self.user = None
         self.cookies = {}
 
         header = self.getRequestHeader("Cookie")
@@ -200,83 +267,16 @@ class Request:
                 if name and value:
                     self.cookies[name] = value
 
+        self.session_type = configuration.base.SESSION_TYPE
+
     def updateQuery(self, items):
         self.parsed_query.update(items)
         self.query = urllib.urlencode(
             sorted(self.parsed_query.items()), doseq=True)
 
-    def setUser(self, db):
-        if configuration.base.AUTHENTICATION_MODE == "host":
-            try:
-                self.user = self.__environ["REMOTE_USER"]
-            except KeyError:
-                if configuration.base.ALLOW_ANONYMOUS_USER:
-                    return
-                raise MissingWSGIRemoteUser
-        else:
-            session_type = configuration.base.SESSION_TYPE
-
-            authorization_header = self.getRequestHeader("Authorization")
-
-            if authorization_header is not None and not self.cookies:
-                session_type = "httpauth"
-
-            if session_type == "cookie":
-                sid = self.cookies.get("sid")
-
-                if not sid:
-                    return
-
-                cursor = db.cursor()
-                cursor.execute("""SELECT name, EXTRACT('epoch' FROM NOW() - atime) AS age
-                                    FROM usersessions
-                                    JOIN users ON (id=uid)
-                                   WHERE key=%s""",
-                               (sid,))
-
-                row = cursor.fetchone()
-
-                if not row:
-                    if self.path != "validatelogin":
-                        cookie = "sid=invalid; Expires=Thursday 01-Jan-1970 00:00:00 GMT"
-                        self.addResponseHeader("Set-Cookie", cookie)
-                    if self.path in INSECURE_PATHS:
-                        return
-                    raise NeedLogin(self, optional=True)
-
-                user, session_age = row
-
-                if configuration.base.SESSION_MAX_AGE == 0 \
-                        or session_age < configuration.base.SESSION_MAX_AGE:
-                    self.user = user
-
-                    cursor.execute("""UPDATE usersessions
-                                         SET atime=NOW()
-                                       WHERE key=%s""",
-                                   (sid,))
-                    db.commit()
-            else:
-                import auth
-                import base64
-
-                self.user = None
-
-                if not authorization_header: return
-
-                authtype, base64_credentials = authorization_header.split()
-                if authtype != "Basic": return
-
-                credentials = base64.b64decode(base64_credentials).split(":")
-                if len(credentials) < 2: return
-
-                for index in range(1, len(credentials)):
-                    username = ":".join(credentials[:index])
-                    password = ":".join(credentials[index:])
-                    try:
-                        auth.checkPassword(db, username, password)
-                        self.user = username
-                        return
-                    except auth.CheckFailed: pass
+    @property
+    def user(self):
+        return self.__db.user
 
     def getTargetURL(self):
         target = "/" + self.path
@@ -289,10 +289,6 @@ class Request:
 
     def getEnvironment(self):
         return self.__environ
-
-    def getUser(self, db):
-        import dbutils
-        return dbutils.User.fromName(db, self.user)
 
     def getParameter(self, name, default=NoDefault, filter=lambda value: value):
         """\
@@ -476,9 +472,10 @@ class Request:
             "%s=%s; Max-Age=31536000; Path=/; %s" % (name, value, modifier))
 
     def deleteCookie(self, name):
-        self.addResponseHeader(
-            "Set-Cookie",
-            "%s=invalid; Path=/; Expires=Thursday 01-Jan-1970 00:00:00 GMT" % name)
+        if self.cookies.has_key(name):
+            self.addResponseHeader(
+                "Set-Cookie",
+                "%s=invalid; Path=/; Expires=Thursday 01-Jan-1970 00:00:00 GMT" % name)
 
     def start(self):
         """\
@@ -533,3 +530,7 @@ class Request:
         self.setStatus(401)
         self.addResponseHeader("WWW-Authenticate", "Basic realm=\"%s\"" % realm)
         self.start()
+
+    def allowRedirect(self):
+        """Return true if it is safe to redirect this request"""
+        return self.method not in ("POST", "PUT")

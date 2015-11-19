@@ -55,10 +55,10 @@ def renderHome(req, db, user):
     head = html.head()
     body = html.body()
 
-    if user.name == req.user:
+    if user == req.user:
         actual_user = None
     else:
-        actual_user = req.getUser(db)
+        actual_user = req.user
 
     def renderHeaderItems(target):
         if readonly and actual_user and actual_user.hasRole(db, "administrator"):
