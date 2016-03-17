@@ -88,6 +88,7 @@ class MailDelivery(background.utils.PeerServer):
             self.__send(message_id=None,
                         parent_message_id=None,
                         headers={},
+                        date=time.time(),
                         from_user=from_user,
                         to_user=to_user,
                         recipients=recipients,
@@ -265,6 +266,7 @@ class MailDelivery(background.utils.PeerServer):
         message["From"] = usersAsHeader([from_user], "From")
         message["To"] = usersAsHeader(recipients, "To")
         message["Subject"] = stringAsHeader(subject, "Subject")
+        message["Date"] = email.utils.formatdate(kwargs.get("date", time.time()))
 
         for name, value in headers.items():
             message[name] = value
