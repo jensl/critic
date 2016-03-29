@@ -117,7 +117,7 @@ CREATE TABLE comments
     chain INTEGER NOT NULL REFERENCES commentchains ON DELETE CASCADE,
     batch INTEGER REFERENCES batches ON DELETE CASCADE,
     uid INTEGER NOT NULL REFERENCES users,
-    time TIMESTAMP NOT NULL,
+    time TIMESTAMP NOT NULL DEFAULT NOW(),
     state commentstate NOT NULL,
 
     comment TEXT,
