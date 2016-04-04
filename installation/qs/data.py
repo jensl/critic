@@ -34,7 +34,7 @@ def which(name):
     return subprocess.check_output("which " + name, shell=True).strip()
 
 def generate(arguments, database_path):
-    data = { config("password_hash_schemes"): installation.config.default_password_hash_scheme,
+    data = { config("password_hash_schemes"): [installation.config.default_password_hash_scheme],
              config("default_password_hash_scheme"): installation.config.default_password_hash_scheme,
              config("minimum_password_hash_time"): installation.config.minimum_password_hash_time,
              config("minimum_rounds"): { installation.config.default_password_hash_scheme: 100 },
