@@ -265,19 +265,19 @@ class MarkChainsAsRead(Operation):
 
         if chain_ids:
             cursor.execute("""DELETE FROM commentstoread
-                                    USING comments
-                                    WHERE commentstoread.uid=%s
-                                      AND commentstoread.comment=comments.id
-                                      AND comments.chain=ANY (%s)""",
+                                    WHERE uid=%s
+                                      AND comment IN (SELECT id
+                                                        FROM comments
+                                                       WHERE chain=ANY (%s))""",
                            (user.id, chain_ids))
 
         if review_ids:
             cursor.execute("""DELETE FROM commentstoread
-                                    USING comments, commentchains
-                                    WHERE commentstoread.uid=%s
-                                      AND commentstoread.comment=comments.id
-                                      AND comments.chain=commentchains.id
-                                      AND commentchains.review=ANY (%s)""",
+                                    WHERE uid=%s
+                                      AND comment IN (SELECT comments.id
+                                                        FROM comments
+                                                        JOIN commentchains ON (commentchains.id=comments.chain)
+                                                       WHERE commentchains.review=ANY (%s))""",
                            (user.id, review_ids))
 
         db.commit()

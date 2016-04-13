@@ -76,11 +76,11 @@ class SetAssignedChanges(Operation):
                                               itertools.repeat(reviewer.id)))
 
             cursor.executemany("""DELETE FROM reviewuserfiles
-                                        USING reviewfiles
-                                        WHERE reviewuserfiles.file=reviewfiles.id
-                                          AND reviewfiles.review=%s
-                                          AND reviewfiles.file=%s
-                                          AND reviewuserfiles.uid=%s""",
+                                        WHERE file IN (SELECT id
+                                                         FROM reviewfiles
+                                                        WHERE review=%s
+                                                          AND file=%s)
+                                          AND uid=%s""",
                                itertools.izip(itertools.repeat(review_id),
                                               delete_file_ids,
                                               itertools.repeat(reviewer.id)))

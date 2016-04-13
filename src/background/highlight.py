@@ -157,7 +157,9 @@ else:
 
             purged_contexts = cursor.fetchone()[0]
 
-            cursor.execute("DELETE FROM codecontexts USING purged WHERE codecontexts.sha1=purged.sha1")
+            cursor.execute("""DELETE FROM codecontexts
+                                    WHERE sha1 IN (SELECT sha1
+                                                     FROM purged)""")
 
             db.commit()
             db.close()

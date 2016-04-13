@@ -481,10 +481,10 @@ Please don't push it manually to this repository.""" % (name, remote_name, remot
                 if forced:
                     if branch.base is None:
                         cursor.executemany("""DELETE FROM reachable
-                                                    USING commits
-                                                    WHERE reachable.branch=%s
-                                                      AND reachable.commit=commits.id
-                                                      AND commits.sha1=%s""",
+                                                    WHERE branch=%s
+                                                      AND commit IN (SELECT id
+                                                                       FROM commits
+                                                                      WHERE sha1=%s)""",
                                            [(branch.id, sha1) for sha1 in conflicting])
                     else:
                         print "Non-fast-forward update detected; deleting and recreating branch."

@@ -112,7 +112,10 @@ else:
             if npurged:
                 self.info("purging %d old custom changesets" % npurged)
 
-                cursor.execute("DELETE FROM changesets USING customchangesets WHERE id=changeset AND time < NOW() - INTERVAL '3 months'")
+                cursor.execute("""DELETE FROM changesets
+                                        WHERE id IN (SELECT changeset
+                                                       FROM customchangesets
+                                                      WHERE time < NOW() - INTERVAL '3 months')""")
                 db.commit()
 
             db.close()
