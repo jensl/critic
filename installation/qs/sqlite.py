@@ -115,8 +115,16 @@ class Cursor(object):
         replace(tokens, "FETCH FIRST ROW ONLY", "")
         replace(tokens, "ASC NULLS FIRST", "ASC")
         replace(tokens, "DESC NULLS LAST", "DESC")
-        replace(tokens, "chaincomments(commentchains.id)", "0")
-        replace(tokens, "chainunread(commentchains.id, ?)", "ifnull(0, ?)")
+        replace(tokens, "chaincomments(commentchains.id)",
+                """(SELECT COUNT(*) FROM comments
+                                   WHERE chain=commentchains.id
+                                     AND state='current')""")
+        replace(tokens, "chainunread(commentchains.id, ?)",
+                """(SELECT COUNT(*) FROM commentstoread
+                                    JOIN comments ON (comments.id=commentstoread.comment)
+                                   WHERE comments.chain=commentchains.id
+                                     AND comments.state='current'
+                                     AND commentstoread.uid=?)""")
         replace(tokens, "character_length(", "length(")
         replace(tokens, "FOR UPDATE NOWAIT", "")
         replace(tokens, "FOR UPDATE", "")
