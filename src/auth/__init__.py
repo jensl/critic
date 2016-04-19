@@ -67,6 +67,10 @@ def checkPassword(db, username, password):
         raise NoSuchUser
     user_id, hashed = row
 
+    if hashed is None:
+        # No password set => there is no "right" password.
+        raise WrongPassword
+
     ok, new_hashed = createCryptContext().verify_and_update(password, hashed)
 
     if not ok:
