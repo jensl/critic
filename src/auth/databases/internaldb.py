@@ -40,5 +40,31 @@ class Internal(auth.Database):
         except auth.WrongPassword:
             raise auth.AuthenticationFailed("Wrong password")
 
+    def supportsPasswordChange(self):
+        return True
+
+    def changePassword(self, db, user, current_pw, new_pw):
+        # If |current_pw| is True, then this is an administrator changing
+        # another user's password. The usual rules do not apply.
+        if current_pw is not True:
+            cursor = db.readonly_cursor()
+            cursor.execute("SELECT password FROM users WHERE id=%s", (user.id,))
+
+            hashed_pw, = cursor.fetchone()
+
+            if current_pw is not None:
+                auth.checkPassword(db, user.name, current_pw)
+            elif hashed_pw is not None:
+                # This is mostly a sanity check; the only way to trigger this is
+                # if the user has no password when he loads /home, sets a
+                # password in another tab or using another browser, and then
+                # tries to set (rather than change) the password using the old
+                # stale /home.
+                raise auth.WrongPassword
+
+        with db.updating_cursor("users") as cursor:
+            cursor.execute("UPDATE users SET password=%s WHERE id=%s",
+                           (auth.hashPassword(new_pw), user.id))
+
 if configuration.auth.DATABASE == "internal":
     auth.DATABASE = Internal()

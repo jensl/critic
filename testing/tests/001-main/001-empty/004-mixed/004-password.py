@@ -68,7 +68,7 @@ with frontend.signin("iris"):
         data={ "subject": "iris",
                "new_pw": "custom" },
         expect={ "status": "failure",
-                 "message": "No current password provided." })
+                 "message": "The provided current password is not correct." })
 
     frontend.operation(
         "changepassword",
@@ -132,7 +132,7 @@ with frontend.signin():
         "changepassword",
         data={ "new_pw": "custom" },
         expect={ "status": "failure",
-                 "message": "No current password provided." })
+                 "message": "The provided current password is not correct." })
 
     frontend.operation(
         "changepassword",

@@ -177,7 +177,8 @@ def renderHome(req, db, user):
     row("Primary Email", renderEmail, "This is the primary email address, to which emails are sent.", extra_class="email")
     row("Git Emails", renderGitEmails, "These email addresses (comma-separated) are used to map Git commits to the user.")
 
-    if configuration.base.AUTHENTICATION_MODE == "critic":
+    if configuration.base.AUTHENTICATION_MODE == "critic" \
+            and auth.DATABASE.supportsPasswordChange():
         row("Password", renderPassword, extra_class="password")
 
     cursor.execute("""SELECT provider, account

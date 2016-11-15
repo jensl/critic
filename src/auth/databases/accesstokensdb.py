@@ -74,5 +74,13 @@ class AccessTokens(auth.Database):
 
         return self.authdb.performHTTPAuthentication(db, username, password)
 
+    def supportsPasswordChange(self):
+        return self.authdb.supportsPasswordChange()
+
+    def changePassword(self, db, user, current_pw, new_pw):
+        if db.critic.access_token is not None:
+            raise auth.AccessDenied
+        return self.authdb.changePassword(db, user, current_pw, new_pw)
+
 if configuration.auth.ENABLE_ACCESS_TOKENS:
     auth.DATABASE = AccessTokens(auth.DATABASE)

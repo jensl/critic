@@ -103,3 +103,13 @@ class Database(object):
         fields = self.getFields()
         self.authenticate(db, { fields[0][1]: username,
                                 fields[1][1]: password })
+
+    def supportsPasswordChange(self):
+        """Returns true if password changing is supported"""
+        return False
+
+    def changePassword(self, db, user, current_pw, new_pw):
+        """Change the user's password
+
+           Raises auth.WrongPassword if |current_pw| is incorrect."""
+        pass

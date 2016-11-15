@@ -88,36 +88,32 @@ class ChangePassword(Operation):
 
         cursor = db.cursor()
 
-        if user != subject:
-            Operation.requireRole(db, "administrator", user)
-        elif current_pw is None:
-            cursor.execute("SELECT password FROM users WHERE id=%s", (subject.id,))
-            if cursor.fetchone()[0] is not None:
-                # This is mostly a sanity check; the only way to trigger this is
-                # if the user has no password when he loads /home, sets a
-                # password in another tab or using another browser, and then
-                # tries to set (rather than change) the password using the old
-                # stale /home.
-                raise OperationFailure(code="wrongpassword",
-                                       title="Wrong password!",
-                                       message="No current password provided.")
-
-        if current_pw is not None:
-            try: auth.checkPassword(db, subject.name, current_pw)
-            except auth.WrongPassword:
-                raise OperationFailure(code="wrongpassword",
-                                       title="Wrong password!",
-                                       message="The provided current password is not correct.")
+        if not auth.DATABASE.supportsPasswordChange():
+            raise OperationFailure(
+                code="notsupported",
+                title="Not supported!",
+                message="Changing password is not supported via this system.")
 
         if not new_pw:
-            raise OperationFailure(code="emptypassword",
-                                   title="Empty password!",
-                                   message="Setting an empty password is not allowed.")
+            raise OperationFailure(
+                code="emptypassword",
+                title="Empty password!",
+                message="Setting an empty password is not allowed.")
 
-        cursor.execute("UPDATE users SET password=%s WHERE id=%s",
-                       (auth.hashPassword(new_pw), subject.id))
+        if user != subject:
+            Operation.requireRole(db, "administrator", user)
 
-        db.commit()
+            if current_pw is None:
+                # Signal that it doesn't need to be checked.
+                current_pw = True
+
+        try:
+            auth.DATABASE.changePassword(db, subject, current_pw, new_pw)
+        except auth.WrongPassword:
+            raise OperationFailure(
+                code="wrongpassword",
+                title="Wrong password!",
+                message="The provided current password is not correct.")
 
         return OperationResult()
 
