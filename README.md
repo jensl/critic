@@ -18,7 +18,7 @@ You should probably read the [INSTALL file][install] for all the information.
 
 
 [install]: https://github.com/jensl/critic/blob/master/INSTALL
-[concepts]: https://github.com/jensl/critic/blob/master/documentation/concepts.txt
+[concepts]: https://github.com/jensl/critic/blob/master/documentation/concepts.md
 
 Adding a repository
 -------------------
