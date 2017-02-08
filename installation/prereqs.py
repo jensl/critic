@@ -256,7 +256,7 @@ The WSGI Apache module (mod_wsgi) doesn't appear to be installed.  Make sure
 it's installed.  In Debian/Ubuntu, the package you need to install is
 'libapache2-mod-wsgi'.  The source code can be downloaded here:
 
-  http://code.google.com/p/modwsgi/wiki/DownloadTheSoftware?tm=2"""),
+  https://github.com/GrahamDumpleton/mod_wsgi"""),
 
 ]
 

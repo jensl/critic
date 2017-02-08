@@ -1127,7 +1127,7 @@ yourself.  This way you can validate the user/pass via any existing database or
 for example an LDAP server.  For more information on setting up such
 authentication in apache2, see:
 
-  <a href="%(url)s">%(url)s</a></pre>""" % { "url": "http://code.google.com/p/modwsgi/wiki/AccessControlMechanisms#Apache_Authentication_Provider" }]
+  <a href="%(url)s">%(url)s</a></pre>""" % { "url": "https://github.com/GrahamDumpleton/mod_wsgi/blob/develop/docs/user-guides/access-control-mechanisms.rst#apache-authentication-provider" }]
         except page.utils.DisplayMessage as message:
             if user is None:
                 user = dbutils.User.makeAnonymous()
