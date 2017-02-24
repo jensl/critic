@@ -214,25 +214,29 @@ class FetchRemoteBranch(Operation):
 
         cursor = db.cursor()
 
-        # Check if any other repository is currently tracking branches from this
-        # remote.  If that's the case, then the user most likely either selected
-        # the wrong repository or entered the wrong remote.
+        # Check if only other repositories are currently tracking branches from
+        # this remote.  If that's the case, then the user most likely either
+        # selected the wrong repository or entered the wrong remote.
         cursor.execute("""SELECT repositories.name
                             FROM repositories
                             JOIN trackedbranches ON (trackedbranches.repository=repositories.id)
-                           WHERE repositories.id!=%s
-                             AND trackedbranches.remote=%s""",
-                       (repository.id, remote))
-        for (other_name,) in cursor:
+                           WHERE trackedbranches.remote=%s""",
+                       (remote,))
+        repository_names = set(repository_name for repository_name, in cursor)
+        if repository_names and repository.name not in repository_names:
             raise OperationFailure(
                 code="badremote",
                 title="Bad remote!",
                 message=("The remote <code>%s</code> appears to be related to "
-                         "another repository on this server (<code>%s</code>).  "
+                         "%s on this server (<code>%s</code>).  "
                          "You most likely shouldn't be importing branches from "
                          "it into the selected repository (<code>%s</code>)."
-                         % (htmlutils.htmlify(remote), htmlutils.htmlify(other_name),
-                            htmlutils.htmlify(repository_name))),
+                         % (htmlutils.htmlify(remote),
+                            ("another repository"
+                             if len(repository_names) == 1 else
+                             "other repositories"),
+                            htmlutils.htmlify(", ".join(sorted(repository_names))),
+                            htmlutils.htmlify(repository.name))),
                 is_html=True)
 
         if not branch.startswith("refs/"):
