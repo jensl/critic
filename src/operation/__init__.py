@@ -82,6 +82,7 @@ class Operation(object):
         self.__accept_anonymous_user = accept_anonymous_user
 
     def __call__(self, req, db, user):
+        import auth
         from operation.typechecker import TypeCheckerContext
 
         if user.isAnonymous() and not self.__accept_anonymous_user:
@@ -110,6 +111,10 @@ class Operation(object):
             return OperationFailure(code="nosuchreview",
                                     title="Invalid review ID",
                                     message="The review ID r/%d is not valid." % error.id)
+        except auth.AccessDenied as error:
+            return OperationFailure(code="accessdenied",
+                                    title="Access denied",
+                                    message=error.message)
         except dbutils.TransactionRollbackError:
             return OperationFailure(code="transactionrollback",
                                     title="Transaction rolled back",

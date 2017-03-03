@@ -88,6 +88,9 @@ class SubmitReview(Operation):
                 commit_sha1s=None, applyfilters=True, applyparentfilters=True,
                 reviewfilters=None, recipientfilters=None, description=None,
                 frombranch=None, trackedbranch=None):
+        # Raises auth.AccessDenied if access should not be allowed.
+        repository.checkAccess(db, "modify")
+
         if not branch.startswith("r/"):
             raise OperationFailure(code="invalidbranch",
                                    title="Invalid review branch name",
@@ -199,14 +202,15 @@ class FetchRemoteBranches(Operation):
 
 class FetchRemoteBranch(Operation):
     def __init__(self):
-        Operation.__init__(self, { "repository_name": str,
+        Operation.__init__(self, { "repository": Repository,
                                    "remote": str,
                                    "branch": str,
                                    "upstream": Optional(str) },
                            accept_anonymous_user=True)
 
-    def process(self, db, user, repository_name, remote, branch, upstream="refs/heads/master"):
-        repository = gitutils.Repository.fromName(db, repository_name)
+    def process(self, db, user, repository, remote, branch, upstream="refs/heads/master"):
+        # Raises auth.AccessDenied if access should not be allowed.
+        repository.checkAccess(db, "modify")
 
         cursor = db.cursor()
 
