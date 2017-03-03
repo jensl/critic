@@ -22,6 +22,15 @@ function executeCLI(commands)
 {
   var argv = [python_executable, "-m", "cli"], stdin = "";
 
+  if (typeof user_id === "number")
+    argv.push("-u", user_id.toString());
+
+  authentication_labels.forEach(
+    function (authentication_label)
+    {
+      argv.push("-l", authentication_label);
+    });
+
   commands.forEach(
     function (command)
     {

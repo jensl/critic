@@ -213,6 +213,7 @@ var library_path;
 var hostname;
 var extension_id;
 var user_id;
+var authentication_labels;
 var role;
 var git_executable;
 var python_executable;
@@ -257,6 +258,7 @@ function setup(data)
   hostname = data.hostname;
   extension_id = data.extension_id;
   user_id = data.user_id;
+  authentication_labels = data.authentication_labels;
   role = data.role;
   git_executable = data.git;
   python_executable = data.python;

@@ -110,6 +110,8 @@ function CriticReview(arg)
   this.droppedBy = result.dropped_by && new CriticUser(result.dropped_by);
   this.summary = result.summary || "";
   this.description = result.description || "";
+  this.branch = new CriticBranch({ id: result.branch, review: this });
+  this.repository = this.branch.repository;
 
   var owners = db.execute("SELECT uid FROM reviewusers WHERE review=%d AND owner", review_id);
   for (var index = 0; index < owners.length; ++index)
@@ -117,8 +119,6 @@ function CriticReview(arg)
 
   var self = this;
   var commits = null;
-  var branch = null, branch_id = result.branch;
-  var repository = null;
   var comment_chains = null;
   var users = null;
   var reviewers = null;
@@ -141,39 +141,16 @@ function CriticReview(arg)
     if (!commits)
     {
       var all = [];
-      var repository = getRepository();
 
       var result = db.execute("SELECT DISTINCT child FROM changesets JOIN reviewchangesets ON (changeset=id) WHERE review=%d", self.id);
 
       for (var index = 0; index < result.length; ++index)
-        all.push(repository.getCommit(result[index].child));
+        all.push(self.repository.getCommit(result[index].child));
 
       commits = new CriticCommitSet(all);
     }
 
     return commits;
-  }
-
-  function getBranch()
-  {
-    if (!branch)
-      branch = new CriticBranch({ id: branch_id, repository: repository, review: self });
-
-    return branch;
-  }
-
-  function getRepository()
-  {
-    if (!repository)
-      if (branch)
-        repository = branch.repository;
-      else
-      {
-        var result = db.execute("SELECT repository FROM branches WHERE id=%d", branch_id)[0];
-        repository = new CriticRepository(result.repository);
-      }
-
-    return repository;
   }
 
   function getCommentChains()
@@ -430,8 +407,6 @@ function CriticReview(arg)
   }
 
   Object.defineProperties(this, { commits: { get: getCommits, enumerable: true },
-                                  branch: { get: getBranch, enumerable: true },
-                                  repository: { get: getRepository, enumerable: true },
                                   commentChains: { get: getCommentChains, enumerable: true },
                                   users: { get: getUsers, enumerable: true },
                                   reviewers: { get: getReviewers, enumerable: true },

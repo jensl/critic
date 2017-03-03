@@ -40,8 +40,11 @@ def executeProcess(db, manifest, role_name, script, function, extension_id,
     # authenticate the user.
     if user_id != db.user.id:
         user = dbutils.User.fromId(db, user_id)
-        profiles = [auth.AccessControlProfile.forUser(db, user)]
+        authentication_labels = auth.DATABASE.getAuthenticationLabels(user)
+        profiles = [auth.AccessControlProfile.forUser(
+            db, user, authentication_labels)]
     else:
+        authentication_labels = db.authentication_labels
         profiles = db.profiles
 
     extension = Extension.fromId(db, extension_id)
@@ -78,6 +81,7 @@ def executeProcess(db, manifest, role_name, script, function, extension_id,
             "extension_path": manifest.path,
             "extension_id": extension_id,
             "user_id": user_id,
+            "authentication_labels": list(authentication_labels),
             "role": role_name,
             "script_path": script,
             "fn": function,

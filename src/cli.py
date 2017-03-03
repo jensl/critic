@@ -14,6 +14,7 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
+import argparse
 import sys
 import traceback
 
@@ -30,10 +31,17 @@ from textutils import json_encode, json_decode
 
 db = None
 
-def init():
+def init(user_id, authentication_labels):
     global db
 
-    db = dbutils.Database.forSystem()
+    db = dbutils.Database.forUser()
+
+    if user_id is None:
+        user = dbutils.User.makeAnonymous()
+    else:
+        user = dbutils.User.fromId(db, user_id)
+
+    db.setUser(user, authentication_labels)
 
 def finish():
     global db
@@ -124,13 +132,46 @@ def propagateComment(data):
     except Exception as exception:
         return str(exception)
 
-HANDLERS = { "propagate-comment": propagateComment }
+def checkRepositoryAccess(data):
+    import auth
 
-try:
-    if len(sys.argv) > 1:
-        init()
+    read = modify = False
 
-        for command in sys.argv[1:]:
+    try:
+        gitutils.Repository.fromId(db, data["repository_id"], for_modify=False)
+    except auth.AccessDenied:
+        pass
+    else:
+        read = True
+
+    try:
+        gitutils.Repository.fromId(db, data["repository_id"], for_modify=True)
+    except auth.AccessDenied:
+        pass
+    else:
+        modify = True
+
+    return {
+        "read": read,
+        "modify": modify,
+    }
+
+HANDLERS = { "propagate-comment": propagateComment,
+             "check-repository-access": checkRepositoryAccess }
+
+def main():
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument("-u", dest="user_id", type=int)
+    parser.add_argument("-l", dest="auth_labels", action="append", default=[])
+    parser.add_argument("command", nargs="*")
+
+    arguments = parser.parse_args()
+
+    try:
+        init(arguments.user_id, arguments.auth_labels)
+
+        for command in arguments.command:
             pending_mails = None
 
             if command == "generate-mails-for-batch":
@@ -211,7 +252,10 @@ try:
                 sys.stdout.write(json_encode(pending_mails) + "\n")
 
         finish()
-except Exception:
-    sys.stdout.write(json_encode(traceback.format_exc()) + "\n")
-finally:
-    abort()
+    except Exception:
+        sys.stdout.write(json_encode(traceback.format_exc()) + "\n")
+    finally:
+        abort()
+
+if __name__ == "__main__":
+    main()

@@ -936,31 +936,40 @@ CriticBatch.prototype.finish = function (data)
 
       if (!data.silent)
       {
-        var argv = [python_executable, "-m", "cli"], stdin = "";
+        var commands = [];
 
         if (batch_id !== null)
         {
-          argv.push("generate-mails-for-batch");
-          stdin += format("%s\n", JSON.stringify({ batch_id: batch_id,
-                                                   was_accepted: progress_before.accepted,
-                                                   is_accepted: progress_after.accepted }));
+          commands.push({
+            name: "generate-mails-for-batch",
+            data: {
+              batch_id: batch_id,
+              was_accepted: progress_before.accepted,
+              is_accepted: progress_after.accepted
+            }
+          });
         }
 
         if (transaction_id !== null)
         {
-          argv.push("generate-mails-for-assignments-transaction");
-          stdin += format("%s\n", JSON.stringify({ transaction_id: transaction_id }));
+          commands.push({
+            name: "generate-mails-for-assignments-transaction",
+            data: {
+              transaction_id: transaction_id
+            }
+          });
         }
 
-        var process = new OS.Process(python_executable,
-                                     { argv: argv,
-                                       environ: { PYTHONPATH: python_path }});
-        var lines = process.call(stdin).trim().split("\n");
+        var lines = executeCLI(commands);
 
         if (lines)
         {
-          for (var index = 0; index < lines.length; ++index)
-            JSON.parse(lines[index]).forEach(sendMail);
+          try {
+            for (var index = 0; index < lines.length; ++index)
+              JSON.parse(lines[index]).forEach(sendMail);
+          } catch (error) {
+            throw new Error(format("%r", lines));
+          }
 
           var pid = parseInt(IO.File.read(maildelivery_pid_path).decode().trim());
 

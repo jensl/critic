@@ -154,8 +154,6 @@ class Repository:
             self.__db = None
             atexit.register(self.__terminate)
 
-        self.__startBatch()
-
     def __str__(self):
         return self.path
 
@@ -189,6 +187,11 @@ class Repository:
     def disableCache(self):
         self.__cacheDisabled = True
 
+    def checkAccess(self, db, access_type):
+        import auth
+        assert access_type in ("read", "modify")
+        auth.AccessControl.accessRepository(db, access_type, self)
+
     @staticmethod
     def fromId(db, repository_id, for_modify=False):
         if repository_id in db.storage["Repository"]:
@@ -201,11 +204,8 @@ class Repository:
             parent = None if parent_id is None else Repository.fromId(db, parent_id)
             repository = Repository(db, repository_id=repository_id, parent=parent, name=name, path=path)
 
-        import auth
-
         # Raises auth.AccessDenied if access should not be allowed.
-        auth.AccessControl.accessRepository(
-            db, "modify" if for_modify else "read", repository)
+        repository.checkAccess(db, "modify" if for_modify else "read")
 
         db.storage["Repository"][repository_id] = repository
         db.storage["Repository"][repository.name] = repository

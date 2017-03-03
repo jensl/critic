@@ -255,6 +255,18 @@ function CriticRepository(name_or_id)
   if (!result)
     throw CriticError(format("%s: invalid repository ID", repository_id));
 
+  var command = {
+    name: "check-repository-access",
+    data: {
+      repository_id: repository_id
+    }
+  };
+
+  this.access = JSON.parse(executeCLI([command])[0]);
+
+  if (!this.access.read)
+    throw CriticError(format("access denied"));
+
   this.id = repository_id;
   this.name = result.name;
   this.path = result.path;
