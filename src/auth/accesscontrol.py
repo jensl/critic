@@ -211,6 +211,11 @@ class AccessControl(object):
         if not AccessControlProfile.isAllowedHTTP(db.profiles, req):
             raise AccessDenied("Access denied: %s /%s" % (req.method, req.path))
 
+    class Repository(object):
+        def __init__(self, repository_id, path):
+            self.id = repository_id
+            self.path = path
+
     @staticmethod
     def accessRepository(db, access_type, repository):
         if not AccessControlProfile.isAllowedRepository(

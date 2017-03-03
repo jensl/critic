@@ -137,7 +137,7 @@ def renderSelectSource(req, db, user):
     default_branches = {}
 
     def renderLocalRepository(target):
-        page.utils.generateRepositorySelect(db, user, target)
+        page.utils.generateRepositorySelect(db, user, target, access_type="modify")
 
         cursor.execute("""SELECT repositories.id, repositories.name, repositories.path
                             FROM repositories

@@ -16,6 +16,7 @@
 
 import re
 
+import auth
 import htmlutils
 import configuration
 
@@ -313,7 +314,8 @@ class PaleYellowTable:
         self.table.tr("separator").td(colspan=len(self.columns)).div()
 
 def generateRepositorySelect(db, user, target, allow_selecting_none=False,
-                             placeholder_text=None, selected=None, **attributes):
+                             placeholder_text=None, selected=None,
+                             access_type="read", **attributes):
     select = target.select("repository-select", **attributes)
 
     cursor = db.cursor()
@@ -370,6 +372,13 @@ def generateRepositorySelect(db, user, target, allow_selecting_none=False,
                    "<span class=repository-path>%s</span>")
 
     for repository_id, name, path in rows:
+        try:
+            repository = auth.AccessControl.Repository(repository_id, path)
+            auth.AccessControl.accessRepository(db, access_type, repository)
+        except auth.AccessDenied:
+            # Skip repositories the user doesn't have access to.
+            continue
+
         if repository_id in highlighted_ids:
             optgroup = highlighted
         else:
