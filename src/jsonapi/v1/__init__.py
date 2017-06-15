@@ -17,6 +17,7 @@
 import configuration
 
 import users
+import sessions
 import repositories
 import commits
 import branches

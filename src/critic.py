@@ -635,9 +635,6 @@ def process_request(environ, start_response):
             user = req.user
             user.loadPreferences(db)
 
-            if not user.isAnonymous():
-                critic.setActualUser(api.user.fetch(critic, user_id=user.id))
-
             if user.status == 'retired':
                 # If a retired user accesses the system, change the status back
                 # to 'current' again.

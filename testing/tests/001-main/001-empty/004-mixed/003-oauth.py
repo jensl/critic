@@ -5,6 +5,9 @@ import urlparse
 def externalauthURL(name):
     return "externalauth/%s?%s" % (name, urllib.urlencode({ "target": "/" }))
 
+def signout():
+    frontend.operation("endsession", data={})
+
 with_class = testing.expect.with_class
 
 def isprefix(expected, actual):
@@ -130,7 +133,7 @@ frontend.collect_session_cookie()
 redirect_url = finish_externalauth("alice", state)
 testing.expect.check("/", redirect_url)
 
-with frontend.cookie_session("/oauth/alice"):
+with frontend.cookie_session(signout):
     document_title_check = testing.expect.document_title(
         "Alice von Testing's Home")
 
@@ -198,7 +201,7 @@ frontend.operation(
 
 instance.registeruser("carol")
 
-with frontend.cookie_session("/registeruser"):
+with frontend.cookie_session(signout):
     # Check that the email address isn't unverified.
     def email_not_unverified(document):
         address = document.find(attrs=with_class("address"))
@@ -229,7 +232,7 @@ redirect_url = finish_externalauth("felix", state)
 
 instance.registeruser("felix")
 
-with frontend.cookie_session("/oauth/felix"):
+with frontend.cookie_session(signout):
     document_title_check = testing.expect.document_title(
         "Felix von Testing's Home")
 
@@ -270,7 +273,7 @@ frontend.operation(
 
 instance.registeruser("gina")
 
-with frontend.cookie_session("/registeruser"):
+with frontend.cookie_session(signout):
     # Check that the email address is unverified.
     def email_unverified(document):
         address = document.find(attrs=with_class("address"))

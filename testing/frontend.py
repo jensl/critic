@@ -61,19 +61,37 @@ class OperationError(Error):
         self.expected = expected
         self.actual = actual
 
-class NoSession(object):
+class SessionBase(object):
     def apply(self, kwargs):
         pass
 
-class CookieSession(object):
+    def process_response(self, response):
+        if "sid" in response.cookies:
+            raise Error(response.url, "unexpected session cookie set")
+
+class NoSession(SessionBase):
+    pass
+
+class CookieSession(SessionBase):
     def __init__(self, sid=None):
         self.sid = sid
 
     def apply(self, kwargs):
-        headers = kwargs.setdefault("headers", {})
-        headers["Cookie"] = "sid=%s; has_sid=1" % self.sid
+        if self.sid is not None:
+            headers = kwargs.setdefault("headers", {})
+            headers["Cookie"] = "sid=%s; has_sid=1" % self.sid
 
-class HTTPAuthSession(object):
+    def process_response(self, response):
+        for name, value in response.cookies.items():
+            if name == "sid":
+                self.sid = value
+            elif name == "has_sid" and value == "0":
+                # This means we've signed out. The response would also have
+                # deleted the "sid" cookie, but unfortunately we can't really
+                # get that information from the response.
+                self.sid = None
+
+class HTTPAuthSession(SessionBase):
     def __init__(self, username, password):
         self.username = username
         self.password = password
@@ -86,8 +104,11 @@ class Frontend(object):
         self.hostname = hostname
         self.http_port = http_port
         self.sessions = [NoSession()]
-        self.pending_session = None
         self.instance = None
+
+    @property
+    def current_session(self):
+        return self.sessions[-1]
 
     def prefix(self, username=None):
         if username:
@@ -112,7 +133,7 @@ class Frontend(object):
 
         kwargs = {}
 
-        self.sessions[-1].apply(kwargs)
+        self.current_session.apply(kwargs)
 
         if post is not None:
             kwargs["data"] = post
@@ -131,10 +152,7 @@ class Frontend(object):
                                     allow_redirects=not disable_redirects,
                                     **kwargs)
 
-        if "sid" in response.cookies:
-            testing.logger.debug("Cookie: sid=%s" % response.cookies["sid"])
-            if self.pending_session:
-                self.pending_session.sid = response.cookies["sid"]
+        self.current_session.process_response(response)
 
         def text(response):
             if hasattr(response, "text"):
@@ -205,6 +223,7 @@ class Frontend(object):
                 try:
                     check(document)
                 except testing.expect.FailedCheck as failed_check:
+                    print text(response)
                     testing.logger.error("Page '%s', test '%s': %s"
                                          % (url, key, failed_check.message))
                     failed_checks = True
@@ -225,7 +244,7 @@ class Frontend(object):
 
         kwargs = {}
 
-        self.sessions[-1].apply(kwargs)
+        self.current_session.apply(kwargs)
 
         if not isinstance(data, basestring):
             data = json.dumps(data)
@@ -260,10 +279,7 @@ class Frontend(object):
             testing.logger.error("Operation '%s': %s" % (url, error.message))
             raise testing.TestFailure
 
-        if "sid" in response.cookies:
-            testing.logger.debug("Cookie: sid=%s" % response.cookies["sid"])
-            if self.pending_session:
-                self.pending_session.sid = response.cookies["sid"]
+        self.current_session.process_response(response)
 
         testing.logger.debug("Executed operation: %s" % full_url)
 
@@ -328,7 +344,7 @@ class Frontend(object):
                    "headers": { "Accept": "application/vnd.api+json" } }
         method = "GET"
 
-        self.sessions[-1].apply(kwargs)
+        self.current_session.apply(kwargs)
 
         if post is not None:
             method = "POST"
@@ -346,6 +362,8 @@ class Frontend(object):
 
         testing.logger.debug("Accessed JSON API: %s %s ..."
                              % (method, log_url))
+
+        self.current_session.process_response(response)
 
         try:
             if response.status_code != expected_http_status:
@@ -481,23 +499,27 @@ class Frontend(object):
         return result
 
     @contextlib.contextmanager
-    def cookie_session(self, operation):
-        if not self.pending_session.sid:
-            testing.expect.check("<signed in after %s>" % operation,
-                                 "<no session cookie received>")
+    def cookie_session(self, signout):
+        if self.current_session.sid is None:
+            testing.expect.check("<signed in>", "<no session cookie received>")
         testing.logger.debug("Starting cookie session")
-        self.sessions.append(self.pending_session)
-        self.pending_session = None
         try:
             yield
         finally:
-            try:
-                self.operation("endsession", data={})
-            except testing.TestFailure as failure:
-                if failure.message:
-                    testing.logger.error(failure.message)
-            except Exception:
-                testing.logger.exception("Failed to sign out!")
+            # Sign out unless we seem to have signed out already. Some tests may
+            # want to do the signout explicitly, which is fine.
+            if self.current_session.sid is not None:
+                try:
+                    signout()
+                except testing.TestFailure as failure:
+                    if failure.message:
+                        testing.logger.error(failure.message)
+                except Exception:
+                    testing.logger.exception("Failed to sign out!")
+
+                if self.current_session.sid is not None:
+                    testing.expect.check("<signed out>",
+                                         "<session cookie not removed>")
 
             # Dropping the cookie effectively signs out even if the "endsession"
             # operation failed.
@@ -514,7 +536,7 @@ class Frontend(object):
             self.sessions.pop()
 
     def collect_session_cookie(self):
-        self.pending_session = CookieSession()
+        self.sessions.append(CookieSession())
 
     def validatelogin(self, username, password, expect_failure=False):
         data = { "fields": { "username": username,
@@ -539,7 +561,7 @@ class Frontend(object):
 
     @contextlib.contextmanager
     def signin(self, username="admin", password="testing", use_httpauth=False,
-               access_token=None):
+               use_json_api=False, access_token=None):
         if access_token:
             username = access_token["part1"]
             password = access_token["part2"]
@@ -553,8 +575,28 @@ class Frontend(object):
         else:
             with self.no_session():
                 self.collect_session_cookie()
-                self.validatelogin(username, password)
-                with self.cookie_session("/validatelogin"):
+                if use_json_api:
+                    self.json(
+                        "sessions",
+                        post={
+                            "username": username,
+                            "password": password
+                        },
+                        expect={
+                            "user": self.instance.userid(username),
+                            "type": "normal",
+                            "*": "*"
+                        })
+                    def signout():
+                        self.json(
+                            "sessions/current",
+                            delete=True,
+                            expected_http_status=204)
+                else:
+                    self.validatelogin(username, password)
+                    def signout():
+                        self.operation("endsession", data={})
+                with self.cookie_session(signout):
                     yield
 
     def run_basic_tests(self):

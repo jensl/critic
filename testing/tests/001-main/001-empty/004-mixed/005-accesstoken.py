@@ -1,16 +1,3 @@
-def check_user(user):
-    frontend.page(
-        "dashboard",
-        expect={
-            "script_user": testing.expect.script_user(user)
-        })
-
-anonymous = testing.User.anonymous()
-alice = instance.user("alice")
-admin = instance.user("admin")
-
-check_user(anonymous)
-
 # Sign in and create an access token.
 with frontend.signin("alice"):
     check_user(alice)
@@ -77,7 +64,7 @@ check_user(anonymous)
 
 # Check that Alice can authenticate using the token and HTTP authentication.
 with frontend.signin(access_token=access_token):
-    check_user(alice)
+    check_user(alice, "accesstoken")
 
 check_user(anonymous)
 
@@ -177,7 +164,7 @@ check_user(anonymous)
 # authentication succeeded or not.  This kind of access token is mostly useful
 # in a system that doesn't otherwise allow anonymous access.
 with frontend.signin(access_token=access_token):
-    check_user(anonymous)
+    check_user(anonymous, "accesstoken")
 
 check_user(anonymous)
 

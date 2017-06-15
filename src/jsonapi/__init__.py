@@ -189,6 +189,9 @@ def PrimaryResource(resource_class):
     for name in ("exceptions", "objects", "lists", "maps"):
         if not hasattr(resource_class, name):
             setattr(resource_class, name, ())
+    for name in ("anonymous_create", "anonymous_update", "anonymous_delete"):
+        if not hasattr(resource_class, name):
+            setattr(resource_class, name, False)
     contexts = getattr(resource_class, "contexts", (None,))
     if None in contexts:
         registerHandler("v1/" + resource_class.name, resource_class)
@@ -322,7 +325,14 @@ def finishGET(critic, req, parameters, resource_class, value, values):
 
     return resource_json
 
+def requireSignIn(critic):
+    if critic.actual_user is None:
+        raise UsageError("Sign-in required")
+
 def finishPOST(critic, req, parameters, resource_class, value, values, data):
+    if not resource_class.anonymous_create:
+        requireSignIn(critic)
+
     if (value or values) and not parameters.subresource_path:
         raise UsageError("Invalid POST request")
 
@@ -335,6 +345,9 @@ def finishPOST(critic, req, parameters, resource_class, value, values, data):
     return finishGET(critic, req, parameters, resource_class, value, values)
 
 def finishPUT(critic, req, parameters, resource_class, value, values, data):
+    if not resource_class.anonymous_update:
+        requireSignIn(critic)
+
     if not (value or values):
         raise UsageError("Invalid PUT request")
 
@@ -347,6 +360,9 @@ def finishPUT(critic, req, parameters, resource_class, value, values, data):
     return finishGET(critic, req, parameters, resource_class, value, values)
 
 def finishDELETE(critic, req, parameters, resource_class, value, values):
+    if not resource_class.anonymous_delete:
+        requireSignIn(critic)
+
     if not (value or values):
         raise UsageError("Invalid DELETE request")
 
@@ -364,10 +380,6 @@ def finishDELETE(critic, req, parameters, resource_class, value, values):
     return finishGET(critic, req, parameters, resource_class, value, values)
 
 def handleRequestInternal(critic, req):
-    if req.method in ("POST", "PUT", "DELETE"):
-        if critic.actual_user is None:
-            raise UsageError("Sign-in required")
-
     api_version = getAPIVersion(req)
 
     if not api_version:

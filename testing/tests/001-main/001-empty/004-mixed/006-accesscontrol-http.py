@@ -250,11 +250,7 @@ with frontend.signin():
         })
 
 with frontend.signin(access_token=access_token):
-    frontend.page(
-        "dashboard",
-        expect={
-            "script_user": testing.expect.script_user(testing.User.anonymous())
-        })
+    check_user(anonymous, "accesstoken")
 
     # /branches should now return "403 Forbidden".
     frontend.page(

@@ -72,11 +72,14 @@ class Session(object):
 
     def setUser(self, user, authentication_labels=()):
         import auth
+        import api
         assert not self.__user or self.__user.isAnonymous()
         self.__user = user
         self.__authentication_labels.update(authentication_labels)
         self.__profiles.add(auth.AccessControlProfile.forUser(
             self, user, self.__authentication_labels))
+        if self.critic and not (user.isAnonymous() or user.isSystem()):
+            self.critic.setActualUser(api.user.fetch(self.critic, user_id=user.id))
 
     def addProfile(self, profile):
         self.__profiles.add(profile)
