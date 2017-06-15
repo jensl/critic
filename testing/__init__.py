@@ -82,6 +82,10 @@ class Instance(object):
     flags_on = []
     flags_off = []
 
+    # The VirtualBox instance sets this depending on arguments. Other modes
+    # don't support it, so default to False.
+    test_extensions = False
+
     # This is used to keep track of which commit is currently running.  This is
     # really only relevant for VM instances when upgrading from an older commit,
     # so only testing.virtualbox.Instance actually sets this.

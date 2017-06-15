@@ -49,6 +49,7 @@ class Instance(testing.Instance):
         self.snapshot = arguments.vm_snapshot
         self.hostname = arguments.vm_hostname or self.identifier
         self.ssh_port = arguments.vm_ssh_port
+        self.test_extensions = arguments.test_extensions
         if install_commit:
             self.install_commit, self.install_commit_description = install_commit
             self.tested_commit = self.install_commit

@@ -89,40 +89,41 @@ class Repository(object):
 
         self.push(tested_commit)
 
-        if os.path.exists("installation/externals/v8-jsshell/.git"):
-            v8_jsshell_path = os.path.join(os.getcwd(), "installation/externals/v8-jsshell")
-            _git(["clone", "--bare", v8_jsshell_path, "v8-jsshell.git"],
-                 cwd=self.base_path)
-            self.v8_jsshell_path = os.path.join(self.base_path, "v8-jsshell.git")
-            v8_jsshell_sha1 = submodule_sha1(os.getcwd(), tested_commit,
-                                             "installation/externals/v8-jsshell")
-            if v8_jsshell_sha1:
-                _git(["push", "--quiet", "--force", self.v8_jsshell_path,
-                      v8_jsshell_sha1 + ":refs/heads/master"],
-                     cwd=v8_jsshell_path)
-        else:
-            self.v8_jsshell_path = None
-            v8_jsshell_sha1 = None
+        self.v8_jsshell_path = None
+        self.v8_path = None
+        self.v8_url = None
 
-        if os.path.exists("installation/externals/v8-jsshell/v8/.git"):
-            v8_path = os.path.join(os.getcwd(), "installation/externals/v8-jsshell/v8")
-            _git(["clone", "--bare", v8_path, "v8/v8.git"],
-                 cwd=self.base_path)
-            self.v8_path = os.path.join(self.base_path, "v8/v8.git")
-            if port:
-                self.v8_url = "git://%s:%d/v8/v8.git" % (host, port)
+        if instance.test_extensions:
+            if os.path.exists("installation/externals/v8-jsshell/.git"):
+                v8_jsshell_path = os.path.join(os.getcwd(), "installation/externals/v8-jsshell")
+                _git(["clone", "--bare", v8_jsshell_path, "v8-jsshell.git"],
+                     cwd=self.base_path)
+                self.v8_jsshell_path = os.path.join(self.base_path, "v8-jsshell.git")
+                v8_jsshell_sha1 = submodule_sha1(os.getcwd(), tested_commit,
+                                                 "installation/externals/v8-jsshell")
+                if v8_jsshell_sha1:
+                    _git(["push", "--quiet", "--force", self.v8_jsshell_path,
+                          v8_jsshell_sha1 + ":refs/heads/master"],
+                         cwd=v8_jsshell_path)
             else:
-                self.v8_url = "git://%s/v8/v8.git" % host
-            if v8_jsshell_sha1:
-                v8_sha1 = submodule_sha1("installation/externals/v8-jsshell",
-                                         v8_jsshell_sha1, "v8")
-                if v8_sha1:
-                    _git(["push", "--quiet", "--force", self.v8_path,
-                          v8_sha1 + ":refs/heads/master"],
-                         cwd=v8_path)
-        else:
-            self.v8_path = None
-            self.v8_url = None
+                v8_jsshell_sha1 = None
+
+            if os.path.exists("installation/externals/v8-jsshell/v8/.git"):
+                v8_path = os.path.join(os.getcwd(), "installation/externals/v8-jsshell/v8")
+                _git(["clone", "--bare", v8_path, "v8/v8.git"],
+                     cwd=self.base_path)
+                self.v8_path = os.path.join(self.base_path, "v8/v8.git")
+                if port:
+                    self.v8_url = "git://%s:%d/v8/v8.git" % (host, port)
+                else:
+                    self.v8_url = "git://%s/v8/v8.git" % host
+                if v8_jsshell_sha1:
+                    v8_sha1 = submodule_sha1("installation/externals/v8-jsshell",
+                                             v8_jsshell_sha1, "v8")
+                    if v8_sha1:
+                        _git(["push", "--quiet", "--force", self.v8_path,
+                              v8_sha1 + ":refs/heads/master"],
+                             cwd=v8_path)
 
     def push(self, commit):
         _git(["push", "--quiet", "--force", self.path,
