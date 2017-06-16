@@ -56,6 +56,9 @@ parser.add_argument("--headless", help=argparse.SUPPRESS, action="store_true")
 class DefaultBinDir:
     pass
 
+v8_url = "git://github.com/v8/v8.git"
+depot_tools_url = "https://chromium.googlesource.com/chromium/tools/depot_tools.git"
+
 basic = parser.add_argument_group("basic options")
 basic.add_argument("--etc-dir", help="directory where the Critic system configuration is stored [default=/etc/critic]", action="store", default="/etc/critic")
 basic.add_argument("--identity", help="system identity to upgrade [default=main]", action="store", default="main")
@@ -72,7 +75,8 @@ actions.add_argument("--install", help="install the extension host executable", 
 actions.add_argument("--enable", help="enable extension support in Critic's configuration", action="store_true")
 
 actions.add_argument("--with-v8-jsshell", help="v8-jsshell repository URL [default=../v8-jsshell.git]", metavar="URL")
-actions.add_argument("--with-v8", help="v8 repository URL [default=git://github.com/v8/v8.git]", metavar="URL")
+actions.add_argument("--with-v8", help="v8 repository URL [default=%s]" % v8_url, metavar="URL")
+actions.add_argument("--with-depot_tools", help="depot_tools repository URL [default=%s]" % depot_tools_url, metavar="URL")
 
 # Useful to speed up repeated building from clean repositories; used
 # by the testing framework.
@@ -252,10 +256,15 @@ env["postgresql"] = "yes"
 if check_libcurl():
     env["libcurl"] = "yes"
 
+env["PATH"] = (os.path.join(os.getcwd(), "installation/externals/depot_tools") +
+               ":" + os.environ["PATH"])
+
 root = os.path.dirname(os.path.abspath(sys.argv[0]))
 v8_jsshell = os.path.join(root, "installation/externals/v8-jsshell")
 
 def do_unprivileged_work():
+    global depot_tools_url
+
     if is_root:
         stat = os.stat(sys.argv[0])
         os.environ["USER"] = pwd.getpwuid(stat.st_uid).pw_name
@@ -264,6 +273,13 @@ def do_unprivileged_work():
         os.setuid(stat.st_uid)
 
     if fetch:
+        if arguments.with_depot_tools:
+            depot_tools_url = arguments.with_depot_tools
+
+        subprocess.check_call(
+            [git, "clone", depot_tools_url],
+            cwd="installation/externals")
+
         def fetch_submodule(cwd, submodule, url=None):
             subprocess.check_call(
                 [git, "submodule", "init", submodule],

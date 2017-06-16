@@ -181,12 +181,8 @@ with repository.workcopy() as work:
           "    Failed to call 'filterhook.js::filterhook()':",
           '      Error: Boom!',
           '        Error: Boom!',
-          '            at Error (native)',
           '            at filterhook.js:9:15',
-          '            at Array.forEach (native)',
           '            at filterhook (filterhook.js:6:9)',
-          '            at run (/usr/share/critic/library/js/v8/critic-launcher.js:47:30)',
-          '            at /usr/share/critic/library/js/v8/critic-launcher.js:66:17',
           '',
           '-- critic'],
          to_alice.lines)

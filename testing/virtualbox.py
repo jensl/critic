@@ -682,20 +682,20 @@ class Instance(testing.Instance):
 
             internal("fetch", extra_argv)
 
-            v8_sha1 = subprocess.check_output(
-                ["git", "ls-tree", "HEAD", "v8"],
-                cwd="installation/externals/v8-jsshell").split()[2]
-            cached_v8deps = os.path.join(self.arguments.cache_dir,
-                                         "v8-dependencies",
-                                         "%s.tar.bz2" % v8_sha1)
-            if os.path.isfile(cached_v8deps):
-                self.copyto(cached_v8deps, "v8deps.tar.bz2")
-                internal("import-v8-dependencies=~/v8deps.tar.bz2")
-            else:
-                internal("export-v8-dependencies=~/v8deps.tar.bz2")
-                if not os.path.isdir(os.path.dirname(cached_v8deps)):
-                    os.makedirs(os.path.dirname(cached_v8deps))
-                self.copyfrom("v8deps.tar.bz2", cached_v8deps)
+            # v8_sha1 = subprocess.check_output(
+            #     ["git", "ls-tree", "HEAD", "v8"],
+            #     cwd="installation/externals/v8-jsshell").split()[2]
+            # cached_v8deps = os.path.join(self.arguments.cache_dir,
+            #                              "v8-dependencies",
+            #                              "%s.tar.bz2" % v8_sha1)
+            # if os.path.isfile(cached_v8deps):
+            #     self.copyto(cached_v8deps, "v8deps.tar.bz2")
+            #     internal("import-v8-dependencies=~/v8deps.tar.bz2")
+            # else:
+            #     internal("export-v8-dependencies=~/v8deps.tar.bz2")
+            #     if not os.path.isdir(os.path.dirname(cached_v8deps)):
+            #         os.makedirs(os.path.dirname(cached_v8deps))
+            #     self.copyfrom("v8deps.tar.bz2", cached_v8deps)
 
             internal("build")
 

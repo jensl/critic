@@ -5,7 +5,7 @@ def check_compilation(document):
         expected="""\
 Extension failure: returned 1
 Failed to load 'error\\.compilation\\.js':
-  SyntaxError: Strict mode function may not have duplicate parameter names""",
+  SyntaxError: Duplicate parameter name not allowed in this context""",
         actual=document,
         equal=re.match)
 
@@ -15,10 +15,7 @@ def check_runtime(document):
 Extension failure: returned 1
 Failed to call 'error\\.runtime\\.js::test\\(\\)':
   CriticError: nosuchuser: no such user
-    new CriticUser\\(\\) at <Library>/critic-user\\.js:\\d+
-    test\\(\\) at <Extension>/error\\.runtime\\.js:\\d+
-    run\\(\\) at <Library>/critic-launcher\\.js:\\d+
-    <program code> at <Library>/critic-launcher\\.js:\\d+""",
+    new CriticUser\\(\\) at <Library>/critic-user\\.js:\\d+""",
         actual=document,
         equal=re.match)
 

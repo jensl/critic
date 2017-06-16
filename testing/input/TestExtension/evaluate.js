@@ -10,11 +10,13 @@ function evaluate() {
   writeln();
 
   try {
-    var fn = new Function(data["source"]);
+    var source = "(function () { " + data["source"] + " })";
+    var fn = eval(source);
     writeln(JSON.stringify({ "status": "ok",
                              "result": fn() }));
   } catch (error) {
     writeln(JSON.stringify({ "status": "error",
+                             "source": source,
                              "error": String(error) }));
   }
 }
