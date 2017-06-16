@@ -14,10 +14,10 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-import sys
 import copy
 import contextlib
 import itertools
+import re
 
 import api
 import auth
@@ -43,12 +43,14 @@ class PermissionDenied(Error):
     http_status = 403
     title = "Permission denied"
 
-SPECIAL_QUERY_PARAMETERS = frozenset(["fields", "include"])
+SPECIAL_QUERY_PARAMETERS = frozenset(["fields", "include", "debug"])
 
 class Parameters(object):
     def __init__(self, critic, req):
         self.critic = critic
         self.req = req
+        self.debug = req.getParameter(
+            "debug", set(), filter=lambda value: set(value.split(",")))
         self.fields = req.getParameter(
             "fields", set(), filter=lambda value: set(value.split(",")))
         self.fields_per_type = {}
@@ -322,6 +324,33 @@ def finishGET(critic, req, parameters, resource_class, value, values):
                 all_linked[resource_type] |= linked[resource_type]
 
             linked = additional_linked
+
+    if critic.database.profiling and "dbqueries" in parameters.debug:
+        import profiling
+        # Sort items by accumulated time.
+        items = sorted(critic.database.profiling.items(),
+                       key=lambda item: item[1][1],
+                       reverse=True)
+        resource_json.setdefault("debug", {})["dbqueries"] = {
+            "formatted": profiling.formatDBProfiling(critic.database),
+            "items": [
+                {
+                    "query": re.sub(r"\s+", " ", query),
+                    "count": count,
+                    "accumulated": {
+                        "time": accumulated_ms,
+                        "rows": accumulated_rows
+                    },
+                    "maximum": {
+                        "time": maximum_ms,
+                        "rows": maximum_rows
+                    }
+                }
+                for query, (count,
+                            accumulated_ms, maximum_ms,
+                            accumulated_rows, maximum_rows) in items
+            ]
+        }
 
     return resource_json
 
