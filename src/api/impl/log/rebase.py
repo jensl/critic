@@ -61,6 +61,7 @@ class Rebase(apiobject.APIObject):
     def getCreator(self, critic):
         return api.user.fetch(critic, user_id=self.creator_id)
 
+@Rebase.cached()
 def fetch(critic, rebase_id):
     cursor = critic.getDatabaseCursor()
     cursor.execute(

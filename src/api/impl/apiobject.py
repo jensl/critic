@@ -28,11 +28,31 @@ class APIObject(object):
     @classmethod
     def make(Implementation, critic, args_list, ignored_errors=()):
         for args in args_list:
+            cache_key = args[0]
             try:
-                item = critic._impl.cached(
-                    Implementation.wrapper_class, args[0],
-                    lambda: Implementation.create(critic, *args))
-            except ignored_errors:
-                continue
-            else:
-                yield item
+                item = critic._impl.lookup(
+                    Implementation.wrapper_class, cache_key)
+            except KeyError:
+                try:
+                    item = Implementation.create(critic, *args)
+                except ignored_errors:
+                    continue
+
+                critic._impl.assign(
+                    Implementation.wrapper_class, cache_key, item)
+
+            yield item
+
+    @classmethod
+    def cached(Implementation):
+        def wrap(fetch):
+            def wrapper(critic, item_id, *args):
+                if item_id is not None:
+                    try:
+                        return critic._impl.lookup(Implementation.wrapper_class,
+                                                   item_id)
+                    except KeyError:
+                        pass
+                return fetch(critic, item_id, *args)
+            return wrapper
+        return wrap

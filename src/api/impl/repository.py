@@ -88,6 +88,7 @@ class Repository(apiobject.APIObject):
         auth.AccessControl.accessRepository(critic.database, "read", repository)
         return repository
 
+@Repository.cached()
 def fetch(critic, repository_id, name, path):
     cursor = critic.getDatabaseCursor()
     if repository_id is not None:

@@ -166,6 +166,7 @@ class User(apiobject.APIObject):
             return User(user_id, name, fullname, status, email)
         return self
 
+@User.cached()
 def fetch(critic, user_id, name):
     try:
         return fetchMany(critic,

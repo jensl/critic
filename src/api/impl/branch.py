@@ -50,6 +50,7 @@ class Branch(apiobject.APIObject):
                          for (commit_id,) in cursor))
         return self.__commits
 
+@Branch.cached()
 def fetch(critic, branch_id, repository, name):
     cursor = critic.getDatabaseCursor()
     if branch_id is not None:

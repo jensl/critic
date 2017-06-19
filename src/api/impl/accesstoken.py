@@ -57,6 +57,7 @@ class AccessToken(apiobject.APIObject):
             return AccessToken(*row)
         return self
 
+@AccessToken.cached()
 def fetch(critic, token_id):
     cursor = critic.getDatabaseCursor()
     cursor.execute(

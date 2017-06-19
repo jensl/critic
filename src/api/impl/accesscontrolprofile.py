@@ -94,6 +94,7 @@ class AccessControlProfile(apiobject.APIObject):
             return AccessControlProfile(*row)
         return self
 
+@AccessControlProfile.cached()
 def fetch(critic, profile_id):
     cursor = critic.getDatabaseCursor()
     cursor.execute("""SELECT id, title, access_token, http, repositories,

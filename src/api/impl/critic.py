@@ -35,14 +35,11 @@ class Critic(object):
             return self.actual_user
         return api.user.anonymous(critic)
 
-    def cached(self, cls, key, create):
-        wvd = self.__cache.setdefault(cls, weakref.WeakValueDictionary())
-        try:
-            value = wvd[key]
-        except KeyError:
-            value = wvd[key] = create()
-        assert isinstance(value, cls)
-        return value
+    def lookup(self, cls, key):
+        return self.__cache[cls][key]
+
+    def assign(self, cls, key, value):
+        self.__cache.setdefault(cls, weakref.WeakValueDictionary())[key] = value
 
     def __refreshCache(self, event):
         # |event| is either "commit" or "rollback".  In either case, we may have

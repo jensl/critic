@@ -38,6 +38,7 @@ class Extension(apiobject.APIObject):
             return None
         return api.user.fetch(critic, self.__publisher_id)
 
+@Extension.cached()
 def fetch(critic, extension_id, key):
     if not configuration.extensions.ENABLED:
         raise api.extension.ExtensionError("Extension support not enabled")

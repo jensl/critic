@@ -143,8 +143,7 @@ def fetch(critic, repository_id=None, name=None, path=None):
     import api.impl
     assert isinstance(critic, api.critic.Critic)
     assert sum((repository_id is None, name is None, path is None)) == 2
-    return api.impl.repository.fetch(
-        critic, repository_id=repository_id, name=name, path=path)
+    return api.impl.repository.fetch(critic, repository_id, name, path)
 
 def fetchAll(critic):
     """Fetch Repository objects for all repositories

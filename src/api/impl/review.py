@@ -153,6 +153,7 @@ class Review(apiobject.APIObject):
         review.repository
         return review
 
+@Review.cached()
 def fetch(critic, review_id, branch):
     cursor = critic.getDatabaseCursor()
     if review_id is not None:

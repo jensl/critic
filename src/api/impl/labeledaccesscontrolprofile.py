@@ -31,6 +31,7 @@ class LabeledAccessControlProfile(apiobject.APIObject):
     def getAccessControlProfile(self, critic):
         return api.accesscontrolprofile.fetch(critic, self.__profile_id)
 
+@LabeledAccessControlProfile.cached()
 def fetch(critic, labels):
     cursor = critic.getDatabaseCursor()
     cursor.execute("""SELECT labels, profile

@@ -29,15 +29,12 @@ RE_FOLLOWUP = re.compile("(fixup|squash)!.*(?:\n[ \t]*)+(.*)")
 class Commit(apiobject.APIObject):
     wrapper_class = api.commit.Commit
 
-    def __init__(self, repository_id, internal):
-        self.__repository_id = repository_id
+    def __init__(self, repository, internal):
+        self.repository = repository
         self.internal = internal
         self.sha1 = internal.sha1
         self.tree = internal.tree
         self.message = internal.message
-
-    def getRepository(self, critic):
-        return api.repository.fetch(critic, repository_id=self.__repository_id)
 
     def getId(self, critic):
         return self.internal.getId(critic.database)
@@ -50,7 +47,7 @@ class Commit(apiobject.APIObject):
         return self.message.split("\n", 1)[0]
 
     def getParents(self, critic):
-        return [fetch(self.getRepository(critic), sha1=sha1)
+        return [fetch(self.repository, None, sha1, None)
                 for sha1 in self.internal.parents]
 
     def getDescription(self, critic):
@@ -73,11 +70,34 @@ class Commit(apiobject.APIObject):
     def isAncestorOf(self, commit):
         return self.internal.isAncestorOf(commit.internal)
 
-def fetch(repository, commit_id=None, sha1=None, ref=None):
+    @staticmethod
+    def create(critic, repository, commit_id, sha1):
+        try:
+            internal = gitutils.Commit.fromSHA1(
+                db=critic.database,
+                repository=repository._impl.getInternal(critic),
+                sha1=sha1,
+                commit_id=commit_id)
+        except gitutils.GitReferenceError:
+            raise api.commit.InvalidSHA1(sha1)
+        return Commit(repository, internal).wrap(critic)
+
+def fetch(repository, commit_id, sha1, ref):
     critic = repository.critic
-    if ref is not None:
-        sha1 = repository.resolveRef(ref, expect="commit")
-    elif sha1 is None:
+
+    def commit_id_from_sha1():
+        cursor = critic.getDatabaseCursor()
+        cursor.execute("""SELECT id
+                            FROM commits
+                           WHERE sha1=%s""",
+                       (sha1,))
+        row = cursor.fetchone()
+        if not row:
+            raise api.commit.InvalidSHA1(sha1)
+        (commit_id,) = row
+        return commit_id
+
+    def sha1_from_commit_id():
         cursor = critic.getDatabaseCursor()
         cursor.execute("""SELECT sha1
                             FROM commits
@@ -87,16 +107,32 @@ def fetch(repository, commit_id=None, sha1=None, ref=None):
         if not row:
             raise api.commit.InvalidCommitId(commit_id)
         (sha1,) = row
+        return sha1
 
-    def callback():
+    if ref is not None:
+        sha1 = repository.resolveRef(ref, expect="commit")
+
+    if commit_id is not None:
         try:
-            internal = gitutils.Commit.fromSHA1(
-                db=critic.database,
-                repository=repository._impl.getInternal(critic),
-                sha1=sha1,
-                commit_id=commit_id)
-        except gitutils.GitReferenceError:
-            raise api.commit.InvalidSHA1(sha1)
-        return Commit(repository.id, internal).wrap(critic)
+            return critic._impl.lookup(api.commit.Commit,
+                                       (int(repository), commit_id))
+        except KeyError:
+            pass
 
-    return critic._impl.cached(api.commit.Commit, sha1, callback)
+        if sha1 is None:
+            sha1 = sha1_from_commit_id()
+    else:
+        try:
+            return critic._impl.lookup(api.commit.Commit,
+                                       (int(repository), sha1))
+        except KeyError:
+            pass
+
+        commit_id = commit_id_from_sha1()
+
+    commit = Commit.create(critic, repository, commit_id, sha1)
+
+    critic._impl.assign(api.commit.Commit, (int(repository), commit_id), commit)
+    critic._impl.assign(api.commit.Commit, (int(repository), sha1), commit)
+
+    return commit
