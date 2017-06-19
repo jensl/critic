@@ -21,7 +21,8 @@ def check_services(services, restarted=frozenset()):
             pid = extract_text(td_pid)
             rss = extract_text(td_rss)
 
-            if name == "extensiontasks":
+            # These only start up fully when extensions are enabled.
+            if name.startswith("extension"):
                 continue
 
             try:

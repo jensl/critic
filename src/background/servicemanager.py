@@ -48,7 +48,7 @@ if "--slave" in sys.argv:
                         self.write(json.dumps(input_data))
                     self.close()
 
-                def handle_input(self, data):
+                def handle_input(self, _file, data):
                     self.__output = data
 
                 def destroy(self):
@@ -115,7 +115,7 @@ if "--slave" in sys.argv:
                 self.write(background.utils.json_encode(value))
                 self.close()
 
-            def handle_input(self, data):
+            def handle_input(self, _file, data):
                 result = self.send_response
 
                 try:

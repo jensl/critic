@@ -274,8 +274,9 @@ class BackgroundProcess(object):
 
 class PeerServer(BackgroundProcess):
     class Peer(object):
-        def __init__(self, server, writing, reading):
+        def __init__(self, server, writing, *reading, **kwargs):
             self.server = server
+            self.deadline = kwargs.get("deadline", None)
 
             self.__writing = writing
             self.__write_data = ""
@@ -285,15 +286,23 @@ class PeerServer(BackgroundProcess):
             if writing:
                 fcntl.fcntl(writing, fcntl.F_SETFL, fcntl.fcntl(writing, fcntl.F_GETFL) | os.O_NONBLOCK)
 
-            self.__reading = reading
-            self.__read_data = ""
-            self.__read_closed = False
+            self.__reading = list(reading)
+            self.__read_data = [""] * len(reading)
+            self.__read_closed = [False] * len(reading)
 
-            if reading and reading.fileno() != writing.fileno():
-                fcntl.fcntl(reading, fcntl.F_SETFL, fcntl.fcntl(reading, fcntl.F_GETFL) | os.O_NONBLOCK)
+            for readfile in reading:
+                if readfile and readfile.fileno() != writing.fileno():
+                    fcntl.fcntl(readfile, fcntl.F_SETFL, fcntl.fcntl(readfile, fcntl.F_GETFL) | os.O_NONBLOCK)
+
+            self.__timed_out = False
+
+        def timed_out(self):
+            self.__timed_out = True
+            self.__writing = None
+            self.__reading = []
 
         def is_finished(self):
-            return not self.__writing and not self.__reading
+            return not self.__writing and not any(self.__reading)
 
         def writing(self):
             if self.__write_data or self.__write_closed: return self.__writing
@@ -315,6 +324,8 @@ class PeerServer(BackgroundProcess):
                     nwritten = os.write(self.__writing.fileno(), self.__write_data)
                     self.__write_data = self.__write_data[nwritten:]
             except EnvironmentError as error:
+                if error.errno in (errno.EAGAIN, errno.EINTR):
+                    raise
                 self.server.warning("Failed to write to peer: %s" % error)
                 if error.errno == errno.EPIPE:
                     self.__write_failed = True
@@ -325,23 +336,26 @@ class PeerServer(BackgroundProcess):
                 self.__writing = None
 
         def reading(self):
-            if not self.__read_closed: return self.__reading
-            else: return None
+            return [readfile if not closed else None
+                    for readfile, closed in zip(self.__reading,
+                                                self.__read_closed)]
 
         def read(self):
-            if self.__read_closed: return self.__read_data
-            else: return None
+            return [data if closed else None
+                    for data, closed in zip(self.__read_data,
+                                            self.__read_closed)]
 
-        def do_read(self):
+        def do_read(self, index):
             while True:
-                read = os.read(self.__reading.fileno(), 4096)
+                readfile = self.__reading[index]
+                read = os.read(readfile.fileno(), 4096)
                 if not read:
-                    self.reading_done(self.__reading)
-                    self.__reading = None
-                    self.__read_closed = True
-                    self.handle_input(self.__read_data)
+                    self.reading_done(readfile)
+                    self.__reading[index] = None
+                    self.__read_closed[index] = True
+                    self.handle_input(readfile, self.__read_data[index])
                     break
-                self.__read_data += read
+                self.__read_data[index] += read
 
         def writing_done(self, writing):
             writing.close()
@@ -362,26 +376,42 @@ class PeerServer(BackgroundProcess):
         def writing_done(self, writing):
             writing.shutdown(socket.SHUT_WR)
 
-        def handle_input(self, data):
+        def handle_input(self, _file, data):
             pass
 
-    class ChildProcess(Peer):
-        def __init__(self, server, args, **kwargs):
-            self.__process = subprocess.Popen(args, stdin=subprocess.PIPE, stdout=subprocess.PIPE, **kwargs)
-            self.pid = self.__process.pid
-            super(PeerServer.ChildProcess, self).__init__(server, self.__process.stdin, self.__process.stdout)
-            self.server.debug("spawned child process (pid=%d)" % self.__process.pid)
+    class SpawnedProcess(Peer):
+        def __init__(self, server, process, **kwargs):
+            self.process = process
+            self.pid = process.pid
+            super(PeerServer.SpawnedProcess, self).__init__(
+                server,
+                self.process.stdin, self.process.stdout, self.process.stderr,
+                **kwargs)
 
         def kill(self, signal):
-            self.__process.send_signal(signal)
+            self.process.send_signal(signal)
 
         def destroy(self):
-            self.__process.wait()
-            self.returncode = self.__process.returncode
+            self.process.wait()
+            self.returncode = self.process.returncode
+            self.check_result()
+
+        def timed_out(self):
+            super(PeerServer.SpawnedProcess, self).timed_out()
+            self.kill(signal.SIGKILL)
+
+        def check_result(self):
             if self.returncode:
                 self.server.error("child process exited (pid=%d, returncode=%d)" % (self.pid, self.returncode))
             else:
                 self.server.debug("child process exited (pid=%d, returncode=0)" % self.pid)
+
+    class ChildProcess(SpawnedProcess):
+        def __init__(self, server, args, **kwargs):
+            process = subprocess.Popen(
+                args, stdin=subprocess.PIPE, stdout=subprocess.PIPE, **kwargs)
+            super(PeerServer.ChildProcess, self).__init__(server, process)
+            self.server.debug("spawned child process (pid=%d)" % self.process.pid)
 
     def __init__(self, service, **kwargs):
         super(PeerServer, self).__init__(service, **kwargs)
@@ -457,17 +487,31 @@ class PeerServer(BackgroundProcess):
             poll = select.poll()
             poll.register(self.__listening_socket, select.POLLIN)
 
-            for peer in self.__peers:
-                if peer.writing():
-                    poll.register(peer.writing(), select.POLLOUT)
-                if peer.reading():
-                    poll.register(peer.reading(), select.POLLIN)
+            writing_map = {}
+            reading_map = {}
 
             def fileno(file):
                 if file:
                     return file.fileno()
                 else:
                     return None
+
+            nearest_peer_deadline = None
+
+            for peer in self.__peers:
+                if peer.writing():
+                    poll.register(peer.writing(), select.POLLOUT)
+                    writing_map[peer.writing().fileno()] = peer
+                for index, readfile in enumerate(peer.reading()):
+                    if readfile:
+                        poll.register(readfile, select.POLLIN)
+                        reading_map[readfile.fileno()] = (peer, index)
+                if peer.deadline is not None:
+                    if nearest_peer_deadline is None:
+                        nearest_peer_deadline = peer.deadline
+                    else:
+                        nearest_peer_deadline = min(peer.deadline,
+                                                    nearest_peer_deadline)
 
             while not self.terminated:
                 timeout_seconds = self.run_maintenance()
@@ -476,6 +520,17 @@ class PeerServer(BackgroundProcess):
                     if not self.__peers:
                         self.debug("next maintenance task check scheduled in %d seconds"
                                    % timeout_seconds)
+
+                if nearest_peer_deadline is not None:
+                    deadline_seconds = nearest_peer_deadline - time.time()
+                    if deadline_seconds < 0:
+                        deadline_seconds = 0
+                    if timeout_seconds is None:
+                        timeout_seconds = deadline_seconds
+                    else:
+                        timeout_seconds = min(timeout_seconds, deadline_seconds)
+
+                if timeout_seconds:
                     timeout_ms = timeout_seconds * 1000
                 else:
                     timeout_ms = None
@@ -499,10 +554,10 @@ class PeerServer(BackgroundProcess):
             elif not (self.__peers or events):
                 self.signal_idle_state()
 
-            def catch_error(fn):
+            def catch_error(fn, *args):
                 while True:
                     try:
-                        fn()
+                        fn(*args)
                     except EnvironmentError as error:
                         if error.errno == errno.EINTR:
                             continue
@@ -511,6 +566,12 @@ class PeerServer(BackgroundProcess):
                         raise
                     else:
                         return
+
+            def check_peer(peer):
+                if peer.is_finished():
+                    peer.destroy()
+                    self.peer_destroyed(peer)
+                    self.__peers.remove(peer)
 
             for fd, event in events:
                 if fd == self.__listening_socket.fileno():
@@ -524,15 +585,21 @@ class PeerServer(BackgroundProcess):
                         except Exception:
                             pass
                 else:
-                    for peer in self.__peers[:]:
-                        if fd == fileno(peer.writing()) and event != select.POLLIN:
-                            catch_error(peer.do_write)
-                        if fd == fileno(peer.reading()) and event != select.POLLOUT:
-                            catch_error(peer.do_read)
-                        if peer.is_finished():
-                            peer.destroy()
-                            self.peer_destroyed(peer)
-                            self.__peers.remove(peer)
+                    if event != select.POLLIN and fd in writing_map:
+                        peer = writing_map[fd]
+                        catch_error(peer.do_write)
+                        check_peer(peer)
+                    if event != select.POLLOUT and fd in reading_map:
+                        peer, index = reading_map[fd]
+                        catch_error(peer.do_read, index)
+                        check_peer(peer)
+
+            if nearest_peer_deadline is not None:
+                now = time.time()
+                for peer in self.__peers[:]:
+                    if peer.deadline is not None and peer.deadline < now:
+                        peer.timed_out()
+                        check_peer(peer)
 
     def add_peer(self, peer):
         self.__peers.append(peer)
@@ -563,7 +630,7 @@ class SlaveProcessServer(PeerServer):
             super(SlaveProcessServer.SlaveChildProcess, self).__init__(server, [sys.executable, sys.argv[0], "--slave"])
             self.__client = client
 
-        def handle_input(self, value):
+        def handle_input(self, _file, value):
             self.__client.write(value)
             self.__client.close()
 
@@ -571,7 +638,7 @@ class SlaveProcessServer(PeerServer):
         def __init__(self, server, peersocket):
             super(SlaveProcessServer.SlaveClient, self).__init__(server, peersocket)
 
-        def handle_input(self, value):
+        def handle_input(self, _file, value):
             if value:
                 child_process = SlaveProcessServer.SlaveChildProcess(self.server, self)
                 child_process.write(value)
@@ -590,7 +657,7 @@ class JSONJobServer(PeerServer):
             self.write(json_encode(request))
             self.close()
 
-        def handle_input(self, value):
+        def handle_input(self, _file, value):
             try: result = json_decode(value)
             except ValueError:
                 self.server.error("invalid response:\n" + indent(value))
@@ -600,7 +667,7 @@ class JSONJobServer(PeerServer):
             self.server.request_finished(self, self.request, result)
 
     class JobClient(PeerServer.SocketPeer):
-        def handle_input(self, value):
+        def handle_input(self, _file, value):
             decoded = json_decode(value)
             assert isinstance(decoded, dict)
             if "requests" in decoded:

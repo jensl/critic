@@ -16,3 +16,10 @@ function showcommitLong() {
   writeln("script %r", format("data:text/javascript,var showcommitLong=%r;",
                               [].slice.call(arguments)));
 }
+
+function injectCustom(path, query) {
+  if (query && query.params.expr) {
+    writeln("script %r", format("data:text/javascript,var injectedCustom=%r;",
+                                eval(query.params.expr)));
+  }
+}

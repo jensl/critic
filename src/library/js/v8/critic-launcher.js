@@ -16,10 +16,13 @@
 
 */
 
-try { var line = readln(); var data = JSON.parse(line); } catch (e) { writeln(JSON.stringify(line)); throw e; }
-
 var critic = new Module();
-critic.load(data.criticjs_path);
+
+critic.load(IO.Path.absolute("critic.js"));
+
+var line = readln();
+var data = JSON.parse(line);
+
 critic.setup(data);
 critic.close();
 

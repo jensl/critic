@@ -194,7 +194,7 @@ class GitHookServer(background.utils.PeerServer):
             super(GitHookServer.ChildProcess, self).__init__(server, [sys.executable, sys.argv[0], "--slave"])
             self.__client = client
 
-        def handle_input(self, data):
+        def handle_input(self, _file, data):
             try:
                 result = json_decode(data)
             except ValueError:
@@ -222,7 +222,7 @@ been sent to the system administrator(s).
             self.__client.close()
 
     class Client(background.utils.PeerServer.SocketPeer):
-        def handle_input(self, data):
+        def handle_input(self, _file, data):
             lines = data.splitlines()
 
             user_name = lines[0]

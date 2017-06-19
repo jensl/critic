@@ -20,14 +20,13 @@ import urlparse
 import configuration
 
 from auth import AccessDenied
-from communicate import ProcessTimeout, ProcessError
 from htmlutils import jsify
 from request import decodeURIComponent
 from textutils import json_decode, json_encode
 
 from extensions import getExtensionInstallPath
 from extensions.extension import Extension, ExtensionError
-from extensions.execute import executeProcess
+from extensions.execute import ProcessTimeout, ProcessFailure, executeProcess
 from extensions.manifest import Manifest, ManifestError, InjectRole
 
 class InjectError(Exception):
@@ -227,9 +226,9 @@ def execute(db, req, user, document, links, injected, profiler=None):
                     stdout_data = executeProcess(
                         db, manifest, "inject", script, function, extension_id, user.id, argv,
                         configuration.extensions.SHORT_TIMEOUT)
-                except ProcessTimeout:
-                    raise InjectError("Timeout after %d seconds." % configuration.extensions.SHORT_TIMEOUT)
-                except ProcessError as error:
+                except ProcessTimeout as error:
+                    raise InjectError(error.message)
+                except ProcessFailure as error:
                     if error.returncode < 0:
                         raise InjectError("Process terminated by signal %d." % -error.returncode)
                     else:

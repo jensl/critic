@@ -22,11 +22,9 @@ import gitutils
 import log.commitset
 import changeset.utils
 
-from communicate import ProcessTimeout, ProcessError
-
 from extensions import getExtensionInstallPath
 from extensions.extension import Extension
-from extensions.execute import executeProcess
+from extensions.execute import ProcessTimeout, ProcessFailure, executeProcess
 from extensions.manifest import Manifest, ManifestError, ProcessCommitsRole
 
 def execute(db, user, review, all_commits, old_head, new_head, output):
@@ -120,8 +118,8 @@ def execute(db, user, review, all_commits, old_head, new_head, output):
                     stdout_data = executeProcess(
                         db, manifest, "processcommits", script, function, extension_id, user.id,
                         argv, configuration.extensions.SHORT_TIMEOUT)
-                except ProcessTimeout:
-                    raise Error("Timeout after %d seconds." % configuration.extensions.SHORT_TIMEOUT)
+                except ProcessTimeout as error:
+                    raise Error(error.message)
                 except ProcessError as error:
                     if error.returncode < 0:
                         raise Error("Process terminated by signal %d." % -error.returncode)

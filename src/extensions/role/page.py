@@ -19,13 +19,12 @@ import re
 
 import configuration
 
-from communicate import ProcessTimeout, ProcessError
 from htmlutils import jsify
 from request import decodeURIComponent
 
 from extensions import getExtensionInstallPath
 from extensions.extension import Extension, ExtensionError
-from extensions.execute import executeProcess
+from extensions.execute import ProcessTimeout, ProcessFailure, executeProcess
 from extensions.manifest import Manifest, ManifestError, PageRole
 from extensions.utils import renderTutorial
 
@@ -118,10 +117,10 @@ def execute(db, req, user):
                 stdout_data = executeProcess(
                     db, manifest, "page", script, function, extension_id, user.id,
                     argv, configuration.extensions.LONG_TIMEOUT, stdin=stdin_data)
-            except ProcessTimeout:
+            except ProcessTimeout as error:
                 req.setStatus(500, "Extension Timeout")
-                return "Extension timed out!"
-            except ProcessError as error:
+                return error.message
+            except ProcessFailure as error:
                 req.setStatus(500, "Extension Failure")
                 if error.returncode < 0:
                     return ("Extension failure: terminated by signal %d\n"

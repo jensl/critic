@@ -51,6 +51,21 @@ def check_not_injected(key):
 
     return check
 
+def check_error(message):
+    def check(document):
+        comments = document.findAll(text=lambda text: isinstance(text, Comment))
+
+        for comment in comments:
+            comment = comment.strip()
+            if comment.startswith("[alice/TestExtension] Extension error:"):
+                comment = comment[len("[alice/TestExtension] Extension error:"):]
+                testing.expect.check(message, comment.strip())
+                return
+
+        testing.expect.check("<error message>", "<expected content not found>")
+
+    return check
+
 with frontend.signin("alice"):
     frontend.page(
         "home",
@@ -96,6 +111,21 @@ with frontend.signin("alice"):
                 ["showcommit", { "raw": "repository=critic&sha1=master",
                                  "params": { "repository": "critic",
                                              "sha1": "master" }}]) })
+
+    frontend.page(
+        "home?expr=path",
+        expect={
+            "injected": check_injected("injectedCustom", "home")
+        })
+
+    frontend.page(
+        "home",
+        params={
+            "expr": "while(true){}"
+        },
+        expect={
+            "injected": check_error("Process timed out after 5 seconds")
+        })
 
 # Verify that Alice's extension install doesn't affect Bob.
 with frontend.signin("bob"):

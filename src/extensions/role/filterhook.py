@@ -27,8 +27,7 @@ import htmlutils
 
 from extensions.extension import Extension, ExtensionError
 from extensions.manifest import Manifest, ManifestError, FilterHookRole
-from extensions.execute import executeProcess
-from communicate import ProcessTimeout, ProcessError
+from extensions.execute import ProcessException, ProcessFailure, executeProcess
 
 def signalExtensionTasksService():
     try:
@@ -231,7 +230,7 @@ def processFilterHookEvent(db, event_id, logfn):
         executeProcess(
             db, manifest, "filterhook", role.script, role.function, extension_id,
             filter_user_id, argv, configuration.extensions.LONG_TIMEOUT)
-    except (ProcessTimeout, ProcessError) as error:
+    except ProcessException as error:
         review = dbutils.Review.fromId(db, review_id)
 
         recipients = set([filter_user])
@@ -271,10 +270,10 @@ Error details:
             ('%s "%s"' % (commit.sha1[:8], commit.niceSummary())
              for commit in commits))
 
-        if isinstance(error, ProcessTimeout):
-            error_output = " N/A"
-        else:
+        if isinstance(error, ProcessFailure):
             error_output = "\n\n    " + "\n    ".join(error.stderr.splitlines())
+        else:
+            error_output = " %s" % error.message
 
         body = body % { "extension.title": extension.getTitle(db),
                         "role.title": role.title,

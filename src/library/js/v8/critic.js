@@ -254,7 +254,7 @@ function setup(data)
     global.user = new CriticAnonymousUser();
   }
 
-  library_path = IO.Path.dirname(data.criticjs_path);
+  library_path = data.library_path;
   hostname = data.hostname;
   extension_id = data.extension_id;
   user_id = data.user_id;

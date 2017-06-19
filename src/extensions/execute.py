@@ -14,16 +14,49 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
+import errno
 import os
+import socket
 import subprocess
+import time
 
 import configuration
 import auth
 import dbutils
 
 from extensions.extension import Extension
-from textutils import json_encode
-from communicate import Communicate
+from textutils import json_encode, json_decode
+
+def startProcess(flavor):
+    executable = configuration.extensions.FLAVORS[flavor]["executable"]
+    library = configuration.extensions.FLAVORS[flavor]["library"]
+
+    process = subprocess.Popen(
+        [executable, "critic-launcher.js"],
+        stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        cwd=library)
+
+    return process
+
+class ProcessException(Exception):
+    pass
+
+class ProcessError(ProcessException):
+    def __init__(self, message):
+        super(ProcessError, self).__init__(
+            "Failed to execute process: %s" % message)
+
+class ProcessTimeout(ProcessException):
+    def __init__(self, timeout):
+        super(ProcessTimeout, self).__init__(
+            "Process timed out after %d seconds" % timeout)
+
+class ProcessFailure(ProcessException):
+    def __init__(self, returncode, stderr):
+        super(ProcessFailure, self).__init__(
+            "Process returned non-zero exit status %d" % returncode)
+        self.returncode = returncode
+        self.stderr = stderr
 
 def executeProcess(db, manifest, role_name, script, function, extension_id,
                    user_id, argv, timeout, stdin=None, rlimit_rss=256):
@@ -58,13 +91,8 @@ def executeProcess(db, manifest, role_name, script, function, extension_id,
     if manifest.flavor not in configuration.extensions.FLAVORS:
         flavor = configuration.extensions.DEFAULT_FLAVOR
 
-    executable = configuration.extensions.FLAVORS[flavor]["executable"]
-    library = configuration.extensions.FLAVORS[flavor]["library"]
-
-    process_argv = [executable, os.path.join(library, "critic-launcher.js")]
-
     stdin_data = "%s\n" % json_encode({
-            "criticjs_path": os.path.join(library, "critic.js"),
+            "library_path": configuration.extensions.FLAVORS[flavor]["library"],
             "rlimit": { "rss": rlimit_rss },
             "hostname": configuration.base.HOSTNAME,
             "dbname": configuration.database.PARAMETERS["database"],
@@ -90,10 +118,54 @@ def executeProcess(db, manifest, role_name, script, function, extension_id,
     if stdin is not None:
         stdin_data += stdin
 
-    process = subprocess.Popen(process_argv, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=manifest.path)
+    # Double the timeout. Timeouts are primarily handled by the extension runner
+    # service, which returns an error response on timeout. This deadline here is
+    # thus mostly to catch the extension runner service itself timing out.
+    deadline = time.time() + timeout * 2
 
-    communicate = Communicate(process)
-    communicate.setInput(stdin_data)
-    communicate.setTimeout(timeout)
+    try:
+        connection = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        connection.settimeout(max(0, deadline - time.time()))
+        connection.connect(configuration.services.EXTENSIONRUNNER["address"])
+        connection.sendall(json_encode({
+            "stdin": stdin_data,
+            "flavor": flavor,
+            "timeout": timeout
+        }))
+        connection.shutdown(socket.SHUT_WR)
 
-    return communicate.run()[0]
+        data = ""
+
+        while True:
+            connection.settimeout(max(0, deadline - time.time()))
+            try:
+                received = connection.recv(4096)
+            except socket.error as error:
+                if error.errno == errno.EINTR:
+                    continue
+                raise
+            if not received:
+                break
+            data += received
+
+        connection.close()
+    except socket.timeout as error:
+        raise ProcessTimeout(timeout)
+    except socket.error as error:
+        raise ProcessError("failed to read response: %s" % error)
+
+    try:
+        data = json_decode(data)
+    except ValueError as error:
+        raise ProcessError("failed to decode response: %s" % error)
+
+    if data["status"] == "timeout":
+        raise ProcessTimeout(timeout)
+
+    if data["status"] == "error":
+        raise ProcessError(data["error"])
+
+    if data["returncode"] != 0:
+        raise ProcessFailure(data["returncode"], data["stderr"])
+
+    return data["stdout"]

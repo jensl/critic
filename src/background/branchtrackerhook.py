@@ -85,7 +85,7 @@ else:
                 self.write(json_encode({ "branch_id": branch_id, "timeout": timeout, "log_offset": log_offset }))
                 self.close()
 
-            def handle_input(self, data):
+            def handle_input(self, _file, data):
                 try: data = json_decode(data)
                 except ValueError:
                     self.server.error("invalid response from wait-for-update child: %r" % data)
@@ -106,7 +106,7 @@ else:
                 super(BranchTrackerHook.Client, self).__init__(server, peersocket)
                 self.__peeraddress = peeraddress
 
-            def handle_input(self, data):
+            def handle_input(self, _file, data):
                 try: data = json_decode(data)
                 except ValueError: return
 

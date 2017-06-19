@@ -56,6 +56,11 @@ Description = "Basic injection testing."
 Script = inject.js
 Function = inject
 
+[Inject home]
+Description = "Custom injection testing."
+Script = inject.js
+Function = injectCustom
+
 [Inject critic/*]
 Description = "Inject path handling test."
 Script = inject.js

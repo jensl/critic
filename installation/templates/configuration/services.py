@@ -39,6 +39,7 @@ MAILDELIVERY      = service(name="maildelivery",      address=None)
 WATCHDOG          = service(name="watchdog",          address=None)
 MAINTENANCE       = service(name="maintenance",       address=None)
 EXTENSIONTASKS    = service(name="extensiontasks",    address=None)
+EXTENSIONRUNNER   = service(name="extensionrunner")
 SERVICEMANAGER    = service(name="servicemanager")
 
 HIGHLIGHT["cache_dir"] = os.path.join(configuration.paths.CACHE_DIR, "highlight")
@@ -59,6 +60,8 @@ WATCHDOG["rss_hard_limit"] = 2 * WATCHDOG["rss_soft_limit"]
 
 MAINTENANCE["maintenance_at"] = (4, 0)
 
+EXTENSIONRUNNER["cached_processes"] = 5
+
 SERVICEMANAGER["services"] = [HIGHLIGHT,
                               CHANGESET,
                               GITHOOK,
@@ -66,4 +69,5 @@ SERVICEMANAGER["services"] = [HIGHLIGHT,
                               MAILDELIVERY,
                               WATCHDOG,
                               MAINTENANCE,
-                              EXTENSIONTASKS]
+                              EXTENSIONTASKS,
+                              EXTENSIONRUNNER]
