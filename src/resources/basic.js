@@ -237,6 +237,26 @@ Operation.prototype.abort = function ()
       this.ajax.abort();
   };
 
+JSON.fetch = function (path, options, callback)
+  {
+    var url = "/api/v1/" + path;
+
+    if (options)
+    {
+      var separator = "?";
+      Object.keys(options).forEach(
+        function (key)
+        {
+          url += separator + key + "=" + encodeURIComponent(options[key]);
+          separator = "&";
+        });
+    }
+
+    $.ajax({ url: url,
+             success: callback,
+             dataType: "json" });
+  };
+
 $(document).ready(function ()
   {
     $("button").button();

@@ -77,6 +77,26 @@ class Branch(api.APIObject):
                  are considered part of the review."""
         return self._impl.getCommits(self.critic)
 
+    @property
+    def updates(self):
+        """The update log of this branch
+
+           The updates are returned as a list of BranchUpdate objects, ordered
+           chronologically with the oldest update first.
+
+           Note: The update log of a branch is cleared if the branch is removed,
+                 so for a branch that has been created and deleted multiple
+                 times, the log only goes back to the most recent creation of
+                 the branch.
+
+           Note: This feature was added in an update of Critic.  In systems
+                 installed before that update, existing branches will not have a
+                 complete log.  Such branches will have a log that records them
+                 as having been created by the system with their then current
+                 value, all at the point in time when the system was updated to
+                 a version supporting this feature."""
+        return api.branchupdate.fetchAll(self)
+
 def fetch(critic, branch_id=None, repository=None, name=None):
     """Fetch a Branch object with the given id or name
 

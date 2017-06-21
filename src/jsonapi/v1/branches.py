@@ -79,6 +79,20 @@ class Branches(object):
         return api.branch.fetchAll(parameters.critic, repository=repository)
 
     @staticmethod
+    def deduce(parameters):
+        branch = parameters.context.get("branches")
+        branch_parameter = parameters.getQueryParameter("branch")
+        if branch_parameter is not None:
+            if branch is not None:
+                raise jsonapi.UsageError(
+                    "Redundant query parameter: branch=%s"
+                    % branch_parameter)
+            branch = api.branch.fetch(
+                parameters.critic,
+                branch_id=jsonapi.numeric_id(branch_parameter))
+        return branch
+
+    @staticmethod
     def setAsContext(parameters, branch):
         parameters.setContext(Branches.name, branch)
         return branch

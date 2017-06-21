@@ -40,8 +40,8 @@ def renderCommitInfo(db, target, user, repository, review, commit, conflicts=Fal
     def outputBranches(target, commit):
         cursor.execute("""SELECT branches.name, reviews.id
                             FROM branches
-                            JOIN reachable ON (reachable.branch=branches.id)
-                            JOIN commits ON (commits.id=reachable.commit)
+                            JOIN branchcommits ON (branchcommits.branch=branches.id)
+                            JOIN commits ON (commits.id=branchcommits.commit)
                  LEFT OUTER JOIN reviews ON (reviews.branch=branches.id)
                            WHERE branches.repository=%s
                              AND commits.sha1=%s""",
@@ -1117,20 +1117,26 @@ def renderShowCommit(req, db, user):
                 # filtered by file) => include rebase information when rendering
                 # the "Squashed History" log.
 
-                cursor.execute("""SELECT id, old_head, new_head, new_upstream, equivalent_merge, replayed_rebase, uid, branch
-                                    FROM reviewrebases
-                                   WHERE review=%s AND new_head IS NOT NULL""",
+                cursor.execute(
+                    """SELECT reviewrebases.id, from_head, to_head, new_upstream,
+                              equivalent_merge, replayed_rebase, uid, reviewrebases.branch
+                         FROM reviewrebases
+                         JOIN branchupdates ON (reviewrebases.branchupdate=branchupdates.id)
+                        WHERE review=%s""",
                                (review.id,))
 
-                rebases = [(rebase_id,
-                            gitutils.Commit.fromId(db, repository, old_head),
-                            gitutils.Commit.fromId(db, repository, new_head),
-                            dbutils.User.fromId(db, user_id),
-                            gitutils.Commit.fromId(db, repository, new_upstream) if new_upstream is not None else None,
-                            gitutils.Commit.fromId(db, repository, equivalent_merge) if equivalent_merge is not None else None,
-                            gitutils.Commit.fromId(db, repository, replayed_rebase) if replayed_rebase is not None else None,
-                            branch_name)
-                           for rebase_id, old_head, new_head, new_upstream, equivalent_merge, replayed_rebase, user_id, branch_name in cursor]
+                rebases = [
+                    (rebase_id,
+                     gitutils.Commit.fromId(db, repository, old_head),
+                     gitutils.Commit.fromId(db, repository, new_head),
+                     dbutils.User.fromId(db, user_id),
+                     gitutils.Commit.fromId(db, repository, new_upstream) if new_upstream is not None else None,
+                     gitutils.Commit.fromId(db, repository, equivalent_merge) if equivalent_merge is not None else None,
+                     gitutils.Commit.fromId(db, repository, replayed_rebase) if replayed_rebase is not None else None,
+                     branch_name)
+                    for (rebase_id, old_head, new_head, new_upstream,
+                         equivalent_merge, replayed_rebase, user_id, branch_name) in cursor
+                ]
 
             if all_commits:
                 commits = all_commits

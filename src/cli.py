@@ -102,8 +102,8 @@ def propagateComment(data):
                 db, data["chain_id"], user=None, review=review)
             if chain is None:
                 return "invalid chain id"
-            if commit != chain.addressed_by:
-                return "wrong commit: must be current addressed_by"
+            if commit != chain.addressed_by_commit:
+                return "wrong commit: must be current addressed_by_commit"
             propagation.setExisting(
                 review, chain.id, commit, data["file_id"],
                 data["first_line"], data["last_line"], True)
@@ -186,7 +186,9 @@ def main():
             elif command == "generate-mails-for-assignments-transaction":
                 data = json_decode(sys.stdin.readline())
                 transaction_id = data["transaction_id"]
-                pending_mails = reviewing.utils.generateMailsForAssignmentsTransaction(db, transaction_id)
+                with db.updating_cursor("reviewmessageids"):
+                    reviewing.utils.generateMailsForAssignmentsTransaction(
+                        db, transaction_id)
             elif command == "apply-filters":
                 data = json_decode(sys.stdin.readline())
                 filters = reviewing.filters.Filters()

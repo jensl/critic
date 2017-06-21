@@ -337,8 +337,10 @@ with repository.workcopy() as work:
                               created_comments=[issues["dave"][0]],
                               resolved_issues=[issues["alice"][0],
                                                issues["alice"][1]],
-                              reviewed_changes=[changes["second"][0]["id"],
-                                                changes["third"][0]["id"]]))
+                              reviewed_changes=sorted([
+                                  changes["second"][0]["id"],
+                                  changes["third"][0]["id"]
+                              ])))
 
     with frontend.signin("bob"):
         frontend.json(

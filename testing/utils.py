@@ -57,10 +57,16 @@ def access_token(user, profile):
                 delete=True,
                 expected_http_status=204)
 
-def createReviewViaPush(work, owner, commit="HEAD"):
+def createReviewViaPush(work, owner, commit=None, branch_name=None):
+    import testing
+
     with settings(owner, { "review.createViaPush": True }):
         remote_url = instance.repository_url(owner)
-        output = work.run(["push", remote_url, "HEAD"], TERM="dumb")
+        if commit is not None and branch_name is not None:
+            refspec = "%s:refs/heads/%s" % (commit, branch_name)
+        else:
+            refspec = "HEAD"
+        output = work.run(["push", remote_url, refspec], TERM="dumb")
         for line in output.splitlines():
             match = RE_REVIEW_URL.match(line)
             if match:

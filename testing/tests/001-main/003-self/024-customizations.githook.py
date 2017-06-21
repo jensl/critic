@@ -14,10 +14,7 @@ instance.execute(
      "/etc/critic/main/customization",
      "&&",
      "sudo", "chown", "-R", "critic.critic", "/etc/critic/main/customization"])
-
-# Note: no need to restart, since the githook background service effectively
-# re-imports the 'index' module, which imports the 'customizations.githook'
-# module.
+instance.criticctl(["restart"])
 
 with repository.workcopy() as work:
     REMOTE_URL = instance.repository_url("alice")
@@ -45,24 +42,31 @@ with repository.workcopy() as work:
         try:
             output = work.run(["push", "--quiet", REMOTE_URL,
                                "%s:%s" % (new_value or "", ref_name)])
-            testing.expect.check("ACCEPT", expected_result)
+            testing.expect.check(expected_result, "ACCEPT")
         except testing.repository.GitCommandError as error:
             output = error.output
-            testing.expect.check("REJECT", expected_result)
+            testing.expect.check(expected_result, "REJECT")
 
-        from_hook = []
+        from_hook = "<no output>"
         for line in output.splitlines():
             line = line.partition("\x1b")[0]
             if line.startswith("remote: "):
-                from_hook.append(line[len("remote: "):].strip())
+                line = line[len("remote: "):].strip()
+                if line:
+                    from_hook = line
+                    break
 
-        testing.expect.check("^%s:" % expected_result, from_hook[0],
+        testing.expect.check("^%s:" % expected_result, from_hook,
                              equal=re.match)
+        try:
+            data = json.loads(from_hook[7:])
+        except ValueError:
+            logger.exception("Invalid JSON: %r" % from_hook[7:])
         testing.expect.check({ "repository_path": "/var/git/critic.git",
                                "ref_name": ref_name,
                                "old_value": old_value,
                                "new_value": new_value },
-                             json.loads(from_hook[0][7:]))
+                             data)
         if expected_result == "ACCEPT":
             testing.expect.check(new_value, lsremote(ref_name))
         else:
@@ -83,5 +87,4 @@ instance.execute(
     ["sudo", "rm", "-f",
      "/etc/critic/main/customization/githook.py",
      "/etc/critic/main/customization/githook.pyc"])
-
-# And again, no need to restart.
+instance.criticctl(["restart"])

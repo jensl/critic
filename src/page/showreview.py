@@ -17,6 +17,7 @@
 import datetime
 import calendar
 import traceback
+import time
 
 import dbutils
 import gitutils
@@ -182,13 +183,42 @@ def notModified(req, db, user, review):
     value = req.getRequestHeader("If-None-Match")
     return review.getETag(db, user) == value
 
+def renderWaitingForInitialUpdate(req, db, user, review):
+    document = htmlutils.Document(req)
+
+    html = document.html()
+    head = html.head()
+    body = html.body()
+
+    document.addInternalScript(user.getJS())
+    document.addInternalScript(review.getJS())
+
+    def generateButtons(target):
+        review_utils.renderDraftItems(db, user, review, target)
+        target.div("buttons").span("buttonscope buttonscope-global")
+
+    page.utils.generateHeader(body, db, user, generateButtons)
+
+    #document.addExternalStylesheet("resources/review.progress.css")
+    document.addExternalScript("resources/review.progress.js")
+
+    table = page.utils.PaleYellowTable(body, "Preparing review...")
+
+    table.addCentered().text(
+        "Please wait while the initial set of commits added to this review are "
+        "being processed.")
+
+    return str(document)
+
 def renderShowReview(req, db, user):
     profiler = profiling.Profiler()
 
     cursor = db.cursor()
 
-    if user.getPreference(db, "commit.diff.compactMode"): default_compact = "yes"
-    else: default_compact = "no"
+    if user.getPreference(db, "commit.diff.compactMode"):
+        default_compact = "yes"
+    else:
+        default_compact = "no"
 
     compact = req.getParameter("compact", default_compact) == "yes"
     highlight = req.getParameter("highlight", None)
@@ -206,6 +236,26 @@ def renderShowReview(req, db, user):
 
     profiler.check("ETag")
 
+    has_pending_update = review.hasPendingUpdate(db)
+
+    if has_pending_update:
+        # Wait at most three seconds.
+        deadline = time.time() + 3
+
+        while time.time() < deadline:
+            time.sleep(0.2)
+
+            db.refresh()
+
+            has_pending_update = review.hasPendingUpdate(db)
+            if not has_pending_update:
+                break
+        else:
+            if review.hasPendingInitialUpdate(db):
+                # Display a "please wait" page.
+                yield renderWaitingForInitialUpdate(req, db, user, review)
+                return
+
     repository = review.repository
 
     prefetch_commits = {}
@@ -221,14 +271,15 @@ def renderShowReview(req, db, user):
 
     profiler.check("commits (query)")
 
-    cursor.execute("""SELECT old_head, old_head_commit.sha1,
-                             new_head, new_head_commit.sha1,
+    cursor.execute("""SELECT from_head, from_head_commit.sha1,
+                             to_head, to_head_commit.sha1,
                              new_upstream, new_upstream_commit.sha1,
                              equivalent_merge, equivalent_merge_commit.sha1,
                              replayed_rebase, replayed_rebase_commit.sha1
                         FROM reviewrebases
-             LEFT OUTER JOIN commits AS old_head_commit ON (old_head_commit.id=old_head)
-             LEFT OUTER JOIN commits AS new_head_commit ON (new_head_commit.id=new_head)
+                        JOIN branchupdates ON (reviewrebases.branchupdate=branchupdates.id)
+             LEFT OUTER JOIN commits AS from_head_commit ON (from_head_commit.id=from_head)
+             LEFT OUTER JOIN commits AS to_head_commit ON (to_head_commit.id=to_head)
              LEFT OUTER JOIN commits AS new_upstream_commit ON (new_upstream_commit.id=new_upstream)
              LEFT OUTER JOIN commits AS equivalent_merge_commit ON (equivalent_merge_commit.id=equivalent_merge)
              LEFT OUTER JOIN commits AS replayed_rebase_commit ON (replayed_rebase_commit.id=replayed_rebase)
@@ -262,7 +313,7 @@ def renderShowReview(req, db, user):
         if has_finished_rebases:
             cursor.execute("""SELECT commits.sha1, commits.id
                                 FROM commits
-                                JOIN reachable ON (reachable.commit=commits.id)
+                                JOIN branchcommits ON (branchcommits.commit=commits.id)
                                WHERE branch=%s""",
                            (review.branch.id,))
 
@@ -848,10 +899,13 @@ def renderShowReview(req, db, user):
 
         commits = list(commits)
 
-        cursor.execute("""SELECT id, old_head, new_head, new_upstream, equivalent_merge, replayed_rebase, uid, branch
-                            FROM reviewrebases
-                           WHERE review=%s""",
-                       (review.id,))
+        cursor.execute(
+            """SELECT reviewrebases.id, from_head, to_head, new_upstream,
+                      equivalent_merge, replayed_rebase, uid, reviewrebases.branch
+                 FROM reviewrebases
+                 JOIN branchupdates ON (reviewrebases.branchupdate=branchupdates.id)
+                WHERE review=%s""",
+            (review.id,))
 
         all_rebases = [(rebase_id,
                         gitutils.Commit.fromId(db, repository, old_head),
@@ -884,7 +938,7 @@ def renderShowReview(req, db, user):
 
         if finished_rebases:
             cursor.execute("""SELECT commit
-                                FROM reachable
+                                FROM branchcommits
                                WHERE branch=%s""",
                            (review.branch.id,))
 
@@ -892,7 +946,12 @@ def renderShowReview(req, db, user):
         else:
             actual_commits = []
 
-        log.html.render(db, target, "Commits (%d)", commits=commits, columns=columns, title_right=renderReviewPending, rebases=finished_rebases, branch_name=review.branch.name, bottom_right=bottom_right, review=review, highlight=highlight, profiler=profiler, user=user, extra_commits=actual_commits)
+        log.html.render(
+            db, target, "Commits (%d)", commits=commits, columns=columns,
+            title_right=renderReviewPending, rebases=finished_rebases,
+            branch_name=review.branch.name, bottom_right=bottom_right,
+            review=review, highlight=highlight, profiler=profiler, user=user,
+            extra_commits=actual_commits, has_pending_update=has_pending_update)
 
         yield flush(target)
 

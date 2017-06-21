@@ -47,6 +47,9 @@ with testing.utils.settings("alice", SETTINGS), frontend.signin("alice"):
 
         first_commit = commit()
 
+        work.run(["push", "-q", REMOTE_URL,
+                  "HEAD:refs/roots/%s" % first_commit])
+
         push()
 
         to_alice = mailbox.pop(accept=to("alice"))

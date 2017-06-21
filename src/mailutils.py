@@ -16,7 +16,6 @@
 
 import time
 import os
-import signal
 import email.utils
 
 import configuration
@@ -111,18 +110,20 @@ def sendExceptionMessage(db, source, exception):
     sendAdministratorErrorReport(db, source, lines[-1], exception.rstrip())
 
 def sendPendingMails(filenames):
+    import background.utils
+
+    wakeup_service = False
+
     for filename in filenames:
         assert filename.endswith(".txt.pending")
         try:
             os.rename(filename, filename[:-len(".pending")])
+            wakeup_service = True
         except OSError:
             pass
 
-    try:
-        pid = int(open(configuration.services.MAILDELIVERY["pidfile_path"]).read().strip())
-        os.kill(pid, signal.SIGHUP)
-    except:
-        pass
+    if wakeup_service:
+        background.utils.wakeup(configuration.services.MAILDELIVERY)
 
 def cancelPendingMails(filenames):
     for filename in filenames:

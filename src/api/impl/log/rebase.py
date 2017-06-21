@@ -4,13 +4,12 @@ from .. import apiobject
 class Rebase(apiobject.APIObject):
     wrapper_class = api.log.rebase.Rebase
 
-    def __init__(self, rebase_id, review_id, creator_id,
-                 old_head_id, new_head_id, old_upstream_id, new_upstream_id,
-                 equivalent_merge_id, replayed_rebase_id):
+    def __init__(self, rebase_id, review_id, creator_id, branchupdate_id,
+                 old_upstream_id, new_upstream_id, equivalent_merge_id,
+                 replayed_rebase_id):
         self.id = rebase_id
         self.review_id = review_id
-        self.old_head_id = old_head_id
-        self.new_head_id = new_head_id
+        self.branchupdate_id = branchupdate_id
         self.old_upstream_id = old_upstream_id
         self.new_upstream_id = new_upstream_id
         self.equivalent_merge_id = equivalent_merge_id
@@ -28,16 +27,8 @@ class Rebase(apiobject.APIObject):
     def getRepository(self, critic):
         return self.getReview(critic).branch.repository
 
-    def getOldHead(self, critic):
-        return api.commit.fetch(self.getRepository(critic),
-                                commit_id=self.old_head_id)
-
-    def getNewHead(self, critic):
-        if self.new_head_id is not None:
-            return api.commit.fetch(self.getRepository(critic),
-                                    commit_id=self.new_head_id)
-        else:
-            return None
+    def getBranchUpdate(self, critic):
+        return api.branchupdate.fetch(critic, self.branchupdate_id)
 
     def getOldUpstream(self, critic):
         return api.commit.fetch(self.getRepository(critic),
@@ -68,8 +59,8 @@ class Rebase(apiobject.APIObject):
 def fetch(critic, rebase_id):
     cursor = critic.getDatabaseCursor()
     cursor.execute(
-        """SELECT id, review, uid,
-                  old_head, new_head, old_upstream, new_upstream,
+        """SELECT id, review, uid, branchupdate,
+                  old_upstream, new_upstream,
                   equivalent_merge, replayed_rebase
              FROM reviewrebases
             WHERE id=%s""",
@@ -81,23 +72,25 @@ def fetch(critic, rebase_id):
 
 def fetchAll(critic, review, pending):
     cursor = critic.getDatabaseCursor()
-    new_head = "new_head IS NULL" if pending else "new_head IS NOT NULL"
+    branchupdate_check = ("branchupdate IS NULL"
+                          if pending else
+                          "branchupdate IS NOT NULL")
     if review is not None:
         cursor.execute(
-            """SELECT id, review, uid,
-                      old_head, new_head, old_upstream, new_upstream,
+            """SELECT id, review, uid, branchupdate,
+                      old_upstream, new_upstream,
                       equivalent_merge, replayed_rebase
                  FROM reviewrebases
                 WHERE review=%s
-                  AND """ + new_head + """
+                  AND """ + branchupdate_check + """
              ORDER BY id DESC""",
             (review.id,))
     else:
         cursor.execute(
-            """SELECT id, review, uid,
-                      old_head, new_head, old_upstream, new_upstream,
+            """SELECT id, review, uid, branchupdate,
+                      old_upstream, new_upstream,
                       equivalent_merge, replayed_rebase
                  FROM reviewrebases
-                WHERE """ + new_head + """
+                WHERE """ + branchupdate_check + """
              ORDER BY id DESC""")
     return list(Rebase.make(critic, cursor))

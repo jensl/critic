@@ -26,6 +26,7 @@ import dbutils
 import gitutils
 import mailutils
 import configuration
+import textutils
 
 # Git (git-send-pack) appends a line suffix to its output.  This suffix depends
 # on the $TERM value.  When $TERM is "dumb", the suffix is 8 spaces.  We strip
@@ -73,7 +74,7 @@ class BranchTracker(background.utils.BackgroundProcess):
 
                     returncode, stdout, stderr = relay.run(
                         "push", "--force", "origin", *refspecs,
-                        env={ "CRITIC_FLAGS": "trackedbranch_id=%d" % trackedbranch_id,
+                        env={ "CRITIC_FLAGS": textutils.json_encode({ "trackedbranch_id": trackedbranch_id }),
                               "TERM": "dumb" },
                         check_errors=False)
 
@@ -87,6 +88,18 @@ class BranchTracker(background.utils.BackgroundProcess):
                         if line.startswith("remote: "):
                             line = line[8:]
                             remote_lines.append(line)
+
+                    while remote_lines:
+                        if not remote_lines[0]:
+                            del remote_lines[0]
+                        else:
+                            break
+
+                    while remote_lines:
+                        if not remote_lines[-1]:
+                            del remote_lines[-1]
+                        else:
+                            break
 
                     if returncode == 0:
                         if local_name == "*":

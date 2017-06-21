@@ -42,6 +42,7 @@ class Reviews(object):
              "partitions": Partition[],
              "issues": integer[],
              "notes": integer[],
+             "pending_update": integer or null,
              "pending_rebase": integer or null,
              "progress": float,
              "progress_per_commit": CommitChangeCount[],
@@ -81,26 +82,27 @@ class Reviews(object):
 
         add_partition(value.first_partition)
 
-        return parameters.filtered(
-            "reviews", { "id": value.id,
-                         "state": value.state,
-                         "summary": value.summary,
-                         "description": value.description,
-                         "repository": value.repository,
-                         "branch": value.branch,
-                         "owners": jsonapi.sorted_by_id(value.owners),
-                         "active_reviewers": jsonapi.sorted_by_id(
-                             value.active_reviewers),
-                         "assigned_reviewers": jsonapi.sorted_by_id(
-                             value.assigned_reviewers),
-                         "watchers": jsonapi.sorted_by_id(value.watchers),
-                         "partitions": partitions,
-                         "issues": jsonapi.sorted_by_id(value.issues),
-                         "notes": jsonapi.sorted_by_id(value.notes),
-                         "pending_rebase": value.pending_rebase,
-                         "progress": value.total_progress,
-                         "progress_per_commit":
-                             change_counts_as_dict(value.progress_per_commit)})
+        return parameters.filtered("reviews", {
+            "id": value.id,
+            "state": value.state,
+            "summary": value.summary,
+            "description": value.description,
+            "repository": value.repository,
+            "branch": value.branch,
+            "owners": jsonapi.sorted_by_id(value.owners),
+            "active_reviewers": jsonapi.sorted_by_id(value.active_reviewers),
+            "assigned_reviewers": jsonapi.sorted_by_id(
+                value.assigned_reviewers),
+            "watchers": jsonapi.sorted_by_id(value.watchers),
+            "partitions": partitions,
+            "issues": jsonapi.sorted_by_id(value.issues),
+            "notes": jsonapi.sorted_by_id(value.notes),
+            "pending_update": value.pending_update,
+            "pending_rebase": value.pending_rebase,
+            "progress": value.total_progress,
+            "progress_per_commit":
+                change_counts_as_dict(value.progress_per_commit)
+        })
 
     @staticmethod
     def single(parameters, argument):

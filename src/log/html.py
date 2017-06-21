@@ -121,7 +121,7 @@ DEFAULT_COLUMNS = [(10, WhenColumn()),
                    (65, SummaryColumn()),
                    (20, AuthorColumn())]
 
-def render(db, target, title, branch=None, commits=None, columns=DEFAULT_COLUMNS, title_right=None, listed_commits=None, rebases=None, branch_name=None, bottom_right=None, review=None, highlight=None, profiler=None, collapsable=False, user=None, extra_commits=None):
+def render(db, target, title, branch=None, commits=None, columns=DEFAULT_COLUMNS, title_right=None, listed_commits=None, rebases=None, branch_name=None, bottom_right=None, review=None, highlight=None, profiler=None, collapsable=False, user=None, extra_commits=None, has_pending_update=False):
     addResources(target)
 
     if not profiler: profiler = Profiler()
@@ -493,6 +493,12 @@ def render(db, target, title, branch=None, commits=None, columns=DEFAULT_COLUMNS
         cell.text(error_message)
         return
 
+    if has_pending_update:
+        thead = table.thead()
+        row = thead.tr("pending-update")
+        cell = row.td(colspan=len(columns), align='center')
+        cell.text("An update of the review branch is currently being processed.")
+
     head = heads.pop() if heads else None
 
     row = thead.tr('headings')
@@ -501,6 +507,13 @@ def render(db, target, title, branch=None, commits=None, columns=DEFAULT_COLUMNS
 
     first_rebase = True
     silent_if_empty = set()
+
+    if review and review.hasPendingUpdate(db):
+        thead = table.thead("rebase")
+        row = thead.tr('rebase')
+        cell = row.td(colspan=len(columns), align='center')
+
+        cell.text("Update pending")
 
     if rebases:
         for rebase in rebases:

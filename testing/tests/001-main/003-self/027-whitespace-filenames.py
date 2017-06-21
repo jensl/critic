@@ -1,6 +1,5 @@
 import os
 
-BRANCH = "027-whitespace-filename"
 FILENAME = "filename with spaces.txt"
 
 def check_filename(class_name):
@@ -32,15 +31,15 @@ with frontend.signin("alice"):
                      GIT_COMMITTER_EMAIL="alice@example.org")
             return work.run(["rev-parse", "HEAD"]).strip()
 
-        def push():
+        def push(sha1):
             work.run(["push", "-q", REMOTE_URL,
-                      "HEAD:refs/heads/" + BRANCH])
+                      "%s:refs/roots/%s" % (sha1, sha1)])
 
         with open(os.path.join(work.path, FILENAME), "w") as text_file:
             print >>text_file, "Content of file " + FILENAME
 
         sha1 = commit()
-        push()
+        push(sha1)
 
     frontend.page(
         "showcommit",

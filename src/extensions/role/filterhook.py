@@ -112,7 +112,7 @@ def getFilterHookRole(db, filter_id):
             return role
 
 def queueFilterHookEvent(db, filter_id, review, user, commits, file_ids):
-    cursor = db.cursor()
+    cursor = db.readonly_cursor()
     cursor.execute("""SELECT data
                         FROM extensionhookfilters
                        WHERE id=%s""",
@@ -120,29 +120,32 @@ def queueFilterHookEvent(db, filter_id, review, user, commits, file_ids):
 
     data, = cursor.fetchone()
 
-    cursor.execute("""INSERT INTO extensionfilterhookevents
-                                    (filter, review, uid, data)
-                           VALUES (%s, %s, %s, %s)
-                        RETURNING id""",
-                   (filter_id, review.id, user.id, data))
+    with db.updating_cursor("extensionfilterhookevents",
+                            "extensionfilterhookcommits",
+                            "extensionfilterhookfiles") as cursor:
+        cursor.execute("""INSERT INTO extensionfilterhookevents
+                                        (filter, review, uid, data)
+                               VALUES (%s, %s, %s, %s)
+                            RETURNING id""",
+                       (filter_id, review.id, user.id, data))
 
-    event_id, = cursor.fetchone()
+        event_id, = cursor.fetchone()
 
-    cursor.executemany("""INSERT INTO extensionfilterhookcommits
-                                        (event, commit)
-                               VALUES (%s, %s)""",
-                       [(event_id, commit.getId(db)) for commit in commits])
+        cursor.executemany("""INSERT INTO extensionfilterhookcommits
+                                            (event, commit)
+                                   VALUES (%s, %s)""",
+                           [(event_id, commit.getId(db)) for commit in commits])
 
-    cursor.executemany("""INSERT INTO extensionfilterhookfiles
-                                        (event, file)
-                               VALUES (%s, %s)""",
-                       [(event_id, file_id) for file_id in file_ids])
+        cursor.executemany("""INSERT INTO extensionfilterhookfiles
+                                            (event, file)
+                                   VALUES (%s, %s)""",
+                           [(event_id, file_id) for file_id in file_ids])
 
-    def transactionCallback(event):
-        if event == "commit":
-            signalExtensionTasksService()
+        def transactionCallback(event):
+            if event == "commit":
+                signalExtensionTasksService()
 
-    db.registerTransactionCallback(transactionCallback)
+        db.registerTransactionCallback(transactionCallback)
 
 def processFilterHookEvent(db, event_id, logfn):
     cursor = db.cursor()

@@ -296,7 +296,7 @@ class User(object):
         import dbutils.timezones
         return dbutils.timezones.formatTimestamp(db, timestamp, self.getPreference(db, "timezone"))
 
-    def getCriticURLs(self, db):
+    def getCriticURLs(self, db, path=None, indent="  "):
         url_types = self.getPreference(db, 'email.urlType').split(",")
 
         cursor = db.readonly_cursor()
@@ -315,7 +315,10 @@ class User(object):
                     scheme = authenticated_scheme
                 urls.append("%s://%s" % (scheme, hostname))
 
-        return urls
+        if path is None:
+            return urls
+
+        return ("\n" + indent).join((url + path) for url in urls)
 
     def getFirstName(self):
         return self.fullname.split(" ")[0]
@@ -376,7 +379,7 @@ class User(object):
     @staticmethod
     def makeSystem():
         import configuration
-        return User(0, configuration.base.SYSTEM_USER_NAME, "Critic System",
+        return User(None, configuration.base.SYSTEM_USER_NAME, "Critic System",
                     "system", configuration.base.SYSTEM_USER_EMAIL, None)
 
     @staticmethod

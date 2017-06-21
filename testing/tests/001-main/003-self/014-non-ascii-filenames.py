@@ -39,15 +39,15 @@ with frontend.signin("alice"):
                      GIT_COMMITTER_EMAIL="alice@example.org")
             return work.run(["rev-parse", "HEAD"]).strip()
 
-        def push():
+        def push(sha1):
             work.run(["push", "-q", REMOTE_URL,
-                      "HEAD:refs/heads/" + TC_NAME_PREFIX])
+                      "%s:refs/roots/%s" % (sha1, sha1)])
 
         with open(os.path.join(work.path, TC_NAME_UTF8), "w") as text_file:
             print >>text_file, "Content of file " + TC_NAME_UTF8
 
         sha1 = commit()
-        push()
+        push(sha1)
 
     frontend.page(
         "showcommit",

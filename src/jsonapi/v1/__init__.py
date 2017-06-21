@@ -29,6 +29,7 @@ import sessions
 import repositories
 import commits
 import branches
+import branchupdates
 import reviews
 import reviewsummaries
 import rebases

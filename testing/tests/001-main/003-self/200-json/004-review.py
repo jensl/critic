@@ -26,7 +26,8 @@ review_json = {
                      "rebase": None }],
     "issues": [int, int, int, int],
     "notes": [int, int],
-    "pending_rebase": None
+    "pending_update": None,
+    "pending_rebase": None,
 }
 
 frontend.json(
@@ -53,6 +54,7 @@ frontend.json(
                               "rebase": None }],
              "issues": [int, int, int, int],
              "notes": [int, int],
+             "pending_update": None,
              "pending_rebase": None,
              "linked": { "users": [user_json("alice"),
                                    user_json("bob"),
@@ -74,22 +76,25 @@ def check_reviews(expected_state=str):
             return
         for index, review in enumerate(reviews):
             check("%s[%d]" % (path, index),
-                  expected={ "id": int,
-                             "state": str,
-                             "summary": str,
-                             "description": check_description,
-                             "repository": 1,
-                             "branch": int,
-                             "owners": list,
-                             "assigned_reviewers": list,
-                             "active_reviewers": list,
-                             "progress": 0,
-                             "progress_per_commit": list,
-                             "watchers": list,
-                             "partitions": list,
-                             "issues": list,
-                             "notes": list,
-                             "pending_rebase": None },
+                  expected={
+                      "id": int,
+                      "state": str,
+                      "summary": str,
+                      "description": check_description,
+                      "repository": 1,
+                      "branch": int,
+                      "owners": list,
+                      "assigned_reviewers": list,
+                      "active_reviewers": list,
+                      "progress": 0,
+                      "progress_per_commit": list,
+                      "watchers": list,
+                      "partitions": list,
+                      "issues": list,
+                      "notes": list,
+                      "pending_update": None,
+                      "pending_rebase": None,
+                  },
                   actual=review)
     return checker
 

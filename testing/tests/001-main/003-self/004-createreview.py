@@ -73,6 +73,8 @@ with frontend.signin("alice"):
                "recipientfilters": { "mode": "opt-out" }},
         expect={ "review_id": 1 })
 
+    instance.synchronize_service("reviewupdater")
+
     def to(name):
         return testing.mailbox.ToRecipient("%s@example.org" % name)
 

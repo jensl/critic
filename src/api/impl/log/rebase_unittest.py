@@ -16,8 +16,10 @@ def basic():
     def check_history_rewrite(rebase, old_head_summary, new_head_summary):
         assert isinstance(rebase, api.log.rebase.HistoryRewrite)
         assert api.log.rebase.fetch(critic, rebase_id=rebase.id) is rebase
-        assert rebase.old_head.summary == old_head_summary, (rebase.old_head.summary, old_head_summary)
-        assert rebase.new_head.summary == new_head_summary, (rebase.new_head.summary, new_head_summary)
+        assert rebase.branchupdate.from_head.summary == old_head_summary, \
+            (rebase.branchupdate.from_head.summary, old_head_summary)
+        assert rebase.branchupdate.to_head.summary == new_head_summary, \
+            (rebase.branchupdate.to_head.summary, new_head_summary)
 
     def check_move_rebase(rebase, old_head_summary, new_head_summary,
                           old_upstream_summary, new_upstream_summary,
@@ -25,10 +27,12 @@ def basic():
         assert isinstance(rebase, api.log.rebase.MoveRebase)
         assert api.log.rebase.fetch(critic, rebase_id=rebase.id) is rebase
         assert all(isinstance(commit, api.commit.Commit)
-                   for commit in (rebase.old_head, rebase.new_head,
+                   for commit in (rebase.branchupdate.from_head, rebase.branchupdate.to_head,
                                   rebase.old_upstream, rebase.new_upstream))
-        assert rebase.old_head.summary == old_head_summary, (rebase.old_head.summary, old_head_summary)
-        assert rebase.new_head.summary == new_head_summary, (rebase.new_head.summary, new_head_summary)
+        assert rebase.branchupdate.from_head.summary == old_head_summary, \
+            (rebase.branchupdate.from_head.summary, old_head_summary)
+        assert rebase.branchupdate.to_head.summary == new_head_summary, \
+            (rebase.branchupdate.to_head.summary, new_head_summary)
         if old_upstream_summary is not None:
             assert rebase.old_upstream.summary == old_upstream_summary
         if new_upstream_summary is not None:

@@ -1,6 +1,20 @@
 import time
+import re
 
 BRANCH_NAME = "025-trackedbranch"
+
+def normalize_whitespace(message):
+    return re.sub(r"\s+", " ", message.strip())
+
+def split_hook_output(output):
+    title, _, message = output.partition("\n\n")
+    return normalize_whitespace(title), normalize_whitespace(message)
+
+def split_git_output(output):
+    return split_hook_output(
+        "\n".join(line[len("remote: "):]
+                  for line in output.splitlines()
+                  if line.startswith("remote: ")))
 
 with repository.workcopy() as work, frontend.signin():
     REMOTE_URL = instance.repository_url("alice")
@@ -33,7 +47,14 @@ with repository.workcopy() as work, frontend.signin():
                        successful):
         testing.expect.check(from_sha1, branch_log_item["from_sha1"])
         testing.expect.check(to_sha1, branch_log_item["to_sha1"])
-        testing.expect.check(hook_output, branch_log_item["hook_output"])
+        if isinstance(hook_output, tuple):
+            expected_title, expected_message = hook_output
+            actual_title, actual_message = split_hook_output(
+                branch_log_item["hook_output"])
+            testing.expect.check(expected_title, actual_title)
+            testing.expect.check(expected_message, actual_message)
+        else:
+            testing.expect.check(hook_output, branch_log_item["hook_output"])
         testing.expect.check(successful, branch_log_item["successful"])
 
     work.run(["push", "origin", "HEAD:refs/heads/" + BRANCH_NAME])
@@ -62,49 +83,93 @@ with repository.workcopy() as work, frontend.signin():
                    hook_output="",
                    successful=True)
 
-    work.run(["push", "origin", "-f", "HEAD^:refs/heads/" + BRANCH_NAME])
+    try:
+        work.run(
+            ["push", REMOTE_URL, "-f", "HEAD^:refs/heads/" + BRANCH_NAME],
+            TERM="dumb")
+    except testing.repository.GitCommandError as error:
+        title, message = split_git_output(error.output)
+        testing.expect.check(
+            ("%s rejected: invalid branch update: tracking branch"
+             % BRANCH_NAME),
+            title)
+        testing.expect.check(
+            (("The branch %s in this repository tracks %s in %s, and should "
+              "not be updated directly in this repository.")
+             % (BRANCH_NAME, BRANCH_NAME, repository.url)),
+            message)
+    else:
+        testing.expect.check(
+            "<rejected update of tracking branch>",
+            "<update was accepted>")
 
-    frontend.operation(
-        "triggertrackedbranchupdate",
-        data={ "branch_id": branch_id })
+    try:
+        work.run(
+            ["push", REMOTE_URL, "-f", ":refs/heads/" + BRANCH_NAME],
+            TERM="dumb")
+    except testing.repository.GitCommandError as error:
+        title, message = split_git_output(error.output)
+        testing.expect.check(
+            ("%s rejected: invalid branch deletion: tracking branch"
+             % BRANCH_NAME),
+            title)
+        testing.expect.check(
+            (("The branch %s in this repository tracks %s in %s, and should "
+              "not be deleted in this repository.")
+             % (BRANCH_NAME, BRANCH_NAME, repository.url)),
+            message)
+    else:
+        testing.expect.check(
+            "<rejected update of tracking branch>",
+            "<update was accepted>")
 
-    instance.synchronize_service("branchtracker")
+    # FIXME: This used to test error handling of rejection of non-fast-forward
+    #        updates via branch tracking. But this is no longer rejected, so
+    #        checking this is not possible now.
 
-    log_entries = instance.filter_service_log("branchtracker", "error")
+    # work.run(["push", "origin", "-f", "HEAD^:refs/heads/" + BRANCH_NAME])
 
-    testing.expect.check(1, len(log_entries))
-    testing.expect.check("ERROR - update of branch 025-trackedbranch from "
-                         "025-trackedbranch in %s failed" % repository.url,
-                         log_entries[0].splitlines()[0])
+    # frontend.operation(
+    #     "triggertrackedbranchupdate",
+    #     data={ "branch_id": branch_id })
 
-    to_system = testing.mailbox.ToRecipient("system@example.org")
-    system_subject = testing.mailbox.WithSubject(
-        "branchtracker.log: update of branch %s from %s in %s failed"
-        % (BRANCH_NAME, BRANCH_NAME, repository.url))
-    mailbox.pop(accept=[to_system, system_subject])
+    # instance.synchronize_service("branchtracker")
 
-    to_alice = testing.mailbox.ToRecipient("alice@example.org")
-    alice_subject = testing.mailbox.WithSubject(
-        "%s: update from %s in %s" % (BRANCH_NAME, BRANCH_NAME, repository.url))
-    mailbox.pop(accept=[to_alice, alice_subject])
+    # log_entries = instance.filter_service_log("branchtracker", "error")
 
-    branch_log = get_branch_log(branch_id, expected_length=2)
+    # testing.expect.check(1, len(log_entries))
+    # testing.expect.check("ERROR - update of branch 025-trackedbranch from "
+    #                      "025-trackedbranch in %s failed" % repository.url,
+    #                      log_entries[0].splitlines()[0])
 
-    check_log_item(branch_log[0],
-                   from_sha1="0" * 40,
-                   to_sha1=sha1s["HEAD"],
-                   hook_output="",
-                   successful=True)
-    check_log_item(branch_log[1],
-                   from_sha1=sha1s["HEAD"],
-                   to_sha1=sha1s["HEAD^"],
-                   hook_output="""\
-Rejecting non-fast-forward update of branch.  To perform the update, you
-can delete the branch using
-  git push critic :%s
-first, and then repeat this push.
-""" % BRANCH_NAME,
-                   successful=False)
+    # to_system = testing.mailbox.ToRecipient("system@example.org")
+    # system_subject = testing.mailbox.WithSubject(
+    #     "branchtracker.log: update of branch %s from %s in %s failed"
+    #     % (BRANCH_NAME, BRANCH_NAME, repository.url))
+    # mailbox.pop(accept=[to_system, system_subject])
+
+    # to_alice = testing.mailbox.ToRecipient("alice@example.org")
+    # alice_subject = testing.mailbox.WithSubject(
+    #     "%s: update from %s in %s" % (BRANCH_NAME, BRANCH_NAME, repository.url))
+    # mailbox.pop(accept=[to_alice, alice_subject])
+
+    # branch_log = get_branch_log(branch_id, expected_length=2)
+
+    # check_log_item(branch_log[0],
+    #                from_sha1="0" * 40,
+    #                to_sha1=sha1s["HEAD"],
+    #                hook_output="",
+    #                successful=True)
+    # check_log_item(branch_log[1],
+    #                from_sha1=sha1s["HEAD"],
+    #                to_sha1=sha1s["HEAD^"],
+    #                hook_output=(
+    #                    ("%s rejected: invalid branch update: "
+    #                     "non-fast-forward update"
+    #                     % BRANCH_NAME),
+    #                    "This tracked branch is not in \"forced\" mode, thus "
+    #                    "rejecting the update."),
+    #                successful=False)
 
     work.run(["push", "origin", "HEAD:refs/heads/%s-forced" % BRANCH_NAME])
 
@@ -147,9 +212,7 @@ first, and then repeat this push.
     check_log_item(branch_log[1],
                    from_sha1=sha1s["HEAD"],
                    to_sha1=sha1s["HEAD^"],
-                   hook_output="""\
-Non-fast-forward update detected; deleting and recreating branch.
-""",
+                   hook_output="",
                    successful=True)
 
     mailbox.check_empty()

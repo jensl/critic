@@ -64,7 +64,7 @@ def renderBranches(req, db, user):
         document.addInternalScript(repository.getJS())
 
         cursor.execute("""SELECT branches.id, branches.name, branches.base, branches.review,
-                                 branches.commit_time, COUNT(reachable.branch)
+                                 branches.commit_time, COUNT(branchcommits.branch)
                             FROM (SELECT branches.id AS id, branches.name AS name, bases.name AS base,
                                          reviews.id AS review, commits.commit_time AS commit_time
                                     FROM branches
@@ -76,7 +76,7 @@ def renderBranches(req, db, user):
                                 ORDER BY commits.commit_time DESC
                                    LIMIT %s
                                    OFFSET %s) AS branches
-                 LEFT OUTER JOIN reachable ON (reachable.branch=branches.id)
+                 LEFT OUTER JOIN branchcommits ON (branchcommits.branch=branches.id)
                         GROUP BY branches.id, branches.name, branches.base, branches.review,
                                  branches.commit_time
                         ORDER BY branches.commit_time DESC""",

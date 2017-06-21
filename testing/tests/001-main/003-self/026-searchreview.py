@@ -37,7 +37,6 @@ packages in the instance and retake the snapshot afterwards.""",
                          "dropped": True } }
 
 FAILED = False
-SETTINGS = { "review.createViaPush": True }
 
 def to(name):
     return testing.mailbox.ToRecipient("%s@example.org" % name)
@@ -49,33 +48,13 @@ with repository.workcopy() as work:
     for review in REVIEWS.values():
         primary_owner = review["owners"][0]
 
-        with testing.utils.settings(primary_owner, SETTINGS), \
-                frontend.signin(primary_owner):
-            REMOTE_URL = instance.repository_url(primary_owner)
+        review["id"] = testing.utils.createReviewViaPush(
+            work, primary_owner, review["sha1"], review["branch"])
 
-            output = work.run(
-                ["push", REMOTE_URL, "%(sha1)s:refs/heads/%(branch)s" % review])
+        mailbox.pop(accept=[to(primary_owner),
+                            about("New Review: %s" % review["summary"])])
 
-            next_is_review_url = False
-
-            for line in output.splitlines():
-                if not line.startswith("remote:"):
-                    continue
-                line = line[len("remote:"):].split("\x1b", 1)[0].strip()
-                if line == "Submitted review:":
-                    next_is_review_url = True
-                elif next_is_review_url:
-                    logger.debug(line)
-                    review["id"] = int(re.search(r"/r/(\d+)$", line).group(1))
-                    break
-            else:
-                testing.expect.check("<review URL in git hook output>",
-                                     "<expected content not found>")
-
-            mailbox.pop(
-                accept=[to(primary_owner),
-                        about("New Review: %s" % review["summary"])])
-
+        with frontend.signin(primary_owner):
             updatereview_data = {}
 
             if len(review["owners"]) > 1:

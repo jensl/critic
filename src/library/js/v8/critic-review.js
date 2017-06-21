@@ -292,7 +292,7 @@ function CriticReview(arg)
     {
       rebases = [];
 
-      var result = db.execute("SELECT id, uid, old_head, new_head, new_upstream, equivalent_merge, replayed_rebase, branch FROM reviewrebases WHERE review=%d AND new_head IS NOT NULL ORDER BY id DESC", self.id);
+      var result = db.execute("SELECT reviewrebases.id, uid, from_head, to_head, new_upstream, equivalent_merge, replayed_rebase, reviewrebases.branch FROM reviewrebases JOIN branchupdates ON (reviewrebases.branchupdate=branchupdates.id) WHERE review=%d ORDER BY id DESC", self.id);
 
       for (var index = 0; index < result.length; ++index)
       {
@@ -563,7 +563,7 @@ CriticReview.prototype.prepareRebase = function (data)
   {
     db.rollback();
 
-    if (db.execute("SELECT 1 FROM reviewrebases WHERE review=%d AND new_head IS NULL", this.id).length != 0)
+    if (db.execute("SELECT 1 FROM reviewrebases WHERE review=%d AND branchupdate IS NULL", this.id).length != 0)
       throw CriticError("review rebase already in progress");
 
     var user = data.user || global.user;
@@ -574,8 +574,8 @@ CriticReview.prototype.prepareRebase = function (data)
     var old_head_id = this.branch.head.id;
 
     if (data.historyRewrite)
-      db.execute("INSERT INTO reviewrebases (review, old_head, uid) VALUES (%d, %d, %d)",
-                 this.id, old_head_id, user.id);
+      db.execute("INSERT INTO reviewrebases (review, uid) VALUES (%d, %d)",
+                 this.id, user.id);
     else
     {
       var upstreams = this.branch.commits.upstreams;
@@ -587,11 +587,11 @@ CriticReview.prototype.prepareRebase = function (data)
       var old_upstream = upstreams[0];
 
       if (data.singleCommit)
-        db.execute("INSERT INTO reviewrebases (review, old_head, old_upstream, uid, branch) VALUES (%d, %d, %d, %d, %s)",
-                   this.id, old_head_id, old_upstream.id, user.id, branch);
+        db.execute("INSERT INTO reviewrebases (review, old_upstream, uid, branch) VALUES (%d, %d, %d, %s)",
+                   this.id, old_upstream.id, user.id, branch);
       else
-        db.execute("INSERT INTO reviewrebases (review, old_head, old_upstream, new_upstream, uid, branch) VALUES (%d, %d, %d, %d, %d, %s)",
-                   this.id, old_head_id, old_upstream.id, data.newUpstream.id, user.id, branch);
+        db.execute("INSERT INTO reviewrebases (review, old_upstream, new_upstream, uid, branch) VALUES (%d, %d, %d, %d, %s)",
+                   this.id, old_upstream.id, data.newUpstream.id, user.id, branch);
     }
 
     db.execute("UPDATE reviews SET serial=serial + 1 WHERE id=%d", this.id);
@@ -600,7 +600,7 @@ CriticReview.prototype.prepareRebase = function (data)
 
 CriticReview.prototype.cancelRebase = function (data)
   {
-    var result = db.execute("SELECT id FROM reviewrebases WHERE review=%d AND new_head IS NULL", this.id)[0];
+    var result = db.execute("SELECT id FROM reviewrebases WHERE review=%d AND branchupdate IS NULL", this.id)[0];
 
     if (!result)
       throw CriticError("no review rebase in progress");

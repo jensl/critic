@@ -85,6 +85,7 @@ with work, settings, signin:
         reviews.append({ "id": result["review_id"],
                          "branch": "r/" + branch,
                          "summary": summary })
+        instance.synchronize_service("reviewupdater")
         expectmail("New Review")
 
     def push(new_head, force=False):
@@ -188,6 +189,8 @@ with work, settings, signin:
     # commit.)  Then push another pair of commits, and history rewrite back to
     # the first commit again.
 
+    logger.debug("Test #1")
+
     work.run(["checkout", "-b", "020-reviewrebase-1", start_sha1])
     commits = [commit("Test #1, commit 1", write),
                commit("Test #1, commit 2", write, 4, 5),
@@ -243,6 +246,8 @@ with work, settings, signin:
     # review branch on.  Then create a review with three commits, move rebase
     # it (ff), rewrite the history, and move rebase it (non-ff) again.
 
+    logger.debug("Test #2")
+
     work.run(["checkout", "-b", "020-reviewrebase-2-base", start_sha1])
     base_commits = [commit("Test #2 base, commit 1", write),
                     commit("Test #2 base, commit 2", write, 0)]
@@ -281,6 +286,8 @@ with work, settings, signin:
 
     # TEST #3: Like test #2, but the base commits have changes that trigger
     # "conflicts" and thus equivalent merge commits.
+
+    logger.debug("Test #3")
 
     work.run(["checkout", "-b", "020-reviewrebase-3-base", start_sha1])
     base_commits = [commit("Test #3 base, commit 1", write),
@@ -328,6 +335,8 @@ with work, settings, signin:
     # TEST #4: Create a review with three commits based on master~2, then merge
     # master~1 into the review, and then rebase the review onto master.
 
+    logger.debug("Test #4")
+
     work.run(["fetch", REMOTE_URL, "refs/heads/master"])
     base_commits = [commit("FETCH_HEAD~2"),
                     commit("FETCH_HEAD~1"),
@@ -360,6 +369,8 @@ with work, settings, signin:
     # rewrite so that the branch points to the first commit (i.e. remove the
     # second and third commit.)  Then non-ff move-rebase the review.
 
+    logger.debug("Test #5")
+
     work.run(["checkout", "-b", "020-reviewrebase-5-base", start_sha1])
     base_commits = [commit("Test #5 base, commit 1", write, filename=FILENAME_BASE),
                     commit("Test #5 base, commit 2", write, 0, filename=FILENAME_BASE)]
@@ -384,6 +395,8 @@ with work, settings, signin:
                commits[0]])
 
     # TEST #6: Like test #5, but we revert the rebases afterwards.
+
+    logger.debug("Test #6")
 
     work.run(["checkout", "-b", "020-reviewrebase-6-base", start_sha1])
     base_commits = [commit("Test #6 base, commit 1", write, filename=FILENAME_BASE),

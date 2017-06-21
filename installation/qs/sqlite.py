@@ -36,7 +36,7 @@ sqlite3.register_converter("INTERVAL", convert_interval)
 sqlite3.register_converter("BOOLEAN", convert_boolean)
 
 def sqltokens(command):
-    return re.findall(r"""\$\d+|!=|<>|<=|>=|'(?:''|[^'])*'|"(?:[^"])*"|\w+|[^\s]""", command)
+    return re.findall(r"""\$\d+|!=|<>|<=|>=|\|\||'(?:''|[^'])*'|"(?:[^"])*"|\w+|[^\s]""", command)
 
 def sqlcommands(filename):
     path = os.path.join(installation.root_dir, filename)

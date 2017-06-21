@@ -675,6 +675,7 @@ class Instance(testing.Instance):
         self.execute(["rm", "-r", "critic"])
 
     def run_unittest(self, args):
+        args = ["'%s'" % arg for arg in args]
         if self.coverage:
             args = ["--coverage"] + args
         return self.execute(

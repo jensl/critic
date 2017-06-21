@@ -21,7 +21,7 @@ from dbutils.session import Session
 from dbutils.database import (InvalidCursorError, FailedToLock, NOWAIT,
                               Database, boolean)
 from dbutils.user import InvalidUserId, NoSuchUser, User
-from dbutils.review import NoSuchReview, ReviewState, Review
+from dbutils.review import NoSuchReview, ReviewUpdateError, ReviewState, Review
 from dbutils.branch import Branch
 from dbutils.paths import (InvalidFileId, InvalidPath, File, find_file,
                            find_files, describe_file)

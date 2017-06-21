@@ -14,6 +14,7 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
+import debug
 import base
 import auth
 import paths
@@ -24,4 +25,3 @@ import limits
 import extensions
 import database
 import smtp
-import debug

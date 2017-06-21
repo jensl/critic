@@ -157,6 +157,13 @@ class Repository:
     def __str__(self):
         return self.path
 
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        self.stopBatch()
+        return False
+
     def getURL(self, db, user):
         return Repository.constructURL(db, user, self.path)
 
@@ -486,6 +493,13 @@ class Repository:
         if git.returncode == 0: return stdout.strip() == "commit"
         else: return False
 
+    def isref(self, name):
+        try:
+            self.revparse(name)
+            return True
+        except GitReferenceError:
+            return False
+
     def createref(self, name, value):
         assert name.startswith("refs/")
         self.run("update-ref", name, str(value), "0" * 40)
@@ -778,8 +792,6 @@ class Repository:
 
     @contextlib.contextmanager
     def fetchTemporaryFromRemote(self, db, remote, ref):
-        import index
-
         with self.temporaryref() as temporary_ref:
             try:
                 self.run("fetch", remote, "%s:%s" % (ref, temporary_ref))
@@ -790,9 +802,9 @@ class Repository:
                     raise GitReferenceError("Invalid ref %r." % ref, ref=ref)
                 raise
 
-            sha1 = self.run("rev-parse", "--verify", temporary_ref).strip()
+            sha1 = self.run("rev-parse", "--verify", temporary_ref + "^{commit}").strip()
 
-            index.processCommits(db, self, sha1)
+            self.processCommits(db, sha1)
 
             yield sha1
 
@@ -959,18 +971,133 @@ class Repository:
 
         return None
 
+    def processCommits(self, db, sha1):
+        sha1 = self.run("rev-parse", "--verify", "--quiet",
+                        sha1 + "^{commit}").strip()
+
+        cursor = db.readonly_cursor()
+        cursor.execute("SELECT 1 FROM commits LIMIT 1")
+        emptydb = cursor.fetchone() is None
+
+        stack = []
+        commits = set()
+        commit_users = set()
+
+        commits_values = []
+        edges_values = []
+
+        while True:
+            if sha1 not in commits:
+                commit = Commit.fromSHA1(db, self, sha1)
+
+                commit_users.add(commit.author)
+                commit_users.add(commit.committer)
+
+                if emptydb:
+                    commits_values.append(commit)
+                    new_commit = True
+                else:
+                    cursor.execute("""SELECT id
+                                        FROM commits
+                                       WHERE sha1=%s""",
+                                   (commit.sha1,))
+
+                    if not cursor.fetchone():
+                        commits_values.append(commit)
+                        new_commit = True
+                    else:
+                        new_commit = False
+
+                commits.add(sha1)
+
+                if new_commit:
+                    parents = set(commit.parents)
+                    edges_values.extend((parent_sha1, commit.sha1)
+                                        for parent_sha1 in parents)
+                    stack.extend(parents)
+
+            if not stack:
+                break
+
+            sha1 = stack.pop(0)
+
+        with db.updating_cursor("gitusers", "commits", "edges") as cursor:
+            commit_user_ids = {}
+
+            for commit_user in commit_users:
+                commit_user_ids[commit_user] = commit_user.getOrCreateGitUserId(
+                    cursor)
+
+            cursor.executemany(
+                """INSERT INTO commits (sha1, author_gituser, commit_gituser,
+                                        author_time, commit_time)
+                        VALUES (%s, %s, %s, %s, %s)""",
+                ((commit.sha1,
+                  commit_user_ids[commit.author],
+                  commit_user_ids[commit.committer],
+                  commit.author.asTimestamp(),
+                  commit.committer.asTimestamp())
+                 for commit in commits_values))
+
+            cursor.executemany(
+                """INSERT INTO edges (parent, child)
+                        SELECT parents.id, children.id
+                          FROM commits AS parents,
+                               commits AS children
+                         WHERE parents.sha1=%s
+                           AND children.sha1=%s""",
+                edges_values)
+
+    def createTag(self, db, name, tagged_sha1):
+        # The "tagged" SHA-1 might reference an annotated tag object, so make
+        # sure to convert it into a commit SHA-1 before continuing.
+        sha1 = self.run("rev-parse", "--verify", "--quiet",
+                        tagged_sha1 + "^{commit}").strip()
+
+        with db.updating_cursor("tags") as cursor:
+            cursor.execute("""INSERT INTO tags (name, repository, sha1)
+                                   VALUES (%s, %s, %s)""",
+                           (name, self.id, sha1))
+
+    def updateTag(self, db, name, old_tagged_sha1, new_tagged_sha1):
+        # The "tagged" SHA-1 might reference an annotated tag object, so make
+        # sure to convert it into a commit SHA-1 before continuing.
+        new_sha1 = self.run("rev-parse", "--verify", "--quiet",
+                            new_tagged_sha1 + "^{commit}").strip()
+
+        with db.updating_cursor("tags") as cursor:
+            cursor.execute("""UPDATE tags
+                                 SET sha1=%s
+                               WHERE name=%s
+                                 AND repository=%s""",
+                           (new_sha1, name, self.id))
+
+    def deleteTag(self, db, name):
+        with db.updating_cursor("tags") as cursor:
+            cursor.execute("""DELETE
+                                FROM tags
+                               WHERE name=%s
+                                 AND repository=%s""",
+                           (name, self.id))
+
 class CommitUserTime(object):
     def __init__(self, name, email, time):
         self.name = name
         self.email = email
         self.time = time
 
+    def __hash__(self):
+        return hash((self.name, self.email))
+
+    def __eq__(self, other):
+        return self.name == other.name and self.email == other.email
+
     def __getIds(self, db):
         cache = db.storage["CommitUserTime"]
         cache_key = (self.name, self.email)
 
         if cache_key not in cache:
-            cursor = db.cursor()
+            cursor = db.readonly_cursor()
             cursor.execute("""SELECT id
                                 FROM gitusers
                                WHERE fullname=%s
@@ -978,13 +1105,15 @@ class CommitUserTime(object):
                            (self.name, self.email))
             row = cursor.fetchone()
             if not row:
-                cursor.execute("""INSERT INTO gitusers (fullname, email)
-                                       VALUES (%s, %s)
-                                    RETURNING id""",
-                               (self.name, self.email))
-                row = cursor.fetchone()
+                with db.updating_cursor("gitusers") as cursor:
+                    cursor.execute("""INSERT INTO gitusers (fullname, email)
+                                           VALUES (%s, %s)
+                                        RETURNING id""",
+                                   (self.name, self.email))
+                    row = cursor.fetchone()
             gituser_id, = row
 
+            cursor = db.readonly_cursor()
             cursor.execute("""SELECT uid
                                 FROM usergitemails
                                WHERE email=%s""",
@@ -1001,6 +1130,22 @@ class CommitUserTime(object):
     def getGitUserId(self, db):
         return self.__getIds(db)[1]
 
+    def getOrCreateGitUserId(self, cursor):
+        cursor.execute("""SELECT id
+                            FROM gitusers
+                           WHERE fullname=%s
+                             AND email=%s""",
+                       (self.name, self.email))
+        row = cursor.fetchone()
+        if not row:
+            cursor.execute("""INSERT INTO gitusers (fullname, email)
+                                   VALUES (%s, %s)
+                                RETURNING id""",
+                           (self.name, self.email))
+            row = cursor.fetchone()
+        gituser_id, = row
+        return gituser_id
+
     def getFullname(self, db):
         user_ids = self.getUserIds(db)
         if len(user_ids) == 1:
@@ -1009,9 +1154,11 @@ class CommitUserTime(object):
         else:
             return self.name
 
+    def asTimestamp(self):
+        return time.strftime("%Y-%m-%d %H:%M:%S", self.time)
+
     def __str__(self):
-        timestamp = time.strftime("%Y-%m-%d %H:%M:%S", self.time)
-        return "%s <%s> at %s" % (self.name, self.email, timestamp)
+        return "%s <%s> at %s" % (self.name, self.email, self.asTimestamp())
 
     @staticmethod
     def fromValue(value):
@@ -1141,8 +1288,8 @@ class Commit:
             cursor = db.readonly_cursor()
             cursor.execute("""SELECT branches.name
                                 FROM branches
-                                JOIN reachable ON (reachable.branch=branches.id)
-                                JOIN commits ON (commits.id=reachable.commit)
+                                JOIN branchcommits ON (branchcommits.branch=branches.id)
+                                JOIN commits ON (commits.id=branchcommits.commit)
                                WHERE commits.sha1=%s""",
                            (self.sha1,))
             decorations.extend(branch for (branch,) in cursor)
@@ -1152,20 +1299,23 @@ class Commit:
 
     def isAncestorOf(self, other):
         if isinstance(other, Commit):
-            if self.repository != other.repository: return False
+            if self.repository != other.repository:
+                return False
             other_sha1 = other.sha1
         else:
             other_sha1 = str(other)
 
         try:
-            mergebase_sha1 = self.repository.mergebase([self.sha1, other_sha1])
+            self.repository.run(
+                "merge-base", "--is-ancestor", self.sha1, other_sha1)
         except GitCommandError:
-            # Merge-base fails if there is no common ancestor.  And if two
-            # commits have no common ancestor, neither can be an ancestor of the
-            # other, obviously.
+            # Non-zero exit status means "not ancestor of".  It might also mean
+            # failure to calculate somehow, like for instance "invalid SHA-1",
+            # but that most likely also means "not ancestor of" in practice.
             return False
         else:
-            return mergebase_sha1 == self.sha1
+            # Zero exit status means "ancestor of".
+            return True
 
     def getTree(self, path):
         path = "/" + path.lstrip("/")
@@ -1438,3 +1588,30 @@ class FetchCommits(threading.Thread):
 
         for gitobject, commit_id in self.gitobjects:
             Commit.fromGitObject(db, self.repository, gitobject, commit_id)
+
+def emitGitHookOutput(db, pendingrefupdate_id, output, error=None):
+    import dbutils
+    if pendingrefupdate_id is None:
+        return
+    if output is not None and not output.strip():
+        return
+    if error is not None:
+        cursor = db.readonly_cursor()
+        cursor.execute("""SELECT updater
+                            FROM pendingrefupdates
+                           WHERE id=%s""",
+                       (pendingrefupdate_id,))
+        updater_id, = cursor.fetchone()
+        if updater_id is not None:
+            updater = dbutils.User.fromId(db, updater_id)
+        else:
+            updater = None
+        if not updater or updater.hasRole(db, "developer"):
+            output = error
+    if pendingrefupdate_id is not None and ((output and output.strip()) or error):
+        with db.updating_cursor("pendingrefupdateoutputs") as cursor:
+            cursor.execute(
+                """INSERT INTO pendingrefupdateoutputs
+                                 (pendingrefupdate, output)
+                        VALUES (%s, %s)""",
+                (pendingrefupdate_id, output))

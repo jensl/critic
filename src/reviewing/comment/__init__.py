@@ -510,10 +510,11 @@ def validateCommentChain(db, review, origin, parent, child, file, offset, count)
                              "child_sha1": addressed_by.child.sha1,
                              "offset": addressed_by.location.first_line }
 
-def propagateCommentChains(db, user, review, commits, replayed_rebases={}):
+def propagateCommentChains(db, user, review, previous_head, commits,
+                           replayed_rebases={}):
     import reviewing.comment.propagate
 
-    cursor = db.cursor()
+    cursor = db.readonly_cursor()
     cursor.execute("""SELECT id, uid, type, state, file
                         FROM commentchains
                        WHERE review=%s
@@ -530,7 +531,7 @@ def propagateCommentChains(db, user, review, commits, replayed_rebases={}):
 
     for file_id, chains in chains_by_file.items():
         file_path = dbutils.describe_file(db, file_id)
-        file_sha1 = review.branch.getHead(db).getFileSHA1(file_path)
+        file_sha1 = previous_head.getFileSHA1(file_path)
 
         cursor.execute("""SELECT chain, first_line, last_line
                             FROM commentchainlines
@@ -547,7 +548,7 @@ def propagateCommentChains(db, user, review, commits, replayed_rebases={}):
                 head = replayed_rebases[head]
 
             propagation = reviewing.comment.propagate.Propagation(db)
-            propagation.setExisting(review, chain_id, review.branch.getHead(db), file_id, first_line, last_line)
+            propagation.setExisting(review, chain_id, previous_head, file_id, first_line, last_line)
             propagation.calculateAdditionalLines(commits, head)
 
             chain_user_id, chain_type, chain_state = chains[chain_id]
@@ -559,18 +560,27 @@ def propagateCommentChains(db, user, review, commits, replayed_rebases={}):
             if chain_type == "issue" and chain_state in ("open", "draft") and not propagation.active:
                 addressed_values.append((propagation.addressed_by[0].child.getId(db), chain_id))
 
-    cursor.executemany("""INSERT INTO commentchainlines (chain, uid, state, sha1, first_line, last_line)
-                          VALUES (%s, %s, %s, %s, %s, %s)""",
-                       commentchainlines_values)
+    output = ""
 
-    if addressed_values:
-        cursor.executemany("UPDATE commentchains SET state='addressed', addressed_by=%s WHERE id=%s AND state='open'", addressed_values)
-        cursor.executemany("UPDATE commentchains SET addressed_by=%s WHERE id=%s AND state='draft'", addressed_values)
+    with db.updating_cursor("commentchains",
+                            "commentchainlines") as cursor:
+        cursor.executemany("""INSERT INTO commentchainlines (chain, uid, state, sha1, first_line, last_line)
+                              VALUES (%s, %s, %s, %s, %s, %s)""",
+                           commentchainlines_values)
 
-        print "Addressed issues:"
-        for commit_id, chain_id in addressed_values:
-            chain = CommentChain.fromId(db, chain_id, user, review=review)
-            if chain.state == 'addressed':
-                chain.loadComments(db, user)
-                title = "  %s: " % chain.title(False)
-                print "%s%s" % (title, chain.leader(max_length=80 - len(title), text=True))
+        if addressed_values:
+            cursor.executemany("UPDATE commentchains SET state='addressed', addressed_by=%s WHERE id=%s AND state='open'", addressed_values)
+            cursor.executemany("UPDATE commentchains SET addressed_by=%s WHERE id=%s AND state='draft'", addressed_values)
+
+            output += "Addressed issues:\n"
+
+            for commit_id, chain_id in addressed_values:
+                chain = CommentChain.fromId(db, chain_id, user, review=review)
+                if chain.state == 'addressed':
+                    chain.loadComments(db, user)
+                    title = "  %s: " % chain.title(False)
+                    output += "%s%s\n" % (title, chain.leader(max_length=80 - len(title), text=True))
+
+            output += "\n"
+
+    return output

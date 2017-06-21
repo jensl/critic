@@ -22,7 +22,7 @@ def service(name, address=0, module=0, pidfile_path=0, logfile_path=0, loglevel=
     if module       == 0: module       = "background." + name
     if pidfile_path == 0: pidfile_path = os.path.join(configuration.paths.RUN_DIR, name + ".pid")
     if logfile_path == 0: logfile_path = os.path.join(configuration.paths.LOG_DIR, name + ".log")
-    if loglevel     == 0: loglevel     = "info"
+    if loglevel     == 0: loglevel     = "debug" if configuration.debug.IS_TESTING else "info"
 
     return { "name": name,
              "address": address,
@@ -35,6 +35,8 @@ HIGHLIGHT         = service(name="highlight")
 CHANGESET         = service(name="changeset")
 GITHOOK           = service(name="githook")
 BRANCHTRACKER     = service(name="branchtracker",     address=None)
+BRANCHUPDATER     = service(name="branchupdater",     address=None)
+REVIEWUPDATER     = service(name="reviewupdater",     address=None)
 MAILDELIVERY      = service(name="maildelivery",      address=None)
 WATCHDOG          = service(name="watchdog",          address=None)
 MAINTENANCE       = service(name="maintenance",       address=None)
@@ -66,6 +68,8 @@ SERVICEMANAGER["services"] = [HIGHLIGHT,
                               CHANGESET,
                               GITHOOK,
                               BRANCHTRACKER,
+                              BRANCHUPDATER,
+                              REVIEWUPDATER,
                               MAILDELIVERY,
                               WATCHDOG,
                               MAINTENANCE,

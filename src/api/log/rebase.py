@@ -24,12 +24,8 @@ class Rebase(api.APIObject):
         return self._impl.getReview(self.critic)
 
     @property
-    def old_head(self):
-        return self._impl.getOldHead(self.critic)
-
-    @property
-    def new_head(self):
-        return self._impl.getNewHead(self.critic)
+    def branchupdate(self):
+        return self._impl.getBranchUpdate(self.critic)
 
     @property
     def creator(self):

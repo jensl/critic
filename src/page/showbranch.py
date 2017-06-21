@@ -54,7 +54,7 @@ def renderShowBranch(req, db, user):
         old_count, new_count, base_old_count, base_new_count = branch.rebase(db, base)
 
         if base_old_count is not None:
-            new_base_base_name = base.base.name
+            new_base_base_name = base.getBase(db).name
         else:
             new_base_base_name = None
 
@@ -86,7 +86,7 @@ def renderShowBranch(req, db, user):
 
     page.utils.generateHeader(body, db, user, renderCreateReview, extra_links=extra_links)
 
-    document.addInternalScript(branch.getJS())
+    document.addInternalScript(branch.getJS(db))
 
     title_right = None
 
@@ -97,16 +97,16 @@ def renderShowBranch(req, db, user):
         title_right = renderPerformRebase
     elif base_id is not None:
         bases = []
-        base = branch.base
+        base = branch.getBase(db)
 
         if base:
             if base.type == "review":
                 bases.append("master")
             else:
-                base = base.base
+                base = base.getBase(db)
                 while base:
                     bases.append(base.name)
-                    base = base.base
+                    base = base.getBase(db)
 
         cursor.execute("SELECT name FROM branches WHERE base=%s", (branch.id,))
 
@@ -121,15 +121,15 @@ def renderShowBranch(req, db, user):
             for name in bases:
                 select.option("base", value=name.split(" ")[0]).text(name)
 
-        if not bases and branch.base:
-            cursor.execute("SELECT commit FROM reachable WHERE branch=%s", (branch.id,))
+        if not bases and branch.base_id is not None:
+            cursor.execute("SELECT commit FROM branchcommits WHERE branch=%s", (branch.id,))
 
             commit_ids = [commit_id for (commit_id,) in cursor]
 
             for commit_id in commit_ids:
-                cursor.execute("SELECT 1 FROM reachable WHERE branch=%s AND commit=%s", (branch.base.id, commit_id))
+                cursor.execute("SELECT 1 FROM branchcommits WHERE branch=%s AND commit=%s", (branch.base_id, commit_id))
                 if cursor.fetchone():
-                    bases.append("%s (trim)" % branch.base.name)
+                    bases.append("%s (trim)" % branch.getBase(db).name)
                     break
 
         if bases:
@@ -138,7 +138,7 @@ def renderShowBranch(req, db, user):
     target = body.div("main")
 
     if branch_type == 'normal':
-        cursor.execute("SELECT COUNT(*) FROM reachable WHERE branch=%s", (branch_id,))
+        cursor.execute("SELECT COUNT(*) FROM branchcommits WHERE branch=%s", (branch_id,))
 
         commit_count = cursor.fetchone()[0]
         if commit_count > configuration.limits.MAXIMUM_REACHABLE_COMMITS:

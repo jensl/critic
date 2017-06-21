@@ -98,6 +98,8 @@ class Review(object):
 
         self.id = result["review_id"]
 
+        instance.synchronize_service("reviewupdater")
+
         for username in self.users:
             mailbox.pop(accept=[
                 testing.mailbox.ToRecipient(username + "@example.org"),

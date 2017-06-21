@@ -42,7 +42,7 @@ class Branch(apiobject.APIObject):
             repository = self.getRepository(critic)
             cursor = critic.getDatabaseCursor()
             cursor.execute("""SELECT commit
-                                FROM reachable
+                                FROM branchcommits
                                WHERE branch=%s""",
                            (self.id,))
             self.__commits = api.commitset.create(

@@ -14,6 +14,7 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
+import StringIO
 import time
 
 import base
@@ -105,6 +106,9 @@ class NoSuchReview(base.Error):
         super(NoSuchReview, self).__init__("No such review: r/%d" % review_id)
         self.id = review_id
 
+class ReviewUpdateError(base.Error):
+    pass
+
 class ReviewState(object):
     def __init__(self, review, accepted, pending, reviewed, issues):
         self.review = review
@@ -150,16 +154,108 @@ class ReviewState(object):
             else: return progress
 
 class ReviewRebase(object):
-    def __init__(self, review, old_head, new_head, old_upstream, new_upstream, user,
-                 equivalent_merge, replayed_rebase):
+    def __init__(self, rebase_id, review, old_head, new_head, old_upstream,
+                 new_upstream, user, equivalent_merge, replayed_rebase,
+                 target_branch):
+        self.id = rebase_id
         self.review = review
-        self.old_head = old_head
+        self.__branchupdate_id = None
+        self.__branchupdate_id_updated = False
         self.new_head = new_head
+        self.old_head = old_head
         self.old_upstream = old_upstream
-        self.new_upstream = new_upstream
+        self.__new_upstream = new_upstream
+        self.__new_upstream_updated = False
         self.user = user
-        self.equivalent_merge = equivalent_merge
-        self.replayed_rebase = replayed_rebase
+        self.__equivalent_merge = equivalent_merge
+        self.__equivalent_merge_updated = False
+        self.__replayed_rebase = replayed_rebase
+        self.__replayed_rebase_updated = False
+        self.target_branch = target_branch
+
+    def get_branchupdate_id(self):
+        return self.__branchupdate_id
+    def set_branchupdate_id(self, value):
+        self.__branchupdate_id_updated = True
+        self.__branchupdate_id = value
+    branchupdate_id = property(get_branchupdate_id, set_branchupdate_id)
+
+    def get_new_upstream(self):
+        return self.__new_upstream
+    def set_new_upstream(self, value):
+        self.__new_upstream_updated = True
+        self.__new_upstream = value
+    new_upstream = property(get_new_upstream, set_new_upstream)
+
+    def get_equivalent_merge(self):
+        return self.__equivalent_merge
+    def set_equivalent_merge(self, value):
+        self.__equivalent_merge_updated = True
+        self.__equivalent_merge = value
+    equivalent_merge = property(get_equivalent_merge, set_equivalent_merge)
+
+    def get_replayed_rebase(self):
+        return self.__replayed_rebase
+    def set_replayed_rebase(self, value):
+        self.__replayed_rebase_updated = True
+        self.__replayed_rebase = value
+    replayed_rebase = property(get_replayed_rebase, set_replayed_rebase)
+
+    @property
+    def is_history_rewrite(self):
+        return self.old_upstream is None
+
+    def processHistoryRewrite(self, db, new_head):
+        assert self.new_head is None
+        assert self.old_upstream is None
+
+        self.new_head = new_head
+
+    def processMoveRebase(self, db, user, old_head, new_head):
+        from reviewing.rebase import createEquivalentMergeCommit, replayRebase
+
+        assert self.new_head is None
+        assert self.old_upstream is not None
+
+        self.new_head = new_head
+
+        if not self.new_upstream:
+            self.new_upstream = gitutils.Commit.fromSHA1(
+                db, repository, new_head.parents[0])
+
+        if self.old_upstream.isAncestorOf(self.new_upstream):
+            self.equivalent_merge = createEquivalentMergeCommit(
+                db, self.review, user, old_head, self.old_upstream,
+                self.new_head, self.new_upstream, self.target_branch)
+            new_head.repository.keepalive(self.equivalent_merge)
+        else:
+            self.replayed_rebase = replayRebase(
+                db, self.review, user, old_head, self.old_upstream,
+                self.new_head, self.new_upstream, self.target_branch)
+            new_head.repository.keepalive(self.replayed_rebase)
+
+    def flush(self, db):
+        updates = []
+        values = []
+        if self.__branchupdate_id_updated:
+            updates.append("branchupdate=%s")
+            values.append(self.__branchupdate_id)
+        if self.__new_upstream_updated:
+            updates.append("new_upstream=%s")
+            values.append(self.__new_upstream.getId(db))
+        if self.__equivalent_merge_updated:
+            updates.append("equivalent_merge=%s")
+            values.append(self.__equivalent_merge.getId(db))
+        if self.__replayed_rebase_updated:
+            updates.append("replayed_rebase=%s")
+            values.append(self.__replayed_rebase.getId(db))
+        if not updates:
+            return
+        with db.updating_cursor("reviewrebases") as cursor:
+            cursor.execute("""UPDATE reviewrebases
+                                 SET {}
+                               WHERE id=%s""".format(", ".join(updates)),
+                           values + [self.id])
 
 class ReviewRebases(list):
     def __init__(self, db, review):
@@ -169,16 +265,18 @@ class ReviewRebases(list):
         self.__old_head_map = {}
         self.__new_head_map = {}
 
-        cursor = db.cursor()
-        cursor.execute("""SELECT old_head, new_head, old_upstream, new_upstream, uid,
-                                 equivalent_merge, replayed_rebase
-                            FROM reviewrebases
-                           WHERE review=%s
-                             AND new_head IS NOT NULL""",
-                       (review.id,))
+        cursor = db.readonly_cursor()
+        cursor.execute(
+            """SELECT reviewrebases.id, from_head, to_head, old_upstream, new_upstream,
+                      uid, equivalent_merge, replayed_rebase, reviewrebases.branch
+                 FROM reviewrebases
+                 JOIN branchupdates ON (reviewrebases.branchupdate=branchupdates.id)
+                WHERE review=%s""",
+            (review.id,))
 
-        for (old_head_id, new_head_id, old_upstream_id, new_upstream_id, user_id,
-             equivalent_merge_id, replayed_rebase_id) in cursor:
+        for (rebase_id, old_head_id, new_head_id, old_upstream_id,
+             new_upstream_id, user_id, equivalent_merge_id,
+             replayed_rebase_id, target_branch) in cursor:
             old_head = gitutils.Commit.fromId(db, review.repository, old_head_id)
             new_head = gitutils.Commit.fromId(db, review.repository, new_head_id)
 
@@ -199,8 +297,10 @@ class ReviewRebases(list):
                 replayed_rebase = None
 
             user = User.fromId(db, user_id)
-            rebase = ReviewRebase(review, old_head, new_head, old_upstream, new_upstream, user,
-                                  equivalent_merge, replayed_rebase)
+            rebase = ReviewRebase(
+                rebase_id, review, old_head, new_head, old_upstream,
+                new_upstream, user, equivalent_merge, replayed_rebase,
+                target_branch)
 
             self.append(rebase)
             self.__old_head_map[old_head] = rebase
@@ -293,11 +393,41 @@ class Review(object):
 
     def setPerformedRebase(self, old_head, new_head, old_upstream, new_upstream, user,
                            equivalent_merge, replayed_rebase):
-        self.performed_rebase = ReviewRebase(self, old_head, new_head, old_upstream, new_upstream, user,
-                                             equivalent_merge, replayed_rebase)
+        self.performed_rebase = ReviewRebase(
+            None, self, old_head, new_head, old_upstream, new_upstream, user,
+            equivalent_merge, replayed_rebase, None)
 
     def getReviewRebases(self, db):
         return ReviewRebases(db, self)
+
+    def getPendingRebase(self, db):
+        import gitutils
+        from dbutils.user import User
+        cursor = db.readonly_cursor()
+        cursor.execute(
+            """SELECT id, old_upstream, new_upstream, uid, branch
+                 FROM reviewrebases
+                WHERE review=%s
+                  AND branchupdate IS NULL""",
+            (self.id,))
+        row = cursor.fetchone()
+        if row is None:
+            return None
+        (rebase_id, old_upstream_id, new_upstream_id, user_id,
+         target_branch) = row
+        if old_upstream_id:
+            old_upstream = gitutils.Commit.fromId(
+                db, self.repository, old_upstream_id)
+        else:
+            old_upstream = None
+        if new_upstream_id:
+            new_upstream = gitutils.Commit.fromId(
+                db, self.repository, new_upstream_id)
+        else:
+            new_upstream = None
+        return ReviewRebase(
+            rebase_id, self, None, None, old_upstream, new_upstream,
+            User.fromId(db, user_id), None, None, target_branch)
 
     def getTrackedBranch(self, db):
         cursor = db.readonly_cursor()
@@ -436,7 +566,13 @@ class Review(object):
             if any(items.values()):
                 etag += ".draft%d" % hash(tuple(sorted(items.items())))
 
-            cursor.execute("SELECT id FROM reviewrebases WHERE review=%s AND uid=%s AND new_head IS NULL", (self.id, user.id))
+            cursor.execute(
+                """SELECT id
+                     FROM reviewrebases
+                    WHERE review=%s
+                      AND uid=%s
+                      AND branchupdate IS NULL""",
+                (self.id, user.id))
             row = cursor.fetchone()
             if row:
                 etag += ".rebase%d" % row[0]
@@ -495,7 +631,27 @@ class Review(object):
 
     def incrementSerial(self, db):
         self.serial += 1
-        db.cursor().execute("UPDATE reviews SET serial=%s WHERE id=%s", [self.serial, self.id])
+        db.cursor().execute("""UPDATE reviews
+                                  SET serial=%s
+                                WHERE id=%s""",
+                            (self.serial, self.id))
+
+    def invalidateCaches(self, db):
+        import dbutils
+        self.serial += 1
+        attempts = 3
+        while attempts:
+            attempts -= 1
+            try:
+                with db.updating_cursor("reviews") as cursor:
+                    cursor.execute("""UPDATE reviews
+                                         SET serial=%s
+                                       WHERE id=%s""",
+                                   (self.serial, self.id))
+            except dbutils.TransactionRollbackError:
+                continue
+            else:
+                break
 
     def scheduleBranchArchival(self, db, delay=None):
         import dbutils
@@ -673,6 +829,294 @@ class Review(object):
             association.append("none")
 
         return ", ".join(association)
+
+    def validateBranchUpdate(self, db, user, from_sha1, to_sha1, flags):
+        import gitutils
+        if from_sha1 != self.branch.getHead(db).sha1:
+            # Bad error message, but this should really never happen.
+            return "unexpected current state"
+        # Check if there's a finished branch update that has not yet been
+        # processed as a review update:
+        cursor = db.readonly_cursor()
+        cursor.execute("""SELECT 1
+                            FROM branchupdates
+                 LEFT OUTER JOIN reviewupdates ON (reviewupdates.branchupdate=branchupdates.id)
+                           WHERE branchupdates.branch=%s
+                             AND reviewupdates.review IS NULL""",
+                       (self.branch.id,))
+        if cursor.fetchone():
+            return "previous update is still being processed"
+        pending_rebase = self.getPendingRebase(db)
+        if pending_rebase:
+            error = "conflicts with pending rebase: "
+            if user != pending_rebase.user:
+                return error + ("rebase prepared by %s"
+                                % pending_rebase.user.fullname)
+            # Check that the old head isn't an ancestor of the new head.  If it
+            # is, then this isn't exactly a "rebase", it's a fast-forward
+            # update.  What's more, it might be accepted as a rebase (even a
+            # history rewrite,) with more or less confusing results.  And it's
+            # most likely mistake.
+            to_commit = gitutils.Commit.fromSHA1(db, self.repository, to_sha1)
+            if self.branch.getHead(db).isAncestorOf(to_commit):
+                return error + "regular fast-forward update"
+            if pending_rebase.new_upstream:
+                # Move rebase: check that the pushed commit is a descendant of
+                # the recorded new upstream.
+                if not pending_rebase.new_upstream.isAncestorOf(to_sha1):
+                    return ("not a descendant of %s"
+                            % pending_rebase.new_upstream.sha1[:8])
+            elif not pending_rebase.old_upstream:
+                import log.commitset
+                # History rewrite: check that the pushed commit's tree is the
+                # same as the current head commit's.
+                if self.branch.getHead(db).tree != to_commit.tree:
+                    return (error + "invalid history rewrite",
+                            ("The difference between the old and new state of "
+                             "the review branch must be empty.  Run the "
+                             "command\n\n"
+                             "  git diff %s..%s\n\n"
+                             "to see the changes introduced.")
+                            % (from_sha1[:8], to_sha1[:8]))
+                # Also, find a new upstream commit that has the same tree as an
+                # old upstream commit.  This is how we determine the new set of
+                # commits to associate with the branch.
+                #
+                # Effectively, this avoids altering the "scope" of the review in
+                # a history rewrite: the new branch must be changing an
+                # identical upstream to produce an identical result.  Changes
+                # can't move between the upstream branch and the review branch
+                # as part of a history rewrite.
+                #
+                # This is not a problem in the typical in-place history rewrite,
+                # but when this check fails, users are likely to be confused.
+                commits = log.commitset.CommitSet(self.branch.getCommits(db))
+                if not commits.findEquivalentUpstream(db, to_commit):
+                    return (error + "invalid history rewrite",
+                            "The new state must be based on an upstream state, "
+                            "i.e. a commit with the same tree as an upstream "
+                            "of the old state, but not necessarily the same "
+                            "commit.")
+        else:
+            # No rebase.  Just check that this is a fast-forward update.
+            if not self.branch.getHead(db).isAncestorOf(to_sha1):
+                return "unexpected non-fast-forward update of review branch"
+
+    def processBranchUpdate(self, db, branchupdate_id, pendingrefupdate_id):
+        import configuration
+        import extensions.role.processcommits
+        import gitutils
+        import reviewing.utils
+        import reviewing.mail
+        from dbutils import User
+
+        try:
+            cursor = db.readonly_cursor()
+            cursor.execute("""SELECT updater, from_head, to_head
+                                FROM branchupdates
+                               WHERE id=%s""",
+                           (branchupdate_id,))
+
+            updater_id, from_commit_id, to_commit_id = cursor.fetchone()
+            updater = User.fromId(db, updater_id)
+
+            if from_commit_id is None:
+                action = "Creating"
+                branch_created = True
+                from_commit = None
+            else:
+                action = "Updating"
+                branch_created = False
+                from_commit = gitutils.Commit.fromId(
+                    db, self.repository, from_commit_id)
+
+            gitutils.emitGitHookOutput(
+                db, pendingrefupdate_id,
+                "%s review at:\n  %s\n" % (action, self.getURL(db)))
+
+            to_commit = gitutils.Commit.fromId(
+                db, self.repository, to_commit_id)
+
+            cursor.execute("""SELECT id, sha1
+                                FROM commits
+                                JOIN branchupdatecommits ON (commit=id)
+                               WHERE branchupdate=%s
+                                 AND associated""",
+                           (branchupdate_id,))
+
+            commits = [gitutils.Commit.fromSHA1(db, self.repository,
+                                                commit_sha1, commit_id)
+                       for commit_id, commit_sha1 in cursor]
+            add_commits = commits
+
+            silent_if_empty = set()
+            full_merges = set()
+            replayed_rebases = {}
+
+            pending_rebase = self.getPendingRebase(db)
+            if pending_rebase:
+                if from_commit:
+                    self.branch.repository.keepalive(from_commit)
+
+                if pending_rebase.is_history_rewrite:
+                    pending_rebase.processHistoryRewrite(db, to_commit)
+                    add_commits = []
+
+                    gitutils.emitGitHookOutput(
+                        db, pendingrefupdate_id, "Performed history rewrite.")
+                else:
+                    gitutils.emitGitHookOutput(
+                        db, pendingrefupdate_id, "Processing rebase ...")
+
+                    pending_rebase.processMoveRebase(
+                        db, updater, from_commit, to_commit)
+
+                    gitutils.emitGitHookOutput(
+                        db, pendingrefupdate_id, "  done.")
+
+                    add_commits = [pending_rebase.equivalent_merge or
+                                   pending_rebase.replayed_rebase]
+
+                    silent_if_empty = set(add_commits)
+
+                    if pending_rebase.equivalent_merge:
+                        full_merges = set([pending_rebase.equivalent_merge])
+                    else:
+                        replayed_rebases = {
+                            pending_rebase.replayed_rebase: to_commit
+                        }
+
+            if branch_created:
+                output = ("Submitting review of %d commit%s ...\n"
+                          % (len(add_commits),
+                             len(add_commits) > 1 and "s" or ""))
+            elif add_commits:
+                output = ("Adding %d commit%s to the review ...\n"
+                          % (len(add_commits),
+                             len(add_commits) > 1 and "s" or ""))
+            else:
+                output = None
+
+            gitutils.emitGitHookOutput(db, pendingrefupdate_id, output)
+
+            emit_done = output is not None
+
+            if add_commits:
+                reviewing.utils.prepareChangesetsForCommits(
+                    db, add_commits, silent_if_empty, full_merges,
+                    replayed_rebases)
+
+            with db.updating_cursor(
+                    # Most of these are updated via addCommitsToReview().
+                    "reviews",
+                    "reviewupdates",
+                    "reviewrebases",
+                    "reviewchangesets",
+                    "reviewfiles",
+                    "reviewusers",
+                    "reviewuserfiles",
+                    "reviewrecipientfilters",
+                    "reviewmessageids",
+                    "commentchains",
+                    "commentchainlines",
+                    # Updated indirectly via addCommitsToReview().
+                    "extensionfilterhookevents",
+                    "extensionfilterhookcommits",
+                    "extensionfilterhookfiles") as cursor:
+                # Insert early, so that we get an id to use for references.
+                # We'll update the record later, setting |output|, if the
+                # processing succeeds.  If not, we'll roll back the transaction
+                # and then create another record, with |error| set.
+                cursor.execute(
+                    """INSERT INTO reviewupdates (review, branchupdate)
+                            VALUES (%s, %s)""",
+                    (self.id, branchupdate_id))
+
+                if pending_rebase:
+                    pending_rebase.branchupdate_id = branchupdate_id
+                    pending_rebase.flush(db)
+
+                    recipients = self.getRecipients(db)
+                    for to_user in recipients:
+                        db.pending_mails.extend(
+                            reviewing.mail.sendReviewRebased(
+                                db, updater, to_user, recipients, self,
+                                pending_rebase.new_upstream, commits,
+                                pending_rebase.target_branch))
+
+                if add_commits:
+                    output = reviewing.utils.addCommitsToReview(
+                        db, updater, self, from_commit, add_commits,
+                        branch_created, branchupdate_id, silent_if_empty,
+                        full_merges, replayed_rebases)
+                else:
+                    output = None
+
+                cursor.execute(
+                    """UPDATE reviewupdates
+                          SET output=%s
+                        WHERE branchupdate=%s""",
+                    (output, branchupdate_id))
+
+            if emit_done:
+                gitutils.emitGitHookOutput(db, pendingrefupdate_id, "  done.")
+
+            gitutils.emitGitHookOutput(db, pendingrefupdate_id, output)
+
+            if configuration.extensions.ENABLED:
+                extension_output = StringIO.StringIO()
+
+                extensions.role.processcommits.execute(
+                    db, updater, self, add_commits, from_commit, to_commit,
+                    extension_output)
+
+                gitutils.emitGitHookOutput(
+                    db, pendingrefupdate_id, extension_output.getvalue())
+
+                extension_output.close()
+        except Exception:
+            import traceback
+
+            raise ReviewUpdateError(traceback.format_exc())
+
+    def hasPendingUpdate(self, db):
+        """True if this review has a pending update
+
+           This means new commits have been pushed to its branch but not yet
+           been added to the review."""
+        cursor = db.readonly_cursor()
+        cursor.execute("""SELECT 1
+                            FROM branchupdates
+                 LEFT OUTER JOIN reviewupdates ON (branchupdate=id)
+                           WHERE branch=%s
+                             AND review IS NULL""",
+                       (self.branch.id,))
+        return bool(cursor.fetchone())
+
+    def hasPendingInitialUpdate(self, db):
+        """True if this review's initial update is pending
+
+           This means the review was just created, and hasn't had its initial
+           set of commits added to it yet."""
+        cursor = db.readonly_cursor()
+        cursor.execute("""SELECT 1
+                            FROM reviewupdates
+                           WHERE review=%s""",
+                       (self.id,))
+        return not bool(cursor.fetchone())
+
+    @staticmethod
+    def create(db, user, name, head, pendingrefupdate_id=None):
+        """Create review "via push"
+
+           This function creates a review of the head commit of the branch."""
+        import reviewing.utils
+
+        return reviewing.utils.createReview(
+            db, user, head.repository, [head], name,
+            summary=head.niceSummary(include_tag=False),
+            description=None, via_push=True,
+            pendingrefupdate_id=pendingrefupdate_id)
 
     @staticmethod
     def fromId(db, review_id, branch=None, profiler=None):

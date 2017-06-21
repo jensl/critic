@@ -272,6 +272,20 @@ class Review(apiobject.APIObject):
             self.__progress_per_commit = commit_change_counts
         return self.__progress_per_commit
 
+    def getPendingUpdate(self, critic):
+        cursor = critic.getDatabaseCursor()
+        cursor.execute("""SELECT id
+                            FROM branchupdates
+                 LEFT OUTER JOIN reviewupdates ON (branchupdate=id)
+                           WHERE branch=%s
+                             AND review IS NULL""",
+                       (self.__branch_id,))
+        row = cursor.fetchone()
+        if row:
+            branchupdate_id, = row
+            return api.branchupdate.fetch(critic, branchupdate_id)
+        return None
+
     @classmethod
     def create(Review, critic, *args):
         review = Review(*args).wrap(critic)

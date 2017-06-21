@@ -59,54 +59,51 @@ class AddFilter(Operation):
         else:
             delegates = []
 
-        cursor = db.cursor()
+        with db.updating_cursor("filters") as cursor:
+            if repository_id is None:
+                cursor.execute("""SELECT id
+                                    FROM repositories
+                                   WHERE name=%s""",
+                               (repository_name,))
+                repository_id = cursor.fetchone()[0]
 
-        if repository_id is None:
-            cursor.execute("""SELECT id
-                                FROM repositories
-                               WHERE name=%s""",
-                           (repository_name,))
-            repository_id = cursor.fetchone()[0]
+            if replaced_filter_id is not None:
+                cursor.execute("""SELECT 1
+                                    FROM filters
+                                   WHERE id=%s
+                                     AND uid=%s""",
+                               (replaced_filter_id, user.id))
 
-        if replaced_filter_id is not None:
+                if not cursor.fetchone():
+                    raise OperationFailure(code="invalidoperation",
+                                           title="Invalid operation",
+                                           message="Filter to replace does not exist or belongs to another user!")
+
+                cursor.execute("""DELETE
+                                    FROM filters
+                                   WHERE id=%s""",
+                               (replaced_filter_id,))
+
             cursor.execute("""SELECT 1
                                 FROM filters
-                               WHERE id=%s
-                                 AND uid=%s""",
-                           (replaced_filter_id, user.id))
+                               WHERE uid=%s
+                                 AND repository=%s
+                                 AND path=%s""",
+                           (user.id, repository_id, path))
 
-            if not cursor.fetchone():
-                raise OperationFailure(code="invalidoperation",
-                                       title="Invalid operation",
-                                       message="Filter to replace does not exist or belongs to another user!")
+            if cursor.fetchone():
+                raise OperationFailure(code="duplicatefilter",
+                                       title="Duplicate filter",
+                                       message=("You already have a filter for the path <code>%s</code> in this repository."
+                                                % htmlutils.htmlify(path)),
+                                       is_html=True)
 
-            cursor.execute("""DELETE
-                                FROM filters
-                               WHERE id=%s""",
-                           (replaced_filter_id,))
+            cursor.execute("""INSERT INTO filters (uid, repository, path, type, delegate)
+                                   VALUES (%s, %s, %s, %s, %s)
+                                RETURNING id""",
+                           (user.id, repository_id, path, filter_type, ",".join(delegates)))
 
-        cursor.execute("""SELECT 1
-                            FROM filters
-                           WHERE uid=%s
-                             AND repository=%s
-                             AND path=%s""",
-                       (user.id, repository_id, path))
-
-        if cursor.fetchone():
-            raise OperationFailure(code="duplicatefilter",
-                                   title="Duplicate filter",
-                                   message=("You already have a filter for the path <code>%s</code> in this repository."
-                                            % htmlutils.htmlify(path)),
-                                   is_html=True)
-
-        cursor.execute("""INSERT INTO filters (uid, repository, path, type, delegate)
-                               VALUES (%s, %s, %s, %s, %s)
-                            RETURNING id""",
-                       (user.id, repository_id, path, filter_type, ",".join(delegates)))
-
-        filter_id = cursor.fetchone()[0]
-
-        db.commit()
+            filter_id = cursor.fetchone()[0]
 
         return OperationResult(filter_id=filter_id)
 
@@ -126,12 +123,11 @@ class DeleteFilter(Operation):
             if user.id != row[0]:
                 Operation.requireAdministratorRole(db, user)
 
-            cursor.execute("""DELETE
-                                FROM filters
-                               WHERE id=%s""",
-                           (filter_id,))
-
-            db.commit()
+            with db.updating_cursor("filters") as cursor:
+                cursor.execute("""DELETE
+                                    FROM filters
+                                   WHERE id=%s""",
+                               (filter_id,))
 
         return OperationResult()
 
@@ -144,7 +140,7 @@ class ReapplyFilters(Operation):
         if user.isAnonymous():
             return OperationFailureMustLogin()
 
-        cursor = db.cursor()
+        cursor = db.readonly_cursor()
 
         if filter_id is not None:
             cursor.execute("""SELECT repository, path, type, delegate
@@ -227,19 +223,20 @@ class ReapplyFilters(Operation):
 
         new_reviews = set(review_id for (review_id,) in cursor)
 
-        cursor.executemany("""INSERT INTO reviewusers (review, uid)
-                                   VALUES (%s, %s)""",
-                           [(review_id, user.id) for review_id in new_reviews])
+        with db.updating_cursor("reviewusers",
+                                "reviewuserfiles") as cursor:
+            cursor.executemany("""INSERT INTO reviewusers (review, uid)
+                                       VALUES (%s, %s)""",
+                               [(review_id, user.id) for review_id in new_reviews])
 
-        cursor.executemany("""INSERT INTO reviewuserfiles (file, uid)
-                                   VALUES (%s, %s)""",
-                           [(review_file_id, user.id) for review_file_id in assign_changes])
-
-        db.commit()
+            cursor.executemany("""INSERT INTO reviewuserfiles (file, uid)
+                                       VALUES (%s, %s)""",
+                               [(review_file_id, user.id) for review_file_id in assign_changes])
 
         watched_reviews &= new_reviews
         watched_reviews -= assigned_reviews
 
+        cursor = db.readonly_cursor()
         cursor.execute("""SELECT id, summary
                             FROM reviews
                            WHERE id=ANY (%s)""",
@@ -265,7 +262,7 @@ class CountMatchedPaths(Operation):
                 repository = gitutils.Repository.fromName(db, single["repository_name"])
                 path = reviewing.filters.sanitizePath(single["path"])
 
-                cursor = db.cursor()
+                cursor = db.readonly_cursor()
                 cursor.execute("""SELECT path
                                     FROM filters
                                    WHERE repository=%s
@@ -277,7 +274,7 @@ class CountMatchedPaths(Operation):
 
                 return OperationResult(count=reviewing.filters.countMatchedFiles(repository, list(paths))[path])
 
-            cursor = db.cursor()
+            cursor = db.readonly_cursor()
             cursor.execute("""SELECT repository, id, path
                                 FROM filters
                                WHERE id=ANY (%s)
@@ -317,7 +314,7 @@ class GetMatchedPaths(Operation):
         repository = gitutils.Repository.fromName(db, repository_name)
         path = reviewing.filters.sanitizePath(path)
 
-        cursor = db.cursor()
+        cursor = db.readonly_cursor()
         cursor.execute("""SELECT path
                             FROM filters
                            WHERE repository=%s
@@ -378,25 +375,27 @@ class AddReviewFilters(Operation):
                 else:
                     watcher_paths |= paths
 
-        pending_mails = []
+        with db.updating_cursor("reviews",
+                                "reviewfilters",
+                                "reviewfilterchanges",
+                                "reviewusers",
+                                "reviewuserfiles",
+                                "reviewassignmentstransactions",
+                                "reviewassignmentchanges",
+                                "reviewmessageids"):
+            for user_id, (reviewer_paths, watcher_paths) in by_user.items():
+                try:
+                    user = dbutils.User.fromId(db, user_id)
+                except dbutils.InvalidUserId:
+                    raise OperationFailure(
+                        code="invaliduserid",
+                        title="Invalid user ID",
+                        message="At least one of the specified user IDs was invalid.")
+                reviewing.utils.addReviewFilters(
+                    db, creator, user, review, reviewer_paths, watcher_paths)
 
-        for user_id, (reviewer_paths, watcher_paths) in by_user.items():
-            try:
-                user = dbutils.User.fromId(db, user_id)
-            except dbutils.InvalidUserId:
-                raise OperationFailure(
-                    code="invaliduserid",
-                    title="Invalid user ID",
-                    message="At least one of the specified user IDs was invalid.")
-            pending_mails.extend(reviewing.utils.addReviewFilters(
-                    db, creator, user, review, reviewer_paths, watcher_paths))
-
-        review = dbutils.Review.fromId(db, review_id)
-        review.incrementSerial(db)
-
-        db.commit()
-
-        mailutils.sendPendingMails(pending_mails)
+            review = dbutils.Review.fromId(db, review_id)
+            review.incrementSerial(db)
 
         return OperationResult()
 
@@ -405,22 +404,23 @@ class RemoveReviewFilter(Operation):
         Operation.__init__(self, { "filter_id": int })
 
     def process(self, db, user, filter_id):
-        cursor = db.cursor()
-
+        cursor = db.readonly_cursor()
         cursor.execute("SELECT review FROM reviewfilters WHERE id=%s", (filter_id,))
-        review_id = cursor.fetchone()
-        if not review_id:
+
+        row = cursor.fetchone()
+        if not row:
             raise OperationFailure(
                 code="nosuchfilter",
                 title="No such filter!",
                 message=("Maybe the filter has been deleted since you "
                          "loaded this page?"))
 
-        cursor.execute("DELETE FROM reviewfilters WHERE id=%s", (filter_id,))
-
+        review_id, = row
         review = dbutils.Review.fromId(db, review_id)
-        review.incrementSerial(db)
 
-        db.commit()
+        with db.updating_cursor("reviews",
+                                "reviewfilters") as cursor:
+            cursor.execute("DELETE FROM reviewfilters WHERE id=%s", (filter_id,))
+            review.incrementSerial(db)
 
         return OperationResult()

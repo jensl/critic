@@ -347,7 +347,7 @@ def write_install_data(arguments, install_data):
         os.chown(install_data_path, installation.system.uid, installation.system.gid)
         os.chmod(install_data_path, 0640)
 
-def start_migration():
+def start_migration(connect=False):
     import sys
     import argparse
     import os
@@ -361,16 +361,25 @@ def start_migration():
     os.setgid(arguments.gid)
     os.setuid(arguments.uid)
 
+    if connect:
+        import configuration
+        import psycopg2
+
+        return psycopg2.connect(**configuration.database.PARAMETERS)
+
 class DatabaseSchema(object):
     """Database schema updating utility class
 
        This class is primarily intended for use in migration scripts."""
 
-    def __init__(self):
-        import configuration
-        import psycopg2
+    def __init__(self, db=None):
+        if db is not None:
+            self.db = db
+        else:
+            import configuration
+            import psycopg2
 
-        self.db = psycopg2.connect(**configuration.database.PARAMETERS)
+            self.db = psycopg2.connect(**configuration.database.PARAMETERS)
 
     def table_exists(self, table_name):
         import psycopg2

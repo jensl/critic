@@ -27,14 +27,11 @@ def doPrepareRebase(db, user, review, new_upstream_arg=None, branch=None):
 
     cursor = db.cursor()
 
-    cursor.execute("SELECT uid FROM reviewrebases WHERE review=%s AND new_head IS NULL", (review.id,))
+    cursor.execute("SELECT uid FROM reviewrebases WHERE review=%s AND branchupdate IS NULL", (review.id,))
     row = cursor.fetchone()
     if row:
         rebaser = dbutils.User.fromId(db, row[0])
         raise OperationError("The review is already being rebased by %s <%s>." % (rebaser.fullname, rebaser.email))
-
-    head = commitset.getHeads().pop()
-    head_id = head.getId(db)
 
     if new_upstream_arg is not None:
         if len(tails) > 1:
@@ -60,19 +57,33 @@ def doPrepareRebase(db, user, review, new_upstream_arg=None, branch=None):
         old_upstream_id = None
         new_upstream_id = None
 
-    cursor.execute("""INSERT INTO reviewrebases (review, old_head, new_head, old_upstream, new_upstream, uid, branch)
-                           VALUES (%s, %s, NULL, %s, %s, %s, %s)""",
-                   (review.id, head_id, old_upstream_id, new_upstream_id, user.id, branch))
+    with db.updating_cursor("reviews",
+                            "reviewrebases",
+                            "previousbranchcommits") as cursor:
+        cursor.execute(
+            """INSERT INTO reviewrebases (review, old_upstream, new_upstream,
+                                          uid, branch)
+                    VALUES (%s, %s, %s, %s, %s)
+                 RETURNING id""",
+            (review.id, old_upstream_id, new_upstream_id, user.id, branch))
 
-    review.incrementSerial(db)
+        rebase_id, = cursor.fetchone()
 
-    db.commit()
+        review.incrementSerial(db)
+
+    return rebase_id
 
 def doCancelRebase(db, user, review):
-    review.incrementSerial(db)
+    with db.updating_cursor("reviews",
+                            "reviewrebases") as cursor:
+        cursor.execute(
+            """DELETE
+                 FROM reviewrebases
+                WHERE review=%s
+                  AND branchupdate IS NULL""",
+            (review.id,))
 
-    db.cursor().execute("DELETE FROM reviewrebases WHERE review=%s AND new_head IS NULL", (review.id,))
-    db.commit()
+        review.incrementSerial(db)
 
 class CheckRebase(Operation):
     def __init__(self):
@@ -122,8 +133,8 @@ class PrepareRebase(Operation):
                                    "branch": Optional(str) })
 
     def process(self, db, user, review, new_upstream=None, branch=None):
-        doPrepareRebase(db, user, review, new_upstream, branch)
-        return OperationResult()
+        rebase_id = doPrepareRebase(db, user, review, new_upstream, branch)
+        return OperationResult(rebase_id=rebase_id)
 
 class CancelRebase(Operation):
     def __init__(self):
@@ -146,20 +157,19 @@ class RebaseReview(Operation):
         review = dbutils.Review.fromId(db, review_id)
         new_head = gitutils.Commit.fromSHA1(db, review.repository, new_head_sha1)
 
-        cursor = db.cursor()
+        with db.updating_cursor("reviews", "trackedbranches") as cursor:
+            if review.state == 'closed':
+                cursor.execute("SELECT closed_by FROM reviews WHERE id=%s", (review.id,))
+                closed_by = cursor.fetchone()[0]
 
-        if review.state == 'closed':
-            cursor.execute("SELECT closed_by FROM reviews WHERE id=%s", (review.id,))
-            closed_by = cursor.fetchone()[0]
+                review.serial += 1
+                cursor.execute("UPDATE reviews SET state='open', serial=%s, closed_by=NULL WHERE id=%s", (review.serial, review.id))
+            else:
+                closed_by = None
 
-            review.serial += 1
-            cursor.execute("UPDATE reviews SET state='open', serial=%s, closed_by=NULL WHERE id=%s", (review.serial, review.id))
-        else:
-            closed_by = None
-
-        trackedbranch = review.getTrackedBranch(db)
-        if trackedbranch and not trackedbranch.disabled:
-            cursor.execute("UPDATE trackedbranches SET disabled=TRUE WHERE id=%s", (trackedbranch.id,))
+            trackedbranch = review.getTrackedBranch(db)
+            if trackedbranch and not trackedbranch.disabled:
+                cursor.execute("UPDATE trackedbranches SET disabled=TRUE WHERE id=%s", (trackedbranch.id,))
 
         commitset = log.commitset.CommitSet(review.branch.getCommits(db))
         tails = commitset.getFilteredTails(review.branch.repository)
@@ -168,32 +178,33 @@ class RebaseReview(Operation):
             # This appears to be a history rewrite.
             new_upstream_sha1 = None
 
-        doPrepareRebase(db, user, review, new_upstream_sha1, branch)
-
         try:
-            with review.repository.relaycopy("RebaseReview") as relay:
-                with review.repository.temporaryref(new_head) as ref_name:
-                    relay.run("fetch", "origin", ref_name)
-                relay.run("push", "--force", "origin",
-                          "%s:refs/heads/%s" % (new_head.sha1, review.branch.name),
-                          env={ "REMOTE_USER": user.name })
+            doPrepareRebase(db, user, review, new_upstream_sha1, branch)
 
-            if closed_by is not None:
-                db.commit()
-                state = review.getReviewState(db)
-                if state.accepted:
-                    review.serial += 1
-                    cursor.execute("UPDATE reviews SET state='closed', serial=%s, closed_by=%s WHERE id=%s", (review.serial, closed_by, review.id))
+            try:
+                with review.repository.relaycopy("RebaseReview") as relay:
+                    with review.repository.temporaryref(new_head) as ref_name:
+                        relay.run("fetch", "origin", ref_name)
+                    relay.run("push", "--force", "origin",
+                              "%s:refs/heads/%s" % (new_head.sha1, review.branch.name),
+                              env={ "REMOTE_USER": user.name })
+            except:
+                doCancelRebase(db, user, review)
+                raise
+        finally:
+            db.refresh()
 
-            if trackedbranch and not trackedbranch.disabled:
-                cursor.execute("UPDATE trackedbranches SET disabled=FALSE WHERE id=%s", (trackedbranch.id,))
-            if new_trackedbranch:
-                cursor.execute("UPDATE trackedbranches SET remote_name=%s WHERE id=%s", (new_trackedbranch, trackedbranch.id))
+            with db.updating_cursor("reviews", "trackedbranches") as cursor:
+                if closed_by is not None:
+                    state = review.getReviewState(db)
+                    if state.accepted:
+                        review.serial += 1
+                        cursor.execute("UPDATE reviews SET state='closed', serial=%s, closed_by=%s WHERE id=%s", (review.serial, closed_by, review.id))
 
-            db.commit()
-        except:
-            doCancelRebase(db, user, review)
-            raise
+                if trackedbranch and not trackedbranch.disabled:
+                    cursor.execute("UPDATE trackedbranches SET disabled=FALSE WHERE id=%s", (trackedbranch.id,))
+                if new_trackedbranch:
+                    cursor.execute("UPDATE trackedbranches SET remote_name=%s WHERE id=%s", (new_trackedbranch, trackedbranch.id))
 
         return OperationResult()
 
@@ -205,69 +216,42 @@ class RevertRebase(Operation):
     def process(self, db, user, review, rebase_id):
         cursor = db.cursor()
 
-        cursor.execute("""SELECT old_head, new_head, new_upstream, equivalent_merge, replayed_rebase
-                            FROM reviewrebases
-                           WHERE id=%s""",
-                       (rebase_id,))
-        old_head_id, new_head_id, new_upstream_id, equivalent_merge_id, replayed_rebase_id = cursor.fetchone()
+        cursor.execute(
+            """SELECT branchupdate, to_head, equivalent_merge, replayed_rebase
+                 FROM reviewrebases
+                 JOIN branchupdates ON (reviewrebases.branchupdate=branchupdates.id)
+                WHERE reviewrebases.id=%s""",
+            (rebase_id,))
+        (branchupdate_id, new_head_id,
+         equivalent_merge_id, replayed_rebase_id) = cursor.fetchone()
 
-        cursor.execute("SELECT commit FROM previousreachable WHERE rebase=%s", (rebase_id,))
-        reachable = [commit_id for (commit_id,) in cursor]
+        if review.branch.head_id != new_head_id:
+            raise OperationError("Rebase cannot be reverted; "
+                                 "additional commits have been pushed.")
 
-        if not reachable:
-            # Fail if rebase was done before the 'previousreachable' table was
-            # added, and we thus don't know what commits the branch contained
-            # before the rebase.
-            raise OperationError("Automatic revert not supported; rebase is pre-historic.")
+        with db.updating_cursor("commentchains",
+                                "branches",
+                                "branchupdates",
+                                "branchcommits") as cursor:
+            # Reopen any issues marked as addressed by the rebase.  If the
+            # rebase was a fast-forward one, issues will have been addressed by
+            # the equivalent merge commit.  Otherwise, issues will have been
+            # addressed by the new head commit (not the replayed rebase commit.)
+            cursor.execute("""UPDATE commentchains
+                                 SET state='open',
+                                     addressed_by=NULL,
+                                     addressed_by_update=NULL
+                               WHERE review=%s
+                                 AND state='addressed'
+                                 AND addressed_by_update=%s""",
+                           (review.id, branchupdate_id))
 
-        if review.branch.getHead(db).getId(db) != new_head_id:
-            raise OperationError("Commits added to review after rebase; need to remove them first.")
+            # Revert the branch update's effect on the branch and delete it from
+            # the |branchupdates| table.  Deleting it will through cascading
+            # also delete rows from |reviewrebases| and |reviewchangesets|.
+            dbutils.Branch.revertUpdate(
+                db, branchupdate_id, reverting_rebase=True)
 
-        old_head = gitutils.Commit.fromId(db, review.repository, old_head_id)
-        new_head = gitutils.Commit.fromId(db, review.repository, new_head_id)
-
-        cursor.execute("DELETE FROM reachable WHERE branch=%s", (review.branch.id,))
-        cursor.executemany("INSERT INTO reachable (branch, commit) VALUES (%s, %s)",
-                           ((review.branch.id, commit_id) for commit_id in reachable))
-
-        if new_upstream_id:
-            generated_commit_id = equivalent_merge_id or replayed_rebase_id
-            if generated_commit_id is not None:
-                # A generated commit (equivalent merge or replayed rebase) was
-                # added when performing the rebase; remove it.
-
-                # Reopen any issues marked as addressed by the rebase.  If the
-                # rebase was a fast-forward one, issues will have been addressed
-                # by the equivalent merge commit.  Otherwise, issues will have
-                # been addressed by the new head commit (not the replayed rebase
-                # commit.)
-                addressed_by_commit_id = equivalent_merge_id or new_head_id
-                cursor.execute("""UPDATE commentchains
-                                     SET state='open', addressed_by=NULL
-                                   WHERE review=%s
-                                     AND state='addressed'
-                                     AND addressed_by=%s""",
-                               (review.id, addressed_by_commit_id))
-
-                # Delete the review changesets (and, via cascade, all related
-                # assignments and state changes.)
-                cursor.execute(
-                    """DELETE FROM reviewchangesets
-                             WHERE review=%s
-                               AND changeset IN (SELECT id
-                                                   FROM changesets
-                                                  WHERE child=%s OR parent=%s)""",
-                    (review.id, generated_commit_id, generated_commit_id))
-
-        cursor.execute("UPDATE branches SET head=%s WHERE id=%s",
-                       (old_head_id, review.branch.id))
-        cursor.execute("DELETE FROM reviewrebases WHERE id=%s", (rebase_id,))
-
-        review.incrementSerial(db)
-        db.commit()
-
-        review.repository.run(
-            "update-ref", "refs/heads/%s" % review.branch.name,
-            old_head.sha1, new_head.sha1)
+        review.invalidateCaches(db)
 
         return OperationResult()

@@ -77,6 +77,7 @@ with work, settings, signin:
         reviews.append({ "id": result["review_id"],
                          "branch": "r/" + branch,
                          "summary": summary })
+        instance.synchronize_service("reviewupdater")
         expectmail("New Review")
 
     def push(new_head, force=False):

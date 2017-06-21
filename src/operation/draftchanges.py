@@ -382,7 +382,8 @@ class SubmitChanges(Operation):
                                      SET state='open',
                                          last_commit=%s,
                                          closed_by=NULL,
-                                         addressed_by=NULL
+                                         addressed_by=NULL,
+                                         addressed_by_update=NULL
                                    WHERE id=%s""",
                                cursor.fetchall())
 
@@ -398,7 +399,8 @@ class SubmitChanges(Operation):
                                  AND commentchainchanges.to_addressed_by IS NOT NULL""",
                            (review.id, user.id))
             cursor.executemany("""UPDATE commentchains
-                                     SET addressed_by=%s
+                                     SET addressed_by=%s,
+                                         addressed_by_update=NULL
                                    WHERE id=%s""",
                                cursor.fetchall())
 

@@ -47,6 +47,7 @@ CREATE TABLE commentchains
     last_commit INTEGER REFERENCES commits,
     closed_by INTEGER REFERENCES users,
     addressed_by INTEGER REFERENCES commits,
+    addressed_by_update INTEGER REFERENCES branchupdates,
     first_comment INTEGER ); -- Foreign key constraint "REFERENCES comments" set up later.
 CREATE INDEX commentchains_review_file ON commentchains(review, file);
 CREATE INDEX commentchains_review_type_state ON commentchains(review, type, state);

@@ -247,6 +247,11 @@
     "default": "main",
     "description": "Type of URLs used in emails."
   },
+  "repository.postReceiveTimeout": {
+    "type": "integer",
+    "default": 60,
+    "description": "Maximum number of seconds to wait for feedback in the post-receive hook.  Note: Timing out does not affect the end result; updates are processed in the background."
+  },
   "repository.urlType": {
     "type": "string",
     "default": "http",

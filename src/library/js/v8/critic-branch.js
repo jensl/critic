@@ -95,7 +95,7 @@ function CriticBranch(options)
   {
     if (!commits)
     {
-      var result = db.execute("SELECT commit FROM reachable WHERE branch=%d LIMIT %d", branch_id, configuration.maxCommits + 1);
+      var result = db.execute("SELECT commit FROM branchcommits WHERE branch=%d LIMIT %d", branch_id, configuration.maxCommits + 1);
 
       if (result.length > configuration.maxCommits)
         throw CriticError(format("implementation limit; branch contains more than %d commits", configuration.maxCommits));

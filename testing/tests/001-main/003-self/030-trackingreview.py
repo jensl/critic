@@ -89,6 +89,8 @@ with testing.utils.settings("alice", SETTINGS), frontend.signin("alice"):
     review_id = result["review_id"]
     trackedbranch_id = result["trackedbranch_id"]
 
+    instance.synchronize_service("reviewupdater")
+
     mailbox.pop(
         accept=[to("alice"),
                 about("New Review: " + SUMMARY)])

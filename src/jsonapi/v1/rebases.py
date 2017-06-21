@@ -32,9 +32,8 @@ class Rebases(object):
              "id": integer,
              "review": integer,
              "creator": integer,
-             "type": "history-rewrite" or "move"
-             "old_head": integer,
-             "new_head": integer,
+             "type": "history-rewrite" or "move",
+             "branchupdate": integer,
              // if |type| is "move":
              "old_upstream": integer,
              "new_upstream": integer,
@@ -42,14 +41,10 @@ class Rebases(object):
              "replayed_rebase": integer or null,
            }"""
 
-        old_head = value.old_head
-        new_head = value.new_head
-
         data = { "id": value.id,
                  "review": value.review,
                  "creator": value.creator,
-                 "old_head": old_head,
-                 "new_head": new_head }
+                 "branchupdate": value.branchupdate }
 
         if isinstance(value, api.log.rebase.HistoryRewrite):
             data.update({ "type": "history-rewrite" })
@@ -75,12 +70,12 @@ class Rebases(object):
 
     @staticmethod
     def multiple(parameters):
-        """Retrieve all rebases in this system.
+        """Retrieve all rebases of a particular review.
 
            review : REVIEW_ID : -
 
-           Include only rebases of one review, identified by the review's unique
-           numeric id."""
+           The review whose rebases to retrieve, identified by the review's
+           unique numeric id."""
 
         review = jsonapi.deduce("v1/reviews", parameters)
         return api.log.rebase.fetchAll(parameters.critic, review=review)

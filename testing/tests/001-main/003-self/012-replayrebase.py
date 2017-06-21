@@ -19,38 +19,23 @@ TARGET_SHA1 = "132dbfb7c2ac0f4333fb483a70f1e8cce0333d11"
 # The subject of the reviewed commit.
 SUMMARY = "Use temporary clones for relaying instead of temporary remotes"
 
-SETTINGS = { "review.createViaPush": True,
-             "email.subjectLine.updatedReview.reviewRebased":
+SETTINGS = { "email.subjectLine.updatedReview.reviewRebased":
                  "Rebased Review: %(summary)s" }
 
-with testing.utils.settings("alice", SETTINGS), frontend.signin("alice"):
-    with repository.workcopy() as work:
-        REMOTE_URL = instance.repository_url("alice")
+with repository.workcopy() as work:
+    REMOTE_URL = instance.repository_url("alice")
 
-        work.run(["checkout", "-b", "r/012-replayrebase", PARENT_SHA1])
-        work.run(["cherry-pick", COMMIT_SHA1],
-                 GIT_COMMITTER_NAME="Alice von Testing",
-                 GIT_COMMITTER_EMAIL="alice@example.org")
+    work.run(["checkout", "-b", "r/012-replayrebase", PARENT_SHA1])
+    work.run(["cherry-pick", COMMIT_SHA1],
+             GIT_COMMITTER_NAME="Alice von Testing",
+             GIT_COMMITTER_EMAIL="alice@example.org")
 
-        output = work.run(["push", REMOTE_URL, "HEAD"])
-        next_is_review_url = False
+    review_id = testing.utils.createReviewViaPush(work, "alice")
 
-        for line in output.splitlines():
-            if not line.startswith("remote:"):
-                continue
-            line = line[len("remote:"):].split("\x1b", 1)[0].strip()
-            if line == "Submitted review:":
-                next_is_review_url = True
-            elif next_is_review_url:
-                review_id = int(re.search(r"/r/(\d+)$", line).group(1))
-                break
-        else:
-            testing.expect.check("<review URL in git hook output>",
-                                 "<expected content not found>")
+    mailbox.pop(accept=[to("alice"),
+                        about("New Review: %s" % SUMMARY)])
 
-        mailbox.pop(accept=[to("alice"),
-                            about("New Review: %s" % SUMMARY)])
-
+    with testing.utils.settings("alice", SETTINGS), frontend.signin("alice"):
         frontend.operation(
             "preparerebase",
             data={ "review_id": review_id,

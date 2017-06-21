@@ -199,6 +199,17 @@ class Review(api.APIObject):
            total changed lines, and the number of reviewed changed lines"""
         return self._impl.getProgressPerCommit(self.critic)
 
+    @property
+    def pending_update(self):
+        """The pending update of the review's branch, or None if there isn't one
+
+           If not None, this is always the last api.branchupdate.BranchUpdate
+           object in the review branch's 'updates' list.  The actual branch will
+           have been updated, but the commits added to the branch have not yet
+           been added to the review, and no emails will have been sent about it
+           to reviewers and watchers yet."""
+        return self._impl.getPendingUpdate(self.critic)
+
 class CommitChangeCount:
     def __init__(self, commit_id, total_changes, reviewed_changes):
         self.commit_id = commit_id

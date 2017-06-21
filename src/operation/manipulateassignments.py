@@ -108,10 +108,8 @@ class SetAssignedChanges(Operation):
         if delete_file_ids or new_file_ids:
             cursor.execute("UPDATE reviews SET serial=serial+1 WHERE id=%s", (review_id,))
 
-            pending_mails = reviewing.utils.generateMailsForAssignmentsTransaction(db, transaction_id)
+            reviewing.utils.generateMailsForAssignmentsTransaction(db, transaction_id)
 
             db.commit()
-
-            mailutils.sendPendingMails(pending_mails)
 
         return OperationResult()

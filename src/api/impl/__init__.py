@@ -21,6 +21,7 @@ import user
 import repository
 import filters
 import branch
+import branchupdate
 import commit
 import commitset
 import changeset

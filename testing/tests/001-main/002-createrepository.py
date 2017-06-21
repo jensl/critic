@@ -58,6 +58,7 @@ with frontend.signin():
                                           "local_branch": "master" } })
 
     instance.synchronize_service("branchtracker")
+    instance.synchronize_service("branchupdater")
 
     with repository.workcopy(empty=True) as work:
         REMOTE_URL = instance.repository_url("alice")

@@ -29,6 +29,7 @@ import reviewing.comment
 import reviewing.filters
 import log.commitset as log_commitset
 import extensions.role.filterhook
+import background.utils
 
 from operation import OperationError, OperationFailure
 from filters import Filters
@@ -166,8 +167,6 @@ mapped to have changes in them with no assigned reviewers."""
     return teams
 
 def assignChanges(db, user, review, commits=None, changesets=None, update=False):
-    cursor = db.cursor()
-
     if changesets is None:
         assert commits is not None
 
@@ -182,6 +181,7 @@ def assignChanges(db, user, review, commits=None, changesets=None, update=False)
     reviewers, watchers = getReviewersAndWatchers(db, review.repository, changesets=changesets, reviewfilters=review.getReviewFilters(db),
                                                   applyfilters=applyfilters, applyparentfilters=applyparentfilters)
 
+    cursor = db.readonly_cursor()
     cursor.execute("SELECT uid FROM reviewusers WHERE review=%s", (review.id,))
 
     reviewusers = set([user_id for (user_id,) in cursor])
@@ -230,10 +230,23 @@ def assignChanges(db, user, review, commits=None, changesets=None, update=False)
     new_reviewers -= old_reviewers
     new_watchers -= old_reviewers | new_reviewers
 
-    cursor.executemany("INSERT INTO reviewusers (review, uid) VALUES (%s, %s)", reviewusers_values)
-    cursor.executemany("INSERT INTO reviewuserfiles (file, uid) SELECT id, %s FROM reviewfiles WHERE review=%s AND changeset=%s AND file=%s", reviewuserfiles_values)
+    with db.updating_cursor("reviewusers",
+                            "reviewuserfiles") as cursor:
+        cursor.executemany(
+            """INSERT INTO reviewusers (review, uid)
+                    VALUES (%s, %s)""",
+            reviewusers_values)
+        cursor.executemany(
+            """INSERT INTO reviewuserfiles (file, uid)
+                    SELECT id, %s
+                      FROM reviewfiles
+                     WHERE review=%s
+                       AND changeset=%s
+                       AND file=%s""",
+            reviewuserfiles_values)
 
     if configuration.extensions.ENABLED:
+        cursor = db.readonly_cursor()
         cursor.execute("""SELECT id, uid, extension, path
                             FROM extensionhookfilters
                            WHERE repository=%s""",
@@ -260,18 +273,32 @@ def assignChanges(db, user, review, commits=None, changesets=None, update=False)
 
     return new_reviewers, new_watchers
 
-def createChangesetsForCommits(db, commits, silent_if_empty=set(), full_merges=set(), replayed_rebases={}):
+def prepareChangesetsForCommits(db, commits, silent_if_empty, full_merges, replayed_rebases):
+    repository = commits[0].repository
+    simple_commits = []
+
+    for commit in commits:
+        if commit not in full_merges and commit not in replayed_rebases:
+            simple_commits.append(commit)
+
+    if simple_commits:
+        changeset_utils.createChangesets(db, repository, simple_commits)
+
+    for commit in commits:
+        if commit in full_merges:
+            changeset_utils.createFullMergeChangeset(
+                db, user, repository, commit, do_highlight=False)
+        elif commit in replayed_rebases:
+            changeset_utils.createChangeset(
+                db, user, repository,
+                from_commit=commit, to_commit=replayed_rebases[commit],
+                conflicts=True, do_highlight=False)
+
+def createChangesetsForCommits(db, commits, silent_if_empty, full_merges, replayed_rebases):
     repository = commits[0].repository
     changesets = []
     silent_commits = set()
     silent_changesets = set()
-
-    simple_commits = []
-    for commit in commits:
-        if commit not in full_merges and commit not in replayed_rebases:
-            simple_commits.append(commit)
-    if simple_commits:
-        changeset_utils.createChangesets(db, repository, simple_commits)
 
     for commit in commits:
         if commit in full_merges:
@@ -298,156 +325,126 @@ def createChangesetsForCommits(db, commits, silent_if_empty=set(), full_merges=s
 
     return changesets, silent_commits, silent_changesets
 
-def addCommitsToReview(db, user, review, commits, new_review=False, commitset=None, pending_mails=None, silent_if_empty=set(), full_merges=set(), replayed_rebases={}, tracked_branch=False):
-    cursor = db.cursor()
-
-    if not new_review:
-        import index
-
-        new_commits = log_commitset.CommitSet(commits)
-        old_commits = log_commitset.CommitSet(review.branch.getCommits(db))
-        merges = new_commits.getMerges()
-
-        for merge in merges:
-            # We might have stripped it in a previous pass.
-            if not merge in new_commits: continue
-
-            tails = filter(lambda sha1: sha1 not in old_commits and sha1 not in merge.parents, new_commits.getTailsFrom(merge))
-
-            if tails:
-                if tracked_branch:
-                    raise index.IndexException("""\
-Merge %s adds merged-in commits.  Please push the merge manually
-and follow the instructions.""" % merge.sha1[:8])
-
-                cursor.execute("SELECT id, confirmed, tail FROM reviewmergeconfirmations WHERE review=%s AND uid=%s AND merge=%s", (review.id, user.id, merge.getId(db)))
-
-                row = cursor.fetchone()
-
-                if not row or not row[1]:
-                    if not row:
-                        cursor.execute("INSERT INTO reviewmergeconfirmations (review, uid, merge) VALUES (%s, %s, %s) RETURNING id", (review.id, user.id, merge.getId(db)))
-                        confirmation_id = cursor.fetchone()[0]
-
-                        merged = set()
-
-                        for tail_sha1 in tails:
-                            children = new_commits.getChildren(tail_sha1)
-
-                            while children:
-                                child = children.pop()
-                                if child not in merged and new_commits.isAncestorOf(child, merge):
-                                    merged.add(child)
-                                    children.update(new_commits.getChildren(child) - merged)
-
-                        merged_values = [(confirmation_id, commit.getId(db)) for commit in merged]
-                        cursor.executemany("INSERT INTO reviewmergecontributions (id, merged) VALUES (%s, %s)", merged_values)
-                        db.commit()
-                    else:
-                        confirmation_id = row[0]
-
-                    message = "Merge %s adds merged-in commits:" % merge.sha1[:8]
-
-                    for tail_sha1 in tails:
-                        for parent_sha1 in merge.parents:
-                            if parent_sha1 in new_commits:
-                                parent = new_commits.get(parent_sha1)
-                                if tail_sha1 in new_commits.getTailsFrom(parent):
-                                    message += "\n  %s..%s" % (tail_sha1[:8], parent_sha1[:8])
-
-                    message += """
-Please confirm that this is intended by loading:
-  %s/confirmmerge?id=%d""" % (dbutils.getURLPrefix(db, user), confirmation_id)
-
-                    raise index.IndexException(message)
-                elif row[2] is not None:
-                    if row[2] == merge.getId(db):
-                        cursor.execute("SELECT merged FROM reviewmergecontributions WHERE id=%s",
-                                       (row[0],))
-
-                        for (merged_id,) in cursor:
-                            merged = gitutils.Commit.fromId(db, review.repository, merged_id)
-                            if merged.sha1 in merge.parents:
-                                new_commits = new_commits.without([merged])
-                                break
-                    else:
-                        tail = gitutils.Commit.fromId(db, review.repository, row[2])
-                        cut = [gitutils.Commit.fromSHA1(db, review.repository, sha1)
-                               for sha1 in tail.parents if sha1 in new_commits]
-                        new_commits = new_commits.without(cut)
-
-        if commitset:
-            commitset &= set(new_commits)
-            commits = [commit for commit in commits if commit in commitset]
-
+def addCommitsToReview(db, user, review, previous_head, commits, new_review,
+                       branchupdate_id, silent_if_empty=set(),
+                       full_merges=set(), replayed_rebases={},
+                       tracked_branch=False):
     changesets, silent_commits, silent_changesets = \
         createChangesetsForCommits(db, commits, silent_if_empty, full_merges, replayed_rebases)
 
-    if not new_review:
-        print "Adding %d commit%s to the review at:\n  %s" % (len(commits), len(commits) > 1 and "s" or "", review.getURL(db))
+    reviewchangesets_values = [(review.id, branchupdate_id, changeset.id)
+                               for changeset in changesets]
+    reviewfiles_values = [(review.id, changeset.id)
+                          for changeset in changesets]
 
-    reviewchangesets_values = [(review.id, changeset.id) for changeset in changesets]
+    with db.updating_cursor("reviewchangesets",
+                            "reviewfiles",
+                            "reviewusers",
+                            "reviewuserfiles",
+                            # Updated indirectly via assignChanges().
+                            "extensionfilterhookevents",
+                            "extensionfilterhookcommits",
+                            "extensionfilterhookfiles") as cursor:
+        cursor.executemany(
+            """INSERT INTO reviewchangesets (review, branchupdate, changeset)
+                    VALUES (%s, %s, %s)""",
+            reviewchangesets_values)
+        cursor.executemany(
+            """INSERT INTO reviewfiles (review, changeset, file, deleted, inserted)
+                    SELECT reviewchangesets.review, reviewchangesets.changeset,
+                           fileversions.file, COALESCE(SUM(chunks.deleteCount), 0),
+                           COALESCE(SUM(chunks.insertCount), 0)
+                      FROM reviewchangesets
+                      JOIN fileversions USING (changeset)
+           LEFT OUTER JOIN chunks USING (changeset, file)
+                     WHERE reviewchangesets.review=%s
+                       AND reviewchangesets.changeset=%s
+                  GROUP BY reviewchangesets.review, reviewchangesets.changeset,
+                           fileversions.file""",
+            reviewfiles_values)
 
-    cursor.executemany("""INSERT INTO reviewchangesets (review, changeset) VALUES (%s, %s)""", reviewchangesets_values)
-    cursor.executemany("""INSERT INTO reviewfiles (review, changeset, file, deleted, inserted)
-                               SELECT reviewchangesets.review, reviewchangesets.changeset, fileversions.file,
-                                      COALESCE(SUM(chunks.deleteCount), 0), COALESCE(SUM(chunks.insertCount), 0)
-                                 FROM reviewchangesets
-                                 JOIN fileversions USING (changeset)
-                      LEFT OUTER JOIN chunks USING (changeset, file)
-                                WHERE reviewchangesets.review=%s
-                                  AND reviewchangesets.changeset=%s
-                             GROUP BY reviewchangesets.review, reviewchangesets.changeset, fileversions.file""",
-                       reviewchangesets_values)
+        new_reviewers, new_watchers = assignChanges(db, user, review, changesets=changesets)
 
-    new_reviewers, new_watchers = assignChanges(db, user, review, changesets=changesets)
-
+    cursor = db.readonly_cursor()
     cursor.execute("SELECT include FROM reviewrecipientfilters WHERE review=%s AND uid IS NULL", (review.id,))
 
     try: opt_out = cursor.fetchone()[0] is True
     except: opt_out = True
 
-    if not new_review:
+    output = ""
+
+    reviewrecipientfilters_values = []
+
+    if new_reviewers:
+        output += ("Added reviewer%s:\n"
+                   % ("s" if len(new_reviewers) > 1 else ""))
+
         for user_id in new_reviewers:
             new_reviewuser = dbutils.User.fromId(db, user_id)
-            print "Added reviewer: %s <%s>" % (new_reviewuser.fullname, new_reviewuser.email)
+            output += "  %s <%s>\n" % (new_reviewuser.fullname,
+                                       new_reviewuser.email)
 
-            if opt_out:
+            if not new_review and opt_out:
                 # If the user has opted out from receiving e-mails about this
                 # review while only watching it, clear the opt-out now that the
                 # user becomes a reviewer.
-                cursor.execute("DELETE FROM reviewrecipientfilters WHERE review=%s AND uid=%s AND include=FALSE", (review.id, user_id))
+                reviewrecipientfilters_values.append((review.id, user_id))
+
+        output += "\n"
+    elif new_review:
+        output += "No reviewers were added.\n\n"
+
+    if reviewrecipientfilters_values:
+        with db.updating_cursor("reviewrecipientfilters") as cursor:
+            cursor.executemany(
+                """DELETE
+                     FROM reviewrecipientfilters
+                    WHERE review=%s
+                      AND uid=%s
+                      AND NOT include""",
+                reviewrecipientfilters_values)
+
+    if new_watchers:
+        output += ("Added watcher%s:\n"
+                   % ("s" if len(new_reviewers) > 1 else ""))
 
         for user_id in new_watchers:
             new_reviewuser = dbutils.User.fromId(db, user_id)
-            print "Added watcher:  %s <%s>" % (new_reviewuser.fullname, new_reviewuser.email)
+            output += "  %s <%s>\n" % (new_reviewuser.fullname,
+                                       new_reviewuser.email)
 
+        output += "\n"
+
+    if not new_review:
         review.incrementSerial(db)
 
-        reviewing.comment.propagateCommentChains(db, user, review, new_commits, replayed_rebases)
-
-    if pending_mails is None: pending_mails = []
+        output += reviewing.comment.propagateCommentChains(
+            db, user, review, previous_head, log_commitset.CommitSet(commits),
+            replayed_rebases)
 
     notify_commits = filter(lambda commit: commit not in silent_commits, commits)
     notify_changesets = filter(lambda changeset: changeset not in silent_changesets, changesets)
 
-    if not new_review and notify_changesets:
-        recipients = review.getRecipients(db)
-        for to_user in recipients:
-            pending_mails.extend(mail.sendReviewAddedCommits(
-                    db, user, to_user, recipients, review, notify_commits,
-                    notify_changesets, tracked_branch=tracked_branch))
+    recipients = review.getRecipients(db)
 
-    mail.sendPendingMails(pending_mails)
+    if new_review:
+        for to_user in recipients:
+            db.pending_mails.extend(mail.sendReviewCreated(
+                db, user, to_user, recipients, review))
+    elif notify_changesets:
+        for to_user in recipients:
+            db.pending_mails.extend(mail.sendReviewAddedCommits(
+                db, user, to_user, recipients, review, notify_commits,
+                notify_changesets, tracked_branch=tracked_branch))
 
     review.reviewers.extend([User.fromId(db, user_id) for user_id in new_reviewers])
 
     for user_id in new_watchers:
         review.watchers[User.fromId(db, user_id)] = "automatic"
 
-    return True
+    return output
 
-def createReview(db, user, repository, commits, branch_name, summary, description, from_branch_name=None, via_push=False, reviewfilters=None, applyfilters=True, applyparentfilters=False, recipientfilters=None):
+def createReview(db, user, repository, commits, branch_name, summary, description, from_branch_name=None, via_push=False, reviewfilters=None, applyfilters=True, applyparentfilters=False, recipientfilters=None, pendingrefupdate_id=None):
     cursor = db.cursor()
 
     if via_push:
@@ -509,20 +506,10 @@ using the command<p>
                          % htmlutils.htmlify(error.output)),
                 is_html=True)
 
-    createChangesetsForCommits(db, commits)
-
     try:
-        cursor.execute("""INSERT INTO branches (repository, name, head, tail, type)
-                               VALUES (%s, %s, %s, %s, 'review')
-                            RETURNING id""",
-                       (repository.id, branch_name, head.getId(db), tail_id))
-
-        branch_id = cursor.fetchone()[0]
-        reachable_values = [(branch_id, commit.getId(db)) for commit in commits]
-
-        cursor.executemany("""INSERT INTO reachable (branch, commit)
-                                   VALUES (%s, %s)""",
-                           reachable_values)
+        branch_id = dbutils.Branch.insert(
+            db, repository, user, branch_name, 'review', None, head.getId(db),
+            tail_id, None, commits, pendingrefupdate_id)
 
         from_branch_id = None
         if from_branch_name is not None:
@@ -558,7 +545,7 @@ using the command<p>
                                [(review.id, filter_user_id, filter_path, filter_type, user.id)
                                 for filter_user_id, filter_path, filter_type, filter_delegate in reviewfilters])
 
-        is_opt_in = False
+        # is_opt_in = False
 
         if recipientfilters is not None:
             cursor.executemany(
@@ -567,108 +554,14 @@ using the command<p>
                 [(review.id, filter_user_id, filter_include)
                  for filter_user_id, filter_include in recipientfilters])
 
-            for filter_user_id, filter_include in recipientfilters:
-                if filter_user_id is None and not filter_include:
-                    is_opt_in = True
-
-        addCommitsToReview(db, user, review, commits, new_review=True)
-
-        # Reload to get list of changesets added by addCommitsToReview().
-        review = dbutils.Review.fromId(db, review.id)
-
-        pending_mails = []
-        recipients = review.getRecipients(db)
-        for to_user in recipients:
-            pending_mails.extend(mail.sendReviewCreated(db, user, to_user, recipients, review))
-
-        if not is_opt_in:
-            recipient_by_id = dict((to_user.id, to_user) for to_user in recipients)
-
-            cursor.execute("""SELECT userpreferences.uid, userpreferences.repository,
-                                     userpreferences.filter, userpreferences.integer
-                                FROM userpreferences
-                     LEFT OUTER JOIN filters ON (filters.id=userpreferences.filter)
-                               WHERE userpreferences.item='review.defaultOptOut'
-                                 AND userpreferences.uid=ANY (%s)
-                                 AND (userpreferences.filter IS NULL
-                                   OR filters.repository=%s)
-                                 AND (userpreferences.repository IS NULL
-                                   OR userpreferences.repository=%s)""",
-                           (recipient_by_id.keys(), repository.id, repository.id))
-
-            user_settings = {}
-            has_filter_settings = False
-
-            for user_id, repository_id, filter_id, integer in cursor:
-                settings = user_settings.setdefault(user_id, [None, None, {}])
-                value = bool(integer)
-
-                if repository_id is None and filter_id is None:
-                    settings[0] = value
-                elif repository_id is not None:
-                    settings[1] = value
-                else:
-                    settings[2][filter_id] = value
-                    has_filter_settings = True
-
-            if has_filter_settings:
-                filters = Filters()
-                filters.setFiles(db, review=review)
-
-            for user_id, (global_default, repository_default, filter_settings) in user_settings.items():
-                to_user = recipient_by_id[user_id]
-                opt_out = None
-
-                if repository_default is not None:
-                    opt_out = repository_default
-                elif global_default is not None:
-                    opt_out = global_default
-
-                if filter_settings:
-                    # Policy:
-                    #
-                    # If all of the user's filters that matched files in the
-                    # review have review.defaultOptOut enabled, then opt out.
-                    # When determining this, any review filters of the user's
-                    # that match files in the review count as filters that don't
-                    # have the review.defaultOptOut enabled.
-                    #
-                    # If any of the user's filters that matched files in the
-                    # review have review.defaultOptOut disabled, then don't opt
-                    # out.  When determining this, review filters are ignored.
-                    #
-                    # Otherwise, ignore the filter settings, and go with either
-                    # the user's per-repository or global setting (as set
-                    # above.)
-
-                    filters.load(db, review=review, user=to_user)
-
-                    # A set of filter ids.  If None is in the set, the user has
-                    # one or more review filters in the review.  (These do not
-                    # have ids.)
-                    active_filters = filters.getActiveFilters(to_user)
-
-                    for filter_id in active_filters:
-                        if filter_id is None:
-                            continue
-                        elif filter_id in filter_settings:
-                            if not filter_settings[filter_id]:
-                                opt_out = False
-                                break
-                        else:
-                            break
-                    else:
-                        if None not in active_filters:
-                            opt_out = True
-
-                if opt_out:
-                    cursor.execute("""INSERT INTO reviewrecipientfilters (review, uid, include)
-                                           VALUES (%s, %s, FALSE)""",
-                                   (review.id, to_user.id))
+            # for filter_user_id, filter_include in recipientfilters:
+            #     if filter_user_id is None and not filter_include:
+            #         is_opt_in = True
 
         db.commit()
 
-        mail.sendPendingMails(pending_mails)
+        # Wake the review updater up to do the heavy lifting.
+        background.utils.wakeup(configuration.services.REVIEWUPDATER)
 
         return review
     except:
@@ -758,7 +651,6 @@ def renderDraftItems(db, user, review, target):
 
 def addReviewFilters(db, creator, user, review, reviewer_paths, watcher_paths):
     cursor = db.cursor()
-
     cursor.execute("INSERT INTO reviewassignmentstransactions (review, assigner) VALUES (%s, %s) RETURNING id", (review.id, creator.id))
     transaction_id = cursor.fetchone()[0]
 
@@ -853,7 +745,7 @@ def addReviewFilters(db, creator, user, review, reviewer_paths, watcher_paths):
         cursor.executemany("INSERT INTO reviewassignmentchanges (transaction, file, uid, assigned) VALUES (%s, %s, %s, true)",
                            izip(repeat(transaction_id), insert_files, repeat(user.id)))
 
-    return generateMailsForAssignmentsTransaction(db, transaction_id)
+    generateMailsForAssignmentsTransaction(db, transaction_id)
 
 def parseReviewFilters(db, data):
     reviewfilters = []
@@ -898,9 +790,7 @@ def parseRecipientFilters(db, data):
 
     return recipientfilters
 
-def queryFilters(db, user, review, globalfilters=False, parentfilters=False):
-    cursor = db.cursor()
-
+def _updateFilters(db, cursor, user, review, globalfilters, parentfilters):
     if globalfilters:
         cursor.execute("UPDATE reviews SET applyfilters=TRUE WHERE id=%s", (review.id,))
         review.applyfilters = True
@@ -919,38 +809,54 @@ def queryFilters(db, user, review, globalfilters=False, parentfilters=False):
     changeset_load.loadChangesets(
         db, review.repository, changesets, load_chunks=False)
 
-    return assignChanges(db, user, review, changesets=changesets, update=True)
+    return assignChanges(
+        db, user, review, changesets=changesets, update=True)
+
+def queryFilters(db, user, review, globalfilters=False, parentfilters=False):
+    with db.updating_cursor("reviews",
+                            "reviewusers",
+                            "reviewuserfiles",
+                            # Updated indirectly via assignChanges().
+                            "extensionfilterhookevents",
+                            "extensionfilterhookcommits",
+                            "extensionfilterhookfiles") as cursor:
+        try:
+            return _updateFilters(db, cursor, user, review, globalfilters, parentfilters)
+        finally:
+            db.rollback()
 
 def applyFilters(db, user, review, globalfilters=False, parentfilters=False):
-    new_reviewers, new_watchers = queryFilters(db, user, review, globalfilters, parentfilters)
+    with db.updating_cursor("reviews",
+                            "reviewusers",
+                            "reviewuserfiles",
+                            "reviewmessageids",
+                            # Updated indirectly via assignChanges().
+                            "extensionfilterhookevents",
+                            "extensionfilterhookcommits",
+                            "extensionfilterhookfiles") as cursor:
+        new_reviewers, new_watchers = _updateFilters(
+            db, cursor, user, review, globalfilters, parentfilters)
 
-    pending_mails = []
-    cursor = db.cursor()
+        for user_id in new_reviewers:
+            new_reviewer = dbutils.User.fromId(db, user_id)
 
-    for user_id in new_reviewers:
-        new_reviewer = dbutils.User.fromId(db, user_id)
+            cursor.execute("""SELECT reviewfiles.file, SUM(reviewfiles.deleted), SUM(reviewfiles.inserted)
+                                FROM reviewfiles
+                                JOIN reviewuserfiles ON (reviewuserfiles.file=reviewfiles.id)
+                               WHERE reviewfiles.review=%s
+                                 AND reviewuserfiles.uid=%s
+                            GROUP BY reviewfiles.file""",
+                           (review.id, user_id))
 
-        cursor.execute("""SELECT reviewfiles.file, SUM(reviewfiles.deleted), SUM(reviewfiles.inserted)
-                            FROM reviewfiles
-                            JOIN reviewuserfiles ON (reviewuserfiles.file=reviewfiles.id)
-                           WHERE reviewfiles.review=%s
-                             AND reviewuserfiles.uid=%s
-                        GROUP BY reviewfiles.file""",
-                       (review.id, user_id))
-
-        pending_mails.extend(mail.sendFiltersApplied(
+            db.pending_mails.extend(mail.sendFiltersApplied(
                 db, user, new_reviewer, review, globalfilters, parentfilters, cursor.fetchall()))
 
-    for user_id in new_watchers:
-        new_watcher = dbutils.User.fromId(db, user_id)
-        pending_mails.extend(mail.sendFiltersApplied(
+        for user_id in new_watchers:
+            new_watcher = dbutils.User.fromId(db, user_id)
+            db.pending_mails.extend(mail.sendFiltersApplied(
                 db, user, new_watcher, review, globalfilters, parentfilters, None))
 
-    review.incrementSerial(db)
-
-    db.commit()
-
-    mail.sendPendingMails(pending_mails)
+        review.incrementSerial(db)
 
 def generateMailsForBatch(db, batch_id, was_accepted, is_accepted, profiler=None):
     cursor = db.readonly_cursor()
@@ -966,7 +872,7 @@ def generateMailsForBatch(db, batch_id, was_accepted, is_accepted, profiler=None
         db.pending_mails.extend(mail.sendReviewBatch(db, from_user, to_user, recipients, review, batch_id, was_accepted, is_accepted, profiler=profiler))
 
 def generateMailsForAssignmentsTransaction(db, transaction_id):
-    cursor = db.cursor()
+    cursor = db.readonly_cursor()
     cursor.execute("SELECT review, assigner, note FROM reviewassignmentstransactions WHERE id=%s", (transaction_id,))
 
     review_id, assigner_id, note = cursor.fetchone()
@@ -999,14 +905,10 @@ def generateMailsForAssignmentsTransaction(db, transaction_id):
         if was_assigned: assigned.append((file_id, deleted, inserted))
         else: unassigned.append((file_id, deleted, inserted))
 
-    pending_mails = []
-
     for reviewer_id, (added_filters, removed_filters, unassigned, assigned) in by_user.items():
         reviewer = dbutils.User.fromId(db, reviewer_id)
         if assigner != reviewer:
-            pending_mails.extend(mail.sendAssignmentsChanged(db, assigner, reviewer, review, added_filters, removed_filters, unassigned, assigned))
-
-    return pending_mails
+            db.pending_mails.extend(mail.sendAssignmentsChanged(db, assigner, reviewer, review, added_filters, removed_filters, unassigned, assigned))
 
 def retireUser(db, user):
     cursor = db.cursor()

@@ -1,15 +1,15 @@
 import api
+from .. import apiobject
 
-class Partition(object):
+class Partition(apiobject.APIObject):
+    wrapper_class = api.log.partition.Partition
+
     def __init__(self, commits):
         assert not commits or len(commits.heads) == 1
 
         self.commits = commits
         self.preceding = None
         self.following = None
-
-    def wrap(self, critic):
-        return api.log.partition.Partition(critic, self)
 
 def create(critic, commits, rebases):
     commits = api.commitset.create(critic, commits)
@@ -28,8 +28,9 @@ def create(critic, commits, rebases):
     rebase = None
 
     for rebase in reversed(rebases):
+        from_head = rebase.branchupdate.from_head
         partition_commits = commits.getAncestorsOf(
-            rebase.old_head, rebase.old_head in commits)
+            from_head, from_head in commits)
         commits = commits - partition_commits
         add(rebase, Partition(partition_commits).wrap(critic))
 

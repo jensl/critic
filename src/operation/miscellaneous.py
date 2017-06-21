@@ -50,9 +50,11 @@ class RebaseBranch(Operation):
         branch = dbutils.Branch.fromName(db, repository, branch_name)
         base_branch = dbutils.Branch.fromName(db, repository, base_branch_name)
 
-        branch.rebase(db, base_branch)
-
-        db.commit()
+        with db.updating_cursor("branches",
+                                "branchupdates",
+                                "branchcommits",
+                                "branchupdatecommits"):
+            branch.rebase(db, user, base_branch)
 
         return OperationResult()
 

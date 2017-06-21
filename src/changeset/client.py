@@ -15,6 +15,7 @@
 # the License.
 
 import socket
+import errno
 
 import base
 import configuration
@@ -26,23 +27,35 @@ class ChangesetBackgroundServiceError(base.ImplementationError):
             "Changeset background service failed: %s" % message)
 
 def requestChangesets(requests, async=False):
+    def uninterruptable(fn):
+        while True:
+            try:
+                return fn()
+            except socket.error as error:
+                if error[0] == errno.EINTR:
+                    continue
+                raise
+
+    address = configuration.services.CHANGESET["address"]
+
     try:
         connection = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        connection.connect(configuration.services.CHANGESET["address"])
-        connection.send(json_encode({
+        uninterruptable(lambda: connection.connect(address))
+        uninterruptable(lambda: connection.sendall(json_encode({
             "requests": requests,
             "async": async
-        }))
-        connection.shutdown(socket.SHUT_WR)
+        })))
+        uninterruptable(lambda: connection.shutdown(socket.SHUT_WR))
 
         data = ""
 
         while True:
-            received = connection.recv(4096)
-            if not received: break
+            received = uninterruptable(lambda: connection.recv(4096))
+            if not received:
+                break
             data += received
 
-        connection.close()
+        uninterruptable(lambda: connection.close())
     except EnvironmentError as error:
         raise ChangesetBackgroundServiceError(str(error))
 

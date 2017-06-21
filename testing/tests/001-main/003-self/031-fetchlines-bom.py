@@ -12,28 +12,29 @@ with frontend.signin("alice"), repository.workcopy(empty=True) as work:
                  GIT_AUTHOR_EMAIL="alice@example.org",
                  GIT_COMMITTER_NAME="Alice von Testing",
                  GIT_COMMITTER_EMAIL="alice@example.org")
-        sha1 = work.run(["ls-tree", "HEAD", filename]).strip().split()[2]
-        return sha1
-
-    def push():
-        return work.run(["push", "-q", REMOTE_URL,
-                         "HEAD:refs/heads/031-fetchlines"])
+        commit_sha1 = work.run(["rev-parse", "HEAD"]).strip()
+        blob_sha1 = work.run(["ls-tree", "HEAD", filename]).strip().split()[2]
+        return commit_sha1, blob_sha1
 
     filename_cc = "031-fetchlines.cc"
     with open(os.path.join(work.path, filename_cc), "w") as text_file:
         print >>text_file, UTF8_BOM
         print >>text_file, "\n"*42
         print >>text_file, "hello world"
-    file_sha1_cc = commit(filename_cc)
+    sha1, file_sha1_cc = commit(filename_cc)
+
+    work.run(["push", "-q", REMOTE_URL,
+              "%s:refs/roots/%s" % (sha1, sha1)])
 
     filename_py = "031-fetchlines.py"
     with open(os.path.join(work.path, filename_py), "w") as text_file:
         print >>text_file, UTF8_BOM
         print >>text_file, "\n"*42
         print >>text_file, "hello world"
-    file_sha1_py = commit(filename_py)
+    sha1, file_sha1_py = commit(filename_py)
 
-    push()
+    work.run(["push", "-q", REMOTE_URL,
+              "HEAD:refs/heads/031-fetchlines"])
 
     frontend.operation(
         "fetchlines",

@@ -234,7 +234,7 @@ def renderCreateReview(req, db, user):
             except: commit_sha1s = [repository.revparse(ref) for ref in commits_arg.split(",")]
         elif branch_name:
             cursor.execute("""SELECT commit
-                                FROM reachable
+                                FROM branchcommits
                                 JOIN branches ON (branch=id)
                                WHERE repository=%s
                                  AND name=%s""",

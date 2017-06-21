@@ -36,14 +36,16 @@ with testing.utils.settings("alice", SETTINGS), frontend.signin("alice"):
         def push():
             output = work.run(
                 ["push", "-q", "critic",
-                 "HEAD:refs/heads/r/008-processcommits"])
+                 "HEAD:refs/heads/r/008-processcommits"],
+                TERM="dumb")
             all_lines = []
             for line in output.splitlines():
                 if not line.startswith("remote:"):
                     continue
-                all_lines.append(line[len("remote:"):].split("\x1b", 1)[0].strip())
+                all_lines.append(line)
             extension_lines = []
             for line in all_lines:
+                line = line[len("remote:"):].strip()
                 if line.startswith("[TestExtension] "):
                     extension_lines.append(line[len("[TestExtension] "):])
             return all_lines, extension_lines
@@ -53,14 +55,11 @@ with testing.utils.settings("alice", SETTINGS), frontend.signin("alice"):
 
         first_commit = commit()
         all_lines, extension_lines = push()
-        next_is_review_url = False
 
         for line in all_lines:
-            if line == "Submitted review:":
-                next_is_review_url = True
-            elif next_is_review_url:
-                review_id = int(re.search(r"/r/(\d+)$", line).group(1))
-                break
+            match = testing.utils.RE_REVIEW_URL.match(line)
+            if match:
+                review_id = int(match.group(1))
 
         testing.expect.check(["processcommits.js::processcommits()",
                               "===================================",

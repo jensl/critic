@@ -81,7 +81,6 @@ class BackgroundProcess(object):
 
         self.terminated = False
         self.interrupted = False
-        self.restart_requested = False
         self.synchronize_when_idle = False
         self.force_maintenance = False
 
@@ -90,27 +89,27 @@ class BackgroundProcess(object):
         self.__pidfile_path = service["pidfile_path"]
         self.__create_pidfile()
 
-        signal.signal(signal.SIGHUP, self.__handle_SIGHUP)
-        signal.signal(signal.SIGTERM, self.__handle_SIGTERM)
-        signal.signal(signal.SIGUSR1, self.__handle_SIGUSR1)
-        signal.signal(signal.SIGUSR2, self.__handle_SIGUSR2)
+        signal.signal(signal.SIGHUP, self.handle_SIGHUP)
+        signal.signal(signal.SIGTERM, self.handle_SIGTERM)
+        signal.signal(signal.SIGUSR1, self.handle_SIGUSR1)
+        signal.signal(signal.SIGUSR2, self.handle_SIGUSR2)
 
         self.info("service started")
 
         atexit.register(self.__stopped)
 
-    def __handle_SIGHUP(self, signum, frame):
+    def handle_SIGHUP(self, signum, frame):
         self.interrupted = True
-    def __handle_SIGTERM(self, signum, frame):
+    def handle_SIGTERM(self, signum, frame):
         self.terminated = True
-    def __handle_SIGUSR1(self, signum, frame):
+    def handle_SIGUSR1(self, signum, frame):
         # Used for synchronization during testing.
         #
         # Someone<TM> creates a file named "<pidfile_path>.busy", then sends
         # SIGUSR1, and expects the file to be deleted as soon as this service
         # reaches an idle point.
         self.synchronize_when_idle = True
-    def __handle_SIGUSR2(self, signum, frame):
+    def handle_SIGUSR2(self, signum, frame):
         # Used for running maintenance tasks during testing.
         #
         # Works the same way as SIGUSR1, but additionally makes sure to run all
@@ -269,14 +268,67 @@ class BackgroundProcess(object):
             self.debug("sleeping %d seconds" % timeout)
             time.sleep(timeout)
 
-    def requestRestart(self):
-        self.restart_requested = True
+class SleeperProcess(BackgroundProcess):
+    """A process that sleeps, and wakes up when signalled to do work
 
-class PeerServer(BackgroundProcess):
+       This helper base-class implements a run() method that calls wakeup()
+       whenever signalled, and otherwise sleeps, while also taking scheduled
+       maintenance into account.
+
+       It will always call wakeup() once on startup."""
+
+    def run(self):
+        wakeup_timeout = self.wakeup()
+
+        while not self.terminated:
+            maintenance_timeout = self.run_maintenance()
+
+            if self.terminated:
+                return
+
+            if wakeup_timeout is not None and maintenance_timeout is not None:
+                timeout = min(wakeup_timeout, maintenance_timeout)
+            elif wakeup_timeout is not None:
+                timeout = wakeup_timeout
+            elif maintenance_timeout is not None:
+                timeout = maintenance_timeout
+            else:
+                timeout = 86400
+
+            if not self.interrupted and not self.terminated:
+                self.sleep(timeout)
+
+            if self.terminated:
+                return
+
+            if self.interrupted:
+                self.interrupted = False
+
+            wakeup_timeout = self.wakeup()
+
+    def sleep(self, timeout):
+        self.signal_idle_state()
+        time.sleep(timeout)
+
+class PeerServer(SleeperProcess):
     class Peer(object):
         def __init__(self, server, writing, *reading, **kwargs):
+            """Constructor
+
+               Arguments:
+
+                 server:  the PeerServer object
+                 writing: the file descriptor to write to, if any
+                 reading: the file descriptors to read from, if any
+                 deadline: response deadline
+                 chunked: if True, handle_input() can be called multiple times,
+                          for LF separated chunks
+                 lenient: don't report errors if the peer goes away"""
+
             self.server = server
             self.deadline = kwargs.get("deadline", None)
+            self.chunked = kwargs.get("chunked", False)
+            self.lenient = kwargs.get("lenient", False)
 
             self.__writing = writing
             self.__write_data = ""
@@ -305,18 +357,22 @@ class PeerServer(BackgroundProcess):
             return not self.__writing and not any(self.__reading)
 
         def writing(self):
-            if self.__write_data or self.__write_closed: return self.__writing
-            else: return None
+            if self.__write_data or self.__write_closed:
+                return self.__writing
+            else:
+                return None
 
         def write(self, data):
-            assert self.__writing
-            assert not self.__write_closed
-            self.__write_data += data
+            if not self.__write_failed:
+                assert self.__writing
+                assert not self.__write_closed
+                self.__write_data += data
 
         def close(self):
-            assert self.__writing
-            assert not self.__write_closed
-            self.__write_closed = True
+            if not self.__write_failed:
+                assert self.__writing
+                assert not self.__write_closed
+                self.__write_closed = True
 
         def do_write(self):
             try:
@@ -326,8 +382,9 @@ class PeerServer(BackgroundProcess):
             except EnvironmentError as error:
                 if error.errno in (errno.EAGAIN, errno.EINTR):
                     raise
-                self.server.warning("Failed to write to peer: %s" % error)
                 if error.errno == errno.EPIPE:
+                    if not self.lenient:
+                        self.server.warning("Failed to write to peer: %s" % error)
                     self.__write_failed = True
                 else:
                     raise
@@ -346,16 +403,34 @@ class PeerServer(BackgroundProcess):
                                             self.__read_closed)]
 
         def do_read(self, index):
-            while True:
-                readfile = self.__reading[index]
-                read = os.read(readfile.fileno(), 4096)
-                if not read:
-                    self.reading_done(readfile)
-                    self.__reading[index] = None
-                    self.__read_closed[index] = True
-                    self.handle_input(readfile, self.__read_data[index])
-                    break
-                self.__read_data[index] += read
+            readfile = self.__reading[index]
+            try:
+                # Read as much as we can.
+                while True:
+                    read = os.read(readfile.fileno(), 4096)
+                    if not read:
+                        break
+                    self.__read_data[index] += read
+            except EnvironmentError:
+                # Most likely os.read() threw because there's no more data right
+                # now.  If we're in chunked mode, deliver what we have, and then
+                # propagate the exception.
+                if self.chunked:
+                    chunk, nl, self.__read_data[index] = \
+                        self.__read_data[index].rpartition("\n")
+                    if chunk:
+                        self.handle_input(readfile, chunk + nl, closed=False)
+                raise
+
+            # We've read everything.
+            self.reading_done(readfile)
+            self.__reading[index] = None
+            self.__read_closed[index] = True
+            if self.chunked:
+                self.handle_input(readfile, self.__read_data[index],
+                                  closed=True)
+            else:
+                self.handle_input(readfile, self.__read_data[index])
 
         def writing_done(self, writing):
             writing.close()
@@ -367,8 +442,9 @@ class PeerServer(BackgroundProcess):
             pass
 
     class SocketPeer(Peer):
-        def __init__(self, server, clientsocket):
-            super(PeerServer.SocketPeer, self).__init__(server, clientsocket, clientsocket)
+        def __init__(self, server, clientsocket, **kwargs):
+            super(PeerServer.SocketPeer, self).__init__(
+                server, clientsocket, clientsocket, **kwargs)
 
         def reading_done(self, reading):
             reading.shutdown(socket.SHUT_RD)
@@ -380,12 +456,13 @@ class PeerServer(BackgroundProcess):
             pass
 
     class SpawnedProcess(Peer):
-        def __init__(self, server, process, **kwargs):
+        def __init__(self, server, process, chunked=False, **kwargs):
             self.process = process
             self.pid = process.pid
             super(PeerServer.SpawnedProcess, self).__init__(
                 server,
                 self.process.stdin, self.process.stdout, self.process.stderr,
+                chunked=chunked,
                 **kwargs)
 
         def kill(self, signal):
@@ -407,10 +484,10 @@ class PeerServer(BackgroundProcess):
                 self.server.debug("child process exited (pid=%d, returncode=0)" % self.pid)
 
     class ChildProcess(SpawnedProcess):
-        def __init__(self, server, args, **kwargs):
+        def __init__(self, server, args, chunked=False, **kwargs):
             process = subprocess.Popen(
                 args, stdin=subprocess.PIPE, stdout=subprocess.PIPE, **kwargs)
-            super(PeerServer.ChildProcess, self).__init__(server, process)
+            super(PeerServer.ChildProcess, self).__init__(server, process, chunked=chunked)
             self.server.debug("spawned child process (pid=%d)" % self.process.pid)
 
     def __init__(self, service, **kwargs):
@@ -418,6 +495,11 @@ class PeerServer(BackgroundProcess):
 
         self.__peers = []
         self.__address = service.get("address")
+
+        self.restart_requested = False
+
+        # Treat child processes finishing the same as being woken up.
+        signal.signal(signal.SIGCHLD, self.handle_SIGHUP)
 
     def __create_listening_socket(self):
         if type(self.__address) == str:
@@ -458,7 +540,7 @@ class PeerServer(BackgroundProcess):
 
             self.debug("listening: %s:%d" % (host, port))
         elif self.__address is None:
-            self.__listening_socket = open("/dev/null", "r")
+            self.__listening_socket = None
 
             self.debug("not listening")
         else:
@@ -467,139 +549,127 @@ class PeerServer(BackgroundProcess):
         atexit.register(self.__destroy_listening_socket)
 
     def __destroy_listening_socket(self):
-        try: self.__listening_socket.close()
-        except: pass
+        if self.__listening_socket:
+            try:
+                self.__listening_socket.close()
+            except:
+                pass
 
         if type(self.__address) == str:
-            try: os.unlink(self.__address)
-            except: pass
+            try:
+                os.unlink(self.__address)
+            except:
+                pass
 
-    def run(self):
-        while not self.terminated:
-            self.interrupted = False
+    def sleep(self, timeout_seconds):
+        if self.restart_requested:
+            if not self.__peers:
+                self.terminated = True
+                return
+            else:
+                self.debug("restart delayed; have %d peers" % len(self.__peers))
 
-            if self.restart_requested:
-                if not self.__peers:
-                    break
-                else:
-                    self.debug("restart delayed; have %d peers" % len(self.__peers))
+        poll = select.poll()
 
-            poll = select.poll()
+        if self.__listening_socket:
             poll.register(self.__listening_socket, select.POLLIN)
 
-            writing_map = {}
-            reading_map = {}
+        writing_map = {}
+        reading_map = {}
 
-            def fileno(file):
-                if file:
-                    return file.fileno()
-                else:
-                    return None
+        def fileno(file):
+            if file:
+                return file.fileno()
+            else:
+                return None
 
-            nearest_peer_deadline = None
+        now = time.time()
+        deadline = now + timeout_seconds
 
-            for peer in self.__peers:
-                if peer.writing():
-                    poll.register(peer.writing(), select.POLLOUT)
-                    writing_map[peer.writing().fileno()] = peer
-                for index, readfile in enumerate(peer.reading()):
-                    if readfile:
-                        poll.register(readfile, select.POLLIN)
-                        reading_map[readfile.fileno()] = (peer, index)
-                if peer.deadline is not None:
-                    if nearest_peer_deadline is None:
-                        nearest_peer_deadline = peer.deadline
-                    else:
-                        nearest_peer_deadline = min(peer.deadline,
-                                                    nearest_peer_deadline)
+        for peer in self.__peers:
+            if peer.writing():
+                poll.register(peer.writing(), select.POLLOUT)
+                writing_map[peer.writing().fileno()] = peer
+            for index, readfile in enumerate(peer.reading()):
+                if readfile:
+                    poll.register(readfile, select.POLLIN)
+                    reading_map[readfile.fileno()] = (peer, index)
+            if peer.deadline is not None:
+                deadline = min(peer.deadline, deadline)
 
-            while not self.terminated:
-                timeout_seconds = self.run_maintenance()
+        while not self.terminated:
+            now = time.time()
 
-                if timeout_seconds:
-                    if not self.__peers:
-                        self.debug("next maintenance task check scheduled in %d seconds"
-                                   % timeout_seconds)
-
-                if nearest_peer_deadline is not None:
-                    deadline_seconds = nearest_peer_deadline - time.time()
-                    if deadline_seconds < 0:
-                        deadline_seconds = 0
-                    if timeout_seconds is None:
-                        timeout_seconds = deadline_seconds
-                    else:
-                        timeout_seconds = min(timeout_seconds, deadline_seconds)
-
-                if timeout_seconds:
-                    timeout_ms = timeout_seconds * 1000
-                else:
-                    timeout_ms = None
-
-                if self.synchronize_when_idle and not self.__peers:
-                    # We seem to be idle, but poll once, non-blocking,
-                    # just to be sure.
-                    timeout_ms = 0
-
-                try:
-                    events = poll.poll(timeout_ms)
-                    break
-                except select.error as error:
-                    if error[0] == errno.EINTR:
-                        continue
-                    else:
-                        raise
-
-            if self.terminated:
+            if now > deadline:
                 break
-            elif not (self.__peers or events):
-                self.signal_idle_state()
 
-            def catch_error(fn, *args):
-                while True:
-                    try:
-                        fn(*args)
-                    except EnvironmentError as error:
-                        if error.errno == errno.EINTR:
-                            continue
-                        if error.errno == errno.EAGAIN:
-                            return
-                        raise
-                    else:
-                        return
+            timeout_ms = (deadline - now) * 1000
 
-            def check_peer(peer):
-                if peer.is_finished():
-                    peer.destroy()
-                    self.peer_destroyed(peer)
-                    self.__peers.remove(peer)
+            if self.synchronize_when_idle and not self.__peers:
+                # We seem to be idle, but poll once, non-blocking,
+                # just to be sure.
+                timeout_ms = 0
 
-            for fd, event in events:
-                if fd == self.__listening_socket.fileno():
-                    peersocket, peeraddress = self.__listening_socket.accept()
-                    peer = self.handle_peer(peersocket, peeraddress)
-                    if peer:
-                        self.__peers.append(peer)
-                    else:
-                        try:
-                            peersocket.close()
-                        except Exception:
-                            pass
+            try:
+                events = poll.poll(timeout_ms)
+                break
+            except select.error as error:
+                if error[0] == errno.EINTR:
+                    return
                 else:
-                    if event != select.POLLIN and fd in writing_map:
-                        peer = writing_map[fd]
-                        catch_error(peer.do_write)
-                        check_peer(peer)
-                    if event != select.POLLOUT and fd in reading_map:
-                        peer, index = reading_map[fd]
-                        catch_error(peer.do_read, index)
-                        check_peer(peer)
+                    raise
 
-            if nearest_peer_deadline is not None:
-                now = time.time()
-                for peer in self.__peers[:]:
-                    if peer.deadline is not None and peer.deadline < now:
-                        peer.timed_out()
-                        check_peer(peer)
+        if self.terminated:
+            return
+        elif not (self.__peers or events):
+            self.signal_idle_state()
+
+        def catch_error(fn, *args):
+            while True:
+                try:
+                    fn(*args)
+                except EnvironmentError as error:
+                    if error.errno == errno.EINTR:
+                        continue
+                    if error.errno == errno.EAGAIN:
+                        return
+                    raise
+                else:
+                    return
+
+        def check_peer(peer):
+            if peer.is_finished():
+                peer.destroy()
+                self.peer_destroyed(peer)
+                self.__peers.remove(peer)
+
+        for fd, event in events:
+            if self.__listening_socket and fd == self.__listening_socket.fileno():
+                peersocket, peeraddress = self.__listening_socket.accept()
+                peer = self.handle_peer(peersocket, peeraddress)
+                if peer:
+                    self.__peers.append(peer)
+                else:
+                    try:
+                        peersocket.close()
+                    except Exception:
+                        pass
+            else:
+                if event != select.POLLIN and fd in writing_map:
+                    peer = writing_map[fd]
+                    catch_error(peer.do_write)
+                    check_peer(peer)
+                if event != select.POLLOUT and fd in reading_map:
+                    peer, index = reading_map[fd]
+                    catch_error(peer.do_read, index)
+                    check_peer(peer)
+
+        now = time.time()
+
+        for peer in self.__peers[:]:
+            if peer.deadline is not None and peer.deadline < now:
+                peer.timed_out()
+            check_peer(peer)
 
     def add_peer(self, peer):
         self.__peers.append(peer)
@@ -623,6 +693,12 @@ class PeerServer(BackgroundProcess):
                 self.peer_destroyed(peer)
             except:
                 self.exception()
+
+    def wakeup(self):
+        pass
+
+    def requestRestart(self):
+        self.restart_requested = True
 
 class SlaveProcessServer(PeerServer):
     class SlaveChildProcess(PeerServer.ChildProcess):
@@ -768,3 +844,13 @@ def call(context, fn, *args, **kwargs):
     else:
         result = fn(*args, **kwargs)
     sys.exit(result)
+
+def wakeup(service):
+    try:
+        with open(service["pidfile_path"]) as pidfile:
+            pid = int(pidfile.read().strip())
+        os.kill(pid, signal.SIGHUP)
+    except Exception:
+        # Print traceback to stderr.  Might end up in web server's error log,
+        # where it has a chance to be noticed.
+        traceback.print_exc()

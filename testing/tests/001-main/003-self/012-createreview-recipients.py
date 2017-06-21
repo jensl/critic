@@ -44,6 +44,8 @@ with frontend.signin("alice"):
                "recipientfilters": { "mode": "opt-in",
                                      "included": ["bob"] }})
 
+    instance.synchronize_service("reviewupdater")
+
     def to(name):
         return testing.mailbox.ToRecipient("%s@example.org" % name)
 

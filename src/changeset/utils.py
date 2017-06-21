@@ -50,7 +50,7 @@ def createFullMergeChangeset(db, user, repository, commit, **kwargs):
     return changesets
 
 def createChangesets(db, repository, commits):
-    cursor = db.cursor()
+    cursor = db.readonly_cursor()
     requests = []
 
     for commit in commits:
@@ -65,15 +65,18 @@ def createChangesets(db, repository, commits):
                               "child_sha1": commit.sha1 })
 
     if requests:
+        db.refresh()
+
         client.requestChangesets(requests)
 
-def createChangeset(db, user, repository, commit=None, from_commit=None, to_commit=None, rescan=False, reanalyze=False, conflicts=False, filtered_file_ids=None, review=None, do_highlight=True, load_chunks=True):
-    cursor = db.cursor()
+        db.refresh()
 
+def createChangeset(db, user, repository, commit=None, from_commit=None, to_commit=None, rescan=False, reanalyze=False, conflicts=False, filtered_file_ids=None, review=None, do_highlight=True, load_chunks=True):
     if conflicts:
         if commit:
             assert len(commit.parents) > 1
 
+            cursor = db.readonly_cursor()
             cursor.execute("SELECT replay FROM mergereplays WHERE original=%s", (commit.getId(db),))
             row = cursor.fetchone()
 
@@ -81,8 +84,13 @@ def createChangeset(db, user, repository, commit=None, from_commit=None, to_comm
                 replay = gitutils.Commit.fromId(db, repository, row[0])
             else:
                 replay = repository.replaymerge(db, user, commit)
-                if not replay: return None
-                cursor.execute("INSERT INTO mergereplays (original, replay) VALUES (%s, %s)", (commit.getId(db), replay.getId(db)))
+                if not replay:
+                    return None
+                with db.updating_cursor("mergereplays") as cursor:
+                    cursor.execute(
+                        """INSERT INTO mergereplays (original, replay)
+                                VALUES (%s, %s)""",
+                        (commit.getId(db), replay.getId(db)))
 
             from_commit = replay
             to_commit = commit
@@ -107,6 +115,8 @@ def createChangeset(db, user, repository, commit=None, from_commit=None, to_comm
 
     changeset_ids = []
 
+    cursor = db.readonly_cursor()
+
     for parent in parents:
         if parent:
             cursor.execute("SELECT id FROM changesets WHERE parent=%s AND child=%s AND type=%s",
@@ -115,27 +125,36 @@ def createChangeset(db, user, repository, commit=None, from_commit=None, to_comm
             cursor.execute("SELECT id FROM changesets WHERE parent IS NULL AND child=%s AND type=%s",
                            (commit.getId(db), changeset_type))
 
-        row = cursor.fetchone()
-
-        if row: changeset_ids.append(row[0])
-        else: break
+        changeset_ids.extend(changeset_id for (changeset_id,) in cursor)
 
     assert len(changeset_ids) in (0, len(parents))
 
     if changeset_ids:
         if rescan and user.hasRole(db, "developer"):
-            cursor.executemany("DELETE FROM changesets WHERE id=%s", [(changeset_id,) for changeset_id in changeset_ids])
-            db.commit()
+            with db.updating_cursor("changesets") as cursor:
+                cursor.execute(
+                    """DELETE
+                         FROM changesets
+                        WHERE id=ANY (%s)""",
+                    (changeset_ids,))
+
             changeset_ids = []
         else:
-            for changeset_id in changeset_ids:
-                if changeset_type == 'custom':
-                    cursor.execute("UPDATE customchangesets SET time=NOW() WHERE changeset=%s", (changeset_id,))
+            if changeset_type == 'custom':
+                with db.updating_cursor("customchangesets") as cursor:
+                    cursor.execute(
+                        """UPDATE customchangesets
+                              SET time=NOW()
+                            WHERE changeset=ANY (%s)""",
+                        (changeset_ids,))
 
+            for changeset_id in changeset_ids:
                 changeset = load.loadChangeset(db, repository, changeset_id, filtered_file_ids=filtered_file_ids, load_chunks=load_chunks)
                 changeset.conflicts = conflicts
+                changesets.append(changeset)
 
-                if reanalyze and user.hasRole(db, "developer"):
+            if reanalyze and user.hasRole(db, "developer"):
+                for changeset in changesets:
                     analysis_values = []
 
                     for file in changeset.files:
@@ -146,10 +165,13 @@ def createChangeset(db, user, repository, commit=None, from_commit=None, to_comm
                                 if old_analysis != chunk.analysis:
                                     analysis_values.append((chunk.analysis, chunk.id))
 
-                    if reanalyze == "commit" and analysis_values:
-                        cursor.executemany("UPDATE chunks SET analysis=%s WHERE id=%s", analysis_values)
-
-                changesets.append(changeset)
+                if reanalyze == "commit" and analysis_values:
+                    with db.updating_cursor("chunks") as cursor:
+                        cursor.executemany(
+                            """UPDATE chunks
+                                  SET analysis=%s
+                                WHERE id=%s""",
+                            analysis_values)
 
     if not changesets:
         if len(parents) == 1 and from_commit and to_commit and filtered_file_ids:
@@ -181,11 +203,13 @@ def createChangeset(db, user, repository, commit=None, from_commit=None, to_comm
 
             request["repository_name"] = repository.name
 
-            db.commit()
+            db.refresh()
 
             client.requestChangesets([request])
 
-            db.commit()
+            db.refresh()
+
+            cursor = db.readonly_cursor()
 
             for parent in parents:
                 if parent:
@@ -231,7 +255,7 @@ def createChangeset(db, user, repository, commit=None, from_commit=None, to_comm
     return changesets
 
 def getCodeContext(db, sha1, line, minimized=False):
-    cursor = db.cursor()
+    cursor = db.readonly_cursor()
     cursor.execute("SELECT context FROM codecontexts WHERE sha1=%s AND first_line<=%s AND last_line>=%s ORDER BY first_line DESC LIMIT 1", [sha1, line, line])
     row = cursor.fetchone()
     if row:

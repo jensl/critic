@@ -30,7 +30,7 @@ def loadChangesetsForCommits(db, repository, commits, filtered_file_ids=None, lo
     def getCommit(commit_id):
         return commit_ids.get(commit_id) or gitutils.Commit.fromId(db, repository, commit_id)
 
-    cursor = db.cursor()
+    cursor = db.readonly_cursor()
     cursor.execute("SELECT id, parent, child FROM changesets WHERE child=ANY (%s) AND type='direct'", (commit_ids.keys(),))
 
     changesets = []
@@ -41,7 +41,7 @@ def loadChangesetsForCommits(db, repository, commits, filtered_file_ids=None, lo
     return loadChangesets(db, repository, changesets, filtered_file_ids=filtered_file_ids, load_chunks=load_chunks)
 
 def loadChangesets(db, repository, changesets, filtered_file_ids=None, load_chunks=True):
-    cursor = db.cursor()
+    cursor = db.readonly_cursor()
 
     changeset_ids = [changeset.id for changeset in changesets]
     filtered_file_ids = list(filtered_file_ids) if filtered_file_ids else None

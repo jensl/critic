@@ -100,7 +100,14 @@ class AddRepository(Operation):
         if configuration.debug.IS_QUICKSTART:
             git(["config", "critic.socket", os.path.join(configuration.paths.SOCKETS_DIR, "githook.unix")], cwd=main_path)
 
-        os.symlink(os.path.join(configuration.paths.INSTALL_DIR, "hooks", "pre-receive"), os.path.join(main_path, "hooks", "pre-receive"))
+        hook_script = os.path.join(configuration.paths.INSTALL_DIR,
+                                   "hooks", "pre-post-receive.py")
+
+        # We install the same hook script as the pre-recieve and post-receive
+        # hooks.  The script passes its os.path.basename(sys.argv[0]) on to the
+        # githook background service, which chooses what to do based on it.
+        os.symlink(hook_script, os.path.join(main_path, "hooks", "pre-receive"))
+        os.symlink(hook_script, os.path.join(main_path, "hooks", "post-receive"))
 
         cursor.execute("""INSERT INTO repositories (name, path)
                                VALUES (%s, %s)
