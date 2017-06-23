@@ -414,8 +414,14 @@ class GitHookClient(background.utils.PeerServer.SocketPeer):
 
         with gitutils.Repository.fromName(db, repository_name) as repository:
             if data["hook"] == "pre-receive":
+                repository.environ = {
+                    key: value
+                    for key, value in data["environ"].items()
+                    if key.startswith("GIT_")
+                }
                 self.handle_pre_receive(
                     db, user, repository, flags, data["refs"])
+                repository.environ.clear()
             elif data["hook"] == "post-receive":
                 self.handle_post_receive(
                     db, user, repository, flags, data["refs"])

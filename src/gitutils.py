@@ -141,6 +141,7 @@ class Repository:
         self.name = name
         self.path = path
         self.parent = parent
+        self.environ = {}
 
         self.__batch = None
         self.__batchCheck = None
@@ -163,6 +164,14 @@ class Repository:
     def __exit__(self, *args):
         self.stopBatch()
         return False
+
+    @property
+    def __environ(self):
+        env = {}
+        env.update(os.environ)
+        env.update(configuration.executables.GIT_ENV)
+        env.update(self.environ)
+        return env
 
     def getURL(self, db, user):
         return Repository.constructURL(db, user, self.path)
@@ -270,14 +279,14 @@ class Repository:
             self.__batch = subprocess.Popen(
                 [configuration.executables.GIT, 'cat-file', '--batch'],
                 stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT, cwd=self.path)
+                stderr=subprocess.STDOUT, cwd=self.path, env=self.__environ)
 
     def __startBatchCheck(self):
         if self.__batchCheck is None:
             self.__batchCheck = subprocess.Popen(
                 [configuration.executables.GIT, 'cat-file', '--batch-check'],
                 stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT, cwd=self.path)
+                stderr=subprocess.STDOUT, cwd=self.path, env=self.__environ)
 
     def stopBatch(self):
         if self.__batch:
@@ -390,9 +399,7 @@ class Repository:
         stdin_data = kwargs.get("input")
         if stdin_data is None: stdin = None
         else: stdin = subprocess.PIPE
-        env = {}
-        env.update(os.environ)
-        env.update(configuration.executables.GIT_ENV)
+        env = self.__environ
         env.update(kwargs.get("env", {}))
         if "GIT_DIR" in env: del env["GIT_DIR"]
         git = subprocess.Popen(argv, stdin=stdin, stdout=subprocess.PIPE,
@@ -412,24 +419,10 @@ class Repository:
             return git.returncode, stdout, stderr
 
     def createBranch(self, name, startpoint):
-        argv = [configuration.executables.GIT, 'branch', name, startpoint]
-        git = subprocess.Popen(argv, stdout=subprocess.PIPE,
-                               stderr=subprocess.PIPE, cwd=self.path)
-        stdout, stderr = git.communicate()
-        if git.returncode != 0:
-            cmdline = " ".join(argv)
-            output = stderr.strip()
-            raise GitCommandError(cmdline, output, self.path)
+        self.run("branch", name, startpoint)
 
     def deleteBranch(self, name):
-        argv = [configuration.executables.GIT, 'branch', '-D', name]
-        git = subprocess.Popen(argv, stdout=subprocess.PIPE,
-                               stderr=subprocess.PIPE, cwd=self.path)
-        stdout, stderr = git.communicate()
-        if git.returncode != 0:
-            cmdline = " ".join(argv)
-            output = stderr.strip()
-            raise GitCommandError(cmdline, output, self.path)
+        self.run("branch", "-D", name)
 
     def mergebase(self, commit_or_commits, db=None):
         if db and isinstance(commit_or_commits, Commit):
@@ -447,15 +440,7 @@ class Repository:
 
         assert len(sha1s) >= 2
 
-        argv = [configuration.executables.GIT, 'merge-base'] + sha1s
-        git = subprocess.Popen(argv, stdout=subprocess.PIPE,
-                               stderr=subprocess.PIPE, cwd=self.path)
-        stdout, stderr = git.communicate()
-        if git.returncode == 0: return stdout.strip()
-        else:
-            cmdline = " ".join(argv)
-            output = stderr.strip()
-            raise GitCommandError(cmdline, output, self.path)
+        return self.run("merge-base", *sha1s).strip()
 
     def getCommonAncestor(self, commit_or_commits):
         try: sha1s = commit_or_commits.parents
@@ -469,12 +454,12 @@ class Repository:
         else: return self.getCommonAncestor(mergebases)
 
     def revparse(self, name):
-        git = subprocess.Popen(
-            [configuration.executables.GIT, 'rev-parse', '--verify', '--quiet', name],
-            stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=self.path)
-        stdout, stderr = git.communicate()
-        if git.returncode == 0: return stdout.strip()
-        else: raise GitReferenceError("'git rev-parse' failed: %s" % stderr.strip(), ref=name, repository=self)
+        try:
+            return self.run("rev-parse", "--verify", "--quiet", name).strip()
+        except GitCommandError as error:
+            raise GitReferenceError(
+                "'git rev-parse' failed: %s" % error.output.strip(),
+                ref=name, repository=self)
 
     def revlist(self, included, excluded, *args, **kwargs):
         args = list(args)
@@ -486,12 +471,12 @@ class Repository:
         return self.run('rev-list', *args).splitlines()
 
     def iscommit(self, name):
-        git = subprocess.Popen(
-            [configuration.executables.GIT, 'cat-file', '-t', name],
-            stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=self.path)
-        stdout, stderr = git.communicate()
-        if git.returncode == 0: return stdout.strip() == "commit"
-        else: return False
+        try:
+            output = self.run("cat-file", "-t", name)
+        except GitCommandError:
+            return False
+        else:
+            return output.strip() == "commit"
 
     def isref(self, name):
         try:

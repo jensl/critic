@@ -22,6 +22,7 @@ import socket
 import subprocess
 import json
 import traceback
+import stat
 
 def gitconfig(name):
     try:
@@ -56,10 +57,18 @@ data = { "hook": os.path.basename(sys.argv[0]),
          "environ": {},
          "refs": [] }
 
-if "REMOTE_USER" in os.environ:
-    data["environ"]["REMOTE_USER"] = os.environ["REMOTE_USER"]
-if "CRITIC_FLAGS" in os.environ:
-    data["environ"]["CRITIC_FLAGS"] = os.environ["CRITIC_FLAGS"]
+quarantine_path = os.environ.get("GIT_QUARANTINE_PATH")
+if quarantine_path:
+    # The quarantine object directory is made inaccessible to group/others by
+    # some Git versions (e.g. 2.14.1 on Ubuntu 17.10). This is incompatible with
+    # our model of processing the update in a separate process run as another
+    # user, so make sure the directory is accessible to the group as well.
+    current_mode = stat.S_IMODE(os.stat(quarantine_path).st_mode)
+    os.chmod(quarantine_path, current_mode | stat.S_IRWXG)
+
+for key, value in os.environ.items():
+    if key in ("REMOTE_USER", "CRITIC_FLAGS") or key.startswith("GIT_"):
+        data["environ"][key] = os.environ[key]
 
 for line in sys.stdin:
     old_sha1, new_sha1, ref_name = line.rstrip().split(" ", 2)
