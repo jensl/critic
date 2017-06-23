@@ -99,11 +99,11 @@ class Cursor(object):
         replace(
             tokens,
             "EXTRACT ('epoch' FROM NOW() - $1)",
-            "strftime('%s', 'now') - strftime('%s', $1)")
+            "strftime('%s', 'now') - $1")
         replace(
             tokens,
             "EXTRACT ('epoch' FROM (MIN($1) - NOW()))",
-            "strftime('%s', MIN($1)) - strftime('%s', 'now')")
+            "MIN($1) - strftime('%s', 'now')")
         replace(tokens, "NOW()", "cast(strftime('%s', 'now') as integer)")
         replace(tokens, "TRUE", "1")
         replace(tokens, "FALSE", "0")
@@ -161,10 +161,10 @@ def regexp(pattern, string):
     return re.search(pattern, string) is not None
 
 def interval_seconds(string):
-    match = re.match(r"(?:(-?\d+)\s+days)?\s*"
-                     r"(?:(-?\d+)\s+hours)?\s*"
-                     r"(?:(-?\d+)\s+minutes)?\s*"
-                     r"(?:(-?\d+)\s+seconds)?",
+    match = re.match(r"(?:(-?\d+)\s+days?)?\s*"
+                     r"(?:(-?\d+)\s+hours?)?\s*"
+                     r"(?:(-?\d+)\s+minutes?)?\s*"
+                     r"(?:(-?\d+)\s+seconds?)?",
                      string, re.I)
     days, hours, minutes, seconds = match.groups()
     result = 0

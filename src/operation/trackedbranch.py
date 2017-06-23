@@ -286,7 +286,7 @@ class AddTrackedBranch(Operation):
             delay = "1 hour"
 
         cursor.execute("""INSERT INTO trackedbranches (repository, local_name, remote, remote_name, forced, delay)
-                               VALUES (%s, %s, %s, %s, %s, %s)
+                               VALUES (%s, %s, %s, %s, %s, INTERVAL %s)
                             RETURNING id""",
                        (repository_id, target_name, source_location, source_name, forced, delay))
 

@@ -156,7 +156,7 @@ class SubmitReview(Operation):
                 delay = "1 hour"
 
             cursor.execute("""INSERT INTO trackedbranches (repository, local_name, remote, remote_name, forced, delay)
-                                   VALUES (%s, %s, %s, %s, false, %s)
+                                   VALUES (%s, %s, %s, %s, false, INTERVAL %s)
                                 RETURNING id""",
                            (repository.id, branch, trackedbranch["remote"], trackedbranch["name"], delay))
 
