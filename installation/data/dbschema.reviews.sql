@@ -274,22 +274,6 @@ CREATE TABLE reviewmessageids
 
 CREATE INDEX reviewmessageids_review ON reviewmessageids (review);
 
-CREATE TABLE reviewmergeconfirmations
-  ( id SERIAL PRIMARY KEY,
-    review INTEGER NOT NULL REFERENCES reviews ON DELETE CASCADE,
-    uid INTEGER NOT NULL REFERENCES users ON DELETE CASCADE,
-    merge INTEGER NOT NULL REFERENCES commits ON DELETE CASCADE,
-    tail INTEGER REFERENCES commits ON DELETE CASCADE,
-    confirmed BOOLEAN NOT NULL DEFAULT FALSE,
-
-    UNIQUE (review, uid, merge) );
-
-CREATE TABLE reviewmergecontributions
-  ( id INTEGER NOT NULL REFERENCES reviewmergeconfirmations ON DELETE CASCADE,
-    merged INTEGER NOT NULL REFERENCES commits ON DELETE CASCADE,
-
-    PRIMARY KEY (id, merged) );
-
 CREATE TABLE reviewrecipientfilters
   ( review INTEGER NOT NULL REFERENCES reviews,
     uid INTEGER REFERENCES users,

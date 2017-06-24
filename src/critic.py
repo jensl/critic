@@ -87,7 +87,6 @@ import page.tutorial
 import page.news
 import page.editresource
 import page.statistics
-import page.confirmmerge
 import page.addrepository
 import page.checkbranch
 import page.search
@@ -323,7 +322,6 @@ PAGES = { "showreview": page.showreview.renderShowReview,
           "showreviewlog": page.showreviewlog.renderShowReviewLog,
           "createreview": page.createreview.renderCreateReview,
           "newrepository": page.addrepository.renderNewRepository,
-          "confirmmerge": page.confirmmerge.renderConfirmMerge,
           "editresource": page.editresource.renderEditResource,
           "search": page.search.renderSearch,
           "repositories": page.repositories.renderRepositories,
