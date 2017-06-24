@@ -706,12 +706,17 @@ class Instance(testing.Instance):
         else:
             signum = signal.SIGUSR1
         before = time.time()
-        self.execute(
-            ["sudo", "python", "critic/" + helper,
-             pidfile_path, str(signum), str(timeout)])
-        after = time.time()
-        testing.logger.debug("Synchronized service: %s in %.2f seconds"
-                             % (service_name, after - before))
+        try:
+            self.execute(
+                ["sudo", "python", "critic/" + helper,
+                 pidfile_path, str(signum), str(timeout)])
+        except GuestCommandError:
+            testing.logger.warning("Failed to synchronize service: %s"
+                                   % service_name)
+        else:
+            after = time.time()
+            testing.logger.debug("Synchronized service: %s in %.2f seconds"
+                                 % (service_name, after - before))
 
     def filter_service_logs(self, level, service_names):
         helper = "testing/input/service_log_filter.py"
