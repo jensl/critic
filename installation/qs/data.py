@@ -46,7 +46,7 @@ def generate(arguments, database_path):
              admin("email"): username() + "@localhost",
              admin("fullname"): username(),
              system("hostname"): "localhost",
-             system("recipients"): arguments.system_recipient or username() + "@localhost",
+             system("recipients"): arguments.system_recipient or [username() + "@localhost"],
              config("auth_mode"): "critic",
              config("session_type"): "cookie",
              config("allow_anonymous_user"): True,
