@@ -280,6 +280,7 @@ class PeerServer(BackgroundProcess):
             self.__writing = writing
             self.__write_data = ""
             self.__write_closed = False
+            self.__write_failed = False
 
             if writing:
                 fcntl.fcntl(writing, fcntl.F_SETFL, fcntl.fcntl(writing, fcntl.F_GETFL) | os.O_NONBLOCK)
@@ -309,10 +310,17 @@ class PeerServer(BackgroundProcess):
             self.__write_closed = True
 
         def do_write(self):
-            while self.__write_data:
-                nwritten = os.write(self.__writing.fileno(), self.__write_data)
-                self.__write_data = self.__write_data[nwritten:]
-            if self.__write_closed:
+            try:
+                while self.__write_data:
+                    nwritten = os.write(self.__writing.fileno(), self.__write_data)
+                    self.__write_data = self.__write_data[nwritten:]
+            except EnvironmentError as error:
+                self.server.warning("Failed to write to peer: %s" % error)
+                if error.errno == errno.EPIPE:
+                    self.__write_failed = True
+                else:
+                    raise
+            if self.__write_closed or self.__write_failed:
                 self.writing_done(self.__writing)
                 self.__writing = None
 
@@ -492,14 +500,17 @@ class PeerServer(BackgroundProcess):
                 self.signal_idle_state()
 
             def catch_error(fn):
-                try:
-                    fn()
-                except socket.error as error:
-                    if error[0] not in (errno.EAGAIN, errno.EINTR):
+                while True:
+                    try:
+                        fn()
+                    except EnvironmentError as error:
+                        if error.errno == errno.EINTR:
+                            continue
+                        if error.errno == errno.EAGAIN:
+                            return
                         raise
-                except OSError as error:
-                    if error.errno not in (errno.EAGAIN, errno.EINTR):
-                        raise
+                    else:
+                        return
 
             for fd, event in events:
                 if fd == self.__listening_socket.fileno():
