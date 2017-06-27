@@ -280,3 +280,23 @@ CHECKER_MAP = { int: IntegerChecker(),
 def convert(parameters, checker, value):
     context = TypeCheckerContext(parameters.critic)
     return TypeChecker.make(checker)(context, value)
+
+def ensure(data, path, ensured_value):
+    if isinstance(path, (tuple, list)):
+        for key in path[:-1]:
+            data = data[key]
+        key = path[-1]
+    else:
+        key = path
+
+    if key not in data:
+        data[key] = ensured_value
+    elif data[key] != ensured_value:
+        path_string = "data"
+        for key in path:
+            if isinstance(key, str):
+                path_string += "." + key
+            else:
+                path_string += "[%d]" % key
+        raise jsonapi.InputError("%s: must be %r or omitted"
+                                 % (path_string, ensured_value))

@@ -43,6 +43,14 @@ class PermissionDenied(Error):
     http_status = 403
     title = "Permission denied"
 
+class InternalRedirect(Exception):
+    def __init__(self, resource_path, subresource_path=None,
+                 value=None, values=None):
+        self.resource_path = resource_path
+        self.subresource_path = subresource_path or []
+        self.value = value
+        self.values = values
+
 SPECIAL_QUERY_PARAMETERS = frozenset(["fields", "include", "debug"])
 
 class Parameters(object):
@@ -250,7 +258,7 @@ def sorted_by_id(items):
 
 import check
 
-from check import convert
+from check import convert, ensure
 
 import v1
 import documentation
@@ -369,11 +377,19 @@ def finishPOST(critic, req, parameters, resource_class, value, values, data):
         raise UsageError("Resource class does not support creating: "
                          % resource_class.name)
 
-    try:
-        value, values = resource_class.create(
-            parameters, value, values, data)
-    except resource_class.exceptions as error:
-        raise UsageError(error.message)
+    while True:
+        try:
+            value, values = resource_class.create(
+                parameters, value, values, data)
+        except resource_class.exceptions as error:
+            raise UsageError(error.message)
+        except InternalRedirect as redirect:
+            resource_class = lookup(redirect.resource_path)
+            parameters.subresource_path = redirect.subresource_path
+            value = redirect.value
+            values = redirect.values
+        else:
+            break
 
     return finishGET(critic, req, parameters, resource_class, value, values)
 
