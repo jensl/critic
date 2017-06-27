@@ -602,14 +602,17 @@ class JSONJobServer(PeerServer):
     class JobClient(PeerServer.SocketPeer):
         def handle_input(self, value):
             decoded = json_decode(value)
-            if isinstance(decoded, list):
-                self.__requests = decoded
-                self.__pending_requests = map(freeze, decoded)
+            assert isinstance(decoded, dict)
+            if "requests" in decoded:
+                self.__requests = decoded["requests"]
+                self.__pending_requests = map(freeze, self.__requests)
+                self.__async = decoded.get("async", False)
                 self.__results = []
                 self.server.add_requests(self)
             else:
-                assert isinstance(decoded, dict)
                 self.server.execute_command(self, decoded)
+            if self.__async:
+                self.close()
 
         def has_requests(self):
             return bool(self.__pending_requests)
@@ -618,6 +621,10 @@ class JSONJobServer(PeerServer):
             return self.__pending_requests.pop()
 
         def add_result(self, result):
+            if self.__async:
+                # Client is already gone, so we don't really care about the
+                # results.
+                return
             self.__results.append(result)
             if len(self.__results) == len(self.__requests):
                 self.write(json_encode(self.__results))

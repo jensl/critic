@@ -25,11 +25,14 @@ class ChangesetBackgroundServiceError(base.ImplementationError):
         super(ChangesetBackgroundServiceError, self).__init__(
             "Changeset background service failed: %s" % message)
 
-def requestChangesets(requests):
+def requestChangesets(requests, async=False):
     try:
         connection = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         connection.connect(configuration.services.CHANGESET["address"])
-        connection.send(json_encode(requests))
+        connection.send(json_encode({
+            "requests": requests,
+            "async": async
+        }))
         connection.shutdown(socket.SHUT_WR)
 
         data = ""
@@ -40,8 +43,15 @@ def requestChangesets(requests):
             data += received
 
         connection.close()
-    except socket.error as error:
-        raise ChangesetBackgroundServiceError(error[1])
+    except EnvironmentError as error:
+        raise ChangesetBackgroundServiceError(str(error))
+
+    if async:
+        return
+
+    if not data:
+        raise ChangesetBackgroundServiceError(
+            "returned an invalid response: no response")
 
     try:
         results = json_decode(data)

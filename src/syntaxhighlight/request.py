@@ -27,7 +27,7 @@ class HighlightBackgroundServiceError(base.ImplementationError):
         super(HighlightBackgroundServiceError, self).__init__(
             "Highlight background service failed: %s" % message)
 
-def requestHighlights(repository, sha1s):
+def requestHighlights(repository, sha1s, async=False):
     requests = [{ "repository_path": repository.path, "sha1": sha1, "path": path, "language": language }
                 for sha1, (path, language) in sha1s.items()
                 if not syntaxhighlight.isHighlighted(sha1, language)]
@@ -37,7 +37,10 @@ def requestHighlights(repository, sha1s):
     try:
         connection = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         connection.connect(configuration.services.HIGHLIGHT["address"])
-        connection.send(json_encode(requests))
+        connection.send(json_encode({
+            "requests": requests,
+            "async": async
+        }))
         connection.shutdown(socket.SHUT_WR)
 
         data = ""
@@ -48,8 +51,15 @@ def requestHighlights(repository, sha1s):
             data += received
 
         connection.close()
-    except socket.error as error:
-        raise HighlightBackgroundServiceError(error[1])
+    except EnvironmentError as error:
+        raise HighlightBackgroundServiceError(str(error))
+
+    if async:
+        return
+
+    if not data:
+        raise HighlightBackgroundServiceError(
+            "returned an invalid response (no response)")
 
     try:
         results = json_decode(data)
