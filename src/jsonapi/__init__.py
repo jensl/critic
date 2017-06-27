@@ -369,7 +369,11 @@ def finishPOST(critic, req, parameters, resource_class, value, values, data):
         raise UsageError("Resource class does not support creating: "
                          % resource_class.name)
 
-    value, values = resource_class.create(parameters, value, values, data)
+    try:
+        value, values = resource_class.create(
+            parameters, value, values, data)
+    except resource_class.exceptions as error:
+        raise UsageError(error.message)
 
     return finishGET(critic, req, parameters, resource_class, value, values)
 
@@ -384,7 +388,10 @@ def finishPUT(critic, req, parameters, resource_class, value, values, data):
         raise UsageError("Resource class does not support updating: "
                          % resource_class.name)
 
-    resource_class.update(parameters, value, values, data)
+    try:
+        resource_class.update(parameters, value, values, data)
+    except resource_class.exceptions as error:
+        raise UsageError(error.message)
 
     return finishGET(critic, req, parameters, resource_class, value, values)
 
@@ -399,7 +406,10 @@ def finishDELETE(critic, req, parameters, resource_class, value, values):
         raise UsageError("Resource class does not support deleting: "
                          % resource_class.name)
 
-    return_value = resource_class.delete(parameters, value, values)
+    try:
+        return_value = resource_class.delete(parameters, value, values)
+    except resource_class.exceptions as error:
+        raise UsageError(error.message)
 
     if return_value is None:
         raise request.NoContent()
