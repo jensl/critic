@@ -525,23 +525,26 @@ class Instance(testing.Instance):
                 # instance; it seems to be properly broken.
                 raise testing.InstanceError
 
-            # Add "developer" role to get stacktraces in error messages.
-            self.execute(["sudo", "criticctl", "addrole",
-                          "--name", "admin",
-                          "--role", "developer"])
+            if self.arguments.mirror_upgrade_host:
+                self.mirror_upgrade()
+            else:
+                # Add "developer" role to get stacktraces in error messages.
+                self.execute(["sudo", "criticctl", "addrole",
+                              "--name", "admin",
+                              "--role", "developer"])
 
-            # Add some regular users.
-            for name in ("alice", "bob", "dave", "erin"):
-                self.adduser(name)
+                # Add some regular users.
+                for name in ("alice", "bob", "dave", "erin"):
+                    self.adduser(name)
 
-            self.adduser("howard")
-            self.execute(["sudo", "criticctl", "addrole",
-                          "--name", "howard",
-                          "--role", "newswriter"])
+                self.adduser("howard")
+                self.execute(["sudo", "criticctl", "addrole",
+                              "--name", "howard",
+                              "--role", "newswriter"])
 
         self.current_commit = self.install_commit
 
-        if not quick:
+        if not quick and not self.arguments.mirror_upgrade_host:
             try:
                 self.frontend.run_basic_tests()
                 self.mailbox.check_empty()
@@ -618,10 +621,15 @@ class Instance(testing.Instance):
 
             self.current_commit = self.upgrade_commit
 
-            if not quick:
+            if not quick and not self.arguments.mirror_upgrade_host:
                 self.frontend.run_basic_tests()
 
             testing.logger.info("Upgraded Critic: %s" % self.upgrade_commit_description)
+
+            if self.arguments.mirror_upgrade_host:
+                testing.pause()
+
+                raise testing.InstanceError("No more testing possible")
 
     def check_extend(self, repository, pre_upgrade=False):
         commit = self.install_commit if pre_upgrade else self.tested_commit
@@ -806,3 +814,28 @@ class Instance(testing.Instance):
                      for logfile_path, entries in sorted(data.items()) }
         except GuestCommandError:
             return None
+
+    def mirror_upgrade(self):
+        import requests
+
+        result = requests.get(
+            os.path.join(self.arguments.mirror_upgrade_host,
+                         "api/v1/repositories")).json()
+
+        for repository in result["repositories"]:
+            self.execute(
+                ["sudo", "-H", "-u", "critic",
+                 "git", "clone", "--mirror", repository["url"],
+                 repository["path"]])
+
+        self.copyto(self.arguments.mirror_upgrade_dbdump, "/tmp/dbdump")
+
+        try:
+            self.execute(
+                ["sudo", "-H", "-u", "critic",
+                 "pg_restore", "-c", "-d", "critic", "/tmp/dbdump"])
+        except GuestCommandError:
+            # Typically, a variety of errors and warnings will be output, and
+            # the command "fails". Probably, all the relevant data will have
+            # been imported, though.
+            pass

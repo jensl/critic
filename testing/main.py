@@ -103,6 +103,11 @@ def run():
     parser.add_argument("--pause-upgrade-hook", action="append",
                         help="Command to run (locally) before upgrading")
 
+    parser.add_argument("--mirror-upgrade-host",
+                        help="Mirror repositories from system at this host, then upgrade")
+    parser.add_argument("--mirror-upgrade-dbdump",
+                        help="Database dump from mirrored system")
+
     parser.add_argument("test", nargs="*",
                         help="Specific tests to run [default=all]")
 
