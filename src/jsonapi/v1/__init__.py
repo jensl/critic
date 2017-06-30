@@ -23,6 +23,8 @@ import commits
 import branches
 import reviews
 import rebases
+import changesets
+import filechanges
 
 if configuration.auth.ENABLE_ACCESS_TOKENS:
     import accesstokens
