@@ -175,9 +175,22 @@ class Instance(object):
             logger.info("Running unit test: %s (%s)" % (module, test))
             try:
                 output = self.run_unittest([path] + args + [test])
-                if output.strip() != test + ": ok":
-                    logger.warning("No unit test confirmation: %s (%s)"
+                lines = output.strip().splitlines()
+                expected = test + ": ok"
+                matching = filter(lambda line: line == expected, lines)
+                if len(lines) == 0:
+                    logger.warning("No unit test output: %s (%s)")
+                elif len(matching) == 0:
+                    logger.warning("No unit test confirmation (but some output): %s (%s)"
                                    % (module, test))
+                elif len(matching) > 1:
+                    logger.warning("Multiple unit test confirmations: %s (%s)"
+                                   % (module, test))
+                if lines and (lines[-1] != expected):
+                    logger.warning("Unit test's last line of output isn't unit test confirmation: %s (%s)"
+                                   % (module, test))
+                if len(lines) > 0:
+                    [logger.info(line) for line in lines[:-1]]
             except CommandError as error:
                 output = "\n  ".join(error.stderr.splitlines())
                 logger.error(
