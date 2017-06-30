@@ -28,6 +28,8 @@ import filters
 import branch
 import commit
 import commitset
+import changeset
+import filechange
 import log
 import preference
 import accesstoken
