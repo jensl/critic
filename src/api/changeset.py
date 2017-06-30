@@ -79,5 +79,7 @@ def fetch(critic, repository, id=None, from_commit=None, to_commit=None, single_
         if single_commit is not None:
             assert isinstance(single_commit, api.commit.Commit)
             assert len(single_commit.parents) <= 1
+        if from_commit is not None and to_commit is not None:
+            assert from_commit.id != to_commit.id
     return api.impl.changeset.fetch(critic, repository, id, from_commit,
                                     to_commit, single_commit)
