@@ -108,4 +108,4 @@ def fetchAll(critic, changeset):
         files.append(Filechange(id, changeset, path, old_sha1, old_mode,
                                 new_sha1, new_mode, chunks).wrap(critic))
 
-    return files
+    return sorted(files, key=lambda file: file.path)

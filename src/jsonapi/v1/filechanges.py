@@ -88,7 +88,7 @@ class Filechanges(object):
         changeset = jsonapi.deduce("v1/changesets", parameters)
         return api.filechange.fetch(
             parameters.critic, changeset, jsonapi.numeric_id(argument))
-    
+
     @staticmethod
     def multiple(parameters):
         """Retrieve all filechanges (changed files) from a changeset.
