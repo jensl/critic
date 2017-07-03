@@ -86,8 +86,10 @@ class Filechanges(object):
            The repository in which the files exist."""
 
         changeset = jsonapi.deduce("v1/changesets", parameters)
-        return api.filechange.fetch(
-            parameters.critic, changeset, jsonapi.numeric_id(argument))
+
+        return Filechanges.setAsContext(
+            parameters, api.filechange.fetch(
+                parameters.critic, changeset, jsonapi.numeric_id(argument)))
 
     @staticmethod
     def multiple(parameters):
@@ -103,3 +105,26 @@ class Filechanges(object):
 
         changeset = jsonapi.deduce("v1/changesets", parameters)
         return api.filechange.fetchAll(parameters.critic, changeset)
+
+    @staticmethod
+    def deduce(parameters):
+        changeset = jsonapi.deduce("v1/changesets", parameters)
+        if changeset is None:
+            raise jsonapi.UsageError(
+                "changeset needs to be specified, ex. &changeset=<id>")
+        filechange = parameters.context.get(Filechanges.name)
+        filechange_parameter = parameters.getQueryParameter("filechange")
+        if filechange_parameter is not None:
+            if filechange is not None:
+                raise jsonapi.UsageError(
+                    "Redundant query parameter: filechange=%s"
+                    % filechange_parameter)
+            filechange_id = jsonapi.numeric_id(filechange_parameter)
+            filechange = api.filechange.fetch(
+                parameters.critic, changeset, filechange_id)
+        return filechange
+
+    @staticmethod
+    def setAsContext(parameters, filechange):
+        parameters.setContext(Filechanges.name, filechange)
+        return filechange

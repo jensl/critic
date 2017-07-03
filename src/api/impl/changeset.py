@@ -32,6 +32,7 @@ class Changeset(apiobject.APIObject):
         self.__from_commit_id = from_commit_id
         self.__to_commit_id = to_commit_id
         self.files = files
+        self.__filediffs = None
         self.repository = repository
 
     def getFromCommit(self):
@@ -54,6 +55,16 @@ class Changeset(apiobject.APIObject):
                 critic, self.getFromCommit(), self.getToCommit())
         except api.commitset.InvalidCommitRange:
             return None
+
+    def getFileDiffs(self, wrapper):
+        if self.__filediffs is None:
+            if self.id is not None:
+                # context_lines will only be relevant if we had requested the
+                # content of the filediff
+                self.__filediffs = api.filediff.fetchAll(
+                    wrapper.critic, self.repository, wrapper, context_lines=3)
+        return self.__filediffs
+
 
 def fetch(critic,
           repository,

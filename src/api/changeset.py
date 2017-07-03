@@ -63,6 +63,10 @@ class Changeset(api.APIObject):
     def contributing_commits(self):
         return self._impl.getContributingCommits(self.critic)
 
+    @property
+    def filediffs(self):
+        return self._impl.getFileDiffs(self)
+
 def fetch(critic, repository, id=None, from_commit=None, to_commit=None, single_commit=None):
     """Fetch a single changeset from the given repository"""
 

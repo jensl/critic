@@ -88,7 +88,8 @@ class Changesets(object):
                             "to_commit": value.to_commit,
                             "files": files_as_json(value.files),
                             "contributing_commits": contributing_commits,
-                            "review_state": review_state(review) })
+                            "review_state": review_state(review),
+                            "filediffs": value.filediffs })
 
     @staticmethod
     def single(parameters, argument):

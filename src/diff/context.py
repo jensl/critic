@@ -25,7 +25,7 @@ class ContextLines:
         self.merge = merge
         self.conflicts = conflicts
 
-    def getMacroChunks(self, context_lines=3, minimum_gap=3, highlight=True, lineFilter=None):
+    def getMacroChunks(self, context_lines=3, minimum_gap=3, highlight=True, lineFilter=None, skip_interline_diff=False):
         old_lines = self.file.oldLines(highlight)
         new_lines = self.file.newLines(highlight)
 
@@ -44,9 +44,11 @@ class ContextLines:
                 for mapping in mappings:
                     if ':' in mapping:
                         mapped_lines, ops = mapping.split(':')
+                        ops_list = ops.split(",")
                     else:
                         mapped_lines = mapping
                         ops = None
+                        ops_list = None
 
                     old_line, new_line = mapped_lines.split('=')
                     old_line = chunk.delete_offset + int(old_line)
@@ -95,28 +97,31 @@ class ContextLines:
                         line_type = diff.Line.CONTEXT
                         is_whitespace = False
                     else:
-                        if ops and ops.startswith("ws"):
+                        if ops_list and ops_list[0] == "ws":
                             is_whitespace = True
-                            if ops.startswith("ws,"): ops = ops[3:]
-                            else: ops = None
+                            if len(ops_list) > 1:
+                                ops_list = ops_list[1:]
+                            else:
+                                ops_list = None
                         else:
                             is_whitespace = False
 
                         line_type = diff.Line.MODIFIED
 
-                        if highlight and ops:
-                            if ops == "eol":
+                        if highlight and ops_list and not skip_interline_diff:
+                            if len(ops_list) == 1 and ops_list[0] == "eol":
                                 line_type = diff.Line.REPLACED
                                 if highlight:
                                     if not self.file.old_eof_eol: deleted_line += "<i class='eol'>[missing linebreak]</i>"
                                     if not self.file.new_eof_eol: deleted_line += "<i class='eol'>[missing linebreak]</i>"
                             else:
-                                deleted_line, inserted_line = diff.html.lineDiffHTML(ops, deleted_line, inserted_line)
+                                deleted_line, inserted_line = diff.html.lineDiffHTML(ops_list, deleted_line, inserted_line)
 
                     addLine(diff.Line(line_type,
                                       old_offset, deleted_line,
                                       new_offset, inserted_line,
-                                      is_whitespace=chunk.is_whitespace or is_whitespace))
+                                      is_whitespace=chunk.is_whitespace or is_whitespace,
+                                      analysis=ops_list))
 
                     old_offset += 1
                     new_offset += 1

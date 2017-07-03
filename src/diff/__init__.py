@@ -184,6 +184,7 @@ class Line:
 
         # The difference between old_value and new_value is only in white-space.
         self.is_whitespace = kwargs.get("is_whitespace", False)
+        self.analysis = kwargs.get("analysis", None)
 
     def __repr__(self):
         if self.type == Line.CONTEXT: type_string = "CONTEXT"

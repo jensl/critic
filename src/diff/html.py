@@ -70,7 +70,7 @@ def lineDiffHTML(ops, old, new):
     old = splitTags(old)
     new = splitTags(new)
 
-    for op in ops.split(','):
+    for op in ops:
         old_lines = None
         oldType = None
         new_lines = None

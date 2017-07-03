@@ -76,7 +76,7 @@ custom_changeset = frontend.json(
              "from": FROM_SHA1,
              "to": TO_SHA1 })
 frontend.json(
-    "filechanges/" + str(custom_changeset["files"][0]["id"]),
+    "filechanges/" + str(custom_changeset["filediffs"][0]),
     params={ "repository": 1,
              "changeset": custom_changeset["id"]},
     expect=GENERIC_FILECHANGE)

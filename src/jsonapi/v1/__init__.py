@@ -38,6 +38,7 @@ import comments
 import replies
 import batches
 import reviewablefilechanges
+import filediffs
 
 if configuration.auth.ENABLE_ACCESS_TOKENS:
     import accesstokens
