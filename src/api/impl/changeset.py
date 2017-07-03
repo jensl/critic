@@ -109,9 +109,9 @@ def fetch_by_id(critic, repository, id):
        INNER JOIN changesets ON changesets.id=fileversions.changeset
             WHERE changesets.id=%s""",
         (id,))
-    return Changeset(id, changeset_type, from_commit, to_commit, list(
-        File.make(critic, cursor))).wrap(critic)
-    
+    return Changeset(id, changeset_type, from_commit, to_commit, sorted(
+        File.make(critic, cursor), key=lambda file: file.path)).wrap(critic)
+
 
 def get_changeset_id(critic, repository, from_commit=None, to_commit=None):
     cursor = critic.getDatabaseCursor()

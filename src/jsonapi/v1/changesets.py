@@ -115,6 +115,9 @@ class Changesets(object):
            resource path."""
 
         repository = jsonapi.deduce("v1/repositories", parameters)
+        if repository is None:
+            raise jsonapi.UsageError(
+                "repository needs to be specified, ex. &repository=<id>")
 
         from_param = parameters.getQueryParameter("from")
         to_param = parameters.getQueryParameter("to")
@@ -123,13 +126,17 @@ class Changesets(object):
         from_commit = None
         to_commit = None
         single_commit = None
-        
-        if from_param:
-            from_commit = api.commit.fetch(repository, ref=from_param)
-        if to_param:
-            to_commit = api.commit.fetch(repository, ref=to_param)
-        if single_param:
-            single_commit = api.commit.fetch(repository, ref=single_param)
+
+        try:
+            if from_param:
+                from_commit = api.commit.fetch(repository, ref=from_param)
+            if to_param:
+                to_commit = api.commit.fetch(repository, ref=to_param)
+            if single_param:
+                single_commit = api.commit.fetch(repository, ref=single_param)
+        except api.repository.InvalidRef:
+            raise jsonapi.InputError(
+                "from, to, or commit has invalid data")
 
         if repository is None:
             raise jsonapi.UsageError("repository needs to be specified, ex. &repository=<id>")
@@ -137,28 +144,21 @@ class Changesets(object):
         if not (from_commit or to_commit or single_commit):
             raise jsonapi.UsageError(
                 "Missing required parameters from and to, or commit")
-        if from_commit is None != to_commit is None:
+        if (from_commit is None) != (to_commit is None):
             raise jsonapi.UsageError(
                 "Missing required parameters from and to, only one supplied")
 
-        if single_commit:
-            return Changesets.setAsContext(
-                parameters, api.changeset.fetch(
-                    parameters.critic,
-                    repository,
-                    single_commit=single_commit))
+        if from_commit == to_commit and from_commit is not None:
+            raise jsonapi.InputError(
+                "from and to can't be the same commit")
 
-        elif from_commit and to_commit:
-            return Changesets.setAsContext(
-                parameters, api.changeset.fetch(
-                    parameters.critic,
-                    repository,
-                    from_commit=from_commit,
-                    to_commit=to_commit))
-
-        else:
-            raise jsonapi.UsageError(
-                "This should never happen")
+        return Changesets.setAsContext(
+            parameters, api.changeset.fetch(
+                parameters.critic,
+                repository,
+                from_commit=from_commit,
+                to_commit=to_commit,
+                single_commit=single_commit))
 
     @staticmethod
     def deduce(parameters):
@@ -174,8 +174,8 @@ class Changesets(object):
             changeset = api.changeset.fetch(
                 parameters.critic, repository, id=changeset_id)
         return changeset
-            
-        
+
+
     @staticmethod
     def setAsContext(parameters, changeset):
         parameters.setContext(Changesets.name, changeset)
