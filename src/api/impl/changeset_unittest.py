@@ -391,11 +391,10 @@ def direct_changeset(phase, api, critic, repository):
             "changeset and equiv_changeset have different types"
 
         changeset_files = frozenset(
-            [str(file.id) + file.path for file in changeset.files])
-        changeset_paths = frozenset(
-            [file.path for file in changeset.files])
+            (file.id, file.path) for file in changeset.files)
+        changeset_paths = frozenset(file.path for file in changeset.files)
         equiv_changeset_files = frozenset(
-            [str(file.id) + file.path for file in equiv_changeset.files])
+            (file.id, file.path) for file in equiv_changeset.files)
 
         assert (changeset_files == equiv_changeset_files),\
             "changeset and equiv_changeset have different files"

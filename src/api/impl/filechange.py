@@ -71,8 +71,8 @@ def fetch(critic, changeset, id):
     return filechange.wrap(critic)
 
 def fetchAll(critic, changeset):
-    cursor = critic.getDatabaseCursor()        
-    
+    cursor = critic.getDatabaseCursor()
+
     cursor.execute(
         """SELECT file, deleteoffset, deletecount, insertoffset, insertcount,
                             analysis, whitespace
