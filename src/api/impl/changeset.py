@@ -140,7 +140,7 @@ def request_changeset_creation(critic,
                                from_commit=None,
                                to_commit=None):
     request = { "changeset_type": changeset_type,
-                "repository_name": "critic"}
+                "repository_name": repository_name}
     if changeset_type == "direct":
         request["child_sha1"] = to_commit.sha1
     elif changeset_type == "custom":
