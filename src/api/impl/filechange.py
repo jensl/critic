@@ -54,7 +54,8 @@ def fetch(critic, changeset, id):
         """SELECT deleteoffset, deletecount, insertoffset, insertcount,
                       analysis, whitespace
              FROM chunks
-            WHERE changeset=%s AND file=%s""",
+            WHERE changeset=%s AND file=%s
+         ORDER BY deleteoffset ASC""",
         (changeset.id, id))
     chunks = list(Chunk.make(critic, cursor))
 
@@ -77,7 +78,8 @@ def fetchAll(critic, changeset):
         """SELECT file, deleteoffset, deletecount, insertoffset, insertcount,
                             analysis, whitespace
              FROM chunks
-            WHERE changeset=%s""",
+            WHERE changeset=%s
+         ORDER BY deleteoffset ASC""",
         (changeset.id,))
     rows = cursor.fetchall()
 
