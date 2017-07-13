@@ -81,12 +81,11 @@ def fetchAll(critic, changeset):
             WHERE changeset=%s
          ORDER BY deleteoffset ASC""",
         (changeset.id,))
-    rows = cursor.fetchall()
 
     filechunks = {}
-    for row in rows:
-        (id, deleteoffset, deletecount, insertoffset,
-         insertcount, analysis, is_whitespace) = row
+    for (id, deleteoffset, deletecount, insertoffset, insertcount, analysis,
+         is_whitespace) in cursor:
+
         chunk = Chunk(deleteoffset, deletecount, insertoffset, insertcount,
                       analysis, is_whitespace)
         if id in filechunks:

@@ -24,7 +24,7 @@ class Filechanges(object):
     """Filechanges for a changeset"""
 
     name = "filechanges"
-    contexts = (None, "changesets")
+    contexts = (None, "repositories", "changesets")
     value_class = api.filechange.Filechange
     exceptions = (api.filechange.FilechangeError,)
 

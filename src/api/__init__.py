@@ -31,6 +31,7 @@ import commitset
 import changeset
 import filechange
 import filediff
+import filecontent
 import log
 import preference
 import accesstoken

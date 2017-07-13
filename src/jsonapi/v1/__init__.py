@@ -39,6 +39,7 @@ import replies
 import batches
 import reviewablefilechanges
 import filediffs
+import filecontents
 
 if configuration.auth.ENABLE_ACCESS_TOKENS:
     import accesstokens

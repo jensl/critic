@@ -65,3 +65,21 @@ class Files(object):
     def fromParameter(value, parameters):
         file_id, path = jsonapi.id_or_name(value)
         return api.file.fetch(parameters.critic, file_id, path=path)
+
+    @staticmethod
+    def deduce(parameters):
+        file_obj = parameters.context.get((Files.name))
+        file_parameter = parameters.getQueryParameter("file")
+        if file_parameter is not None:
+            if file_obj is not None:
+                raise jsonapi.UsageError(
+                    "Redundant query parameter: file=%s"
+                    % file_parameter)
+            file_id = Files.fromParameter(file_parameter, parameters)
+            file_obj = api.file.fetch(parameters.critic, file_id)
+        return file_obj
+
+    @staticmethod
+    def setAsContext(parameters, file_obj):
+        parameters.setContext(Files.name, file_obj)
+        return file_obj

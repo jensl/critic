@@ -26,6 +26,7 @@ import commitset
 import changeset
 import filechange
 import filediff
+import filecontent
 import review
 import log
 import accesstoken
