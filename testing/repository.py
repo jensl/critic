@@ -38,11 +38,18 @@ def _git(args, **kwargs):
     else:
         cwd = ""
     testing.logger.debug("Running: %s%s" % (" ".join(argv), cwd))
-    env = kwargs.setdefault("env", {})
+    env = os.environ.copy()
+    for name, value in kwargs.get("env", {}).items():
+        if value is None:
+            if name in env:
+                del env[name]
+        else:
+            env[name] = value
     env.setdefault("GIT_AUTHOR_NAME", "Critic Tester")
     env.setdefault("GIT_COMMITTER_NAME", "Critic Tester")
     env.setdefault("GIT_AUTHOR_EMAIL", "tester@example.org")
     env.setdefault("GIT_COMMITTER_EMAIL", "tester@example.org")
+    kwargs["env"] = env
     try:
         return subprocess.check_output(
             argv, stdin=open("/dev/null"), stderr=subprocess.STDOUT, **kwargs)
