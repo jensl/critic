@@ -54,17 +54,6 @@ class Changeset(api.APIObject):
     def files(self):
         return self._impl.files
 
-class File(api.APIObject):
-    """Representation of a file"""
-
-    @property
-    def id(self):
-        return self._impl.id
-
-    @property
-    def path(self):
-        return self._impl.path
-
 def fetch(critic, repository, id=None, from_commit=None, to_commit=None, single_commit=None):
     """Fetch a single changeset from the given repository"""
 

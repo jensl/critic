@@ -47,14 +47,6 @@ class Changeset(apiobject.APIObject):
             self.repository, commit_id=self.__to_commit_id)
 
 
-class File(apiobject.APIObject):
-    wrapper_class = api.changeset.File
-
-    def __init__(self, id, path):
-        self.id = id
-        self.path = path
-
-
 def fetch(critic,
           repository,
           id=None,
@@ -98,41 +90,42 @@ def fetch(critic,
             return Changeset(None, "direct", None, None, None, repository).wrap(critic)
 
 
-def fetch_by_id(critic, repository, id):
+def fetch_by_id(critic, repository, changeset_id):
     try:
         return critic._impl.lookup(api.changeset.Changeset,
-                                   (int(repository), id))
+                                   (int(repository), changeset_id))
     except KeyError:
         pass
 
     cursor = critic.getDatabaseCursor()
 
     cursor.execute(
-        """SELECT id, type, parent, child
+        """SELECT type, parent, child
              FROM changesets
             WHERE id=%s""",
-        (id,))
+        (changeset_id,))
 
     row = cursor.fetchone()
 
     if not row:
         raise api.changeset.InvalidChangesetId(id)
 
-    (id, changeset_type, from_commit_id, to_commit_id) = row
+    (changeset_type, from_commit_id, to_commit_id) = row
 
     cursor.execute(
-        """SELECT files.id, files.path
-             FROM files
-       INNER JOIN fileversions ON fileversions.file=files.id
-       INNER JOIN changesets ON changesets.id=fileversions.changeset
-            WHERE changesets.id=%s""",
-        (id,))
-    changeset = Changeset(id, changeset_type, from_commit_id, to_commit_id, sorted(
-        File.make(critic, cursor), key=lambda file: file.path), repository) \
-        .wrap(critic)
+        """SELECT file
+             FROM fileversions
+            WHERE changeset=%s""",
+        (changeset_id,))
+
+    files = api.file.fetchMany(critic, (file_id for (file_id,) in cursor))
+
+    changeset = Changeset(
+        changeset_id, changeset_type, from_commit_id, to_commit_id,
+        sorted(files, key=lambda file: file.path), repository).wrap(critic)
 
     critic._impl.assign(
-        api.changeset.Changeset, (int(repository), id), changeset)
+        api.changeset.Changeset, (int(repository), changeset_id), changeset)
 
     return changeset
 
