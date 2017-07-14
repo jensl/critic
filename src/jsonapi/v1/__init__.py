@@ -25,6 +25,7 @@ import reviews
 import rebases
 import changesets
 import filechanges
+import files
 
 if configuration.auth.ENABLE_ACCESS_TOKENS:
     import accesstokens
