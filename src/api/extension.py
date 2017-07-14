@@ -43,10 +43,6 @@ class Extension(api.APIObject):
 
     def __int__(self):
         return self.id
-    def __hash__(self):
-        return hash(int(self))
-    def __eq__(self, other):
-        return int(self) == int(other)
 
     @property
     def id(self):

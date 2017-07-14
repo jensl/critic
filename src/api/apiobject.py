@@ -26,6 +26,11 @@ class APIObject(object):
         self.__critic = critic
         self.__impl = impl
 
+    def __hash__(self):
+        return hash(int(self))
+    def __eq__(self, other):
+        return int(self) == int(other)
+
     @property
     def critic(self):
         """The Critic session object used to create the API object"""
