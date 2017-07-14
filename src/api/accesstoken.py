@@ -32,9 +32,6 @@ class InvalidAccessTokenId(AccessTokenError):
 class AccessToken(api.APIObject):
     """Representation of an access token"""
 
-    def __int__(self):
-        return self.id
-
     @property
     def access_type(self):
         """The type of access granted by this access token"""

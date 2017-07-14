@@ -68,9 +68,6 @@ class User(api.APIObject):
 
     STATUS_VALUES = frozenset(["current", "absent", "retired"])
 
-    def __int__(self):
-        return self.id
-
     @property
     def id(self):
         """The user's unique id"""

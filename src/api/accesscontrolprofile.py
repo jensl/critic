@@ -35,9 +35,6 @@ class AccessControlProfile(api.APIObject):
 
     RULE_VALUES = frozenset(["allow", "deny"])
 
-    def __int__(self):
-        return self.id
-
     @property
     def id(self):
         """The profile's unique id"""

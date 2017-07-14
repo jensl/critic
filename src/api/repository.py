@@ -64,9 +64,6 @@ class GitCommandError(RepositoryError):
 class Repository(api.APIObject):
     """Representation of one of Critic's repositories"""
 
-    def __int__(self):
-        return self.id
-
     @property
     def id(self):
         """The repository's unique id"""

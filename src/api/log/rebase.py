@@ -15,9 +15,6 @@ class InvalidRebaseId(RebaseError):
 class Rebase(api.APIObject):
     """Representation of a rebase of a review branch"""
 
-    def __int__(self):
-        return self.id
-
     @property
     def id(self):
         return self._impl.id

@@ -41,9 +41,6 @@ class InvalidExtensionKey(ExtensionError):
 class Extension(api.APIObject):
     """Representation of a Critic extension"""
 
-    def __int__(self):
-        return self.id
-
     @property
     def id(self):
         """The extension's unique id"""

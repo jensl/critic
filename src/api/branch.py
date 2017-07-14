@@ -43,9 +43,6 @@ class Branch(api.APIObject):
        base branch, and a derived restricted set of commits that belong to the
        branch by (initially) excluding those reachable from the base branch."""
 
-    def __int__(self):
-        return self.id
-
     @property
     def id(self):
         """The branch's unique id"""

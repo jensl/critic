@@ -26,6 +26,8 @@ class APIObject(object):
         self.__critic = critic
         self.__impl = impl
 
+    def __int__(self):
+        return self.id
     def __hash__(self):
         return hash(int(self))
     def __eq__(self, other):

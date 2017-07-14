@@ -41,9 +41,6 @@ class Review(api.APIObject):
 
     STATE_VALUES = frozenset(["open", "closed", "dropped"])
 
-    def __int__(self):
-        return self.id
-
     @property
     def id(self):
         """The review's unique id"""
