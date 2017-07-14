@@ -22,6 +22,7 @@ import api
 import apiobject
 import api.impl
 
+import diff.parse
 import gitutils
 
 RE_FOLLOWUP = re.compile("(fixup|squash)!.*(?:\n[ \t]*)+(.*)")
@@ -69,6 +70,28 @@ class Commit(apiobject.APIObject):
 
     def isAncestorOf(self, commit):
         return self.internal.isAncestorOf(commit.internal)
+
+    def getFileInformation(self, file):
+        import stat
+        internal = self.internal.getFileEntry(file.path)
+        if internal is None:
+            return None
+        if internal.type != "blob" or not stat.S_ISREG(internal.mode):
+            raise api.commit.NotAFile(file.path)
+        return api.commit.Commit.FileInformation(
+            file, int(internal.mode), internal.sha1, internal.size)
+
+    def getFileContents(self, file):
+        information = self.getFileInformation(file)
+        if information is None:
+            return None
+        return self.internal.repository.fetch(information.sha1).data
+
+    def getFileLines(self, file):
+        contents = self.getFileContents(file)
+        if contents is None:
+            return None
+        return diff.parse.splitlines(contents)
 
     @staticmethod
     def create(critic, repository, commit_id, sha1):
