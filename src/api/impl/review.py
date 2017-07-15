@@ -32,13 +32,17 @@ class Review(apiobject.APIObject):
         self.summary = summary
         self.description = description
         self.__owners_ids = None
-        self.__reviewers_ids = None
+        self.__assigned_reviewers_ids = None
+        self.__active_reviewers_ids = None
         self.__watchers_ids = None
         self.__filters = None
         self.__commits = None
         self.__rebases = None
         self.__issues = None
         self.__notes = None
+        self.__open_issues = None
+        self.__total_progress = None
+        self.__progress_per_commit = None
 
     def getRepository(self, critic):
         return api.repository.fetch(critic, repository_id=self.__repository_id)
@@ -61,27 +65,39 @@ class Review(apiobject.APIObject):
         return frozenset(api.user.fetch(critic, user_id=user_id)
                          for user_id in self.__owners_ids)
 
-    def __fetchReviewers(self, critic):
-        if self.__reviewers_ids is None:
+    def __fetchAssignedReviewers(self, critic):
+        if self.__assigned_reviewers_ids is None:
             cursor = critic.getDatabaseCursor()
-            cursor.execute("""SELECT DISTINCT uid
-                                FROM reviewuserfiles
-                                JOIN reviewfiles ON (reviewfiles.id=reviewuserfiles.file)
-                               WHERE reviewfiles.review=%s""",
-                           (self.id,))
-            assigned_reviewers = frozenset(user_id for (user_id,) in cursor)
-            cursor.execute("""SELECT DISTINCT uid
-                                FROM reviewfilechanges
-                                JOIN reviewfiles ON (reviewfiles.id=reviewfilechanges.file)
-                               WHERE reviewfiles.review=%s""",
-                           (self.id,))
-            actual_reviewers = frozenset(user_id for (user_id,) in cursor)
-            self.__reviewers_ids = assigned_reviewers | actual_reviewers
+            cursor.execute(
+                """SELECT DISTINCT uid
+                     FROM reviewuserfiles
+                     JOIN reviewfiles ON (reviewfiles.id=reviewuserfiles.file)
+                    WHERE reviewfiles.review=%s""",
+                (self.id,))
+            self.__assigned_reviewers_ids = frozenset(
+                user_id for (user_id,) in cursor)
 
-    def getReviewers(self, critic):
-        self.__fetchReviewers(critic)
-        return frozenset(api.user.fetch(critic, user_id=user_id)
-                         for user_id in self.__reviewers_ids)
+    def getAssignedReviewers(self, critic):
+        self.__fetchAssignedReviewers(critic)
+        return frozenset(api.user.fetchMany(
+            critic, user_ids=self.__assigned_reviewers_ids))
+
+    def __fetchActiveReviewers(self, critic):
+        if self.__active_reviewers_ids is None:
+            cursor = critic.getDatabaseCursor()
+            cursor.execute(
+                """SELECT DISTINCT uid
+                     FROM reviewfilechanges
+                     JOIN reviewfiles ON (reviewfiles.id=reviewfilechanges.file)
+                    WHERE reviewfiles.review=%s""",
+                (self.id,))
+            self.__active_reviewers_ids = frozenset(
+                user_id for (user_id,) in cursor)
+
+    def getActiveReviewers(self, critic):
+        self.__fetchActiveReviewers(critic)
+        return frozenset(api.user.fetchMany(
+            critic, user_ids=self.__active_reviewers_ids))
 
     def __fetchWatchers(self, critic):
         if self.__watchers_ids is None:
@@ -92,8 +108,10 @@ class Review(apiobject.APIObject):
                            (self.id,))
             associated_users = frozenset(user_id for (user_id,) in cursor)
             self.__fetchOwners(critic)
-            self.__fetchReviewers(critic)
-            non_watchers = self.__owners_ids | self.__reviewers_ids
+            self.__fetchAssignedReviewers(critic)
+            self.__fetchActiveReviewers(critic)
+            non_watchers = self.__owners_ids | self.__assigned_reviewers_ids | \
+                           self.__active_reviewers_ids
             self.__watchers_ids = associated_users - non_watchers
 
     def getWatchers(self, critic):
@@ -161,6 +179,14 @@ class Review(apiobject.APIObject):
                 wrapper.critic, review=wrapper, comment_type="issue")
         return self.__issues
 
+    def getOpenIssues(self, wrapper):
+        if self.__open_issues is None:
+            self.__open_issues = [issue
+                                  for issue
+                                  in self.getIssues(wrapper)
+                                  if issue.state == "open"]
+        return self.__open_issues
+
     def getNotes(self, wrapper):
         if self.__notes is None:
             self.__notes = api.comment.fetchAll(
@@ -177,6 +203,74 @@ class Review(apiobject.APIObject):
                   AND changesets.child=%s""",
             (self.id, commit.id))
         return bool(cursor.fetchone())
+
+    def getTotalProgress(self, critic):
+        if self.__total_progress is None:
+            cursor = critic.getDatabaseCursor()
+            cursor.execute(
+                """SELECT state, sum(inserted+deleted)
+                     FROM reviewfiles
+                    WHERE review=%s
+                 GROUP BY state""",
+                (self.id,))
+
+            reviewed = 0
+            pending = 0
+            for state, modifications in cursor:
+                if modifications == 0: # binary file change
+                    actual_modifications = 1
+                else:
+                    actual_modifications = modifications
+                if state == "reviewed":
+                    reviewed = actual_modifications
+                elif state == "pending":
+                    pending = actual_modifications
+
+            total = reviewed + pending
+            if reviewed == 0:
+                self.__total_progress = 0
+            elif pending == 0:
+                self.__total_progress = 1
+            else:
+                self.__total_progress = reviewed / float(total)
+        return self.__total_progress
+
+    def getProgressPerCommit(self, critic):
+        if self.__progress_per_commit is None:
+            cursor = critic.getDatabaseCursor()
+            cursor.execute(
+                """SELECT changesets.child, SUM(deleted + inserted)
+                     FROM reviewfiles
+                     JOIN changesets ON changesets.id=reviewfiles.changeset
+                    WHERE reviewfiles.review=%s
+                 GROUP BY changesets.child""",
+                (self.id,))
+
+            total_changes_dict = {}
+            for commit_id, changes in cursor:
+                total_changes_dict[commit_id] = changes
+
+            cursor.execute(
+                """SELECT changesets.child, SUM(deleted + inserted)
+                     FROM reviewfiles
+                     JOIN changesets ON changesets.id=reviewfiles.changeset
+                    WHERE reviewfiles.review=%s AND state='reviewed'
+                 GROUP BY changesets.child""",
+                (self.id,))
+
+            reviewed_changes_dict = {}
+            for commit_id, changes in cursor:
+                reviewed_changes_dict[commit_id] = changes
+
+            commit_change_counts = []
+            for commit_id, total_changes in total_changes_dict.iteritems():
+                reviewed_changes = reviewed_changes_dict.get(commit_id, 0)
+
+                commit_change_counts.append(api.review.CommitChangeCount(
+                    commit_id, total_changes, reviewed_changes))
+
+            self.__progress_per_commit = commit_change_counts
+        return self.__progress_per_commit
 
     @classmethod
     def create(Review, critic, *args):
@@ -209,6 +303,19 @@ def fetch(critic, review_id, branch):
             raise api.review.InvalidReviewId(review_id)
         else:
             raise api.review.InvalidReviewBranch(branch)
+
+def fetchMany(critic, review_ids):
+    cursor = critic.getDatabaseCursor()
+    cursor.execute("""SELECT reviews.id, branches.repository, branches.id,
+                             state, summary, description
+                        FROM reviews
+                        JOIN branches ON (branches.id=reviews.branch)
+                       WHERE reviews.id=ANY (%s)""",
+                   (review_ids,))
+
+    reviews_by_id = {review.id: review for review in Review.make(critic, cursor)}
+
+    return [reviews_by_id[review_id] for review_id in review_ids]
 
 def fetchAll(critic, repository, state):
     cursor = critic.getDatabaseCursor()

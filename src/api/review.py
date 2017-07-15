@@ -83,15 +83,25 @@ class Review(api.APIObject):
         return self._impl.getOwners(self.critic)
 
     @property
-    def reviewers(self):
-        """The review's reviewers
+    def assigned_reviewers(self):
+        """The review's assigned reviewers
 
            The reviewers are returned as a set of api.user.User objects.
 
-           A user is considered a reviewer if he/she is assigned to review any
-           changes (whether those changes have been reviewed already or not,)
-           or has reviewed any changes."""
-        return self._impl.getReviewers(self.critic)
+           Assigned reviewers are users that have been (manually or
+           automatically) assigned as such. An assigned reviewer may or may not
+           also be an active reviewer (a reviewer that has reviewed changes)."""
+        return self._impl.getAssignedReviewers(self.critic)
+
+    @property
+    def active_reviewers(self):
+        """The review's active reviewers
+
+           The reviewers are returned as a set of api.user.User objects.
+
+           Active reviewers are users that have reviewed changes. An active
+           reviewer may or may not also be an assigned reviewer (see above)."""
+        return self._impl.getActiveReviewers(self.critic)
 
     @property
     def watchers(self):
@@ -146,6 +156,13 @@ class Review(api.APIObject):
         return self._impl.getIssues(self)
 
     @property
+    def open_issues(self):
+        """The open issues in the review
+
+           The issues are returned as a list of api.comment.Issue objects."""
+        return self._impl.getOpenIssues(self)
+
+    @property
     def notes(self):
         """The notes in the review
 
@@ -166,16 +183,50 @@ class Review(api.APIObject):
         assert isinstance(commit, api.commit.Commit)
         return self._impl.isReviewableCommit(self.critic, commit)
 
+    @property
+    def total_progress(self):
+        """Total progress made on a review
+
+           Total progress is expressed as a number between 0 and 1, 1 being
+           fully reviewed and 0 being fully pending."""
+        return self._impl.getTotalProgress(self.critic)
+
+    @property
+    def progress_per_commit(self):
+        """Progress made on a review, grouped by commit
+
+           Returned as a list of CommitChangeCount, where each has the number of
+           total changed lines, and the number of reviewed changed lines"""
+        return self._impl.getProgressPerCommit(self.critic)
+
+class CommitChangeCount:
+    def __init__(self, commit_id, total_changes, reviewed_changes):
+        self.commit_id = commit_id
+        self.total_changes = total_changes
+        self.reviewed_changes = reviewed_changes
+
 def fetch(critic, review_id=None, branch=None):
     """Fetch a Review object with the given id or branch"""
+
     import api.impl
     assert isinstance(critic, api.critic.Critic)
     assert (review_id is None) != (branch is None)
     assert branch is None or isinstance(branch, api.branch.Branch)
     return api.impl.review.fetch(critic, review_id, branch)
 
+def fetchMany(critic, review_ids):
+    """Fetch many Review objects with the given ids, and return them in the same
+       order"""
+
+    import api.impl
+    assert isinstance(critic, api.critic.Critic)
+    review_ids = list(review_ids)
+
+    return api.impl.review.fetchMany(critic, review_ids)
+
 def fetchAll(critic, repository=None, state=None):
-    """Fetch a Review object with the given id or branch"""
+    """Fetch all Review objects in repository with the given state"""
+
     import api.impl
     assert isinstance(critic, api.critic.Critic)
     assert (repository is None or
@@ -186,4 +237,5 @@ def fetchAll(critic, repository=None, state=None):
         else:
             state = set(state)
         assert not (state - Review.STATE_VALUES)
+
     return api.impl.review.fetchAll(critic, repository, state)

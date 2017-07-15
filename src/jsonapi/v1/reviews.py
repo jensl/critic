@@ -36,18 +36,34 @@ class Reviews(object):
              "repository": integer,
              "branch": integer,
              "owners": integer[],
-             "reviewers": integer[],
+             "active_reviewers": integer[],
+             "assigned_reviewers": integer[],
              "watchers": integer[],
              "partitions": Partition[],
              "issues": integer[],
              "notes": integer[],
-             "pending_rebase": integer or null
+             "pending_rebase": integer or null,
+             "progress": float,
+             "progress_per_commit": CommitChangeCount[],
            }
 
            Partition {
              "commits": integer[],
              "rebase": integer or null,
+           }
+
+           CommitChangeCount {
+             "commit_id": integer,
+             "total_changes": integer,
+             "reviewed_changes": integer,
            }"""
+
+        def change_counts_as_dict(change_counts):
+            return [{
+                "commit_id": change_count.commit_id,
+                "total_changes": change_count.total_changes,
+                "reviewed_changes": change_count.reviewed_changes,
+                } for change_count in change_counts]
 
         partitions = []
 
@@ -73,12 +89,18 @@ class Reviews(object):
                          "repository": value.repository,
                          "branch": value.branch,
                          "owners": jsonapi.sorted_by_id(value.owners),
-                         "reviewers": jsonapi.sorted_by_id(value.reviewers),
+                         "active_reviewers": jsonapi.sorted_by_id(
+                             value.active_reviewers),
+                         "assigned_reviewers": jsonapi.sorted_by_id(
+                             value.assigned_reviewers),
                          "watchers": jsonapi.sorted_by_id(value.watchers),
                          "partitions": partitions,
                          "issues": jsonapi.sorted_by_id(value.issues),
                          "notes": jsonapi.sorted_by_id(value.notes),
-                         "pending_rebase": value.pending_rebase })
+                         "pending_rebase": value.pending_rebase,
+                         "progress": value.total_progress,
+                         "progress_per_commit":
+                             change_counts_as_dict(value.progress_per_commit)})
 
     @staticmethod
     def single(parameters, argument):
