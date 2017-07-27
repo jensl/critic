@@ -44,11 +44,11 @@ class Changeset(api.APIObject):
 
     @property
     def from_commit(self):
-        return self._impl.from_commit
+        return self._impl.getFromCommit()
 
     @property
     def to_commit(self):
-        return self._impl.to_commit
+        return self._impl.getToCommit()
 
     @property
     def files(self):

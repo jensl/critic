@@ -27,7 +27,7 @@ class Commits(object):
     """Commits in the Git repositories."""
 
     name = "commits"
-    contexts = (None, "repositories")
+    contexts = (None, "repositories", "changesets")
     value_class = api.commit.Commit
     exceptions = (api.commit.CommitError,)
 

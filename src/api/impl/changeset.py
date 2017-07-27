@@ -26,12 +26,25 @@ import diff
 class Changeset(apiobject.APIObject):
     wrapper_class = api.changeset.Changeset
 
-    def __init__(self, id, changeset_type, from_commit, to_commit, files):
+    def __init__(self, id, changeset_type, from_commit_id, to_commit_id, files, repository):
         self.id = id
         self.type = changeset_type
-        self.from_commit = from_commit
-        self.to_commit = to_commit
+        self.__from_commit_id = from_commit_id
+        self.__to_commit_id = to_commit_id
         self.files = files
+        self.repository = repository
+
+    def getFromCommit(self):
+        if self.__from_commit_id is None:
+            return None
+        return api.commit.fetch(
+            self.repository, commit_id=self.__from_commit_id)
+
+    def getToCommit(self):
+        if self.__to_commit_id is None:
+            return None
+        return api.commit.fetch(
+            self.repository, commit_id=self.__to_commit_id)
 
 
 class File(apiobject.APIObject):
@@ -64,7 +77,7 @@ def fetch(critic,
                                        "custom",
                                        from_commit=from_commit,
                                        to_commit=to_commit)
-            return Changeset(None, "custom", None, None, None).wrap(critic)
+            return Changeset(None, "custom", None, None, None, repository).wrap(critic)
         return None
     if single_commit:
         if len(single_commit.parents) > 0:
@@ -82,7 +95,7 @@ def fetch(critic,
                                        repository.name,
                                        "direct",
                                        to_commit=single_commit)
-            return Changeset(None, "direct", None, None, None).wrap(critic)
+            return Changeset(None, "direct", None, None, None, repository).wrap(critic)
 
 
 @Changeset.cached()
@@ -100,7 +113,7 @@ def fetch_by_id(critic, repository, id):
     if not row:
         raise api.changeset.InvalidChangesetId(id)
 
-    (id, changeset_type, from_commit, to_commit) = row
+    (id, changeset_type, from_commit_id, to_commit_id) = row
 
     cursor.execute(
         """SELECT files.id, files.path
@@ -109,8 +122,9 @@ def fetch_by_id(critic, repository, id):
        INNER JOIN changesets ON changesets.id=fileversions.changeset
             WHERE changesets.id=%s""",
         (id,))
-    return Changeset(id, changeset_type, from_commit, to_commit, sorted(
-        File.make(critic, cursor), key=lambda file: file.path)).wrap(critic)
+    return Changeset(id, changeset_type, from_commit_id, to_commit_id, sorted(
+        File.make(critic, cursor), key=lambda file: file.path), repository) \
+        .wrap(critic)
 
 
 def get_changeset_id(critic, repository, from_commit=None, to_commit=None):
