@@ -29,10 +29,10 @@ def ishashable(value):
         return True
 
 class TypeCheckerContext(object):
-    def __init__(self, critic):
-        self.critic = critic
-        self.repository = None
-        self.review = None
+    def __init__(self, parameters):
+        self.critic = parameters.critic
+        self.__repository = parameters.context.get("repositories")
+        self.__review = parameters.context.get("reviews")
         self.__path = ["data"]
 
     @contextlib.contextmanager
@@ -47,6 +47,26 @@ class TypeCheckerContext(object):
     def __str__(self):
         return "".join(self.__path)
 
+    @property
+    def review(self):
+        return self.__review
+
+    @review.setter
+    def review(self, review):
+        assert self.__review is None or self.__review == review
+        self.__review = review
+        if review is not None:
+            self.repository = review.repository
+
+    @property
+    def repository(self):
+        return self.__repository
+
+    @repository.setter
+    def repository(self, repository):
+        assert self.__repository is None or self.__repository == repository
+        self.__repository = repository
+
 class TypeChecker(object):
     convert_exception = ()
 
@@ -58,19 +78,23 @@ class TypeChecker(object):
     def __call__(self, context, value):
         if not self.check_compatibility(context, value):
             raise jsonapi.InputError("%s: expected %s" % (context, self))
-        if hasattr(self, "check"):
-            message = self.check(context, value)
-            if message is not None:
-                raise jsonapi.InputError("%s: %s" % (context, message))
+        message = self.check(context, value)
+        if message is not None:
+            raise jsonapi.InputError("%s: %s" % (context, message))
         if hasattr(self, "convert"):
             try:
                 value = self.convert(context, value)
             except self.convert_exception as error:
                 raise jsonapi.InputError("%s: %s" % (context, error.message))
+        if hasattr(self, "process"):
+            self.process(context, value)
         return value
 
     def __str__(self):
         return self.expected_type
+
+    def check(self, context, value):
+        pass
 
     @staticmethod
     def make(value):
@@ -86,7 +110,7 @@ class TypeChecker(object):
         if isinstance(value, (set, frozenset, tuple)):
             if all(isinstance(item, str) for item in value):
                 return EnumerationChecker(*value)
-            return VariantChecker(*value)
+            return VariantChecker(value)
         if isinstance(value, dict):
             return ObjectChecker(value)
         raise Exception("invalid checked type: %r" % value)
@@ -106,7 +130,9 @@ class ListChecker(TypeChecker):
         return result
 
 class VariantChecker(TypeChecker):
-    def __init__(self, *checkers):
+    def __init__(self, checkers=None):
+        if checkers is None:
+            checkers = self.types
         self.checkers = map(TypeChecker.make, checkers)
         self.matched = None
         self.expected_type = "%s or %s" % (", ".join(map(str, self.checkers[:-1])),
@@ -132,6 +158,7 @@ class ObjectChecker(TypeChecker):
 
     def __init__(self, attributes):
         self.attributes = {}
+        self.prioritized = set()
         for attribute_name, attribute_type in attributes.items():
             required = False
             default = False
@@ -142,18 +169,28 @@ class ObjectChecker(TypeChecker):
                 attribute_name = attribute_name[:-1]
             else:
                 required = True
+            if attribute_name.endswith("!"):
+                attribute_name = attribute_name[:-1]
+                self.prioritized.add(attribute_name)
             self.attributes[attribute_name] = (required, default,
                                                TypeChecker.make(attribute_type))
 
     def convert(self, context, value):
         result = {}
-        for attribute_name, attribute_value in value.items():
-            with context.push(attribute_name):
-                if attribute_name not in self.attributes:
-                    raise jsonapi.InputError(
-                        "%s: unexpected attribute" % context)
-                result[attribute_name] = self.attributes[attribute_name][2](
-                    context, attribute_value)
+        def convert_attributes(attributes):
+            for attribute_name, attribute_value in attributes:
+                with context.push(attribute_name):
+                    if attribute_name not in self.attributes:
+                        raise jsonapi.InputError(
+                            "%s: unexpected attribute" % context)
+                    result[attribute_name] = self.attributes[attribute_name][2](
+                        context, attribute_value)
+        convert_attributes((attribute_name, attribute_value)
+                           for attribute_name, attribute_value in value.items()
+                           if attribute_name in self.prioritized)
+        convert_attributes((attribute_name, attribute_value)
+                           for attribute_name, attribute_value in value.items()
+                           if attribute_name not in self.prioritized)
         for attribute_name, (required, default, _) in self.attributes.items():
             if attribute_name not in result:
                 if required:
@@ -178,6 +215,7 @@ class RestrictedInteger(IntegerChecker):
             return "must be at least %d" % self.minvalue
         if self.maxvalue is not None and value > self.maxvalue:
             return "can be at most %d" % self.maxvalue
+        return super(RestrictedInteger, self).check(context, value)
 
 class NonNegativeInteger(RestrictedInteger):
     def __init__(self):
@@ -204,6 +242,7 @@ class RestrictedString(StringChecker):
             return "can be at most %d characters long" % self.maxlength
         if self.regexp is not None and not self.regexp.match(value):
             return "must match '%s'" % self.regexp.pattern
+        return super(RestrictedString, self).check(context, value)
 
 class RegularExpression(StringChecker):
     def check(self, context, value):
@@ -211,6 +250,7 @@ class RegularExpression(StringChecker):
             re.compile(value)
         except re.error:
             return "must be a valid Python regular expression"
+        return super(RegularExpression, self).check(context, value)
 
 class EnumerationChecker(StringChecker):
     def __init__(self, *values):
@@ -221,6 +261,7 @@ class EnumerationChecker(StringChecker):
             values = sorted(self.values)
             return ("must be one of %s and %s"
                     % (", ".join(values[:-1]), values[-1]))
+        return super(EnumerationChecker, self).check(context, value)
 
 class UserId(PositiveInteger):
     convert_exception = api.user.InvalidUserId
@@ -233,8 +274,7 @@ class UserName(StringChecker):
         return api.user.fetch(context.critic, name=value)
 
 class User(VariantChecker):
-    def __init__(self):
-        super(User, self).__init__(UserId, UserName)
+    types = (UserId, UserName)
 
 class RepositoryId(PositiveInteger):
     convert_exception = api.repository.InvalidRepositoryId
@@ -247,8 +287,54 @@ class RepositoryName(StringChecker):
         return api.repository.fetch(context.critic, name=value)
 
 class Repository(VariantChecker):
-    def __init__(self):
-        super(Repository, self).__init__(RepositoryId, RepositoryName)
+    types = (RepositoryId, RepositoryName)
+    def process(self, context, repository):
+        context.repository = repository
+
+    class Required(TypeChecker):
+        def check(self, context, value):
+            if context.repository is None:
+                return "no repository set in context"
+            return super(Repository.Required, self).check(context, value)
+
+class Review(PositiveInteger):
+    convert_exception = api.review.InvalidReviewId
+    def convert(self, context, value):
+        return api.review.fetch(context.critic, review_id=value)
+    def process(self, context, review):
+        context.review = review
+
+class CommitId(PositiveInteger):
+    convert_exception = api.commit.InvalidCommitId
+    def convert(self, context, value):
+        return api.commit.fetch(context.repository, commit_id=value)
+
+class CommitReference(StringChecker):
+    convert_exception = api.repository.InvalidRef
+    def convert(self, context, value):
+        return api.commit.fetch(context.repository, ref=value)
+
+class Commit(VariantChecker, Repository.Required):
+    types = (CommitId, CommitReference)
+
+class FileId(PositiveInteger):
+    convert_exception = api.file.InvalidFileId
+    def convert(self, context, value):
+        return api.file.fetch(context.critic, file_id=value)
+
+class FilePath(StringChecker):
+    convert_exception = api.file.InvalidPath
+    def convert(self, context, value):
+        return api.file.fetch(context.critic, path=value)
+
+class File(VariantChecker):
+    types = (FileId, FilePath)
+
+class Changeset(PositiveInteger, Repository.Required):
+    convert_exception = api.changeset.InvalidChangesetId
+    def convert(self, context, value):
+        assert context.repository
+        return api.changeset.fetch(context.critic, context.repository, id=value)
 
 class ExtensionId(PositiveInteger):
     convert_exception = api.extension.InvalidExtensionId
@@ -261,8 +347,7 @@ class ExtensionKey(StringChecker):
         return api.extension.fetch(context.critic, key=value)
 
 class Extension(VariantChecker):
-    def __init__(self):
-        super(Extension, self).__init__(ExtensionId, ExtensionKey)
+    types = (ExtensionId, ExtensionKey)
 
 class AccessControlProfile(PositiveInteger):
     convert_exception = api.accesscontrolprofile.InvalidAccessControlProfileId
@@ -273,12 +358,16 @@ CHECKER_MAP = { int: IntegerChecker(),
                 str: StringChecker(),
                 api.user.User: User,
                 api.repository.Repository: Repository,
+                api.review.Review: Review,
+                api.commit.Commit: Commit,
+                api.file.File: File,
+                api.changeset.Changeset: Changeset,
                 api.extension.Extension: Extension,
                 api.accesscontrolprofile.AccessControlProfile:
                     AccessControlProfile }
 
 def convert(parameters, checker, value):
-    context = TypeCheckerContext(parameters.critic)
+    context = TypeCheckerContext(parameters)
     return TypeChecker.make(checker)(context, value)
 
 def ensure(data, path, ensured_value):
