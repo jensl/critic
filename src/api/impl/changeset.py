@@ -98,8 +98,13 @@ def fetch(critic,
             return Changeset(None, "direct", None, None, None, repository).wrap(critic)
 
 
-@Changeset.cached()
 def fetch_by_id(critic, repository, id):
+    try:
+        return critic._impl.lookup(api.changeset.Changeset,
+                                   (int(repository), id))
+    except KeyError:
+        pass
+
     cursor = critic.getDatabaseCursor()
 
     cursor.execute(
@@ -122,9 +127,14 @@ def fetch_by_id(critic, repository, id):
        INNER JOIN changesets ON changesets.id=fileversions.changeset
             WHERE changesets.id=%s""",
         (id,))
-    return Changeset(id, changeset_type, from_commit_id, to_commit_id, sorted(
+    changeset = Changeset(id, changeset_type, from_commit_id, to_commit_id, sorted(
         File.make(critic, cursor), key=lambda file: file.path), repository) \
         .wrap(critic)
+
+    critic._impl.assign(
+        api.changeset.Changeset, (int(repository), id), changeset)
+
+    return changeset
 
 
 def get_changeset_id(critic, repository, from_commit=None, to_commit=None):
