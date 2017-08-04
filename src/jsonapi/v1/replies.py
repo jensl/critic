@@ -179,3 +179,7 @@ class Replies(object):
                     .modifyComment(reply.comment) \
                     .modifyReply(reply) \
                     .delete()
+
+    @staticmethod
+    def fromParameter(value, parameters):
+        return api.reply.fetch(parameters.critic, jsonapi.numeric_id(value))

@@ -27,7 +27,7 @@ class Commits(object):
     name = "commits"
     contexts = (None, "repositories", "changesets")
     value_class = api.commit.Commit
-    exceptions = (api.commit.CommitError,)
+    exceptions = (api.commit.CommitError, api.repository.InvalidRef)
 
     @staticmethod
     def json(value, parameters):
@@ -135,10 +135,14 @@ class Commits(object):
                 raise jsonapi.UsageError(
                     "Redundant query parameter: commit=%s"
                     % commit_parameter)
-            repository = jsonapi.deduce("v1/repositories", parameters)
-            commit_id, ref = jsonapi.id_or_name(commit_parameter)
-            commit = api.commit.fetch(repository, commit_id, ref=ref)
+            commit = Commits.fromParameter(commit_parameter, parameters)
         return commit
+
+    @staticmethod
+    def fromParameter(value, parameters):
+        repository = jsonapi.deduce("v1/repositories", parameters)
+        commit_id, ref = jsonapi.id_or_name(value)
+        return api.commit.fetch(repository, commit_id, ref=ref)
 
     @staticmethod
     def setAsContext(parameters, commit):

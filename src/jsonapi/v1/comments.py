@@ -194,20 +194,12 @@ class Comments(object):
 
         critic = parameters.critic
 
-        with_reply_parameter = parameters.getQueryParameter("with_reply")
-        if with_reply_parameter:
-            reply = api.reply.fetch(
-                critic, reply_id=jsonapi.numeric_id(with_reply_parameter))
+        reply = jsonapi.from_parameter("v1/replies", "with_reply", parameters)
+        if reply:
             return reply.comment
 
         review = jsonapi.deduce("v1/reviews", parameters)
-
-        author_parameter = parameters.getQueryParameter("author")
-        if author_parameter:
-            user_id, name = jsonapi.id_or_name(author_parameter)
-            author = api.user.fetch(critic, user_id=user_id, name=name)
-        else:
-            author = None
+        author = jsonapi.from_parameter("v1/users", "author", parameters)
 
         comment_type_parameter = parameters.getQueryParameter("comment_type")
         if comment_type_parameter:

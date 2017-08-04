@@ -78,10 +78,8 @@ class Extensions(object):
         if key_parameter:
             return api.extension.fetch(parameters.critic, key=key_parameter)
 
-        installed_by_parameter = parameters.getQueryParameter("installed_by")
-        if installed_by_parameter:
-            installed_by = jsonapi.v1.users.from_argument(
-                parameters, installed_by_parameter)
+        installed_by = jsonapi.from_parameter(
+            "v1/users", "installed_by", parameters)
 
         return api.extension.fetchAll(
             parameters.critic,

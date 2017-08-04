@@ -296,6 +296,17 @@ def deduce(resource_path, parameters):
     except resource_class.exceptions as error:
         raise PathError("Resource not found: %s" % error.message)
 
+def from_parameter(resource_path, parameter_name, parameters):
+    resource_class = lookup(resource_path)
+    parameter_value = parameters.getQueryParameter(parameter_name)
+    if parameter_value is None:
+        return None
+    try:
+        return resource_class.fromParameter(parameter_value, parameters)
+    except resource_class.exceptions as error:
+        raise PathError("Invalid parameter: %s=%s: %s"
+                        % (parameter_name, parameter_value, error.message))
+
 def sorted_by_id(items):
     return sorted(items, key=lambda item: item.id)
 

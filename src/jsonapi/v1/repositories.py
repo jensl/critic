@@ -103,6 +103,11 @@ class Repositories(object):
         return repository
 
     @staticmethod
+    def fromParameter(value, parameters):
+        repository_id, name = jsonapi.id_or_name(value)
+        return api.repository.fetch(parameters.critic, repository_id, name=name)
+
+    @staticmethod
     def setAsContext(parameters, repository):
         parameters.setContext(Repositories.name, repository)
         return repository

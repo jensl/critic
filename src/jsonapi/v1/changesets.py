@@ -119,27 +119,12 @@ class Changesets(object):
             raise jsonapi.UsageError(
                 "repository needs to be specified, ex. &repository=<id>")
 
-        from_param = parameters.getQueryParameter("from")
-        to_param = parameters.getQueryParameter("to")
-        single_param = parameters.getQueryParameter("commit")
+        def get_commit(name):
+            return jsonapi.from_parameter("v1/commits", name, parameters)
 
-        from_commit = None
-        to_commit = None
-        single_commit = None
-
-        try:
-            if from_param:
-                from_commit = api.commit.fetch(repository, ref=from_param)
-            if to_param:
-                to_commit = api.commit.fetch(repository, ref=to_param)
-            if single_param:
-                single_commit = api.commit.fetch(repository, ref=single_param)
-        except api.repository.InvalidRef:
-            raise jsonapi.InputError(
-                "from, to, or commit has invalid data")
-
-        if repository is None:
-            raise jsonapi.UsageError("repository needs to be specified, ex. &repository=<id>")
+        from_commit = get_commit("from")
+        to_commit = get_commit("to")
+        single_commit = get_commit("commit")
 
         if not (from_commit or to_commit or single_commit):
             raise jsonapi.UsageError(
@@ -149,8 +134,7 @@ class Changesets(object):
                 "Missing required parameters from and to, only one supplied")
 
         if from_commit == to_commit and from_commit is not None:
-            raise jsonapi.InputError(
-                "from and to can't be the same commit")
+            raise jsonapi.InputError("from and to can't be the same commit")
 
         return Changesets.setAsContext(
             parameters, api.changeset.fetch(

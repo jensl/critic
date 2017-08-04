@@ -134,10 +134,10 @@ frontend.json(
     params={ "repository": 1,
              "commit": "00g0"},
     expect={ "error": {
-        "message": "from, to, or commit has invalid data",
-        "title": "Invalid API input" }
+        "message": "Invalid parameter: commit=00g0: Invalid ref: '00g0^{commit}'",
+        "title": "No such resource" }
          },
-    expected_http_status=400)
+    expected_http_status=404)
 
 # Changeset between a commit and itself
 frontend.json(

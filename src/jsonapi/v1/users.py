@@ -19,11 +19,6 @@ import itertools
 import api
 import jsonapi
 
-def from_argument(parameters, argument):
-    user_id, name = jsonapi.id_or_name(argument)
-    return api.user.fetch(
-        parameters.critic, user_id=user_id, name=name)
-
 @jsonapi.PrimaryResource
 class Users(object):
     """The users of this system."""
@@ -141,8 +136,13 @@ class Users(object):
                 raise jsonapi.UsageError(
                     "Redundant query parameter: user=%s"
                     % user_parameter)
-            user = from_argument(parameters, user_parameter)
+            user = Users.fromParameter(user_parameter, parameters)
         return user
+
+    @staticmethod
+    def fromParameter(value, parameters):
+        user_id, name = jsonapi.id_or_name(value)
+        return api.user.fetch(parameters.critic, user_id=user_id, name=name)
 
     @staticmethod
     def setAsContext(parameters, user):
@@ -256,15 +256,8 @@ class Filters(object):
            unique numeric id or short-name."""
 
         user = parameters.context["users"]
-        repository_parameter = parameters.getQueryParameter("repository")
-        if repository_parameter:
-            repository_id = name = None
-            try:
-                repository_id = int(repository_parameter)
-            except ValueError:
-                name = repository_parameter
-            repository = api.repository.fetch(
-                parameters.critic, repository_id=repository_id, name=name)
+        repository = jsonapi.deduce("v1/repositories", parameters)
+        if repository:
             repository_filters = user.repository_filters.get(
                 repository, [])
         else:

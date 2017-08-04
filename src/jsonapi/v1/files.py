@@ -60,3 +60,8 @@ class Files(object):
             raise UsageError("No path parameter specified")
 
         return api.file.fetch(critic, path=path)
+
+    @staticmethod
+    def fromParameter(value, parameters):
+        file_id, path = jsonapi.id_or_name(value)
+        return api.file.fetch(parameters.critic, file_id, path=path)
