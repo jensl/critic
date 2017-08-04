@@ -51,6 +51,13 @@ class InternalRedirect(Exception):
         self.value = value
         self.values = values
 
+class ResourceSkipped(Exception):
+    """Raised by a resource class's json() to skip the resource
+
+       The message should explain why it was skipped, which may be
+       sent to the client in a "404 Not Found" response."""
+    pass
+
 SPECIAL_QUERY_PARAMETERS = frozenset(["fields", "include", "debug"])
 
 def _process_fields(value):
@@ -306,12 +313,22 @@ def finishGET(critic, req, parameters, resource_class, value, values):
 
     try:
         if values is not None:
+            values_json = []
+
+            for value in values:
+                try:
+                    values_json.append(resource_class.json(value, parameters))
+                except ResourceSkipped:
+                    pass
+
             resource_json = {
-                resource_class.name: [resource_class.json(value, parameters)
-                                      for value in values]
+                resource_class.name: values_json
             }
         else:
-            resource_json = resource_class.json(value, parameters)
+            try:
+                resource_json = resource_class.json(value, parameters)
+            except ResourceSkipped as error:
+                raise PathError("Resource not found: %s" % error.message)
     except resource_class.exceptions as error:
         raise PathError("Resource not found: %s" % error.message)
     except IndexError:
@@ -344,9 +361,13 @@ def finishGET(critic, req, parameters, resource_class, value, values):
                 resource_class = lookup([api_version, resource_type])
 
                 for linked_value in linked_values:
+                    try:
+                        linked_value_json = resource_class.json(linked_value,
+                                                                parameters)
+                    except ResourceSkipped:
+                        continue
                     linked_json[resource_type].append(
-                        additional_linked.filter_referenced(
-                            resource_class.json(linked_value, parameters)))
+                        additional_linked.filter_referenced(linked_value_json))
 
             for resource_type in linked.linked_per_type.keys():
                 additional_linked[resource_type] -= all_linked[resource_type]
