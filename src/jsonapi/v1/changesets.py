@@ -36,11 +36,17 @@ class Changesets(object):
              "from_commit": integer, // commit id for changesets from_commit
              "to_commit": integer, // commit id for changesets to_commit
              "files": File[], // a list of all files changed in this changeset
+             "review_state": ReviewState or null,
            }
 
            File {
-               "id": integer, // the file's id
-               "path": string, // the file's path
+             "id": integer, // the file's id
+             "path": string, // the file's path
+           }
+
+           ReviewState {
+             "review": integer,
+             "comments": integer[],
            }"""
 
         def files_as_json(files):
@@ -49,12 +55,25 @@ class Changesets(object):
             else:
                 return None
 
+        review = jsonapi.deduce("v1/reviews", parameters)
+        if review:
+            comments = api.comment.fetchAll(
+                parameters.critic, review=review, changeset=value)
+
+            review_state = {
+                "review": review,
+                "commments": comments,
+            }
+        else:
+            review_state = None
+
         return parameters.filtered(
             "changesets", { "id": value.id,
                             "type": value.type,
                             "from_commit": value.from_commit,
                             "to_commit": value.to_commit,
-                            "files": files_as_json(value.files)})
+                            "files": files_as_json(value.files),
+                            "review_state": review_state })
 
     @staticmethod
     def single(parameters, argument):

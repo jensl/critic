@@ -14,7 +14,8 @@ frontend.json(
              "type": "direct",
              "to_commit": None,
              "id": None,
-             "from_commit": None })
+             "from_commit": None,
+             "review_state": None })
 instance.synchronize_service("changeset") # wait for changeset creation to finish
 single_changeset = frontend.json(
     "changesets",
@@ -26,7 +27,8 @@ single_changeset = frontend.json(
              "type": "direct",
              "to_commit": int,
              "id": int,
-             "from_commit": int })
+             "from_commit": int,
+             "review_state": None })
 equiv_changeset = frontend.json(
     "changesets",
     params={ "repository": 1,
@@ -38,7 +40,8 @@ equiv_changeset = frontend.json(
              "type": "direct",
              "to_commit": int,
              "id": int,
-             "from_commit": int })
+             "from_commit": int,
+             "review_state": None })
 assert (single_changeset == equiv_changeset),\
     "single changeset should equal equivalent changeset"
 
@@ -52,7 +55,8 @@ frontend.json(
              "type": "custom",
              "to_commit": None,
              "id": None,
-             "from_commit": None })
+             "from_commit": None,
+             "review_state": None })
 instance.synchronize_service("changeset") # wait for changeset creation to finish
 frontend.json(
     "changesets",
@@ -70,7 +74,8 @@ frontend.json(
              "type": "custom",
              "to_commit": int,
              "id": int,
-             "from_commit": int})
+             "from_commit": int,
+             "review_state": None })
 
 # Changeset from id
 frontend.json(
@@ -82,7 +87,8 @@ frontend.json(
              "type": "direct",
              "to_commit": int,
              "id": single_changeset["id"],
-             "from_commit": int })
+             "from_commit": int,
+             "review_state": None })
 
 # Changeset from partial SHA1
 frontend.json(
@@ -95,7 +101,8 @@ frontend.json(
              "type": "direct",
              "to_commit": int,
              "id": int,
-             "from_commit": int })
+             "from_commit": int,
+             "review_state": None })
 
 # Missing changeset id and commit refs
 frontend.json(
