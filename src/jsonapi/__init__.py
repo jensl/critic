@@ -53,6 +53,20 @@ class InternalRedirect(Exception):
 
 SPECIAL_QUERY_PARAMETERS = frozenset(["fields", "include", "debug"])
 
+def _process_fields(value):
+    fields = set()
+    for field in value.split(","):
+        fields.add(field)
+        # For fields on the form 'a.b.c', add the prefixes 'a' and 'a.b' as
+        # well, so that one can request inclusion of fields in sub-objects
+        # without having to explicitly request the sub-object be included.
+        while True:
+            field, _, _ = field.rpartition(".")
+            if not field:
+                break
+            fields.add(field)
+    return fields
+
 class Parameters(object):
     def __init__(self, critic, req):
         self.critic = critic
@@ -60,7 +74,7 @@ class Parameters(object):
         self.debug = req.getParameter(
             "debug", set(), filter=lambda value: set(value.split(",")))
         self.fields = req.getParameter(
-            "fields", set(), filter=lambda value: set(value.split(",")))
+            "fields", set(), filter=_process_fields)
         self.fields_per_type = {}
         self.__query_parameters = {
             name: value
@@ -75,7 +89,7 @@ class Parameters(object):
         if resource_type not in self.fields_per_type:
             self.fields_per_type[resource_type] = self.req.getParameter(
                 "fields[%s]" % resource_type, self.fields,
-                filter=lambda value: set(value.split(",")))
+                filter=_process_fields)
         return self.fields_per_type[resource_type]
 
     def hasField(self, resource_type, key):
@@ -85,9 +99,16 @@ class Parameters(object):
     def filtered(self, resource_type, resource_json):
         fields = self.__prepareType(resource_type)
         if fields:
-            return { key: value
-                     for key, value in resource_json.items()
-                     if key in fields }
+            def filter_json(prefix, key, json):
+                if isinstance(json, dict):
+                    if key:
+                        prefix += key + "."
+                    return { key: filter_json(prefix, key, value)
+                             for key, value in json.items()
+                             if prefix + key in fields }
+                else:
+                    return json
+            return filter_json("", "", resource_json)
         return resource_json
 
     @contextlib.contextmanager
