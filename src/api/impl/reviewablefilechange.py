@@ -133,15 +133,13 @@ class ReviewableFileChange(apiobject.APIObject):
                                     "reviewuserfiles")):
             return
 
-        cursor = critic.getDatabaseCursor()
-        cursor.execute("""SELECT id, review, changeset, file, deleted, inserted,
-                                 reviewer
-                            FROM reviewfiles
-                           WHERE id=ANY (%s)""",
-                       (cached_filechanges.keys(),))
-
-        for row in cursor:
-            cached_filechanges[row[0]]._set_impl(ReviewableFileChange(*row))
+        ReviewableFileChange.updateAll(
+            critic,
+            """SELECT id, review, changeset, file, deleted, inserted,
+                      reviewer
+                 FROM reviewfiles
+                WHERE id=ANY (%s)""",
+            cached_filechanges)
 
 @ReviewableFileChange.cached(
     api.reviewablefilechange.InvalidReviewableFileChangeId)

@@ -34,6 +34,7 @@ import filechanges
 import files
 import comments
 import replies
+import reviewablefilechanges
 
 if configuration.auth.ENABLE_ACCESS_TOKENS:
     import accesstokens

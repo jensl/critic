@@ -19,6 +19,7 @@ import re
 import api
 import jsonapi
 
+
 @jsonapi.PrimaryResource
 class Changesets(object):
     """Changesets in the git repositories"""
@@ -55,17 +56,26 @@ class Changesets(object):
             else:
                 return None
 
-        review = jsonapi.deduce("v1/reviews", parameters)
-        if review:
+        def review_state(review):
+            if not review:
+                return None
+
             comments = api.comment.fetchAll(
                 parameters.critic, review=review, changeset=value)
 
-            review_state = {
+            try:
+                reviewablefilechanges = api.reviewablefilechange.fetchAll(
+                    parameters.critic, review=review, changeset=value)
+            except api.reviewablefilechange.InvalidChangeset:
+                reviewablefilechanges = None
+
+            return {
                 "review": review,
                 "commments": comments,
+                "reviewablefilechanges": reviewablefilechanges,
             }
-        else:
-            review_state = None
+
+        review = jsonapi.deduce("v1/reviews", parameters)
 
         contributing_commits = value.contributing_commits
         if contributing_commits:
@@ -78,7 +88,7 @@ class Changesets(object):
                             "to_commit": value.to_commit,
                             "files": files_as_json(value.files),
                             "contributing_commits": contributing_commits,
-                            "review_state": review_state })
+                            "review_state": review_state(review) })
 
     @staticmethod
     def single(parameters, argument):
