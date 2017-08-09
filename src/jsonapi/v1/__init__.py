@@ -20,6 +20,8 @@ import datetime
 EPOCH = datetime.datetime.utcfromtimestamp(0)
 
 def timestamp(timestamp):
+    if timestamp is None:
+        return None
     return (timestamp - EPOCH).total_seconds()
 
 import users
@@ -34,6 +36,7 @@ import filechanges
 import files
 import comments
 import replies
+import batches
 import reviewablefilechanges
 
 if configuration.auth.ENABLE_ACCESS_TOKENS:

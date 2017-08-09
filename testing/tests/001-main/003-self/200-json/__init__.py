@@ -46,6 +46,33 @@ def reply_json(author):
              "timestamp": float,
              "text": "This is a reply from %s." % author.capitalize() }
 
+def batch_json(review_id, author, batch_type, **fields):
+    expected = {
+        "id": int,
+        "is_empty": not fields,
+        "review": review_id,
+        "author": instance.userid(author),
+        "comment": None,
+        "timestamp": float,
+        "created_comments": [],
+        "written_replies": [],
+        "resolved_issues": [],
+        "reopened_issues": [],
+        "morphed_comments": [],
+        "reviewed_changes": [],
+        "unreviewed_changes": [],
+    }
+
+    if batch_type == "draft":
+        expected.update({
+            "id": None,
+            "timestamp": None,
+        })
+
+    expected.update(fields)
+
+    return expected
+
 def fetch_changeset(params, repository="critic"):
     params.setdefault("repository", repository)
 
