@@ -51,9 +51,8 @@ class Reply(apiobject.APIObject):
                 WHERE id=ANY (%s)""",
             cached_replies)
 
-@Reply.cached()
+@Reply.cached(api.reply.InvalidReplyId)
 def fetch(critic, reply_id):
-    draft_user_id = critic.actual_user.id if critic.actual_user else None
     cursor = critic.getDatabaseCursor()
     cursor.execute("""SELECT comments.id, comments.state, chain, comments.batch,
                              comments.uid, comments.time, comment
@@ -63,14 +62,24 @@ def fetch(critic, reply_id):
                          AND (comments.state='current' OR comments.uid=%s)
                          AND comments.state!='deleted'
                          AND commentchains.first_comment!=comments.id""",
-                   (reply_id, draft_user_id))
-    try:
-        return next(Reply.make(critic, cursor))
-    except StopIteration:
-        raise api.reply.InvalidReplyId(reply_id)
+                   (reply_id, critic.effective_user.id))
+    return Reply.make(critic, cursor)
+
+@Reply.cachedMany(api.reply.InvalidReplyIds)
+def fetchMany(critic, reply_ids):
+    cursor = critic.getDatabaseCursor()
+    cursor.execute("""SELECT comments.id, comments.state, chain, comments.batch,
+                             comments.uid, comments.time, comment
+                        FROM comments
+                        JOIN commentchains ON (commentchains.id=comments.chain)
+                       WHERE comments.id=ANY (%s)
+                         AND (comments.state='current' OR comments.uid=%s)
+                         AND comments.state!='deleted'
+                         AND commentchains.first_comment!=comments.id""",
+                   (reply_ids, critic.effective_user.id))
+    return Reply.make(critic, cursor)
 
 def fetchForComment(critic, chain_id):
-    draft_user_id = critic.actual_user.id if critic.actual_user else None
     cursor = critic.getDatabaseCursor()
     cursor.execute("""SELECT comments.id, comments.state, chain, comments.batch,
                              comments.uid, comments.time, comment
@@ -81,5 +90,5 @@ def fetchForComment(critic, chain_id):
                          AND commentchains.id=%s
                          AND commentchains.first_comment!=comments.id
                     ORDER BY comments.batch ASC""",
-                   (draft_user_id, chain_id))
+                   (critic.effective_user.id, chain_id))
     return list(Reply.make(critic, cursor))

@@ -26,6 +26,16 @@ class InvalidCommentId(CommentError):
         """Constructor"""
         super(InvalidCommentId, self).__init__(
             "Invalid comment id: %d" % comment_id)
+        self.comment_id = comment_id
+
+class InvalidCommentIds(CommentError):
+    """Raised by fetchMany() when invalid comment ids are used."""
+
+    def __init__(self, comment_ids):
+        """Constructor"""
+        super(InvalidCommentIds, self).__init__(
+            "Invalid comment ids: %s" % ", ".join(map(str, comment_ids)))
+        self.comment_ids = comment_ids
 
 class InvalidLocation(CommentError):
     """Raised when attempting to specify an invalid comment location"""
@@ -286,6 +296,14 @@ def fetch(critic, comment_id):
     assert isinstance(critic, api.critic.Critic)
     assert isinstance(comment_id, int)
     return api.impl.comment.fetch(critic, comment_id)
+
+def fetchMany(critic, comment_ids):
+    """Fetch multiple Comment objects with the given ids"""
+    import api.impl
+    assert isinstance(critic, api.critic.Critic)
+    comment_ids = list(comment_ids)
+    assert all(isinstance(comment_id, int) for comment_id in comment_ids)
+    return api.impl.comment.fetchMany(critic, comment_ids)
 
 def fetchAll(critic, review=None, author=None, comment_type=None, state=None,
              location_type=None, changeset=None, commit=None):

@@ -130,7 +130,7 @@ class Comment(apiobject.APIObject):
                 WHERE commentchains.id=ANY (%s)""",
             cached_comments)
 
-@Comment.cached()
+@Comment.cached(api.comment.InvalidCommentId)
 def fetch(critic, comment_id):
     cursor = critic.getDatabaseCursor()
     cursor.execute("""SELECT commentchains.id, review, commentchains.batch,
@@ -142,10 +142,21 @@ def fetch(critic, comment_id):
                        WHERE commentchains.id=%s
                          AND commentchains.state!='empty'""",
                    (comment_id,))
-    try:
-        return next(Comment.make(critic, cursor))
-    except StopIteration:
-        raise api.comment.InvalidCommentId(comment_id)
+    return Comment.make(critic, cursor)
+
+@Comment.cachedMany(api.comment.InvalidCommentIds)
+def fetchMany(critic, comment_ids):
+    cursor = critic.getDatabaseCursor()
+    cursor.execute("""SELECT commentchains.id, review, commentchains.batch,
+                             commentchains.uid, type, commentchains.state,
+                             origin, commentchains.time, comments.comment, file,
+                             first_commit, last_commit, addressed_by, closed_by
+                        FROM commentchains
+                        JOIN comments ON (comments.id=first_comment)
+                       WHERE commentchains.id=ANY (%s)
+                         AND commentchains.state!='empty'""",
+                   (comment_ids,))
+    return Comment.make(critic, cursor)
 
 def fetchAll(critic, review, author, comment_type, state, location_type,
              changeset, commit):
@@ -193,9 +204,12 @@ def fetchAll(critic, review, author, comment_type, state, location_type,
                            commentchains.first_commit,
                            commentchains.last_commit,
                            commentchains.addressed_by, commentchains.closed_by
-             FROM commentchains {}
+             FROM commentchains
+  LEFT OUTER JOIN batches ON (batches.comment=commentchains.id)
+                  {}
             WHERE (commentchains.state!='draft' OR commentchains.uid=%s)
               AND commentchains.state!='empty'
+              AND batches.id IS NULL
               AND {}
          ORDER BY commentchains.id""".format(
              " ".join(joins),

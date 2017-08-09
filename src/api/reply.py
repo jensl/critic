@@ -26,6 +26,16 @@ class InvalidReplyId(ReplyError):
         """Constructor"""
         super(InvalidReplyId, self).__init__(
             "Invalid reply id: %d" % reply_id)
+        self.reply_id = reply_id
+
+class InvalidReplyIds(ReplyError):
+    """Raised by fetchMany() when invalid reply ids are used."""
+
+    def __init__(self, reply_ids):
+        """Constructor"""
+        super(InvalidReplyIds, self).__init__(
+            "Invalid reply ids: %s" % ", ".join(map(str, reply_ids)))
+        self.reply_ids = reply_ids
 
 class Reply(api.APIObject):
     @property
@@ -72,3 +82,11 @@ def fetch(critic, reply_id):
     assert isinstance(critic, api.critic.Critic)
     assert isinstance(reply_id, int)
     return api.impl.reply.fetch(critic, reply_id)
+
+def fetchMany(critic, reply_ids):
+    """Fetch multiple Reply objects with the given ids"""
+    import api.impl
+    assert isinstance(critic, api.critic.Critic)
+    reply_ids = list(reply_ids)
+    assert all(isinstance(reply_id, int) for reply_id in reply_ids)
+    return api.impl.reply.fetchMany(critic, reply_ids)

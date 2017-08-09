@@ -57,6 +57,21 @@ def basic(arguments):
     for comment in comments:
         check_replies(comment)
 
+    reply_ids = [
+        reply.id
+        for reply in reversed(comments[0].replies[:3])
+    ]
+
+    some_replies = api.reply.fetchMany(critic, reply_ids)
+
+    assert len(some_replies) == 3
+    assert some_replies[0].id == reply_ids[0]
+    assert some_replies[0] is api.reply.fetch(critic, reply_ids[0])
+    assert some_replies[1].id == reply_ids[1]
+    assert some_replies[1] is api.reply.fetch(critic, reply_ids[1])
+    assert some_replies[2].id == reply_ids[2]
+    assert some_replies[2] is api.reply.fetch(critic, reply_ids[2])
+
     print "basic: ok"
 
 def main(argv):

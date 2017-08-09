@@ -106,6 +106,16 @@ def basic(arguments):
     for comment in comments:
         check_comment(comment)
 
+    some_comments = api.comment.fetchMany(critic, [3, 2, 1])
+
+    assert len(some_comments) == 3
+    assert some_comments[0].id == 3
+    assert some_comments[0] is api.comment.fetch(critic, 3)
+    assert some_comments[1].id == 2
+    assert some_comments[1] is api.comment.fetch(critic, 2)
+    assert some_comments[2].id == 1
+    assert some_comments[2] is api.comment.fetch(critic, 1)
+
     print "basic: ok"
 
 def main(argv):
