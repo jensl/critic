@@ -167,6 +167,17 @@ class Review(apiobject.APIObject):
                 wrapper.critic, review=wrapper, comment_type="note")
         return self.__notes
 
+    def isReviewableCommit(self, critic, commit):
+        cursor = critic.getDatabaseCursor()
+        cursor.execute(
+            """SELECT 1
+                 FROM reviewchangesets
+                 JOIN changesets ON (changesets.id=reviewchangesets.changeset)
+                WHERE reviewchangesets.review=%s
+                  AND changesets.child=%s""",
+            (self.id, commit.id))
+        return bool(cursor.fetchone())
+
     @classmethod
     def create(Review, critic, *args):
         review = Review(*args).wrap(critic)

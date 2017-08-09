@@ -157,6 +157,15 @@ class Review(api.APIObject):
         return api.log.partition.create(
             self.critic, self.commits, self.rebases)
 
+    def isReviewableCommit(self, commit):
+        """Return true if the commit is a primary commit in this review
+
+           A primary commit is one that is included in one of the log
+           partitions, and not just part of the "actual log" after a rebase of
+           the review branch."""
+        assert isinstance(commit, api.commit.Commit)
+        return self._impl.isReviewableCommit(self.critic, commit)
+
 def fetch(critic, review_id=None, branch=None):
     """Fetch a Review object with the given id or branch"""
     import api.impl

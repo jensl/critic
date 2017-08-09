@@ -34,3 +34,4 @@ import extension
 import file
 import comment
 import reply
+import reviewablefilechange

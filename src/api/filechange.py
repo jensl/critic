@@ -65,7 +65,7 @@ class Chunk(api.APIObject):
     @property
     def deleteoffset(self):
         return self._impl.deleteoffset
-    
+
     @property
     def deletecount(self):
         return self._impl.deletecount
@@ -73,15 +73,15 @@ class Chunk(api.APIObject):
     @property
     def insertoffset(self):
         return self._impl.insertoffset
-    
+
     @property
     def insertcount(self):
         return self._impl.insertcount
-    
+
     @property
     def analysis(self):
         return self._impl.analysis
-    
+
     @property
     def is_whitespace(self):
         return self._impl.is_whitespace

@@ -213,6 +213,84 @@ class ModifyReview(object):
                       AND id=%s""",
                 (self.review.id, rebase.id)))
 
+    def markChangeAsReviewed(self, filechange):
+        assert isinstance(filechange,
+                          api.reviewablefilechange.ReviewableFileChange)
+
+        critic = self.transaction.critic
+
+        if filechange.draft_changes:
+            current_state = filechange.draft_changes.new_is_reviewed
+        else:
+            current_state = filechange.is_reviewed
+        if current_state:
+            raise api.reviewablefilechange.ReviewableFileChangeError(
+                "Specified file change is already marked as reviewed")
+
+        if critic.actual_user not in filechange.assigned_reviewers:
+            raise api.reviewablefilechange.ReviewableFileChangeError(
+                "Specified file change is not assigned to current user")
+
+        self.transaction.tables.add("reviewfilechanges")
+
+        if filechange.draft_changes:
+            self.transaction.items.append(
+                api.transaction.Query(
+                    """DELETE
+                         FROM reviewfilechanges
+                        WHERE file=%s
+                          AND uid=%s
+                          AND to_state='pending'""",
+                    (filechange.id, critic.actual_user.id)))
+
+        if not filechange.is_reviewed:
+            self.transaction.items.append(
+                api.transaction.Query(
+                    """INSERT
+                         INTO reviewfilechanges (file, uid, from_state,
+                                                 to_state)
+                       VALUES (%s, %s, 'pending', 'reviewed')""",
+                    (filechange.id, critic.actual_user.id)))
+
+    def markChangeAsPending(self, filechange):
+        assert isinstance(filechange,
+                          api.reviewablefilechange.ReviewableFileChange)
+
+        critic = self.transaction.critic
+
+        if filechange.draft_changes:
+            current_state = filechange.draft_changes.new_is_reviewed
+        else:
+            current_state = filechange.is_reviewed
+        if not current_state:
+            raise api.reviewablefilechange.ReviewableFileChangeError(
+                "Specified file change is already marked as pending")
+
+        if critic.actual_user not in filechange.assigned_reviewers:
+            raise api.reviewablefilechange.ReviewableFileChangeError(
+                "Specified file change is not assigned to current user")
+
+        self.transaction.tables.add("reviewfilechanges")
+
+        if filechange.draft_changes:
+            self.transaction.items.append(
+                api.transaction.Query(
+                    """DELETE
+                         FROM reviewfilechanges
+                        WHERE file=%s
+                          AND uid=%s
+                          AND to_state='reviewed'""",
+                    (filechange.id, critic.actual_user.id)))
+
+        if filechange.is_reviewed:
+            self.transaction.items.append(
+                api.transaction.Query(
+                    """INSERT
+                         INTO reviewfilechanges (file, uid, from_state,
+                                                 to_state)
+                       VALUES (%s, %s, 'reviewed', 'pending')""",
+                    (filechange.id, critic.actual_user.id)))
+
 class CreatedComment(api.transaction.LazyAPIObject):
     def __init__(self, critic, review, callback=None):
         super(CreatedComment, self).__init__(
