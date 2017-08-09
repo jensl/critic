@@ -69,7 +69,7 @@ class Commit(apiobject.APIObject):
                 calendar.timegm(self.internal.committer.time)))
 
     def isAncestorOf(self, commit):
-        return self.internal.isAncestorOf(commit.internal)
+        return self.internal.isAncestorOf(commit._impl.internal)
 
     def getFileInformation(self, file):
         import stat
@@ -159,3 +159,12 @@ def fetch(repository, commit_id, sha1, ref):
     critic._impl.assign(api.commit.Commit, (int(repository), sha1), commit)
 
     return commit
+
+def fetchMany(repository, commit_ids, sha1s):
+    # FIXME: Make this more efficient.
+    if commit_ids:
+        return [api.commit.fetch(repository, commit_id)
+                for commit_id in commit_ids]
+    else:
+        return [api.commit.fetch(repository, sha1=sha1)
+                for sha1 in sha1s]

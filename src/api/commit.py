@@ -199,3 +199,22 @@ def fetch(repository, commit_id=None, sha1=None, ref=None):
     assert isinstance(repository, api.repository.Repository)
     assert (ref is None) != ((commit_id is None) and (sha1 is None))
     return api.impl.commit.fetch(repository, commit_id, sha1, ref)
+
+def fetchMany(repository, commit_ids=None, sha1s=None):
+    """Fetch multiple Git commits from the given repository
+
+       The commits can be identified by their unique (internal) database ids, or
+       by their SHA-1s (full 40 character strings.)"""
+    import re
+    import api.impl
+    assert isinstance(repository, api.repository.Repository)
+    assert (commit_ids is None) != (sha1s is None)
+    if commit_ids:
+        commit_ids = list(commit_ids)
+        assert all(isinstance(commit_id, int) for commit_id in commit_ids)
+    else:
+        re_sha1 = re.compile("^[0-9A-Fa-f]{40}$")
+        sha1s = list(sha1s)
+        assert all(isinstance(sha1, str) and re_sha1.match(sha1)
+                   for sha1 in sha1s)
+    return api.impl.commit.fetchMany(repository, commit_ids, sha1s)

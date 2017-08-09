@@ -46,6 +46,14 @@ class Changeset(apiobject.APIObject):
         return api.commit.fetch(
             self.repository, commit_id=self.__to_commit_id)
 
+    def getContributingCommits(self, critic):
+        if self.__from_commit_id is None:
+            return None
+        try:
+            return api.commitset.calculateFromRange(
+                critic, self.getFromCommit(), self.getToCommit())
+        except api.commitset.InvalidCommitRange:
+            return None
 
 def fetch(critic,
           repository,

@@ -67,12 +67,17 @@ class Changesets(object):
         else:
             review_state = None
 
+        contributing_commits = value.contributing_commits
+        if contributing_commits:
+            contributing_commits = list(contributing_commits.topo_ordered)
+
         return parameters.filtered(
             "changesets", { "id": value.id,
                             "type": value.type,
                             "from_commit": value.from_commit,
                             "to_commit": value.to_commit,
                             "files": files_as_json(value.files),
+                            "contributing_commits": contributing_commits,
                             "review_state": review_state })
 
     @staticmethod

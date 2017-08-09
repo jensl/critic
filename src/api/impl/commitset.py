@@ -177,3 +177,22 @@ def create(critic, commits):
         impl = CommitSet(commits)
 
     return api.commitset.CommitSet(critic, impl)
+
+def calculateFromRange(critic, from_commit, to_commit):
+    repository = to_commit.repository
+
+    if from_commit in to_commit.parents:
+        return create(critic, [to_commit])
+
+    if not from_commit.isAncestorOf(to_commit):
+        raise api.commitset.InvalidCommitRange(
+            "Start-of-range commit is not an ancestor of end-of-range commit")
+
+    commitset = create(critic, repository.listCommits(include=to_commit,
+                                                      exclude=from_commit))
+
+    if len(commitset.tails) > 1:
+        raise api.commitset.InvalidCommitRange(
+            "Start-of-range commit is not an ancestor of all included commits")
+
+    return commitset

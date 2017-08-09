@@ -78,8 +78,7 @@ class Repository(apiobject.APIObject):
         if paths:
             args.append("--")
             args.extend(paths)
-        return [api.commit.fetch(repository, sha1=sha1)
-                for sha1 in self.run(*args).split()]
+        return api.commit.fetchMany(repository, sha1s=self.run(*args).split())
 
     @classmethod
     def create(Repository, critic, repository_id, name, path):

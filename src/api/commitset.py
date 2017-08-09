@@ -16,6 +16,14 @@
 
 import api
 
+class InvalidCommitRange(Exception):
+    """Raised by calculateFromRange() when the range is not simple
+
+       Simple in this context means that the commit that defines the start of
+       the range is an ancestor of the commit that defines the end of the range,
+       and all commits in-between."""
+    pass
+
 class CommitSet(api.APIObject):
     """Representation of a set of Commit objects"""
 
@@ -174,3 +182,12 @@ def create(critic, commits):
         commits = list(commits)
         assert all(isinstance(commit, api.commit.Commit) for commit in commits)
     return api.impl.commitset.create(critic, commits)
+
+def calculateFromRange(critic, from_commit, to_commit):
+    """Calculate a set of commits from a commit range"""
+    import api.impl
+    assert isinstance(critic, api.critic.Critic)
+    assert isinstance(from_commit, api.commit.Commit)
+    assert isinstance(to_commit, api.commit.Commit)
+    assert from_commit.repository == to_commit.repository
+    return api.impl.commitset.calculateFromRange(critic, from_commit, to_commit)

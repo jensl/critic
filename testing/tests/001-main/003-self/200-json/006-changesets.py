@@ -15,6 +15,7 @@ frontend.json(
              "to_commit": None,
              "id": None,
              "from_commit": None,
+             "contributing_commits": None,
              "review_state": None })
 instance.synchronize_service("changeset") # wait for changeset creation to finish
 single_changeset = frontend.json(
@@ -28,6 +29,7 @@ single_changeset = frontend.json(
              "to_commit": int,
              "id": int,
              "from_commit": int,
+             "contributing_commits": [int],
              "review_state": None })
 equiv_changeset = frontend.json(
     "changesets",
@@ -41,6 +43,7 @@ equiv_changeset = frontend.json(
              "to_commit": int,
              "id": int,
              "from_commit": int,
+             "contributing_commits": [int],
              "review_state": None })
 assert (single_changeset == equiv_changeset),\
     "single changeset should equal equivalent changeset"
@@ -56,6 +59,7 @@ frontend.json(
              "to_commit": None,
              "id": None,
              "from_commit": None,
+             "contributing_commits": None,
              "review_state": None })
 instance.synchronize_service("changeset") # wait for changeset creation to finish
 frontend.json(
@@ -75,6 +79,7 @@ frontend.json(
              "to_commit": int,
              "id": int,
              "from_commit": int,
+             "contributing_commits": [int, int, int],
              "review_state": None })
 
 # Changeset from id
@@ -88,6 +93,7 @@ frontend.json(
              "to_commit": int,
              "id": single_changeset["id"],
              "from_commit": int,
+             "contributing_commits": [int],
              "review_state": None })
 
 # Changeset from partial SHA1
@@ -102,6 +108,7 @@ frontend.json(
              "to_commit": int,
              "id": int,
              "from_commit": int,
+             "contributing_commits": [int],
              "review_state": None })
 
 # Missing changeset id and commit refs
