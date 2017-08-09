@@ -39,6 +39,7 @@ import extension
 import file
 import comment
 import reply
+import batch
 import reviewablefilechange
 
 import transaction

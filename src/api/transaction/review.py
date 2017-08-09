@@ -26,7 +26,8 @@ class ModifyReview(object):
         self.transaction = transaction
         self.review = review
 
-    def createComment(self, comment_type, author, text, location, callback):
+    def createComment(self, comment_type, author, text, location=None,
+                      callback=None):
         assert comment_type in api.comment.Comment.TYPE_VALUES
         assert isinstance(author, api.user.User)
         assert isinstance(text, str)
@@ -213,6 +214,199 @@ class ModifyReview(object):
                       AND id=%s""",
                 (self.review.id, rebase.id)))
 
+    def submitChanges(self, comment, callback):
+        critic = self.transaction.critic
+
+        unpublished_changes = api.batch.fetchUnpublished(critic, self.review)
+
+        if unpublished_changes.is_empty:
+            raise api.batch.BatchError("No unpublished changes to submit")
+
+        batch = CreatedBatch(critic, self.review)
+
+        self.transaction.tables.add("batches")
+        self.transaction.items.append(
+            api.transaction.Query(
+                """INSERT
+                     INTO batches (review, uid, comment)
+                   VALUES (%s, %s, %s)
+                RETURNING id""",
+                (self.review.id, critic.actual_user.id,
+                 comment.id if comment else None),
+                collector=batch))
+
+        def ids(api_objects):
+            return [api_object.id for api_object in api_objects]
+
+        self.transaction.tables.add("commentchains")
+        self.transaction.items.append(
+            api.transaction.Query(
+                """UPDATE commentchains
+                      SET state='open',
+                          batch=%s
+                    WHERE id=ANY (%s)""",
+                (batch.id, (ids(unpublished_changes.created_comments) +
+                            ([comment.id] if comment else [])))))
+
+        self.transaction.tables.add("comments")
+        self.transaction.items.append(
+            api.transaction.Query(
+                """UPDATE comments
+                      SET state='current',
+                          batch=%s
+                    WHERE id IN (SELECT first_comment
+                                   FROM commentchains
+                                  WHERE id=ANY (%s))""",
+                (batch.id, (ids(unpublished_changes.created_comments) +
+                            ([comment.id] if comment else [])))))
+        self.transaction.items.append(
+            api.transaction.Query(
+                """UPDATE comments
+                      SET state='current',
+                          batch=%s
+                    WHERE id=ANY (%s)""",
+                (batch.id, ids(unpublished_changes.written_replies))))
+
+        self.transaction.tables.add("commentchainlines")
+        self.transaction.items.append(
+            api.transaction.Query(
+                """UPDATE commentchainlines
+                      SET state='current'
+                    WHERE chain=ANY (%s)""",
+                (ids(unpublished_changes.created_comments),)))
+
+        # Lock all rows in |commentchains| that we may want to update.
+        self.transaction.items.append(
+            api.transaction.Query(
+                """SELECT 1
+                     FROM commentchains
+                    WHERE id=ANY (%s)
+                      FOR UPDATE""",
+                (ids(unpublished_changes.resolved_issues) +
+                 ids(unpublished_changes.reopened_issues) +
+                 ids(unpublished_changes.morphed_comments.keys()),)))
+
+        # Mark valid comment state changes as performed.
+        self.transaction.tables.add("commentchainchanges")
+        self.transaction.items.append(
+            api.transaction.Query(
+                """UPDATE commentchainchanges
+                      SET batch=%s,
+                          state='performed'
+                    WHERE uid=%s
+                      AND state='draft'
+                      AND chain IN (SELECT id
+                                      FROM commentchains
+                                     WHERE id=ANY (%s)
+                                       AND type='issue'
+                                       AND state=%s)""",
+                (batch.id, critic.actual_user.id,
+                 ids(unpublished_changes.resolved_issues), "open"),
+                (batch.id, critic.actual_user.id,
+                 ids(unpublished_changes.reopened_issues), "closed"))) # FIXME: handle |state='addressed'|
+
+        # Mark valid comment type changes as performed.
+        morphed_to_issue = []
+        morphed_to_note = []
+        for comment, new_type in unpublished_changes.morphed_comments.items():
+            if new_type == "issue":
+                morphed_to_issue.append(comment)
+            else:
+                morphed_to_note.append(comment)
+        self.transaction.items.append(
+            api.transaction.Query(
+                """UPDATE commentchainchanges
+                      SET batch=%s,
+                          state='performed'
+                    WHERE uid=%s
+                      AND state='draft'
+                      AND chain IN (SELECT id
+                                      FROM commentchains
+                                     WHERE id=ANY (%s)
+                                       AND type=%s)""",
+                (batch.id, critic.actual_user.id, ids(morphed_to_issue),
+                 "note"),
+                (batch.id, critic.actual_user.id, ids(morphed_to_note),
+                 "issue")))
+
+        # Actually perform state changes marked as valid above.
+        self.transaction.items.append(
+            api.transaction.Query(
+                """UPDATE commentchains
+                      SET state=%s,
+                          closed_by=%s
+                    WHERE id IN (SELECT chain
+                                   FROM commentchainchanges
+                                  WHERE batch=%s
+                                    AND state='performed'
+                                    AND to_state=%s)""",
+                ("closed", critic.actual_user.id, batch.id, "closed"),
+                ("open", None, batch.id, "open")))
+
+        # Actually perform type changes marked as valid above.
+        self.transaction.items.append(
+            api.transaction.Query(
+                """UPDATE commentchains
+                      SET type=%s
+                    WHERE id IN (SELECT chain
+                                   FROM commentchainchanges
+                                  WHERE batch=%s
+                                    AND state='performed'
+                                    AND to_type=%s)""",
+                ('issue', batch.id, 'issue'),
+                ('note', batch.id, 'note')))
+
+        # Lock all rows in |reviewfiles| that we may want to update.
+        self.transaction.tables.add("reviewfilechanges")
+        self.transaction.items.append(
+            api.transaction.Query(
+                """SELECT 1
+                     FROM reviewfiles
+                    WHERE id=ANY (%s)
+                      FOR UPDATE""",
+                (ids(unpublished_changes.reviewed_file_changes) +
+                 ids(unpublished_changes.unreviewed_file_changes),)))
+
+        # Mark valid draft changes as "performed".
+        self.transaction.items.append(
+            api.transaction.Query(
+                """UPDATE reviewfilechanges
+                      SET batch=%s,
+                          state='performed'
+                    WHERE uid=%s
+                      AND state='draft'
+                      AND file IN (SELECT id
+                                     FROM reviewfiles
+                                    WHERE id=ANY (%s)
+                                      AND state=%s)""",
+                (batch.id, critic.actual_user.id,
+                 ids(unpublished_changes.reviewed_file_changes),
+                 "pending"),
+                (batch.id, critic.actual_user.id,
+                 ids(unpublished_changes.unreviewed_file_changes),
+                 "reviewed")))
+
+        # Actually perform all the changes we previously marked as performed.
+        self.transaction.tables.add("reviewfiles")
+        self.transaction.items.append(
+            api.transaction.Query(
+                """UPDATE reviewfiles
+                      SET state=%s,
+                          reviewer=%s
+                    WHERE id IN (SELECT file
+                                   FROM reviewfilechanges
+                                  WHERE batch=%s
+                                    AND state='performed'
+                                    AND to_state=%s)""",
+                ('reviewed', critic.actual_user.id, batch.id, 'reviewed'),
+                ('pending', None, batch.id, 'pending')))
+
+        if callback:
+            self.transaction.callbacks.append(
+                lambda: callback(batch.fetch()))
+
+        return batch
+
     def markChangeAsReviewed(self, filechange):
         assert isinstance(filechange,
                           api.reviewablefilechange.ReviewableFileChange)
@@ -301,4 +495,9 @@ class CreatedRebase(api.transaction.LazyAPIObject):
     def __init__(self, critic, review, callback=None):
         super(CreatedRebase, self).__init__(
             critic, api.log.rebase.fetch, callback)
+        self.review = review
+
+class CreatedBatch(api.transaction.LazyAPIObject):
+    def __init__(self, critic, review):
+        super(CreatedBatch, self).__init__(critic, api.batch.fetch)
         self.review = review
