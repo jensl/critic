@@ -457,6 +457,34 @@ def stop(command, argv):
 
     return 0
 
+def interactive(command, argv):
+    try:
+        import IPython
+    except ImportError:
+        print >>sys.stderr, "ERROR: IPython must be installed (import failed)"
+        return 1
+
+    parser = argparse.ArgumentParser(
+        description="Critic administration interface: configtest",
+        prog="criticctl [options] configtest")
+
+    parser.add_argument("--user", "-u", help="Impersonate this user")
+
+    arguments = parser.parse_args(argv)
+
+    import api
+
+    critic = api.critic.startSession(for_user=bool(arguments.user),
+                                     for_system=not bool(arguments.user))
+    db = critic.database
+
+    if arguments.user:
+        db.setUser(dbutils.User.fromName(db, arguments.user))
+
+    IPython.embed()
+
+    return 0
+
 def main(parser, show_help, command, argv):
     returncode = 0
 
@@ -486,6 +514,8 @@ def main(parser, show_help, command, argv):
             return restart(command, argv)
         elif command == "stop":
             return stop(command, argv)
+        elif command == "interactive":
+            return interactive(command, argv)
         else:
             print >>sys.stderr, "ERROR: Invalid command: %s" % command
             returncode = 1
@@ -507,6 +537,8 @@ Available commands are:
   configtest Test system configuration.
   restart    Restart host WSGI container and Critic's background services.
   stop       Stop host WSGI container and Critic's background services.
+
+  interactive Drop into an interactive IPython shell.
 
 Use 'criticctl COMMAND --help' to see per command options."""
 
