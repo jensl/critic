@@ -24,7 +24,7 @@ class Rebases(object):
     name = "rebases"
     contexts = (None, "reviews")
     value_class = (api.log.rebase.MoveRebase, api.log.rebase.HistoryRewrite)
-    exceptions = api.log.rebase.InvalidRebaseId
+    exceptions = api.log.rebase.RebaseError
 
     @staticmethod
     def json(value, parameters):
@@ -84,6 +84,72 @@ class Rebases(object):
 
         review = jsonapi.deduce("v1/reviews", parameters)
         return api.log.rebase.fetchAll(parameters.critic, review=review)
+
+    @staticmethod
+    def create(parameters, value, values, data):
+        critic = parameters.critic
+        user = critic.actual_user
+
+        converted = jsonapi.convert(
+            parameters,
+            {
+                "new_upstream?": str,
+                "history_rewrite?": bool
+            },
+            data)
+
+        new_upstream = converted.get("new_upstream")
+        history_rewrite = converted.get("history_rewrite")
+
+        if (new_upstream is None) == (history_rewrite is None):
+            raise jsonapi.UsageError(
+                "Exactly one of the arguments new_upstream and history_rewrite "
+                "must be specified.")
+
+        if history_rewrite == False:
+            raise jsonapi.UsageError(
+                "history_rewrite must be true, or omitted.")
+
+        review = jsonapi.deduce("v1/reviews", parameters)
+
+        if review is None:
+            raise jsonapi.UsageError(
+                "review must be specified when preparing a rebase")
+
+        if history_rewrite is not None:
+            expected_type = api.log.rebase.HistoryRewrite
+        else:
+            expected_type = api.log.rebase.MoveRebase
+
+        result = []
+
+        def collectRebase(rebase):
+            assert isinstance(rebase, expected_type), repr(rebase)
+            result.append(rebase)
+
+        with api.transaction.Transaction(critic) as transaction:
+            transaction \
+                .modifyReview(review) \
+                .prepareRebase(
+                    user, new_upstream, history_rewrite,
+                    callback=collectRebase)
+
+        assert len(result) == 1, repr(result)
+        return result[0], None
+
+    @staticmethod
+    def delete(parameters, value, values):
+        critic = parameters.critic
+
+        if value is None:
+            raise jsonapi.UsageError(
+                "Only one rebase can currently be deleted per request")
+        rebase = value
+
+        with api.transaction.Transaction(critic) as transaction:
+            transaction \
+                .modifyReview(rebase.review) \
+                .cancelRebase(rebase)
 
     @staticmethod
     def setAsContext(parameters, rebase):

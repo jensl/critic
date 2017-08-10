@@ -148,6 +148,13 @@ class Review(apiobject.APIObject):
     def getRebases(self, wrapper):
         return api.log.rebase.fetchAll(wrapper.critic, wrapper)
 
+    def getPendingRebase(self, wrapper):
+        rebases = api.log.rebase.fetchAll(wrapper.critic, wrapper, pending=True)
+        if len(rebases) == 1:
+            return rebases[0]
+        else:
+            return None
+
     def getIssues(self, wrapper):
         if self.__issues is None:
             self.__issues = api.comment.fetchAll(

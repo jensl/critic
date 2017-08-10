@@ -263,6 +263,10 @@ class EnumerationChecker(StringChecker):
                     % (", ".join(values[:-1]), values[-1]))
         return super(EnumerationChecker, self).check(context, value)
 
+class BoolChecker(TypeChecker):
+    required_isinstance = bool
+    expected_type = "bool"
+
 class UserId(PositiveInteger):
     convert_exception = api.user.InvalidUserId
     def convert(self, context, value):
@@ -368,6 +372,7 @@ class AccessControlProfile(PositiveInteger):
 
 CHECKER_MAP = { int: IntegerChecker(),
                 str: StringChecker(),
+                bool: BoolChecker(),
                 api.user.User: User,
                 api.repository.Repository: Repository,
                 api.review.Review: Review,

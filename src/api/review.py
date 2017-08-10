@@ -131,6 +131,14 @@ class Review(api.APIObject):
         return self._impl.getRebases(self)
 
     @property
+    def pending_rebase(self):
+        """The pending rebase of the review branch
+
+           The rebase, if it exists, is returned as an api.log.rebase.Rebase
+           object. If there isn't a pending rebase, this will be None."""
+        return self._impl.getPendingRebase(self)
+
+    @property
     def issues(self):
         """The issues in the review
 

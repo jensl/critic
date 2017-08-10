@@ -41,6 +41,7 @@ class Reviews(object):
              "partitions": Partition[],
              "issues": integer[],
              "notes": integer[],
+             "pending_rebase": integer or null
            }
 
            Partition {
@@ -76,7 +77,8 @@ class Reviews(object):
                          "watchers": jsonapi.sorted_by_id(value.watchers),
                          "partitions": partitions,
                          "issues": jsonapi.sorted_by_id(value.issues),
-                         "notes": jsonapi.sorted_by_id(value.notes) })
+                         "notes": jsonapi.sorted_by_id(value.notes),
+                         "pending_rebase": value.pending_rebase })
 
     @staticmethod
     def single(parameters, argument):

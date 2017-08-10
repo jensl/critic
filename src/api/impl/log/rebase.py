@@ -33,8 +33,11 @@ class Rebase(apiobject.APIObject):
                                 commit_id=self.old_head_id)
 
     def getNewHead(self, critic):
-        return api.commit.fetch(self.getRepository(critic),
-                                commit_id=self.new_head_id)
+        if self.new_head_id is not None:
+            return api.commit.fetch(self.getRepository(critic),
+                                    commit_id=self.new_head_id)
+        else:
+            return None
 
     def getOldUpstream(self, critic):
         return api.commit.fetch(self.getRepository(critic),
@@ -69,24 +72,25 @@ def fetch(critic, rebase_id):
                   old_head, new_head, old_upstream, new_upstream,
                   equivalent_merge, replayed_rebase
              FROM reviewrebases
-            WHERE id=%s
-              AND new_head IS NOT NULL""",
+            WHERE id=%s""",
         (rebase_id,))
     try:
         return next(Rebase.make(critic, cursor))
     except StopIteration:
         raise api.log.rebase.InvalidRebaseId(rebase_id)
 
-def fetchAll(critic, review):
+def fetchAll(critic, review, pending):
     cursor = critic.getDatabaseCursor()
+    new_head = "new_head IS NULL" if pending else "new_head IS NOT NULL"
     if review is not None:
+        print(review)
         cursor.execute(
             """SELECT id, review, uid,
                       old_head, new_head, old_upstream, new_upstream,
                       equivalent_merge, replayed_rebase
                  FROM reviewrebases
                 WHERE review=%s
-                  AND new_head IS NOT NULL
+                  AND """ + new_head + """
              ORDER BY id DESC""",
             (review.id,))
     else:
@@ -95,6 +99,6 @@ def fetchAll(critic, review):
                       old_head, new_head, old_upstream, new_upstream,
                       equivalent_merge, replayed_rebase
                  FROM reviewrebases
-                WHERE new_head IS NOT NULL
+                WHERE """ + new_head + """
              ORDER BY id DESC""")
     return list(Rebase.make(critic, cursor))

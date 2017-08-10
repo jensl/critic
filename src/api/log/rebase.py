@@ -72,12 +72,14 @@ def fetch(critic, rebase_id):
     assert isinstance(critic, api.critic.Critic)
     return api.impl.log.rebase.fetch(critic, rebase_id)
 
-def fetchAll(critic, review=None):
+def fetchAll(critic, review=None, pending=False):
     """Fetch Rebase objects for all rebases
 
        If a review is provided, restrict the return value to rebases of the
-       specified review."""
+       specified review. If pending is True, fetch only pending rebases,
+       otherwise fetch only performed (completed) rebases."""
     import api.impl
     assert isinstance(critic, api.critic.Critic)
     assert review is None or isinstance(review, api.review.Review)
-    return api.impl.log.rebase.fetchAll(critic, review)
+    assert isinstance(pending, bool)
+    return api.impl.log.rebase.fetchAll(critic, review, pending)

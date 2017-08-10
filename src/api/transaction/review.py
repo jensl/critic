@@ -130,8 +130,97 @@ class ModifyReview(object):
 
         return ModifyComment(self.transaction, comment)
 
+    def prepareRebase(self, user, new_upstream=None, history_rewrite=None, branch=None, callback=None):
+        assert isinstance(user, api.user.User)
+        assert new_upstream is None or isinstance(new_upstream, str)
+        assert history_rewrite is None or isinstance(history_rewrite, bool)
+        assert (new_upstream is None) != (history_rewrite is None)
+        assert callback is None or callable(callback)
+
+        pending = self.review.pending_rebase
+        if pending is not None:
+            creator = pending.creator
+            raise api.log.rebase.RebaseError(
+                "The review is already being rebased by %s <%s>." %
+                (creator.fullname, creator.email if creator.email is not None
+                 else "email missing"))
+
+        commitset = self.review.branch.commits
+        tails = commitset.getFilteredTails(self.review.repository)
+        heads = commitset.heads
+
+        assert len(heads) == 1
+        head = next(iter(heads))
+
+        old_upstream_id = None
+        new_upstream_id = None
+
+        if new_upstream is not None:
+            if len(tails) > 1:
+                raise api.log.rebase.RebaseError(
+                    "Rebase of branch with multiple tails, to new upstream "
+                    "commit, is not supported.")
+
+            tail = next(iter(tails))
+            old_upstream_id = tail.id
+
+            if new_upstream == "0" * 40:
+                new_upstream_id = None
+            else:
+                if not gitutils.re_sha1.match(new_upstream):
+                    cursor = self.transaction.critic.getDatabaseCursor()
+                    cursor.execute("SELECT sha1 FROM tags WHERE repository=%s AND name=%s",
+                                   (self.review.repository.id, new_upstream))
+                    row = cursor.fetchone()
+                    if row:
+                        new_upstream_arg = row[0]
+                    else:
+                        raise api.log.rebase.RebaseError(
+                            "Specified new_upstream is invalid.")
+                try:
+                    new_upstream_commit = api.commit.fetch(
+                        self.review.repository, ref=new_upstream)
+                except:
+                    raise api.log.rebase.RebaseError(
+                        "The specified new upstream commit does not exist "
+                        "in Critic's repository")
+                new_upstream_id = new_upstream_commit.id
+
+        rebase = CreatedRebase(self.transaction.critic, self.review)
+
+        self.transaction.tables.add("reviewrebases")
+        self.transaction.items.append(
+            api.transaction.Query(
+                """INSERT
+                     INTO reviewrebases (review, old_head, new_head, old_upstream, new_upstream, uid, branch)
+                   VALUES (%s, %s, NULL, %s, %s, %s, %s)
+                RETURNING id""",
+                (self.review.id, head.id, old_upstream_id, new_upstream_id, user.id, branch),
+                collector=rebase))
+
+        if callback:
+            self.transaction.callbacks.append(
+                lambda: callback(rebase.fetch()))
+
+    def cancelRebase(self, rebase):
+        self.transaction.tables.add("reviewrebases")
+        self.transaction.items.append(
+            api.transaction.Query(
+                """DELETE
+                     FROM reviewrebases
+                    WHERE review=%s
+                      AND new_head IS NULL
+                      AND id=%s""",
+                (self.review.id, rebase.id)))
+
 class CreatedComment(api.transaction.LazyAPIObject):
     def __init__(self, critic, review, callback=None):
         super(CreatedComment, self).__init__(
             critic, api.comment.fetch, callback)
+        self.review = review
+
+class CreatedRebase(api.transaction.LazyAPIObject):
+    def __init__(self, critic, review, callback=None):
+        super(CreatedRebase, self).__init__(
+            critic, api.log.rebase.fetch, callback)
         self.review = review

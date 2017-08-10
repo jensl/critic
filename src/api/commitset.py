@@ -77,6 +77,19 @@ class CommitSet(api.APIObject):
            a commit in the set but isn't itself in the set."""
         return self._impl.tails
 
+    @property
+    def filtered_tails(self):
+        """The filtered tail commits of the set
+
+           The return value is a frozenset of Commit objects.
+
+           The returned set will contain each tail commit that isn't an ancestor
+           of another tail commit of the set. If the tail commits of the set are
+           all different commits on an upstream branch, then this will only
+           return the latest one."""
+
+        return self._impl.getFilteredTails()
+
     def getChildrenOf(self, commit):
         """Return the commits in the set that are children of the commit
 

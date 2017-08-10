@@ -44,6 +44,34 @@ class CommitSet(apiobject.APIObject):
     def __eq__(self, other):
         return self.commits == other.commits
 
+    def getFilteredTails(self):
+        if not self.commits:
+            return frozenset()
+
+        legacy_repository = next(iter(self.commits)).repository._impl.getInternal()
+        candidates = set(self.tails)
+        result = set()
+
+        while candidates:
+            tail = candidates.pop()
+
+            eliminated = set()
+            for other in candidates:
+                base = legacy_repository.mergebase([tail, other])
+                if base == tail:
+                    # Tail is an ancestor of other: tail should not be included
+                    # in the returned set.
+                    break
+                elif base == other:
+                    # Other is an ancestor of tail: other should not be included
+                    # in the returned set.
+                    eliminated.add(other)
+            else:
+                result.add(tail)
+            candidates -= eliminated
+
+        return frozenset(result)
+
     def getDateOrdered(self):
         queue = sorted(self.commits,
                        key=lambda commit: commit.committer.timestamp,
