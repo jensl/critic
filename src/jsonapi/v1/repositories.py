@@ -100,7 +100,12 @@ class Repositories(object):
                     "Redundant query parameter: repository=%s"
                     % repository_parameter)
             repository = from_argument(parameters, repository_parameter)
-        return repository
+        if repository is not None:
+            return repository
+
+        review = jsonapi.deduce("v1/reviews", parameters)
+        if review is not None:
+            return review.repository
 
     @staticmethod
     def fromParameter(value, parameters):
