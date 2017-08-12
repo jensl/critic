@@ -106,7 +106,7 @@ This step cannot be undone! To abort the uninstall script, press CTRL-C now.
         print "%s: no such directory.  Invalid --etc-dir parameter." % arguments.etc_dir
         sys.exit(ExitStatus.INVALID_ETC_DIR)
 
-    run_command(arguments, ["service", "apache2", "stop"])
+    run_command(arguments, ["criticctl", "stop"])
 
     # Sets of system users/groups to delete will be collected (to avoid trying to delete the same user/group twice).
     users_to_delete = set()
@@ -116,7 +116,6 @@ This step cannot be undone! To abort the uninstall script, press CTRL-C now.
         users_to_delete.add(configuration.base.SYSTEM_USER_NAME)
         groups_to_delete.add(configuration.base.SYSTEM_GROUP_NAME)
 
-        run_command(arguments, ["service", "critic-%s" % configuration.base.SYSTEM_IDENTITY, "stop"])
         run_command(arguments, ["rm", "-rf", configuration.paths.DATA_DIR, configuration.paths.LOG_DIR])
         run_command(arguments, ["rm", "-rf", configuration.paths.CACHE_DIR, configuration.paths.RUN_DIR])
         run_command(arguments, ["rm", "-rf", configuration.paths.INSTALL_DIR, configuration.paths.GIT_DIR])
