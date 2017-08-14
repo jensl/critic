@@ -219,7 +219,7 @@ def parseDifferences(repository, commit=None, from_commit=None, to_commit=None, 
     selected_file = None
 
     re_chunk = re.compile('^@@ -(\\d+)(?:,\\d+)? \\+(\\d+)(?:,\\d+)? @@')
-    re_binary = re.compile('^Binary files (?:a/(.+)|/dev/null) and (?:b/(.+)|/dev/null) differ')
+    re_binary = re.compile('^Binary files (["\']?)(?:a/(.+)\\1|/dev/null) and (["\']?)(?:b/(.+)\\3|/dev/null) differ')
     re_diff = re.compile("^diff --git ([\"']?)a/(.*)\\1 ([\"']?)b/(.*)\\3$")
     re_old_path = re.compile("--- ([\"']?)a/(.*?)\\1\t?$")
     re_new_path = re.compile("\\+\\+\\+ ([\"']?)b/(.*?)\\1\t?$")
@@ -333,7 +333,7 @@ def parseDifferences(repository, commit=None, from_commit=None, to_commit=None, 
 
             binary = re_binary.match(line)
             if binary:
-                path = (binary.group(1) or binary.group(2)).strip()
+                path = (binary.group(2) or binary.group(4)).strip()
 
                 if path in files_by_path:
                     new_file = files_by_path[path]
