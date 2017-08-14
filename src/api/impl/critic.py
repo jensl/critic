@@ -19,6 +19,9 @@ import weakref
 import api
 import dbutils
 
+class NoKey(object):
+    pass
+
 class Critic(object):
     def __init__(self):
         self.database = None
@@ -35,8 +38,11 @@ class Critic(object):
             return self.actual_user
         return api.user.anonymous(critic)
 
-    def lookup(self, cls, key):
-        return self.__cache[cls][key]
+    def lookup(self, cls, key=NoKey):
+        objects = self.__cache[cls]
+        if key is NoKey:
+            return objects
+        return objects[key]
 
     def assign(self, cls, key, value):
         self.__cache.setdefault(cls, weakref.WeakValueDictionary())[key] = value

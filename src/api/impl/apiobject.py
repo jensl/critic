@@ -68,21 +68,31 @@ class APIObject(object):
         def wrap(fetchMany):
             def wrapper(critic, item_ids):
                 items = {}
-                uncached_ids = []
-                for item_id in item_ids:
-                    try:
-                        item = critic._impl.lookup(
-                            Implementation.wrapper_class, item_id)
-                    except KeyError:
-                        uncached_ids.append(item_id)
-                    else:
-                        items[item_id] = item
+                try:
+                    cache = critic._impl.lookup(Implementation.wrapper_class)
+                except KeyError:
+                    cache = {}
+                uncached_ids = set(item_ids) - set(cache.keys())
+                items = {item_id: cache[item_id]
+                         for item_id in item_ids
+                         if item_id in cache}
                 if uncached_ids:
-                    items.update((item.id, item)
-                                 for item in fetchMany(critic, uncached_ids))
+                    items.update(
+                        (item.id, item)
+                        for item in fetchMany(critic, list(uncached_ids)))
                 if len(items) < len(set(item_ids)):
                     invalid_ids = sorted(set(item_ids) - set(items.keys()))
                     raise InvalidIdsError(invalid_ids)
                 return [items[item_id] for item_id in item_ids]
             return wrapper
         return wrap
+
+    @classmethod
+    def allCached(Implementation, critic):
+        """Return all cached objects of this type
+
+           The cached objects are returned as a dictionary mapping the object id
+           to the object. This dictionary should not be modified."""
+        # Don't catch KeyError here. Something is probably wrong if this
+        # function is called when no objects of the type are cached.
+        return critic._impl.lookup(Implementation.wrapper_class)
