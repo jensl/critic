@@ -44,7 +44,7 @@ class APIObject(object):
             yield item
 
     @classmethod
-    def cached(Implementation):
+    def cached(Implementation, InvalidIdError=None):
         def wrap(fetch):
             def wrapper(critic, item_id, *args):
                 if item_id is not None:
@@ -53,6 +53,36 @@ class APIObject(object):
                                                    item_id)
                     except KeyError:
                         pass
-                return fetch(critic, item_id, *args)
+                result = fetch(critic, item_id, *args)
+                if InvalidIdError is None:
+                    return result
+                try:
+                    return next(result)
+                except StopIteration:
+                    raise InvalidIdError(item_id)
+            return wrapper
+        return wrap
+
+    @classmethod
+    def cachedMany(Implementation, InvalidIdsError):
+        def wrap(fetchMany):
+            def wrapper(critic, item_ids):
+                items = {}
+                uncached_ids = []
+                for item_id in item_ids:
+                    try:
+                        item = critic._impl.lookup(
+                            Implementation.wrapper_class, item_id)
+                    except KeyError:
+                        uncached_ids.append(item_id)
+                    else:
+                        items[item_id] = item
+                if uncached_ids:
+                    items.update((item.id, item)
+                                 for item in fetchMany(critic, uncached_ids))
+                if len(items) < len(set(item_ids)):
+                    invalid_ids = sorted(set(item_ids) - set(items.keys()))
+                    raise InvalidIdsError(invalid_ids)
+                return [items[item_id] for item_id in item_ids]
             return wrapper
         return wrap
