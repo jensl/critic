@@ -423,16 +423,28 @@ class Comments(object):
         converted = jsonapi.convert(
             parameters,
             {
-                "text": str
+                "text?": str,
+                "draft_changes?": {
+                    "new_state?": frozenset(["open", "resolved"]),
+                },
             },
             data)
 
         with api.transaction.Transaction(critic) as transaction:
             for comment in comments:
-                transaction \
+                modifier = transaction \
                     .modifyReview(comment.review) \
-                    .modifyComment(comment) \
-                    .setText(data["text"])
+                    .modifyComment(comment)
+
+                if "text" in converted:
+                    modifier.setText(converted["text"])
+
+                draft_changes = converted.get("draft_changes")
+                if draft_changes:
+                    if draft_changes.get("new_state") == "resolved":
+                        modifier.resolveIssue()
+                    elif draft_changes.get("new_state") == "open":
+                        modifier.reopenIssue()
 
         return value, values
 

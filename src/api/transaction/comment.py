@@ -83,6 +83,88 @@ class ModifyComment(object):
 
         return ModifyReply(self.transaction, reply)
 
+    def resolveIssue(self):
+        critic = self.transaction.critic
+
+        if isinstance(self.comment, api.comment.Note):
+            raise api.comment.CommentError(
+                "Only issues can be resolved")
+
+        if self.comment.is_draft:
+            raise api.comment.CommentError(
+                "Unpublished issues cannot be resolved")
+
+        self.transaction.tables.add("commentchainchanges")
+
+        if self.comment.draft_changes:
+            if ((self.comment.draft_changes.new_state
+                 and self.comment.draft_changes.new_state != "open")
+                or self.comment.draft_changes.new_type):
+                raise api.comment.CommentError(
+                    "Issue has unpublished conflicting modifications")
+
+            if self.comment.draft_changes.new_state == "open":
+                self.transaction.items.append(
+                    api.transaction.Query(
+                        """DELETE
+                             FROM commentchainchanges
+                            WHERE uid=%s
+                              AND chain=%s
+                              AND to_state='open'""",
+                        (critic.actual_user.id, self.comment.id)))
+                return
+
+        if self.comment.state != "open":
+            raise api.comment.CommentError(
+                "Only open issues can be resolved")
+
+        self.transaction.items.append(
+            api.transaction.Query(
+                """INSERT
+                     INTO commentchainchanges (uid, chain, from_state,
+                                               to_state)
+                   VALUES (%s, %s, %s, %s)""",
+                (critic.actual_user.id, self.comment.id, "open", "closed")))
+
+    def reopenIssue(self):
+        critic = self.transaction.critic
+
+        if isinstance(self.comment, api.comment.Note):
+            raise api.comment.CommentError(
+                "Only issues can be reopened")
+
+        self.transaction.tables.add("commentchainchanges")
+
+        if self.comment.draft_changes:
+            if ((self.comment.draft_changes.new_state
+                 and self.comment.draft_changes.new_state != "resolved")
+                or self.comment.draft_changes.new_type):
+                raise api.comment.CommentError(
+                    "Issue has unpublished conflicting modifications")
+
+            if self.comment.draft_changes.new_state == "resolved":
+                self.transaction.items.append(
+                    api.transaction.Query(
+                        """DELETE
+                             FROM commentchainchanges
+                            WHERE uid=%s
+                              AND chain=%s
+                              AND to_state='closed'""",
+                        (critic.actual_user.id, self.comment.id)))
+                return
+
+        if self.comment.state != "resolved":
+            raise api.comment.CommentError(
+                "Only resolved issues can be reopened")
+
+        self.transaction.items.append(
+            api.transaction.Query(
+                """INSERT
+                     INTO commentchainchanges (uid, chain, from_state,
+                                               to_state)
+                   VALUES (%s, %s, %s, %s)""",
+                (critic.actual_user.id, self.comment.id, "closed", "open")))
+
     def delete(self):
         critic = self.transaction.critic
 

@@ -125,9 +125,11 @@ class ModifyReview(object):
         from comment import ModifyComment
         assert comment.review == self.review
 
-        # Users are not (generally) allowed to modify other users' comments.
-        api.PermissionDenied.raiseUnlessUser(self.transaction.critic,
-                                             comment.author)
+        # Users are not (generally) allowed to modify other users' draft
+        # comments.
+        if comment.is_draft:
+            api.PermissionDenied.raiseUnlessUser(self.transaction.critic,
+                                                 comment.author)
 
         return ModifyComment(self.transaction, comment)
 
