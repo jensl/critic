@@ -521,80 +521,56 @@ with frontend.signin("alice"):
 #
 
 with repository.workcopy() as work:
-    def createCommit(message, lines):
-        with open(os.path.join(work.path, "006-comments.txt"), "w") as f:
-            f.write("\n".join(lines) + "\n")
-        work.run(["add", "006-comments.txt"])
-        work.run(["commit", "-m", message])
-        return work.run(["rev-parse", "HEAD"]).strip()
-
-    work.run(["checkout", "-b", "200-json/006-comments"])
-
-    sha1s = [
-        createCommit("reference commit",
-                     ["1st line",
-                      "2nd line",
-                      "3rd line",
-                      "4th line",
-                      "5th line",
-                      "6th line",
-                      "7th line",
-                      "8th line"]),
-        createCommit("first reviewed commit",
-                     ["1st line",
-                      "2nd line (edited)",
-                      "3rd line (edited)",
-                      "4th line",
-                      "5th line",
-                      "6th line",
-                      "7th line",
-                      "8th line"]),
-        createCommit("second reviewed commit",
-                     ["1st line",
-                      "2nd line (edited)",
-                      "3rd line (edited)",
-                      "4th line",
-                      "  1st added line",
-                      "  2nd added line",
-                      "  3rd added line",
-                      "5th line",
-                      "6th line (edited)",
-                      "7th line (edited)",
-                      "8th line"]),
-        createCommit("third reviewed commit",
-                     ["1st line",
-                      "2nd line (edited)",
-                      "3rd line (edited)",
-                      "4th line",
-                      "  1st added line",
-                      "  2nd added line",
-                      "  3rd added line",
-                      "5th line (edited)",
-                      "6th line (edited) (edited)",
-                      "7th line (edited)",
-                      "8th line"])
-    ]
-
-    work.run(["push", instance.repository_url("alice"), "HEAD"])
+    review = Review(work, "alice", "200-json/006-comments")
+    review.addFile(the_file="200-json/006-comments.txt")
+    review.commit("reference commit",
+                  reference=True,
+                  the_file=["1st line",
+                            "2nd line",
+                            "3rd line",
+                            "4th line",
+                            "5th line",
+                            "6th line",
+                            "7th line",
+                            "8th line"])
+    review.commit("first reviewed commit",
+                  the_file=["1st line",
+                            "2nd line (edited)",
+                            "3rd line (edited)",
+                            "4th line",
+                            "5th line",
+                            "6th line",
+                            "7th line",
+                            "8th line"])
+    review.commit("second reviewed commit",
+                     the_file=["1st line",
+                               "2nd line (edited)",
+                               "3rd line (edited)",
+                               "4th line",
+                               "  1st added line",
+                               "  2nd added line",
+                               "  3rd added line",
+                               "5th line",
+                               "6th line (edited)",
+                               "7th line (edited)",
+                               "8th line"]),
+    review.commit("third reviewed commit",
+                  the_file=["1st line",
+                            "2nd line (edited)",
+                            "3rd line (edited)",
+                            "4th line",
+                            "  1st added line",
+                            "  2nd added line",
+                            "  3rd added line",
+                            "5th line (edited)",
+                            "6th line (edited) (edited)",
+                            "7th line (edited)",
+                            "8th line"])
+    review.submit()
+    review_id = review.id
+    sha1s = review.sha1s
 
 with frontend.signin("alice"):
-    result = frontend.operation(
-        "submitreview",
-        data={
-            "repository": "critic",
-            "branch": "r/200-json/006-comments",
-            "summary": "200-json/006-comments",
-            "commit_sha1s": sha1s[1:],
-            "frombranch": "200-json/006-comments",
-        })
-
-    review_id = result["review_id"]
-
-    mailbox.pop(accept=[
-        testing.mailbox.ToRecipient("alice@example.org"),
-        testing.mailbox.WithSubject("New Review: 200-json/006-comments")
-    ])
-
     issue_1 = frontend.json(
         "reviews/%d/issues" % review_id,
         post={
@@ -603,7 +579,7 @@ with frontend.signin("alice"):
                 "type": "file-version",
                 "changeset": fetch_changeset({ "from": sha1s[0],
                                                "to": sha1s[1] })["id"],
-                "file": "006-comments.txt",
+                "file": "200-json/006-comments.txt",
                 "first_line": 1,
                 "last_line": 1,
                 "side": "new",
@@ -618,7 +594,7 @@ with frontend.signin("alice"):
                 "type": "file-version",
                 "changeset": fetch_changeset({ "from": sha1s[0],
                                                "to": sha1s[2] })["id"],
-                "file": "006-comments.txt",
+                "file": "200-json/006-comments.txt",
                 "first_line": 1,
                 "last_line": 3,
                 "side": "new",
@@ -633,7 +609,7 @@ with frontend.signin("alice"):
                 "type": "file-version",
                 "changeset": fetch_changeset({ "from": sha1s[1],
                                                "to": sha1s[3] })["id"],
-                "file": "006-comments.txt",
+                "file": "200-json/006-comments.txt",
                 "first_line": 11,
                 "last_line": 11,
                 "side": "new",
@@ -647,7 +623,7 @@ with frontend.signin("alice"):
             "location": {
                 "type": "file-version",
                 "commit": sha1s[2],
-                "file": "006-comments.txt",
+                "file": "200-json/006-comments.txt",
                 "first_line": 9,
                 "last_line": 10,
             },
