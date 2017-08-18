@@ -107,9 +107,16 @@ class Query(object):
 
     @property
     def values(self):
+        def evaluate(value):
+            if isinstance(value, LazyValue):
+                return value.evaluate()
+            elif isinstance(value, (set, list, tuple)):
+                return [evaluate(element) for element in value]
+            else:
+                return value
+
         for values in self.__values:
-            yield [value.evaluate() if isinstance(value, LazyValue) else value
-                   for value in values]
+            yield evaluate(values)
 
     def __call__(self, critic, cursor):
         if self.collector:
