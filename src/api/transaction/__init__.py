@@ -20,7 +20,7 @@ class Transaction(object):
     def __init__(self, critic):
         self.critic = critic
         self.tables = set()
-        self.items = []
+        self.items = Queries()
         self.callbacks = []
 
     def modifyUser(self, subject):
@@ -94,8 +94,16 @@ class Transaction(object):
 class Query(object):
     def __init__(self, statement, *values, **kwargs):
         self.statement = statement
-        self.__values = values
+        self.__values = list(values)
         self.collector = kwargs.get("collector")
+
+    def merge(self, query):
+        if self.statement == query.statement \
+                and not self.collector \
+                and not query.collector:
+            self.__values.extend(query.__values)
+            return True
+        return False
 
     @property
     def values(self):
@@ -111,6 +119,15 @@ class Query(object):
                     self.collector(*row)
         else:
             cursor.executemany(self.statement, self.values)
+
+class Queries(list):
+    def append(self, query):
+        if self and self[-1].merge(query):
+            return
+        super(Queries, self).append(query)
+
+    def extend(self, queries):
+        raise Exception("Append queries one at a time!")
 
 class LazyValue(object):
     def evaluate(self):
