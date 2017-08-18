@@ -145,8 +145,16 @@ class Cursor(object):
             self.cursor.execute("SELECT last_insert_rowid()")
 
     def executemany(self, query, parameters=()):
-        parameters = list(parameters)
-        query = self.massage(query, parameters)
+        if "=ANY (%s)" in query:
+            # We'll rewrite the query string depending on the parameters, so
+            # must use execute() for each set of parameters.
+            for values in parameters:
+                self.execute(query, values)
+            return
+
+        parameters = [list(values) for values in parameters]
+        query = self.massage(query, None)
+
         self.cursor.executemany(query, parameters)
 
     def fetchone(self):
