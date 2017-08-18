@@ -110,7 +110,8 @@ with frontend.signin("alice"):
             "addressed_by": None,
             "timestamp": float,
             "text": str,
-            "replies": [reply_id]
+            "replies": [],
+            "draft_changes": draft_changes_json("alice", reply=reply_id),
         })
 
 with frontend.signin("bob"):
@@ -138,7 +139,8 @@ with frontend.signin("bob"):
             "addressed_by": None,
             "timestamp": float,
             "text": str,
-            "replies": []
+            "replies": [],
+            "draft_changes": None,
         })
 
 with frontend.signin("alice"):

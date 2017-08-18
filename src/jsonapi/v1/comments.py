@@ -41,6 +41,7 @@ class Comments(object):
              "timestamp": float,
              "text": string,
              "replies": integer[],
+             "draft_changes": DraftChanges or null,
            }
 
            Location {
@@ -57,6 +58,15 @@ class Comments(object):
              "file": integer, // commented file
              "changeset": integer or null, // commented changeset
              "commit": integer, // commented commit
+           }
+
+           DraftChanges {
+             "author": integer, // author of these draft changes
+             "is_draft": boolean, // true if comment itself is unpublished
+             "reply": integer or null, // unpublished reply
+             "new_type": "issue" or "note", // unpublished comment type change
+             "new_state": "open", "addressed" or "resolved" (null for notes)
+             "new_location": FileVersionLocation or null,
            }"""
 
         if isinstance(value, api.comment.Issue):
@@ -68,8 +78,9 @@ class Comments(object):
             resolved_by = None
             addressed_by = None
 
-        if value.location:
-            location = value.location
+        def location_json(location):
+            if not location:
+                return None
 
             if location.type == "file-version":
                 changeset = jsonapi.deduce("v1/changesets", parameters)
@@ -89,41 +100,63 @@ class Comments(object):
                         raise jsonapi.ResourceSkipped(
                             "Comment not present in changeset/commit")
 
-            location_json = {
+            result = {
                 "type": location.type,
                 "first_line": location.first_line,
                 "last_line": location.last_line
             }
 
             if location.type == "commit-message":
-                location_json.update({
+                result.update({
                     "commit": location.commit
                 })
             else:
-                location_json.update({
+                result.update({
                     "file": location.file,
                     "changeset": location.changeset,
                     "side": location.side,
                     "commit": location.commit,
                     "is_translated": location.is_translated
                 })
+
+            return result
+
+        draft_changes = value.draft_changes
+        if draft_changes:
+            draft_changes_json = {
+                "author": draft_changes.author,
+                "is_draft": draft_changes.is_draft,
+                "reply": draft_changes.reply,
+                "new_type": draft_changes.new_type,
+                "new_state": None,
+                "new_location": None,
+            }
+
+            if isinstance(draft_changes, api.comment.Issue.DraftChanges):
+                draft_changes_json.update({
+                    "new_state": draft_changes.new_state,
+                    "new_location": location_json(draft_changes.new_location),
+                })
         else:
-            location_json = None
+            draft_changes_json = None
 
         timestamp = jsonapi.v1.timestamp(value.timestamp)
         return parameters.filtered(
-            "comments", { "id": value.id,
-                          "type": value.type,
-                          "is_draft": value.is_draft,
-                          "state": state,
-                          "review": value.review,
-                          "author": value.author,
-                          "location": location_json,
-                          "resolved_by": resolved_by,
-                          "addressed_by": addressed_by,
-                          "timestamp": timestamp,
-                          "text": value.text,
-                          "replies": value.replies })
+            "comments", {
+                "id": value.id,
+                "type": value.type,
+                "is_draft": value.is_draft,
+                "state": state,
+                "review": value.review,
+                "author": value.author,
+                "location": location_json(value.location),
+                "resolved_by": resolved_by,
+                "addressed_by": addressed_by,
+                "timestamp": timestamp,
+                "text": value.text,
+                "replies": value.replies,
+                "draft_changes": draft_changes_json,
+            })
 
     @staticmethod
     def single(parameters, argument):

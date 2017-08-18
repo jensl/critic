@@ -65,3 +65,17 @@ def fetch_changeset(params, repository="critic"):
             })
 
     return result
+
+def draft_changes_json(author, **kwargs):
+    result = {
+        "author": instance.userid(author),
+        "is_draft": False,
+        "reply": None,
+        "new_type": None,
+        "new_state": None,
+        "new_location": None,
+    }
+    result.update(kwargs)
+    return result
+
+# eof

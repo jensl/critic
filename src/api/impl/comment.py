@@ -31,12 +31,16 @@ class Comment(apiobject.APIObject):
         "closed": "resolved"
     }
 
+    @staticmethod
+    def __translateState(state):
+        return Comment.STATE_MAP.get(state, state)
+
     def __init__(self, chain_id, review_id, batch_id, author_id, comment_type,
                  state, side, timestamp, text, file_id, first_commit_id,
                  last_commit_id, addressed_by_id, resolved_by_id):
         self.id = chain_id
         self.is_draft = state == "draft"
-        self.state = Comment.STATE_MAP.get(state, state)
+        self.state = Comment.__translateState(state)
         self.__review_id = review_id
         self.__batch_id = batch_id
         self.__author_id = author_id
@@ -49,6 +53,7 @@ class Comment(apiobject.APIObject):
         self.__addressed_by_id = addressed_by_id
         self.__resolved_by_id = resolved_by_id
 
+        self.__type = comment_type
         if comment_type == "issue":
             self.wrapper_class = api.comment.Issue
         else:
@@ -73,8 +78,9 @@ class Comment(apiobject.APIObject):
             cursor.execute("""SELECT first_line, last_line
                                 FROM commentchainlines
                                WHERE chain=%s
-                                 AND sha1=%s""",
-                           (self.id, file_sha1))
+                                 AND sha1=%s
+                                 AND (state!='draft' OR uid=%s)""",
+                           (self.id, file_sha1, critic.effective_user.id))
             first_line, last_line = cursor.fetchone()
             location = FileVersionLocation(
                 self, first_line, last_line, repository, self.__file_id,
@@ -87,8 +93,9 @@ class Comment(apiobject.APIObject):
             cursor.execute("""SELECT first_line, last_line
                                 FROM commentchainlines
                                WHERE chain=%s
-                                 AND sha1=%s""",
-                           (self.id, commit.sha1))
+                                 AND sha1=%s
+                                 AND (state!='draft' OR uid=%s)""",
+                           (self.id, commit.sha1, critic.effective_user.id))
             first_line, last_line = cursor.fetchone()
             # FIXME: Make commit message comment line numbers one-based too!
             first_line += 1
@@ -113,6 +120,58 @@ class Comment(apiobject.APIObject):
         if self.state != "resolved":
             return None
         return api.user.fetch(critic, user_id=self.__resolved_by_id)
+
+    def getDraftChanges(self, critic):
+        if critic.effective_user.is_anonymous:
+            return None
+        if self.is_draft:
+            return api.comment.Comment.DraftChanges(
+                critic.effective_user, True, None, None)
+        cursor = critic.getDatabaseCursor()
+        cursor.execute("""SELECT id
+                            FROM comments
+                           WHERE uid=%s
+                             AND chain=%s
+                             AND state='draft'""",
+                       (critic.effective_user.id, self.id))
+        row = cursor.fetchone()
+        if row:
+            reply_id, = row
+            reply = api.reply.fetch(critic, reply_id)
+        else:
+            reply = None
+        effective_type = self.__type
+        new_type = None
+        new_state = None
+        new_location = None
+        cursor.execute("""SELECT from_state, to_state, from_type, to_type,
+                                 from_last_commit, to_last_commit,
+                                 from_addressed_by, to_addressed_by
+                            FROM commentchainchanges
+                           WHERE uid=%s
+                             AND chain=%s
+                             AND state='draft'""",
+                       (critic.effective_user.id, self.id))
+        row = cursor.fetchone()
+        if not row:
+            if reply is None:
+                return None
+        else:
+            (from_state, to_state, from_type, to_type,
+             from_last_commit, to_last_commit,
+             from_addressed_by, to_addressed_by) = row
+            if to_type is not None and from_type == self.__type:
+                effective_type = new_type = to_type
+            if to_state is not None:
+                if Comment.__translateState(from_state) == self.state:
+                    new_state = Comment.__translateState(to_state)
+            # FIXME: Handle new location.
+        if effective_type == "note":
+            return api.comment.Comment.DraftChanges(
+                critic.effective_user, False, reply, new_type)
+        return api.comment.Issue.DraftChanges(
+            critic.effective_user, False, reply, new_type, new_state,
+            new_location)
 
     @staticmethod
     def refresh(critic, tables, cached_comments):
@@ -161,8 +220,9 @@ def fetchMany(critic, comment_ids):
 def fetchAll(critic, review, author, comment_type, state, location_type,
              changeset, commit):
     joins = ["JOIN comments ON (comments.id=first_comment)"]
-    conditions = ["TRUE"]
-    values = [critic.actual_user.id if critic.actual_user else None]
+    conditions = ["(commentchains.state!='draft' OR commentchains.uid=%s)",
+                  "commentchains.state!='empty'"]
+    values = [critic.effective_user.id]
     if review:
         conditions.append("commentchains.review=%s")
         values.append(review.id)
@@ -207,9 +267,7 @@ def fetchAll(critic, review, author, comment_type, state, location_type,
              FROM commentchains
   LEFT OUTER JOIN batches ON (batches.comment=commentchains.id)
                   {}
-            WHERE (commentchains.state!='draft' OR commentchains.uid=%s)
-              AND commentchains.state!='empty'
-              AND batches.id IS NULL
+            WHERE batches.id IS NULL
               AND {}
          ORDER BY commentchains.id""".format(
              " ".join(joins),

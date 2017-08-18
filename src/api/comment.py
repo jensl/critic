@@ -109,6 +109,55 @@ class Comment(api.APIObject):
            The replies are returned as a list of api.reply.Reply objects."""
         return self._impl.getReplies(self.critic)
 
+    class DraftChanges(object):
+        """Draft changes to the comment"""
+
+        def __init__(self, author, is_draft, reply, new_type):
+            self.__author = author
+            self.__is_draft = is_draft
+            self.__reply = reply
+            self.__new_type = new_type
+
+        @property
+        def author(self):
+            """The author of these draft changes
+
+               The author is returned as an api.user.User object."""
+            return self.__author
+
+        @property
+        def is_draft(self):
+            """True if the comment itself is a draft (not published)"""
+            return self.__is_draft
+
+        @property
+        def reply(self):
+            """The current unpublished reply
+
+               The reply is returned as an api.reply.Reply object, or None if
+               there is no current unpublished reply."""
+            return self.__reply
+
+        @property
+        def new_type(self):
+            """The new type of an unpublished type change
+
+               The type is returned as a string. Comment.TYPE_VALUES defines the
+               set of possible return values."""
+            return self.__new_type
+
+    @property
+    def draft_changes(self):
+        """The comment's current draft changes
+
+           The draft changes are returned as a Comment.DraftChanges object, or
+           None if the current user has no unpublished changes to this comment.
+
+           If the comment is currently an issue, or the current user has an
+           unpublished change of the comment's type to issue, the returned
+           object will be an Issue.DraftChanges instead."""
+        return self._impl.getDraftChanges(self.critic)
+
 class Issue(Comment):
     STATE_VALUES = frozenset(["open", "addressed", "resolved"])
 
@@ -139,6 +188,37 @@ class Issue(Comment):
            not "resolved"."""
         return self._impl.getResolvedBy(self.critic)
 
+    class DraftChanges(Comment.DraftChanges):
+        """Draft changes to the issue"""
+
+        def __init__(self, author, is_draft, reply, new_type, new_state,
+                     new_location):
+            super(Issue.DraftChanges, self).__init__(
+                author, is_draft, reply, new_type)
+            self.__new_state = new_state
+            self.__new_location = new_location
+
+        @property
+        def new_state(self):
+            """The issue's new state
+
+               The new state is returned as a string, or None if the current
+               user has not resolved or reopened the issue. Issue.STATE_VALUES
+               defines the set of possible return values."""
+            return self.__new_state
+
+        @property
+        def new_location(self):
+            """The issue's new location
+
+               The new location is returned as a FileVersionLocation objects, or
+               None if the issue has not been reopened, or if it was manually
+               resolved rather than addressed and did not need to be relocated
+               when being reopened.
+
+               Since only issues in file version locations can be addressed,
+               that is the only possible type of new location."""
+            return self.__new_location
 
 class Note(Comment):
     @property

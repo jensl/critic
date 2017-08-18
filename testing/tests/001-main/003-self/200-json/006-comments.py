@@ -29,7 +29,8 @@ frontend.json(
              "addressed_by": None,
              "timestamp": float,
              "text": "This is a general issue.",
-             "replies": [int, int, int, int, int] })
+             "replies": [int, int, int, int, int],
+             "draft_changes": None })
 
 frontend.json(
     "comments/%d" % result["issues"][1],
@@ -44,7 +45,8 @@ frontend.json(
              "addressed_by": None,
              "timestamp": float,
              "text": "This is a general note.",
-             "replies": [int, int] })
+             "replies": [int, int],
+             "draft_changes": None })
 
 frontend.json(
     "comments/%d" % result["issues"][2],
@@ -64,7 +66,8 @@ frontend.json(
              "addressed_by": None,
              "timestamp": float,
              "text": "This is a commit issue.",
-             "replies": [int, int, int] })
+             "replies": [int, int, int],
+             "draft_changes": None })
 
 frontend.json(
     "comments/%d" % result["issues"][3],
@@ -88,7 +91,8 @@ frontend.json(
              "addressed_by": None,
              "timestamp": float,
              "text": "This is a file issue.",
-             "replies": [int] })
+             "replies": [int],
+             "draft_changes": None })
 
 frontend.json(
     "comments/%d" % result["notes"][0],
@@ -108,7 +112,8 @@ frontend.json(
              "addressed_by": None,
              "timestamp": float,
              "text": "This is a commit note.",
-             "replies": [] })
+             "replies": [],
+             "draft_changes": None })
 
 frontend.json(
     "comments/%d" % result["notes"][1],
@@ -132,7 +137,8 @@ frontend.json(
              "addressed_by": None,
              "timestamp": float,
              "text": "This is a file note.",
-             "replies": [] })
+             "replies": [],
+             "draft_changes": None })
 
 frontend.json(
     "reviews/%d/comments" % review_id,
@@ -159,6 +165,7 @@ frontend.json(
              "timestamp": float,
              "text": "This is a general issue.",
              "replies": [int, int, int, int, int],
+             "draft_changes": None,
              "linked": { "users": [user_json("alice"),
                                    user_json("bob"),
                                    user_json("dave"),
@@ -192,7 +199,8 @@ with frontend.signin("alice"):
             "addressed_by": None,
             "timestamp": float,
             "text": "JSON general issue #1",
-            "replies": []
+            "replies": [],
+            "draft_changes": draft_changes_json("alice", is_draft=True),
         })["id"]
 
     # Create comment with review specified via POST data. Also specify author
@@ -217,7 +225,8 @@ with frontend.signin("alice"):
             "addressed_by": None,
             "timestamp": float,
             "text": "JSON general note #1",
-            "replies": []
+            "replies": [],
+            "draft_changes": draft_changes_json("alice", is_draft=True),
         })["id"]
 
     # Create issue with review specified in the path.
@@ -238,7 +247,8 @@ with frontend.signin("alice"):
             "addressed_by": None,
             "timestamp": float,
             "text": "JSON general issue #2",
-            "replies": []
+            "replies": [],
+            "draft_changes": draft_changes_json("alice", is_draft=True),
         })["id"]
 
     # Create note with review specified in the path.
@@ -259,7 +269,8 @@ with frontend.signin("alice"):
             "addressed_by": None,
             "timestamp": float,
             "text": "JSON general note #2",
-            "replies": []
+            "replies": [],
+            "draft_changes": draft_changes_json("alice", is_draft=True),
         })["id"]
 
     review_data = frontend.json(
@@ -338,7 +349,8 @@ with frontend.signin("alice"):
             "addressed_by": None,
             "timestamp": float,
             "text": "JSON general issue #1 (edited)",
-            "replies": []
+            "replies": [],
+            "draft_changes": draft_changes_json("alice", is_draft=True),
         })
 
     frontend.json(

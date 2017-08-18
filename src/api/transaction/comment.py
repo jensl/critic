@@ -50,10 +50,9 @@ class ModifyComment(object):
             raise api.comment.CommentError(
                 "Draft comments cannot be replied to")
 
-        for reply in self.comment.replies:
-            if reply.is_draft:
-                raise api.comment.CommentError(
-                    "Comment already has a draft reply")
+        if self.comment.draft_changes and self.comment.draft_changes.reply:
+            raise api.comment.CommentError(
+                "Comment already has a draft reply")
 
         critic = self.transaction.critic
 
