@@ -83,16 +83,17 @@ class AccessControlProfile(apiobject.APIObject):
                                 if extension_key is not None else None)
              for exception_id, access_type, extension_key in cursor])
 
-    def refresh(self, critic):
-        cursor = critic.getDatabaseCursor()
-        cursor.execute("""SELECT id, title, access_token, http, repositories,
-                                 extensions
-                            FROM accesscontrolprofiles
-                           WHERE id=%s""",
-                       (self.id,))
-        for row in cursor:
-            return AccessControlProfile(*row)
-        return self
+    @staticmethod
+    def refresh(critic, tables, cached_profiles):
+        if "accesscontrolprofiles" not in tables:
+            return
+
+        AccessControlProfile.updateAll(
+            critic,
+            """SELECT id, title, access_token, http, repositories, extensions
+                 FROM accesscontrolprofiles
+                WHERE id=ANY (%s)""",
+            cached_profiles)
 
 @AccessControlProfile.cached()
 def fetch(critic, profile_id):

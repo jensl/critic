@@ -38,25 +38,17 @@ class APIObject(object):
         """The Critic session object used to create the API object"""
         return self.__critic
 
-    def refresh(self):
-        """Refresh cached information from the database
-
-           This function is called automatically when the current database
-           transaction is committed, so there is normally no reason to call it
-           directly."""
-        self.__impl = self.__impl.refresh(self.__critic)
-
     @property
     def _impl(self):
         """Underlying object implementation
 
-           This value should not be used outside the implementation of
-           the API."""
+           This value should not be used outside the implementation of the
+           API."""
         return self.__impl
 
     def _set_impl(self, impl):
         """Set the underlying object implementation
 
-           This method should not be called outside the implementation
-           of the API."""
+           This method should not be called outside the implementation of the
+           API."""
         self.__impl = impl

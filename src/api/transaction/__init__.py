@@ -82,11 +82,14 @@ class Transaction(object):
     def __commit(self):
         if not self.items:
             return
-        with self.critic.getUpdatingDatabaseCursor(*self.tables) as cursor:
-            for item in self.items:
-                item(self.critic, cursor)
-            for callback in self.callbacks:
-                callback()
+        try:
+            with self.critic.getUpdatingDatabaseCursor(*self.tables) as cursor:
+                for item in self.items:
+                    item(self.critic, cursor)
+                for callback in self.callbacks:
+                    callback()
+        finally:
+            self.critic._impl.transactionEnded(self.critic, self.tables)
 
 class Query(object):
     def __init__(self, statement, *values, **kwargs):

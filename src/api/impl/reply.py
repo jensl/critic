@@ -39,16 +39,17 @@ class Reply(apiobject.APIObject):
     def getAuthor(self, critic):
         return api.user.fetch(critic, self.__author_id)
 
-    def refresh(self, critic):
-        cursor = critic.getDatabaseCursor()
-        cursor.execute("""SELECT id, state, chain, batch, uid, time, comment
-                            FROM comments
-                           WHERE id=%s""",
-                       (self.id,))
-        row = cursor.fetchone()
-        if row:
-            return Reply(*row)
-        return self
+    @staticmethod
+    def refresh(critic, tables, cached_replies):
+        if "comments" not in tables:
+            return
+
+        Reply.updateAll(
+            critic,
+            """SELECT id, state, chain, batch, uid, time, comment
+                 FROM comments
+                WHERE id=ANY (%s)""",
+            cached_replies)
 
 @Reply.cached()
 def fetch(critic, reply_id):

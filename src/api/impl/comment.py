@@ -114,20 +114,21 @@ class Comment(apiobject.APIObject):
             return None
         return api.user.fetch(critic, user_id=self.__resolved_by_id)
 
-    def refresh(self, critic):
-        cursor = critic.getDatabaseCursor()
-        cursor.execute("""SELECT commentchains.id, review, commentchains.batch,
-                                 commentchains.uid, type, commentchains.state,
-                                 origin, commentchains.time, comments.comment, file,
-                                 first_commit, last_commit, addressed_by, closed_by
-                            FROM commentchains
-                            JOIN comments ON (comments.id=first_comment)
-                           WHERE commentchains.id=%s""",
-                       (self.id,))
-        row = cursor.fetchone()
-        if row:
-            return Comment(*row)
-        return self
+    @staticmethod
+    def refresh(critic, tables, cached_comments):
+        if not tables.intersection(("commentchains", "comments")):
+            return
+
+        Comment.updateAll(
+            critic,
+            """SELECT commentchains.id, review, commentchains.batch,
+                      commentchains.uid, type, commentchains.state,
+                      origin, commentchains.time, comments.comment, file,
+                      first_commit, last_commit, addressed_by, closed_by
+                 FROM commentchains
+                 JOIN comments ON (comments.id=first_comment)
+                WHERE commentchains.id=ANY (%s)""",
+            cached_comments)
 
 @Comment.cached()
 def fetch(critic, comment_id):

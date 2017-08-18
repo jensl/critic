@@ -14,8 +14,6 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-import weakref
-
 import api
 import dbutils
 
@@ -30,7 +28,6 @@ class Critic(object):
         self.__cache = {}
 
     def setDatabase(self, database):
-        database.registerTransactionCallback(self.__refreshCache)
         self.database = database
 
     def getEffectiveUser(self, critic):
@@ -45,14 +42,13 @@ class Critic(object):
         return objects[key]
 
     def assign(self, cls, key, value):
-        self.__cache.setdefault(cls, weakref.WeakValueDictionary())[key] = value
+        self.__cache.setdefault(cls, {})[key] = value
 
-    def __refreshCache(self, event):
-        # |event| is either "commit" or "rollback".  In either case, we may have
-        # stale values in our cache that we want to refresh at this point.
-        for wvd in self.__cache.values():
-            for value in wvd.values():
-                value.refresh()
+    @staticmethod
+    def transactionEnded(critic, tables):
+        for Implementation, cached_objects in critic._impl.__cache.items():
+            if hasattr(Implementation, "refresh"):
+                Implementation.refresh(critic, tables, cached_objects)
         return True
 
 def startSession(for_user, for_system, for_testing):

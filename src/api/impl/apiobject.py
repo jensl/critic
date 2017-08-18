@@ -18,9 +18,6 @@ class APIObject(object):
     def wrap(self, critic):
         return self.wrapper_class(critic, self)
 
-    def refresh(self, critic):
-        return self
-
     @classmethod
     def create(Implementation, critic, *args):
         return Implementation(*args).wrap(critic)
@@ -30,16 +27,14 @@ class APIObject(object):
         for args in args_list:
             cache_key = args[0]
             try:
-                item = critic._impl.lookup(
-                    Implementation.wrapper_class, cache_key)
+                item = critic._impl.lookup(Implementation, cache_key)
             except KeyError:
                 try:
                     item = Implementation.create(critic, *args)
                 except ignored_errors:
                     continue
 
-                critic._impl.assign(
-                    Implementation.wrapper_class, cache_key, item)
+                critic._impl.assign(Implementation, cache_key, item)
 
             yield item
 
@@ -49,8 +44,7 @@ class APIObject(object):
             def wrapper(critic, item_id, *args):
                 if item_id is not None:
                     try:
-                        return critic._impl.lookup(Implementation.wrapper_class,
-                                                   item_id)
+                        return critic._impl.lookup(Implementation, item_id)
                     except KeyError:
                         pass
                 result = fetch(critic, item_id, *args)
@@ -69,7 +63,7 @@ class APIObject(object):
             def wrapper(critic, item_ids):
                 items = {}
                 try:
-                    cache = critic._impl.lookup(Implementation.wrapper_class)
+                    cache = critic._impl.lookup(Implementation)
                 except KeyError:
                     cache = {}
                 uncached_ids = set(item_ids) - set(cache.keys())
@@ -95,4 +89,29 @@ class APIObject(object):
            to the object. This dictionary should not be modified."""
         # Don't catch KeyError here. Something is probably wrong if this
         # function is called when no objects of the type are cached.
-        return critic._impl.lookup(Implementation.wrapper_class)
+        return critic._impl.lookup(Implementation)
+
+    @staticmethod
+    def refresh(critic, tables, cached_objects):
+        """Refresh objects after transaction commit
+
+           The |tables| parameter is a set of database tables that were modified
+           in the transaction. The |cached_objects| parameter is a dictionary
+           mapping object ids to cached objects (wrappers) of this type."""
+        pass
+
+    @classmethod
+    def updateAll(Implementation, critic, query, cached_objects):
+        """Execute the query and update all cached objects
+
+           The query must take a single parameter, which is a list of object
+           ids. It will be executed with the list of ids of all cached
+           objects. Each returned row must have the id of the object as the
+           first item, and the implementation constructor must take the row
+           as a whole as arguments:
+
+             new_impl = Implementation(*row)"""
+        cursor = critic.getDatabaseCursor()
+        cursor.execute(query, (cached_objects.keys(),))
+        for row in cursor:
+            cached_objects[row[0]]._set_impl(Implementation(*row))

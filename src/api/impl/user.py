@@ -153,18 +153,20 @@ class User(apiobject.APIObject):
 
         return api.preference.Preference(item, value, user, repository)
 
-    def refresh(self, critic):
-        cursor = critic.getDatabaseCursor()
-        cursor.execute("""SELECT users.id, name, fullname, status, useremails.email
-                            FROM users
-                 LEFT OUTER JOIN useremails ON (useremails.id=users.email
-                                            AND (useremails.verified IS NULL
-                                              OR useremails.verified))
-                           WHERE users.id=%s""",
-                       (self.id,))
-        for user_id, name, fullname, status, email in cursor:
-            return User(user_id, name, fullname, status, email)
-        return self
+    @staticmethod
+    def refresh(critic, tables, cached_users):
+        if not tables.intersection(("users", "useremails")):
+            return
+
+        User.updateAll(
+            critic,
+            """SELECT users.id, name, fullname, status, useremails.email
+                 FROM users
+      LEFT OUTER JOIN useremails ON (useremails.id=users.email
+                                 AND (useremails.verified IS NULL
+                                   OR useremails.verified))
+                WHERE users.id=ANY (%s)""",
+            cached_users)
 
 @User.cached()
 def fetch(critic, user_id, name):

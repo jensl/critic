@@ -47,15 +47,17 @@ class AccessToken(apiobject.APIObject):
             self.__profile_id, = row
         return api.accesscontrolprofile.fetch(critic, self.__profile_id)
 
-    def refresh(self, critic):
-        cursor = critic.getDatabaseCursor()
-        cursor.execute("""SELECT id, access_type, uid, part1, part2, title
-                            FROM accesstokens
-                           WHERE id=%s""",
-                       (self.id,))
-        for row in cursor:
-            return AccessToken(*row)
-        return self
+    @staticmethod
+    def refresh(critic, tables, cached_tokens):
+        if not tables.intersection(("accesstokens", "accesscontrolprofiles")):
+            return
+
+        AccessToken.updateAll(
+            critic,
+            """SELECT id, access_type, uid, part1, part2, title
+                 FROM accesstokens
+                WHERE id=ANY (%s)""",
+            cached_tokens)
 
 @AccessToken.cached()
 def fetch(critic, token_id):

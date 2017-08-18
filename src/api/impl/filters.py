@@ -50,16 +50,17 @@ class RepositoryFilter(apiobject.APIObject):
                 for name in filter(None, self.__delegate_string.split(",")))
         return self.__delegates
 
-    def refresh(self, critic):
-        cursor = critic.getDatabaseCursor()
-        cursor.execute("""SELECT id, uid, type, path, repository, delegate
-                            FROM filters
-                           WHERE id=%s""",
-                       (self.id,))
-        row = cursor.fetchone()
-        if row:
-            return RepositoryFilter(*row)
-        return self
+    @staticmethod
+    def refresh(critic, tables, cached_filters):
+        if "filters" not in tables:
+            return
+
+        RepositoryFilter.updateAll(
+            critic,
+            """SELECT id, uid, type, path, repository, delegate
+                 FROM filters
+                WHERE id=ANY (%s)""",
+            cached_filters)
 
 def fetchRepositoryFilter(critic, filter_id):
     cursor = critic.getDatabaseCursor()
