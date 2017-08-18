@@ -14,7 +14,6 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-import copy
 import contextlib
 import itertools
 import re
@@ -180,7 +179,7 @@ class Parameters(object):
             self.context[key] = value
 
 class Linked(object):
-    def __init__(self, req):
+    def __init__(self, req=None):
         if req is not None:
             include = req.getParameter(
                 "include", [], filter=lambda value: value.split(","))
@@ -219,7 +218,12 @@ class Linked(object):
             return json
 
     def copy(self):
-        return copy.deepcopy(self)
+        linked = Linked()
+        linked.linked_per_type = {
+            resource_type: set(linked_objects)
+            for resource_type, linked_objects in self.linked_per_type.items()
+        }
+        return linked
 
 HANDLERS = {}
 VALUE_CLASSES = {}
