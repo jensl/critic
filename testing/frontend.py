@@ -365,8 +365,37 @@ class Frontend(object):
 
         self.current_session.process_response(response)
 
+        def response_json():
+            if hasattr(response, "json"):
+                if callable(response.json):
+                    try:
+                        result = response.json()
+                    except:
+                        raise OperationError(url, message="malformed response (not JSON)")
+                else:
+                    result = response.json
+                    if result is None:
+                        raise OperationError(url, message="malformed response (not JSON)")
+            else:
+                try:
+                    result = json.loads(response.content)
+                except ValueError:
+                    raise OperationError(url, message="malformed response (not JSON)")
+            return result
+
         try:
             if response.status_code != expected_http_status:
+                if response.status_code in (400, 404):
+                    try:
+                        error = response_json()["error"]
+                    except OperationError:
+                        testing.logger.exception("Unexpected response")
+                    except KeyError:
+                        testing.logger.error("Malformed JSON error response")
+                    else:
+                        testing.logger.error(
+                            "JSON error:\n  Title: %s\n  Message: %s"
+                            % (error["title"], error["message"]))
                 raise HTTPError(url, expected_http_status, response.status_code)
 
             if response.status_code == 204:
