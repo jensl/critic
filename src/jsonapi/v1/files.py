@@ -59,7 +59,7 @@ class Files(object):
         if path is None:
             raise UsageError("No path parameter specified")
 
-        return api.file.fetch(critic, path=path)
+        return api.file.fetch(parameters.critic, path=path)
 
     @staticmethod
     def fromParameter(value, parameters):
