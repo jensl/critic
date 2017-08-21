@@ -146,7 +146,7 @@ class ModifyReview(object):
                  else "email missing"))
 
         commitset = self.review.branch.commits
-        tails = commitset.getFilteredTails(self.review.repository)
+        tails = commitset.filtered_tails
         heads = commitset.heads
 
         assert len(heads) == 1

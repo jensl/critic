@@ -88,7 +88,7 @@ class CommitSet(api.APIObject):
            all different commits on an upstream branch, then this will only
            return the latest one."""
 
-        return self._impl.getFilteredTails()
+        return self._impl.getFilteredTails(self.critic)
 
     def getChildrenOf(self, commit):
         """Return the commits in the set that are children of the commit

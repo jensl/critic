@@ -44,11 +44,11 @@ class CommitSet(apiobject.APIObject):
     def __eq__(self, other):
         return self.commits == other.commits
 
-    def getFilteredTails(self):
+    def getFilteredTails(self, critic):
         if not self.commits:
             return frozenset()
 
-        legacy_repository = next(iter(self.commits)).repository._impl.getInternal()
+        legacy_repository = next(iter(self.commits)).repository._impl.getInternal(critic)
         candidates = set(self.tails)
         result = set()
 
