@@ -83,7 +83,6 @@ def fetchAll(critic, review, pending):
     cursor = critic.getDatabaseCursor()
     new_head = "new_head IS NULL" if pending else "new_head IS NOT NULL"
     if review is not None:
-        print(review)
         cursor.execute(
             """SELECT id, review, uid,
                       old_head, new_head, old_upstream, new_upstream,
