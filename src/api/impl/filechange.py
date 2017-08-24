@@ -66,6 +66,10 @@ def fetch(critic, changeset, id):
             WHERE fileversions.changeset=%s AND files.id=%s""",
         (changeset.id, id,))
     row = cursor.fetchone()
+    if not row:
+        raise FilechangeError(
+            "Filechange for file %s and changeset %s not found" %
+            (id, changeset))
     (path, old_sha1, old_mode, new_sha1, new_mode) = row
     filechange = Filechange(id, changeset, path, old_sha1, old_mode,
                             new_sha1, new_mode, chunks)
