@@ -189,6 +189,9 @@ class Changesets(object):
                 raise jsonapi.UsageError(
                     "Redundant query parameter: changeset=%s"
                     % changeset_parameter)
+            if repository is None:
+                raise jsonapi.UsageError(
+                    "repository needs to be specified, ex. &repository=<id>")
             changeset_id = jsonapi.numeric_id(changeset_parameter)
             changeset = api.changeset.fetch(
                 parameters.critic, repository, id=changeset_id)
