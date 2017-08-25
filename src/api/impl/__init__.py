@@ -28,6 +28,7 @@ import filechange
 import filediff
 import filecontent
 import review
+import reviewsummary
 import log
 import accesstoken
 import accesscontrolprofile

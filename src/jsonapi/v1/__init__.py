@@ -30,6 +30,7 @@ import repositories
 import commits
 import branches
 import reviews
+import reviewsummaries
 import rebases
 import changesets
 import filechanges

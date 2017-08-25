@@ -23,6 +23,7 @@ import config
 import critic
 import user
 import review
+import reviewsummary
 import repository
 import filters
 import branch
