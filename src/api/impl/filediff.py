@@ -170,7 +170,7 @@ class Line(object):
         elif self.legacy_line.type == Line.CONFLICT: return "CONFLICT"
 
     def getOldContent(self):
-        if self.__old_content is None:
+        if self.__old_content is None and self.legacy_line.old_value is not None:
             old_content_intermediate = parts_from_html(self.legacy_line.old_value)
 
             if self.legacy_line.analysis:
@@ -183,7 +183,7 @@ class Line(object):
         return self.__old_content
 
     def getNewContent(self):
-        if self.__new_content is None:
+        if self.__new_content is None and self.legacy_line.new_value is not None:
             new_content_intermediate = parts_from_html(self.legacy_line.new_value)
 
             if self.legacy_line.analysis:
