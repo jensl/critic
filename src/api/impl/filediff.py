@@ -20,50 +20,82 @@ import api
 import api.impl
 from api.impl import apiobject
 import diff
+import diff.context
 
-import sys
+import json
 
 class Filediff(apiobject.APIObject):
     wrapper_class = api.filediff.Filediff
 
-    def __init__(self, critic, repository, filechange, context_lines,
-                 comments, ignore_chunks):
+    def __init__(self, filechange):
         self.filechange = filechange
         self.old_count = None
         self.new_count = None
 
+        self.__chunks = None
         self.__macro_chunks = None
-        self.__repository = repository
-        self.__comments = comments
-        self.__context_lines = context_lines
-        self.__ignore_chunks = ignore_chunks
+        self.__repository = filechange.changeset.repository
 
-    def getMacroChunks(self, critic):
-        def diff_file_from_filechange(critic, repository, fc):
-            diff_file = diff.File(
-                fc.id, fc.path, fc.old_sha1, fc.new_sha1,
-                repository._impl.getInternal(critic), old_mode=fc.old_mode,
-                new_mode=fc.new_mode)
-            diff_file.loadOldLines(True, request_highlight=True)
-            diff_file.loadNewLines(True, request_highlight=True)
-            return diff_file
+        diff_file = self.__getLegacyFile(filechange.critic)
 
-        def diff_chunks_from_filechange(fc):
-            return [
-                diff.Chunk(chunk.deleteoffset, chunk.deletecount,
-                           chunk.insertoffset, chunk.insertcount,
-                           is_whitespace=chunk.is_whitespace,
-                           analysis=chunk.analysis)
-                for chunk
-                in fc.chunks
-            ]
+        self.__highlight_delayed = not diff_file.ensureHighlight("json")
 
-        def create_line_filter(comment, context_lines):
+    @staticmethod
+    def cache_key(filechange):
+        return (filechange.changeset.id, filechange.file.id)
+
+    def __getChunks(self, critic):
+        if self.__chunks is None:
+            cached_objects = Filediff.allCached(critic)
+            assert Filediff.cache_key(self.filechange) in cached_objects
+
+            cached_by_changeset = {}
+            for (changeset_id, file_id), filediff in cached_objects.items():
+                if filediff._impl.__chunks is None:
+                    filediff._impl.__chunks = []
+                    cached_by_changeset.setdefault(changeset_id, []) \
+                        .append(file_id)
+
+            cursor = critic.getDatabaseCursor()
+            for changeset_id, file_ids in cached_by_changeset.items():
+                cursor.execute(
+                    """SELECT file,
+                              deleteOffset, deleteCount,
+                              insertOffset, insertCount,
+                              analysis, whitespace
+                         FROM chunks
+                        WHERE changeset=%s
+                          AND file=ANY (%s)
+                     ORDER BY file, deleteOffset, insertOffset""",
+                    (changeset_id, file_ids))
+
+                for (file_id,
+                     delete_offset, delete_count,
+                     insert_offset, insert_count,
+                     analysis, is_whitespace) in cursor:
+                    cached_objects[(changeset_id, file_id)]._impl.__chunks \
+                        .append(diff.Chunk(delete_offset, delete_count,
+                                           insert_offset, insert_count,
+                                           analysis=analysis,
+                                           is_whitespace=is_whitespace))
+
+        return self.__chunks
+
+    def __getLegacyFile(self, critic):
+        return diff.File(
+            self.filechange.file.id, self.filechange.file.path,
+            self.filechange.old_sha1, self.filechange.new_sha1,
+            self.__repository._impl.getInternal(critic),
+            old_mode=self.filechange.old_mode,
+            new_mode=self.filechange.new_mode)
+
+    def getMacroChunks(self, critic, context_lines, comments, ignore_chunks):
+        def create_line_filter(location, context_lines):
             def line_filter(line):
-                first_context_line = comment.location.first_line - context_lines
-                last_context_line = comment.location.last_line + context_lines
+                first_context_line = location.first_line - context_lines
+                last_context_line = location.last_line + context_lines
 
-                if comment.location.side == "old":
+                if location.side == "old":
                     line_number = line.old_offset
                     if line_number == first_context_line and line.type == diff.Line.INSERTED:
                         return False
@@ -77,33 +109,55 @@ class Filediff(apiobject.APIObject):
             return line_filter
 
         if self.__macro_chunks is None:
-            self.diff_file = diff_file_from_filechange(
-                critic, self.__repository, self.filechange)
+            if self.__highlight_delayed:
+                raise api.filediff.FilediffDelayed()
 
-            diff_chunks = diff_chunks_from_filechange(self.filechange)
+            diff_file = self.__getLegacyFile(critic)
 
-            if self.__comments is not None:
-                comment_chains = [
-                    (SkinnyCommentChain(critic, comment),
-                     comment.location.side == "old")
-                    for comment
-                    in self.__comments
-                    if isinstance(comment.location, api.comment.FileVersionLocation)
-                ]
+            diff_file.loadOldLines(True, highlight_mode="json")
+            diff_file.loadNewLines(True, highlight_mode="json")
+
+            self.old_count = diff_file.oldCount()
+            self.new_count = diff_file.newCount()
+
+            diff_chunks = self.__getChunks(critic)
+
+            if comments is not None:
+                translated_comments = []
+                skinny_comment_chains = []
+
+                for comment in comments:
+                    if not isinstance(
+                            comment.location, api.comment.FileVersionLocation):
+                        continue
+                    if comment.location.file != self.filechange.file:
+                        continue
+
+                    location = comment.location.translateTo(
+                        self.filechange.changeset)
+
+                    if not location:
+                        continue
+
+                    translated_comments.append((comment, location))
+                    skinny_comment_chains.append((
+                        SkinnyCommentChain(critic, location),
+                        location.side == "old"))
             else:
-                comment_chains = None
+                translated_comments = None
+                skinny_comment_chains = None
 
-            if self.__ignore_chunks and isinstance(
-                    self.__comments[0].location, api.comment.FileVersionLocation):
-                line_filter = create_line_filter(self.__comments[0], self.__context_lines)
+            if ignore_chunks and translated_comments:
+                line_filter = create_line_filter(
+                    translated_comments[0][1], context_lines)
             else:
                 line_filter = None
 
             diff_context_lines = diff.context.ContextLines(
-                self.diff_file, diff_chunks, comment_chains)
+                diff_file, diff_chunks, skinny_comment_chains)
 
             legacy_macro_chunks = diff_context_lines.getMacroChunks(
-                self.__context_lines, skip_interline_diff=True,
+                context_lines, skip_interline_diff=True,
                 lineFilter=line_filter)
 
             self.__macro_chunks = [
@@ -144,8 +198,7 @@ class Line(object):
     def from_legacy_line(self, legacy_line):
         line = Line()
         line.legacy_line = legacy_line
-        line.__old_content = None
-        line.__new_content = None
+        line.__content = None
         line.is_whitespace = legacy_line.is_whitespace
         line.analysis = legacy_line.analysis
         return line
@@ -169,48 +222,46 @@ class Line(object):
         elif self.legacy_line.type == Line.WHITESPACE: return "WHITESPACE"
         elif self.legacy_line.type == Line.CONFLICT: return "CONFLICT"
 
-    def getOldContent(self):
-        if self.__old_content is None and self.legacy_line.old_value is not None:
-            old_content_intermediate = parts_from_html(self.legacy_line.old_value)
+    def getContent(self):
+        if self.__content is None:
+            old_value = self.legacy_line.old_value
+            new_value = self.legacy_line.new_value
 
-            if self.legacy_line.analysis:
-                old_content = perform_operations(
-                    self.legacy_line.analysis, old_content_intermediate, True)
+            old_content = parts_from_html(self.legacy_line.old_value)
+
+            if self.legacy_line.type == Line.CONTEXT:
+                content = old_content
             else:
-                old_content = old_content_intermediate
-            self.__old_content = [api.filediff.Part(part)
-                                  for part in old_content]
-        return self.__old_content
+                new_content = parts_from_html(self.legacy_line.new_value)
 
-    def getNewContent(self):
-        if self.__new_content is None and self.legacy_line.new_value is not None:
-            new_content_intermediate = parts_from_html(self.legacy_line.new_value)
+                if self.legacy_line.analysis:
+                    content = perform_detailed_operations(
+                        self.legacy_line.analysis, old_content, new_content)
+                else:
+                    content = perform_basic_operations(
+                        self.legacy_line.type, old_content, new_content)
 
-            if self.legacy_line.analysis:
-                new_content = perform_operations(
-                    self.legacy_line.analysis, new_content_intermediate, False)
-            else:
-                new_content = new_content_intermediate
-            self.__new_content = [api.filediff.Part(part)
-                                  for part in new_content]
-        return self.__new_content
+            self.__content = [api.filediff.Part(part)
+                              for part in content]
+        return self.__content
 
 class Part(object):
     def __init__(self, part_type, content, state=None):
         self.type = part_type
-        self.content = content.replace("&lt;", "<") \
-                              .replace("&gt;", ">") \
-                              .replace("&amp;", "&")
+        self.content = content
         self.state = state
 
+    def copy(self):
+        return Part(self.type, self.content, self.state)
+
+    def with_state(self, state):
+        self.state = state
+        return self
+
 class SkinnyCommentChain(object):
-    def __init__(self, critic, comment):
-        assert isinstance(comment.location, api.comment.FileVersionLocation)
-
-        location = comment.location
-
+    def __init__(self, critic, location):
         filechange = api.filechange.fetch(
-            critic, location.changeset, location.file.id)
+            critic, location.changeset, location.file)
 
         if location.side == "old":
             key = filechange.old_sha1
@@ -225,183 +276,105 @@ class SkinnyCommentChain(object):
 
         self.comments = True
 
-def fetch(critic, repository, filechange, context_lines, comments,
-          ignore_chunks):
-    return Filediff(critic, repository, filechange, context_lines, comments,
-                    ignore_chunks) \
-        .wrap(critic)
+def fetch(critic, filechange):
+    cache_key = Filediff.cache_key(filechange)
+    try:
+        return Filediff.get_cached(critic, cache_key)
+    except KeyError:
+        pass
+    filediff = Filediff(filechange).wrap(critic)
+    Filediff.add_cached(critic, cache_key, filediff)
+    return filediff
 
-def fetchAll(critic, repository, changeset, context_lines, comments):
-    filechanges = api.filechange.fetchAll(critic, changeset)
+def fetchAll(critic, changeset):
     return [
-        fetch(critic, repository, filechange, context_lines, comments,
-              ignore_chunks=False)
+        fetch(critic, filechange)
         for filechange
-        in filechanges
+        in changeset.files
     ]
 
 def parts_from_html(content):
     if content is None:
         return None
 
-    parts = content.split("</b>")
-    if not parts:
-        return [Part("nf", content)]
-    elements = []
-    for part in parts:
-        if not part:
-            continue
-        leading_text, _, content = part.partition("<b")
-        if content == "":
-            elements.append(Part("ws", part))
-        else:
-            if leading_text:
-                elements.append(Part("ws", leading_text))
-            part_type = content.split("='")[1].split("'")[0]
-            tag, _, part_content = content.partition(">")
-            elements.append(Part(part_type, part_content))
-    return elements
+    return (Part(part_json[0], part_json[1].encode("utf-8"))
+            for part_json in json.loads(content))
 
-def op_and_part_collides(op_start, op_end, part_start, part_end):
-    return op_start < part_end and part_start < op_end
+class Parts(object):
+    def __init__(self, parts):
+        self.parts = list(parts)
+        self.offset = 0
 
-def collision_type(op_start, op_end, part_start, part_end):
-    if part_start == op_start and part_end == op_end:
-        return "OP_IS_PART"
-    elif part_start <= op_start and part_end >= op_end:
-        return "OP_IN_PART"
-    elif part_start >= op_start and part_end <= op_end:
-        return "PART_IN_OP"
-    elif part_start > op_start and part_end > op_end:
-        return "PART_AFTER_OP"
-    elif part_start < op_start and part_end < op_end:
-        return "PART_BEFORE_OP"
+    def extract(self, length):
+        self.offset += length
+        while self.parts and len(self.parts[0].content) <= length:
+            part = self.parts.pop(0)
+            length -= len(part.content)
+            yield part
+        if length:
+            tail_part = self.parts[0]
+            head_part = tail_part.copy()
+            head_part.content = head_part.content[:length]
+            tail_part.content = tail_part.content[length:]
+            yield head_part
 
-def get_op_start_end(operation, operands, old):
-    if old and operation[0] in ("d", "r"):
-        operand_index = 0
-    elif not old and operation[0] == "i":
-        operand_index = 0
-    elif not old and operation[0] == "r":
-        operand_index = 1
-    else:
-        raise api.filediff.FilediffParserError("unknown operation: " + operation)
+    def skip(self, length):
+        for part in self.extract(length):
+            pass
 
-    op_start, op_end = operands[operand_index].split("-")
-
-    return (int(op_start), int(op_end))
-
-def apply_op_is_part(part, state):
-    part.state = state
-    return part
-
-def apply_op_in_part(part, state, part_start, part_end, op_start, op_end):
-    parts = []
-
-    before_content = part.content[0:op_start-part_start]
-    if before_content:
-        parts.append(Part(part.type, before_content))
-
-    during_content = part.content[op_start-part_start:op_end-part_start]
-    parts.append(Part(part.type, during_content, state))
-
-    after_content = part.content[op_end-part_start:part_end-part_start]
-    if after_content:
-        parts.append(Part(part.type, after_content))
-
-    return parts
-
-def apply_op_overlapping_part(part, state, part_start, part_end, op_start, op_end, part_after_op):
-    if part_after_op:
-        before_state = state
-        after_state = None
-        divide_point = op_end-part_start
-    else:
-        before_state = None
-        after_state = state
-        divide_point = op_start-part_start
-
-    before_part = Part(part.type, part.content[:divide_point], before_state)
-    after_part = Part(part.type, part.content[divide_point:], after_state)
-
-    return [before_part, after_part]
-
-def perform_operations(operations, content, old):
-    assert isinstance(operations, list)
-    assert isinstance(content, list)
-    assert isinstance(old, bool)
-
-    if old:
-        state = "d"
-    else:
-        state = "i"
-
+def perform_detailed_operations(operations, old_content, new_content):
     processed_content = []
-    part_index = 0
-    part_start = 0
-    op_index = 0
 
-    while part_index < len(content) and \
-          op_index < len(operations):
-        operation = operations[op_index]
-        operands = operation[1:].split("=")
-        part = content[part_index]
-        part_end = part_start + len(part.content)
+    old_parts = Parts(old_content)
+    new_parts = Parts(new_content)
 
-        if (operation[0] == "d" and not old) or \
-           (operation[0] == "i" and old):
-            op_index += 1
-            continue
-        elif operation == "ws":
-            op_index += 1
-            continue
+    for operation in operations:
+        if operation[0] == "r":
+            old_range, _, new_range = operation[1:].partition("=")
+        elif operation[0] == "d":
+            old_range = operation[1:]
+            new_range = None
         else:
-            op_start, op_end = get_op_start_end(operation, operands, old)
+            old_range = None
+            new_range = operation[1:]
 
-        if op_and_part_collides(op_start, op_end, part_start, part_end):
-            start_end = (op_start, op_end, part_start, part_end)
-            collision = collision_type(*start_end)
+        if old_range:
+            old_begin, old_end = map(int, old_range.split("-"))
 
-            if collision == "OP_IS_PART":
-                processed_content.append(apply_op_is_part(
-                    part, state))
+        if new_range:
+            new_begin, new_end = map(int, new_range.split("-"))
 
-            elif collision == "OP_IN_PART":
-                processed_content.extend(apply_op_in_part(
-                    part, state, *start_end))
+        if old_range:
+            context_length = old_begin - old_parts.offset
+            if context_length:
+                processed_content.extend(old_parts.extract(context_length))
+                new_parts.skip(context_length)
 
-                op_index += 1
+            deleted_length = old_end - old_begin
+            processed_content.extend(
+                part.with_state("d")
+                for part in old_parts.extract(deleted_length))
 
-            elif collision == "PART_IN_OP":
-                processed_content.append(Part(part.type, part.content, state))
+        if new_range:
+            if not old_range:
+                context_length = new_begin - new_parts.offset
+                if context_length:
+                    processed_content.extend(old_parts.extract(context_length))
+                    new_parts.skip(context_length)
 
-            elif collision == "PART_AFTER_OP":
-                processed_content.extend(apply_op_overlapping_part(
-                    part, state, *start_end, part_after_op=True))
+            inserted_length = new_end - new_begin
+            processed_content.extend(
+                part.with_state("i")
+                for part in new_parts.extract(inserted_length))
 
-                op_index += 1
-
-            elif collision == "PART_BEFORE_OP":
-                processed_content.extend(apply_op_overlapping_part(
-                    part, state, *start_end, part_after_op=False))
-
-            else:
-                raise api.filediff.FilediffParserError(
-                    "invalid collision type: " + str(collision) +
-                    " (" + str(op_start) + ", " + str(op_end) + ", " +
-                    str(part_start) + ", " + str(part_end) + ")")
-
-            part_index += 1
-            part_start += len(part.content)
-
-        elif op_end <= part_start:
-            op_index += 1
-        elif part_start <= op_end:
-            processed_content.append(part)
-            part_start += len(part.content)
-            part_index += 1
-
-    if part_index < len(content):
-        processed_content.extend(content[part_index:])
+    processed_content.extend(old_parts.parts)
 
     return processed_content
+
+def perform_basic_operations(line_type, old_content, new_content):
+    if old_content is not None and new_content is not None:
+        return ([part.with_state("d") for part in old_content or []] +
+                [part.with_state("i") for part in new_content or []])
+    elif old_content is not None:
+        return old_content
+    return new_content

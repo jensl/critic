@@ -36,25 +36,14 @@ class Changesets(object):
              "type": string, // the changeset type (direct, custom, merge, conflict)
              "from_commit": integer, // commit id for changesets from_commit
              "to_commit": integer, // commit id for changesets to_commit
-             "files": File[], // a list of all files changed in this changeset
+             "files": integer[], // a list of all files changed in this changeset
              "review_state": ReviewState or null,
-           }
-
-           File {
-             "id": integer, // the file's id
-             "path": string, // the file's path
            }
 
            ReviewState {
              "review": integer,
              "comments": integer[],
            }"""
-
-        def files_as_json(files):
-            if files is not None:
-                return [{"id": file.id, "path": file.path} for file in files]
-            else:
-                return None
 
         def review_state(review):
             if not review:
@@ -82,14 +71,15 @@ class Changesets(object):
             contributing_commits = list(contributing_commits.topo_ordered)
 
         return parameters.filtered(
-            "changesets", { "id": value.id,
-                            "type": value.type,
-                            "from_commit": value.from_commit,
-                            "to_commit": value.to_commit,
-                            "files": files_as_json(value.files),
-                            "contributing_commits": contributing_commits,
-                            "review_state": review_state(review),
-                            "filediffs": value.filediffs })
+            "changesets", {
+                "id": value.id,
+                "type": value.type,
+                "from_commit": value.from_commit,
+                "to_commit": value.to_commit,
+                "files": value.files,
+                "contributing_commits": contributing_commits,
+                "review_state": review_state(review)
+            })
 
     @staticmethod
     def single(parameters, argument):

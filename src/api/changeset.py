@@ -60,7 +60,7 @@ class Changeset(api.APIObject):
 
     @property
     def files(self):
-        return self._impl.files
+        return api.filechange.fetchAll(self.critic, self)
 
     @property
     def contributing_commits(self):

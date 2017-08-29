@@ -20,54 +20,35 @@ import api
 import jsonapi
 
 @jsonapi.PrimaryResource
-class Filechanges(object):
-    """Filechanges for a changeset"""
+class FileChanges(object):
+    """File changes for a changeset"""
 
     name = "filechanges"
     contexts = (None, "repositories", "changesets")
-    value_class = api.filechange.Filechange
-    exceptions = (api.filechange.FilechangeError,)
+    value_class = api.filechange.FileChange
+    exceptions = (api.filechange.FileChangeError,)
 
     @staticmethod
     def json(value, parameters):
-        """Filechanges {
+        """{
              "id": integer, // the file's id
-             "changeset": integer, // the changeset's id
              "path": string, // the file's path
+             "changeset": integer, // the changeset's id
              "old_sha1": string, // the sha1 identifying the file's old blob
              "old_mode": string, // the old file permissions
              "new_sha1": string, // the sha1 identifying the file's new blob
              "new_mode": string, // the new file permissions
-             "chunks": Chunk[],
-           }
-
-           Chunk {
-             "deleteoffset": integer, // offset for deleted rows
-             "deletecount": integer, // number of deleted rows
-             "insertoffset": integer, // offset for inserted rows
-             "insertcount": integer, // number of inserted rows
-             "analysis": string,
-             "is_whitespace": integer, // whether or not the chunk is entirely whitespace
            }"""
 
-        def chunks_as_json(chunks):
-            return [{ "deleteoffset": chunk.deleteoffset,
-                      "deletecount": chunk.deletecount,
-                      "insertoffset": chunk.insertoffset,
-                      "insertcount": chunk.insertcount,
-                      "analysis": chunk.analysis,
-                      "is_whitespace": chunk.is_whitespace
-                  } for chunk in chunks]
-
         return parameters.filtered(
-            "filechanges", { "id": value.id,
-                             "changeset": value.changeset,
-                             "path": value.path,
-                             "old_sha1": value.old_sha1,
-                             "old_mode": value.old_mode,
-                             "new_sha1": value.new_sha1,
-                             "new_mode": value.new_mode,
-                             "chunks": chunks_as_json(value.chunks)})
+            "filechanges", {
+                "file": value.file,
+                "changeset": value.changeset,
+                "old_sha1": value.old_sha1,
+                "old_mode": value.old_mode,
+                "new_sha1": value.new_sha1,
+                "new_mode": value.new_mode
+            })
 
     @staticmethod
     def single(parameters, argument):
@@ -86,10 +67,11 @@ class Filechanges(object):
            The repository in which the files exist."""
 
         changeset = jsonapi.deduce("v1/changesets", parameters)
+        file = api.file.fetch(parameters.critic, jsonapi.numeric_id(argument))
 
-        return Filechanges.setAsContext(
+        return FileChanges.setAsContext(
             parameters, api.filechange.fetch(
-                parameters.critic, changeset, jsonapi.numeric_id(argument)))
+                parameters.critic, changeset, file))
 
     @staticmethod
     def multiple(parameters):
@@ -112,7 +94,7 @@ class Filechanges(object):
         if changeset is None:
             raise jsonapi.UsageError(
                 "changeset needs to be specified, ex. &changeset=<id>")
-        filechange = parameters.context.get(Filechanges.name)
+        filechange = parameters.context.get(FileChanges.name)
         filechange_parameter = parameters.getQueryParameter("filechange")
         if filechange_parameter is not None:
             if filechange is not None:
@@ -126,5 +108,9 @@ class Filechanges(object):
 
     @staticmethod
     def setAsContext(parameters, filechange):
-        parameters.setContext(Filechanges.name, filechange)
+        parameters.setContext(FileChanges.name, filechange)
         return filechange
+
+    @staticmethod
+    def resource_id(value):
+        return value.file.id

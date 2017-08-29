@@ -205,6 +205,7 @@ class Linked(object):
         linked = self.linked_per_type.get(resource_class.name)
         if linked is not None:
             linked.update(values)
+        return resource_class
 
     def filter_referenced(self, json):
         if isinstance(json, dict):
@@ -216,8 +217,8 @@ class Linked(object):
             return [self.filter_referenced(value) for value in json]
         elif type(json) in VALUE_CLASSES:
             resource_path = VALUE_CLASSES[type(json)]
-            self.add(resource_path, json)
-            return json.id
+            resource_class = self.add(resource_path, json)
+            return resource_class.resource_id(json)
         else:
             return json
 
@@ -253,6 +254,8 @@ def PrimaryResource(resource_class):
     for name in ("anonymous_create", "anonymous_update", "anonymous_delete"):
         if not hasattr(resource_class, name):
             setattr(resource_class, name, False)
+    if not hasattr(resource_class, "resource_id"):
+        resource_class.resource_id = staticmethod(lambda value: value.id)
     contexts = getattr(resource_class, "contexts", (None,))
     if None in contexts:
         registerHandler("v1/" + resource_class.name, resource_class)

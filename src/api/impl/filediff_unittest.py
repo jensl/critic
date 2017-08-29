@@ -1,6 +1,6 @@
 from api.impl.changeset_unittest import FROM_SHA1, TO_SHA1
 
-def pre():
+def pre1():
     import api
 
     critic = api.critic.startSession(for_testing=True)
@@ -15,82 +15,87 @@ def pre():
     except api.changeset.ChangesetDelayed:
         pass
 
-    print "pre: ok"
+    print "pre1: ok"
 
-def collision():
+def pre2():
     import api
 
-    collisions = (
-        (0, 3, 1, 2, "PART_IN_OP"),
-        (0, 3, 0, 2, "PART_IN_OP"),
-        (0, 2, 1, 3, "PART_AFTER_OP"),
-        (1, 3, 0, 2, "PART_BEFORE_OP"),
-        (0, 3, 1, 3, "PART_IN_OP"),
-        (0, 3, 0, 3, "OP_IS_PART"),
-        (1, 2, 0, 3, "OP_IN_PART"),
-        (0, 2, 0, 3, "OP_IN_PART")
-    )
-    for op_start, op_end, part_start, part_end, collision_type in collisions:
-        assert api.impl.filediff.op_and_part_collides(op_start, op_end, part_start, part_end)
-        assert api.impl.filediff.collision_type(op_start, op_end, part_start, part_end) == collision_type
+    critic = api.critic.startSession(for_testing=True)
+    repository = api.repository.fetch(critic, name="critic")
 
-    non_collisions = (
-        (2, 4, 0, 2),
-        (3, 4, 0, 2),
-        (0, 2, 3, 4),
-        (0, 2, 2, 4)
-    )
-    for op_start, op_end, part_start, part_end in non_collisions:
-        assert not api.impl.filediff.op_and_part_collides(op_start, op_end, part_start, part_end)
+    from_commit = api.commit.fetch(repository, sha1=FROM_SHA1)
+    to_commit = api.commit.fetch(repository, sha1=TO_SHA1)
 
-    print "collision: ok"
+    changeset = api.changeset.fetch(
+        critic, repository, from_commit=from_commit, to_commit=to_commit)
+    file = api.file.fetch(critic, path="src/operation/createreview.py")
+    filechange = api.filechange.fetch(critic, changeset, file)
 
-def html_parser():
+    try:
+        api.filediff.fetch(critic, filechange).getMacroChunks(context_lines=3)
+    except api.filediff.FilediffDelayed:
+        pass
+    else:
+        assert False, "filediff not delayed as expected"
+
+    print "pre2: ok"
+
+def post():
     import api
 
-    contents = [
-        ("            <b class='id'>commands</b><b class='op'>.</b><b class='id'>a</b><b class='op'>(</b><b class='id'>href</b><b class='op'>=</b><b class='str'>\"</b><b class='str'>javascript:void(restartService(</b><b class='str'>'</b><b class='str'>wsgi</b><b class='str'>'</b><b class='str'>));</b><b class='str'>\"</b><b class='op'>)</b><b class='op'>.</b><b class='id'>text</b><b class='op'>(</b><b class='str'>\"</b><b class='str'>[restart]</b><b class='str'>\"</b><b class='op'>)</b>",
-         [api.impl.filediff.Part(part_type, content) for part_type, content in [
-             ("ws", "            "),
-             ("id", "commands"),
-             ("op", "."),
-             ("id", "a"),
-             ("op", "("),
-             ("id", "href"),
-             ("op", "="),
-             ("str", "\""),
-             ("str", "javascript:void(restartService("),
-             ("str", "'"),
-             ("str", "wsgi"),
-             ("str", "'"),
-             ("str", "));"),
-             ("str", "\""),
-             ("op", ")"),
-             ("op", "."),
-             ("id", "text"),
-             ("op", "("),
-             ("str", "\""),
-             ("str", "[restart]"),
-             ("str", "\""),
-             ("op", ")")
-         ]],
-         ['r0-12=0-16', 'r45-67=49-51', 'i54-67', 'r79-86=76-78', 'i80-88'],
-         True
-     )
-    ]
+    critic = api.critic.startSession(for_testing=True)
+    repository = api.repository.fetch(critic, name="critic")
 
-    for content, expected_parts, _, _ in contents:
-        parts = api.impl.filediff.parts_from_html(content)
-        assert len(parts) == len(expected_parts)
-        for part, expected_part in zip(parts, expected_parts):
-            assert part.type == expected_part.type
-            assert part.content == expected_part.content
+    from_commit = api.commit.fetch(repository, sha1=FROM_SHA1)
+    to_commit = api.commit.fetch(repository, sha1=TO_SHA1)
 
-    for content, _, operations, old in contents:
-        parts = api.impl.filediff.parts_from_html(content)
-        content_string = "".join([part.content for part in parts])
-        highlighted_parts = api.impl.filediff.perform_operations(operations, parts, old)
-        highlighted_content_string = "".join([part.content for part in highlighted_parts])
-        assert content_string == highlighted_content_string or True
+    changeset = api.changeset.fetch(
+        critic, repository, from_commit=from_commit, to_commit=to_commit)
+    file = api.file.fetch(critic, path="src/operation/createreview.py")
+    filechange = api.filechange.fetch(critic, changeset, file)
+    filediff = api.filediff.fetch(critic, filechange)
 
-    print "html_parser: ok"
+    chunks = filediff.getMacroChunks(context_lines=3)
+
+    assert isinstance(chunks, list)
+    assert len(chunks) == 2
+
+    assert chunks[0].old_offset == 88
+    assert chunks[0].old_count == 6
+    assert chunks[0].new_offset == 88
+    assert chunks[0].new_count == 9
+
+    assert len(chunks[0].lines) == 9
+    assert chunks[0].lines[0].type_string == "CONTEXT"
+    assert chunks[0].lines[1].type_string == "CONTEXT"
+    assert chunks[0].lines[2].type_string == "CONTEXT"
+    assert chunks[0].lines[3].type_string == "INSERTED"
+    assert chunks[0].lines[4].type_string == "INSERTED"
+    assert chunks[0].lines[5].type_string == "INSERTED"
+    assert chunks[0].lines[6].type_string == "CONTEXT"
+    assert chunks[0].lines[7].type_string == "CONTEXT"
+    assert chunks[0].lines[8].type_string == "CONTEXT"
+
+    assert chunks[1].old_offset == 199
+    assert chunks[1].old_count == 14
+    assert chunks[1].new_offset == 202
+    assert chunks[1].new_count == 15
+
+    assert len(chunks[1].lines) == 15
+    assert chunks[1].lines[0].type_string == "CONTEXT"
+    assert chunks[1].lines[1].type_string == "CONTEXT"
+    assert chunks[1].lines[2].type_string == "CONTEXT"
+    assert chunks[1].lines[3].type_string == "MODIFIED"
+    assert chunks[1].lines[4].type_string == "CONTEXT"
+    assert chunks[1].lines[5].type_string == "CONTEXT"
+    assert chunks[1].lines[6].type_string == "CONTEXT"
+    assert chunks[1].lines[7].type_string == "CONTEXT"
+    assert chunks[1].lines[8].type_string == "CONTEXT"
+    assert chunks[1].lines[9].type_string == "MODIFIED"
+    assert chunks[1].lines[10].type_string == "REPLACED"
+    assert chunks[1].lines[11].type_string == "INSERTED"
+    assert chunks[1].lines[12].type_string == "CONTEXT"
+    assert chunks[1].lines[13].type_string == "CONTEXT"
+    assert chunks[1].lines[14].type_string == "CONTEXT"
+
+    print "post: ok"

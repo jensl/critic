@@ -24,18 +24,21 @@ class Filediffs(object):
     name = "filediffs"
     contexts = (None, "changesets")
     value_class = api.filediff.Filediff
-    exceptions = (api.filediff.FilediffError, api.filechange.FilechangeError)
+    exceptions = (api.filediff.FilediffError, api.filechange.FileChangeError)
 
     @staticmethod
     def json(value, parameters):
         """TODO: add documentation"""
 
         def part_as_dict(part):
+            if not part.type and not part.state:
+                return part.content
             dict_part = {
-                "type": part.type,
                 "content": part.content
-                }
-            if part.state is not None:
+            }
+            if part.type:
+                dict_part["type"] = part.type
+            if part.state:
                 dict_part["state"] = part.state
             return dict_part
 
@@ -44,13 +47,9 @@ class Filediffs(object):
                 "type": line.type_string,
                 "old_offset": line.old_offset,
                 "new_offset": line.new_offset,
-                }
-            if line.old_content is not None:
-                dict_line["old_content"] = [part_as_dict(part) for
-                                            part in line.old_content]
-            if line.new_content is not None:
-                dict_line["new_content"] = [part_as_dict(part) for
-                                            part in line.new_content]
+            }
+            dict_line["content"] = [part_as_dict(part) for
+                                    part in line.content]
             return dict_line
 
         def chunk_as_dict(chunk):
@@ -62,15 +61,42 @@ class Filediffs(object):
                 "new_count": chunk.new_count
             }
 
-        dict_chunks = [chunk_as_dict(chunk) for chunk in value.macro_chunks]
+        context_lines = parameters.getQueryParameter(
+            "context_lines", int, ValueError)
+        if context_lines is not None:
+            if context_lines < 0:
+                raise jsonapi.UsageError(
+                    "Negative number of context lines not supported")
+        else:
+            # TODO: load this from the user's config (or make it mandatory and
+            # let the client handle config loading).
+            context_lines = 3
+
+        comment = jsonapi.deduce("v1/comments", parameters)
+        if comment is not None:
+            comments = [comment]
+            ignore_chunks = True
+        else:
+            review = jsonapi.deduce("v1/reviews", parameters)
+            if review is not None:
+                comments = api.comment.fetchAll(
+                    parameters.critic, review=review,
+                    changeset=value.filechange.changeset)
+            else:
+                comments = None
+            ignore_chunks = False
+
+        macro_chunks = value.getMacroChunks(
+            context_lines, comments, ignore_chunks)
+
+        dict_chunks = [chunk_as_dict(chunk) for chunk in macro_chunks]
         return parameters.filtered(
             "filediffs", {
+                "file": value.filechange,
+                "changeset": value.filechange.changeset,
                 "macro_chunks": dict_chunks,
                 "old_count": value.old_count,
-                "new_count": value.new_count,
-                "id": value.id,
-                "path": value.path,
-                "changeset": value.changeset
+                "new_count": value.new_count
             })
 
     @staticmethod
@@ -82,41 +108,16 @@ class Filediffs(object):
             raise jsonapi.UsageError(
                 "changeset needs to be specified, ex. &changeset=<id>")
 
-        comment = jsonapi.deduce("v1/comments", parameters)
-        ignore_chunks = comment is not None
-        if comment is not None:
-            comments = [comment]
-        else:
-            review = jsonapi.deduce("v1/reviews", parameters)
-            if review is not None:
-                comments = api.comment.fetchAll(
-                    parameters.critic, review=review, changeset=changeset)
-            else:
-                comments = None
-
         repository = jsonapi.deduce("v1/repositories", parameters)
         if repository is None:
             raise jsonapi.UsageError(
                 "repository needs to be specified, "
                 "ex. &repository=<id or name>")
 
-        file_id = jsonapi.numeric_id(argument)
-        filechange = api.filechange.fetch(parameters.critic, changeset, file_id)
+        file = api.file.fetch(parameters.critic, jsonapi.numeric_id(argument))
+        filechange = api.filechange.fetch(parameters.critic, changeset, file)
 
-        context_lines = parameters.getQueryParameter(
-            "context_lines", int, ValueError)
-        if context_lines_param is not None:
-            if context_lines < 0:
-                raise jsonapi.UsageError(
-                    "Negative number of context lines not supported")
-        else:
-            # TODO: load this from the user's config (or make it mandatory and
-            # let the client handle config loading).
-            context_lines = 3
-
-        return api.filediff.fetch(
-            parameters.critic, repository, filechange, context_lines, comments,
-            ignore_chunks=ignore_chunks)
+        return api.filediff.fetch(parameters.critic, filechange)
 
     @staticmethod
     def multiple(parameters):
@@ -133,31 +134,8 @@ class Filediffs(object):
                 "repository needs to be specified, "
                 "ex. &repository=<id or name>")
 
-        if filechange is not None:
-            changeset = filechange.changeset
+        return api.filediff.fetchAll(parameters.critic, changeset)
 
-        review = jsonapi.deduce("v1/reviews", parameters)
-        if review is not None:
-            comments = api.comment.fetchAll(
-                parameters.critic, review=review, changeset=changeset)
-        else:
-            comments = None
-
-        context_lines = parameters.getQueryParameter("context_lines", int, ValueError)
-        if context_lines_param is not None:
-            if context_lines < 0:
-                raise jsonapi.UsageError(
-                    "Negative number of context lines not supported")
-        else:
-            # TODO: load this from the user's config (or make it mandatory and
-            # let the client handle config loading).
-            context_lines = 3
-
-        if filechange is not None:
-            filediff = api.filediff.fetch(
-                parameters.critic, repository, filechange, context_lines, comments,
-                ignore_chunks=ignore_chunks)
-        else:
-            filediff = api.filediff.fetchAll(
-                parameters.critic, repository, changeset, context_lines, comments)
-        return filediff
+    @staticmethod
+    def resource_id(value):
+        return value.filechange.file.id

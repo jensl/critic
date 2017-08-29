@@ -32,18 +32,16 @@ def assert_valid_filechanges(filechanges):
     for filechange in filechanges:
         assert (filechange.old_sha1 != filechange.new_sha1),\
             "Expected filechange.new_sha1 to be different from filechange.old_sha1"
-        assert (isinstance(filechange.old_sha1, str)),\
-            "Expected filechange.old_sha1 to be a string"
-        assert (len(filechange.old_sha1) == 40),\
-            "Expected filechange.old_sha1 to be 40 characters long"
-        assert (isinstance(filechange.new_sha1, str)),\
-            "Expected filechange.new_sha1 to be a string"
-        assert (len(filechange.new_sha1) == 40),\
-            "Expected filechange.new_sha1 to be 40 characters long"
-        for chunk in filechange.chunks:
-            assert (chunk.deleteoffset >= 0 and chunk.deletecount >= 0 and
-                    chunk.insertoffset >= 0 and chunk.insertcount >= 0),\
-                "numbers can't be less than 0"
+        if filechange.old_sha1 is not None:
+            assert (isinstance(filechange.old_sha1, str)),\
+                "Expected filechange.old_sha1 to be a string"
+            assert (len(filechange.old_sha1) == 40),\
+                "Expected filechange.old_sha1 to be 40 characters long"
+        if filechange.new_sha1 is not None:
+            assert (filechange.new_sha1 is None or isinstance(filechange.new_sha1, str)),\
+                "Expected filechange.new_sha1 to be a string"
+            assert (len(filechange.new_sha1) == 40),\
+                "Expected filechange.new_sha1 to be 40 characters long"
 
 
 def root_filechange(phase, api, critic, repository):
@@ -62,7 +60,7 @@ def root_filechange(phase, api, critic, repository):
         root_filechanges = api.filechange.fetchAll(critic, root_changeset)
 
         root_files = frozenset(
-            [filechange.path for filechange in root_filechanges])
+            [filechange.file.path for filechange in root_filechanges])
         assert (root_files == ROOT_PATHLIST),\
             "files in filechanges differ from the expected"
         assert_valid_filechanges(root_filechanges)
@@ -86,8 +84,7 @@ def custom_filechange(phase, api, critic, repository):
         to_commit = api.commit.fetch(repository, sha1=TO_SHA1)
         custom_changeset = api.changeset.fetch(
             critic, repository, from_commit=from_commit, to_commit=to_commit)
-        for file in custom_changeset.files:
-            filechange = api.filechange.fetch(critic, custom_changeset, file.id)
+        for filechange in custom_changeset.files:
             assert_valid_filechanges([filechange])
 
     else:
@@ -109,13 +106,11 @@ def single_filechange(phase, api, critic, repository):
             critic, repository, single_commit=single_commit)
         all_filechanges = api.filechange.fetchAll(critic, single_changeset)
         assert_valid_filechanges(all_filechanges)
-        all_filechange_ids = [filechange.id for filechange in all_filechanges]
+        all_filechange_ids = [filechange.file.id for filechange in all_filechanges]
 
-        equiv_filechange_ids = []
-        file_ids = [file.id for file in single_changeset.files]
-        for file_id in file_ids:
-            filechange = api.filechange.fetch(critic, single_changeset, file_id)
-            equiv_filechange_ids.append(filechange.id)
+        equiv_filechange_ids = [
+            filechange.file.id for filechange in single_changeset.files
+        ]
 
         assert True or (frozenset(all_filechange_ids) == frozenset(equiv_filechange_ids)),\
             "filechanges from fetchAll should be equal to list of filechanges fetched by file_id"

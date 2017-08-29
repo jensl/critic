@@ -14,103 +14,50 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-from __future__ import absolute_import
-
 import api
 import api.impl
-from api.impl import apiobject
-import diff
+import apiobject
 
-class Filechange(apiobject.APIObject):
-    wrapper_class = api.filechange.Filechange
+class FileChange(apiobject.APIObject):
+    wrapper_class = api.filechange.FileChange
 
-    def __init__(self, id, changeset, path, old_sha1, old_mode,
-                 new_sha1, new_mode, chunks):
-        self.id = id
+    def __init__(self, changeset,
+                 file_id, old_sha1, old_mode, new_sha1, new_mode):
         self.changeset = changeset
-        self.path = path
-        self.old_sha1 = old_sha1
+        self.__file_id = file_id
+        self.old_sha1 = old_sha1 if old_sha1 != "0" * 40 else None
         self.old_mode = old_mode
-        self.new_sha1 = new_sha1
+        self.new_sha1 = new_sha1 if new_sha1 != "0" * 40 else None
         self.new_mode = new_mode
-        self.chunks = chunks
 
+    def getFile(self, critic):
+        return api.file.fetch(critic, self.__file_id)
 
-class Chunk(apiobject.APIObject):
-    wrapper_class = api.filechange.Chunk
-
-    def __init__(self, deleteoffset, deletecount, insertoffset, insertcount, analysis, is_whitespace):
-        self.deleteoffset = deleteoffset
-        self.deletecount = deletecount
-        self.insertoffset = insertoffset
-        self.insertcount = insertcount
-        self.analysis = analysis
-        self.is_whitespace = is_whitespace
-
-
-def fetch(critic, changeset, id):
+@FileChange.cached(api.filechange.InvalidFileChangeId,
+                   cache_key=lambda (changeset, file): (changeset.id, file.id))
+def fetch(critic, changeset, file):
     cursor = critic.getDatabaseCursor()
     cursor.execute(
-        """SELECT deleteoffset, deletecount, insertoffset, insertcount,
-                      analysis, whitespace
-             FROM chunks
-            WHERE changeset=%s AND file=%s
-         ORDER BY deleteoffset ASC""",
-        (changeset.id, id))
-    chunks = list(Chunk.make(critic, cursor))
-
-    cursor.execute(
-        """SELECT path, old_sha1, old_mode, new_sha1, new_mode
-             FROM files
-       INNER JOIN fileversions ON files.id=fileversions.file
-            WHERE fileversions.changeset=%s AND files.id=%s""",
-        (changeset.id, id,))
-    row = cursor.fetchone()
-    if not row:
-        raise FilechangeError(
-            "Filechange for file %s and changeset %s not found" %
-            (id, changeset))
-    (path, old_sha1, old_mode, new_sha1, new_mode) = row
-    filechange = Filechange(id, changeset, path, old_sha1, old_mode,
-                            new_sha1, new_mode, chunks)
-    return filechange.wrap(critic)
+        """SELECT file, old_sha1, old_mode, new_sha1, new_mode
+             FROM fileversions
+            WHERE changeset=%s
+              AND file=%s""",
+        (changeset.id, file.id,))
+    def cache_key(args):
+        return args[0].id, args[1]
+    return FileChange.make(critic, ((changeset,) + row for row in cursor),
+                           cache_key=cache_key)
 
 def fetchAll(critic, changeset):
     cursor = critic.getDatabaseCursor()
-
     cursor.execute(
-        """SELECT file, deleteoffset, deletecount, insertoffset, insertcount,
-                            analysis, whitespace
-             FROM chunks
+        """SELECT file, old_sha1, old_mode, new_sha1, new_mode
+             FROM fileversions
+             JOIN files ON (files.id=file)
             WHERE changeset=%s
-         ORDER BY deleteoffset ASC""",
+         ORDER BY files.path""",
         (changeset.id,))
-
-    filechunks = {}
-    for (id, deleteoffset, deletecount, insertoffset, insertcount, analysis,
-         is_whitespace) in cursor:
-
-        chunk = Chunk(deleteoffset, deletecount, insertoffset, insertcount,
-                      analysis, is_whitespace)
-        if id in filechunks:
-            filechunks[id].append(chunk)
-        else:
-            filechunks[id] = [chunk]
-
-
-    cursor.execute(
-        """SELECT files.id, path, old_sha1, old_mode, new_sha1, new_mode
-             FROM files
-       INNER JOIN fileversions ON files.id=fileversions.file
-            WHERE fileversions.changeset=%s""",
-        (changeset.id,))
-    rows = cursor.fetchall()
-
-    files = []
-    for row in rows:
-        (id, path, old_sha1, old_mode, new_sha1, new_mode) = row
-        chunks = filechunks[id]
-        files.append(Filechange(id, changeset, path, old_sha1, old_mode,
-                                new_sha1, new_mode, chunks).wrap(critic))
-
-    return sorted(files, key=lambda file: file.path)
+    def cache_key(args):
+        return args[0].id, args[1]
+    return list(FileChange.make(critic, ((changeset,) + row for row in cursor),
+                                cache_key=cache_key))

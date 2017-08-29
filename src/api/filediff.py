@@ -22,52 +22,41 @@ class FilediffError(api.APIError):
 class FilediffParserError(api.APIError):
     pass
 
+class FilediffDelayed(api.ResultDelayedError):
+    pass
+
 class Filediff(api.APIObject):
     """Representation of the source code for a file in a changeset
 
        A filediff has a list of macro chunks, where each macro chunk represents
        a partition of a file."""
 
-    def __eq__(self, other):
-        return int(self) == int(other) and \
-            int(self.changeset) == int(other.changeset)
-
     def __hash__(self):
-        return hash((int(self), int(self.changeset)))
-
-    @property
-    def id(self):
-        return self._impl.filechange.id
-
-    @property
-    def path(self):
-        return self._impl.filechange.path
-
-    @property
-    def macro_chunks(self):
-        return self._impl.getMacroChunks(self.critic)
-
-    @property
-    def old_count(self):
-        if self._impl.diff_file is not None:
-            return self._impl.diff_file.oldCount()
-        else:
-            return None
-
-    @property
-    def new_count(self):
-        if self._impl.diff_file is not None:
-            return self._impl.diff_file.newCount()
-        else:
-            return None
+        return hash(("filediff", self.filechange))
+    def __eq__(self, other):
+        return self.filechange == other.filechange
 
     @property
     def filechange(self):
         return self._impl.filechange
 
     @property
-    def changeset(self):
-        return self._impl.filechange.changeset
+    def old_count(self):
+        return self._impl.new_count
+
+    @property
+    def new_count(self):
+        return self._impl.new_count
+
+    def getMacroChunks(self, context_lines, comments=None, ignore_chunks=False):
+        assert isinstance(context_lines, int)
+        if comments is not None:
+            comments = list(comments)
+            assert all(isinstance(comment, api.comment.Comment)
+                       for comment in comments)
+        assert isinstance(ignore_chunks, bool)
+        return self._impl.getMacroChunks(
+            self.critic, context_lines, comments, ignore_chunks)
 
 class MacroChunk(object):
     """Representation of a partition of a file
@@ -144,12 +133,8 @@ class Line(object):
         return self.__impl.legacy_line.new_offset
 
     @property
-    def old_content(self):
-        return self.__impl.getOldContent()
-
-    @property
-    def new_content(self):
-        return self.__impl.getNewContent()
+    def content(self):
+        return self.__impl.getContent()
 
     @property
     def is_whitespace(self):
@@ -189,21 +174,16 @@ class Part(object):
     def state(self):
         return self.__impl.state
 
-def fetch(critic, repository, filechange, context_lines, comments=None, ignore_chunks=False):
+def fetch(critic, filechange):
     assert isinstance(critic, api.critic.Critic)
-    assert isinstance(repository, api.repository.Repository)
-    assert isinstance(filechange, api.filechange.Filechange)
-    assert comments is None or isinstance(comments, list)
-    assert ignore_chunks is True or ignore_chunks is False
-    assert isinstance(context_lines, int)
+    assert isinstance(filechange, api.filechange.FileChange), filechange
 
-    return api.impl.filediff.fetch(critic, repository, filechange, context_lines, comments, ignore_chunks)
+    return api.impl.filediff.fetch(critic, filechange)
 
-def fetchAll(critic, repository, changeset, context_lines, comments=None):
+def fetchAll(critic, changeset):
     assert isinstance(critic, api.critic.Critic)
-    assert isinstance(repository, api.repository.Repository)
     assert isinstance(changeset, api.changeset.Changeset)
     assert comments is None or isinstance(comments, list)
     assert isinstance(context_lines, int)
 
-    return api.impl.filediff.fetchAll(critic, repository, changeset, context_lines, comments)
+    return api.impl.filediff.fetchAll(critic, changeset)

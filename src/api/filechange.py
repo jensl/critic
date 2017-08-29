@@ -16,23 +16,29 @@
 
 import api
 
-class FilechangeError(api.APIError):
+class FileChangeError(api.APIError):
     pass
 
-class Filechange(api.APIObject):
+class InvalidFileChangeId(FileChangeError):
+    def __init__(self, changeset_id, file_id):
+        super(InvalidFileChangeId, self).__init__(
+            "Invalid file change id: %d:%d" % (changeset_id, file_id))
+
+class FileChange(api.APIObject):
     """Representation of the changes to a file introduced by a changeset"""
 
+    def __hash__(self):
+        return hash((self.changeset, self.file))
+    def __eq__(self, other):
+        return self.changeset == other.changeset and self.file == other.file
+
     @property
-    def id(self):
-        return self._impl.id
+    def file(self):
+        return self._impl.getFile(self.critic)
 
     @property
     def changeset(self):
         return self._impl.changeset
-
-    @property
-    def path(self):
-        return self._impl.path
 
     @property
     def old_sha1(self):
@@ -50,45 +56,13 @@ class Filechange(api.APIObject):
     def new_mode(self):
         return self._impl.new_mode
 
-    @property
-    def chunks(self):
-        return self._impl.chunks
-
-
-class Chunk(api.APIObject):
-    """A change to a file"""
-
-    @property
-    def id(self):
-        return self._impl.id
-
-    @property
-    def deleteoffset(self):
-        return self._impl.deleteoffset
-
-    @property
-    def deletecount(self):
-        return self._impl.deletecount
-
-    @property
-    def insertoffset(self):
-        return self._impl.insertoffset
-
-    @property
-    def insertcount(self):
-        return self._impl.insertcount
-
-    @property
-    def analysis(self):
-        return self._impl.analysis
-
-    @property
-    def is_whitespace(self):
-        return self._impl.is_whitespace
-
-
-def fetch(critic, changeset, file_id):
-    return api.impl.filechange.fetch(critic, changeset, file_id)
+def fetch(critic, changeset, file):
+    assert isinstance(critic, api.critic.Critic)
+    assert isinstance(changeset, api.changeset.Changeset)
+    assert isinstance(file, api.file.File)
+    return api.impl.filechange.fetch(critic, changeset, file)
 
 def fetchAll(critic, changeset):
+    assert isinstance(critic, api.critic.Critic)
+    assert isinstance(changeset, api.changeset.Changeset)
     return api.impl.filechange.fetchAll(critic, changeset)

@@ -28,7 +28,8 @@ class Filecontent(apiobject.APIObject):
         diffFile = diff.File(
             repository=repository._impl.getInternal(critic), path=file_obj.path,
             new_sha1=blob_sha1)
-        diffFile.loadNewLines(highlighted=True, request_highlight=True)
+        diffFile.loadNewLines(
+            highlighted=True, request_highlight=True, highlight_mode="json")
         self.__filecontents = diffFile.newLines(highlighted=True)
 
     def getLines(self, first_row, last_row):

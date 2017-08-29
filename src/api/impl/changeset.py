@@ -31,7 +31,6 @@ class Changeset(apiobject.APIObject):
         self.type = changeset_type
         self.__from_commit_id = from_commit_id
         self.__to_commit_id = to_commit_id
-        self.files = files
         self.__filediffs = None
         self.repository = repository
 
@@ -62,7 +61,7 @@ class Changeset(apiobject.APIObject):
                 # context_lines will only be relevant if we had requested the
                 # content of the filediff
                 self.__filediffs = api.filediff.fetchAll(
-                    wrapper.critic, self.repository, wrapper, context_lines=3)
+                    wrapper.critic, wrapper, context_lines=3)
         return self.__filediffs
 
 

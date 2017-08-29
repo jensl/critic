@@ -350,7 +350,7 @@ def custom_changeset(phase, api, critic, repository):
                 custom_changeset.type == "custom"),\
             "custom_changeset has incorrect types"
 
-        paths = frozenset([file.path for file in custom_changeset.files])
+        paths = frozenset([filechange.file.path for filechange in custom_changeset.files])
 
         assert paths == CUSTOM_PATHLIST,\
             "files in changeset deviate from expected files"
@@ -403,11 +403,14 @@ def direct_changeset(phase, api, critic, repository):
         assert (changeset.type == equiv_changeset.type),\
             "changeset and equiv_changeset have different types"
 
+        files = [filechange.file for filechange in changeset.files]
+        equiv_files = [filechange.file for filechange in equiv_changeset.files]
+
         changeset_files = frozenset(
-            (file.id, file.path) for file in changeset.files)
-        changeset_paths = frozenset(file.path for file in changeset.files)
+            (file.id, file.path) for file in files)
+        changeset_paths = frozenset(file.path for file in files)
         equiv_changeset_files = frozenset(
-            (file.id, file.path) for file in equiv_changeset.files)
+            (file.id, file.path) for file in equiv_files)
 
         assert (changeset_files == equiv_changeset_files),\
             "changeset and equiv_changeset have different files"
@@ -434,7 +437,7 @@ def root_changeset(phase, api, critic, repository):
             "root_changeset should be direct changeset"
         assert (isinstance(root_changeset.id, int)),\
             "root_changeset.id should be integer"
-        root_paths = frozenset([file.path for file in root_changeset.files])
+        root_paths = frozenset([filechange.file.path for filechange in root_changeset.files])
 
         assert (root_paths == ROOT_PATHLIST),\
             "root_changeset has other files than expected"
