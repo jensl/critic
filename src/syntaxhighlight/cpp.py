@@ -19,37 +19,37 @@ import syntaxhighlight.clexer
 import htmlutils
 import configuration
 
+from syntaxhighlight import TokenTypes
+
 class HighlightCPP:
     def highlightToken(self, token):
         if token.iskeyword():
-            self.output.write("<b class='kw'>" + str(token) + "</b>")
+            self.outputter.writeSingleline(TokenTypes.Keyword, str(token))
         elif token.isidentifier():
-            self.output.write("<b class='id'>" + str(token) + "</b>")
+            self.outputter.writeSingleline(TokenTypes.Identifier, str(token))
         elif token.iscomment():
             if str(token)[0:2] == "/*":
-                lines = str(token).splitlines()
-                self.output.write("\n".join(["<b class='com'>" + htmlutils.htmlify(line) + "</b>" for line in lines]))
+                self.outputter.writeMultiline(TokenTypes.Comment, str(token))
             else:
-                self.output.write("<b class='com'>" + htmlutils.htmlify(token) + "</b>")
+                self.outputter.writeSingleline(TokenTypes.Comment, str(token))
         elif token.isppdirective():
-            lines = str(token).split("\n")
-            self.output.write("\n".join(["<b class='pp'>" + htmlutils.htmlify(line) + "</b>" for line in lines]))
+            self.outputter.writeMultiline(TokenTypes.Preprocessing, str(token))
         elif token.isspace():
-            self.output.write(str(token))
+            self.outputter.writePlain(str(token))
         elif token.isconflictmarker():
-            self.output.write(htmlutils.htmlify(token))
+            self.outputter.writePlain(str(token))
         elif str(token)[0] == '"':
-            self.output.write("<b class='str'>" + htmlutils.htmlify(token) + "</b>")
+            self.outputter.writeSingleline(TokenTypes.String, str(token))
         elif str(token)[0] == "'":
-            self.output.write("<b class='ch'>" + htmlutils.htmlify(token) + "</b>")
+            self.outputter.writeSingleline(TokenTypes.Character, str(token))
         elif token.isfloat():
-            self.output.write("<b class='fp'>" + str(token) + "</b>")
+            self.outputter.writeSingleline(TokenTypes.Float, str(token))
         elif token.isint():
-            self.output.write("<b class='int'>" + str(token) + "</b>")
+            self.outputter.writeSingleline(TokenTypes.Integer, str(token))
         elif token.isbyteordermark():
-            self.output.write(htmlutils.htmlify(u"\ufeff"))
+            self.outputter.writePlain(u"\ufeff")
         else:
-            self.output.write("<b class='op'>" + htmlutils.htmlify(token) + "</b>")
+            self.outputter.writeSingleline(TokenTypes.Operator, str(token))
 
     def outputContext(self, tokens, terminator):
         if not self.contexts: return
@@ -150,9 +150,9 @@ class HighlightCPP:
                 elif not nextContextClosed:
                     nextContext.append(token)
 
-    def __call__(self, source, output, contexts_path):
+    def __call__(self, source, outputter, contexts_path):
         source = source.encode("utf-8")
-        self.output = output
+        self.outputter = outputter
         if contexts_path: self.contexts = open(contexts_path, "w")
         else: self.contexts = None
         self.processTokens(syntaxhighlight.clexer.tokenize(syntaxhighlight.clexer.split(source)))

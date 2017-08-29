@@ -35,43 +35,34 @@ else:
 
 import htmlutils
 
+from syntaxhighlight import TokenTypes
+
 class HighlightGeneric:
     def __init__(self, lexer):
         self.lexer = lexer
 
     def highlightToken(self, token, value):
-        def tag(cls, value): return "<b class='%s'>%s</b>" % (cls, htmlutils.htmlify(value))
-        def tagm(cls, value):
-            if value == "\n": return value
-            else:
-                res = []
-                for line in value.splitlines():
-                    if line: res.append(tag(cls, line))
-                    else: res.append(line)
-                if value.endswith("\n"): res.append("")
-                return "\n".join(res)
-
         value = value.encode("utf-8")
 
         if token in pygments.token.Token.Punctuation or token in pygments.token.Token.Operator:
-            self.output.write(tag("op", value))
+            self.outputter.writeSingleline(TokenTypes.Operator, value)
         elif token in pygments.token.Token.Name or token in pygments.token.Token.String.Symbol:
-            self.output.write(tag("id", value))
+            self.outputter.writeSingleline(TokenTypes.Identifier, value)
         elif token in pygments.token.Token.Keyword:
-            self.output.write(tag("kw", value))
+            self.outputter.writeSingleline(TokenTypes.Keyword, value)
         elif token in pygments.token.Token.String:
-            self.output.write(tagm("str", value))
+            self.outputter.writeMultiline(TokenTypes.String, value)
         elif token in pygments.token.Token.Comment:
-            self.output.write(tagm("com", value))
+            self.outputter.writeMultiline(TokenTypes.Comment, value)
         elif token in pygments.token.Token.Number.Integer:
-            self.output.write(tag("int", value))
+            self.outputter.writeSingleline(TokenTypes.Integer, value)
         elif token in pygments.token.Token.Number.Float:
-            self.output.write(tag("fp", value))
+            self.outputter.writeSingleline(TokenTypes.Float, value)
         else:
-            self.output.write(htmlutils.htmlify(value))
+            self.outputter.writePlain(value)
 
-    def __call__(self, source, output_file, contexts_path):
-        self.output = output_file
+    def __call__(self, source, outputter, contexts_path):
+        self.outputter = outputter
 
         blocks = re.split("^((?:<<<<<<<|>>>>>>>)[^\n]*\n)", source, flags=re.MULTILINE)
 
@@ -91,10 +82,10 @@ class HighlightGeneric:
                                 self.highlightToken(token, value)
                     else:
                         assert block[0] == "="
-                        self.output.write(htmlutils.htmlify(block))
+                        self.outputter.writePlain(block)
             else:
                 assert block[0] == "<" or block[0] == ">"
-                self.output.write(htmlutils.htmlify(block))
+                self.outputter.writePlain(block)
                 in_conflict = block[0] == "<"
 
     @staticmethod

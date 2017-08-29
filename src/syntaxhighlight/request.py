@@ -27,12 +27,21 @@ class HighlightBackgroundServiceError(base.ImplementationError):
         super(HighlightBackgroundServiceError, self).__init__(
             "Highlight background service failed: %s" % message)
 
-def requestHighlights(repository, sha1s, async=False):
-    requests = [{ "repository_path": repository.path, "sha1": sha1, "path": path, "language": language }
-                for sha1, (path, language) in sha1s.items()
-                if not syntaxhighlight.isHighlighted(sha1, language)]
+def requestHighlights(repository, sha1s, mode, async=False):
+    requests = [
+        {
+            "repository_path": repository.path,
+            "sha1": sha1,
+            "path": path,
+            "language": language,
+            "mode": mode
+        }
+        for sha1, (path, language) in sha1s.items()
+        if not syntaxhighlight.isHighlighted(sha1, language, mode)
+    ]
 
-    if not requests: return
+    if not requests:
+        return False
 
     try:
         connection = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
@@ -55,7 +64,7 @@ def requestHighlights(repository, sha1s, async=False):
         raise HighlightBackgroundServiceError(str(error))
 
     if async:
-        return
+        return True
 
     if not data:
         raise HighlightBackgroundServiceError(
@@ -73,3 +82,5 @@ def requestHighlights(repository, sha1s, async=False):
 
     if len(results) != len(requests):
         raise HighlightBackgroundServiceError("didn't process all requests")
+
+    return True

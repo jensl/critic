@@ -19,6 +19,7 @@ import re
 import gitutils
 import diff.analyze
 import syntaxhighlight
+import syntaxhighlight.request
 import htmlutils
 import textutils
 
@@ -324,7 +325,28 @@ class File:
         else:
             return None
 
-    def loadOldLines(self, highlighted=False, request_highlight=False):
+    def ensureHighlight(self, highlight_mode="legacy"):
+        """Ensure that the old and new version are syntax highlighted
+
+           If they are, True is returned. If they are not, an asynchronous
+           request to syntax highlight them is made, and False is returned."""
+        sha1s = {}
+        if self.old_sha1 \
+                and self.old_sha1 != "0" * 40 \
+                and self.old_mode != "160000":
+            old_language = self.getLanguage(use_content="old")
+            if old_language:
+                sha1s[self.old_sha1] = (self.path, old_language)
+        if self.new_sha1 \
+                and self.new_sha1 != "0" * 40 \
+                and self.new_mode != "160000":
+            new_language = self.getLanguage(use_content="new")
+            if new_language:
+                sha1s[self.new_sha1] = (self.path, new_language)
+        return not syntaxhighlight.request.requestHighlights(
+            self.repository, sha1s, highlight_mode, async=True)
+
+    def loadOldLines(self, highlighted=False, request_highlight=False, highlight_mode="legacy"):
         """Load the lines of the old version of the file, optionally highlighted."""
 
         from diff.parse import splitlines
@@ -334,19 +356,20 @@ class File:
             self.old_highlighted = []
             return
         elif self.old_mode and self.old_mode == "160000":
-            self.old_plain = self.old_highlighted = ["Subproject commit %s" % self.old_sha1]
+            self.old_plain = "Subproject commit %s" % self.old_sha1
+            self.old_highlighted = splitlines(syntaxhighlight.wrap(
+                self.old_plain, highlight_mode))
             return
 
         if highlighted:
-            if self.old_highlighted and self.old_is_highlighted: return
+            if self.old_highlighted and self.old_is_highlighted:
+                return
             else:
                 self.old_is_highlighted = True
                 language = self.getLanguage(use_content="old")
-                if language:
-                    data = syntaxhighlight.readHighlight(self.repository, self.old_sha1, self.path, language, request=request_highlight)
-                elif self.old_highlighted: return
-                else:
-                    data = htmlutils.htmlify(textutils.decode(self.repository.fetch(self.old_sha1).data))
+                data = syntaxhighlight.readHighlight(
+                    self.repository, self.old_sha1, self.path, language,
+                    request=request_highlight, mode=highlight_mode)
                 self.old_highlighted = splitlines(data)
                 self.old_eof_eol = data and data[-1] in "\n\r"
         else:
@@ -356,7 +379,7 @@ class File:
                 self.old_plain = splitlines(data)
                 self.old_eof_eol = data and data[-1] in "\n\r"
 
-    def loadNewLines(self, highlighted=False, request_highlight=False):
+    def loadNewLines(self, highlighted=False, request_highlight=False, highlight_mode="legacy"):
         """Load the lines of the new version of the file, optionally highlighted."""
 
         from diff.parse import splitlines
@@ -366,19 +389,20 @@ class File:
             self.new_highlighted = []
             return
         elif self.new_mode and self.new_mode == "160000":
-            self.new_plain = self.new_highlighted = ["Subproject commit %s" % self.new_sha1]
+            self.new_plain = "Subproject commit %s" % self.new_sha1
+            self.new_highlighted = splitlines(syntaxhighlight.wrap(
+                self.new_plain, highlight_mode))
             return
 
         if highlighted:
-            if self.new_highlighted and self.new_is_highlighted: return
+            if self.new_highlighted and self.new_is_highlighted:
+                return
             else:
                 self.new_is_highlighted = True
                 language = self.getLanguage(use_content="new")
-                if language:
-                    data = syntaxhighlight.readHighlight(self.repository, self.new_sha1, self.path, language, request=request_highlight)
-                elif self.new_highlighted: return
-                else:
-                    data = htmlutils.htmlify(textutils.decode(self.repository.fetch(self.new_sha1).data))
+                data = syntaxhighlight.readHighlight(
+                    self.repository, self.new_sha1, self.path, language,
+                    request=request_highlight, mode=highlight_mode)
                 self.new_highlighted = splitlines(data)
                 self.new_eof_eol = data and data[-1] in "\n\r"
         else:

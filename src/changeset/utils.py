@@ -226,7 +226,7 @@ def createChangeset(db, user, repository, commit=None, from_commit=None, to_comm
                     if file.new_sha1 and file.new_sha1 != '0' * 40:
                         highlights[file.new_sha1] = (file.path, file.getLanguage())
 
-        syntaxhighlight.request.requestHighlights(repository, highlights)
+        syntaxhighlight.request.requestHighlights(repository, highlights, "legacy")
 
     return changesets
 

@@ -32,7 +32,8 @@ if "--json-job" in sys.argv[1:]:
         request["highlighted"] = syntaxhighlight.generate.generateHighlight(
             repository_path=request["repository_path"],
             sha1=request["sha1"],
-            language=request["language"])
+            language=request["language"],
+            mode=request["mode"])
         sys.stdout.write(json_encode(request))
 
     background.utils.call("highlight_job", perform_job)
@@ -57,7 +58,7 @@ else:
                 self.register_maintenance(hour=hour, minute=minute, callback=self.__compact)
 
         def request_result(self, request):
-            if isHighlighted(request["sha1"], request["language"]):
+            if isHighlighted(request["sha1"], request["language"], request["mode"]):
                 result = request.copy()
                 result["highlighted"] = True
                 return result
@@ -125,8 +126,28 @@ else:
                         fullname = "%s/%s/%s" % (cache_dir, section, filename)
                         age = now - os.stat(fullname).st_mtime
 
-                        if len(filename) > 38 and filename[38] == "." and filename[39:] in syntaxhighlight.LANGUAGES:
-                            cursor.execute("DELETE FROM purged WHERE sha1=%s", (section + filename[:38],))
+                        parts = filename.split(".")
+
+                        if len(parts) < 2 \
+                                or len(parts[0]) != 38 \
+                                or parts[1] not in syntaxhighlight.LANGUAGES:
+                            os.unlink(fullname)
+                            continue
+
+                        sha1 = section + parts[0]
+
+                        if parts[-1] == "bz2":
+                            if age > max_age_compressed:
+                                self.debug("purging: %s/%s" % (section, filename))
+                                purged_paths.append(fullname)
+                            else:
+                                cursor.execute("DELETE FROM purged WHERE sha1=%s", (sha1,))
+                                compressed_count += 1
+                        elif parts[-1] == "ctx":
+                            self.debug("deleting context file: %s/%s" % (section, filename))
+                            os.unlink(fullname)
+                        else:
+                            cursor.execute("DELETE FROM purged WHERE sha1=%s", (sha1,))
                             if age > max_age_uncompressed:
                                 self.debug("compressing: %s/%s" % (section, filename))
                                 worker = process(["/bin/bzip2", fullname])
@@ -134,19 +155,6 @@ else:
                                 compressed_count += 1
                             else:
                                 uncompressed_count += 1
-                        elif len(filename) > 41 and filename[38] == "." and filename[-4] == "." and filename[39:-4] in syntaxhighlight.LANGUAGES:
-                            if filename.endswith(".bz2"):
-                                if age > max_age_compressed:
-                                    self.debug("purging: %s/%s" % (section, filename))
-                                    purged_paths.append(fullname)
-                                else:
-                                    cursor.execute("DELETE FROM purged WHERE sha1=%s", (section + filename[:38],))
-                                    compressed_count += 1
-                            elif filename.endswith(".ctx"):
-                                self.debug("deleting context file: %s/%s" % (section, filename))
-                                os.unlink(fullname)
-                        else:
-                            os.unlink(fullname)
 
             self.info("cache compacting finished: uncompressed=%d / compressed=%d / purged=%d"
                       % (uncompressed_count, compressed_count, len(purged_paths)))
@@ -158,9 +166,10 @@ else:
 
             purged_contexts = cursor.fetchone()[0]
 
-            cursor.execute("""DELETE FROM codecontexts
-                                    WHERE sha1 IN (SELECT sha1
-                                                     FROM purged)""")
+            cursor.execute("""DELETE
+                                FROM codecontexts
+                               WHERE sha1 IN (SELECT sha1
+                                                FROM purged)""")
 
             db.commit()
             db.close()

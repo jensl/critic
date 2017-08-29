@@ -115,7 +115,7 @@ def renderShowFile(req, db, user):
     db.commit()
 
     if file.canHighlight():
-        requestHighlights(repository, { file.new_sha1: (file.path, file.getLanguage()) })
+        requestHighlights(repository, { file.new_sha1: (file.path, file.getLanguage()) }, "legacy")
 
     file.loadNewLines(True, request_highlight=True)
 
