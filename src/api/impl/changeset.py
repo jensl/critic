@@ -82,14 +82,10 @@ def fetch(critic,
                               to_commit=to_commit)
         if id is not None:
             return fetch_by_id(critic, repository, id)
-        else:
-            request_changeset_creation(critic,
-                                       repository.name,
-                                       "custom",
-                                       from_commit=from_commit,
-                                       to_commit=to_commit)
-            return Changeset(None, "custom", None, None, None, repository).wrap(critic)
-        return None
+        request_changeset_creation(
+            critic, repository.name, "custom", from_commit=from_commit,
+            to_commit=to_commit)
+        raise api.changeset.ChangesetDelayed()
     if single_commit:
         if len(single_commit.parents) > 0:
             from_commit = single_commit.parents[0]
@@ -101,12 +97,9 @@ def fetch(critic,
                               to_commit=single_commit)
         if id is not None:
             return fetch_by_id(critic, repository, id)
-        else:
-            request_changeset_creation(critic,
-                                       repository.name,
-                                       "direct",
-                                       to_commit=single_commit)
-            return Changeset(None, "direct", None, None, None, repository).wrap(critic)
+        request_changeset_creation(
+            critic, repository.name, "direct", to_commit=single_commit)
+        raise api.changeset.ChangesetDelayed()
 
 
 def fetch_by_id(critic, repository, changeset_id):

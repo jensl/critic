@@ -37,3 +37,8 @@ class PermissionDenied(Exception):
 class TransactionError(APIError):
     """Base exception for transaction errors."""
     pass
+
+class ResultDelayedError(Exception):
+    """Base exception for all errors caused by the result being
+       temporarily unavailable"""
+    pass

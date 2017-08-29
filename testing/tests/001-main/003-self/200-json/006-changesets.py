@@ -10,14 +10,7 @@ frontend.json(
     "changesets",
     params={ "repository": 1,
              "commit": TO_SHA1},
-    expect={ "filediffs": None,
-             "files": None,
-             "type": "direct",
-             "to_commit": None,
-             "id": None,
-             "from_commit": None,
-             "contributing_commits": None,
-             "review_state": None })
+    expected_http_status=202)
 instance.synchronize_service("changeset") # wait for changeset creation to finish
 single_changeset = frontend.json(
     "changesets",
@@ -53,14 +46,7 @@ frontend.json(
     params={ "repository": "critic",
              "from": FROM_SHA1,
              "to": TO_SHA1 },
-    expect={ "filediffs": None,
-             "files": None,
-             "type": "custom",
-             "to_commit": None,
-             "id": None,
-             "from_commit": None,
-             "contributing_commits": None,
-             "review_state": None })
+    expected_http_status=202)
 instance.synchronize_service("changeset") # wait for changeset creation to finish
 frontend.json(
     "changesets",

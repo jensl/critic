@@ -8,8 +8,12 @@ def pre():
 
     from_commit = api.commit.fetch(repository, sha1=FROM_SHA1)
     to_commit = api.commit.fetch(repository, sha1=TO_SHA1)
-    custom_changeset = api.changeset.fetch(
-        critic, repository, from_commit=from_commit, to_commit=to_commit)
+
+    try:
+        api.changeset.fetch(
+            critic, repository, from_commit=from_commit, to_commit=to_commit)
+    except api.changeset.ChangesetDelayed:
+        pass
 
     print "pre: ok"
 

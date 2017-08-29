@@ -28,6 +28,9 @@ class InvalidChangesetId(ChangesetError):
 class NotImplementedError(ChangesetError):
     pass
 
+class ChangesetDelayed(api.ResultDelayedError):
+    pass
+
 class Changeset(api.APIObject):
     """Representation of a diff"""
 

@@ -80,9 +80,10 @@ def fetch_changeset(params, repository="critic"):
 
     result = frontend.json(
         "changesets",
-        params=params)
+        params=params,
+        expected_http_status=[200, 202])
 
-    if result["id"] is None:
+    if "error" in result:
         instance.synchronize_service("changeset")
 
         result = frontend.json(

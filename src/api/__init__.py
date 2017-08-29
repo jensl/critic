@@ -17,7 +17,8 @@
 """Critic API"""
 
 from apiobject import APIObject
-from apierror import APIError, PermissionDenied, TransactionError
+from apierror import (APIError, PermissionDenied, TransactionError,
+                      ResultDelayedError)
 
 import config
 import critic

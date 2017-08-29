@@ -383,8 +383,11 @@ class Frontend(object):
                     raise OperationError(url, message="malformed response (not JSON)")
             return result
 
+        if isinstance(expected_http_status, int):
+            expected_http_status = [expected_http_status]
+
         try:
-            if response.status_code != expected_http_status:
+            if response.status_code not in expected_http_status:
                 if response.status_code in (400, 404):
                     try:
                         error = response_json()["error"]

@@ -57,6 +57,10 @@ class PermissionDenied(Error):
     http_status = 403
     title = "Permission denied"
 
+class ResultDelayed(Error):
+    http_status = 202
+    title = "Resource temporarily unavailable"
+
 class InternalRedirect(Exception):
     def __init__(self, resource_path, subresource_path=None,
                  value=None, values=None):
@@ -648,3 +652,5 @@ def handleRequest(critic, req):
         return handleRequestInternal(critic, req)
     except (api.PermissionDenied, auth.AccessDenied) as error:
         raise PermissionDenied(error.message)
+    except api.ResultDelayedError:
+        raise ResultDelayed("Please try again later")

@@ -330,10 +330,14 @@ def custom_changeset(phase, api, critic, repository):
     if phase == "pre":
         from_commit = api.commit.fetch(repository, sha1=FROM_SHA1)
         to_commit = api.commit.fetch(repository, sha1=TO_SHA1)
-        custom_changeset = api.changeset.fetch(critic,
-                                               repository,
-                                               from_commit=from_commit,
-                                               to_commit=to_commit)
+
+        try:
+            api.changeset.fetch(critic,
+                                repository,
+                                from_commit=from_commit,
+                                to_commit=to_commit)
+        except api.changeset.ChangesetDelayed:
+            pass
 
     elif phase == "post":
         from_commit = api.commit.fetch(repository, sha1=FROM_SHA1)
@@ -359,19 +363,28 @@ def direct_changeset(phase, api, critic, repository):
     if phase == "pre":
         single_commit = api.commit.fetch(repository, sha1=TO_SHA1)
         from_single_commit = api.commit.fetch(repository, sha1=FROM_SINGLE_SHA1)
-        changeset = api.changeset.fetch(critic,
-                                        repository,
-                                        single_commit=single_commit)
-        equiv_changeset = api.changeset.fetch(critic,
-                                              repository,
-                                              from_commit=from_single_commit,
-                                              to_commit=single_commit)
-        assert (changeset.type != None),\
-            "Changeset type is None"
-        assert (equiv_changeset.type != None),\
-            "Equivalent changeset type is None"
+        try:
+            api.changeset.fetch(critic,
+                                repository,
+                                single_commit=single_commit)
+        except api.changeset.ChangesetDelayed:
+            pass
 
-        backwards_changeset = api.changeset.fetch(critic, repository, from_commit=single_commit, to_commit=from_single_commit)
+        try:
+            api.changeset.fetch(critic,
+                                repository,
+                                from_commit=from_single_commit,
+                                to_commit=single_commit)
+        except api.changeset.ChangesetDelayed:
+            pass
+
+        try:
+            api.changeset.fetch(critic,
+                                repository,
+                                from_commit=single_commit,
+                                to_commit=from_single_commit)
+        except api.changeset.ChangesetDelayed:
+            pass
 
     elif phase == "post":
         single_commit = api.commit.fetch(repository, sha1=TO_SHA1)
@@ -409,8 +422,10 @@ def direct_changeset(phase, api, critic, repository):
 def root_changeset(phase, api, critic, repository):
     if phase == "pre":
         root_commit = api.commit.fetch(repository, ref=ROOT_SHA1)
-        root_changeset = api.changeset.fetch(critic, repository, single_commit=root_commit)
-        assert is_empty_changeset(root_changeset, "direct")
+        try:
+            api.changeset.fetch(critic, repository, single_commit=root_commit)
+        except api.changeset.ChangesetDelayed:
+            pass
 
     elif phase == "post":
         root_commit = api.commit.fetch(repository, ref=ROOT_SHA1)

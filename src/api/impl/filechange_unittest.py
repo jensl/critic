@@ -49,9 +49,11 @@ def assert_valid_filechanges(filechanges):
 def root_filechange(phase, api, critic, repository):
     if phase == "pre":
         root_commit = api.commit.fetch(repository, sha1=ROOT_SHA1)
-        root_changeset = api.changeset.fetch(
-            critic, repository, single_commit=root_commit)
-        root_filechanges = api.filechange.fetchAll(critic, root_changeset)
+        try:
+            api.changeset.fetch(
+                critic, repository, single_commit=root_commit)
+        except api.changeset.ChangesetDelayed:
+            pass
 
     elif phase == "post":
         root_commit = api.commit.fetch(repository, sha1=ROOT_SHA1)
@@ -73,8 +75,11 @@ def custom_filechange(phase, api, critic, repository):
     if phase == "pre":
         from_commit = api.commit.fetch(repository, sha1=FROM_SHA1)
         to_commit = api.commit.fetch(repository, sha1=TO_SHA1)
-        custom_changeset = api.changeset.fetch(
-            critic, repository, from_commit=from_commit, to_commit=to_commit)
+        try:
+            api.changeset.fetch(
+                critic, repository, from_commit=from_commit, to_commit=to_commit)
+        except api.changeset.ChangesetDelayed:
+            pass
 
     elif phase == "post":
         from_commit = api.commit.fetch(repository, sha1=FROM_SHA1)
@@ -92,8 +97,11 @@ def custom_filechange(phase, api, critic, repository):
 def single_filechange(phase, api, critic, repository):
     if phase == "pre":
         single_commit = api.commit.fetch(repository, sha1=TO_SHA1)
-        single_changeset = api.changeset.fetch(
-            critic, repository, single_commit=single_commit)
+        try:
+            api.changeset.fetch(
+                critic, repository, single_commit=single_commit)
+        except api.changeset.ChangesetDelayed:
+            pass
 
     elif phase == "post":
         single_commit = api.commit.fetch(repository, sha1=TO_SHA1)
