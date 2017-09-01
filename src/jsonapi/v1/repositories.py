@@ -36,6 +36,7 @@ class Repositories(object):
              "id": integer, // the repository's id
              "name": string, // the repository's (unique) short name
              "path": string, // absolute file-system path
+             "relative_path": string, // relative file-system path
              "url": string, // the repository's URL
            }"""
 
@@ -43,6 +44,7 @@ class Repositories(object):
             "repositories", { "id": value.id,
                               "name": value.name,
                               "path": value.path,
+                              "relative_path": value.relative_path,
                               "url": value.url })
 
     @staticmethod

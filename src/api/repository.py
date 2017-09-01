@@ -80,6 +80,14 @@ class Repository(api.APIObject):
         return self._impl.path
 
     @property
+    def relative_path(self):
+        """The repository's (relative) file-system path
+
+           The path is relative the directory in which all repositories are
+           stored on the system (`configuration.paths.GIT_DIR`)."""
+        return self._impl.relative_path
+
+    @property
     def url(self):
         """The repository's URL
 

@@ -20,6 +20,8 @@ def basic(arguments):
     assert repository.name == "critic"
     assert isinstance(repository.path, str)
     assert repository.path == arguments.path
+    assert isinstance(repository.relative_path, str)
+    assert arguments.path.endswith(repository.relative_path)
 
     # FIXME: repository.url is currently broken.
 

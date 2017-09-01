@@ -1,11 +1,13 @@
 critic_json = { "id": 1,
                 "name": "critic",
                 "path": instance.repository_path(),
+                "relative_path": "critic.git",
                 "url": str }
 
 other_json = { "id": 2,
                "name": "other",
                "path": instance.repository_path("other"),
+               "relative_path": "other.git",
                "url": str }
 
 def user_json(name, fullname=None, status="current", no_email=False):

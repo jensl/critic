@@ -14,6 +14,7 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
+import os
 import subprocess
 
 import api
@@ -31,6 +32,7 @@ class Repository(apiobject.APIObject):
         self.id = repository_id
         self.name = name
         self.path = path
+        self.relative_path = os.path.relpath(path, configuration.paths.GIT_DIR)
         self.__internal = None
 
     def getInternal(self, critic):
