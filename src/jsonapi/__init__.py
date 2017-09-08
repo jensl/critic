@@ -484,26 +484,21 @@ def finishPUT(critic, req, parameters, resource_class, value, values, data):
     if not resource_class.anonymous_update:
         requireSignIn(critic)
 
-    if not (value or values):
-        raise UsageError("Invalid PUT request")
-
     if not resource_class.update:
         raise UsageError("Resource class does not support updating: "
                          % resource_class.name)
 
-    try:
-        resource_class.update(parameters, value, values, data)
-    except resource_class.exceptions as error:
-        raise UsageError(error.message)
+    if value or values:
+        try:
+            resource_class.update(parameters, value, values, data)
+        except resource_class.exceptions as error:
+            raise UsageError(error.message)
 
     return finishGET(critic, req, parameters, resource_class, value, values)
 
 def finishDELETE(critic, req, parameters, resource_class, value, values):
     if not resource_class.anonymous_delete:
         requireSignIn(critic)
-
-    if not (value or values):
-        raise UsageError("Invalid DELETE request")
 
     if not resource_class.delete:
         raise UsageError("Resource class does not support deleting: "
