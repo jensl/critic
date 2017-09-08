@@ -137,8 +137,7 @@ def fetch(repository, commit_id, sha1, ref):
 
     if commit_id is not None:
         try:
-            return critic._impl.lookup(api.commit.Commit,
-                                       (int(repository), commit_id))
+            return Commit.get_cached(critic, (int(repository), commit_id))
         except KeyError:
             pass
 
@@ -146,8 +145,7 @@ def fetch(repository, commit_id, sha1, ref):
             sha1 = sha1_from_commit_id()
     else:
         try:
-            return critic._impl.lookup(api.commit.Commit,
-                                       (int(repository), sha1))
+            return Commit.get_cached(critic, (int(repository), sha1))
         except KeyError:
             pass
 
@@ -155,8 +153,8 @@ def fetch(repository, commit_id, sha1, ref):
 
     commit = Commit.create(critic, repository, commit_id, sha1)
 
-    critic._impl.assign(api.commit.Commit, (int(repository), commit_id), commit)
-    critic._impl.assign(api.commit.Commit, (int(repository), sha1), commit)
+    Commit.add_cached(critic, (int(repository), commit_id), commit)
+    Commit.add_cached(critic, (int(repository), sha1), commit)
 
     return commit
 

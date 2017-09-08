@@ -23,31 +23,41 @@ class APIObject(object):
         return Implementation(*args).wrap(critic)
 
     @classmethod
-    def make(Implementation, critic, args_list, ignored_errors=()):
+    def get_cached(Implementation, critic, item_id):
+        return critic._impl.lookup(Implementation, item_id)
+
+    @classmethod
+    def add_cached(Implementation, critic, item_id, item):
+        critic._impl.assign(Implementation, item_id, item)
+
+    @classmethod
+    def make(Implementation, critic, args_list, ignored_errors=(),
+             cache_key=lambda args: args[0]):
         for args in args_list:
-            cache_key = args[0]
+            item_id = cache_key(args)
             try:
-                item = critic._impl.lookup(Implementation, cache_key)
+                item = critic._impl.lookup(Implementation, item_id)
             except KeyError:
                 try:
                     item = Implementation.create(critic, *args)
                 except ignored_errors:
                     continue
-
-                critic._impl.assign(Implementation, cache_key, item)
+                Implementation.add_cached(critic, item_id, item)
 
             yield item
 
     @classmethod
-    def cached(Implementation, InvalidIdError=None):
+    def cached(Implementation, InvalidIdError=None,
+               cache_key=lambda args: args[0]):
         def wrap(fetch):
-            def wrapper(critic, item_id, *args):
+            def wrapper(critic, *args):
+                item_id = cache_key(args)
                 if item_id is not None:
                     try:
                         return critic._impl.lookup(Implementation, item_id)
                     except KeyError:
                         pass
-                result = fetch(critic, item_id, *args)
+                result = fetch(critic, *args)
                 if InvalidIdError is None:
                     return result
                 try:
@@ -58,10 +68,12 @@ class APIObject(object):
         return wrap
 
     @classmethod
-    def cachedMany(Implementation, InvalidIdsError):
+    def cachedMany(Implementation, InvalidIdsError,
+                   cache_keys=lambda args: args[0]):
         def wrap(fetchMany):
-            def wrapper(critic, item_ids):
+            def wrapper(critic, *args):
                 items = {}
+                item_ids = cache_keys(args)
                 try:
                     cache = critic._impl.lookup(Implementation)
                 except KeyError:
