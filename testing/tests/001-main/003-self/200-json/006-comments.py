@@ -461,22 +461,6 @@ with frontend.signin("alice"):
             }
         })
 
-    # Create comment with empty text.
-    frontend.json(
-        "comments",
-        post={
-            "type": "issue",
-            "review": review_id,
-            "text": "   "
-        },
-        expected_http_status=400,
-        expect={
-            "error": {
-                "title": "Invalid API request",
-                "message": "Empty comment"
-            }
-        })
-
     # Try to edit text of published comment.
     frontend.json(
         "comments/%d" % published_note_ids[0],
@@ -488,20 +472,6 @@ with frontend.signin("alice"):
             "error": {
                 "title": "Invalid API request",
                 "message": "Published comments cannot be edited"
-            }
-        })
-
-    # Try to edit text to empty.
-    frontend.json(
-        "comments/%d" % created_issue_id_1,
-        put={
-            "text": "   "
-        },
-        expected_http_status=400,
-        expect={
-            "error": {
-                "title": "Invalid API request",
-                "message": "Empty comment"
             }
         })
 

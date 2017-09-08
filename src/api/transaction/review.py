@@ -216,13 +216,25 @@ class ModifyReview(object):
                       AND id=%s""",
                 (self.review.id, rebase.id)))
 
-    def submitChanges(self, comment, callback):
+    def submitChanges(self, batch_comment, callback):
         critic = self.transaction.critic
 
         unpublished_changes = api.batch.fetchUnpublished(critic, self.review)
 
         if unpublished_changes.is_empty:
             raise api.batch.BatchError("No unpublished changes to submit")
+
+        created_comments = []
+        empty_comments = []
+
+        if batch_comment:
+            created_comments.append(batch_comment)
+
+        for comment in unpublished_changes.created_comments:
+            if comment.text.strip():
+                created_comments.append(comment)
+            else:
+                empty_comments.append(comment)
 
         batch = CreatedBatch(critic, self.review)
 
@@ -234,7 +246,7 @@ class ModifyReview(object):
                    VALUES (%s, %s, %s)
                 RETURNING id""",
                 (self.review.id, critic.actual_user.id,
-                 comment.id if comment else None),
+                 batch_comment.id if batch_comment else None),
                 collector=batch))
 
         def ids(api_objects):
@@ -247,8 +259,13 @@ class ModifyReview(object):
                       SET state='open',
                           batch=%s
                     WHERE id=ANY (%s)""",
-                (batch.id, (ids(unpublished_changes.created_comments) +
-                            ([comment.id] if comment else [])))))
+                (batch.id, ids(created_comments))))
+        self.transaction.items.append(
+            api.transaction.Query(
+                """DELETE
+                     FROM commentchains
+                    WHERE id=ANY (%s)""",
+                (ids(empty_comments),)))
 
         self.transaction.tables.add("comments")
         self.transaction.items.append(
@@ -259,8 +276,7 @@ class ModifyReview(object):
                     WHERE id IN (SELECT first_comment
                                    FROM commentchains
                                   WHERE id=ANY (%s))""",
-                (batch.id, (ids(unpublished_changes.created_comments) +
-                            ([comment.id] if comment else [])))))
+                (batch.id, ids(created_comments))))
         self.transaction.items.append(
             api.transaction.Query(
                 """UPDATE comments
@@ -275,7 +291,7 @@ class ModifyReview(object):
                 """UPDATE commentchainlines
                       SET state='current'
                     WHERE chain=ANY (%s)""",
-                (ids(unpublished_changes.created_comments),)))
+                (ids(created_comments),)))
 
         # Lock all rows in |commentchains| that we may want to update.
         self.transaction.items.append(

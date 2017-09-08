@@ -322,9 +322,6 @@ class Comments(object):
         else:
             author = critic.actual_user
 
-        if not converted["text"].strip():
-            raise jsonapi.UsageError("Empty comment")
-
         if converted["type"] == "issue":
             expected_class = api.comment.Issue
         else:

@@ -29,9 +29,6 @@ class ModifyComment(object):
     def setText(self, text):
         self.__raiseUnlessDraft("edited")
 
-        if not text.strip():
-            raise api.comment.CommentError("Empty comment")
-
         self.transaction.tables.add("comments")
         self.transaction.items.append(
             api.transaction.Query(
