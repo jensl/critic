@@ -109,6 +109,8 @@ class Parameters(object):
         self.range_accessed = False
         self.context = {}
         self.subresource_path = []
+        self.output_format = self.__query_parameters.get(
+            "output_format", "default")
 
     def __prepareType(self, resource_type):
         if resource_type not in self.fields_per_type:
@@ -366,6 +368,8 @@ def finishGET(critic, req, parameters, resource_class, value, values):
                 resource_json = resource_class.json(value, parameters)
             except ResourceSkipped as error:
                 raise PathError("Resource not found: %s" % error.message)
+            if parameters.output_format == "static":
+                resource_json = { resource_class.name: [resource_json] }
     except resource_class.exceptions as error:
         raise PathError("Resource not found: %s" % error.message)
     except IndexError:
@@ -505,12 +509,25 @@ def finishDELETE(critic, req, parameters, resource_class, value, values):
         raise UsageError("Resource class does not support deleting: "
                          % resource_class.name)
 
+    if parameters.output_format == "static":
+        if value is not None:
+            resource_ids = [value.id]
+        else:
+            resource_ids = [resource.id for resource in values]
+
     try:
         return_value = resource_class.delete(parameters, value, values)
     except resource_class.exceptions as error:
         raise UsageError(error.message)
 
     if return_value is None:
+        if parameters.output_format == "static":
+            return {
+                "deleted": {
+                    resource_class.name: resource_ids
+                },
+            }
+
         raise request.NoContent()
 
     value, values = return_value
