@@ -159,10 +159,47 @@ def fetch(repository, commit_id, sha1, ref):
     return commit
 
 def fetchMany(repository, commit_ids, sha1s):
-    # FIXME: Make this more efficient.
+    critic = repository.critic
+    cursor = critic.getDatabaseCursor()
     if commit_ids:
-        return [api.commit.fetch(repository, commit_id)
+        cursor.execute(
+            """SELECT id, sha1
+                 FROM commits
+                WHERE id=ANY (%s)""",
+            (commit_ids,))
+
+        rows = cursor.fetchall()
+        if len(rows) != len(set(commit_ids)):
+            found = set(commit_id for commit_id, _ in rows)
+            for commit_id in commit_ids:
+                if commit_id not in found:
+                    raise api.commit.InvalidCommitId(commit_id)
+
+        commits = {
+            commit_id: sha1
+            for commit_id, sha1 in rows
+        }
+
+        return [fetch(repository, commit_id, commits[commit_id], None)
                 for commit_id in commit_ids]
     else:
-        return [api.commit.fetch(repository, sha1=sha1)
+        cursor.execute(
+            """SELECT id, sha1
+                 FROM commits
+                WHERE sha1=ANY (%s)""",
+            (sha1s,))
+
+        rows = cursor.fetchall()
+        if len(rows) != len(set(sha1s)):
+            found = set(sha1 for _, sha1 in rows)
+            for sha1 in sha1s:
+                if sha1 not in found:
+                    raise api.commit.InvalidSHA1(sha1)
+
+        commits = {
+            sha1: commit_id
+            for commit_id, sha1 in rows
+        }
+
+        return [fetch(repository, commits[sha1], sha1, None)
                 for sha1 in sha1s]
