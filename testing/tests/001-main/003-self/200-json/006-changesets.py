@@ -134,6 +134,6 @@ frontend.json(
              "to": FROM_SHA1},
     expect={ "error": {
         "message": "from and to can't be the same commit",
-        "title": "Invalid API input" }
+        "title": "Invalid API request" }
          },
     expected_http_status=400)

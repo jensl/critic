@@ -628,10 +628,19 @@ def render(db, target, user, repository, review, changesets, commits, listed_com
                                    merge_parents=len(changesets),
                                    squashed_diff=commits and len(commits) > 1)
 
+class NoChangesFound(Exception):
+    pass
+
 def commitRangeFromReview(db, user, review, filter_value, file_ids):
     edges = cursor = db.cursor()
 
-    if filter_value == "pending":
+    if filter_value == "everything":
+        cursor.execute("""SELECT DISTINCT changesets.parent, changesets.child
+                            FROM changesets
+                            JOIN reviewchangesets ON (reviewchangesets.changeset=changesets.id)
+                           WHERE reviewchangesets.review=%s""",
+                       (review.id,))
+    elif filter_value == "pending":
         cursor.execute("""SELECT DISTINCT changesets.parent, changesets.child
                             FROM changesets
                             JOIN reviewfiles ON (reviewfiles.changeset=changesets.id)
@@ -680,7 +689,7 @@ def commitRangeFromReview(db, user, review, filter_value, file_ids):
         raise page.utils.InvalidParameterValue(
             name="filter",
             value=filter_value,
-            expected="one of 'pending', 'reviewable', 'relevant' and 'files'")
+            expected="one of 'everything', 'pending', 'reviewable', 'relevant' and 'files'")
 
     listed_commits = set()
     with_pending = set()
@@ -693,7 +702,7 @@ def commitRangeFromReview(db, user, review, filter_value, file_ids):
         commit = gitutils.Commit.fromId(db, review.repository, child_id)
         return commit.sha1, commit.sha1, list(listed_commits), listed_commits
 
-    if filter_value in ("reviewable", "relevant", "files"):
+    if filter_value in ("everything", "reviewable", "relevant", "files"):
         cursor.execute("SELECT child FROM changesets JOIN reviewchangesets ON (changeset=id) WHERE review=%s", (review.id,))
         all_commits = [gitutils.Commit.fromId(db, review.repository, commit_id) for (commit_id,) in cursor]
 
@@ -774,11 +783,7 @@ including the unrelated changes.</p>
         return from_sha1, review.branch.head_sha1, all_commits, listed_commits
 
     if not with_pending:
-        if filter_value == "pending":
-            raise page.utils.DisplayMessage("Your work here is done!", None, review)
-        else:
-            assert filter_value != "files"
-            raise page.utils.DisplayMessage("No %s changes found." % filter_value, None, review)
+        raise NoChangesFound()
 
     cursor.execute("""SELECT parent, child
                         FROM changesets
@@ -989,6 +994,8 @@ def renderShowCommit(req, db, user):
             title += "Reviewable: "
         elif review_filter == "relevant":
             title += "Relevant: "
+        elif review_filter == "everything":
+            title += "Everything: "
 
     if not repository:
         parameter = req.getParameter("repository", None)
@@ -1032,7 +1039,14 @@ def renderShowCommit(req, db, user):
 
             if first_sha1 is None:
                 if review_id and review_filter:
-                    from_sha1, to_sha1, all_commits, listed_commits = commitRangeFromReview(db, user, review, review_filter, file_ids)
+                    try:
+                        from_sha1, to_sha1, all_commits, listed_commits = commitRangeFromReview(db, user, review, review_filter, file_ids)
+                    except NoChangesFound:
+                        if review_filter == "pending":
+                            raise page.utils.DisplayMessage("Your work here is done!", None, review)
+                        else:
+                            assert review_filter != "files"
+                            raise page.utils.DisplayMessage("No %s changes found." % review_filter, None, review)
                     if from_sha1 == to_sha1:
                         sha1 = to_sha1
                         to_sha1 = None
@@ -1097,7 +1111,7 @@ def renderShowCommit(req, db, user):
         assert len(changesets) == 1
 
         if not conflicts:
-            if review and (review_filter in ("reviewable", "relevant")
+            if review and (review_filter in ("everything", "reviewable", "relevant")
                            or (review_filter == "files" and all_commits)):
                 # We're displaying the full changes in the review (possibly
                 # filtered by file) => include rebase information when rendering

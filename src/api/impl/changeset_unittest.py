@@ -473,7 +473,7 @@ def bad_changesets(phase, api, critic, repository):
                 else:
                     single_commit = None
                 changeset = api.changeset.fetch(
-                    critic, repository, id=changeset_id,
+                    critic, repository, changeset_id=changeset_id,
                     from_commit=from_commit, to_commit=to_commit,
                     single_commit=single_commit)
             except expected_error:

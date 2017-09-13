@@ -31,8 +31,25 @@ class NotImplementedError(ChangesetError):
 class ChangesetDelayed(api.ResultDelayedError):
     pass
 
+class AutomaticChangesetEmpty(ChangesetError):
+    """Raised when fetching an automatic changeset, and no changes were found"""
+    pass
+
 class Changeset(api.APIObject):
     """Representation of a diff"""
+
+    AUTOMATIC_MODES = frozenset([
+        # All changes in the review.
+        "everything",
+        # All changes in the review that are either assigned to the current user
+        # or that matches one of the current user's watcher filters.
+        "relevant",
+        # All changes in the review that are assigned to the current user.
+        "reviewable",
+        # All pending changes in the review that are assigned to the current
+        # user.
+        "pending",
+    ])
 
     def __str__(self):
         return str(self._impl.id) + " (" + str(self._impl.type) + ")"
@@ -66,25 +83,31 @@ class Changeset(api.APIObject):
     def contributing_commits(self):
         return self._impl.getContributingCommits(self.critic)
 
-    @property
-    def filediffs(self):
-        return self._impl.getFileDiffs(self)
-
-def fetch(critic, repository, id=None, from_commit=None, to_commit=None, single_commit=None):
+def fetch(critic, repository, changeset_id=None, from_commit=None,
+          to_commit=None, single_commit=None, review=None, automatic=None):
     """Fetch a single changeset from the given repository"""
 
     import api.impl
-    if id is not None:
+    if changeset_id is not None:
         assert (from_commit is None and to_commit is None and single_commit is None)
     else:
-        assert (from_commit is None) == (to_commit is None)
-        assert (single_commit is None) != (from_commit is None)
-        assert (from_commit is None or isinstance(from_commit, api.commit.Commit))
-        assert (to_commit is None or isinstance(to_commit, api.commit.Commit))
-        if single_commit is not None:
-            assert isinstance(single_commit, api.commit.Commit)
-            assert len(single_commit.parents) <= 1
-        if from_commit is not None and to_commit is not None:
-            assert from_commit.id != to_commit.id
-    return api.impl.changeset.fetch(critic, repository, id, from_commit,
-                                    to_commit, single_commit)
+        if automatic is not None:
+            assert isinstance(review, api.review.Review)
+            assert automatic in Changeset.AUTOMATIC_MODES
+            assert (from_commit is None and to_commit is None and
+                    single_commit is None)
+        else:
+            assert (from_commit is None) == (to_commit is None)
+            assert (single_commit is None) != (from_commit is None)
+            assert (from_commit is None or
+                    isinstance(from_commit, api.commit.Commit))
+            assert (to_commit is None or
+                    isinstance(to_commit, api.commit.Commit))
+            if single_commit is not None:
+                assert isinstance(single_commit, api.commit.Commit)
+                assert len(single_commit.parents) <= 1
+            if from_commit is not None and to_commit is not None:
+                assert from_commit.id != to_commit.id
+    return api.impl.changeset.fetch(
+        critic, repository, changeset_id, from_commit, to_commit, single_commit,
+        review, automatic)

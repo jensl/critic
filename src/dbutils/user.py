@@ -424,6 +424,12 @@ class User(object):
             return found[0]
 
     @staticmethod
+    def fromAPI(api_user):
+        if api_user.is_anonymous:
+            return User.makeAnonymous()
+        return User.fromId(api_user.critic.database, api_user.id)
+
+    @staticmethod
     def withRole(db, role):
         cursor = db.cursor()
         cursor.execute("""SELECT uid

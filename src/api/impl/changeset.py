@@ -55,50 +55,66 @@ class Changeset(apiobject.APIObject):
         except api.commitset.InvalidCommitRange:
             return None
 
-    def getFileDiffs(self, wrapper):
-        if self.__filediffs is None:
-            if self.id is not None:
-                # context_lines will only be relevant if we had requested the
-                # content of the filediff
-                self.__filediffs = api.filediff.fetchAll(
-                    wrapper.critic, wrapper, context_lines=3)
-        return self.__filediffs
 
+def fetch(critic, repository, changeset_id, from_commit, to_commit,
+          single_commit, review, automatic):
+    if changeset_id is not None:
+        return fetch_by_id(critic, repository, changeset_id)
 
-def fetch(critic,
-          repository,
-          id=None,
-          from_commit=None,
-          to_commit=None,
-          single_commit=None):
+    if review and automatic:
+        # Handle automatic changesets using legacy code, and by setting the
+        # |from_commit|/|to_commit| or |single_commit| arguments.
+        import dbutils
+        import request
+        import page.showcommit
 
-    if id is not None:
-        return fetch_by_id(critic, repository, id)
+        legacy_user = dbutils.User.fromAPI(critic.effective_user)
+        legacy_review = dbutils.Review.fromAPI(review)
+
+        try:
+            from_sha1, to_sha1, all_commits, listed_commits = \
+                page.showcommit.commitRangeFromReview(
+                    critic.database, legacy_user, legacy_review, automatic, [])
+        except request.DisplayMessage:
+            # FIXME: This error message could be better. The legacy code does
+            # report more useful error messages, but does it in a way that's
+            # pretty tied to the old HTML UI. Some refactoring is needed.
+            raise api.changeset.ChangesetError("Automatic mode failed")
+        except page.showcommit.NoChangesFound:
+            assert automatic != "everything"
+            raise api.changeset.AutomaticChangesetEmpty("No %s changes found"
+                                                        % automatic)
+
+        from_commit = api.commit.fetch(repository, sha1=from_sha1)
+        to_commit = api.commit.fetch(repository, sha1=to_sha1)
+
+        if from_commit == to_commit:
+            single_commit = to_commit
+            from_commit = to_commit = None
+
     if from_commit and to_commit:
-        id = get_changeset_id(critic,
-                              repository,
-                              from_commit=from_commit,
-                              to_commit=to_commit)
-        if id is not None:
-            return fetch_by_id(critic, repository, id)
+        changeset_id = get_changeset_id(
+            critic, repository, from_commit, to_commit)
+        if changeset_id is not None:
+            return fetch_by_id(critic, repository, changeset_id)
         request_changeset_creation(
             critic, repository.name, "custom", from_commit=from_commit,
             to_commit=to_commit)
         raise api.changeset.ChangesetDelayed()
-    if single_commit:
-        if len(single_commit.parents) > 0:
-            from_commit = single_commit.parents[0]
-        else:
-            from_commit = None
-        id = get_changeset_id(critic,
-                              repository,
-                              from_commit=from_commit,
-                              to_commit=single_commit)
-        if id is not None:
-            return fetch_by_id(critic, repository, id)
-        request_changeset_creation(
-            critic, repository.name, "direct", to_commit=single_commit)
-        raise api.changeset.ChangesetDelayed()
+
+    assert single_commit
+
+    if len(single_commit.parents) > 0:
+        from_commit = single_commit.parents[0]
+    else:
+        from_commit = None
+    changeset_id = get_changeset_id(
+        critic, repository, from_commit, single_commit)
+    if changeset_id is not None:
+        return fetch_by_id(critic, repository, changeset_id)
+    request_changeset_creation(
+        critic, repository.name, "direct", to_commit=single_commit)
+    raise api.changeset.ChangesetDelayed()
 
 
 def fetch_by_id(critic, repository, changeset_id):
@@ -141,7 +157,7 @@ def fetch_by_id(critic, repository, changeset_id):
     return changeset
 
 
-def get_changeset_id(critic, repository, from_commit=None, to_commit=None):
+def get_changeset_id(critic, repository, from_commit, to_commit):
     cursor = critic.getDatabaseCursor()
     if from_commit:
         cursor.execute(

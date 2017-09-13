@@ -350,7 +350,8 @@ class Changeset(PositiveInteger, Repository.Required):
     convert_exception = api.changeset.InvalidChangesetId
     def convert(self, context, value):
         assert context.repository
-        return api.changeset.fetch(context.critic, context.repository, id=value)
+        return api.changeset.fetch(
+            context.critic, context.repository, changeset_id=value)
 
 class ExtensionId(PositiveInteger):
     convert_exception = api.extension.InvalidExtensionId

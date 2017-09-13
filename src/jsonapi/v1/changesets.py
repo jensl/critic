@@ -137,7 +137,22 @@ class Changesets(object):
 
            Specify repository to access, identified by its unique numeric id or
            short-name.  Required unless a repository is specified in the
-           resource path."""
+           resource path.
+
+           review : REVIEW_ID : -
+
+           Specify a review to calculate an "automatic" changeset for.
+
+           automatic : MODE : string
+
+           Calculate the changeset commit range automatically based on a review
+           and a mode, which must be "everything", "reviewable" (changes
+           assigned to current user), "relevant" (changes assigned to or files
+           watched by current user) or "pending" (unreviewed changes assigned to
+           current user.)
+
+           A review must be specified in this case, and none of the 'from', 'to'
+           or 'commit' parameters can be used."""
 
         repository = jsonapi.deduce("v1/repositories", parameters)
         if repository is None:
@@ -151,15 +166,33 @@ class Changesets(object):
         to_commit = get_commit("to")
         single_commit = get_commit("commit")
 
-        if not (from_commit or to_commit or single_commit):
-            raise jsonapi.UsageError(
-                "Missing required parameters from and to, or commit")
-        if (from_commit is None) != (to_commit is None):
-            raise jsonapi.UsageError(
-                "Missing required parameters from and to, only one supplied")
+        review = jsonapi.deduce("v1/reviews", parameters)
+        automatic = parameters.getQueryParameter("automatic")
 
-        if from_commit == to_commit and from_commit is not None:
-            raise jsonapi.InputError("from and to can't be the same commit")
+        if automatic is not None:
+            if automatic not in api.changeset.Changeset.AUTOMATIC_MODES:
+                raise jsonapi.UsageError("Invalid automatic mode: %r (must be "
+                                         "one of 'everything', 'reviewable', "
+                                         "'relevant' or 'pending'."
+                                         % automatic)
+            if review is None:
+                raise jsonapi.UsageError("A review must be specified when "
+                                         "an automatic mode is used")
+            if from_commit or to_commit or single_commit:
+                raise jsonapi.UsageError("Explicit commit range cannot be "
+                                         "specified when an automatic mode is "
+                                         "used")
+        else:
+            if not (from_commit or to_commit or single_commit):
+                raise jsonapi.UsageError(
+                    "Missing required parameters from and to, or commit")
+
+            if (from_commit is None) != (to_commit is None):
+                raise jsonapi.UsageError("Missing required parameters from and "
+                                         "to, only one supplied")
+
+            if from_commit == to_commit and from_commit is not None:
+                raise jsonapi.UsageError("from and to can't be the same commit")
 
         return Changesets.setAsContext(
             parameters, api.changeset.fetch(
@@ -167,7 +200,9 @@ class Changesets(object):
                 repository,
                 from_commit=from_commit,
                 to_commit=to_commit,
-                single_commit=single_commit))
+                single_commit=single_commit,
+                review=review,
+                automatic=automatic))
 
     @staticmethod
     def deduce(parameters):
@@ -184,7 +219,7 @@ class Changesets(object):
                     "repository needs to be specified, ex. &repository=<id>")
             changeset_id = jsonapi.numeric_id(changeset_parameter)
             changeset = api.changeset.fetch(
-                parameters.critic, repository, id=changeset_id)
+                parameters.critic, repository, changeset_id=changeset_id)
         return changeset
 
 
