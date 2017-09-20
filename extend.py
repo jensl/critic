@@ -276,9 +276,14 @@ def do_unprivileged_work():
         if arguments.with_depot_tools:
             depot_tools_url = arguments.with_depot_tools
 
-        subprocess.check_call(
-            [git, "clone", depot_tools_url],
-            cwd="installation/externals")
+        if os.path.isdir('installation/externals/depot_tools'):
+            subprocess.check_call(
+                [git, "pull"],
+                cwd="installation/externals/depot_tools")
+        else:
+            subprocess.check_call(
+                [git, "clone", depot_tools_url],
+                cwd="installation/externals")
 
         def fetch_submodule(cwd, submodule, url=None):
             subprocess.check_call(
