@@ -230,7 +230,7 @@ def renderCreateReview(req, db, user):
         branch_name = req.getParameter("branch", None)
 
         if commits_arg:
-            try: commit_ids = map(int, commits_arg.split(","))
+            try: commit_ids = list(map(int, commits_arg.split(",")))
             except: commit_sha1s = [repository.revparse(ref) for ref in commits_arg.split(",")]
         elif branch_name:
             cursor.execute("""SELECT commit

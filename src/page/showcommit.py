@@ -321,7 +321,7 @@ def renderCommitFiles(db, target, user, repository, review, changeset=None, chan
         return
 
     paths = diff.File.eliminateCommonPrefixes([file.path for file in changeset.files])
-    changes = map(countChanges, changeset.files)
+    changes = list(map(countChanges, changeset.files))
 
     if review:
         review_files = changeset.getReviewFiles(db, user, review)
@@ -888,7 +888,8 @@ def getCommitList(db, repository,
                     raise NotPossible
 
                 if include_parents:
-                    map(process, [gitutils.Commit.fromSHA1(db, repository, sha1) for sha1 in iter_commit.parents])
+                    for sha1 in iter_commit.parents:
+                        process(gitutils.Commit.fromSHA1(db, repository, sha1))
                     return
                 else:
                     raise NotPossible

@@ -268,7 +268,8 @@ have no common ancestor within this set."""
                     # would contain "unexpected" merged-in commits.)
 
                     if from_commit.isAncestorOf(repository.mergebase(iter_commit)):
-                        map(process, [getCommit(sha1) for sha1 in iter_commit.parents])
+                        for sha1 in iter_commit.parents:
+                            process(getCommit(sha1))
                         return
                     else:
                         raise NotPossible

@@ -458,7 +458,7 @@ def createCommentChain(db, user, review, chain_type, commit=None, origin=None, f
                        (review.id, user.id, chain_type))
         chain_id = cursor.fetchone()[0]
 
-    commentchainusers = set([user.id] + map(int, review.owners))
+    commentchainusers = set([user.id] + list(map(int, review.owners)))
 
     cursor.executemany("INSERT INTO commentchainusers (chain, uid) VALUES (%s, %s)", [(chain_id, user_id) for user_id in commentchainusers])
 

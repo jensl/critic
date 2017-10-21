@@ -286,7 +286,7 @@ class Manifest(object):
             except IOError:
                 raise ManifestError("%s: file not found" % path)
 
-        lines = map(str.strip, lines)
+        lines = list(map(str.strip, lines))
 
         def process(value):
             value = value.strip()

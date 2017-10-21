@@ -858,8 +858,10 @@ def upgrade(arguments, data):
     return True
 
 def undo():
-    map(os.unlink, reversed(created_file))
-    map(os.rmdir, reversed(created_dir))
+    for path in reversed(created_file):
+        os.unlink(path)
+    for path in reversed(created_dir):
+        os.rmdir(path)
 
     for target, backup in renamed: os.rename(backup, target)
 

@@ -50,7 +50,7 @@ class Profiler:
         log = ""
         total = 0.0
 
-        title_width = max(map(len, self.__checks))
+        title_width = max(list(map(len, self.__checks)))
         format = "  %%-%ds : %%8.2f\n" % title_width
 
         for title, duration in sorted(self.__table.items(), cmp=lambda a, b: cmp(a[1], b[1]), reverse=True):

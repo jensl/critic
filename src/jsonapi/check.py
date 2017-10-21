@@ -133,7 +133,7 @@ class VariantChecker(TypeChecker):
     def __init__(self, checkers=None):
         if checkers is None:
             checkers = self.types
-        self.checkers = map(TypeChecker.make, checkers)
+        self.checkers = list(map(TypeChecker.make, checkers))
         self.matched = None
         self.expected_type = "%s or %s" % (", ".join(map(str, self.checkers[:-1])),
                                            self.checkers[-1])

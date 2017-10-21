@@ -144,7 +144,8 @@ def undo():
     elif servicemanager_stopped:
         start()
 
-    map(os.unlink, created_file)
+    for path in created_file:
+        os.unlink(path)
 
     for target, backup in renamed: os.rename(backup, target)
 

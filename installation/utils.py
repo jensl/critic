@@ -282,7 +282,7 @@ def as_effective_user_from_path(path):
 
 def deunicode(v):
     if isinstance(v, unicode): return v.encode("utf-8")
-    elif isinstance(v, list): return map(deunicode, v)
+    elif isinstance(v, list): return list(map(deunicode, v))
     elif isinstance(v, dict): return dict([(deunicode(a), deunicode(b)) for a, b in v.items()])
     else: return v
 

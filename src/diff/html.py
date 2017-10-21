@@ -42,7 +42,7 @@ def splitTags(line):
 
             return token.replace("&lt;", "<").replace("&gt;", ">").replace("&amp;", "&")
 
-    return map(process, filter(None, re_tag.split(line)))
+    return list(map(process, filter(None, re_tag.split(line))))
 
 def joinTags(tags):
     def process(token):

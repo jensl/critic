@@ -748,7 +748,7 @@ class JSONJobServer(PeerServer):
             assert isinstance(decoded, dict)
             if "requests" in decoded:
                 self.__requests = decoded["requests"]
-                self.__pending_requests = map(freeze, self.__requests)
+                self.__pending_requests = list(map(freeze, self.__requests))
                 self.__async = decoded.get("async", False)
                 self.__results = []
                 self.server.add_requests(self)

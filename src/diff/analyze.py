@@ -28,8 +28,8 @@ def analyzeChunk(deletedLines, insertedLines, moved=False):
     # Pure delete or pure insert, nothing to analyze.
     if not deletedLines or not insertedLines: return None
 
-    deletedLines = map(textutils.decode, deletedLines)
-    insertedLines = map(textutils.decode, insertedLines)
+    deletedLines = list(map(textutils.decode, deletedLines))
+    insertedLines = list(map(textutils.decode, insertedLines))
 
     # Large chunk, analysis would be expensive, so skip it.
     if len(deletedLines) * len(insertedLines) <= 10000 and not moved:
@@ -179,7 +179,7 @@ def analyzeChunk1(deletedLines, insertedLines, offsetA=0, offsetB=0):
         return ""
 
 def offsetInLine(words, offset):
-    return sum(map(lambda word: len(word.encode("utf-8")), words[0:offset]))
+    return sum([len(word.encode("utf-8")) for word in words[0:offset]])
 
 re_ws_words = re.compile("( |\t|\\s+|\\S+)")
 

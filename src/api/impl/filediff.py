@@ -337,10 +337,10 @@ def perform_detailed_operations(operations, old_content, new_content):
             new_range = operation[1:]
 
         if old_range:
-            old_begin, old_end = map(int, old_range.split("-"))
+            old_begin, old_end = list(map(int, old_range.split("-")))
 
         if new_range:
-            new_begin, new_end = map(int, new_range.split("-"))
+            new_begin, new_end = list(map(int, new_range.split("-")))
 
         if old_range:
             context_length = old_begin - old_parts.offset

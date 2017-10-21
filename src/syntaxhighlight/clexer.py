@@ -239,7 +239,7 @@ def isbyteordermark(value): return str(value) == BYTE_ORDER_MARK
 def split(input, include_ws=True, include_comments=True):
     if include_ws: expression = RE_CTOKENS_INCLUDE_WS
     else: expression = RE_CTOKENS
-    tokens = map(lambda match: match.group(0), expression.finditer(input))
+    tokens = [match.group(0) for match in expression.finditer(input)]
     if include_comments: return tokens
     else: return filter(lambda token: not iscomment(token), tokens)
 

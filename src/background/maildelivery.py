@@ -128,7 +128,7 @@ class MailDelivery(background.utils.PeerServer):
                         return now - os.stat(filename).st_ctime
 
                     too_old = len(filter(lambda filename: age(filename) > 60, pending))
-                    oldest_age = max(map(age, pending))
+                    oldest_age = max(list(map(age, pending)))
 
                     if too_old > 0:
                         self.warning(("%d files were created more than 60 seconds ago\n"

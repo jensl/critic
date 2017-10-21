@@ -210,4 +210,5 @@ def upgrade(arguments, data):
     return True
 
 def undo():
-    map(shutil.rmtree, reversed(created))
+    for path in reversed(created):
+        shutil.rmtree(path)

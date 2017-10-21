@@ -43,7 +43,7 @@ def renderShowFile(req, db, user):
         first, last = None, None
     else:
         if "-" in line:
-            first, last = map(int, line.split("-"))
+            first, last = list(map(int, line.split("-")))
         else:
             first = last = int(line)
 

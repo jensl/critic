@@ -292,5 +292,5 @@ class SearchReview(Operation):
             reviews = filter(lambda review: search_filter.filter(db, review), reviews)
 
         return OperationResult(
-            reviews=map(Review.json, reviews),
+            reviews=list(map(Review.json, reviews)),
             query_string=urllib.urlencode(url_terms))

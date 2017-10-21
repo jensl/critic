@@ -326,7 +326,7 @@ class Repository:
             if not line or line[0] == "#": continue
             elif line[0] == "[": return None
 
-            key, value = map(str.strip, line.split("="))
+            key, value = list(map(str.strip, line.split("=")))
 
             if key == "url":
                 path = os.path.abspath(os.path.join(self.path, value))
@@ -436,7 +436,7 @@ class Repository:
                 return result
 
         try: sha1s = commit_or_commits.parents
-        except: sha1s = map(str, commit_or_commits)
+        except: sha1s = list(map(str, commit_or_commits))
 
         assert len(sha1s) >= 2
 

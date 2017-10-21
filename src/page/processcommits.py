@@ -23,7 +23,7 @@ import page.utils
 
 def renderProcessCommits(req, db, user):
     review_id = req.getParameter("review", filter=int)
-    commit_ids = map(int, req.getParameter("commits").split(","))
+    commit_ids = list(map(int, req.getParameter("commits").split(",")))
 
     review = dbutils.Review.fromId(db, review_id)
     all_commits = [gitutils.Commit.fromId(db, review.repository, commit_id) for commit_id in commit_ids]

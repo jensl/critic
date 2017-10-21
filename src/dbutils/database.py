@@ -107,7 +107,8 @@ class _CursorBase(object):
             if not self.__profiling:
                 self.__cursor.execute(query, params)
             else:
-                map(_CursorIterator.invalidate, self.__iterators)
+                for iterator in self.__iterators:
+                    _CursorIterator.invalidate(iterator)
                 self.__iterators = []
                 before = time.time()
                 self.__cursor.execute(query, params)

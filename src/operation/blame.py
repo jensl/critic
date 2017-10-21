@@ -146,7 +146,7 @@ class LineAnnotator:
 
         if check_user:
             if self.parent.author.email == check_user.email:
-                return any(map(lambda line: line.untouched, initial_lines))
+                return any(line.untouched for line in initial_lines)
             else:
                 return False
         else:

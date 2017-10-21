@@ -61,7 +61,8 @@ is likely to stop working.
     return True
 
 def undo():
-    map(os.unlink, created_file)
+    for path in created_file:
+        os.unlink(path)
 
     for target, backup in renamed:
         os.rename(backup, target)

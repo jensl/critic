@@ -45,8 +45,8 @@ def compareChunks(source_file, source_chunk, target_file, target_chunk, extra_ta
     source_length = source_file.oldCount()
     target_length = target_file.newCount()
 
-    source_lines = map(Line, source_chunk.deleted_lines)
-    target_lines = map(Line, target_chunk.inserted_lines)
+    source_lines = list(map(Line, source_chunk.deleted_lines))
+    target_lines = list(map(Line, target_chunk.inserted_lines))
 
     sm = difflib.SequenceMatcher(None, source_lines, target_lines)
 

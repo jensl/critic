@@ -336,7 +336,7 @@ Not installing the updated version can cause unpredictable results.
     changed_paths = set()
 
     for line in differences.splitlines():
-        _, _, path = map(str.strip, line.split(None, 2))
+        _, _, path = list(map(str.strip, line.split(None, 2)))
         if path.startswith("src/"):
             changed_paths.add(path[len("src/"):])
         elif not old_has_src:
@@ -362,8 +362,10 @@ Not installing the updated version can cause unpredictable results.
     return True
 
 def undo():
-    map(os.unlink, reversed(created_file))
-    map(os.rmdir, reversed(created_dir))
+    for path in reversed(created_file):
+        os.unlink(path)
+    for path in reversed(created_dir):
+        os.rmdir(path)
 
     for target, backup in renamed:
         os.rename(backup, target)

@@ -60,7 +60,7 @@ def replace(query, old, new):
             for anchor_offset, anchor_token in enumerate(old):
                 if anchor_token[0] != "$":
                     break
-            offset = map(str.upper, tokens).index(old[anchor_offset].upper(), start) - anchor_offset
+            offset = list(map(str.upper, tokens)).index(old[anchor_offset].upper(), start) - anchor_offset
             data = {}
             for index in range(len(old)):
                 if old[index][0] == "$":
@@ -70,7 +70,7 @@ def replace(query, old, new):
                     break
             else:
                 if data:
-                    use_new = map(lambda token: data.get(token, token), new)
+                    use_new = [data.get(token, token) for token in new]
                 else:
                     use_new = new
                 tokens[offset:offset + len(old)] = use_new
