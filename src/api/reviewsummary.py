@@ -14,7 +14,6 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-from types import NoneType
 import api
 
 class ReviewSummaryError(api.APIError):
@@ -54,8 +53,8 @@ def fetchMany(critic, search_type, user, count, offset):
     assert isinstance(search_type, str)
     assert isinstance(user, api.user.User) or user is None
     assert search_type in ReviewSummary.TYPE_VALUES
-    assert isinstance(count, int) or isinstance(count, NoneType)
-    assert isinstance(offset, int) or isinstance(count, NoneType)
+    assert count is None or isinstance(count, int)
+    assert offset is None or isinstance(offset, int)
     if count is not None:
         assert count > 0
     if offset is not None:
