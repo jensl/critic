@@ -51,7 +51,7 @@ def processLine(paths, line):
         raise InjectError("Invalid JSON: %r" % value)
 
     def is_string(value):
-        return isinstance(value, basestring)
+        return isinstance(value, str)
 
     if command in ("script", "stylesheet") and not is_string(value):
         raise InjectError("Invalid value for %r: %r (expected string)"
@@ -132,8 +132,8 @@ def processLine(paths, line):
 
             for index, choice in enumerate(preference_type):
                 if not isinstance(choice, dict) \
-                        or not isinstance(choice.get("value"), basestring) \
-                        or not isinstance(choice.get("title"), basestring):
+                        or not isinstance(choice.get("value"), str) \
+                        or not isinstance(choice.get("title"), str):
                     raise InjectError("Invalid value for %r: %r (invalid preference choice: %r)"
                                       % (command, value, choice))
 

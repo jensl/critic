@@ -77,7 +77,7 @@ class SimpleLinkType(LinkType):
 
     def __init__(self, fragment, regexp=None):
         super(SimpleLinkType, self).__init__(fragment)
-        if isinstance(regexp, basestring):
+        if isinstance(regexp, str):
             self.regexp = re.compile(regexp)
         else:
             self.regexp = regexp

@@ -53,7 +53,7 @@ class User(object):
             else: return self.id == other.id
         elif isinstance(other, int):
             return self.id == other
-        elif isinstance(other, basestring):
+        elif isinstance(other, str):
             return self.name == other
         else:
             raise base.Error("invalid comparison")

@@ -243,7 +243,7 @@ def fetchAll(critic, repository=None, state=None):
     assert (repository is None or
             isinstance(repository, api.repository.Repository))
     if state is not None:
-        if isinstance(state, basestring):
+        if isinstance(state, str):
             state = set([state])
         else:
             state = set(state)

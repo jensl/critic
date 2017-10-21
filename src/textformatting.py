@@ -128,7 +128,7 @@ def renderFormatted(db, user, table, lines, toc=False, title_right=None):
             return re.sub(r"CONFIG\(([^)]+)\)|\[(.*?)\]\n?\[(.*?)\]", linkify, text, flags=re.DOTALL)
 
         def processText(lines):
-            if isinstance(lines, basestring):
+            if isinstance(lines, str):
                 lines = [lines]
             for index, line in enumerate(lines):
                 if line.startswith("  http"):

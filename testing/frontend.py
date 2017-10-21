@@ -246,7 +246,7 @@ class Frontend(object):
 
         self.current_session.apply(kwargs)
 
-        if not isinstance(data, basestring):
+        if not isinstance(data, str):
             data = json.dumps(data)
             kwargs.setdefault("headers", {})["Content-Type"] = "text/json"
 

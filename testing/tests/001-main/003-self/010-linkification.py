@@ -66,7 +66,7 @@ def check_link(label, expected_href, expected_string):
     def check(document):
         line_attrs = testing.expect.with_class("line", "commit-msg")
         for line in document.findAll("td", attrs=line_attrs):
-            if not isinstance(line.contents[0], basestring):
+            if not isinstance(line.contents[0], str):
                 continue
             if not line.contents[0].startswith(label + ": "):
                 continue

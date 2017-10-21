@@ -6,7 +6,7 @@ with_class = testing.expect.with_class
 extract_text = testing.expect.extract_text
 
 def check_services(services, restarted=frozenset()):
-    if isinstance(restarted, basestring):
+    if isinstance(restarted, str):
         restarted = frozenset([restarted])
 
     def checker(document):

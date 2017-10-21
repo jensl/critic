@@ -409,7 +409,7 @@ def displayFormattedText(db, req, user, source):
 
     generateHeader(body, db, user)
 
-    if isinstance(source, basestring):
+    if isinstance(source, str):
         lines = source.splitlines()
     else:
         lines = source

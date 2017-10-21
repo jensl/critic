@@ -319,12 +319,12 @@ def perform_custom_checks(repository, ref):
         sys.stdout = previous_stdout
 
 def format_error(name, category, error):
-    if isinstance(error, basestring):
+    if isinstance(error, str):
         title, message = error, None
     else:
         title, message = error
 
-    if not isinstance(name, basestring):
+    if not isinstance(name, str):
         name = "\n".join(name)
 
     if category:
@@ -369,7 +369,7 @@ class GitHookClient(background.utils.PeerServer.SocketPeer):
     def respond(self, output=None, accept=False, reject=False, close=True):
         data = {}
         if output is not None:
-            if not isinstance(output, basestring):
+            if not isinstance(output, str):
                 output = "".join(output)
             data["output"] = output
         if accept:

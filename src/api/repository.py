@@ -135,8 +135,8 @@ class Repository(api.APIObject):
         paths = [] if paths is None else list(paths)
         assert all(isinstance(commit, api.commit.Commit) for commit in include)
         assert all(isinstance(commit, api.commit.Commit) for commit in exclude)
-        assert all(isinstance(arg, basestring) for arg in args)
-        assert all(isinstance(path, basestring) for path in paths)
+        assert all(isinstance(arg, str) for arg in args)
+        assert all(isinstance(path, str) for path in paths)
         return self._impl.listCommits(self, include, exclude, args, paths)
 
 def fetch(critic, repository_id=None, name=None, path=None):

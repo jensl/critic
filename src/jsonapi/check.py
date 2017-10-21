@@ -226,7 +226,7 @@ class PositiveInteger(RestrictedInteger):
         super(PositiveInteger, self).__init__(minvalue=1)
 
 class StringChecker(TypeChecker):
-    required_isinstance = basestring
+    required_isinstance = str
     expected_type = "string"
 
 class RestrictedString(StringChecker):

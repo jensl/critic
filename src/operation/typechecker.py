@@ -195,7 +195,7 @@ class StringChecker(TypeChecker):
     """
 
     def __call__(self, value, context):
-        if not isinstance(value, basestring):
+        if not isinstance(value, str):
             raise OperationError("invalid input: %s is not a string" % context)
 
 class RestrictedString(StringChecker):

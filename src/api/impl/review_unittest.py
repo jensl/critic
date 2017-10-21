@@ -14,7 +14,7 @@ def basic():
 
     assert review.state == "open"
 
-    assert isinstance(review.summary, basestring)
+    assert isinstance(review.summary, str)
     assert review.summary == "Minor /dashboard query optimizations"
 
     assert review.description is None

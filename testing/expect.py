@@ -25,7 +25,7 @@ def extract_text(source):
         if isinstance(source, list):
             for element in source:
                 result += extract_text(element)
-        elif isinstance(source, basestring):
+        elif isinstance(source, str):
             result += source
         elif getattr(source, "string"):
             result += source.string

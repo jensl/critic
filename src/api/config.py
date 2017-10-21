@@ -57,6 +57,6 @@ def getInteger(group, key):
 
 def getString(group, key):
     value = getValue(group, key)
-    if not isinstance(value, basestring):
+    if not isinstance(value, str):
         raise WrongType(group, key, "string")
     return value

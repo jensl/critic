@@ -222,7 +222,7 @@ def fetchAll(critic, status=None):
     import api.impl
     assert isinstance(critic, api.critic.Critic)
     if status is not None:
-        if isinstance(status, basestring):
+        if isinstance(status, str):
             status = set([status])
         else:
             status = set(status)
