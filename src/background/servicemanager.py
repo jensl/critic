@@ -124,7 +124,7 @@ if "--slave" in sys.argv:
                     return result({ "status": "error",
                                     "error": "invalid input: JSON decode failed" })
 
-                if type(request) is not dict:
+                if not isinstance(request, dict):
                     return result({ "status": "error",
                                     "error": "invalid input: expected object" })
 

@@ -76,7 +76,7 @@ def requestHighlights(repository, sha1s, mode, async=False):
         raise HighlightBackgroundServiceError(
             "returned an invalid response (%r)" % data)
 
-    if type(results) != list:
+    if not isinstance(results, list):
         # If not a list, the result is probably an error message.
         raise HighlightBackgroundServiceError(str(results))
 

@@ -123,9 +123,9 @@ def escape(text):
 json_encode = json.dumps
 
 def deunicode(v):
-    if type(v) == unicode: return v.encode("utf-8")
-    elif type(v) == list: return map(deunicode, v)
-    elif type(v) == dict: return dict([(deunicode(a), deunicode(b)) for a, b in v.items()])
+    if isinstance(v, unicode): return v.encode("utf-8")
+    elif isinstance(v, list): return map(deunicode, v)
+    elif isinstance(v, dict): return dict([(deunicode(a), deunicode(b)) for a, b in v.items()])
     else: return v
 
 def json_decode(s):

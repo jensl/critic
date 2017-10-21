@@ -72,7 +72,7 @@ def requestChangesets(requests, async=False):
         raise ChangesetBackgroundServiceError(
             "returned an invalid response: %r" % data)
 
-    if type(results) != list:
+    if not isinstance(results, list):
         # If not a list, the result is probably an error message.
         raise ChangesetBackgroundServiceError(str(results))
 

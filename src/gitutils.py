@@ -1366,7 +1366,7 @@ class Tree:
         self.__entries_dict = dict([(entry.name, entry) for entry in entries])
 
     def __getitem__(self, item):
-        if type(item) == int:
+        if isinstance(item, int):
             return self.__entries_list[item]
         else:
             return self.__entries_dict[str(item)]

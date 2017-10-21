@@ -76,7 +76,7 @@ class Operation(object):
         arguments "name", "points" and "what".
         """
         from operation.typechecker import TypeChecker
-        if not type(parameter_types) is dict:
+        if not isinstance(parameter_types, dict):
             raise base.ImplementationError("invalid source type")
         self.__checker = TypeChecker.make(parameter_types)
         self.__accept_anonymous_user = accept_anonymous_user

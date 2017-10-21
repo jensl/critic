@@ -502,7 +502,7 @@ class PeerServer(SleeperProcess):
         signal.signal(signal.SIGCHLD, self.handle_SIGHUP)
 
     def __create_listening_socket(self):
-        if type(self.__address) == str:
+        if isinstance(self.__address, str):
             try: os.makedirs(os.path.dirname(self.__address))
             except OSError as error:
                 if error.errno == errno.EEXIST: pass
@@ -530,7 +530,7 @@ class PeerServer(SleeperProcess):
             os.chmod(self.__address, 0o700)
 
             self.debug("listening: %s" % self.__address)
-        elif type(self.__address) == tuple:
+        elif isinstance(self.__address, tuple):
             host, port = self.__address
 
             self.__listening_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -555,7 +555,7 @@ class PeerServer(SleeperProcess):
             except:
                 pass
 
-        if type(self.__address) == str:
+        if isinstance(self.__address, str):
             try:
                 os.unlink(self.__address)
             except:

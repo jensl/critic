@@ -12,13 +12,13 @@ def basic():
         EnumerationChecker, VariantChecker, DictionaryChecker)
 
     # Check TypeChecker.make()'s handling of basic types.
-    assert type(TypeChecker.make(bool)) is BooleanChecker
-    assert type(TypeChecker.make(str)) is StringChecker
-    assert type(TypeChecker.make(int)) is IntegerChecker
-    assert type(TypeChecker.make([bool])) is ArrayChecker
-    assert type(TypeChecker.make(set(["foo", "bar"]))) is EnumerationChecker
-    assert type(TypeChecker.make(set([bool, str, int]))) is VariantChecker
-    assert type(TypeChecker.make({ "foo": bool })) is DictionaryChecker
+    assert isinstance(TypeChecker.make(bool), BooleanChecker)
+    assert isinstance(TypeChecker.make(str), StringChecker)
+    assert isinstance(TypeChecker.make(int), IntegerChecker)
+    assert isinstance(TypeChecker.make([bool]), ArrayChecker)
+    assert isinstance(TypeChecker.make(set(["foo", "bar"])), EnumerationChecker)
+    assert isinstance(TypeChecker.make(set([bool, str, int])), VariantChecker)
+    assert isinstance(TypeChecker.make({ "foo": bool }), DictionaryChecker)
 
     # Check TypeChecker.make()'s handling of TypeChecker sub-classes and
     # instances thereof.

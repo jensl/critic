@@ -98,7 +98,7 @@ class TypeChecker(object):
         elif isinstance(source, list):
             return ArrayChecker(source)
         elif isinstance(source, set):
-            if all(type(x) is str for x in source):
+            if all(isinstance(x, str) for x in source):
                 return EnumerationChecker(source)
             return VariantChecker(source)
         elif source is str:
@@ -320,7 +320,7 @@ class GenericDictionaryChecker(TypeChecker):
         self.__value_checker = TypeChecker.make(list(source.values())[0])
 
     def __call__(self, value, context):
-        if not type(value) is dict:
+        if not isinstance(value, dict):
             raise OperationError("invalid input: %s is not a dictionary" % context)
         for key in value:
             context.push("." + key)
@@ -370,7 +370,7 @@ class DictionaryChecker(TypeChecker):
                         % name)
 
     def __call__(self, value, context):
-        if not type(value) is dict:
+        if not isinstance(value, dict):
             raise OperationError("invalid input: %s is not a dictionary" % context)
 
         specified_names = set(value.keys())
@@ -437,7 +437,7 @@ class ArrayChecker(TypeChecker):
         self.__checker = TypeChecker.make(source[0])
 
     def __call__(self, value, context):
-        if not type(value) is list:
+        if not isinstance(value, list):
             raise OperationError("%s is not a list" % context)
         for index, item in enumerate(value):
             context.push("[%d]" % index)
@@ -490,7 +490,7 @@ class EnumerationChecker(TypeChecker):
     def __init__(self, source):
         self.__checker = TypeChecker.make(str)
         for item in source:
-            if not type(item) is str:
+            if not isinstance(item, str):
                 raise base.ImplementationError("invalid source type")
         self.__enumeration = source
 

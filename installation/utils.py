@@ -281,9 +281,9 @@ def as_effective_user_from_path(path):
         os.setegid(os.getresgid()[0])
 
 def deunicode(v):
-    if type(v) == unicode: return v.encode("utf-8")
-    elif type(v) == list: return map(deunicode, v)
-    elif type(v) == dict: return dict([(deunicode(a), deunicode(b)) for a, b in v.items()])
+    if isinstance(v, unicode): return v.encode("utf-8")
+    elif isinstance(v, list): return map(deunicode, v)
+    elif isinstance(v, dict): return dict([(deunicode(a), deunicode(b)) for a, b in v.items()])
     else: return v
 
 def read_install_data(arguments, fail_softly=False):

@@ -37,7 +37,7 @@ def basic(arguments):
             zip(updates, expected_updates)):
         assert isinstance(update, api.branchupdate.BranchUpdate)
 
-        assert type(update.id) is int
+        assert isinstance(update.id, int)
         assert api.branchupdate.fetch(critic, update.id) is update
 
         assert update.branch is branch
