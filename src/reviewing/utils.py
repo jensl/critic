@@ -17,7 +17,7 @@
 import dbutils
 import gitutils
 from dbutils import *
-from itertools import izip, repeat, chain
+from itertools import repeat, chain
 import htmlutils
 import configuration
 

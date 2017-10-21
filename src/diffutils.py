@@ -15,7 +15,7 @@
 # the License.
 
 from difflib import SequenceMatcher
-from itertools import izip, repeat
+from itertools import repeat
 
 import diff
 import diff.html
