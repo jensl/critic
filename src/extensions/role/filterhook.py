@@ -85,7 +85,7 @@ def listFilterHooks(db, user):
                     key=lambda role: role.title)))
 
     return sorted(filterhooks,
-                  key=lambda (extension, manifest, roles): extension.getKey())
+                  key=lambda extension_manifest_roles: extension_manifest_roles[0].getKey())
 
 def getFilterHookRole(db, filter_id):
     cursor = db.cursor()

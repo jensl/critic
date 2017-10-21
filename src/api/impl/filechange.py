@@ -34,7 +34,7 @@ class FileChange(apiobject.APIObject):
         return api.file.fetch(critic, self.__file_id)
 
 @FileChange.cached(api.filechange.InvalidFileChangeId,
-                   cache_key=lambda (changeset, file): (changeset.id, file.id))
+                   cache_key=lambda changeset_file: (changeset_file[0].id, changeset_file[1].id))
 def fetch(critic, changeset, file):
     cursor = critic.getDatabaseCursor()
     cursor.execute(
