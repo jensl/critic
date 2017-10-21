@@ -385,7 +385,7 @@ for review_id, (branch_id, branch_head_id,
                 yield parent_id
 
     def collect_tree(root_id):
-        pending = set([root_id])
+        pending = {root_id}
         processed = set()
         while pending:
             commit_id = pending.pop()

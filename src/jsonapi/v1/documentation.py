@@ -242,7 +242,7 @@ def describeResource(resource_path):
                       ""])
 
     alternative_paths = sorted(
-        set(listAlternativePaths(resource_class)) - set([resource_path]))
+        set(listAlternativePaths(resource_class)) - {resource_path})
 
     if alternative_paths:
         lines.extend(["Alternative paths",

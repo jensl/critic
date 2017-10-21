@@ -169,7 +169,7 @@ def renderCodeCommentChain(db, target, user, review, chain, context_lines=3, com
                     (changeset.parent.sha1 == commit.parents[0] and changeset.child == commit))
             assert changeset.getFile(file_id)
         else:
-            changeset = changeset_utils.createChangeset(db, user, repository, commit=commit, from_commit=from_commit, to_commit=to_commit, filtered_file_ids=set((file_id,)))[0]
+            changeset = changeset_utils.createChangeset(db, user, repository, commit=commit, from_commit=from_commit, to_commit=to_commit, filtered_file_ids={file_id})[0]
 
         file = changeset.getFile(file_id)
 

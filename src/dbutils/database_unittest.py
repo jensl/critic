@@ -175,7 +175,7 @@ def cursors():
 
         db.rollback()
         ro_cursor.execute("SELECT y FROM playground1")
-        assert set(y for (y,) in ro_cursor) == set([1, -2, 3])
+        assert set(y for (y,) in ro_cursor) == {1, -2, 3}
 
         # If the transaction is committed or rolled back after execution of
         # updating query using unsafe cursor, then use of updating cursor is
@@ -187,7 +187,7 @@ def cursors():
 
         db.rollback()
         ro_cursor.execute("SELECT y FROM playground1")
-        assert set(y for (y,) in ro_cursor) == set([-1, -2, -3])
+        assert set(y for (y,) in ro_cursor) == {-1, -2, -3}
 
     # Drop the playground table.
     with dbutils.Database.forTesting(critic) as db:

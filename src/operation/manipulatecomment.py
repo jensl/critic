@@ -162,7 +162,7 @@ class ResolveCommentChain(SetCommentChainState):
 class MorphCommentChain(Operation):
     def __init__(self):
         Operation.__init__(self, { "chain_id": int,
-                                   "new_type": set(["issue", "note"]) })
+                                   "new_type": {"issue", "note"} })
 
     def process(self, db, user, chain_id, new_type):
         chain = CommentChain.fromId(db, chain_id, user)

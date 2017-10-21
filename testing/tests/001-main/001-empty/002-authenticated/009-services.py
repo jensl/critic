@@ -72,7 +72,7 @@ with frontend.signin():
             "services": check_services(services)
         })
 
-    all_services = set(["manager"])
+    all_services = {"manager"}
 
     for service_name in services.keys():
         if service_name not in ("manager", "extensiontasks") \

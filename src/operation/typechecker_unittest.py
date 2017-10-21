@@ -16,8 +16,8 @@ def basic():
     assert isinstance(TypeChecker.make(str), StringChecker)
     assert isinstance(TypeChecker.make(int), IntegerChecker)
     assert isinstance(TypeChecker.make([bool]), ArrayChecker)
-    assert isinstance(TypeChecker.make(set(["foo", "bar"])), EnumerationChecker)
-    assert isinstance(TypeChecker.make(set([bool, str, int])), VariantChecker)
+    assert isinstance(TypeChecker.make({"foo", "bar"}), EnumerationChecker)
+    assert isinstance(TypeChecker.make({bool, str, int}), VariantChecker)
     assert isinstance(TypeChecker.make({ "foo": bool }), DictionaryChecker)
 
     # Check TypeChecker.make()'s handling of TypeChecker sub-classes and
@@ -50,7 +50,7 @@ def basic():
                 error = json.loads(str(error))
                 for key, value in expected.items():
                     if isinstance(value, str):
-                        value = set([value])
+                        value = {value}
                     assert error.get(key) in value, \
                         ("%s: %r not among %r" % (key, error.get(key), value))
             else:
@@ -63,8 +63,8 @@ def basic():
     should_match([bool], [], [True, False])
     should_match([str], ["", "foo"])
     should_match([int], [-2**31, -1, 0, 1, 2**31])
-    should_match(set(["foo", "bar"]), "foo", "bar")
-    should_match(set([bool, str, int]),
+    should_match({"foo", "bar"}, "foo", "bar")
+    should_match({bool, str, int},
                  True, False, "", "foo", -2**31, -1, 0, 1, 2**31)
 
     # Check some equally simple things that shouldn't be accepted.
@@ -80,11 +80,11 @@ def basic():
                      error="invalid input: data[1] is not a string")
     should_not_match([int], [0, True], [10, "foo"],
                      error="invalid input: data[1] is not an integer")
-    should_not_match(set(["foo", "bar"]), "fie",
+    should_not_match({"foo", "bar"}, "fie",
                      error="invalid input: data is not valid")
-    should_not_match(set(["foo", "bar"]), True, 10,
+    should_not_match({"foo", "bar"}, True, 10,
                      error="invalid input: data is not a string")
-    should_not_match(set([bool, str, int]), [True], ["foo"], [10],
+    should_not_match({bool, str, int}, [True], ["foo"], [10],
                      error="data is of invalid type")
 
     # Check some dictionary checkers.

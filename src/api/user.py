@@ -223,7 +223,7 @@ def fetchAll(critic, status=None):
     assert isinstance(critic, api.critic.Critic)
     if status is not None:
         if isinstance(status, str):
-            status = set([status])
+            status = {status}
         else:
             status = set(status)
         assert not (status - User.STATUS_VALUES)

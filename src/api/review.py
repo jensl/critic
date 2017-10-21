@@ -244,7 +244,7 @@ def fetchAll(critic, repository=None, state=None):
             isinstance(repository, api.repository.Repository))
     if state is not None:
         if isinstance(state, str):
-            state = set([state])
+            state = {state}
         else:
             state = set(state)
         assert not (state - Review.STATE_VALUES)

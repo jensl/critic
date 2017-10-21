@@ -236,7 +236,7 @@ def processFilterHookEvent(db, event_id, logfn):
     except ProcessException as error:
         review = dbutils.Review.fromId(db, review_id)
 
-        recipients = set([filter_user])
+        recipients = {filter_user}
 
         author = extension.getAuthor(db)
         if author is None:

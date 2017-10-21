@@ -168,7 +168,7 @@ def render(db, target, title, branch=None, commits=None, columns=DEFAULT_COLUMNS
         assert 0 <= len(heads) <= 1
 
         if not heads:
-            heads = set([rebases[-1].new_head])
+            heads = {rebases[-1].new_head}
 
     if repository:
         target.addInternalScript(repository.getJS())
@@ -391,7 +391,7 @@ def render(db, target, title, branch=None, commits=None, columns=DEFAULT_COLUMNS
                             parent = commit_set[sha1]
 
                             counted = set()
-                            pending = set([parent])
+                            pending = {parent}
 
                             while pending:
                                 candidate = pending.pop()

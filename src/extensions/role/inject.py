@@ -137,7 +137,7 @@ def processLine(paths, line):
                     raise InjectError("Invalid value for %r: %r (invalid preference choice: %r)"
                                       % (command, value, choice))
 
-            choices = set([choice["value"] for choice in preference_type])
+            choices = {choice["value"] for choice in preference_type}
 
             if not is_string(preference_value) or preference_value not in choices:
                 raise InjectError("Invalid value for %r: %r ('value' not among valid choices)"

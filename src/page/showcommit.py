@@ -551,7 +551,7 @@ def render(db, target, user, repository, review, changesets, commits, listed_com
             commits_by_sha1 = {}
 
             for index, changeset in enumerate(changesets):
-                relevant_files = set([file.path for file in changeset.files])
+                relevant_files = {file.path for file in changeset.files}
                 files = {}
 
                 if not changeset.conflicts:

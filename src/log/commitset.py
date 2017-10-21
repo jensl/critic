@@ -79,7 +79,7 @@ class CommitSet:
         else: return set()
 
     def getParents(self, commit):
-        return set([self.__commits[sha1] for sha1 in commit.parents if sha1 in self.__commits])
+        return {self.__commits[sha1] for sha1 in commit.parents if sha1 in self.__commits}
 
     def getFilteredTails(self, repository):
         """Return a set containing each tail commit of the set of commits that isn't an
@@ -121,7 +121,7 @@ the latest one."""
 
         assert commit in self.__commits
 
-        stack = set([commit.sha1])
+        stack = {commit.sha1}
         processed = set()
         tails = set()
 
@@ -151,7 +151,7 @@ have no common ancestor within this set."""
             branches.append(set())
 
         for index, sha1 in enumerate(commit.parents):
-            stack = set([sha1])
+            stack = {sha1}
             branch = branches[index]
 
             while stack:
@@ -203,7 +203,7 @@ have no common ancestor within this set."""
             for parent_sha1 in commit.parents:
                 if parent_sha1 in commits:
                     children0 = children.get(parent_sha1, set())
-                    children0 -= set([commit])
+                    children0 -= {commit}
                     if not children0:
                         pending.add(commits[parent_sha1])
 

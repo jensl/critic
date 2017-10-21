@@ -184,7 +184,7 @@ def assignChanges(db, user, review, commits=None, changesets=None, update=False)
     cursor = db.readonly_cursor()
     cursor.execute("SELECT uid FROM reviewusers WHERE review=%s", (review.id,))
 
-    reviewusers = set([user_id for (user_id,) in cursor])
+    reviewusers = {user_id for (user_id,) in cursor}
     reviewusers_values = set()
     reviewuserfiles_values = set()
 
@@ -205,7 +205,7 @@ def assignChanges(db, user, review, commits=None, changesets=None, update=False)
                         FROM reviewfiles
                         JOIN reviewuserfiles ON (reviewuserfiles.file=reviewfiles.id)
                        WHERE review=%s""", (review.id,))
-    old_reviewers = set([user_id for (user_id,) in cursor])
+    old_reviewers = {user_id for (user_id,) in cursor}
 
     for file_id, file_users in reviewers.items():
         for user_id, user_changesets in file_users.items():

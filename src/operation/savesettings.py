@@ -27,7 +27,7 @@ class SaveSettings(Operation):
               "repository": Optional(Repository),
               "filter_id": Optional(int),
               "settings": [{ "item": str,
-                             "value": Optional(set([bool, int, str])) }],
+                             "value": Optional({bool, int, str}) }],
               "defaults": Optional(bool) })
 
     def process(self, db, user, settings, subject=None, repository=None, filter_id=None, defaults=False):

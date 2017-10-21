@@ -331,11 +331,11 @@ class Comments(object):
         if converted_location:
             location_type = converted_location.pop("type")
             if location_type == "commit-message":
-                required_fields = set(("first_line", "last_line", "commit"))
+                required_fields = {"first_line", "last_line", "commit"}
                 optional_fields = set()
             else:
-                required_fields = set(("first_line", "last_line", "file"))
-                optional_fields = set(("commit", "changeset", "side"))
+                required_fields = {"first_line", "last_line", "file"}
+                optional_fields = {"commit", "changeset", "side"}
             accepted_fields = required_fields | optional_fields
 
             for required_field in required_fields:

@@ -22,7 +22,7 @@ from operation import Operation, OperationResult, OperationError, Optional
 
 class GetAutoCompleteData(Operation):
     def __init__(self):
-        Operation.__init__(self, { "values": [set(["users", "paths"])],
+        Operation.__init__(self, { "values": [{"users", "paths"}],
                                    "review_id": Optional(int),
                                    "changeset_ids": Optional([int]) })
 

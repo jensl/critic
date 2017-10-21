@@ -27,8 +27,8 @@ import dbutils
 
 # Paths to which access should be allowed without authentication even if
 # anonymous users are not allowed in general.
-INSECURE_PATHS = set(["login", "validatelogin",
-                      "createuser", "registeruser"])
+INSECURE_PATHS = {"login", "validatelogin",
+                      "createuser", "registeruser"}
 
 def decodeURIComponent(text):
     """\

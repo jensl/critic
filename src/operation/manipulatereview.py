@@ -93,7 +93,7 @@ class PingReview(Operation):
                              AND users.status!='retired'""",
                        (review.id,))
 
-        user_ids = set([user_id for (user_id,) in cursor.fetchall()])
+        user_ids = {user_id for (user_id,) in cursor.fetchall()}
 
         # Add the pinging user and the owners (they are usually the same.)
         user_ids.add(user.id)

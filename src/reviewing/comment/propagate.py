@@ -341,7 +341,7 @@ class Propagation:
                                      repository=self.review.repository,
                                      from_commit=from_commit,
                                      to_commit=to_commit,
-                                     filtered_file_ids=set([self.file_id]),
+                                     filtered_file_ids={self.file_id},
                                      do_highlight=False)
 
         assert len(changesets) == 1

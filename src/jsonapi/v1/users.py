@@ -309,7 +309,7 @@ class Filters(object):
 
         converted = jsonapi.convert(
             parameters,
-            { "type": set(("reviewer", "watcher", "ignore")),
+            { "type": {"reviewer", "watcher", "ignore"},
               "path": FilterPath,
               "repository": api.repository.Repository,
               "delegates?": [api.user.User] },

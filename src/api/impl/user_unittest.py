@@ -155,16 +155,16 @@ def basic(arguments):
     assert alice_bob_and_dave == [alice, bob, dave], repr(alice_bob_and_dave)
 
     alice_bob_and_dave = api.user.fetchMany(
-        critic, user_ids=set([alice.id, bob.id, dave.id]))
+        critic, user_ids={alice.id, bob.id, dave.id})
 
     assert isinstance(alice_bob_and_dave, set), type(alice_bob_and_dave)
-    assert alice_bob_and_dave == set([alice, bob, dave]), repr(alice_bob_and_dave)
+    assert alice_bob_and_dave == {alice, bob, dave}, repr(alice_bob_and_dave)
 
     alice_bob_and_dave = api.user.fetchMany(
-        critic, names=set([alice.name, bob.name, dave.name]))
+        critic, names={alice.name, bob.name, dave.name})
 
     assert isinstance(alice_bob_and_dave, set), type(alice_bob_and_dave)
-    assert alice_bob_and_dave == set([alice, bob, dave]), repr(alice_bob_and_dave)
+    assert alice_bob_and_dave == {alice, bob, dave}, repr(alice_bob_and_dave)
 
     alice_bob_and_dave = api.user.fetchMany(
         critic, user_ids=(user.id for user in [alice, bob, dave]))

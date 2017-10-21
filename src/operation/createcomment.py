@@ -24,7 +24,7 @@ from reviewing.comment import CommentChain, validateCommentChain, createCommentC
 class ValidateCommentChain(Operation):
     def __init__(self):
         Operation.__init__(self, { "review": Review,
-                                   "origin": set(["old", "new"]),
+                                   "origin": {"old", "new"},
                                    "parent": Optional(Commit),
                                    "child": Commit,
                                    "file": File,
@@ -44,11 +44,11 @@ def checkComment(text):
 class CreateCommentChain(Operation):
     def __init__(self):
         Operation.__init__(self, { "review": Review,
-                                   "chain_type": set(["issue", "note"]),
+                                   "chain_type": {"issue", "note"},
                                    "commit_context": Optional({ "commit": Commit,
                                                                 "offset": NonNegativeInteger,
                                                                 "count": PositiveInteger }),
-                                   "file_context": Optional({ "origin": set(["old", "new"]),
+                                   "file_context": Optional({ "origin": {"old", "new"},
                                                               "parent": Optional(Commit),
                                                               "child": Commit,
                                                               "file": File,

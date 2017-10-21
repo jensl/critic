@@ -503,7 +503,7 @@ class Review(object):
             return True
 
         if include_head_and_tails:
-            head_and_tails = set([self.branch.getHead(db)])
+            head_and_tails = {self.branch.getHead(db)}
 
             commitset = self.getCommitSet(db)
 
@@ -679,7 +679,7 @@ class Review(object):
             preference_item = "review.branchArchiveDelay." + self.state
             repository_default = dbutils.User.fetchPreference(
                 db, preference_item, repository=self.repository)
-            delays = set([repository_default])
+            delays = {repository_default}
             for owner in self.owners:
                 delays.add(owner.getPreference(db, preference_item,
                                                repository=self.repository))
@@ -980,7 +980,7 @@ class Review(object):
                     silent_if_empty = set(add_commits)
 
                     if pending_rebase.equivalent_merge:
-                        full_merges = set([pending_rebase.equivalent_merge])
+                        full_merges = {pending_rebase.equivalent_merge}
                     else:
                         replayed_rebases = {
                             pending_rebase.replayed_rebase: to_commit

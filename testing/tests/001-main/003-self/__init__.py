@@ -13,7 +13,7 @@ class Review(object):
         self.files = {}
         self.review_id = None
         self.filters = []
-        self.users = set([as_user])
+        self.users = {as_user}
 
         self.workcopy.run(["checkout", "-b", self.work_branch_name])
 

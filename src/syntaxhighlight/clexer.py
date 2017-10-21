@@ -172,21 +172,21 @@ def rejoin(items, escape):
 OPERATORS_AND_PUNCTUATORS = [ "(", ")", "{", "}", "[", "]", "<", ">", "<=", ">=", "<<", ">>", "<<=", ">>=",
                               "+", "-", "*", "/", "%", "+=", "-=", "*=", "/=", "%=", "&&", "||",
                               "&", "|", "^", "!", ",", ".", "::", ":", ";", "=", "==", "!=",
-                              "&=", "|=", "^=", "++", "--", "~", "?", "->", "->*", ".*", "##", "#" ];
+                              "&=", "|=", "^=", "++", "--", "~", "?", "->", "->*", ".*", "##", "#" ]
 
-KEYWORDS = set([ "asm", "do", "if", "return", "typedef",
-                 "auto", "double", "inline", "short", "typeid",
-                 "bool", "dynamic_cast", "int", "signed", "typename",
-                 "break", "else", "long", "sizeof", "union",
-                 "case", "enum", "mutable", "static", "unsigned",
-                 "catch", "explicit", "namespace", "static_cast", "using",
-                 "char", "export", "new", "struct", "virtual",
-                 "class", "extern", "operator", "switch", "void",
-                 "const", "false", "private", "template", "volatile",
-                 "const_cast", "float", "protected", "this", "wchar_t",
-                 "continue", "for", "public", "throw", "while",
-                 "default", "friend", "register", "true",
-                 "delete", "goto", "reinterpret_cast", "try" ])
+KEYWORDS = { "asm", "do", "if", "return", "typedef",
+             "auto", "double", "inline", "short", "typeid",
+             "bool", "dynamic_cast", "int", "signed", "typename",
+             "break", "else", "long", "sizeof", "union",
+             "case", "enum", "mutable", "static", "unsigned",
+             "catch", "explicit", "namespace", "static_cast", "using",
+             "char", "export", "new", "struct", "virtual",
+             "class", "extern", "operator", "switch", "void",
+             "const", "false", "private", "template", "volatile",
+             "const_cast", "float", "protected", "this", "wchar_t",
+             "continue", "for", "public", "throw", "while",
+             "default", "friend", "register", "true",
+             "delete", "goto", "reinterpret_cast", "try" }
 
 CONFLICT_MARKER = "^(?:<<<<<<<|=======|>>>>>>>)[^\n]*$"
 INT_LITERAL = "(?:0|[1-9][0-9]*|0x[0-9a-fA-F]+)[lLuU]*(?![0-9a-zA-Z_\\.])"

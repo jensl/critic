@@ -26,7 +26,7 @@ from operation import Operation, OperationResult, OperationError, \
 
 class AddFilter(Operation):
     def __init__(self):
-        Operation.__init__(self, { "filter_type": set(["reviewer", "watcher", "ignored"]),
+        Operation.__init__(self, { "filter_type": {"reviewer", "watcher", "ignored"},
                                    "path": str,
                                    "delegates": [str],
                                    "repository_id": Optional(int),
@@ -329,7 +329,7 @@ class GetMatchedPaths(Operation):
 class AddReviewFilters(Operation):
     def __init__(self):
         Operation.__init__(self, { "review_id": int,
-                                   "filters": [{ "type": set(["reviewer", "watcher"]),
+                                   "filters": [{ "type": {"reviewer", "watcher"},
                                                  "user_names": Optional([str]),
                                                  "user_ids": Optional([int]),
                                                  "paths": Optional([str]),

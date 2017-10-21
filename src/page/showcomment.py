@@ -122,7 +122,7 @@ def renderShowComments(req, db, user):
                         ORDER BY commentchains.file, commentchainlines.first_line""",
                        (review.id, blame_user.id, user.id))
 
-        include_chain_ids = set([chain_id for (chain_id,) in cursor])
+        include_chain_ids = {chain_id for (chain_id,) in cursor}
 
         profiler.check("initial blame filtering")
     else:
