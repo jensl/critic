@@ -70,7 +70,7 @@ def install(data):
     with open(target_path, "w") as target:
         created_file.append(target_path)
 
-        os.chmod(target_path, 0755)
+        os.chmod(target_path, 0o755)
         os.chown(target_path, installation.system.uid, installation.system.gid)
 
         with open(source_path, "r") as source:
@@ -132,7 +132,7 @@ likely to break.
 
             with open(target_path, "w") as target:
                 created_file.append(target_path)
-                os.chmod(target_path, 0755)
+                os.chmod(target_path, 0o755)
                 os.chown(target_path, system_uid, system_gid)
                 target.write(source.encode("utf-8"))
 

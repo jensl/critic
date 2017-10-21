@@ -31,7 +31,7 @@ def install(data):
     with open(target_path, "w") as target:
         created_file.append(target_path)
 
-        os.chmod(target_path, 0755)
+        os.chmod(target_path, 0o755)
 
         with open(source_path, "r") as source:
             target.write((source.read().decode("utf-8") % data).encode("utf-8"))

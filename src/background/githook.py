@@ -616,7 +616,7 @@ class GitHookServer(background.utils.PeerServer):
 
     def startup(self):
         super(GitHookServer, self).startup()
-        os.chmod(configuration.services.GITHOOK["address"], 0770)
+        os.chmod(configuration.services.GITHOOK["address"], 0o770)
 
     def handle_peer(self, peersocket, peeraddress):
         return GitHookClient(self, peersocket)

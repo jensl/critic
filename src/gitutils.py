@@ -1336,14 +1336,14 @@ class Tree:
             def __str__(self):
                 if stat.S_ISDIR(self):
                     return "d---------"
-                elif self == 0160000:
+                elif self == 0o160000:
                     return "m---------"
                 else:
                     if stat.S_ISLNK(self): string = "l"
                     else: string = "-"
 
                     flags = ["---", "--x", "-w-", "-wx", "r--", "r-x", "rw-", "rwx"]
-                    return string + flags[(self & 0700) >> 6] + flags[(self & 070) >> 3] + flags[self & 07]
+                    return string + flags[(self & 0o700) >> 6] + flags[(self & 0o70) >> 3] + flags[self & 0o7]
 
         def __init__(self, name, mode, type, sha1, size):
             if len(name) > 2 and name[0] in ('"', "'") and name[-1] == name[0]:

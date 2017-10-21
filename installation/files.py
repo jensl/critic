@@ -75,7 +75,7 @@ def install(data):
         target = os.path.join(target_dir, path)
 
         if os.path.isdir(source):
-            os.mkdir(target, 0755)
+            os.mkdir(target, 0o755)
             os.chown(target, installation.system.uid, installation.system.gid)
             created_dir.append(target)
             return True
@@ -84,9 +84,9 @@ def install(data):
             created_file.append(target)
             if not os.path.islink(target):
                 if path.startswith("hooks/"):
-                    mode = 0755
+                    mode = 0o755
                 else:
-                    mode = 0644
+                    mode = 0o644
                 os.chmod(target, mode)
             os.lchown(target, installation.system.uid, installation.system.gid)
             copied_files += 1
@@ -244,7 +244,7 @@ deleted.
         if not os.path.isfile(full_target_path):
             print("New file: %s" % target_path)
             if not arguments.dry_run:
-                try: os.makedirs(os.path.dirname(full_target_path), 0755)
+                try: os.makedirs(os.path.dirname(full_target_path), 0o755)
                 except OSError as error:
                     if error.errno == errno.EEXIST: pass
                     else: raise
@@ -321,9 +321,9 @@ Not installing the updated version can cause unpredictable results.
                         sources_modified = True
 
         if target_path.startswith("hooks/"):
-            mode = 0755
+            mode = 0o755
         else:
-            mode = 0644
+            mode = 0o644
         if not arguments.dry_run:
             if not os.path.islink(full_target_path):
                 os.chmod(full_target_path, mode)

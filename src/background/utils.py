@@ -527,7 +527,7 @@ class PeerServer(SleeperProcess):
             self.__listening_socket.bind(self.__address)
             self.__listening_socket.listen(4)
 
-            os.chmod(self.__address, 0700)
+            os.chmod(self.__address, 0o700)
 
             self.debug("listening: %s" % self.__address)
         elif type(self.__address) == tuple:

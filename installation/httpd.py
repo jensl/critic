@@ -77,7 +77,7 @@ def process_configuration_file(
     if write_target and not getattr(arguments, "dry_run", False):
         with open(target_path, "w") as target_file:
             created_file.append(target_path)
-            os.chmod(target_path, 0640)
+            os.chmod(target_path, 0o640)
             target_file.write(source.encode("utf-8"))
 
 class Service(object):

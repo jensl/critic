@@ -74,7 +74,7 @@ class AddRepository(Operation):
                                    message="The specified short name is already in use, please select a different short name.")
 
         if not os.path.isdir(main_base_path):
-            os.makedirs(main_base_path, mode=0775)
+            os.makedirs(main_base_path, mode=0o775)
 
         def git(arguments, cwd):
             argv = [configuration.executables.GIT] + arguments

@@ -683,11 +683,11 @@ def set_file_mode_and_owner(path):
     filename = os.path.basename(path)
     if filename in ("database.py", "auth.py", "smtp-credentials.json"):
         # May contain sensitive information.
-        mode = 0600
+        mode = 0o600
         if filename == "smtp-credentials.json":
             uid = gid = 0
     else:
-        mode = 0640
+        mode = 0o640
 
     os.chmod(path, mode)
 
@@ -709,7 +709,7 @@ def install(data):
     target_dir = os.path.join(installation.paths.etc_dir, "main", "configuration")
     compilation_failed = False
 
-    os.mkdir(target_dir, 0750)
+    os.mkdir(target_dir, 0o750)
     created_dir.append(target_dir)
 
     os.chown(target_dir, installation.system.uid, installation.system.gid)

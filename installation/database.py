@@ -33,7 +33,7 @@ def psql_import(sql_file, as_user=None):
     temp_file = tempfile.mkstemp()[1]
     shutil.copy(os.path.join(installation.root_dir, sql_file), temp_file)
     # Make sure file is readable by postgres user
-    os.chmod(temp_file, 0644)
+    os.chmod(temp_file, 0o644)
     subprocess.check_output(
         ["su", "-s", "/bin/sh", "-c", "psql -v ON_ERROR_STOP=1 -f %s" % temp_file, as_user])
     os.unlink(temp_file)
@@ -75,7 +75,7 @@ backup of the database first is strongly recommended.
                 backup_database = False
 
         if backup_database:
-            try: os.makedirs(os.path.dirname(backup_path), 0750)
+            try: os.makedirs(os.path.dirname(backup_path), 0o750)
             except OSError as error:
                 if error.errno == errno.EEXIST: pass
                 else: raise

@@ -168,7 +168,7 @@ Critic Installation: Paths
 
 created = []
 
-def mkdir(path, mode=0750):
+def mkdir(path, mode=0o750):
     global created
     if not os.path.isdir(path):
         if not os.path.isdir(os.path.dirname(path)):
@@ -186,20 +186,20 @@ def mkdirs():
 
     mkdir(os.path.join(etc_dir, "main"))
     mkdir(bin_dir)
-    mkdir(install_dir, 0755)
+    mkdir(install_dir, 0o755)
     mkdir(os.path.join(data_dir, "relay"))
     mkdir(os.path.join(data_dir, "temporary"))
-    mkdir(os.path.join(data_dir, "outbox", "sent"), mode=0700)
+    mkdir(os.path.join(data_dir, "outbox", "sent"), mode=0o700)
     mkdir(os.path.join(cache_dir, "main", "highlight"))
     mkdir(git_dir)
     mkdir(os.path.join(log_dir, "main"))
-    mkdir(os.path.join(run_dir, "main", "sockets"), mode=0755)
+    mkdir(os.path.join(run_dir, "main", "sockets"), mode=0o755)
     mkdir(os.path.join(run_dir, "main", "wsgi"))
 
     if installation.config.coverage_dir:
         mkdir(installation.config.coverage_dir)
 
-    os.chmod(git_dir, 0770 | stat.S_ISUID | stat.S_ISGID)
+    os.chmod(git_dir, 0o770 | stat.S_ISUID | stat.S_ISGID)
 
 def install(data):
     mkdirs()

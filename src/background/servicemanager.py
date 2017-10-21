@@ -244,9 +244,9 @@ else:
             os.chmod(path, mode)
         os.chown(path, uid, gid)
 
-    mkdir(configuration.paths.RUN_DIR, 0755 | stat.S_ISUID | stat.S_ISGID)
-    mkdir(os.path.join(configuration.paths.RUN_DIR, "sockets"), 0755)
-    mkdir(os.path.join(configuration.paths.RUN_DIR, "wsgi"), 0750)
+    mkdir(configuration.paths.RUN_DIR, 0o755 | stat.S_ISUID | stat.S_ISGID)
+    mkdir(os.path.join(configuration.paths.RUN_DIR, "sockets"), 0o755)
+    mkdir(os.path.join(configuration.paths.RUN_DIR, "wsgi"), 0o750)
 
     os.environ["HOME"] = home
     os.chdir(home)
@@ -299,7 +299,7 @@ else:
         daemon.detach(parent_exit_hook=wait_for_startup_sync)
         pidfile.write("%s\n" % os.getpid())
 
-    os.umask(022)
+    os.umask(0o22)
 
     was_terminated = False
 

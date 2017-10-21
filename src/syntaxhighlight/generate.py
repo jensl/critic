@@ -115,7 +115,7 @@ def generateHighlight(repository_path, sha1, language, mode, output_file=None):
     else:
         output_path = syntaxhighlight.generateHighlightPath(sha1, language, mode)
 
-        try: os.makedirs(os.path.dirname(output_path), 0750)
+        try: os.makedirs(os.path.dirname(output_path), 0o750)
         except OSError as error:
             if error.errno == errno.EEXIST: pass
             else: raise
@@ -132,7 +132,7 @@ def generateHighlight(repository_path, sha1, language, mode, output_file=None):
 
         output_file.close()
 
-        os.chmod(output_path + ".tmp", 0660)
+        os.chmod(output_path + ".tmp", 0o660)
         os.rename(output_path + ".tmp", output_path)
 
     return True

@@ -345,7 +345,7 @@ def write_install_data(arguments, install_data):
             json.dump(install_data, install_data_file)
 
         os.chown(install_data_path, installation.system.uid, installation.system.gid)
-        os.chmod(install_data_path, 0640)
+        os.chmod(install_data_path, 0o640)
 
 def start_migration(connect=False):
     import sys
