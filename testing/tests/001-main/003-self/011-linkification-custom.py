@@ -24,7 +24,7 @@ with repository.workcopy() as work:
     work.run(["checkout", "-b", TESTNAME])
 
     with open(os.path.join(work.path, FILENAME), "w") as text_file:
-        print >>text_file, "This line is not significant."
+        print("This line is not significant.", file=text_file)
 
     work.run(["add", FILENAME])
     work.run(["commit", "-m", MESSAGE])

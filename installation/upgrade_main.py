@@ -47,32 +47,32 @@ def main():
         installation.input.headless = True
 
     if os.getuid() != 0:
-        print """
+        print("""
 ERROR: This script must be run as root.
-"""
+""")
         sys.exit(1)
 
     def abort():
-        print
-        print "ERROR: Upgrade aborted."
-        print
+        print()
+        print("ERROR: Upgrade aborted.")
+        print()
 
         for module in reversed(installation.modules):
             try:
                 if hasattr(module, "undo"):
                     module.undo()
             except:
-                print >>sys.stderr, "FAILED: %s.undo()" % module.__name__
+                print("FAILED: %s.undo()" % module.__name__, file=sys.stderr)
                 traceback.print_exc()
 
         sys.exit(1)
 
     data = installation.utils.read_install_data(arguments)
 
-    print """
+    print("""
 Critic Upgrade
 ==============
-"""
+""")
 
     git = data["installation.prereqs.git"]
 
@@ -83,30 +83,30 @@ Critic Upgrade
         except:
             guess_sha1 = None
 
-        print """
+        print("""
 The SHA-1 of the commit you initially installed was not recorded.  This
 means you installed a version before the install.py script was changed
-to record the SHA-1 currently checked out."""
+to record the SHA-1 currently checked out.""")
 
         if guess_sha1:
-            print """
+            print("""
 A reasonable guess is HEAD@{1}, or "where HEAD was before the last
 operation that changed HEAD".  Otherwise, please figure out what you
 installed.  If you need to guess, guessing on something too old (i.e.
 a commit that is an ancestor of the actual commit) is safer than
-guessing on something too recent."""
+guessing on something too recent.""")
             default = "HEAD@{1}"
         else:
-            print """
+            print("""
 Please figure out what you installed.  If you need to guess, guessing
 on something too old (i.e.  a commit that is an ancestor of the actual
-commit) is safer than guessing on something too recent."""
+commit) is safer than guessing on something too recent.""")
             default = None
 
-        print """
+        print("""
 The commit can be specified as a SHA-1 or any symbolic ref understood
 by "git rev-parse".
-"""
+""")
 
         def revparse(value):
             return installation.utils.run_git([git, "rev-parse", "--verify", value],
@@ -139,7 +139,7 @@ by "git rev-parse".
 
     if old_lifecycle["stable"] != new_lifecycle["stable"]:
         if old_lifecycle["stable"]:
-            print """
+            print("""
 WARNING: You're about to switch to an unstable development version of Critic!
 
 If this is a production system, you are most likely better off staying on the
@@ -162,45 +162,45 @@ HINT: If you installed from the 'master' branch prior to October 2017, then it
 
       In other words, if you are currently on 'master', you most likely want to
       switch to 'stable/1', or the latest stable branch (see above,) now.
-"""
+""")
 
             if not installation.input.yes_or_no(
                     "Do you want to continue upgrading to the unstable version?",
                     default=arguments.headless):
-                print
-                print "Installation aborted."
-                print
+                print()
+                print("Installation aborted.")
+                print()
                 sys.exit(1)
         else:
-            print """
+            print("""
 NOTE: Switching from an unstable version to a stable version.
-"""
+""")
 
-    print """
+    print("""
 Previously installed version: %s
 Will now upgrade to version:  %s
-""" % (old_critic_sha1, new_critic_sha1)
+""" % (old_critic_sha1, new_critic_sha1))
 
     if old_critic_sha1 == new_critic_sha1 and not arguments.force:
-        print "Old and new commit are the same, nothing to do."
+        print("Old and new commit are the same, nothing to do.")
         sys.exit(0)
 
     status_output = installation.utils.run_git([git, "status", "--porcelain"],
                                                cwd=installation.root_dir).strip()
 
     if status_output:
-        print """\
-ERROR: This Git repository has local modifications."""
+        print("""\
+ERROR: This Git repository has local modifications.""")
 
         if len(status_output.splitlines()) \
                 and "installation/externals/v8-jsshell" in status_output:
-            print """\
-HINT: You might just need to run "git submodule update --recursive"."""
+            print("""\
+HINT: You might just need to run "git submodule update --recursive".""")
 
-        print """
+        print("""
 Installing from a Git repository with local changes is not supported.
 Please commit or stash the changes and then try again.
-"""
+""")
         sys.exit(1)
 
     try:
@@ -213,7 +213,7 @@ Please commit or stash the changes and then try again.
             except SystemExit:
                 raise
             except:
-                print >>sys.stderr, "FAILED: %s.upgrade()" % module.__name__
+                print("FAILED: %s.upgrade()" % module.__name__, file=sys.stderr)
                 traceback.print_exc()
                 abort()
 
@@ -232,7 +232,7 @@ Please commit or stash the changes and then try again.
             except SystemExit:
                 raise
             except:
-                print >>sys.stderr, "FAILED: %s.upgrade()" % module.__name__
+                print("FAILED: %s.upgrade()" % module.__name__, file=sys.stderr)
                 traceback.print_exc()
                 abort()
 
@@ -271,15 +271,15 @@ Please commit or stash the changes and then try again.
                 if hasattr(module, "finish"):
                     module.finish("upgrade", arguments, data)
             except:
-                print >>sys.stderr, "WARNING: %s.finish() failed" % module.__name__
+                print("WARNING: %s.finish() failed" % module.__name__, file=sys.stderr)
                 traceback.print_exc()
 
         installation.utils.write_install_data(arguments, data)
         installation.utils.clean_root_pyc_files()
 
-        print
-        print "SUCCESS: Upgrade complete!"
-        print
+        print()
+        print("SUCCESS: Upgrade complete!")
+        print()
 
         if configuration.extensions.ENABLED:
             try:
@@ -289,7 +289,7 @@ Please commit or stash the changes and then try again.
                      "--", "installation/externals/v8-jsshell"])
             except subprocess.CalledProcessError:
                 # Non-zero exit status means there were changes.
-                print """
+                print("""
 Updated v8-jsshell submodule
 ============================
 
@@ -298,7 +298,7 @@ rebuilt.  If this is not done, the extensions mechanism may malfunction.  It can
 be done manually later by running this command as root:
 
   python extend.py
-"""
+""")
 
                 rebuild_v8_jsshell = installation.input.yes_or_no(
                     "Do you want to rebuild the v8-jsshell program now?",

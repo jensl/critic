@@ -39,9 +39,9 @@ def compile_file(filename):
         with installation.utils.as_critic_system_user():
             py_compile.compile(path, doraise=True)
     except py_compile.PyCompileError as error:
-        print """
+        print("""
 ERROR: Failed to compile %s:\n%s
-""" % (filename, error)
+""" % (filename, error))
         return False
     else:
         created_file.append(path + "c")
@@ -110,7 +110,7 @@ def install(data):
     if compilation_failed:
         return False
 
-    print "Copied %d files into %s ..." % (copied_files, target_dir)
+    print("Copied %d files into %s ..." % (copied_files, target_dir))
 
     return True
 
@@ -198,7 +198,7 @@ Not removing the file can cause unpredictable results.
             remove_file = True
 
         if remove_file:
-            print "Removing file: %s" % target_path
+            print("Removing file: %s" % target_path)
             if not arguments.dry_run:
                 os.rename(full_target_path, backup_path)
                 renamed.append((full_target_path, backup_path))
@@ -223,7 +223,7 @@ Not removing the file can cause unpredictable results.
             return
 
         if os.path.isfile(full_source_path) and os.path.isdir(full_target_path):
-            print """
+            print("""
 The directory
 
   %s
@@ -231,18 +231,18 @@ The directory
 is about to be deleted because a file is about to be installed in its
 place.  Please make sure it doesn't contain anything that shouldn't be
 deleted.
-""" % full_target_path
+""" % full_target_path)
 
             if not installation.input.yes_or_no("Do you want to delete the directory?", default=False):
                 return False
 
-            print "Removing directory: %s" % target_path
+            print("Removing directory: %s" % target_path)
             if not arguments.dry_run:
                 os.rename(full_target_path, backup_path)
                 renamed.append((full_target_path, backup_path))
 
         if not os.path.isfile(full_target_path):
-            print "New file: %s" % target_path
+            print("New file: %s" % target_path)
             if not arguments.dry_run:
                 try: os.makedirs(os.path.dirname(full_target_path), 0755)
                 except OSError as error:
@@ -306,7 +306,7 @@ Not installing the updated version can cause unpredictable results.
                     install_file = True
 
                 if install_file:
-                    print "Updated file: %s" % target_path
+                    print("Updated file: %s" % target_path)
                     if not arguments.dry_run:
                         os.rename(full_target_path, backup_path)
                         renamed.append((full_target_path, backup_path))
@@ -357,7 +357,7 @@ Not installing the updated version can cause unpredictable results.
         return False
 
     if copied_files == 0 and modified_files == 0:
-        print "No new or modified source files."
+        print("No new or modified source files.")
 
     return True
 

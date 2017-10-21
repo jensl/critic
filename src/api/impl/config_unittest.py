@@ -45,4 +45,4 @@ def basic():
     else:
         assert False
 
-    print "basic: ok"
+    print("basic: ok")

@@ -42,9 +42,9 @@ for entry in os.listdir(config_dir):
         try:
             os.chmod(pyc_file, os.stat(config_file).st_mode)
         except Exception as e:
-            print("WARNING: installation.config-pyc-file-permissions.py "
+            print(("WARNING: installation.config-pyc-file-permissions.py "
                   "failed to restrict file permissions for '%s'. Please make "
                   "sure all .pyc files in the Critic configuration directory "
                   "exists, belongs to critic:critic and are chmod'd similar "
                   "to the corresponding .py file. The specific error "
-                  "reported was: %s" % (pyc_file, e))
+                  "reported was: %s" % (pyc_file, e)))

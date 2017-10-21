@@ -72,7 +72,7 @@ def process_configuration_file(
             if not getattr(arguments, "dry_run", False):
                 undoable_remove(target_path)
 
-            print "Updated file: %s" % target_path
+            print("Updated file: %s" % target_path)
 
     if write_target and not getattr(arguments, "dry_run", False):
         with open(target_path, "w") as target_file:
@@ -85,15 +85,15 @@ class Service(object):
         self.stopped = False
 
     def service_command(self, command, errors_are_fatal):
-        print
+        print()
         try:
             subprocess.check_call(["service", self.service_name, command])
         except subprocess.CalledProcessError:
-            print "WARNING: The %s service failed to %s." % (self.display_name,
-                                                             command)
+            print("WARNING: The %s service failed to %s." % (self.display_name,
+                                                             command))
 
             if errors_are_fatal:
-                print """
+                print("""
 You can now either abort this Critic installation/upgrade, or you can
 go ahead anyway, fix the configuration problem manually (now or
 later), and then make sure the %(name)s service is running yourself
@@ -103,27 +103,27 @@ using the command
 
 Note that if you don't abort, the Critic system will most likely not
 be accessible until the configuration problem has been fixed.
-""" % { "name": self.service_name }
+""" % { "name": self.service_name })
                 return not installation.input.yes_or_no(
                     "Do you want to abort this Critic installation/upgrade?")
         return True
 
     def start(self, errors_are_fatal=True):
-        print
+        print()
         if not self.service_command("start", errors_are_fatal):
             return False
         self.stopped = False
         return True
 
     def stop(self, errors_are_fatal=False):
-        print
+        print()
         if not self.service_command("stop", errors_are_fatal):
             return False
         self.stopped = True
         return True
 
     def restart(self):
-        print
+        print()
         if not self.stop():
             return False
         return self.start()

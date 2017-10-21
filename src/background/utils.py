@@ -514,7 +514,7 @@ class PeerServer(SleeperProcess):
                     connection.connect(self.__address)
                     connection.close()
 
-                    print >>sys.stderr, "ERROR: Server already started!"
+                    print("ERROR: Server already started!", file=sys.stderr)
                     sys.exit(1)
                 except socket.error as error:
                     if error[0] == errno.ECONNREFUSED:

@@ -48,15 +48,15 @@ for (relay_path,) in cursor:
     try:
         shutil.rmtree(relay_path)
     except OSError as error:
-        print ("WARNING: Failed to remove directory: %s\n  Error: %s"
-               % (relay_path, error))
+        print(("WARNING: Failed to remove directory: %s\n  Error: %s"
+               % (relay_path, error)))
         failed = True
 
 if failed:
-    print """
+    print("""
 Some obsolete directories could not be removed.  They will no longer be used by
 Critic, so you probably want to look into deleting them manually.
-"""
+""")
 
 cursor.execute("ALTER TABLE repositories DROP relay")
 

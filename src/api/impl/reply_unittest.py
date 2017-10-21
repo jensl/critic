@@ -72,7 +72,7 @@ def basic(arguments):
     assert some_replies[2].id == reply_ids[2]
     assert some_replies[2] is api.reply.fetch(critic, reply_ids[2])
 
-    print "basic: ok"
+    print("basic: ok")
 
 def main(argv):
     import argparse

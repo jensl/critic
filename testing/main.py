@@ -348,7 +348,7 @@ first or run this script without --test-extensions.""")
     def pause(failed_test=None):
         if arguments.pause_upgrade_loop \
                 or (failed_test and arguments.pause_upgrade_retry):
-            print "Testing paused."
+            print("Testing paused.")
 
             while True:
                 if failed_test and arguments.pause_upgrade_retry:

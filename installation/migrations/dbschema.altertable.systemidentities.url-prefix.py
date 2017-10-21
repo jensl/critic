@@ -64,11 +64,11 @@ for key, url_prefix in url_prefixes:
         # with this URL prefix in the past would most likely have been
         # broken already.
 
-        print """\
+        print("""\
 WARNING: System identity %s's URL prefix was not recognized as either
          HTTP or HTTPS.  It's assumed to be a plain hostname.
 
-The URL prefix was: %r""" % (key, url_prefix)
+The URL prefix was: %r""" % (key, url_prefix))
 
         hostname = url_prefix
 

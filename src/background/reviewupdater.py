@@ -115,7 +115,7 @@ def run_slave():
             "status": "error",
             "error": traceback.format_exc(),
         }
-    print json.dumps(result)
+    print(json.dumps(result))
 
 class ReviewUpdaterSlave(background.utils.PeerServer.ChildProcess):
     def __init__(self, server, review_id, branchupdate_id=None,

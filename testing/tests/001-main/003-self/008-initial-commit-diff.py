@@ -43,7 +43,7 @@ with testing.utils.settings("alice", SETTINGS), frontend.signin("alice"):
                       "HEAD:refs/heads/r/008-root-commit-pending"])
 
         with open(os.path.join(work.path, FILENAME), "w") as text_file:
-            print >>text_file, "First line."
+            print("First line.", file=text_file)
 
         first_commit = commit()
 
@@ -67,12 +67,12 @@ with testing.utils.settings("alice", SETTINGS), frontend.signin("alice"):
                                  "<expected content not found>")
 
         with open(os.path.join(work.path, FILENAME), "a") as text_file:
-            print >>text_file, "Second line."
+            print("Second line.", file=text_file)
 
         second_commit = commit("Added second line")
 
         with open(os.path.join(work.path, FILENAME), "a") as text_file:
-            print >>text_file, "Third line."
+            print("Third line.", file=text_file)
 
         third_commit = commit("Added third line")
 

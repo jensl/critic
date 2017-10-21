@@ -30,11 +30,11 @@ def apply_check(check, input):
     if result is None:
         return True
     elif result is True:
-        print "Invalid input."
-        print
+        print("Invalid input.")
+        print()
     else:
-        print "Invalid input: %s." % result
-        print
+        print("Invalid input: %s." % result)
+        print()
     return False
 
 
@@ -44,7 +44,7 @@ def yes_or_no(prompt, default=None):
     while True:
         try: input = raw_input(prompt)
         except KeyboardInterrupt:
-            print
+            print()
             raise
 
         if input.lower() in ("y", "yes"):
@@ -52,8 +52,8 @@ def yes_or_no(prompt, default=None):
         elif input.lower() in ("n", "no"):
             return False
         elif input or default is None:
-            print "Please answer 'y'/'yes' or 'n'/'no'."
-            print
+            print("Please answer 'y'/'yes' or 'n'/'no'.")
+            print()
         else:
             return default
 
@@ -63,7 +63,7 @@ def string(prompt, default=None, check=None):
     while True:
         try: input = raw_input(prompt)
         except KeyboardInterrupt:
-            print
+            print()
             raise
 
         if default and not input:
@@ -73,7 +73,7 @@ def string(prompt, default=None, check=None):
             if apply_check(check, input):
                 return input
         elif not input:
-            print "Invalid input: empty."
+            print("Invalid input: empty.")
         else:
             return input
 
@@ -91,13 +91,13 @@ def password(prompt, default=None, twice=True):
                 termios.tcsetattr(sys.stdin, termios.TCSADRAIN, new)
                 try: password = raw_input(prompt)
                 except KeyboardInterrupt:
-                    print
+                    print()
                     raise
             finally:
                 termios.tcsetattr(sys.stdin, termios.TCSADRAIN, old)
         else:
             password = sys.stdin.readline().rstrip("\n")
-        print
+        print()
         if default and not password: return default
         else: return password
 
@@ -110,8 +110,8 @@ def password(prompt, default=None, twice=True):
             if password == andagain:
                 return password
             else:
-                print
-                print "Passwords differ.  Please try again."
-                print
+                print()
+                print("Passwords differ.  Please try again.")
+                print()
         else:
             return password

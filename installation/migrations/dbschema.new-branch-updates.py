@@ -454,8 +454,8 @@ try:
         """ALTER TABLE reviewchangesets
            ALTER COLUMN branchupdate SET NOT NULL""")
 except Exception:
-    print >>sys.stderr, ("WARNING: Failed to add NOT NULL to "
-                         "|reviewchangesets.branchupdate| column.")
+    print(("WARNING: Failed to add NOT NULL to "
+                         "|reviewchangesets.branchupdate| column."), file=sys.stderr)
     dbschema.db.rollback()
 
 # Since |reviewrebases| now references |branchupdates|, which has |from_head|

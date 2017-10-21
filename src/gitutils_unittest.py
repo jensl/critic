@@ -50,4 +50,4 @@ def keepalives():
         assert chain_before == chain_after, ("%s != %s"
                                              % (chain_before, chain_after))
 
-    print "keepalives: ok"
+    print("keepalives: ok")

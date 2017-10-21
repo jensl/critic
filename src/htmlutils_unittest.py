@@ -3,4 +3,4 @@ def independence():
 
     import htmlutils
 
-    print "independence: ok"
+    print("independence: ok")

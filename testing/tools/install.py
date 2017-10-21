@@ -92,12 +92,12 @@ def main():
         instance.start()
 
         if arguments.interactive:
-            print """
+            print("""
 Note: To use the simple SMTP server built into the Critic testing framework,
       enter "host" as the SMTP host and "%d" as the SMTP port.
 
 Also note: The administrator user's password will be "testing" (password
-           input doesn't work over this channel.)""" % mailbox.port
+           input doesn't work over this channel.)""" % mailbox.port)
 
         instance.install(repository, quick=True,
                          interactive=arguments.interactive)

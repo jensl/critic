@@ -47,7 +47,7 @@ def queueMail(from_user, to_user, recipients, subject, body, message_id=None,
                                             message_id)
 
     with open(filename, "w") as file:
-        print >> file, repr({ "message_id": message_id,
+        print(repr({ "message_id": message_id,
                               "parent_message_id": parent_message_id,
                               "headers": headers,
                               "time": time.time(),
@@ -55,7 +55,7 @@ def queueMail(from_user, to_user, recipients, subject, body, message_id=None,
                               "to_user": to_user,
                               "recipients": recipients,
                               "subject": subject,
-                              "body": body })
+                              "body": body }), file=file)
 
     return filename
 

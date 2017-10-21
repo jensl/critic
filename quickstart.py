@@ -126,32 +126,32 @@ failed_imports = False
 try:
     import pygments
 except ImportError:
-    print """\
+    print("""\
 ERROR: Failed to import 'pygments'; code will not be syntax highlighted.
 HINT: On Debian/Ubuntu, install the 'python-pygments' package to eliminate
       this problem.
-"""
+""")
     failed_imports = True
 
 try:
     import passlib
 except ImportError:
-    print """\
+    print("""\
 ERROR: Failed to import 'passlib'; passwords will be encrypted insecurely.
 HINT: On Debian/Ubuntu, install the 'python-passlib' package to eliminate
       this problem.
-"""
+""")
     failed_imports = True
 
 if failed_imports:
     if arguments.testing:
-        print "FATAL: Won't run test suite with missing imports."
+        print("FATAL: Won't run test suite with missing imports.")
         sys.exit(1)
     else:
-        print """\
+        print("""\
 Some functionality will be missing due to missing Python packages.  Press
 ENTER to go ahead and quick-start Critic anyway, or CTRL-c to abort.
-"""
+""")
 
         try:
             sys.stdin.readline()
@@ -173,7 +173,7 @@ if arguments.state_dir:
 else:
     state_dir = tempfile.mkdtemp()
     if arguments.testing:
-        print "STATE=%s" % state_dir
+        print("STATE=%s" % state_dir)
 
 database_path = os.path.join(state_dir, "critic.db")
 initialize_database = not os.path.exists(database_path)
@@ -196,8 +196,8 @@ def compile_all_sources():
             except py_compile.PyCompileError as error:
                 if success:
                     # First error.  Create some space.
-                    print "\n"
-                print "ERROR: Failed to compile %s:\n%s" % (path, error)
+                    print("\n")
+                print("ERROR: Failed to compile %s:\n%s" % (path, error))
                 success = False
     if not success:
         raise CompilationFailed()
@@ -286,10 +286,10 @@ try:
 
         if not arguments.testing:
             if not quiet:
-                print
+                print()
 
-            print ("Created administrator user %r with password '1234'"
-                   % data["installation.admin.username"])
+            print(("Created administrator user %r with password '1234'"
+                   % data["installation.admin.username"]))
 
         cursor.execute("""INSERT INTO userroles (uid, role)
                                SELECT %s, name
@@ -358,7 +358,7 @@ try:
     startTheSystem()
 
     if not arguments.testing:
-        print "Listening at: http://%s:%s/" % (server_name, server_port)
+        print("Listening at: http://%s:%s/" % (server_name, server_port))
 
         import dbutils
 
@@ -369,12 +369,12 @@ try:
         db.commit()
         db.close()
     else:
-        print "HTTP=%s:%s" % (server_name, server_port)
+        print("HTTP=%s:%s" % (server_name, server_port))
 
     if not os.listdir(installation.paths.git_dir) and not arguments.testing:
         if not quiet:
-            print
-            print "Creating critic.git repository ..."
+            print()
+            print("Creating critic.git repository ...")
 
         pid_filename = os.path.join(
             state_dir, "run", "main", "branchtracker.pid")
@@ -411,10 +411,10 @@ try:
             **kwargs)
 
     if not quiet:
-        print
+        print()
 
     if arguments.testing:
-        print "STARTED"
+        print("STARTED")
 
         restart_requested = False
         def handle_sigusr1(signum, frame):
@@ -427,19 +427,19 @@ try:
             if restart_requested:
                 restart_requested = False
                 restartTheSystem()
-                print "RESTARTED"
+                print("RESTARTED")
     else:
         while True:
             current_mtime = getNewestModificationTime()
             if current_mtime > running_mtime:
-                print
+                print()
                 try:
                     with activity("Sources changed, restarting the system"):
                         restartTheSystem()
                 except CompilationFailed:
                     pass
                 else:
-                    print
+                    print()
 
                 running_mtime = current_mtime
             else:
@@ -448,7 +448,7 @@ except KeyboardInterrupt:
     pass
 finally:
     if not arguments.quiet and not arguments.testing:
-        print "Shutting down ..."
+        print("Shutting down ...")
 
     try:
         stopTheSystem()
@@ -458,6 +458,6 @@ finally:
 
     if not arguments.state_dir:
         if not arguments.quiet and not arguments.testing:
-            print "Cleaing up ..."
+            print("Cleaing up ...")
 
         shutil.rmtree(state_dir)

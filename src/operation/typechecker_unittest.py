@@ -217,4 +217,4 @@ def basic():
                      title="Invalid data parameter",
                      message="invalid input: data must be 1 or higher")
 
-    print "basic: ok"
+    print("basic: ok")

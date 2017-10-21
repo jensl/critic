@@ -30,7 +30,7 @@ preferences = cursor.fetchall()
 
 installpreferences_py = open(os.path.join(os.path.dirname(sys.argv[0]), "installpreferences.py"), "w")
 
-print >>installpreferences_py, "PREFERENCES = [ ",
+print("PREFERENCES = [ ", end=' ', file=installpreferences_py)
 
 for index, (item, type, default_integer, default_string, description) in enumerate(preferences):
     if index != 0:
@@ -50,37 +50,37 @@ for index, (item, type, default_integer, default_string, description) in enumera
     installpreferences_py.write("""
                   "description": %r }""" % description)
 
-print >>installpreferences_py, " ]"
-print >>installpreferences_py
-print >>installpreferences_py, "def installPreferences(db, quiet):"
-print >>installpreferences_py, "    cursor = db.cursor()"
-print >>installpreferences_py
-print >>installpreferences_py, "    for preference in PREFERENCES:"
-print >>installpreferences_py, "        item = preference[\"item\"]"
-print >>installpreferences_py, "        type = preference[\"type\"]"
-print >>installpreferences_py, "        default_integer = preference.get(\"default_integer\")"
-print >>installpreferences_py, "        default_string = preference.get(\"default_string\")"
-print >>installpreferences_py, "        description = preference[\"description\"]"
-print >>installpreferences_py
-print >>installpreferences_py, "        cursor.execute(\"SELECT 1 FROM preferences WHERE item=%s\", (item,))"
-print >>installpreferences_py
-print >>installpreferences_py, "        if cursor.fetchone():"
-print >>installpreferences_py, "            if not quiet: print \"Updating: %s\" % item"
-print >>installpreferences_py, "            cursor.execute(\"UPDATE preferences SET type=%s, default_integer=%s, default_string=%s, description=%s WHERE item=%s\", (type, default_integer, default_string, description, item))"
-print >>installpreferences_py, "        else:"
-print >>installpreferences_py, "            if not quiet: print \"Adding:   %s\" % item"
-print >>installpreferences_py, "            cursor.execute(\"INSERT INTO preferences (item, type, default_integer, default_string, description) VALUES (%s, %s, %s, %s, %s)\", (item, type, default_integer, default_string, description))"
-print >>installpreferences_py
-print >>installpreferences_py, "if __name__ == \"__main__\":"
-print >>installpreferences_py, "    import sys"
-print >>installpreferences_py, "    import os.path"
-print >>installpreferences_py
-print >>installpreferences_py, "    sys.path.insert(0, os.path.dirname(os.path.dirname(sys.argv[0])))"
-print >>installpreferences_py
-print >>installpreferences_py, "    import dbaccess"
-print >>installpreferences_py
-print >>installpreferences_py, "    db = dbaccess.connect()"
-print >>installpreferences_py
-print >>installpreferences_py, "    installPreferences(db, \"--quiet\" in sys.argv or \"-q\" in sys.argv)"
-print >>installpreferences_py
-print >>installpreferences_py, "    db.commit()"
+print(" ]", file=installpreferences_py)
+print(file=installpreferences_py)
+print("def installPreferences(db, quiet):", file=installpreferences_py)
+print("    cursor = db.cursor()", file=installpreferences_py)
+print(file=installpreferences_py)
+print("    for preference in PREFERENCES:", file=installpreferences_py)
+print("        item = preference[\"item\"]", file=installpreferences_py)
+print("        type = preference[\"type\"]", file=installpreferences_py)
+print("        default_integer = preference.get(\"default_integer\")", file=installpreferences_py)
+print("        default_string = preference.get(\"default_string\")", file=installpreferences_py)
+print("        description = preference[\"description\"]", file=installpreferences_py)
+print(file=installpreferences_py)
+print("        cursor.execute(\"SELECT 1 FROM preferences WHERE item=%s\", (item,))", file=installpreferences_py)
+print(file=installpreferences_py)
+print("        if cursor.fetchone():", file=installpreferences_py)
+print("            if not quiet: print \"Updating: %s\" % item", file=installpreferences_py)
+print("            cursor.execute(\"UPDATE preferences SET type=%s, default_integer=%s, default_string=%s, description=%s WHERE item=%s\", (type, default_integer, default_string, description, item))", file=installpreferences_py)
+print("        else:", file=installpreferences_py)
+print("            if not quiet: print \"Adding:   %s\" % item", file=installpreferences_py)
+print("            cursor.execute(\"INSERT INTO preferences (item, type, default_integer, default_string, description) VALUES (%s, %s, %s, %s, %s)\", (item, type, default_integer, default_string, description))", file=installpreferences_py)
+print(file=installpreferences_py)
+print("if __name__ == \"__main__\":", file=installpreferences_py)
+print("    import sys", file=installpreferences_py)
+print("    import os.path", file=installpreferences_py)
+print(file=installpreferences_py)
+print("    sys.path.insert(0, os.path.dirname(os.path.dirname(sys.argv[0])))", file=installpreferences_py)
+print(file=installpreferences_py)
+print("    import dbaccess", file=installpreferences_py)
+print(file=installpreferences_py)
+print("    db = dbaccess.connect()", file=installpreferences_py)
+print(file=installpreferences_py)
+print("    installPreferences(db, \"--quiet\" in sys.argv or \"-q\" in sys.argv)", file=installpreferences_py)
+print(file=installpreferences_py)
+print("    db.commit()", file=installpreferences_py)

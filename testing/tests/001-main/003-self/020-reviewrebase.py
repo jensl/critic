@@ -39,7 +39,7 @@ with work, settings, signin:
         """Write the file<tm>, optionally with lines upper-cased."""
         filename = kwargs.get("filename", FILENAME)
         with open(os.path.join(work.path, filename), "w") as target:
-            print >>target, lines(*args)
+            print(lines(*args), file=target)
 
     def commit(message_or_ref="HEAD", generate=None, *args, **kwargs):
         """If called with two or more arguments, create a commit and return,

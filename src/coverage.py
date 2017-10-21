@@ -100,4 +100,4 @@ if __name__ == "__main__":
 
     json.dump(data, sys.stdout)
 
-    print
+    print()

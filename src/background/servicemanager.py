@@ -229,7 +229,7 @@ else:
     pidfile_path = configuration.services.SERVICEMANAGER["pidfile_path"]
 
     if os.path.isfile(pidfile_path):
-        print >>sys.stderr, "%s: file exists; daemon already running?" % pidfile_path
+        print("%s: file exists; daemon already running?" % pidfile_path, file=sys.stderr)
         sys.exit(1)
 
     # Our RUN_DIR (/var/run/critic/IDENTITY) is typically on a tmpfs that gets
@@ -273,7 +273,7 @@ else:
         try:
             os.unlink(filename)
         except OSError as error:
-            print >>sys.stderr, error
+            print(error, file=sys.stderr)
 
     with open(pidfile_path + ".starting", "w") as starting:
         starting.write("%s\n" % time.ctime())
@@ -287,12 +287,12 @@ else:
             if time.time() > deadline:
                 break
             time.sleep(0.1)
-        print >>sys.stderr
-        print >>sys.stderr, ("Startup synchronization timeout after %d seconds!"
-                             % STARTUP_SYNC_TIMEOUT)
-        print >>sys.stderr, "Services still starting:"
+        print(file=sys.stderr)
+        print(("Startup synchronization timeout after %d seconds!"
+                             % STARTUP_SYNC_TIMEOUT), file=sys.stderr)
+        print("Services still starting:", file=sys.stderr)
         for filename in filenames:
-            print >>sys.stderr, "  " + os.path.basename(filename)
+            print("  " + os.path.basename(filename), file=sys.stderr)
         return 1
 
     with open(pidfile_path, "w") as pidfile:

@@ -36,7 +36,7 @@ with frontend.signin("alice"):
                       "%s:refs/roots/%s" % (sha1, sha1)])
 
         with open(os.path.join(work.path, FILENAME), "w") as text_file:
-            print >>text_file, "Content of file " + FILENAME
+            print("Content of file " + FILENAME, file=text_file)
 
         sha1 = commit()
         push(sha1)

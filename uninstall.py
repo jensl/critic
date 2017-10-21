@@ -34,9 +34,9 @@ def check(value):
 
 def abort_if_no_keep_going_param(arguments, error_msg):
     if not arguments.keep_going:
-        print error_msg
-        print "Unexpected error encountered.  Critic uninstall aborted."
-        print "Re-run with --keep-going to ignore errors."
+        print(error_msg)
+        print("Unexpected error encountered.  Critic uninstall aborted.")
+        print("Re-run with --keep-going to ignore errors.")
         sys.exit(ExitStatus.UNEXPECTED_ERROR)
 
 def get_all_configurations(arguments):
@@ -83,13 +83,13 @@ def main():
     arguments = parser.parse_args()
 
     if os.getuid() != 0:
-        print """
+        print("""
 ERROR: This script must be run as root.
-"""
+""")
         sys.exit(ExitStatus.MUST_RUN_AS_ROOT)
 
     if not arguments.headless:
-        print """\
+        print("""\
 !!!! WARNING !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 This uninstall script will delete Critic, all Critic logs, caches and
 configuration files, and it will also DELETE ALL DATA related to Critic.
@@ -99,11 +99,11 @@ instances of Critic on this system, all of them will be removed.
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 This step cannot be undone! To abort the uninstall script, press CTRL-C now.
-"""
+""")
         installation.input.string("To continue the uninstall script and DELETE ALL YOUR DATA, enter 'deletemydata' here:", default="", check=check)
 
     if not os.path.isdir(arguments.etc_dir):
-        print "%s: no such directory.  Invalid --etc-dir parameter." % arguments.etc_dir
+        print("%s: no such directory.  Invalid --etc-dir parameter." % arguments.etc_dir)
         sys.exit(ExitStatus.INVALID_ETC_DIR)
 
     run_command(arguments, ["criticctl", "stop"])
@@ -172,9 +172,9 @@ This step cannot be undone! To abort the uninstall script, press CTRL-C now.
 
     run_command(arguments, ["rm", "-f", os.path.join(installation.root_dir, ".installed")])
 
-    print
-    print "SUCCESS: Uninstall complete."
-    print
+    print()
+    print("SUCCESS: Uninstall complete.")
+    print()
 
     return ExitStatus.EXIT_SUCCESS
 

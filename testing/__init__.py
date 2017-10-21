@@ -245,15 +245,15 @@ def configureLogging(arguments=None, wrap=None):
     return logger
 
 def pause(prompt="Press ENTER to continue: "):
-    print >>STREAM
+    print(file=STREAM)
     try:
-        print >>STREAM, prompt,
+        print(prompt, end=' ', file=STREAM)
         raw_input()
     except KeyboardInterrupt:
-        print >>STREAM
-        print >>STREAM
+        print(file=STREAM)
+        print(file=STREAM)
         raise
-    print >>STREAM
+    print(file=STREAM)
 
 class Context(object):
     def __init__(self, start, finish):

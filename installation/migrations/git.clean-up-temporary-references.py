@@ -57,4 +57,4 @@ for (path,) in cursor:
              "-d", temporary_ref])
 
     if temporary_refs:
-        print "%s: purged %d temporary refs" % (path, len(temporary_refs))
+        print("%s: purged %d temporary refs" % (path, len(temporary_refs)))

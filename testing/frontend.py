@@ -223,7 +223,7 @@ class Frontend(object):
                 try:
                     check(document)
                 except testing.expect.FailedCheck as failed_check:
-                    print text(response)
+                    print(text(response))
                     testing.logger.error("Page '%s', test '%s': %s"
                                          % (url, key, failed_check.message))
                     failed_checks = True

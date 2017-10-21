@@ -142,7 +142,7 @@ def basic(arguments):
     assert (make("ABC") - make("BCD")) == make("A")
     assert (make("ABC") ^ make("BCD")) == make("AD")
 
-    print "basic: ok"
+    print("basic: ok")
 
 def main(argv):
     import argparse

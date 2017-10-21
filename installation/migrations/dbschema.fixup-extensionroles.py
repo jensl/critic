@@ -65,7 +65,7 @@ for row in cursor:
         roles.add(role_key)
 
 if duplicates:
-    print "Removing %d duplicate rows from extensionroles." % len(duplicates)
+    print("Removing %d duplicate rows from extensionroles." % len(duplicates))
     cursor.execute("DELETE FROM extensionroles WHERE id=ANY (%s)", (duplicates,))
 
 db.commit()

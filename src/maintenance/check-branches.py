@@ -36,10 +36,10 @@ parser.add_argument("--force", "-f", action="store_true", help="update the datab
 arguments = parser.parse_args()
 
 if not arguments.dry_run and not arguments.force:
-    print "One of --dry-run/-n and --force/-f must be specified."
+    print("One of --dry-run/-n and --force/-f must be specified.")
     sys.exit(1)
 elif arguments.dry_run and arguments.force:
-    print "Only one of --dry-run/-n and --force/-f can be specified."
+    print("Only one of --dry-run/-n and --force/-f can be specified.")
     sys.exit(1)
 
 force = arguments.force
@@ -99,7 +99,7 @@ for repository_id in repository_ids:
     repository = gitutils.Repository.fromId(db, repository_id)
 
     if arguments.exclude and repository.name in arguments.exclude:
-        print "Repository: %s (skipped)" % repository.name
+        print("Repository: %s (skipped)" % repository.name)
         continue
 
     cursor.execute("""SELECT branches.id, branches.name, branches.type, branches.base, commits.sha1
@@ -287,7 +287,7 @@ for repository_id in repository_ids:
     progress.end(".")
 
 if incorrect_reviews:
-    print "\nReviews that need attention:"
+    print("\nReviews that need attention:")
 
     for review_id, message in incorrect_reviews:
-        print "  %5d: %s" % (review_id, message)
+        print("  %5d: %s" % (review_id, message))

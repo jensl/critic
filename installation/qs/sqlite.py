@@ -256,22 +256,22 @@ def import_schema(database_path, filenames, quiet=False, verbose=False):
             # support.
             continue
         else:
-            print "Unrecognized:", command
+            print("Unrecognized:", command)
             failed = True
 
         if verbose:
             words = command.split()
             for word in words:
                 if word.upper() != word:
-                    print word
+                    print(word)
                     break
-                print word,
+                print(word, end=' ')
 
         try:
             db.execute(command)
         except Exception as error:
-            print "Failed:", command
-            print "  " + str(error)
+            print("Failed:", command)
+            print("  " + str(error))
             failed = True
 
     if not failed:

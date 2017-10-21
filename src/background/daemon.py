@@ -23,7 +23,7 @@ def detach(parent_exit_hook=lambda: 0):
             # Exit from parent process.
             sys.exit(parent_exit_hook())
     except OSError as error:
-        print >>sys.stderr, "fork failed: %s" % error.message
+        print("fork failed: %s" % error.message, file=sys.stderr)
         sys.exit(1)
 
     os.setsid()
@@ -34,7 +34,7 @@ def detach(parent_exit_hook=lambda: 0):
             # Exit from parent process.
             sys.exit(0)
     except OSError as error:
-        print >>sys.stderr, "fork failed: %s" % error.message
+        print("fork failed: %s" % error.message, file=sys.stderr)
         sys.exit(1)
 
     sys.stdout.flush()

@@ -10,7 +10,7 @@ with repository.workcopy() as work:
     work.run(["checkout", "-b", "%s/branch" % TESTNAME])
 
     with open(os.path.join(work.path, FILENAME), "w") as text_file:
-        print >>text_file, "This is a text file."
+        print("This is a text file.", file=text_file)
 
     work.run(["add", FILENAME])
     work.run(["commit", "-m", "Add %s" % FILENAME],

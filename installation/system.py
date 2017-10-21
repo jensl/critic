@@ -71,10 +71,10 @@ def prepare(mode, arguments, data):
     global uid, gid
 
     if mode == "install":
-        print """
+        print("""
 Critic Installation: System
 ===========================
-"""
+""")
 
         if arguments.system_hostname: hostname = arguments.system_hostname
         else:
@@ -97,18 +97,18 @@ Critic Installation: System
                 user_exists = False
 
             if user_exists:
-                print """
+                print("""
 The system user '%s' already exists.
-""" % username
+""" % username)
 
                 if installation.input.yes_or_no(prompt="Use the existing system user '%s'?" % username,
                                                 default=True):
                     create_system_user = False
                     break
             else:
-                print """
+                print("""
 The system user '%s' doesn't exists.
-""" % username
+""" % username)
 
                 if arguments.force_create_system_user or installation.input.yes_or_no(prompt="Create a system user named '%s'?" % username,
                                                 default=True):
@@ -128,18 +128,18 @@ The system user '%s' doesn't exists.
                 group_exists = False
 
             if group_exists:
-                print """
+                print("""
 The system group '%s' already exists.
-""" % groupname
+""" % groupname)
 
                 if installation.input.yes_or_no(prompt="Use the existing system group '%s'?" % groupname,
                                                 default=True):
                     create_system_group = False
                     break
             else:
-                print """
+                print("""
 The system group '%s' doesn't exists.
-""" % groupname
+""" % groupname)
 
                 if arguments.force_create_system_group or installation.input.yes_or_no(prompt="Create a system group named '%s'?" % groupname,
                                                 default=True):
@@ -173,12 +173,12 @@ def install(data):
     global uid, gid
 
     if create_system_group:
-        print "Creating group '%s' ..." % groupname
+        print("Creating group '%s' ..." % groupname)
 
         subprocess.check_call(["addgroup", "--quiet", "--system", groupname])
 
     if create_system_user:
-        print "Creating user '%s' ..." % username
+        print("Creating user '%s' ..." % username)
 
         subprocess.check_call(
             ["adduser", "--quiet", "--system", "--ingroup=%s" % groupname,
@@ -192,11 +192,11 @@ def install(data):
 
 def undo():
     if created_system_user:
-        print "Deleting user '%s' ..." % username
+        print("Deleting user '%s' ..." % username)
 
         subprocess.check_call(["deluser", "--system", username])
 
     if created_system_group:
-        print "Deleting group '%s' ..." % groupname
+        print("Deleting group '%s' ..." % groupname)
 
         subprocess.check_call(["delgroup", "--system", groupname])

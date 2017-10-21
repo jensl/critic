@@ -34,13 +34,13 @@ socket_path = gitconfig("critic.socket")
 repository_name = gitconfig("critic.name")
 
 if not socket_path or not repository_name:
-    print """Repository is not configured properly!  Please add
+    print("""Repository is not configured properly!  Please add
 
 [critic]
 \tsocket = <socket path>
 \tname = <repository name>
 
-to the repository's configuration file."""
+to the repository's configuration file.""")
     sys.exit(1)
 
 server_socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
@@ -48,7 +48,7 @@ server_socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
 try:
     server_socket.connect(socket_path)
 except:
-    print "Failed to connect to Critic's githook service!"
+    print("Failed to connect to Critic's githook service!")
     sys.exit(1)
 
 data = { "hook": os.path.basename(sys.argv[0]),
@@ -81,7 +81,7 @@ try:
     server_socket.shutdown(socket.SHUT_WR)
 except:
     traceback.print_exc()
-    print "Failed to send command to Critic!"
+    print("Failed to send command to Critic!")
     sys.exit(1)
 
 receive_buffer = ""
@@ -93,7 +93,7 @@ while True:
     try:
         received = server_socket.recv(4096)
     except:
-        print "Failed to read result from Critic!"
+        print("Failed to read result from Critic!")
         sys.exit(1)
 
     if not received:
@@ -121,6 +121,6 @@ if os.path.basename(sys.argv[0]) == "pre-receive":
     if not (accept or reject):
         # The githook service didn't say whether to accept or reject
         # the update.  We'll reject it.
-        print "Invalid response from Critic!"
+        print("Invalid response from Critic!")
 
     sys.exit(0 if accept else 1)

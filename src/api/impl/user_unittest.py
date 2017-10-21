@@ -244,7 +244,7 @@ def basic(arguments):
     assert anonymous.git_emails == set([])
     assert anonymous.repository_filters == {}
 
-    print "basic: ok"
+    print("basic: ok")
 
 def preferences():
     import api
@@ -308,7 +308,7 @@ def preferences():
     assert expandAllFiles.user is alice
     assert expandAllFiles.repository is repository
 
-    print "preferences: ok"
+    print("preferences: ok")
 
 def main(argv):
     import argparse

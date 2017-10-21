@@ -34,10 +34,10 @@ def prepare(mode, arguments, data):
     if mode == "install":
         all_ok = True
 
-        print """
+        print("""
 Critic Installation: Paths
 ==========================
-"""
+""")
 
         def is_good_dir(path):
             if not path: return "empty path"
@@ -57,7 +57,7 @@ Critic Installation: Paths
         if arguments.etc_dir:
             error = is_new_dir(arguments.etc_dir)
             if error:
-                print "Invalid --etc-dir argument: %s." % error
+                print("Invalid --etc-dir argument: %s." % error)
                 return False
             etc_dir = arguments.etc_dir
         else:
@@ -69,7 +69,7 @@ Critic Installation: Paths
         if arguments.install_dir:
             error = is_new_dir(arguments.install_dir)
             if error:
-                print "Invalid --install-dir argument: %s." % error
+                print("Invalid --install-dir argument: %s." % error)
                 return False
             install_dir = arguments.install_dir
         else:
@@ -81,7 +81,7 @@ Critic Installation: Paths
         if arguments.data_dir:
             error = is_new_dir(arguments.data_dir)
             if error:
-                print "Invalid --data-dir argument: %s." % error
+                print("Invalid --data-dir argument: %s." % error)
                 return False
             data_dir = arguments.data_dir
         else:
@@ -93,7 +93,7 @@ Critic Installation: Paths
         if arguments.cache_dir:
             error = is_new_dir(arguments.cache_dir)
             if error:
-                print "Invalid --cache-dir argument: %s." % error
+                print("Invalid --cache-dir argument: %s." % error)
                 return False
             cache_dir = arguments.cache_dir
         else:
@@ -105,7 +105,7 @@ Critic Installation: Paths
         if arguments.git_dir:
             error = is_new_dir(arguments.git_dir)
             if error:
-                print "Invalid --git-dir argument: %s." % error
+                print("Invalid --git-dir argument: %s." % error)
                 return False
             git_dir = arguments.git_dir
         else:
@@ -117,7 +117,7 @@ Critic Installation: Paths
         if arguments.log_dir:
             error = is_new_dir(arguments.log_dir)
             if error:
-                print "Invalid --log-dir argument: %s." % error
+                print("Invalid --log-dir argument: %s." % error)
                 return False
             log_dir = arguments.log_dir
         else:
@@ -129,7 +129,7 @@ Critic Installation: Paths
         if arguments.run_dir:
             error = is_new_dir(arguments.run_dir)
             if error:
-                print "Invalid --run-dir argument: %s." % error
+                print("Invalid --run-dir argument: %s." % error)
                 return False
             run_dir = arguments.run_dir
         else:
@@ -138,7 +138,7 @@ Critic Installation: Paths
                                                 default=run_dir,
                                                 check=is_good_dir)
 
-        if all_ok: print "All okay."
+        if all_ok: print("All okay.")
     else:
         import configuration
 
@@ -175,7 +175,7 @@ def mkdir(path, mode=0750):
             mkdir(os.path.dirname(path), mode)
 
         if not installation.quiet:
-            print "Creating directory '%s' ..." % path
+            print("Creating directory '%s' ..." % path)
 
         os.mkdir(path, mode)
         created.append(path)

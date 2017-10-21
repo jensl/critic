@@ -51,7 +51,7 @@ with testing.utils.settings("alice", SETTINGS), frontend.signin("alice"):
             return all_lines, extension_lines
 
         with open(os.path.join(work.path, FILENAME), "w") as text_file:
-            print >>text_file, "First line."
+            print("First line.", file=text_file)
 
         first_commit = commit()
         all_lines, extension_lines = push()
@@ -72,15 +72,15 @@ with testing.utils.settings("alice", SETTINGS), frontend.signin("alice"):
                             about("New Review: %s" % SUMMARY)])
 
         with open(os.path.join(work.path, FILENAME), "a") as text_file:
-            print >>text_file, "Second line."
+            print("Second line.", file=text_file)
         second_commit = commit("Added second line")
 
         with open(os.path.join(work.path, FILENAME), "a") as text_file:
-            print >>text_file, "Third line."
+            print("Third line.", file=text_file)
         third_commit = commit("Added third line")
 
         with open(os.path.join(work.path, FILENAME), "a") as text_file:
-            print >>text_file, "Fourth line."
+            print("Fourth line.", file=text_file)
         fourth_commit = commit("Added fourth line")
 
         all_lines, extension_lines = push()

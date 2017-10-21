@@ -66,7 +66,7 @@ with repository.workcopy() as work:
 
     def make(directory, filename):
         with open(os.path.join(directory, filename), "w") as file:
-            print >>file, filename
+            print(filename, file=file)
 
     make(include, "file1")
     make(include, "file2")

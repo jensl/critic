@@ -3,4 +3,4 @@ def independence():
 
     import textutils
 
-    print "independence: ok"
+    print("independence: ok")

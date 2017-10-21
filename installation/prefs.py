@@ -43,7 +43,7 @@ def add_preference(db, item, data, silent=False):
                        (item, int(data["default"])))
 
     if not silent and not installation.quiet:
-        print "Added preference: '%s'" % item
+        print("Added preference: '%s'" % item)
 
 def update_preference(db, item, data, type_changed):
     relevance = data.get("relevance", {})
@@ -130,7 +130,7 @@ def install(data):
             db.commit()
 
             if not installation.quiet:
-                print "Added %d preferences." % len(preferences)
+                print("Added %d preferences." % len(preferences))
 
     return True
 
@@ -184,29 +184,29 @@ def upgrade(arguments, data):
                         # The default value appears to have been changed in the
                         # database.  Ask the user before overwriting it with an
                         # updated default value.
-                        print
-                        print textwrap.fill(
+                        print()
+                        print(textwrap.fill(
                             "The default value for the preference '%s' has been "
                             "changed in this version of Critic, but it appears to "
                             "also have been modified in the database."
-                            % item)
+                            % item))
                         default = False
                     else:
                         # The default value has changed, and we don't know if
                         # the value is what was originally installed, because we
                         # don't know what was originally installed.  Ask the
                         # user before overwriting the current value.
-                        print
-                        print textwrap.fill(
+                        print()
+                        print(textwrap.fill(
                             "The default value for the preference '%s' has been "
                             "changed in this version of Critic."
-                            % item)
+                            % item))
                         default = True
 
-                    print
-                    print "  Value in database: %r" % db_preferences[item]["default"]
-                    print "  New/updated value: %r" % new_preferences[item]["default"]
-                    print
+                    print()
+                    print("  Value in database: %r" % db_preferences[item]["default"])
+                    print("  New/updated value: %r" % new_preferences[item]["default"])
+                    print()
 
                     update = installation.input.yes_or_no(
                         "Would you like to update the database with the new value?",
@@ -228,14 +228,14 @@ def upgrade(arguments, data):
                         # updating it.
                         remove = True
                     else:
-                        print
-                        print textwrap.fill(
+                        print()
+                        print(textwrap.fill(
                             "The preference '%s' exists in the database but "
                             "not in the installation data, meaning it would "
                             "not have been added to the database if this "
                             "version of Critic was installed from scratch."
-                            % item)
-                        print
+                            % item))
+                        print()
 
                         remove = installation.input.yes_or_no(
                             "Would you like to remove it from the database?",

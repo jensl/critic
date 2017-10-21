@@ -14,7 +14,7 @@ with testing.utils.settings("alice", SETTINGS), frontend.signin("alice"):
         REMOTE_URL = instance.repository_url("alice")
 
         with open(os.path.join(work.path, FILENAME), "w") as text_file:
-            print >>text_file, "Some content."
+            print("Some content.", file=text_file)
 
         work.run(["add", FILENAME])
         work.run(["commit", "-m", """\

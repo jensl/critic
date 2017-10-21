@@ -15,7 +15,7 @@ def pre1():
     except api.changeset.ChangesetDelayed:
         pass
 
-    print "pre1: ok"
+    print("pre1: ok")
 
 def pre2():
     import api
@@ -38,7 +38,7 @@ def pre2():
     else:
         assert False, "filediff not delayed as expected"
 
-    print "pre2: ok"
+    print("pre2: ok")
 
 def post():
     import api
@@ -98,4 +98,4 @@ def post():
     assert chunks[1].lines[13].type_string == "CONTEXT"
     assert chunks[1].lines[14].type_string == "CONTEXT"
 
-    print "post: ok"
+    print("post: ok")

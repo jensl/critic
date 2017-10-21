@@ -134,4 +134,4 @@ def basic():
     else:
         assert False, "no exception raised"
 
-    print "basic: ok"
+    print("basic: ok")

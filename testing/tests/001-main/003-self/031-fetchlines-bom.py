@@ -18,9 +18,9 @@ with frontend.signin("alice"), repository.workcopy(empty=True) as work:
 
     filename_cc = "031-fetchlines.cc"
     with open(os.path.join(work.path, filename_cc), "w") as text_file:
-        print >>text_file, UTF8_BOM
-        print >>text_file, "\n"*42
-        print >>text_file, "hello world"
+        print(UTF8_BOM, file=text_file)
+        print("\n"*42, file=text_file)
+        print("hello world", file=text_file)
     sha1, file_sha1_cc = commit(filename_cc)
 
     work.run(["push", "-q", REMOTE_URL,
@@ -28,9 +28,9 @@ with frontend.signin("alice"), repository.workcopy(empty=True) as work:
 
     filename_py = "031-fetchlines.py"
     with open(os.path.join(work.path, filename_py), "w") as text_file:
-        print >>text_file, UTF8_BOM
-        print >>text_file, "\n"*42
-        print >>text_file, "hello world"
+        print(UTF8_BOM, file=text_file)
+        print("\n"*42, file=text_file)
+        print("hello world", file=text_file)
     sha1, file_sha1_py = commit(filename_py)
 
     work.run(["push", "-q", REMOTE_URL,

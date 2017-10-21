@@ -42,7 +42,7 @@ def prepare(mode, arguments, data):
     global username, email, fullname, password
 
     if mode == "install":
-        print """
+        print("""
 Critic Installation: Administrator
 ==================================
 
@@ -52,7 +52,7 @@ are not allowed to do.  Additional administrator users can be added
 post-installation using the 'criticctl' utility.
 
 This user does not need to match a system user on this machine.
-"""
+""")
 
         if arguments.admin_username: username = arguments.admin_username
         else: username = installation.input.string(prompt="Administrator user name:")
@@ -67,14 +67,14 @@ This user does not need to match a system user on this machine.
             if arguments.admin_password: password = arguments.admin_password
             else: password = installation.input.password("Password for '%s':" % username)
 
-        print """
+        print("""
 Critic Installation: System Messages
 ====================================
 
 Critic sends out email notifications when unexpected errors (crashes)
 occur, and in various other cases when things happen that the system
 administrators might need to know about right away.
-"""
+""")
 
         if arguments.system_recipients:
             system_recipients = arguments.system_recipients

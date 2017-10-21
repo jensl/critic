@@ -8,4 +8,4 @@ def independence():
 
     import extensions
 
-    print "independence: ok"
+    print("independence: ok")

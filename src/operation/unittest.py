@@ -3,4 +3,4 @@ def independence():
 
     import operation
 
-    print "independence: ok"
+    print("independence: ok")

@@ -116,7 +116,7 @@ def basic(arguments):
     assert some_comments[2].id == 1
     assert some_comments[2] is api.comment.fetch(critic, 1)
 
-    print "basic: ok"
+    print("basic: ok")
 
 def main(argv):
     import argparse

@@ -8,4 +8,4 @@ def independence():
 
     import dbutils
 
-    print "independence: ok"
+    print("independence: ok")

@@ -124,4 +124,4 @@ def basic():
                                       "Test #5, commit 1"])
     assert partition.following is None
 
-    print "basic: ok"
+    print("basic: ok")

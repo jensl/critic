@@ -50,7 +50,7 @@ def check_argument(argument, check):
     if argument and check:
         error = check(argument)
         if error:
-            print >>sys.stderr, "%s: %s" % (argument, error)
+            print("%s: %s" % (argument, error), file=sys.stderr)
             sys.exit(-1)
 
 def use_argument_or_ask(argument, prompt, check=None):
@@ -94,10 +94,10 @@ def listusers(argv):
              LEFT OUTER JOIN useremails ON (useremails.id=users.email)
                     ORDER BY users.id""")
 
-    print formats[arguments.format]["pre"]
+    print(formats[arguments.format]["pre"])
     for row in cursor:
-        print formats[arguments.format]["row"] % row
-    print formats[arguments.format]["post"]
+        print(formats[arguments.format]["row"] % row)
+    print(formats[arguments.format]["post"])
 
 def adduser(argv):
     class NoEmail:
@@ -142,7 +142,7 @@ def adduser(argv):
     dbutils.User.create(db, name, fullname, email, email_verified=None,
                         password=hashed_password)
 
-    print "%s: user added" % name
+    print("%s: user added" % name)
 
 def deluser(argv):
     import reviewing.utils
@@ -161,7 +161,7 @@ def deluser(argv):
 
     db.commit()
 
-    print "%s: user retired" % name
+    print("%s: user retired" % name)
 
 def role(command, argv):
     parser = argparse.ArgumentParser(
@@ -186,17 +186,17 @@ def role(command, argv):
 
     if command == "addrole":
         if cursor.fetchone():
-            print "%s: user already has role '%s'" % (name, role)
+            print("%s: user already has role '%s'" % (name, role))
         else:
             cursor.execute("""INSERT INTO userroles (uid, role)
                                    VALUES (%s, %s)""",
                            (user.id, role))
             db.commit()
 
-            print "%s: role '%s' added" % (name, role)
+            print("%s: role '%s' added" % (name, role))
     else:
         if not cursor.fetchone():
-            print "%s: user doesn't have role '%s'" % (name, role)
+            print("%s: user doesn't have role '%s'" % (name, role))
         else:
             cursor.execute("""DELETE FROM userroles
                                     WHERE uid=%s
@@ -205,7 +205,7 @@ def role(command, argv):
 
             db.commit()
 
-            print "%s: role '%s' removed" % (name, role)
+            print("%s: role '%s' removed" % (name, role))
 
 def passwd(argv):
     parser = argparse.ArgumentParser(
@@ -241,9 +241,9 @@ def passwd(argv):
     db.commit()
 
     if hashed_password:
-        print "%s: password changed" % name
+        print("%s: password changed" % name)
     else:
-        print "%s: password deleted" % name
+        print("%s: password deleted" % name)
 
 def connect(command, argv):
     parser = argparse.ArgumentParser(
@@ -255,7 +255,7 @@ def connect(command, argv):
                        if command == "disconnect" or provider.get("enabled"))
 
     if len(providers) == 0:
-        print >>sys.stderr, "No external authentication providers configured!"
+        print("No external authentication providers configured!", file=sys.stderr)
         return 1
 
     parser.add_argument("--name", help="user name")
@@ -292,8 +292,8 @@ def connect(command, argv):
                        (user.id, provider.name))
 
         if cursor.fetchone():
-            print >>sys.stderr, ("%s: user already connected to a %s"
-                                 % (user.name, provider.getTitle()))
+            print(("%s: user already connected to a %s"
+                                 % (user.name, provider.getTitle())), file=sys.stderr)
             return 1
 
         account = use_argument_or_ask(
@@ -313,8 +313,8 @@ def connect(command, argv):
             if user_id is not None:
                 user = dbutils.User.fromId(db, user_id)
 
-                print >>sys.stderr, ("%s %r: already connected to local user %s"
-                                     % (provider.getTitle(), account, user.name))
+                print(("%s %r: already connected to local user %s"
+                                     % (provider.getTitle(), account, user.name)), file=sys.stderr)
                 return 1
 
             cursor.execute("""UPDATE externalusers
@@ -326,7 +326,7 @@ def connect(command, argv):
                                    VALUES (%s, %s, %s)""",
                            (user.id, provider.name, account))
 
-        print "%s: connected to %s %r" % (name, provider.getTitle(), account)
+        print("%s: connected to %s %r" % (name, provider.getTitle(), account))
     else:
         cursor.execute("""SELECT account
                             FROM externalusers
@@ -337,8 +337,8 @@ def connect(command, argv):
         row = cursor.fetchone()
 
         if not row:
-            print >>sys.stderr, ("%s: user not connected to a %s"
-                                 % (name, provider.getTitle()))
+            print(("%s: user not connected to a %s"
+                                 % (name, provider.getTitle())), file=sys.stderr)
             return 1
 
         account, = row
@@ -348,8 +348,8 @@ def connect(command, argv):
                                   AND provider=%s""",
                        (user.id, provider.name))
 
-        print ("%s: disconnected from %s %r"
-               % (name, provider.getTitle(), account))
+        print(("%s: disconnected from %s %r"
+               % (name, provider.getTitle(), account)))
 
     db.commit()
 
@@ -370,8 +370,8 @@ def configtest(command, argv):
     errors, warnings = maintenance.configtest.testConfiguration()
 
     def printIssue(issue):
-        print str(issue)
-        print
+        print(str(issue))
+        print()
 
     for error in errors:
         printIssue(error)
@@ -380,7 +380,7 @@ def configtest(command, argv):
 
     if not errors:
         if not arguments.quiet:
-            print "System configuration valid."
+            print("System configuration valid.")
         return 0
     else:
         return 1
@@ -395,7 +395,7 @@ def restart(command, argv):
     result = configtest("configtest", ["--quiet"])
 
     if result != 0:
-        print >>sys.stderr, "ERROR: System configuration is not valid."
+        print("ERROR: System configuration is not valid.", file=sys.stderr)
         return result
 
     import os
@@ -407,7 +407,7 @@ def restart(command, argv):
         os.seteuid(0)
         os.setegid(0)
     except OSError:
-        print >>sys.stderr, "ERROR: 'criticctl restart' must be run as root."
+        print("ERROR: 'criticctl restart' must be run as root.", file=sys.stderr)
         return 1
 
     if configuration.base.WEB_SERVER_INTEGRATION == "apache":
@@ -441,7 +441,7 @@ def stop(command, argv):
         os.seteuid(0)
         os.setegid(0)
     except OSError:
-        print >>sys.stderr, "ERROR: 'criticctl stop' must be run as root."
+        print("ERROR: 'criticctl stop' must be run as root.", file=sys.stderr)
         return 1
 
     if configuration.base.WEB_SERVER_INTEGRATION == "apache":
@@ -461,7 +461,7 @@ def interactive(command, argv):
     try:
         import IPython
     except ImportError:
-        print >>sys.stderr, "ERROR: IPython must be installed (import failed)"
+        print("ERROR: IPython must be installed (import failed)", file=sys.stderr)
         return 1
 
     parser = argparse.ArgumentParser(
@@ -517,10 +517,10 @@ def main(parser, show_help, command, argv):
         elif command == "interactive":
             return interactive(command, argv)
         else:
-            print >>sys.stderr, "ERROR: Invalid command: %s" % command
+            print("ERROR: Invalid command: %s" % command, file=sys.stderr)
             returncode = 1
 
-    print """
+    print("""
 Available commands are:
 
   listusers List all users.
@@ -540,6 +540,6 @@ Available commands are:
 
   interactive Drop into an interactive IPython shell.
 
-Use 'criticctl COMMAND --help' to see per command options."""
+Use 'criticctl COMMAND --help' to see per command options.""")
 
     return returncode

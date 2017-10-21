@@ -44,7 +44,7 @@ installed_packages = []
 def blankline():
     global need_blankline
     if need_blankline:
-        print
+        print()
         need_blankline = False
 
 def install_packages(*packages):
@@ -53,10 +53,10 @@ def install_packages(*packages):
         aptget = find_executable("apt-get")
     if aptget and not aptget_approved:
         all_ok = False
-        print """\
+        print("""\
 Found 'apt-get' executable in your $PATH.  This script can attempt to install
 missing software using it.
-"""
+""")
         aptget_approved = installation.input.yes_or_no(
             prompt="Do you want to use 'apt-get' to install missing packages?",
             default=True)
@@ -82,7 +82,7 @@ missing software using it.
                     need_blankline = True
                     installed_packages.append((package_name, version))
                     installed[package_name] = version
-                    print "Installed: %s (%s)" % (package_name, version)
+                    print("Installed: %s (%s)" % (package_name, version))
         return installed
     else:
         return False
@@ -99,19 +99,19 @@ class Prerequisite(object):
         if self.check():
             return True
         if self.packages is None:
-            print "ERROR: Installing '%s' is not supported!" % self.name
+            print("ERROR: Installing '%s' is not supported!" % self.name)
             return False
         if aptget_approved and install_packages(*self.packages):
             if self.check():
                 return True
         blankline()
-        print self.message
-        print
+        print(self.message)
+        print()
         if not aptget_approved:
             install_packages(*self.packages)
         if self.check():
             return True
-        print "ERROR: Installing '%s' failed!" % self.name
+        print("ERROR: Installing '%s' failed!" % self.name)
         return False
 
 class Executable(Prerequisite):
@@ -128,8 +128,8 @@ class Executable(Prerequisite):
         if self.check():
             return True
         blankline()
-        print "No '%s' executable found in $PATH" % self.name
-        print
+        print("No '%s' executable found in $PATH" % self.name)
+        print()
         return super(Executable, self).install()
 
 class PythonLibrary(Prerequisite):
@@ -152,8 +152,8 @@ class PythonLibrary(Prerequisite):
         if self.check():
             return True
         blankline()
-        print "Failed to import '%s'" % self.name
-        print
+        print("Failed to import '%s'" % self.name)
+        print()
         return super(PythonLibrary, self).install()
 
 class CustomCheck(Prerequisite):
@@ -307,20 +307,20 @@ def prepare(mode, arguments, data):
 def install(data):
     resolve_prerequisites()
 
-    print """
+    print("""
 Critic Installation: Prerequisites
 ==================================
-"""
+""")
 
     if not all(prerequisite.install() for prerequisite in prerequisites):
         return False
 
     if installed_packages:
         blankline()
-        print "Installed %d packages." % len(installed_packages)
-        print
+        print("Installed %d packages." % len(installed_packages))
+        print()
     else:
-        print "All prerequisites available."
+        print("All prerequisites available.")
 
     data["installation.prereqs.python"] = python.path
     data["installation.prereqs.git"] = git.path

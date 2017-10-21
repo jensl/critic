@@ -64,5 +64,5 @@ for (path,) in cursor:
              "-d", ref_name, sha1])
 
     if replay_refs:
-        print ("%s: converted %d replay refs into keepalives"
-               % (path, len(replay_refs)))
+        print(("%s: converted %d replay refs into keepalives"
+               % (path, len(replay_refs))))

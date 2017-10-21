@@ -45,35 +45,35 @@ def main():
     arguments = parser.parse_args()
 
     if os.getuid() != 0:
-        print """
+        print("""
 ERROR: This script must be run as root.
-"""
+""")
         sys.exit(1)
 
     if os.path.exists(os.path.join(installation.root_dir, ".installed")):
-        print """
+        print("""
 ERROR: Found an .installed file in the directory you're installing from.
 
 This typically means that Critic is already installed on this system, and if so
 then the upgrade.py script should be used to upgrade the installation rather than
 re-running install.py.
-"""
+""")
         sys.exit(1)
 
     if arguments.headless:
         installation.input.headless = True
 
     def abort():
-        print
-        print "ERROR: Installation aborted."
-        print
+        print()
+        print("ERROR: Installation aborted.")
+        print()
 
         for module in reversed(installation.modules):
             try:
                 if hasattr(module, "undo"):
                     module.undo()
             except:
-                print >>sys.stderr, "FAILED: %s.undo()" % module.__name__
+                print("FAILED: %s.undo()" % module.__name__, file=sys.stderr)
                 traceback.print_exc()
 
         sys.exit(1)
@@ -82,7 +82,7 @@ re-running install.py.
         lifecycle = installation.utils.read_lifecycle()
 
         if not lifecycle["stable"]:
-            print """
+            print("""
 WARNING: You're about to install an unstable development version of Critic.
 
 If you're setting up a production server, you're most likely better off
@@ -96,14 +96,14 @@ repository at
 To interrogate it from the command-line, run
 
   $ git ls-remote --symref https://github.com/jensl/critic.git HEAD
-"""
+""")
 
             if not installation.input.yes_or_no(
                     "Do you want to continue installing the unstable version?",
                     default=True):
-                print
-                print "Installation aborted."
-                print
+                print()
+                print("Installation aborted.")
+                print()
                 sys.exit(1)
 
         sha1 = "0" * 40
@@ -118,12 +118,12 @@ To interrogate it from the command-line, run
             try:
                 if installation.utils.run_git([git, "status", "--porcelain"],
                                               cwd=installation.root_dir).strip():
-                    print """
+                    print("""
 ERROR: This Git repository has local modifications.
 
 Installing from a Git repository with local changes is not supported.
 Please commit or stash the changes and then try again.
-"""
+""")
                     sys.exit(1)
 
                 sha1 = installation.utils.run_git([git, "rev-parse", "HEAD"],
@@ -143,11 +143,11 @@ Please commit or stash the changes and then try again.
             except SystemExit:
                 raise
             except:
-                print >>sys.stderr, "FAILED: %s.prepare()" % module.__name__
+                print("FAILED: %s.prepare()" % module.__name__, file=sys.stderr)
                 traceback.print_exc()
                 abort()
 
-        print
+        print()
 
         installed_file = os.path.join(installation.root_dir, ".installed")
         with open(installed_file, "w"):
@@ -164,7 +164,7 @@ Please commit or stash the changes and then try again.
             except SystemExit:
                 raise
             except:
-                print >>sys.stderr, "FAILED: %s.install()" % module.__name__
+                print("FAILED: %s.install()" % module.__name__, file=sys.stderr)
                 traceback.print_exc()
                 abort()
 
@@ -173,15 +173,15 @@ Please commit or stash the changes and then try again.
                 if hasattr(module, "finish"):
                     module.finish("install", arguments, data)
             except:
-                print >>sys.stderr, "WARNING: %s.finish() failed" % module.__name__
+                print("WARNING: %s.finish() failed" % module.__name__, file=sys.stderr)
                 traceback.print_exc()
 
         installation.utils.write_install_data(arguments, data)
         installation.utils.clean_root_pyc_files()
 
-        print
-        print "SUCCESS: Installation complete!"
-        print
+        print()
+        print("SUCCESS: Installation complete!")
+        print()
     except SystemExit:
         raise
     except:

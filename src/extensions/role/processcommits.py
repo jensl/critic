@@ -94,9 +94,9 @@ def execute(db, user, review, all_commits, old_head, new_head, output):
 
             def print_header():
                 header = "%s::%s()" % (script, function)
-                print >>output, ("\n[%s] %s\n[%s] %s"
+                print(("\n[%s] %s\n[%s] %s"
                                  % (extension.getName(), header,
-                                    extension.getName(), "=" * len(header)))
+                                    extension.getName(), "=" * len(header))), file=output)
 
             try:
                 argv = """
@@ -129,7 +129,7 @@ def execute(db, user, review, all_commits, old_head, new_head, output):
                 if stdout_data.strip():
                     print_header()
                     for line in stdout_data.splitlines():
-                        print >>output, "[%s] %s" % (extension.getName(), line)
+                        print("[%s] %s" % (extension.getName(), line), file=output)
             except Error as error:
                 print_header()
-                print >>output, "[%s] Extension error: %s" % (extension.getName(), error.message)
+                print("[%s] Extension error: %s" % (extension.getName(), error.message), file=output)

@@ -17,7 +17,7 @@ try:
     os.setegid(system_user_gid)
     os.seteuid(system_user_uid)
 except OSError:
-    print >>sys.stderr, "ERROR: Failed to set UID = %(installation.system.username)s. Run as root?"
+    print("ERROR: Failed to set UID = %(installation.system.username)s. Run as root?", file=sys.stderr)
     sys.exit(1)
 
 argv = sys.argv[1:]
@@ -101,7 +101,7 @@ try:
 except Error as error:
     if arguments.help:
         parser.print_help()
-        print
+        print()
 
-    print >>sys.stderr, "ERROR: %%s" %% error.message
+    print("ERROR: {}".format(str(error)), file=sys.stderr)
     sys.exit(1)

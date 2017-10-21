@@ -32,7 +32,7 @@ pending_commits = set()
 
 cursor.execute("SELECT COUNT(*) FROM commits")
 
-print
+print()
 
 progress.start(cursor.fetchone()[0], prefix="Fetching commits ...")
 
@@ -46,7 +46,7 @@ for commit_id, commit_sha1 in cursor:
 
 progress.end(" %d commits." % len(commits))
 
-print
+print()
 
 cursor.execute("SELECT MAX(CHARACTER_LENGTH(name)) FROM repositories")
 
@@ -97,9 +97,9 @@ for repository_id in repositories:
     pending_commits -= processed_commits
 
 if pending_commits:
-    print
-    print "%d commits still unaccounted for.  Re-scanning all repositories." % len(pending_commits)
-    print
+    print()
+    print("%d commits still unaccounted for.  Re-scanning all repositories." % len(pending_commits))
+    print()
 
     for repository_id in repositories:
         repository = gitutils.Repository.fromId(db, repository_id)
@@ -117,6 +117,6 @@ if pending_commits:
     if pending_commits:
         cPickle.dump(pending_commits, open("commits-to-purge.pickle", "w"), 2)
 
-        print
-        print "%d commits that were not found in any repository should be purged." % len(pending_commits)
-        print "Run purge-commits.py to do this."
+        print()
+        print("%d commits that were not found in any repository should be purged." % len(pending_commits))
+        print("Run purge-commits.py to do this.")

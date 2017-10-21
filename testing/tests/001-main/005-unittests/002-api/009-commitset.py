@@ -38,7 +38,7 @@ with repository.workcopy() as work:
         global timestamp
         filename = os.path.join(work.path, "009-commitset", letter)
         with open(filename, "w") as file:
-            print >>file, letter
+            print(letter, file=file)
         work.run(["add", os.path.join("009-commitset", letter)])
         work.run(["commit", "-m" + letter],
                  GIT_COMMITTER_DATE="%d +0000" % (timestamp + delta))

@@ -58,10 +58,10 @@ def prepare(mode, arguments, data):
             backup_path = default_path
         else:
             if installation.migrate.will_modify_dbschema(data):
-                print """
+                print("""
 The database schema will be modified by the upgrade.  Creating a
 backup of the database first is strongly recommended.
-"""
+""")
                 default_backup = True
             else:
                 default_backup = False
@@ -80,8 +80,8 @@ backup of the database first is strongly recommended.
                 if error.errno == errno.EEXIST: pass
                 else: raise
 
-            print
-            print "Dumping database ..."
+            print()
+            print("Dumping database ...")
 
             with open(backup_path, "w") as output_file:
                 subprocess.check_call(
@@ -143,15 +143,15 @@ def install(data):
     postgresql_minor = postgresql_version_components[1]
 
     if postgresql_major < 9 or (postgresql_major == 9 and postgresql_minor < 1):
-        print
-        print """\
+        print()
+        print("""\
 Unsupported PostgreSQL version: %s
 
 ERROR: Critic requires PostgreSQL 9.1.x or later!
-""" % postgresql_version
+""" % postgresql_version)
         return False
 
-    print "Creating database ..."
+    print("Creating database ...")
 
     # Several subsequent commands will run as Critic system user or "postgres"
     # user, and these users typically don't have read access to the installation
@@ -228,7 +228,7 @@ def upgrade(arguments, data):
             # we can simply re-import them when they change, and they'll update.
             # If they need more than that to update (for instance if a function
             # is removed) we'll need to use a migration script for that.
-            print "Reloading: %s" % pgsql_file
+            print("Reloading: %s" % pgsql_file)
 
             if not arguments.dry_run:
                 psql_import(pgsql_file)

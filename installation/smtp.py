@@ -55,14 +55,14 @@ def prepare(mode, arguments, data):
     global host, port, username, password, use_ssl, use_starttls
 
     if mode == "install" or "installation.smtp.host" not in data:
-        print """
+        print("""
 Critic Installation: SMTP
 =========================
 
 Critic needs an SMTP server to use for outgoing email traffic.  Emails
 are sent to regular Critic users to notify about changes in reviews, as
 well as to the system administrator to alert about problems.
-"""
+""")
 
         host = "localhost"
         use_ssl = False
@@ -78,7 +78,7 @@ well as to the system administrator to alert about problems.
 
         if mode == "install":
             if arguments.smtp_use_ssl and arguments.smtp_use_starttls:
-                print "Invalid arguments: only one of --smtp-ssl and --smtp-starttls can be enabled."
+                print("Invalid arguments: only one of --smtp-ssl and --smtp-starttls can be enabled.")
                 return False
             first = True
         else:
@@ -109,7 +109,7 @@ well as to the system administrator to alert about problems.
             if first and arguments.smtp_port:
                 error = valid_port(arguments.smtp_port)
                 if error:
-                    print "Invalid --smtp-port argument: %s." % error
+                    print("Invalid --smtp-port argument: %s." % error)
                     return False
 
                 port = arguments.smtp_port
@@ -137,7 +137,7 @@ well as to the system administrator to alert about problems.
                 else:
                     password = installation.input.password("SMTP password:", default=password, twice=False)
 
-            print
+            print()
 
             if (not first or not arguments.skip_testmail) \
                     and installation.input.yes_or_no("Do you want to send a test email to verify the SMTP configuration?",
@@ -192,21 +192,21 @@ well as to the system administrator to alert about problems.
                         failed = "Failed to close connection."
                         raise
 
-                    print
-                    print "Test email sent to %s." % recipient
-                    print
+                    print()
+                    print("Test email sent to %s." % recipient)
+                    print()
                 except Exception as exception:
                     if not failed:
                         failed = str(exception)
 
                 if failed:
-                    print """
+                    print("""
 Couldn't send the test email:
 
   %s
 
 Please check the configuration!
-""" % failed
+""" % failed)
                 elif (first and arguments.skip_testmail_check) \
                          or installation.input.yes_or_no("Did the test email arrive correctly?") \
                          or not installation.input.yes_or_no("Do you want to modify the configuration?", default=True):

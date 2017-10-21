@@ -611,4 +611,4 @@ if __name__ == "__main__":
     row = generator.html().body().table(border=1).tbody().tr()
     row.td(_class="left").div(id="foo").text("Column 1\nMore text")
     row.td(_class="right").text("text").comment("comment")
-    print generator.render()
+    print(generator.render())

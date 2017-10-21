@@ -69,10 +69,10 @@ db.close()
 # Also print a "news" bulletin to the system administrator that
 # performs the upgrade:
 
-print """
+print("""
 NOTE: This update adds a review branch archival mechanism, enabled by
       default.  To find out more about it, including how to disable
       it, please see the administration tutorial:
 
   http://<this-system>/tutorial?item=administration#review_branch_archival
-"""
+""")

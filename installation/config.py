@@ -273,8 +273,8 @@ def prepare(mode, arguments, data):
             try:
                 minimum_password_hash_time = float(arguments.minimum_password_hash_time)
             except ValueError:
-                print ("Invalid --minimum-password-hash-time argument: %s (must be a number)."
-                       % arguments.minimum_password_hash_time)
+                print(("Invalid --minimum-password-hash-time argument: %s (must be a number)."
+                       % arguments.minimum_password_hash_time))
                 return False
 
         if arguments.repository_url_types:
@@ -285,13 +285,13 @@ def prepare(mode, arguments, data):
                 if url_type not in ["git", "http", "ssh", "host"]:
                     invalid_url_types.append(url_type)
             if invalid_url_types or not repository_url_types:
-                print ("Invalid --repository-url-types argument: %s"
-                       % arguments.repository_url_types)
+                print(("Invalid --repository-url-types argument: %s"
+                       % arguments.repository_url_types))
                 if invalid_url_types:
-                    print ("These types are invalid: %s"
-                           % ",".join(invalid_url_types))
+                    print(("These types are invalid: %s"
+                           % ",".join(invalid_url_types)))
                 if not repository_url_types:
-                    print "No URL types specified!"
+                    print("No URL types specified!")
                 return False
 
         def check_auth_mode(value):
@@ -301,13 +301,13 @@ def prepare(mode, arguments, data):
         if arguments.auth_mode:
             error = check_auth_mode(arguments.auth_mode)
             if error:
-                print "Invalid --auth-mode argument: %s." % arguments.auth_mode
+                print("Invalid --auth-mode argument: %s." % arguments.auth_mode)
                 return False
             auth_mode = arguments.auth_mode
         else:
             header_printed = True
 
-            print """
+            print("""
 Critic Installation: Authentication
 ===================================
 
@@ -320,7 +320,7 @@ the Web front-end.  This can be handled in two different ways:
 
   critic  Critic implements HTTP authentication itself using passwords
           stored (encrypted) in its database.
-"""
+""")
 
             auth_mode = installation.input.string(
                 "Which authentication mode should be used?",
@@ -417,17 +417,17 @@ the Web front-end.  This can be handled in two different ways:
             if arguments.session_type:
                 error = check_session_type(arguments.session_type)
                 if error:
-                    print "Invalid --session_type argument: %s." % arguments.session_type
+                    print("Invalid --session_type argument: %s." % arguments.session_type)
                     return False
                 session_type = arguments.session_type
             else:
                 if not header_printed:
                     header_printed = True
-                    print """
+                    print("""
 Critic Installation: Authentication
-==================================="""
+===================================""")
 
-                print """
+                print("""
 Critic can authenticate users either via HTTP authentication or via a
 "Sign in" form and session cookies.  The major difference is that HTTP
 authentication requires a valid login to access any page whereas the
@@ -436,7 +436,7 @@ other type of authentication supports limited anonymous access.
   httpauth  Use HTTP authentication.
 
   cookie    Use session cookie based authentication.
-"""
+""")
 
                 session_type = installation.input.string(
                     "Which session type should be used?",
@@ -450,16 +450,16 @@ other type of authentication supports limited anonymous access.
             else:
                 if not header_printed:
                     header_printed = True
-                    print """
+                    print("""
 Critic Installation: Authentication
-==================================="""
+===================================""")
 
-                print """
+                print("""
 With cookie based authentication, Critic can support anonymous access.
 Users still have to sign in in order to make any changes (such as
 write comments in reviews) but will be able to view most information
 in the system without signin in.
-"""
+""")
 
                 allow_anonymous_user = installation.input.yes_or_no(
                     "Do you want to allow anonymous access?", default=True)
@@ -472,16 +472,16 @@ in the system without signin in.
             else:
                 if not header_printed:
                     header_printed = True
-                    print """
+                    print("""
 Critic Installation: Authentication
-==================================="""
+===================================""")
 
-                print """
+                print("""
 With cookie based authentication, Critic can support unattended user
 registration.  With this enabled, the "Sign in" page has a link to a
 page where a new user can register a Critic user without needing to
 contact the system administrator(s).
-"""
+""")
 
                 allow_user_registration = installation.input.yes_or_no(
                     "Do you want to allow user registration?", default=False)
@@ -492,7 +492,7 @@ contact the system administrator(s).
         if arguments.web_server_integration:
             web_server_integration = arguments.web_server_integration
         else:
-            print """
+            print("""
 Critic Installation: Web Server Integration
 ===========================================
 
@@ -523,7 +523,7 @@ few different host web servers.  Supported web servers are:
      Don't configure any web server.  The installation performed by
      this script will be incomplete and the system administrator will
      need to set the integration up themselves.
-"""
+""")
 
             def check_web_server_integration(value):
                 if value not in ("1", "nginx+uwsgi",
@@ -549,7 +549,7 @@ few different host web servers.  Supported web servers are:
         if arguments.access_scheme:
             access_scheme = arguments.access_scheme
         else:
-            print """
+            print("""
 Critic Installation: Scheme
 ===========================
 
@@ -568,16 +568,16 @@ You have three choices:
   both   Critic will be accessible over both HTTP and HTTPS.
 
 If you choose "both", Critic will redirect all authenticated accesses
-to HTTPS, to avoid sending credentials over plain text connections."""
+to HTTPS, to avoid sending credentials over plain text connections.""")
 
             if allow_anonymous_user:
-                print """\
+                print("""\
 Anonymous users will be allowed to access the site over HTTP, though.
 If this is not desirable, you should select "https" and configure the
 web server to redirect all HTTP accesses to HTTPS.
-"""
+""")
             else:
-                print
+                print()
 
             def check_access_scheme(value):
                 if value not in ("http", "https", "both"):
@@ -668,9 +668,9 @@ def compile_file(filename):
         with installation.utils.as_critic_system_user():
             py_compile.compile(path, doraise=True)
     except py_compile.PyCompileError as error:
-        print """
+        print("""
 ERROR: Failed to compile %s:\n%s
-""" % (filename, error)
+""" % (filename, error))
         return False
     else:
         created_file.append(path + "c")
@@ -791,7 +791,7 @@ configuration options to the existing version.
         write_target = update_query.prompt() == "i"
 
     if write_target:
-        print "Updated file: %s" % target_path
+        print("Updated file: %s" % target_path)
 
         if not arguments.dry_run:
             if os.path.isfile(target_path):
@@ -850,7 +850,7 @@ def upgrade(arguments, data):
         return False
 
     if no_changes:
-        print "No changed configuration files."
+        print("No changed configuration files.")
 
     if modified_files:
         reload(configuration)

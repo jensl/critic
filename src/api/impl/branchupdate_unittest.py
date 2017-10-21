@@ -69,7 +69,7 @@ def basic(arguments):
 
         branch_head = update.to_head
 
-    print "basic: ok"
+    print("basic: ok")
 
 def main(argv):
     import argparse

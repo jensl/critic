@@ -50,7 +50,7 @@ class UpdateModifiedFile:
         self.__generated = []
 
     def printMessage(self):
-        print self.__message % self.__versions
+        print(self.__message % self.__versions)
 
     def printOptions(self):
         alternatives = []
@@ -62,18 +62,18 @@ class UpdateModifiedFile:
                 alternatives.append("'%s' to display the differences between the %s version and the %s version"
                                     % (key, action[0], action[1]))
 
-        print textwrap.fill("Input %s and %s." % (", ".join(alternatives[:-1]), alternatives[-1]))
-        print
+        print(textwrap.fill("Input %s and %s." % (", ".join(alternatives[:-1]), alternatives[-1])))
+        print()
 
     def displayDifferences(self, from_version, to_version):
-        print
-        print "=" * 80
+        print()
+        print("=" * 80)
 
         diff = subprocess.Popen(["diff", "-u", self.__versions[from_version], self.__versions[to_version]])
         diff.wait()
 
-        print "=" * 80
-        print
+        print("=" * 80)
+        print()
 
     def prompt(self):
         if self.__arguments.headless:
@@ -100,7 +100,7 @@ class UpdateModifiedFile:
                 action = self.__option_map[response]
 
                 if isinstance(action, str):
-                    print
+                    print()
                     return response
 
                 from_version, to_version = action
@@ -169,7 +169,7 @@ def update_from_template(arguments, data, template_path, target_path, message):
         write_target = update_query.prompt() == "i"
 
     if write_target:
-        print "Updated file: %s" % target_path
+        print("Updated file: %s" % target_path)
 
         if not arguments.dry_run:
             backup_path = os.path.join(os.path.dirname(target_path),
@@ -236,7 +236,7 @@ def get_initial_commit_date(git, path):
     return datetime.datetime.fromtimestamp(int(initial_commit_timestamp))
 
 def clean_root_pyc_files():
-    print "Cleaning up .pyc files owned by root ..."
+    print("Cleaning up .pyc files owned by root ...")
     for root, _, files in os.walk(installation.root_dir):
         for file in files:
             file = os.path.join(root, file)
@@ -292,10 +292,10 @@ def read_install_data(arguments, fail_softly=False):
     if not os.path.isdir(etc_path):
         if fail_softly:
             return None
-        print """
+        print("""
 ERROR: %s: no such directory
 HINT: Make sure the --etc-dir[=%s] and --identity[=%s] options
-      correctly define where the installed system's configuration is stored.""" % (etc_path, arguments.etc_dir, arguments.identity)
+      correctly define where the installed system's configuration is stored.""" % (etc_path, arguments.etc_dir, arguments.identity))
         sys.exit(1)
 
     sys.path.insert(0, etc_path)
@@ -305,10 +305,10 @@ HINT: Make sure the --etc-dir[=%s] and --identity[=%s] options
     except ImportError:
         if fail_softly:
             return None
-        print """
+        print("""
 ERROR: Failed to import 'configuration' module.
 HINT: Make sure the --etc-dir[=%s] and --identity[=%s] options
-      correctly define where the installed system's configuration is stored.""" % (arguments.etc_dir, arguments.identity)
+      correctly define where the installed system's configuration is stored.""" % (arguments.etc_dir, arguments.identity))
         sys.exit(1)
 
     install_data_path = os.path.join(configuration.paths.INSTALL_DIR, ".install.data")
@@ -316,10 +316,10 @@ HINT: Make sure the --etc-dir[=%s] and --identity[=%s] options
     if not os.path.isfile(install_data_path):
         if fail_softly:
             return None
-        print """\
+        print("""\
 %s: no such file
 
-This installation of Critic appears to be incomplete or corrupt.""" % install_data_path
+This installation of Critic appears to be incomplete or corrupt.""" % install_data_path)
         sys.exit(1)
 
     try:
@@ -329,10 +329,10 @@ This installation of Critic appears to be incomplete or corrupt.""" % install_da
     except ValueError:
         if fail_softly:
             return None
-        print """\
+        print("""\
 %s: failed to parse JSON object to dictionary
 
-This installation of Critic appears to be incomplete or corrupt.""" % install_data_path
+This installation of Critic appears to be incomplete or corrupt.""" % install_data_path)
         sys.exit(1)
 
     return install_data
@@ -478,7 +478,7 @@ class DatabaseSchema(object):
             elif statement.startswith("CREATE TYPE"):
                 self.create_type(statement)
             else:
-                print >>sys.stderr, "Unexpected SQL statement: %r" % statement
+                print("Unexpected SQL statement: %r" % statement, file=sys.stderr)
                 sys.exit(1)
 
 def read_lifecycle(git=None, sha1=None):

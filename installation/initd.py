@@ -32,7 +32,7 @@ servicemanager_stopped = False
 def stop(identity="main"):
     global servicemanager_stopped
     servicemanager_stopped = True
-    print
+    print()
     try:
         subprocess.check_call(["service", "critic-%s" % identity, "stop"])
     except subprocess.CalledProcessError:
@@ -41,7 +41,7 @@ def stop(identity="main"):
     return True
 
 def start(identity="main"):
-    print
+    print()
     try:
         subprocess.check_call(["service", "critic-%s" % identity, "start"])
     except subprocess.CalledProcessError:
@@ -53,7 +53,7 @@ def start(identity="main"):
     return True
 
 def restart(identity="main"):
-    print
+    print()
     try:
         subprocess.check_call(["service", "critic-%s" % identity, "restart"])
     except subprocess.CalledProcessError:
@@ -124,7 +124,7 @@ likely to break.
         write_target = False
 
     if write_target:
-        print "Updated file: %s" % target_path
+        print("Updated file: %s" % target_path)
 
         if not arguments.dry_run:
             os.rename(target_path, backup_path)

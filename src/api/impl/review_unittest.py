@@ -134,4 +134,4 @@ def basic():
 
     assert any_reviews == all_reviews
 
-    print "basic: ok"
+    print("basic: ok")

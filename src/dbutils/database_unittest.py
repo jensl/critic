@@ -195,7 +195,7 @@ def cursors():
         db.cursor().execute("DROP TABLE playground2")
         db.commit()
 
-    print "cursors: ok"
+    print("cursors: ok")
 
 def analyzeQuery():
     import dbutils
@@ -221,4 +221,4 @@ def analyzeQuery():
                 SELECT path
                   FROM missingpaths""") == ("INSERT", "files")
 
-    print "analyzeQuery: ok"
+    print("analyzeQuery: ok")

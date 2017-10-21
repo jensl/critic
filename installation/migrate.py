@@ -62,8 +62,8 @@ def upgrade(arguments, data):
     for script in scripts_to_run(data):
         script_path = os.path.join("installation/migrations", script)
 
-        print
-        print "Running %s ..." % script
+        print()
+        print("Running %s ..." % script)
 
         if arguments.dry_run:
             continue

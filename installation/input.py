@@ -23,13 +23,13 @@ headless = False
 def yes_or_no(prompt, default=None):
     if headless:
         if default is None:
-            print """
+            print("""
 ERROR: yes/no input requested in headless mode!
   Prompt: %s
-""" % prompt
+""" % prompt)
             sys.exit(1)
         else:
-            print "%s %s" % (prompt, "y" if default else "n")
+            print("%s %s" % (prompt, "y" if default else "n"))
             return default
 
     return inpututils.yes_or_no(prompt, default)
@@ -37,13 +37,13 @@ ERROR: yes/no input requested in headless mode!
 def string(prompt, default=None, check=None):
     if headless:
         if default is None:
-            print """
+            print("""
 ERROR: string input requested in headless mode!
   Prompt: %s
-""" % prompt
+""" % prompt)
             sys.exit(1)
         else:
-            print "%s %s" % (prompt, default)
+            print("%s %s" % (prompt, default))
             if not check or inpututils.apply_check(check, default):
                 return default
             else:
@@ -54,13 +54,13 @@ ERROR: string input requested in headless mode!
 def password(prompt, default=None, twice=True):
     if headless:
         if default is None:
-            print """
+            print("""
 ERROR: password input requested in headless mode!
   Prompt: %s
-""" % prompt
+""" % prompt)
             sys.exit(1)
         else:
-            print "%s %s" % (prompt, "****")
+            print("%s %s" % (prompt, "****"))
             return default
 
     return inpututils.password(prompt, default, twice)

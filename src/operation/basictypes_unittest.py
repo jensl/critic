@@ -59,4 +59,4 @@ def basic():
             == { "status": "failure", "code": "<code>",
                  "title": "&lt;title&gt;", "message": "<message>" })
 
-    print "basic: ok"
+    print("basic: ok")

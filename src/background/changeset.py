@@ -48,9 +48,9 @@ if "--json-job" in sys.argv[1:]:
 
             sys.stdout.write(json_encode(request))
         except:
-            print "Request:"
-            print json_encode(request, indent=2)
-            print
+            print("Request:")
+            print(json_encode(request, indent=2))
+            print()
 
             print_exc(file=sys.stdout)
 

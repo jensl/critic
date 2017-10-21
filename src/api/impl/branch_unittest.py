@@ -52,7 +52,7 @@ def basic(arguments):
     else:
         assert False, "no exception raised"
 
-    print "basic: ok"
+    print("basic: ok")
 
 def main(argv):
     import argparse

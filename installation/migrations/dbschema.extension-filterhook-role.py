@@ -71,7 +71,7 @@ def run_statements(statements):
         elif statement.startswith("CREATE INDEX"):
             createindex(statement)
         else:
-            print >>sys.stderr, "Unexpected SQL statement: %r" % statement
+            print("Unexpected SQL statement: %r" % statement, file=sys.stderr)
             sys.exit(1)
 
 # First check if dbschema.extensions.sql has been loaded at all.  It wasn't
