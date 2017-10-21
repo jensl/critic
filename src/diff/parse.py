@@ -54,7 +54,7 @@ def splitlines(source):
 def detectWhiteSpaceChanges(file, old_lines, begin_old_offset, end_old_offset, old_ending_linebreak, new_lines, begin_new_offset, end_new_offset, new_ending_linebreak):
     start_old_offset = None
 
-    for old_offset, new_offset in zip(xrange(begin_old_offset, end_old_offset), xrange(begin_new_offset, end_new_offset)):
+    for old_offset, new_offset in zip(range(begin_old_offset, end_old_offset), range(begin_new_offset, end_new_offset)):
         if old_lines[old_offset - 1] != new_lines[new_offset - 1] or (old_offset == len(old_lines) and old_ending_linebreak != new_ending_linebreak):
             if start_old_offset is None:
                 start_old_offset = old_offset
