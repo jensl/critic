@@ -70,10 +70,10 @@ class SetAssignedChanges(Operation):
                                         WHERE reviewfiles.review=%s
                                           AND reviewfiles.file=%s
                                           AND reviewuserfiles.uid=%s""",
-                               zip(itertools.repeat(transaction_id),
+                               list(zip(itertools.repeat(transaction_id),
                                               itertools.repeat(review_id),
                                               delete_file_ids,
-                                              itertools.repeat(reviewer.id)))
+                                              itertools.repeat(reviewer.id))))
 
             cursor.executemany("""DELETE FROM reviewuserfiles
                                         WHERE file IN (SELECT id
@@ -81,9 +81,9 @@ class SetAssignedChanges(Operation):
                                                         WHERE review=%s
                                                           AND file=%s)
                                           AND uid=%s""",
-                               zip(itertools.repeat(review_id),
+                               list(zip(itertools.repeat(review_id),
                                               delete_file_ids,
-                                              itertools.repeat(reviewer.id)))
+                                              itertools.repeat(reviewer.id))))
 
         if new_file_ids:
             cursor.executemany("""INSERT INTO reviewuserfiles (file, uid)
@@ -91,19 +91,19 @@ class SetAssignedChanges(Operation):
                                          FROM reviewfiles
                                         WHERE reviewfiles.review=%s
                                           AND reviewfiles.file=%s""",
-                               zip(itertools.repeat(reviewer.id),
+                               list(zip(itertools.repeat(reviewer.id),
                                               itertools.repeat(review_id),
-                                              new_file_ids))
+                                              new_file_ids)))
 
             cursor.executemany("""INSERT INTO reviewassignmentchanges (transaction, file, uid, assigned)
                                        SELECT %s, reviewfiles.id, %s, true
                                          FROM reviewfiles
                                         WHERE reviewfiles.review=%s
                                           AND reviewfiles.file=%s""",
-                               zip(itertools.repeat(transaction_id),
+                               list(zip(itertools.repeat(transaction_id),
                                               itertools.repeat(reviewer.id),
                                               itertools.repeat(review_id),
-                                              new_file_ids))
+                                              new_file_ids)))
 
         if delete_file_ids or new_file_ids:
             cursor.execute("UPDATE reviews SET serial=serial+1 WHERE id=%s", (review_id,))
