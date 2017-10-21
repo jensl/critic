@@ -25,11 +25,11 @@ with repository.workcopy() as work:
 
     work.run(["checkout", "-b", TESTNAME])
 
-    utf8_from_sha1 = commit("utf-8", u"Non-ascii: \xf6\n", 1)
-    utf8_to_sha1 = commit("utf-8", u"Non-ascii: \xf7\n", 2)
+    utf8_from_sha1 = commit("utf-8", "Non-ascii: \xf6\n", 1)
+    utf8_to_sha1 = commit("utf-8", "Non-ascii: \xf7\n", 2)
 
-    latin1_from_sha1 = commit("latin-1", u"Non-ascii: \xf6\n", 1)
-    latin1_to_sha1 = commit("latin-1", u"Non-ascii: \xf7\n", 2)
+    latin1_from_sha1 = commit("latin-1", "Non-ascii: \xf6\n", 1)
+    latin1_to_sha1 = commit("latin-1", "Non-ascii: \xf7\n", 2)
 
     work.run(["push", REMOTE_URL, "HEAD"])
 
@@ -64,8 +64,8 @@ def check_line_diff(document):
     MODIFIED = 3
 
     testing.expect.check(MODIFIED, line_type)
-    testing.expect.check(u"Non-ascii: <ir>\xf6</i>", old_line)
-    testing.expect.check(u"Non-ascii: <ir>\xf7</i>", new_line)
+    testing.expect.check("Non-ascii: <ir>\xf6</i>", old_line)
+    testing.expect.check("Non-ascii: <ir>\xf7</i>", new_line)
 
 frontend.page(
     "showcommit",

@@ -23,18 +23,18 @@ with frontend.signin("alice"):
     # Check that /home, where the extension injects things, loads as expected.
     frontend.page(
         "home",
-        expect={ "title": document_title(u"Alice von Testing's Home") })
+        expect={ "title": document_title("Alice von Testing's Home") })
 
     # Check that /manageextensions also loads as expected.
     frontend.page(
         "manageextensions",
-        expect={ "title": document_title(u"Manage Extensions") })
+        expect={ "title": document_title("Manage Extensions") })
 
     # ... even with what=installed.
     frontend.page(
         "manageextensions",
         params={ "what": "installed" },
-        expect={ "title": document_title(u"Manage Extensions") })
+        expect={ "title": document_title("Manage Extensions") })
 
     # Check that the extension can be uninstalled.
     frontend.operation(
@@ -46,4 +46,4 @@ with frontend.signin("alice"):
     frontend.page(
         "manageextensions",
         params={ "what": "installed" },
-        expect={ "title": document_title(u"Manage Extensions") })
+        expect={ "title": document_title("Manage Extensions") })

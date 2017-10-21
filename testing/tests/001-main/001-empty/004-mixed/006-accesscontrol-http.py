@@ -55,8 +55,8 @@ with frontend.signin(access_token=access_token):
         expected_http_status=403,
         expect={
             "message_title": testing.expect.message(
-                u"Access denied",
-                u"Access denied: GET /home")
+                "Access denied",
+                "Access denied: GET /home")
         })
 
     # A POST request should also return "403 Forbidden" (even though it wouldn't
@@ -67,15 +67,15 @@ with frontend.signin(access_token=access_token):
         expected_http_status=403,
         expect={
             "message_title": testing.expect.message(
-                u"Access denied",
-                u"Access denied: POST /home")
+                "Access denied",
+                "Access denied: POST /home")
         })
 
     # /dashboard should still work, of course.
     frontend.page(
         "dashboard",
         expect={
-            "document_title": testing.expect.document_title(u"Dashboard"),
+            "document_title": testing.expect.document_title("Dashboard"),
             "script_user": testing.expect.script_user(instance.user("alice"))
         })
 
@@ -124,7 +124,7 @@ with frontend.signin(access_token=access_token):
     frontend.page(
         "home",
         expect={
-            "document_title": testing.expect.document_title(u"Alice von Testing's Home"),
+            "document_title": testing.expect.document_title("Alice von Testing's Home"),
             "script_user": testing.expect.script_user(instance.user("alice"))
         })
 
@@ -135,8 +135,8 @@ with frontend.signin(access_token=access_token):
         expected_http_status=403,
         expect={
             "message_title": testing.expect.message(
-                u"Access denied",
-                u"Access denied: POST /home")
+                "Access denied",
+                "Access denied: POST /home")
         })
 
     # /dashboard should no longer work.
@@ -145,8 +145,8 @@ with frontend.signin(access_token=access_token):
         expected_http_status=403,
         expect={
             "message_title": testing.expect.message(
-                u"Access denied",
-                u"Access denied: GET /dashboard")
+                "Access denied",
+                "Access denied: GET /dashboard")
         })
 
 # Update the access token to also allow access to "GET /dashboard".
@@ -177,7 +177,7 @@ with frontend.signin(access_token=access_token):
     frontend.page(
         "dashboard",
         expect={
-            "document_title": testing.expect.document_title(u"Dashboard"),
+            "document_title": testing.expect.document_title("Dashboard"),
             "script_user": testing.expect.script_user(instance.user("alice"))
         })
 
@@ -219,15 +219,15 @@ with frontend.signin(access_token=access_token):
         expected_http_status=403,
         expect={
             "message_title": testing.expect.message(
-                u"Access denied",
-                u"Access denied: GET /home")
+                "Access denied",
+                "Access denied: GET /home")
         })
 
     # /dashboard should still work.
     frontend.page(
         "dashboard",
         expect={
-            "document_title": testing.expect.document_title(u"Dashboard"),
+            "document_title": testing.expect.document_title("Dashboard"),
             "script_user": testing.expect.script_user(instance.user("alice"))
         })
 
@@ -258,6 +258,6 @@ with frontend.signin(access_token=access_token):
         expected_http_status=403,
         expect={
             "message_title": testing.expect.message(
-                u"Access denied",
-                u"Access denied: GET /branches")
+                "Access denied",
+                "Access denied: GET /branches")
         })

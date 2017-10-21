@@ -636,7 +636,7 @@ def renderFile(db, target, user, review, file, first_file=False, options={}, con
                                              macro_chunk.lines[0].old_offset,
                                              macro_chunk.lines[0].new_offset,
                                              "[%s]" % ",".join(items))
-                lines.comment(data.replace("--", "-\u002d"))
+                lines.comment(data.replace("--", "-\\u002d"))
             elif style == "vertical" or local_display_type != "both":
                 linesIterator = iter(macro_chunk.lines)
                 line = next(linesIterator)

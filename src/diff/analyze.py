@@ -77,7 +77,7 @@ def analyzeChunk1(deletedLines, insertedLines, offsetA=0, offsetB=0):
     def ratio(sm, a, b, aLength, bLength):
         matching = 0
         for i, j, n in sm.get_matching_blocks():
-            matching += sum(map(len, map(unicode.strip, a[i:i+n])))
+            matching += sum(map(len, map(str.strip, a[i:i+n])))
         if aLength > 5 and len(sm.get_matching_blocks()) == 2:
             return float(matching) / aLength
         else:

@@ -67,7 +67,7 @@ def reflow(text, line_length=80, indent=0):
 
     text = "\n\n".join(paragraphs)
 
-    if isinstance(text, unicode): return text.encode("utf-8")
+    if isinstance(text, str): return text.encode("utf-8")
     else: return text
 
 def indent(string, width=4):
@@ -123,7 +123,7 @@ def escape(text):
 json_encode = json.dumps
 
 def deunicode(v):
-    if isinstance(v, unicode): return v.encode("utf-8")
+    if isinstance(v, str): return v.encode("utf-8")
     elif isinstance(v, list): return list(map(deunicode, v))
     elif isinstance(v, dict): return dict([(deunicode(a), deunicode(b)) for a, b in v.items()])
     else: return v
@@ -132,7 +132,7 @@ def json_decode(s):
     return deunicode(json.loads(s))
 
 def decode(text):
-    if isinstance(text, unicode):
+    if isinstance(text, str):
         return text
 
     text = str(text)
@@ -147,11 +147,11 @@ def decode(text):
         else:
             # Replace characters in the surrogate pair range with U+FFFD since
             # PostgreSQL's UTF-8 decoder won't accept them.
-            return re.sub(u"[\ud800-\udfff]", "\ufffd", decoded)
+            return re.sub("[\ud800-\udfff]", "\\ufffd", decoded)
 
     return text.decode("ascii", errors="replace")
 
 def encode(text):
-    if isinstance(text, unicode):
+    if isinstance(text, str):
         return text.encode("utf-8")
     return str(text)

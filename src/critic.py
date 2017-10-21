@@ -767,7 +767,7 @@ def process_request(environ, start_response):
 
                 req.start()
 
-                if isinstance(result, unicode):
+                if isinstance(result, str):
                     return [result.encode("utf8")]
                 else:
                     return [str(result)]

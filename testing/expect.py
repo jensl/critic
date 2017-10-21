@@ -20,7 +20,7 @@ import traceback
 import testing
 
 def extract_text(source):
-    result = u""
+    result = ""
     if source:
         if isinstance(source, list):
             for element in source:
@@ -36,7 +36,7 @@ def extract_text(source):
     return result
 
 def deunicode(v):
-    if isinstance(v, unicode): return v.encode("utf-8")
+    if isinstance(v, str): return v.encode("utf-8")
     elif isinstance(v, list): return list(map(deunicode, v))
     elif isinstance(v, dict): return dict([(deunicode(a), deunicode(b)) for a, b in v.items()])
     else: return v

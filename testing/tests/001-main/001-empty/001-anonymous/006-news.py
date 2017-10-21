@@ -3,8 +3,8 @@ extract_text = testing.expect.extract_text
 
 frontend.page(
     "news",
-    expect={ "document_title": testing.expect.document_title(u"News"),
-             "content_title": testing.expect.paleyellow_title(0, u"News"),
+    expect={ "document_title": testing.expect.document_title("News"),
+             "content_title": testing.expect.paleyellow_title(0, "News"),
              "pageheader_links": testing.expect.pageheader_links("anonymous"),
              "script_user": testing.expect.script_no_user() })
 

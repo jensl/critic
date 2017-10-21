@@ -8,6 +8,6 @@ with frontend.signin("bob"):
     document = frontend.page(
         "critic/%s" % COMMIT_WITH_NO_MOVES,
         params={ "moves": "yes" },
-        expect={ "message": testing.expect.message_title(u"No moved code found!") })
+        expect={ "message": testing.expect.message_title("No moved code found!") })
 
     mailbox.check_empty()

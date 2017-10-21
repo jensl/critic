@@ -75,8 +75,8 @@ with frontend.signin():
     # repository in the system.
     frontend.page(
         "repositories",
-        expect={ "document_title": testing.expect.document_title(u"Repositories"),
-                 "content_title": testing.expect.paleyellow_title(0, u"Repositories"),
+        expect={ "document_title": testing.expect.document_title("Repositories"),
+                 "content_title": testing.expect.paleyellow_title(0, "Repositories"),
                  "repository": check_repository })
 
     # Add another repository. This time, without a tracking branch, but we'll

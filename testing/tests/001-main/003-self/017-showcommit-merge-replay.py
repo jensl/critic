@@ -4,7 +4,7 @@
 # resolution changes" near the top of the page. After that she also views
 # 030afecd which had some actual conflicts.
 
-document_title = testing.expect.document_title(u"Merge pull request #30 from rchl/exception-fixes (8ebec44a)")
+document_title = testing.expect.document_title("Merge pull request #30 from rchl/exception-fixes (8ebec44a)")
 with frontend.signin("alice"):
     document = frontend.page(
         "showcommit",
@@ -12,7 +12,7 @@ with frontend.signin("alice"):
                  "conflicts": "yes" },
         expect={ "document_title": document_title })
 
-document_title = testing.expect.document_title(u"Merge remote-tracking branch 'github/master' into r/molsson/showcommit_sends_no_data (030afecd)")
+document_title = testing.expect.document_title("Merge remote-tracking branch 'github/master' into r/molsson/showcommit_sends_no_data (030afecd)")
 frontend.page(
     url="showcommit",
     params={ "sha1": "030afecdfb40235af03faa52a2a193c7d8199b66",

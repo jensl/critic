@@ -34,7 +34,7 @@ def splitTags(line):
             return Tag(token)
         else:
             def replace_decimal(match):
-                return unichr(int(match.group(1)))
+                return chr(int(match.group(1)))
 
             token = textutils.decode(token)
             token = re_decimal_entity.sub(replace_decimal, token)

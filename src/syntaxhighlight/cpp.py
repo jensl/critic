@@ -47,7 +47,7 @@ class HighlightCPP:
         elif token.isint():
             self.outputter.writeSingleline(TokenTypes.Integer, str(token))
         elif token.isbyteordermark():
-            self.outputter.writePlain(u"\ufeff")
+            self.outputter.writePlain("\ufeff")
         else:
             self.outputter.writeSingleline(TokenTypes.Operator, str(token))
 

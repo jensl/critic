@@ -29,13 +29,13 @@ with frontend.signin("alice"):
 
     document = frontend.page(
         "createreview",
-        expect={ "document_title": testing.expect.document_title(u"Create Review") })
+        expect={ "document_title": testing.expect.document_title("Create Review") })
 
     document = frontend.page(
         "createreview",
         params={ "repository": "critic",
                  "commits": COMMIT_SHA1 },
-        expect={ "document_title": testing.expect.document_title(u"Create Review"),
+        expect={ "document_title": testing.expect.document_title("Create Review"),
                  "summary_input": check_summary_input })
 
     scripts = document.findAll("script")

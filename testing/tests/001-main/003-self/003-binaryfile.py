@@ -17,7 +17,7 @@ def check_description(document):
             actual = cells[1].i.string
             break
 
-    testing.expect.check(u"binary", actual)
+    testing.expect.check("binary", actual)
 
 with frontend.signin():
     frontend.page("showcommit",

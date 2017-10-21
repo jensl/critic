@@ -429,7 +429,7 @@ class Frontend(object):
                 return [deunicode(v) for v in value]
             elif isinstance(value, dict):
                 return { deunicode(k): deunicode(v) for k, v in value.items() }
-            elif isinstance(value, unicode):
+            elif isinstance(value, str):
                 return value.encode("utf-8")
             return value
 
@@ -647,13 +647,13 @@ class Frontend(object):
         # The /tutorials page is essentially static content and doesn't require
         # a signed in user, so a good test-case for checking if the site is up
         # and accessible at all.
-        self.page("tutorial", expect={ "document_title": testing.expect.document_title(u"Tutorials"),
-                                       "content_title": testing.expect.paleyellow_title(0, u"Tutorials") })
+        self.page("tutorial", expect={ "document_title": testing.expect.document_title("Tutorials"),
+                                       "content_title": testing.expect.paleyellow_title(0, "Tutorials") })
 
         # The /validatelogin operation is a) necessary for most meaningful
         # additional testing, and b) a simple enough operation to test.
         with self.signin():
             # Load /home to determine whether /validatelogin successfully signed in
             # (and that we stored the session id cookie correctly.)
-            self.page("home", expect={ "document_title": testing.expect.document_title(u"Testing Administrator's Home"),
-                                       "content_title": testing.expect.paleyellow_title(0, u"Testing Administrator's Home") })
+            self.page("home", expect={ "document_title": testing.expect.document_title("Testing Administrator's Home"),
+                                       "content_title": testing.expect.paleyellow_title(0, "Testing Administrator's Home") })

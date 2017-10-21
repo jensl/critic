@@ -37,7 +37,7 @@ re_nonascii = re.compile("[^\t\n\r -\x7f]")
 re_control = re.compile("[\x01-\x1f\x7f]")
 
 def htmlify(text, attributeValue=False, pretty=False):
-    if isinstance(text, unicode): text = re_nonascii.sub(lambda x: "&#%d;" % ord(x.group()), text.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;'))
+    if isinstance(text, str): text = re_nonascii.sub(lambda x: "&#%d;" % ord(x.group()), text.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;'))
     else: text = str(text).replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
     if attributeValue:
         if not pretty and re_simple.match(text): return text
@@ -415,7 +415,7 @@ class HTML(object):
 
 def safestr(value):
     try: return str(value)
-    except: return unicode(value)
+    except: return str(value)
 
 class Generator(object):
     def __init__(self, target, metaInformation):

@@ -6,8 +6,8 @@
 import os
 
 TC_NAME_PREFIX = "014-non-ascii-filename"
-TC_NAME_UTF8 = (u"%s-åäö\x01\ufffd" % TC_NAME_PREFIX).encode("utf-8")
-TC_NAME_ESCAPED = u"%s-åäö\\x01\\ufffd" % TC_NAME_PREFIX
+TC_NAME_UTF8 = ("%s-åäö\x01\ufffd" % TC_NAME_PREFIX).encode("utf-8")
+TC_NAME_ESCAPED = "%s-åäö\\x01\\ufffd" % TC_NAME_PREFIX
 
 def check_filename(class_name):
     def check(document):
