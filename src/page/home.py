@@ -329,7 +329,7 @@ def renderHome(req, db, user):
             else:
                 links.a(href="javascript:if (deleteExtensionHookFilterById(%d)) location.reload(); void(0);" % filter_id).text("[delete]")
 
-        document.addInternalScript("var count_matched_files = %s;" % json_encode(count_matched_files.values()))
+        document.addInternalScript("var count_matched_files = %s;" % json_encode(list(count_matched_files.values())))
     else:
         filters.addCentered().p().b().text("No filters")
 

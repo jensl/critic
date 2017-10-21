@@ -207,7 +207,7 @@ have no common ancestor within this set."""
                     if not children0:
                         pending.add(commits[parent_sha1])
 
-        return CommitSet(commits.values())
+        return CommitSet(list(commits.values()))
 
     def getSubset(self, head):
         assert head in self

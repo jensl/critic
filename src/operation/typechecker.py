@@ -316,8 +316,8 @@ class GenericDictionaryChecker(TypeChecker):
 
     def __init__(self, source):
         assert len(source) == 1
-        self.__key_checker = TypeChecker.make(source.keys()[0])
-        self.__value_checker = TypeChecker.make(source.values()[0])
+        self.__key_checker = TypeChecker.make(list(source.keys())[0])
+        self.__value_checker = TypeChecker.make(list(source.values())[0])
 
     def __call__(self, value, context):
         if not type(value) is dict:

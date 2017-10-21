@@ -280,7 +280,7 @@ def fetchAll(critic, review, author, comment_type, state, location_type,
             """SELECT chain, sha1
                  FROM commentchainlines
                 WHERE chain=ANY (%s)""",
-            (comments_by_id.keys(),))
+            (list(comments_by_id.keys()),))
         comments_by_sha1 = dict()
         for comment_id, sha1 in cursor:
             comments_by_sha1.setdefault(sha1, set()).add(

@@ -70,7 +70,7 @@ class ModifyReview(object):
             propagation.calculateInitialLines()
 
             file_id = location.file.id
-            lines = propagation.all_lines.items()
+            lines = list(propagation.all_lines.items())
 
         comment = CreatedComment(critic, self.review)
         initial_comment = api.transaction.LazyObject()

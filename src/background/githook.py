@@ -690,7 +690,7 @@ def run_slave0():
                  FROM pendingrefupdateoutputs
                 WHERE pendingrefupdate=ANY (%s)
              ORDER BY pendingrefupdate, id""",
-            (updates.keys(),))
+            (list(updates.keys()),))
 
         for update_id, output_id, output in cursor:
             update = updates[update_id]
@@ -710,7 +710,7 @@ def run_slave0():
                  FROM pendingrefupdates
                 WHERE id=ANY (%s)
                   AND state NOT IN ('finished', 'failed')""",
-            (updates.keys(),))
+            (list(updates.keys()),))
 
         remaining, = cursor.fetchone()
 
@@ -732,7 +732,7 @@ def run_slave0():
                  FROM pendingrefupdates
                 WHERE id=ANY (%s)
                   AND state NOT IN ('finished', 'failed')""",
-            (updates.keys(),))
+            (list(updates.keys()),))
 
         timed_out = [update_id for (update_id,) in cursor]
 
@@ -764,7 +764,7 @@ def run_slave0():
              FROM pendingrefupdates
             WHERE id=ANY (%s)
               AND state='failed'""",
-        (updates.keys(),))
+        (list(updates.keys()),))
 
     update_ids = [update_id for update_id, in cursor]
 
@@ -815,7 +815,7 @@ def run_slave0():
                     WHERE id=ANY (%s)
                       AND state IN ('finished', 'failed')
                       AND NOT abandoned""",
-           (updates.keys(),))
+           (list(updates.keys()),))
 
 def run_slave():
     try:

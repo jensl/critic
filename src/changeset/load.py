@@ -31,7 +31,7 @@ def loadChangesetsForCommits(db, repository, commits, filtered_file_ids=None, lo
         return commit_ids.get(commit_id) or gitutils.Commit.fromId(db, repository, commit_id)
 
     cursor = db.readonly_cursor()
-    cursor.execute("SELECT id, parent, child FROM changesets WHERE child=ANY (%s) AND type='direct'", (commit_ids.keys(),))
+    cursor.execute("SELECT id, parent, child FROM changesets WHERE child=ANY (%s) AND type='direct'", (list(commit_ids.keys()),))
 
     changesets = []
 

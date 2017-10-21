@@ -48,7 +48,7 @@ def basic(arguments):
 
     assert isinstance(alice.repository_filters, dict)
     assert len(alice.repository_filters) == 1
-    repository, filters = alice.repository_filters.items()[0]
+    repository, filters = list(alice.repository_filters.items())[0]
     assert isinstance(repository, api.repository.Repository)
     assert repository.name == "critic"
     assert len(filters) == 1

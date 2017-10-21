@@ -422,7 +422,7 @@ def renderDashboard(req, db, user):
         accepted = []
         pending = []
 
-        is_accepted = isAccepted(watched.keys())
+        is_accepted = isAccepted(list(watched.keys()))
 
         for review_id, (summary, branch_id, lines, comments) in sortedReviews(watched):
             if is_accepted[review_id]:

@@ -124,6 +124,6 @@ class APIObject(object):
 
              new_impl = Implementation(*row)"""
         cursor = critic.getDatabaseCursor()
-        cursor.execute(query, (cached_objects.keys(),))
+        cursor.execute(query, (list(cached_objects.keys()),))
         for row in cursor:
             cached_objects[row[0]]._set_impl(Implementation(*row))

@@ -537,7 +537,7 @@ def propagateCommentChains(db, user, review, previous_head, commits,
                             FROM commentchainlines
                            WHERE chain=ANY (%s)
                              AND sha1=%s""",
-                       (chains.keys(), file_sha1))
+                       (list(chains.keys()), file_sha1))
 
         for chain_id, first_line, last_line in cursor:
             assert len(commits.getHeads()) == 1

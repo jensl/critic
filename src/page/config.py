@@ -137,7 +137,7 @@ def renderConfig(req, db, user):
                        WHERE item=ANY (%s)
                          AND uid IS NULL
                          AND repository IS NULL""",
-                   (preferences.keys(),))
+                   (list(preferences.keys()),))
 
     set_values(cursor, is_overrides=False)
 
@@ -147,7 +147,7 @@ def renderConfig(req, db, user):
                            WHERE item=ANY (%s)
                              AND uid IS NULL
                              AND repository=%s""",
-                       (preferences.keys(), repository.id))
+                       (list(preferences.keys()), repository.id))
 
         # These are overrides if we're editing the defaults for a specific
         # repository.
@@ -160,7 +160,7 @@ def renderConfig(req, db, user):
                              AND uid=%s
                              AND repository IS NULL
                              AND filter IS NULL""",
-                       (preferences.keys(), user.id))
+                       (list(preferences.keys()), user.id))
 
         if filter_id is not None or repository is not None:
             # We're looking at per-filter or per-repository settings, so the
@@ -175,14 +175,14 @@ def renderConfig(req, db, user):
                                    WHERE item=ANY (%s)
                                      AND uid=%s
                                      AND filter=%s""",
-                               (preferences.keys(), user.id, filter_id))
+                               (list(preferences.keys()), user.id, filter_id))
             else:
                 cursor.execute("""SELECT item, integer, string
                                     FROM userpreferences
                                    WHERE item=ANY (%s)
                                      AND uid=%s
                                      AND repository=%s""",
-                               (preferences.keys(), user.id, repository.id))
+                               (list(preferences.keys()), user.id, repository.id))
 
         # Set the overrides.  This is either the user's global settings, if
         # we're not looking at per-filter or per-repository settings, or the

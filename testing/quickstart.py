@@ -270,7 +270,7 @@ class Instance(testing.Instance):
             for service_name in service_names }
         try:
             data = json.loads(self.executeProcess(
-                ["python", helper, level] + logfile_paths.keys(),
+                ["python", helper, level] + list(logfile_paths.keys()),
                 log_stdout=False))
             return { logfile_paths[logfile_path]: entries
                      for logfile_path, entries in sorted(data.items()) }

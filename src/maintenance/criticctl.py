@@ -84,7 +84,7 @@ def listusers(argv):
         description="Critic administration interface: listusers",
         prog="criticctl [options] listusers")
 
-    parser.add_argument("--format", "-f", choices=formats.keys(), default="table",
+    parser.add_argument("--format", "-f", choices=list(formats.keys()), default="table",
                         help='output format (defaults to "table")')
 
     arguments = parser.parse_args(argv)
