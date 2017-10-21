@@ -14,7 +14,7 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-import cStringIO
+import io
 
 import extensions
 import gitutils
@@ -41,7 +41,7 @@ def renderProcessCommits(req, db, user):
         old_head = gitutils.Commit.fromSHA1(db, review.repository, tails.pop())
         new_head = heads.pop()
 
-        output = cStringIO.StringIO()
+        output = io.StringIO()
 
         extensions.role.processcommits.execute(db, user, review, all_commits, old_head, new_head, output)
 

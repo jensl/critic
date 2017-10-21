@@ -1,6 +1,6 @@
 import re
 import urllib
-import urlparse
+import urllib.parse
 
 def externalauthURL(name):
     return "externalauth/%s?%s" % (name, urllib.urlencode({ "target": "/" }))
@@ -31,8 +31,8 @@ def start_externalauth(name):
                          redirect_url,
                          equal=isprefix)
 
-    parsed_url = urlparse.urlparse(redirect_url)
-    parsed_query = urlparse.parse_qs(parsed_url.query)
+    parsed_url = urllib.parse.urlparse(redirect_url)
+    parsed_query = urllib.parse.parse_qs(parsed_url.query)
     state = parsed_query.get("state", ["no state received"])[0]
 
     if state == "no state received":
@@ -152,8 +152,8 @@ testing.expect.check("/createuser?",
                      redirect_url,
                      equal=isprefix)
 
-parsed_url = urlparse.urlparse(redirect_url)
-parsed_query = urlparse.parse_qs(parsed_url.query)
+parsed_url = urllib.parse.urlparse(redirect_url)
+parsed_query = urllib.parse.parse_qs(parsed_url.query)
 
 testing.expect.check(["carol"], parsed_query.get("provider"))
 testing.expect.check(["account-carol"], parsed_query.get("account"))
@@ -255,8 +255,8 @@ testing.expect.check("/createuser?",
                      redirect_url,
                      equal=isprefix)
 
-parsed_url = urlparse.urlparse(redirect_url)
-parsed_query = urlparse.parse_qs(parsed_url.query)
+parsed_url = urllib.parse.urlparse(redirect_url)
+parsed_query = urllib.parse.parse_qs(parsed_url.query)
 token = parsed_query.get("token")[0]
 
 frontend.collect_session_cookie()

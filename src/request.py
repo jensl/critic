@@ -16,8 +16,8 @@
 
 import re
 import urllib
-import urlparse
-import httplib
+import urllib.parse
+import http.client
 import wsgiref.util
 
 import base
@@ -261,7 +261,7 @@ class Request:
         self.path = environ.get("PATH_INFO", "").lstrip("/")
         self.original_path = self.path
         self.query = environ.get("QUERY_STRING", "")
-        self.parsed_query = urlparse.parse_qs(self.query, keep_blank_values=True)
+        self.parsed_query = urllib.parse.parse_qs(self.query, keep_blank_values=True)
         self.original_query = self.query
         self.cookies = {}
 
@@ -424,7 +424,7 @@ class Request:
         """
 
         assert not self.__started, "Response already started!"
-        if message is None: message = httplib.responses[code]
+        if message is None: message = http.client.responses[code]
         self.__status = "%d %s" % (code, message)
 
     def hasContentType(self):

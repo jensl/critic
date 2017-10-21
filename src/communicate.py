@@ -17,7 +17,7 @@
 import os
 import fcntl
 import select
-import cStringIO
+import io
 import time
 import errno
 
@@ -93,10 +93,10 @@ class Communicate(object):
             self.stdin_data = None
         stdin_done = False
 
-        stdout = cStringIO.StringIO()
+        stdout = io.StringIO()
         stdout_done = False
 
-        stderr = cStringIO.StringIO()
+        stderr = io.StringIO()
         stderr_done = False
 
         if process.stdin:

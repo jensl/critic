@@ -14,7 +14,7 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-import urlparse
+import urllib.parse
 
 import htmlutils
 import textutils
@@ -101,7 +101,7 @@ def renderSearch(req, db, user):
 
     url_terms = []
 
-    for name, value in urlparse.parse_qsl(req.query):
+    for name, value in urllib.parse.parse_qsl(req.query):
         if name == "q":
             url_terms.append(value)
         elif name.startswith("q"):

@@ -20,7 +20,7 @@ import time
 import re
 import itertools
 import traceback
-import cStringIO
+import io
 import wsgiref.util
 import calendar
 

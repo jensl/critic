@@ -16,7 +16,7 @@
 
 import sys
 import os
-import cPickle
+import pickle
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(sys.argv[0]), "..")))
 
@@ -115,7 +115,7 @@ if pending_commits:
         if not pending_commits: break
 
     if pending_commits:
-        cPickle.dump(pending_commits, open("commits-to-purge.pickle", "w"), 2)
+        pickle.dump(pending_commits, open("commits-to-purge.pickle", "w"), 2)
 
         print()
         print("%d commits that were not found in any repository should be purged." % len(pending_commits))

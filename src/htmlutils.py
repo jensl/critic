@@ -22,7 +22,7 @@ import urllib
 
 import textutils
 
-from cStringIO import StringIO
+from io import StringIO
 
 from linkify import ALL_LINKTYPES, Context
 

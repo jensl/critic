@@ -19,7 +19,7 @@ import os
 import os.path
 import time
 import traceback
-import StringIO
+import io
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(sys.argv[0]), "..")))
 
@@ -305,7 +305,7 @@ def perform_custom_checks(repository, ref):
         return
 
     previous_stdout = sys.stdout
-    sys.stdout = StringIO.StringIO()
+    sys.stdout = io.StringIO()
 
     old_value = None if ref["old_sha1"] == 40 * '0' else ref["old_sha1"]
     new_value = None if ref["new_sha1"] == 40 * '0' else ref["new_sha1"]

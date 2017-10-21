@@ -14,7 +14,7 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-import StringIO
+import io
 import time
 
 import base
@@ -1064,7 +1064,7 @@ class Review(object):
             gitutils.emitGitHookOutput(db, pendingrefupdate_id, output)
 
             if configuration.extensions.ENABLED:
-                extension_output = StringIO.StringIO()
+                extension_output = io.StringIO()
 
                 extensions.role.processcommits.execute(
                     db, updater, self, add_commits, from_commit, to_commit,

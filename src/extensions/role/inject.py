@@ -15,7 +15,7 @@
 # the License.
 
 import re
-import urlparse
+import urllib.parse
 
 import configuration
 
@@ -203,7 +203,7 @@ def execute(db, req, user, document, links, injected, profiler=None):
                 if not query:
                     return "null"
 
-                params = urlparse.parse_qs(query, keep_blank_values=True)
+                params = urllib.parse.parse_qs(query, keep_blank_values=True)
 
                 for key in params:
                     values = params[key]

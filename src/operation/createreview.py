@@ -33,7 +33,7 @@ from log.commitset import CommitSet
 if configuration.extensions.ENABLED:
     import extensions.role.processcommits
 
-from cStringIO import StringIO
+from io import StringIO
 
 class ReviewersAndWatchers(Operation):
     def __init__(self):
