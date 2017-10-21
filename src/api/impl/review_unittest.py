@@ -72,8 +72,8 @@ def basic():
     assert len(review.commits.heads) == 1
     assert len(review.commits.tails) == 1
     topo_ordered = review.commits.topo_ordered
-    assert topo_ordered.next().summary == "Add missing import"
-    assert topo_ordered.next().summary == "Minor /dashboard query optimizations"
+    assert next(topo_ordered).summary == "Add missing import"
+    assert next(topo_ordered).summary == "Minor /dashboard query optimizations"
     assert review.commits == review.branch.commits
 
     assert isinstance(review.rebases, list)

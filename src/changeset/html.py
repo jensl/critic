@@ -639,7 +639,7 @@ def renderFile(db, target, user, review, file, first_file=False, options={}, con
                 lines.comment(data.replace("--", "-\u002d"))
             elif style == "vertical" or local_display_type != "both":
                 linesIterator = iter(macro_chunk.lines)
-                line = linesIterator.next()
+                line = next(linesIterator)
 
                 def lineHTML(what, file, line, is_whitespace, target):
                     line_class = what
@@ -674,14 +674,14 @@ def renderFile(db, target, user, review, file, first_file=False, options={}, con
                     while line:
                         while line.type == diff.Line.CONTEXT:
                             lineHTML("context", file, line, False, lines)
-                            line = linesIterator.next()
+                            line = next(linesIterator)
 
                         deleted = []
                         inserted = []
 
                         while line.is_whitespace:
                             lineHTML("modified", file, line, True, lines)
-                            line = linesIterator.next()
+                            line = next(linesIterator)
 
                         previous_type = diff.Line.DELETED
 
@@ -691,7 +691,7 @@ def renderFile(db, target, user, review, file, first_file=False, options={}, con
                                 if line.type != diff.Line.DELETED: inserted.append(line)
                                 previous_type = line.type
                                 line = None
-                                line = linesIterator.next()
+                                line = next(linesIterator)
                         except StopIteration:
                             line = None
 

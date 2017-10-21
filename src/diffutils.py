@@ -29,11 +29,11 @@ def expandWithContext(chunks, old_lines, new_lines, context_lines, highlight=Tru
     chunks = iter(chunks)
 
     try:
-        previousChunk = chunks.next()
+        previousChunk = next(chunks)
         group.append(previousChunk)
 
         while True:
-            nextChunk = chunks.next()
+            nextChunk = next(chunks)
 
             distance = nextChunk.delete_offset - (previousChunk.delete_offset + previousChunk.delete_count)
             gap_between = distance - 2 * context_lines

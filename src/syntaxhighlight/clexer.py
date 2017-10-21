@@ -421,7 +421,7 @@ def partition(tokens, separator):
     try:
         tokens = iter(tokens)
         while True:
-            token = tokens.next()
+            token = next(tokens)
             if token == separator:
                 current = []
                 partitions.append(current)
@@ -436,7 +436,7 @@ def flatten(tokens):
 
     try:
         while True:
-            token = tokens.next()
+            token = next(tokens)
             if isinstance(token, list):
                 tokens = itertools.chain(token, tokens)
             else:

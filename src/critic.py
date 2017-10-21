@@ -427,13 +427,13 @@ class WrappedResult(object):
         self.result = iter(result)
         # Fetch the first block "prematurely," so that errors from it are raised
         # early, and handled by the normal error handling code in main().
-        self.first = self.result.next()
+        self.first = next(self.result)
         self.failed = False
 
     def __iter__(self):
         return self
 
-    def next(self):
+    def __next__(self):
         if self.failed:
             raise StopIteration
 
@@ -442,7 +442,7 @@ class WrappedResult(object):
                 value = self.first
                 self.first = None
             else:
-                value = self.result.next()
+                value = next(self.result)
 
             self.db.rollback()
             return value

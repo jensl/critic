@@ -253,7 +253,7 @@ def parseDifferences(repository, commit=None, from_commit=None, to_commit=None, 
     new_mode = None
 
     try:
-        line = lines.next()
+        line = next(lines)
 
         names = None
 
@@ -284,7 +284,7 @@ def parseDifferences(repository, commit=None, from_commit=None, to_commit=None, 
                 elif line.startswith("deleted file mode "):
                     old_mode = line[18:]
 
-                line = lines.next()
+                line = next(lines)
 
             is_submodule = False
 
@@ -298,7 +298,7 @@ def parseDifferences(repository, commit=None, from_commit=None, to_commit=None, 
                 old_sha1, new_sha1 = line[6:].split(' ', 1)[0].split("..")
 
             try:
-                line = lines.next()
+                line = next(lines)
             except StopIteration:
                 if old_mode is not None or new_mode is not None:
                     assert names[0] == names[1]
@@ -361,7 +361,7 @@ def parseDifferences(repository, commit=None, from_commit=None, to_commit=None, 
             else:
                 old_path = None
 
-            line = lines.next()
+            line = next(lines)
 
             match = re_new_path.match(line)
             if match:
@@ -380,15 +380,15 @@ def parseDifferences(repository, commit=None, from_commit=None, to_commit=None, 
                 path = new_path
 
             if is_submodule:
-                line = lines.next()
+                line = next(lines)
                 match = re_chunk.match(line)
                 assert match, repr(line)
                 assert match.group(1) == match.group(2) == "1", repr(match.groups())
 
-                line = lines.next()
+                line = next(lines)
                 assert line == "-Subproject commit %s" % old_sha1, repr(line)
 
-                line = lines.next()
+                line = next(lines)
                 assert line == "+Subproject commit %s" % new_sha1, repr(line)
 
                 new_file = diff.File(None, path, old_sha1, new_sha1, repository,
@@ -402,7 +402,7 @@ def parseDifferences(repository, commit=None, from_commit=None, to_commit=None, 
                 continue
 
             try:
-                line = lines.next()
+                line = next(lines)
 
                 delete_offset = 1
                 deleted_lines = []
@@ -454,7 +454,7 @@ def parseDifferences(repository, commit=None, from_commit=None, to_commit=None, 
                     inserted_lines = []
 
                     while True:
-                        line = lines.next()
+                        line = next(lines)
 
                         if line == "\\ No newline at end of file": continue
                         if line[0] not in (' ', '-', '+'): break
@@ -524,9 +524,9 @@ def parseDifferences(repository, commit=None, from_commit=None, to_commit=None, 
         lines = isplitlines(repository.run(command, '--full-index', '--unified=1', *(what + ['--', path])))
 
         try:
-            line = lines.next()
+            line = next(lines)
 
-            while not line.startswith("index "): line = lines.next()
+            while not line.startswith("index "): line = next(lines)
 
             try:
                 sha1range, mode = line[6:].split(' ')

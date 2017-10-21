@@ -43,7 +43,7 @@ class _CursorIterator(object):
         self.__base = base
         self.__invalid = False
 
-    def next(self):
+    def __next__(self):
         if self.__invalid:
             raise InvalidCursorError("cursor re-used during iteration")
         return next(self.__base)

@@ -56,13 +56,13 @@ def unified(db, changeset, context_lines=3):
                 result += chunkHeader + "\n"
 
                 lines = iter(chunk.lines)
-                line = lines.next()
+                line = next(lines)
 
                 try:
                     while line:
                         while line.type == diff.Line.CONTEXT:
                             result += "  %s\n" % line.new_value
-                            line = lines.next()
+                            line = next(lines)
 
                         deleted = []
                         inserted = []
@@ -71,7 +71,7 @@ def unified(db, changeset, context_lines=3):
                             while line.type != diff.Line.CONTEXT:
                                 if line.type != diff.Line.INSERTED: deleted.append(line)
                                 if line.type != diff.Line.DELETED: inserted.append(line)
-                                line = lines.next()
+                                line = next(lines)
                         except StopIteration:
                             line = None
 

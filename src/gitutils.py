@@ -1488,7 +1488,7 @@ class Blame:
 
         try:
             while True:
-                sha1, original_line, current_line = inlines.next().split(" ")[:3]
+                sha1, original_line, current_line = next(inlines).split(" ")[:3]
 
                 original_line = int(original_line)
                 current_line = int(current_line)
@@ -1496,12 +1496,12 @@ class Blame:
                 author = None
                 author_email = None
 
-                line = inlines.next()
+                line = next(inlines)
                 while not line.startswith("\t"):
                     if line.startswith("author "): author = line[7:]
                     elif line.startswith("author-mail "): author_email = line[13:-1]
                     elif line.startswith("summary "): pass
-                    line = inlines.next()
+                    line = next(inlines)
 
                 if sha1 not in self.__commit_ids:
                     commit = Commit.fromSHA1(db, self.repository, sha1)

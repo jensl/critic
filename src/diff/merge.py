@@ -35,23 +35,23 @@ def filterChunks(log, file_on_branch, file_in_merge, path):
     in_merge = iter(file_in_merge.chunks)
 
     try:
-        chunk_on_branch = on_branch.next()
-        chunk_in_merge = in_merge.next()
+        chunk_on_branch = next(on_branch)
+        chunk_in_merge = next(in_merge)
 
         while True:
             if chunk_in_merge.delete_offset - chunk_on_branch.insertEnd() > PROXIMITY_LIMIT:
                 # Chunk_on_branch is significantly earlier than chunk_in_merge,
                 # so continue to next one from on_branch.
-                chunk_on_branch = on_branch.next()
+                chunk_on_branch = next(on_branch)
             elif chunk_on_branch.insert_offset - chunk_in_merge.deleteEnd() > PROXIMITY_LIMIT:
-                chunk_in_merge = in_merge.next()
+                chunk_in_merge = next(in_merge)
             else:
                 # The two chunks are near each other, or intersects, so include
                 # the one from the merge
                 result.append(chunk_in_merge)
 
                 # ... and continue to the next one from in_merge.
-                chunk_in_merge = in_merge.next()
+                chunk_in_merge = next(in_merge)
     except StopIteration:
         # We ran out of chunks from either on_branch or in_merge.  If we ran out
         # of chunks from in_merge, we obviously don't need to include any more
