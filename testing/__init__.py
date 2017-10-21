@@ -248,7 +248,7 @@ def pause(prompt="Press ENTER to continue: "):
     print(file=STREAM)
     try:
         print(prompt, end=' ', file=STREAM)
-        raw_input()
+        input()
     except KeyboardInterrupt:
         print(file=STREAM)
         print(file=STREAM)

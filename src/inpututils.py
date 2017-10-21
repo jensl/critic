@@ -17,16 +17,16 @@
 import sys
 import os
 
-# Try to import the readline module to augment raw_input(), used below, which
+# Try to import the readline module to augment input(), used below, which
 # automatically uses readline for line editing if it has been loaded.  We don't
-# really care if it fails; that just means raw_input() is a bit dumber.
+# really care if it fails; that just means input() is a bit dumber.
 try: import readline
 except: pass
 
 __doc__ = "Helper functions for prompting for and reading input."
 
-def apply_check(check, input):
-    result = check(input)
+def apply_check(check, value):
+    result = check(value)
     if result is None:
         return True
     elif result is True:
@@ -42,16 +42,16 @@ def yes_or_no(prompt, default=None):
     prompt = "%s [%s/%s] " % (prompt, "Y" if default is True else "y", "N" if default is False else "n")
 
     while True:
-        try: input = raw_input(prompt)
+        try: value = input(prompt)
         except KeyboardInterrupt:
             print()
             raise
 
-        if input.lower() in ("y", "yes"):
+        if value.lower() in ("y", "yes"):
             return True
-        elif input.lower() in ("n", "no"):
+        elif value.lower() in ("n", "no"):
             return False
-        elif input or default is None:
+        elif value or default is None:
             print("Please answer 'y'/'yes' or 'n'/'no'.")
             print()
         else:
@@ -61,21 +61,21 @@ def string(prompt, default=None, check=None):
     prompt = "%s%s " % (prompt, (" [%s]" % default) if default is not None else "")
 
     while True:
-        try: input = raw_input(prompt)
+        try: value = input(prompt)
         except KeyboardInterrupt:
             print()
             raise
 
-        if default and not input:
-            input = default
+        if default and not value:
+            value = default
 
         if check:
-            if apply_check(check, input):
-                return input
-        elif not input:
+            if apply_check(check, value):
+                return value
+        elif not value:
             print("Invalid input: empty.")
         else:
-            return input
+            return value
 
 def password(prompt, default=None, twice=True):
     import termios
@@ -89,7 +89,7 @@ def password(prompt, default=None, twice=True):
             new[3] = new[3] & ~termios.ECHO
             try:
                 termios.tcsetattr(sys.stdin, termios.TCSADRAIN, new)
-                try: password = raw_input(prompt)
+                try: password = input(prompt)
                 except KeyboardInterrupt:
                     print()
                     raise
