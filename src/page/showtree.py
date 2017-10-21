@@ -84,7 +84,7 @@ def renderShowTree(req, db, user):
             params["repository"] = str(repository.id)
         else:
             params["review"] = str(review.id)
-        return "%s?%s" % (url_path, urllib.urlencode(params))
+        return "%s?%s" % (url_path, urllib.parse.urlencode(params))
 
     if path == "/":
         h1.text("/")

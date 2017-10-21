@@ -39,7 +39,7 @@ class GoogleAuthentication(auth.OAuthProvider):
         return None
 
     def getAuthorizeURL(self, state):
-        query = urllib.urlencode({ "client_id": self.client_id,
+        query = urllib.parse.urlencode({ "client_id": self.client_id,
                                    "response_type": "code",
                                    "scope": "openid email",
                                    "redirect_uri": self.redirect_uri,

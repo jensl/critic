@@ -124,7 +124,7 @@ class URL(object):
         assert "#" not in path
         self.value = path
         if query:
-            self.value += "?" + urllib.urlencode(
+            self.value += "?" + urllib.parse.urlencode(
                 [(name, str(value)) for name, value in query.items()])
         if fragment:
             self.value += "#" + fragment.lstrip("#")

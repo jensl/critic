@@ -3,7 +3,7 @@ import urllib
 import urllib.parse
 
 def externalauthURL(name):
-    return "externalauth/%s?%s" % (name, urllib.urlencode({ "target": "/" }))
+    return "externalauth/%s?%s" % (name, urllib.parse.urlencode({ "target": "/" }))
 
 def signout():
     frontend.operation("endsession", data={})

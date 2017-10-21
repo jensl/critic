@@ -193,7 +193,7 @@ def renderShowFile(req, db, user):
             params["repository"] = str(repository.id)
         else:
             params["review"] = str(review.id)
-        return "%s?%s" % (url_path, urllib.urlencode(params))
+        return "%s?%s" % (url_path, urllib.parse.urlencode(params))
 
     h1.a("root", href=make_url("showtree", "/")).text("root")
     h1.span().text('/')
@@ -209,10 +209,10 @@ def renderShowFile(req, db, user):
         h1.text(components[-1], escape=True)
 
     h1.span("right").a(href=("/download/%s?repository=%s&sha1=%s"
-                             % (urllib.quote(path), repository.name, file_sha1)),
-                       download=urllib.quote(path)).text("[download]")
+                             % (urllib.parse.quote(path), repository.name, file_sha1)),
+                       download=urllib.parse.quote(path)).text("[download]")
     h1.span("right").a(href=("/download/%s?repository=%s&sha1=%s"
-                             % (urllib.quote(path), repository.name, file_sha1))).text("[view]")
+                             % (urllib.parse.quote(path), repository.name, file_sha1))).text("[view]")
 
     table.tbody('spacer top').tr('spacer top').td(colspan=8).text()
 

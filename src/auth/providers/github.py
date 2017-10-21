@@ -39,7 +39,7 @@ class GitHubAuthentication(auth.OAuthProvider):
         return "https://github.com/%s" % name
 
     def getAuthorizeURL(self, state):
-        query = urllib.urlencode({ "client_id": self.client_id,
+        query = urllib.parse.urlencode({ "client_id": self.client_id,
                                    "redirect_uri": self.redirect_uri,
                                    "state": state })
 

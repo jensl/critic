@@ -293,4 +293,4 @@ class SearchReview(Operation):
 
         return OperationResult(
             reviews=list(map(Review.json, reviews)),
-            query_string=urllib.urlencode(url_terms))
+            query_string=urllib.parse.urlencode(url_terms))

@@ -340,7 +340,7 @@ def renderFile(db, target, user, review, file, first_file=False, options={}, con
             params["repository"] = str(file.repository.id)
         else:
             params["review"] = str(review.id)
-        return "/%s?%s" % (url_path, urllib.urlencode(params))
+        return "/%s?%s" % (url_path, urllib.parse.urlencode(params))
 
     if header_left:
         header_left(db, row.td('left', colspan=4, align='left'), file)

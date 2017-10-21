@@ -48,7 +48,7 @@ class LoginHandler(page.Page.Handler):
         self.document.setTitle("Sign in")
 
         def render(target):
-            redirect_url = "redirect?" + urllib.urlencode(
+            redirect_url = "redirect?" + urllib.parse.urlencode(
                 { "target": self.target })
 
             form = target.form(name="login", method="POST", action=redirect_url)
@@ -98,7 +98,7 @@ class LoginHandler(page.Page.Handler):
 
                 for title, name in sorted(providers):
                     div = external.div("provider")
-                    url = "/externalauth/%s?%s" % (name, urllib.urlencode(
+                    url = "/externalauth/%s?%s" % (name, urllib.parse.urlencode(
                             { "target": self.target }))
                     if first:
                         div.text("Sign in using your ")

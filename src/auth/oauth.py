@@ -139,7 +139,7 @@ class OAuthProvider(auth.Provider):
             if fullname:
                 data["fullname"] = fullname
 
-            target_url = "/createuser?%s" % urllib.urlencode(data)
+            target_url = "/createuser?%s" % urllib.parse.urlencode(data)
 
         if user is not None:
             auth.createSessionId(db, req, user)

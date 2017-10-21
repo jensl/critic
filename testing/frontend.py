@@ -126,7 +126,7 @@ class Frontend(object):
 
         log_url = full_url
         if params:
-            query = urllib.urlencode(sorted(params.items()))
+            query = urllib.parse.urlencode(sorted(params.items()))
             log_url = "%s?%s" % (log_url, query)
 
         testing.logger.debug("Fetching page: %s ..." % log_url)
@@ -337,7 +337,7 @@ class Frontend(object):
 
         log_url = full_url
         if params:
-            query = urllib.urlencode(sorted(params.items()))
+            query = urllib.parse.urlencode(sorted(params.items()))
             log_url = "%s?%s" % (log_url, query)
 
         kwargs = { "params": params,

@@ -38,7 +38,7 @@ class DummyOAuthProvider(auth.OAuthProvider):
         return "https://example.com/user/%s" % name
 
     def getAuthorizeURL(self, state):
-        query = urllib.urlencode({ "state": state })
+        query = urllib.parse.urlencode({ "state": state })
         return "https://example.com/authorize?%s" % query
 
     def getAccessToken(self, code):

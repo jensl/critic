@@ -35,7 +35,7 @@ def decodeURIComponent(text):
     Replace %HH escape sequences and return the resulting string.
     """
 
-    return urllib.unquote_plus(text)
+    return urllib.parse.unquote_plus(text)
 
 class NoDefault:
     """\
@@ -123,7 +123,7 @@ class NeedLogin(MovedTemporarily):
             target = source.getTargetURL()
         else:
             target = str(source)
-        location = "/login?target=%s" % urllib.quote(target)
+        location = "/login?target=%s" % urllib.parse.quote(target)
         if optional:
             location += "&optional=yes"
         return super(NeedLogin, self).__init__(location, no_cache=True)
@@ -276,7 +276,7 @@ class Request:
 
     def updateQuery(self, items):
         self.parsed_query.update(items)
-        self.query = urllib.urlencode(
+        self.query = urllib.parse.urlencode(
             sorted(self.parsed_query.items()), doseq=True)
 
     @property
