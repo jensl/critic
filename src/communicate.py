@@ -127,8 +127,8 @@ class Communicate(object):
             while True:
                 try:
                     events = poll.poll(timeout)
-                except select.error as (errnum, _):
-                    if errnum == errno.EINTR:
+                except select.error as error:
+                    if error.errno == errno.EINTR:
                         continue
                     raise
                 else:
