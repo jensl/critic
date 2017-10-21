@@ -15,7 +15,7 @@
 # the License.
 
 import api
-import apiobject
+from . import apiobject
 
 class AccessToken(apiobject.APIObject):
     wrapper_class = api.accesstoken.AccessToken

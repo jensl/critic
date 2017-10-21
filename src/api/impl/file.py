@@ -15,7 +15,7 @@
 # the License.
 
 import api
-import apiobject
+from . import apiobject
 import dbutils
 
 class File(apiobject.APIObject):

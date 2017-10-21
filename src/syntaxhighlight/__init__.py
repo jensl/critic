@@ -69,7 +69,7 @@ def wrap(raw_source, mode):
     return htmlutils.htmlify(raw_source)
 
 def readHighlight(repository, sha1, path, language, request=False, mode="legacy"):
-    from request import requestHighlights
+    from .request import requestHighlights
 
     async = mode == "json"
     source = None
@@ -96,5 +96,5 @@ def readHighlight(repository, sha1, path, language, request=False, mode="legacy"
 
 # Import for side-effects: these modules add strings to the LANGUAGES set to
 # indicate which languages they support highlighting.
-import cpp
-import generic
+from . import cpp
+from . import generic

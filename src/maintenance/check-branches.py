@@ -25,7 +25,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(sys.argv[0]), ".
 import dbutils
 import gitutils
 import log.commitset
-import progress
+from . import progress
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--exclude", action="append", help="exclude repository")

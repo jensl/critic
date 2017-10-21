@@ -14,7 +14,7 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-import page
-import inject
-import filterhook
-import processcommits
+from . import page
+from . import inject
+from . import filterhook
+from . import processcommits

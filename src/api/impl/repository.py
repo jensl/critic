@@ -18,7 +18,7 @@ import os
 import subprocess
 
 import api
-import apiobject
+from . import apiobject
 
 import auth
 import configuration

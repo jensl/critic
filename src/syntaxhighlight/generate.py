@@ -26,11 +26,11 @@ import diff.parse
 from syntaxhighlight import TokenClassNames
 
 def createHighlighter(language):
-    import cpp
+    from . import cpp
     highlighter = cpp.HighlightCPP.create(language)
     if highlighter: return highlighter
 
-    import generic
+    from . import generic
     highlighter = generic.HighlightGeneric.create(language)
     if highlighter: return highlighter
 

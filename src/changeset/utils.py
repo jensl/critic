@@ -30,9 +30,9 @@ import diff.analyze
 import diff.parse
 import diff.merge
 
-import load
+from . import load
 import dbutils
-import client
+from . import client
 
 def createFullMergeChangeset(db, user, repository, commit, **kwargs):
     assert len(commit.parents) > 1

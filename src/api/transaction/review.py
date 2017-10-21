@@ -122,7 +122,7 @@ class ModifyReview(object):
         return comment
 
     def modifyComment(self, comment):
-        from comment import ModifyComment
+        from .comment import ModifyComment
         assert comment.review == self.review
 
         # Users are not (generally) allowed to modify other users' draft

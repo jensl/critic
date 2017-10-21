@@ -15,7 +15,7 @@
 # the License.
 
 import api
-import apiobject
+from . import apiobject
 
 class ModifiedComment(object):
     def __init__(self, comment_id, new_type, new_state):

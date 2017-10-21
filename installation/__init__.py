@@ -27,26 +27,26 @@ root_dir = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__
 sys.path.insert(0, os.path.join(root_dir, "src"))
 
 # Helpers.
-import input
-import process
-import utils
+from . import input
+from . import process
+from . import utils
 
 # Modules.
-import prereqs
-import system
-import paths
-import files
-import database
-import smtp
-import config
-import httpd
-import criticctl
-import admin
-import initd
-import prefs
-import git
-import migrate
-import extensions
+from . import prereqs
+from . import system
+from . import paths
+from . import files
+from . import database
+from . import smtp
+from . import config
+from . import httpd
+from . import criticctl
+from . import admin
+from . import initd
+from . import prefs
+from . import git
+from . import migrate
+from . import extensions
 
 modules = [prereqs,
            system,

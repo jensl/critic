@@ -20,7 +20,7 @@ from datetime import datetime
 
 import api
 import api.impl
-import apiobject
+from . import apiobject
 
 class ReviewSummaryContainer(apiobject.APIObject):
     wrapper_class = api.reviewsummary.ReviewSummaryContainer

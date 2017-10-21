@@ -97,7 +97,7 @@ class Branches(object):
         parameters.setContext(Branches.name, branch)
         return branch
 
-import commits
+from . import commits
 
 @jsonapi.PrimaryResource
 class BranchCommits(object):

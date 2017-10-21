@@ -35,7 +35,7 @@ if "--json-job" in sys.argv[1:]:
         if soft_limit < rss_limit:
             setrlimit(RLIMIT_RSS, (rss_limit, hard_limit))
 
-        from changeset.create import createChangeset
+        from .changeset.create import createChangeset
 
         request = json_decode(sys.stdin.read())
 

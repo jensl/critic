@@ -15,7 +15,7 @@
 # the License.
 
 import api
-import apiobject
+from . import apiobject
 import dbutils
 
 public_class = api.accesscontrolprofile.AccessControlProfile

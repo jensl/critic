@@ -57,7 +57,7 @@ class ModifyUser(object):
                 collector=collectCreatedFilter))
 
     def modifyFilter(self, repository_filter):
-        from filters import ModifyRepositoryFilter
+        from .filters import ModifyRepositoryFilter
         assert repository_filter.subject == self.user
         return ModifyRepositoryFilter(self.transaction, repository_filter)
 
@@ -68,7 +68,7 @@ class ModifyUser(object):
         import auth
         import base64
 
-        from accesstoken import CreatedAccessToken
+        from .accesstoken import CreatedAccessToken
 
         critic = self.transaction.critic
 
@@ -105,7 +105,7 @@ class ModifyUser(object):
         return access_token
 
     def modifyAccessToken(self, access_token):
-        from accesstoken import ModifyAccessToken
+        from .accesstoken import ModifyAccessToken
         assert access_token.user == self.user
 
         critic = self.transaction.critic

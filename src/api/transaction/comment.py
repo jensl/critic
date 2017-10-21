@@ -71,7 +71,7 @@ class ModifyComment(object):
         return reply
 
     def modifyReply(self, reply):
-        from reply import ModifyReply
+        from .reply import ModifyReply
         assert isinstance(reply, api.reply.Reply)
         assert reply.comment == self.comment
 

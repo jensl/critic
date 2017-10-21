@@ -24,32 +24,32 @@ class Transaction(object):
         self.callbacks = []
 
     def modifyUser(self, subject):
-        from user import ModifyUser
+        from .user import ModifyUser
         assert isinstance(subject, api.user.User)
         api.PermissionDenied.raiseUnlessUser(self.critic, subject)
         return ModifyUser(self, subject)
 
     def modifyAccessToken(self, access_token):
-        from accesstoken import ModifyAccessToken, CreatedAccessToken
+        from .accesstoken import ModifyAccessToken, CreatedAccessToken
         assert isinstance(access_token, (api.accesstoken.AccessToken,
                                          CreatedAccessToken))
         api.PermissionDenied.raiseUnlessAdministrator(self.critic)
         return ModifyAccessToken(self, access_token)
 
     def createAccessControlProfile(self, callback=None):
-        from accesscontrolprofile import ModifyAccessControlProfile
+        from .accesscontrolprofile import ModifyAccessControlProfile
         api.PermissionDenied.raiseUnlessAdministrator(self.critic)
         return ModifyAccessControlProfile.create(self, callback)
 
     def modifyAccessControlProfile(self, profile):
-        from accesscontrolprofile import ModifyAccessControlProfile
+        from .accesscontrolprofile import ModifyAccessControlProfile
         assert isinstance(
             profile, api.accesscontrolprofile.AccessControlProfile)
         api.PermissionDenied.raiseUnlessAdministrator(self.critic)
         return ModifyAccessControlProfile(self, profile)
 
     def createLabeledAccessControlProfile(self, labels, profile, callback=None):
-        from labeledaccesscontrolprofile \
+        from .labeledaccesscontrolprofile \
             import ModifyLabeledAccessControlProfile
         api.PermissionDenied.raiseUnlessAdministrator(self.critic)
         assert isinstance(
@@ -58,7 +58,7 @@ class Transaction(object):
             self, labels, profile, callback)
 
     def modifyLabeledAccessControlProfile(self, labeled_profile):
-        from labeledaccesscontrolprofile \
+        from .labeledaccesscontrolprofile \
             import ModifyLabeledAccessControlProfile
         api.PermissionDenied.raiseUnlessAdministrator(self.critic)
         assert isinstance(
@@ -67,7 +67,7 @@ class Transaction(object):
         return ModifyLabeledAccessControlProfile(self, labeled_profile)
 
     def modifyReview(self, review):
-        from review import ModifyReview
+        from .review import ModifyReview
         assert isinstance(review, api.review.Review)
         return ModifyReview(self, review)
 

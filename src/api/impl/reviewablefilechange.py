@@ -15,7 +15,7 @@
 # the License.
 
 import api
-import apiobject
+from . import apiobject
 
 class ReviewableFileChange(apiobject.APIObject):
     wrapper_class = api.reviewablefilechange.ReviewableFileChange

@@ -21,7 +21,7 @@ from itertools import izip, repeat, chain
 import htmlutils
 import configuration
 
-import mail
+from . import mail
 import diff
 import changeset.utils as changeset_utils
 import changeset.load as changeset_load
@@ -32,7 +32,7 @@ import extensions.role.filterhook
 import background.utils
 
 from operation import OperationError, OperationFailure
-from filters import Filters
+from .filters import Filters
 
 def getFileIdsFromChangesets(changesets):
     file_ids = set()

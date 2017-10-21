@@ -28,7 +28,7 @@ import changeset.load as changeset_load
 import log.commitset as log_commitset
 
 import reviewing.comment as review_comment
-import utils as review_utils
+from . import utils as review_utils
 
 import time
 

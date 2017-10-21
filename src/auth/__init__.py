@@ -115,19 +115,19 @@ class InvalidRequest(Exception):
 class Failure(Exception):
     pass
 
-from session import createSessionId, deleteSessionId, checkSession
+from .session import createSessionId, deleteSessionId, checkSession
 
-from accesscontrol import (AccessDenied, AccessControlError,
+from .accesscontrol import (AccessDenied, AccessControlError,
                            AccessControlProfile, AccessControl)
-from database import AuthenticationError, AuthenticationFailed, Database
+from .database import AuthenticationError, AuthenticationFailed, Database
 
 DATABASE = None
 
-import databases
+from . import databases
 
-from provider import Provider
-from oauth import OAuthProvider
+from .provider import Provider
+from .oauth import OAuthProvider
 
 PROVIDERS = {}
 
-import providers
+from . import providers

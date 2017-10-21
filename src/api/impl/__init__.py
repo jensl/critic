@@ -16,27 +16,27 @@
 
 """Critic API implementation"""
 
-import critic
-import user
-import repository
-import filters
-import branch
-import branchupdate
-import commit
-import commitset
-import changeset
-import filechange
-import filediff
-import filecontent
-import review
-import reviewsummary
-import log
-import accesstoken
-import accesscontrolprofile
-import labeledaccesscontrolprofile
-import extension
-import file
-import comment
-import reply
-import batch
-import reviewablefilechange
+from . import critic
+from . import user
+from . import repository
+from . import filters
+from . import branch
+from . import branchupdate
+from . import commit
+from . import commitset
+from . import changeset
+from . import filechange
+from . import filediff
+from . import filecontent
+from . import review
+from . import reviewsummary
+from . import log
+from . import accesstoken
+from . import accesscontrolprofile
+from . import labeledaccesscontrolprofile
+from . import extension
+from . import file
+from . import comment
+from . import reply
+from . import batch
+from . import reviewablefilechange

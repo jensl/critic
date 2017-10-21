@@ -197,16 +197,16 @@ class Instance(object):
                     "Unit tests failed: %s: %s\nCommand: %s\nOutput:\n  %s"
                     % (module, test, error.command, output))
 
-import local
-import virtualbox
-import frontend
-import expect
-import repository
-import mailbox
-import findtests
-import utils
-import quickstart
-import execute
+from . import local
+from . import virtualbox
+from . import frontend
+from . import expect
+from . import repository
+from . import mailbox
+from . import findtests
+from . import utils
+from . import quickstart
+from . import execute
 
 logger = None
 

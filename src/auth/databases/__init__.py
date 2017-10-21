@@ -14,8 +14,8 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-import internaldb
-import ldapdb
+from . import internaldb
+from . import ldapdb
 
 # This must be last, since it wraps the other enabled database.
-import accesstokensdb
+from . import accesstokensdb

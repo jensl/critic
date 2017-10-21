@@ -323,12 +323,12 @@ def from_parameter(resource_path, parameter_name, parameters):
 def sorted_by_id(items):
     return sorted(items, key=lambda item: item.id)
 
-import check
+from . import check
 
-from check import convert, ensure
+from .check import convert, ensure
 
-import v1
-import documentation
+from . import v1
+from . import documentation
 
 def getAPIVersion(req):
     path = req.path.split("/")

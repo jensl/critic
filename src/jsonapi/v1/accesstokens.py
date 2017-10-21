@@ -19,7 +19,7 @@ import jsonapi
 
 ACCESS_TYPE = frozenset(["user", "anonymous", "system"])
 
-from accesscontrolprofiles import (RULE, CATEGORIES, HTTP_EXCEPTION,
+from .accesscontrolprofiles import (RULE, CATEGORIES, HTTP_EXCEPTION,
                                    REPOSITORIES_EXCEPTION, EXTENSION_EXCEPTION,
                                    PROFILE, updateProfile)
 

@@ -23,6 +23,6 @@ def getExtensionInstallPath(sha1):
     import configuration
     return os.path.join(configuration.extensions.INSTALL_DIR, sha1)
 
-import manifest
-import extension
-import resource
+from . import manifest
+from . import extension
+from . import resource

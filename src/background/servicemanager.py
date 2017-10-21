@@ -224,7 +224,7 @@ else:
     gid = grentry.gr_gid
     home = pwentry.pw_dir
 
-    import daemon
+    from . import daemon
 
     pidfile_path = configuration.services.SERVICEMANAGER["pidfile_path"]
 

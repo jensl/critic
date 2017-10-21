@@ -24,31 +24,31 @@ def timestamp(timestamp):
         return None
     return (timestamp - EPOCH).total_seconds()
 
-import users
-import sessions
-import repositories
-import commits
-import branches
-import branchupdates
-import reviews
-import reviewsummaries
-import rebases
-import changesets
-import filechanges
-import files
-import comments
-import replies
-import batches
-import reviewablefilechanges
-import filediffs
-import filecontents
+from . import users
+from . import sessions
+from . import repositories
+from . import commits
+from . import branches
+from . import branchupdates
+from . import reviews
+from . import reviewsummaries
+from . import rebases
+from . import changesets
+from . import filechanges
+from . import files
+from . import comments
+from . import replies
+from . import batches
+from . import reviewablefilechanges
+from . import filediffs
+from . import filecontents
 
 if configuration.auth.ENABLE_ACCESS_TOKENS:
-    import accesstokens
-    import accesscontrolprofiles
-    import labeledaccesscontrolprofiles
+    from . import accesstokens
+    from . import accesscontrolprofiles
+    from . import labeledaccesscontrolprofiles
 
 if configuration.extensions.ENABLED:
-    import extensions
+    from . import extensions
 
-import documentation
+from . import documentation

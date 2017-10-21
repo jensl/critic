@@ -16,5 +16,5 @@
 
 __doc__ = "Quick-start utilities."
 
-import sqlite
-import data
+from . import sqlite
+from . import data

@@ -19,7 +19,7 @@ import datetime
 import re
 
 import api
-import apiobject
+from . import apiobject
 import api.impl
 
 import diff.parse

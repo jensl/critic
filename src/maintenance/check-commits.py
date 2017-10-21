@@ -22,7 +22,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(sys.argv[0]), ".
 
 import dbutils
 import gitutils
-import progress
+from . import progress
 
 db = dbutils.Database.forSystem()
 cursor = db.cursor()

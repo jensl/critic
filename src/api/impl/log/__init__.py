@@ -1,2 +1,2 @@
-import rebase
-import partition
+from . import rebase
+from . import partition

@@ -14,6 +14,6 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-import github
-import google
-import dummy
+from . import github
+from . import google
+from . import dummy

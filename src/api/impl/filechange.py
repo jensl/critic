@@ -16,7 +16,7 @@
 
 import api
 import api.impl
-import apiobject
+from . import apiobject
 
 class FileChange(apiobject.APIObject):
     wrapper_class = api.filechange.FileChange
