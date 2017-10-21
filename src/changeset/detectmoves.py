@@ -50,7 +50,7 @@ def compareChunks(source_file, source_chunk, target_file, target_chunk, extra_ta
 
     sm = difflib.SequenceMatcher(None, source_lines, target_lines)
 
-    blocks = filter(lambda x: x[2], sm.get_matching_blocks())
+    blocks = [x for x in sm.get_matching_blocks() if x[2]]
 
     if blocks:
         chunks = []

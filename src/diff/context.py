@@ -391,6 +391,6 @@ class ContextLines:
             macro_chunks.append(diff.MacroChunk(chunks, lines))
 
         if not lineFilter:
-            return filter(lambda macro_chunk: bool(macro_chunk.chunks), macro_chunks)
+            return list(filter(lambda macro_chunk: bool(macro_chunk.chunks), macro_chunks))
         else:
             return macro_chunks

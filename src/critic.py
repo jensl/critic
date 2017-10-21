@@ -898,7 +898,7 @@ def process_request(environ, start_response):
 
                 if repository:
                     try:
-                        items = filter(None, map(revparse, req.path.split("..")))
+                        items = list(filter(None, map(revparse, req.path.split(".."))))
                         updated_query = {}
 
                         if len(items) == 1:

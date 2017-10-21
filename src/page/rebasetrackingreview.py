@@ -172,7 +172,7 @@ class RebaseTrackingReview(page.Page):
                         def isCandidate(name):
                             return isRebasedBranchCandidate(trackedbranch.name, name)
 
-                        candidates = filter(isCandidate, candidates)
+                        candidates = list(filter(isCandidate, candidates))
                 else:
                     candidates = []
 

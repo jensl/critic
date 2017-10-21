@@ -148,7 +148,7 @@ Critic Testing Framework
                      arguments.quickstart,
                      arguments.vm_identifier]
 
-    if len(filter(None, key_arguments)) != 1:
+    if sum(map(bool, key_arguments)) != 1:
         logger.error("Must specify exactly one of --local, --quickstart and "
                      "--vm-identifier!")
         return

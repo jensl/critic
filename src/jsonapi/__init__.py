@@ -614,7 +614,7 @@ def handleRequestInternal(critic, req):
 
         try:
             if path and resource_class.single:
-                arguments = filter(None, path.pop(0).split(","))
+                arguments = list(filter(None, path.pop(0).split(",")))
                 if len(arguments) == 0 or (len(arguments) > 1 and path):
                     raise UsageError("Invalid resource path: %s" % req.path)
                 if len(arguments) == 1:

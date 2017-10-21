@@ -177,7 +177,7 @@ class Instance(object):
                 output = self.run_unittest([path] + args + [test])
                 lines = output.strip().splitlines()
                 expected = test + ": ok"
-                matching = filter(lambda line: line == expected, lines)
+                matching = list(filter(lambda line: line == expected, lines))
                 if len(lines) == 0:
                     logger.warning("No unit test output: %s (%s)")
                 elif len(matching) == 0:

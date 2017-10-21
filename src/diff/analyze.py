@@ -117,8 +117,8 @@ def analyzeChunk1(deletedLines, insertedLines, offsetA=0, offsetB=0):
         while matches:
             r, deletedIndex, insertedIndex, deletedWords, insertedWords, sm = matches.pop(0)
             final.append((deletedIndex, insertedIndex, deletedWords, insertedWords, sm))
-            matches = filter(lambda data: data[1] != deletedIndex and data[2] != insertedIndex and (data[1] < deletedIndex) == (data[2] < insertedIndex), matches)
-            equals = filter(lambda data: (data[0] < deletedIndex) == (data[1] < insertedIndex), equals)
+            matches = list(filter(lambda data: data[1] != deletedIndex and data[2] != insertedIndex and (data[1] < deletedIndex) == (data[2] < insertedIndex), matches))
+            equals = list(filter(lambda data: (data[0] < deletedIndex) == (data[1] < insertedIndex), equals))
 
         final.sort()
         equals.sort()
@@ -187,8 +187,8 @@ def analyzeWhiteSpaceLine(deletedLine, insertedLine):
     deletedLine = textutils.decode(deletedLine)
     insertedLine = textutils.decode(insertedLine)
 
-    deletedWords = filter(None, re_ws_words.findall(deletedLine))
-    insertedWords = filter(None, re_ws_words.findall(insertedLine))
+    deletedWords = list(filter(None, re_ws_words.findall(deletedLine)))
+    insertedWords = list(filter(None, re_ws_words.findall(insertedLine)))
 
     sm = difflib.SequenceMatcher(None, deletedWords, insertedWords)
     lineDiff = []

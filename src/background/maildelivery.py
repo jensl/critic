@@ -127,8 +127,8 @@ class MailDelivery(background.utils.PeerServer):
                     def age(filename):
                         return now - os.stat(filename).st_ctime
 
-                    too_old = len(filter(lambda filename: age(filename) > 60, pending))
-                    oldest_age = max(list(map(age, pending)))
+                    too_old = sum(age(filename) > 60 for filename in pending)
+                    oldest_age = max(map(age, pending))
 
                     if too_old > 0:
                         self.warning(("%d files were created more than 60 seconds ago\n"
@@ -248,7 +248,7 @@ class MailDelivery(background.utils.PeerServer):
             else: return email.header.Header(s, "utf-8", header_name=name)
 
         message = email.mime.text.MIMEText(body, "plain", "utf-8")
-        recipients = filter(lambda user: bool(user.email), recipients)
+        recipients = [user for user in recipients if bool(user.email)]
 
         if not to_user.email:
             return True

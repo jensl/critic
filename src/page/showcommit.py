@@ -1059,7 +1059,7 @@ def renderShowCommit(req, db, user):
 
     if context is None: context = user.getPreference(db, "commit.diff.contextLines")
 
-    one_sha1 = filter(None, (sha1, from_sha1, to_sha1, first_sha1, last_sha1))[0]
+    one_sha1 = next(filter(None, (sha1, from_sha1, to_sha1, first_sha1, last_sha1)))
 
     if repository:
         if not repository.iscommit(one_sha1):
@@ -1208,11 +1208,11 @@ def renderShowCommit(req, db, user):
 
             if review_filter == "pending":
                 def isPending(file): return file.id in pending_files
-                changeset.files = filter(isPending, changeset.files)
+                changeset.files = list(filter(isPending, changeset.files))
 
             elif review_filter == "reviewable":
                 def isReviewable(file): return file.id in reviewable_files
-                changeset.files = filter(isReviewable, changeset.files)
+                changeset.files = list(filter(isReviewable, changeset.files))
 
             elif review_filter == "relevant":
                 filters = review_filters.Filters()
@@ -1224,11 +1224,11 @@ def renderShowCommit(req, db, user):
                     elif filters.isRelevant(user, file): return True
                     else: return False
 
-                changeset.files = filter(isRelevant, changeset.files)
+                changeset.files = list(filter(isRelevant, changeset.files))
 
             elif review_filter == "files":
                 def isFiltered(file): return file.id in file_ids
-                changeset.files = filter(isFiltered, changeset.files)
+                changeset.files = list(filter(isFiltered, changeset.files))
 
         profiler.check("review filtering")
 

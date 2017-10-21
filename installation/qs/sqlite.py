@@ -48,7 +48,7 @@ def sqlcommands(filename):
             if fragment:
                 script.append(fragment)
     script = " ".join(script)
-    return filter(None, map(str.strip, script.split(";")))
+    return list(filter(None, map(str.strip, script.split(";"))))
 
 def replace(query, old, new):
     tokens = query if isinstance(query, list) else sqltokens(query)
@@ -247,8 +247,9 @@ def import_schema(database_path, filenames, quiet=False, verbose=False):
         elif re.match(r"CREATE TYPE \w+ AS ENUM", command):
             tokens = sqltokens(command)
             name = tokens[2]
-            values = filter(lambda token: re.match("'.*'$", token),
-                            tokens[tokens.index("(") + 1:tokens.index(")")])
+            values = [re.match("'.*'$", token)
+                      for token in
+                      tokens[tokens.index("(") + 1:tokens.index(")")]]
             enumerations[name] =  values
             continue
         elif command.startswith("ALTER TABLE "):

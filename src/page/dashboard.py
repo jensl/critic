@@ -34,7 +34,7 @@ def renderDashboard(req, db, user):
         def possible(group):
             return True
 
-    showlist = filter(possible, show.split(","))
+    showlist = list(filter(possible, show.split(",")))
     showset = set(showlist)
 
     if user.getPreference(db, "commit.diff.compactMode"): default_compact = "yes"

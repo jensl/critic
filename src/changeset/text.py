@@ -42,9 +42,9 @@ def unified(db, changeset, context_lines=3):
 
             for chunk in file.macro_chunks:
                 deleteOffset = chunk.lines[0].old_offset
-                deleteCount = len(filter(lambda line: line.type != diff.Line.INSERTED, chunk.lines))
+                deleteCount = sum(line.type != diff.Line.INSERTED for line in chunk.lines)
                 insertOffset = chunk.lines[0].new_offset
-                insertCount = len(filter(lambda line: line.type != diff.Line.DELETED, chunk.lines))
+                insertCount = sum(line.type != diff.Line.DELETED for line in chunk.lines)
 
                 chunkHeader = "@@ -%d,%d +%d,%d @@" % (deleteOffset, deleteCount, insertOffset, insertCount)
 

@@ -422,8 +422,8 @@ def addCommitsToReview(db, user, review, previous_head, commits, new_review,
             db, user, review, previous_head, log_commitset.CommitSet(commits),
             replayed_rebases)
 
-    notify_commits = filter(lambda commit: commit not in silent_commits, commits)
-    notify_changesets = filter(lambda changeset: changeset not in silent_changesets, changesets)
+    notify_commits = list(filter(lambda commit: commit not in silent_commits, commits))
+    notify_changesets = list(filter(lambda changeset: changeset not in silent_changesets, changesets))
 
     recipients = review.getRecipients(db)
 

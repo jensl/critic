@@ -45,7 +45,7 @@ class AddFilter(Operation):
                                        message="There are invalid wild-cards in the path: %s" % error.message)
 
         if filter_type == "reviewer":
-            delegates = filter(None, delegates)
+            delegates = list(filter(None, delegates))
             invalid_delegates = []
             for delegate in delegates:
                 try:

@@ -230,15 +230,15 @@ def renderCheckBranch(req, db, user):
 
                     for (review_id,) in cursor:
                         candidate_review = dbutils.Review.fromId(db, review_id)
-                        candidate_reviewed = filter(lambda commit: commit in merged,
-                                                    candidate_review.branch.getCommits(db))
+                        candidate_reviewed = list(filter(lambda commit: commit in merged,
+                                                         candidate_review.branch.getCommits(db)))
 
                         if len(candidate_reviewed) > best:
                             review = candidate_review
                             reviewed = candidate_reviewed
                             best = len(reviewed)
 
-                        reviewed_commits = filter(lambda commit: commit in reviewed, commits)
+                        reviewed_commits = list(filter(lambda commit: commit in reviewed, commits))
 
                     if mode == "html":
                         if review:

@@ -64,7 +64,8 @@ if "--slave" in sys.argv:
                 self.callbacks = []
 
             def signal_callbacks(self, event):
-                self.callbacks = filter(lambda callback: callback(event), self.callbacks)
+                self.callbacks = [callback for callback in self.callbacks
+                                  if callback(event)]
 
             def start(self, input_data):
                 self.process = ServiceManager.Service.Process(self, input_data)

@@ -46,7 +46,7 @@ def getAdministratorContacts(db, indent=0, as_html=False):
 
     # Skip administrators with no email addresses, since those are unhelpful in
     # this context.
-    administrators = filter(lambda user: user.email, administrators)
+    administrators = list(filter(lambda user: user.email, administrators))
 
     if as_html:
         result = "the system administrator"

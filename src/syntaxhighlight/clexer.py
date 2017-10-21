@@ -241,7 +241,7 @@ def split(input, include_ws=True, include_comments=True):
     else: expression = RE_CTOKENS
     tokens = [match.group(0) for match in expression.finditer(input)]
     if include_comments: return tokens
-    else: return filter(lambda token: not iscomment(token), tokens)
+    else: return list(filter(lambda token: not iscomment(token), tokens))
 
 class Token:
     def __init__(self, value, filename="<unknown>", line=0, column=0):

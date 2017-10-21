@@ -919,8 +919,8 @@ def renderShowReview(req, db, user):
 
         bottom_right = None
 
-        finished_rebases = filter(lambda item: item[2] is not None, all_rebases)
-        current_rebases = filter(lambda item: item[2] is None, all_rebases)
+        finished_rebases = list(filter(lambda item: item[2] is not None, all_rebases))
+        current_rebases = list(filter(lambda item: item[2] is None, all_rebases))
 
         if current_rebases:
             assert len(current_rebases) == 1
@@ -970,14 +970,14 @@ def renderShowReview(req, db, user):
     profiler.check("chains (load)")
 
     if all_chains:
-        issue_chains = filter(lambda chain: chain.type == "issue", all_chains)
-        draft_issues = filter(lambda chain: chain.state == "draft", issue_chains)
-        open_issues = filter(lambda chain: chain.state == "open", issue_chains)
-        addressed_issues = filter(lambda chain: chain.state == "addressed", issue_chains)
-        closed_issues = filter(lambda chain: chain.state == "closed", issue_chains)
-        note_chains = filter(lambda chain: chain.type == "note", all_chains)
-        draft_notes = filter(lambda chain: chain.state == "draft", note_chains)
-        open_notes = filter(lambda chain: chain.state != "draft" and chain.state != "empty", note_chains)
+        issue_chains = list(filter(lambda chain: chain.type == "issue", all_chains))
+        draft_issues = list(filter(lambda chain: chain.state == "draft", issue_chains))
+        open_issues = list(filter(lambda chain: chain.state == "open", issue_chains))
+        addressed_issues = list(filter(lambda chain: chain.state == "addressed", issue_chains))
+        closed_issues = list(filter(lambda chain: chain.state == "closed", issue_chains))
+        note_chains = list(filter(lambda chain: chain.type == "note", all_chains))
+        draft_notes = list(filter(lambda chain: chain.state == "draft", note_chains))
+        open_notes = list(filter(lambda chain: chain.state != "draft" and chain.state != "empty", note_chains))
     else:
         open_issues = []
         open_notes = []

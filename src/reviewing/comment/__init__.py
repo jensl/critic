@@ -144,7 +144,7 @@ class CommentChain:
 
     def countUnread(self):
         if self.__unread is None:
-            self.__unread = len(filter(lambda comment: comment.unread, self.comments))
+            self.__unread = sum(bool(comment.unread) for comment in self.comments)
         return self.__unread
 
     def title(self, include_time=True):

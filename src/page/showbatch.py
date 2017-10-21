@@ -156,14 +156,14 @@ def renderShowBatch(req, db, user):
         for chain in all_chains:
             chain.loadComments(db, user)
 
-        issue_chains = filter(lambda chain: chain.type == "issue", all_chains)
-        draft_issues = filter(lambda chain: chain.state == "draft", issue_chains)
-        open_issues = filter(lambda chain: chain.state == "open", issue_chains)
-        addressed_issues = filter(lambda chain: chain.state == "addressed", issue_chains)
-        closed_issues = filter(lambda chain: chain.state == "closed", issue_chains)
-        note_chains = filter(lambda chain: chain.type == "note", all_chains)
-        draft_notes = filter(lambda chain: chain.state == "draft" and chain != batch_chain, note_chains)
-        open_notes = filter(lambda chain: chain.state == "open" and chain != batch_chain, note_chains)
+        issue_chains = list(filter(lambda chain: chain.type == "issue", all_chains))
+        draft_issues = list(filter(lambda chain: chain.state == "draft", issue_chains))
+        open_issues = list(filter(lambda chain: chain.state == "open", issue_chains))
+        addressed_issues = list(filter(lambda chain: chain.state == "addressed", issue_chains))
+        closed_issues = list(filter(lambda chain: chain.state == "closed", issue_chains))
+        note_chains = list(filter(lambda chain: chain.type == "note", all_chains))
+        draft_notes = list(filter(lambda chain: chain.state == "draft" and chain != batch_chain, note_chains))
+        open_notes = list(filter(lambda chain: chain.state == "open" and chain != batch_chain, note_chains))
 
         def renderChains(target, chains):
             for chain in chains:

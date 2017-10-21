@@ -822,7 +822,7 @@ class Repository:
         stdout, stderr = git.communicate()
 
         if git.returncode == 0:
-            return filter(name_check, (line.split() for line in stdout.splitlines()))
+            return list(filter(name_check, (line.split() for line in stdout.splitlines())))
         else:
             cmdline = " ".join(argv)
             output = stderr.strip()

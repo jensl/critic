@@ -114,7 +114,7 @@ def filterPatterns(patterns):
 
     patterns = [RE_LEADING_TESTS.sub("", pattern) for pattern in patterns]
     patterns = [pattern.rstrip("/") for pattern in patterns]
-    patterns = filter(None, patterns)
+    patterns = list(filter(None, patterns))
 
     return patterns
 

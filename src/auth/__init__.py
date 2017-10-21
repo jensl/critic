@@ -55,7 +55,8 @@ def createCryptContext():
 
     return CryptContext(
         schemes=all_schemes, default=default_scheme,
-        deprecated=filter(lambda scheme: scheme != default_scheme, all_schemes),
+        deprecated=[scheme for scheme in all_schemes
+                    if scheme != default_scheme],
         **kwargs)
 
 def checkPassword(db, username, password):

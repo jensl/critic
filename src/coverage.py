@@ -57,7 +57,7 @@ if __name__ == "__main__":
 
     arguments = parser.parse_args()
 
-    ignore_dirs = filter(None, sys.path)
+    ignore_dirs = list(filter(None, sys.path))
 
     coverage_dir = arguments.coverage_dir
     sys.path[:0] = arguments.critic_dir

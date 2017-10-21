@@ -278,8 +278,8 @@ def prepare(mode, arguments, data):
                 return False
 
         if arguments.repository_url_types:
-            repository_url_types = filter(
-                None, arguments.repository_url_types.split(","))
+            repository_url_types = list(filter(
+                None, arguments.repository_url_types.split(",")))
             invalid_url_types = []
             for url_type in repository_url_types:
                 if url_type not in ["git", "http", "ssh", "host"]:
