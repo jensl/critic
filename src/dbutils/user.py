@@ -307,7 +307,7 @@ class User(object):
         urls = []
 
         for url_type in url_types:
-            if url_prefixes.has_key(url_type):
+            if url_type in url_prefixes:
                 anonymous_scheme, authenticated_scheme, hostname = url_prefixes[url_type]
                 if self.isAnonymous():
                     scheme = anonymous_scheme

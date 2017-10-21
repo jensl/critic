@@ -136,7 +136,7 @@ with work, settings, signin:
             with_class = testing.expect.with_class
             actual = []
             for tr in document.findAll("tr"):
-                if not tr.has_key("class"):
+                if "class" not in tr:
                     continue
                 classes = tr["class"].split()
                 if "commit" in classes:

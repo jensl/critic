@@ -643,7 +643,7 @@ class Changeset:
             for file_id, state, reviewer, is_reviewer, draft_from, draft_to in cursor:
                 if file_id not in self.__file_by_id: continue
                 if draft_from == state: state = draft_to
-                if files.has_key(file_id):
+                if file_id in files:
                     existing = files[file_id]
                     reviewers = existing[2]
                     files[file_id] = (existing[0] or is_reviewer, state if existing[1] == state else "mixed", existing[2])

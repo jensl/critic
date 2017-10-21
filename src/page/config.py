@@ -381,7 +381,7 @@ def renderConfig(req, db, user):
         else:
             cell.text(description)
 
-    if injected and injected.has_key("preferences") \
+    if injected and "preferences" in injected \
             and not defaults \
             and repository is None \
             and filter_id is None:

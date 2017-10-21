@@ -7,7 +7,7 @@ def check_description(document):
     for row in document.findAll("tr"):
         cells = row.findAll("td")
         if len(cells) >= 2 \
-                and cells[0].has_key("class") \
+                and "class" in cells[0] \
                 and cells[0]["class"] == "path" \
                 and cells[0].a \
                 and cells[0].a.string \

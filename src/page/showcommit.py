@@ -266,7 +266,7 @@ def renderCommitFiles(db, target, user, repository, review, changeset=None, chan
                     if file:
                         span = approve.span("parent%d" % index)
 
-                        if review_files[index].has_key(file.id):
+                        if file.id in review_files[index]:
                             review_file = review_files[index][file.id]
                             can_approve = review_file[0]
                             is_approved = review_file[1] == "reviewed"

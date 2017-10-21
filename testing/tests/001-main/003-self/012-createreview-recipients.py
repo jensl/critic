@@ -15,7 +15,7 @@ with frontend.signin("alice"):
     scripts = document.findAll("script")
 
     for script in scripts:
-        if script.has_key("src"):
+        if "src" in script:
             continue
         match = re.search(
             r"^\s*var review_data\s*=\s*\{\s*commit_ids:\s*\[\s*(\d+)\s*\]",

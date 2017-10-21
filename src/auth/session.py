@@ -266,4 +266,4 @@ def checkSession(db, req):
     if not req.allowRedirect(307):
         raise request.Forbidden("Valid user session required")
 
-    raise request.NeedLogin(req, optional=req.cookies.has_key("has_sid"))
+    raise request.NeedLogin(req, optional="has_sid" in req.cookies)

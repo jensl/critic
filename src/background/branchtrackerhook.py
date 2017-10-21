@@ -113,7 +113,7 @@ else:
                 message = "connection from %s:%d:" % self.__peeraddress
                 message += "\n  repository: %s" % data["repository"]
 
-                if data.has_key("timeout"):
+                if "timeout" in data:
                     message += "\n  timeout:    %d" % data["timeout"]
                 if data["branches"]:
                     message += "\n  branches:   %s" % ", ".join(data["branches"])

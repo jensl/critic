@@ -20,7 +20,7 @@ def check_input(document):
                              "<expected content not found>")
 
     testing.expect.check("checkbox", input["type"])
-    testing.expect.check(False, input.has_key("checked"))
+    testing.expect.check(False, "checked" in input)
     testing.expect.check("false", input["critic-default"])
 
 frontend.page("config",

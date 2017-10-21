@@ -477,7 +477,7 @@ class Request:
             "%s=%s; Max-Age=31536000; Path=/; %s" % (name, value, modifier))
 
     def deleteCookie(self, name):
-        if self.cookies.has_key(name):
+        if name in self.cookies:
             self.addResponseHeader(
                 "Set-Cookie",
                 "%s=invalid; Path=/; Expires=Thursday 01-Jan-1970 00:00:00 GMT" % name)

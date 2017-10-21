@@ -6,7 +6,7 @@ COMMIT = "927e2ba833cb0c9ce588b5f59c42bbb246e3e20c"
 def check_rulerColumn(document):
     for script in document.findAll("script"):
         # Ignore external scripts.
-        if script.has_key("src"):
+        if "src" in script:
             continue
 
         if re.match(r"var\s+rulerColumn\s*=\s*0;", script.string):

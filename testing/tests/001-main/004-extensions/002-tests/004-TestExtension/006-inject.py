@@ -12,7 +12,7 @@ def check_injected(key, expected):
                 return
 
         for script in document.findAll("script"):
-            if script.has_key("src"):
+            if "src" in script:
                 src = script["src"]
                 if src.startswith("data:text/javascript,var %s=" % key) \
                         and src[-1] == ";":
@@ -41,7 +41,7 @@ def check_not_injected(key):
                 return
 
         for script in document.findAll("script"):
-            if script.has_key("src"):
+            if "src" in script:
                 src = script["src"]
                 if src.startswith("data:text/javascript,var %s=" % key) \
                         and src[-1] == ";":

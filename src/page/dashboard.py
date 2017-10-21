@@ -248,7 +248,7 @@ def renderDashboard(req, db, user):
 
         for review_id, summary, branch_id, comments_count in cursor:
             if includeReview(review_id):
-                if draft_changes.has_key(review_id):
+                if review_id in draft_changes:
                     draft_both[review_id] = (summary, branch_id, draft_changes[review_id][2], comments_count)
                     del draft_changes[review_id]
                 else:
@@ -324,7 +324,7 @@ def renderDashboard(req, db, user):
 
             for review_id, summary, branch_id, comments_count in cursor:
                 if includeReview(review_id):
-                    if with_changes.has_key(review_id):
+                    if review_id in with_changes:
                         with_both[review_id] = (summary, branch_id, with_changes[review_id][2], comments_count)
                         del with_changes[review_id]
                     else:
@@ -400,7 +400,7 @@ def renderDashboard(req, db, user):
 
                         fetchActive()
 
-                        if active["both"].has_key(review_id) or active["changes"].has_key(review_id) or active["comments"].has_key(review_id):
+                        if review_id in active["both"] or review_id in active["changes"] or review_id in active["comments"]:
                             continue
 
                         watched[review_id] = summary, branch_id, None, None
