@@ -239,9 +239,9 @@ def isbyteordermark(value): return str(value) == BYTE_ORDER_MARK
 def split(input, include_ws=True, include_comments=True):
     if include_ws: expression = RE_CTOKENS_INCLUDE_WS
     else: expression = RE_CTOKENS
-    tokens = itertools.imap(lambda match: match.group(0), expression.finditer(input))
+    tokens = map(lambda match: match.group(0), expression.finditer(input))
     if include_comments: return tokens
-    else: return itertools.ifilter(lambda token: not iscomment(token), tokens)
+    else: return filter(lambda token: not iscomment(token), tokens)
 
 class Token:
     def __init__(self, value, filename="<unknown>", line=0, column=0):
@@ -454,7 +454,7 @@ def join(tokens, insertSpaces=True):
             lastWasSpace = token.isspace()
         return result
     else:
-        return "".join(itertools.imap(str, flatten(tokens)))
+        return "".join(map(str, flatten(tokens)))
 
 # Run regression tests if we're the main script and not being imported as a module.
 if __name__ == "__main__":

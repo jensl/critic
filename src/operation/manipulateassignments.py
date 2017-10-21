@@ -70,7 +70,7 @@ class SetAssignedChanges(Operation):
                                         WHERE reviewfiles.review=%s
                                           AND reviewfiles.file=%s
                                           AND reviewuserfiles.uid=%s""",
-                               itertools.izip(itertools.repeat(transaction_id),
+                               zip(itertools.repeat(transaction_id),
                                               itertools.repeat(review_id),
                                               delete_file_ids,
                                               itertools.repeat(reviewer.id)))
@@ -81,7 +81,7 @@ class SetAssignedChanges(Operation):
                                                         WHERE review=%s
                                                           AND file=%s)
                                           AND uid=%s""",
-                               itertools.izip(itertools.repeat(review_id),
+                               zip(itertools.repeat(review_id),
                                               delete_file_ids,
                                               itertools.repeat(reviewer.id)))
 
@@ -91,7 +91,7 @@ class SetAssignedChanges(Operation):
                                          FROM reviewfiles
                                         WHERE reviewfiles.review=%s
                                           AND reviewfiles.file=%s""",
-                               itertools.izip(itertools.repeat(reviewer.id),
+                               zip(itertools.repeat(reviewer.id),
                                               itertools.repeat(review_id),
                                               new_file_ids))
 
@@ -100,7 +100,7 @@ class SetAssignedChanges(Operation):
                                          FROM reviewfiles
                                         WHERE reviewfiles.review=%s
                                           AND reviewfiles.file=%s""",
-                               itertools.izip(itertools.repeat(transaction_id),
+                               zip(itertools.repeat(transaction_id),
                                               itertools.repeat(reviewer.id),
                                               itertools.repeat(review_id),
                                               new_file_ids))

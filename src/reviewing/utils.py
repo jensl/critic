@@ -735,15 +735,15 @@ def addReviewFilters(db, creator, user, review, reviewer_paths, watcher_paths):
 
     if delete_files:
         cursor.executemany("DELETE FROM reviewuserfiles WHERE file=%s AND uid=%s",
-                           izip(delete_files, repeat(user.id)))
+                           zip(delete_files, repeat(user.id)))
         cursor.executemany("INSERT INTO reviewassignmentchanges (transaction, file, uid, assigned) VALUES (%s, %s, %s, false)",
-                           izip(repeat(transaction_id), delete_files, repeat(user.id)))
+                           zip(repeat(transaction_id), delete_files, repeat(user.id)))
 
     if insert_files:
         cursor.executemany("INSERT INTO reviewuserfiles (file, uid) VALUES (%s, %s)",
-                           izip(insert_files, repeat(user.id)))
+                           zip(insert_files, repeat(user.id)))
         cursor.executemany("INSERT INTO reviewassignmentchanges (transaction, file, uid, assigned) VALUES (%s, %s, %s, true)",
-                           izip(repeat(transaction_id), insert_files, repeat(user.id)))
+                           zip(repeat(transaction_id), insert_files, repeat(user.id)))
 
     generateMailsForAssignmentsTransaction(db, transaction_id)
 
