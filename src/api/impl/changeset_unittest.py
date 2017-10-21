@@ -321,7 +321,7 @@ def is_empty_changeset(changeset, changeset_type):
             changeset.files == None)
 
 def check_types(changeset):
-    return (isinstance(changeset.id, (int, long)) and
+    return (isinstance(changeset.id, int) and
             isinstance(changeset.type, str) and
             isinstance(changeset.files, list))
 

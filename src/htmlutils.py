@@ -51,7 +51,7 @@ def htmlify(text, attributeValue=False, pretty=False):
 def jsify(what, as_json=False):
     if what is None: return "null"
     elif isinstance(what, bool): return "true" if what else "false"
-    elif isinstance(what, int) or isinstance(what, long): return str(what)
+    elif isinstance(what, int): return str(what)
     else:
         what = textutils.decode(what)
         result = json.dumps(what)
@@ -100,7 +100,7 @@ def isEmptyElement(name):
     return name in EMPTY_ELEMENTS
 
 def mtime(path):
-    try: return long(os.stat(path).st_mtime)
+    try: return int(os.stat(path).st_mtime)
     except: raise
 
 def base36(n):
