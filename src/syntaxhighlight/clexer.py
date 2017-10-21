@@ -262,7 +262,7 @@ class Token:
     def __hash__(self):
         return hash(self.__value)
 
-    def __nonzero__(self):
+    def __bool__(self):
         return not (self.isspace() or self.iscomment())
 
     def filename(self): return self.__filename

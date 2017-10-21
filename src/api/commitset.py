@@ -38,7 +38,7 @@ class CommitSet(api.APIObject):
     def __eq__(self, other):
         assert isinstance(other, CommitSet)
         return self._impl == other._impl
-    def __nonzero__(self):
+    def __bool__(self):
         return len(self._impl) != 0
     def __repr__(self):
         return "api.commitset.CommitSet(%r)" % list(self.topo_ordered)

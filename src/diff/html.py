@@ -25,7 +25,7 @@ re_decimal_entity = re.compile("&#([0-9]+);")
 class Tag:
     def __init__(self, value): self.value = value
     def __str__(self): return self.value
-    def __nonzero__(self): return False
+    def __bool__(self): return False
     def __repr__(self): return "Tag(%r)" % self.value
 
 def splitTags(line):

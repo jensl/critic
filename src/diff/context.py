@@ -286,7 +286,7 @@ class ContextLines:
                 self.__offset = 0
 
             def __getitem__(self, index): return self.__list[self.__offset + index]
-            def __nonzero__(self): return self.__offset < len(self.__list)
+            def __bool__(self): return self.__offset < len(self.__list)
             def __len__(self): return len(self.__list) - self.__offset
             def __str__(self): return str(self.__list[self.__offset:])
             def __repr__(self): return repr(self.__list[self.__offset:])

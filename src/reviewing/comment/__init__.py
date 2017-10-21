@@ -185,7 +185,7 @@ class CommentChain:
 
         return "new CommentChain(%d, %s, %s, %s, %s, %s, %s, [%s], %s)" % (self.id, self.user.getJSConstructor(), jsify(self.type), "true" if self.type_is_draft else "false", jsify(self.state), closed_by, addressed_by, comments, lines)
 
-    def __nonzero__(self):
+    def __bool__(self):
         return bool(self.comments)
 
     def __eq__(self, other):
