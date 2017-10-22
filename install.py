@@ -36,9 +36,10 @@ ERROR: Please run this script without -O or -OO options.
     sys.exit(1)
 
 import argparse
-import installation
 import subprocess
 import traceback
+
+import installation
 
 parser = argparse.ArgumentParser(description="Critic installation script")
 
@@ -96,6 +97,33 @@ def abort():
     sys.exit(1)
 
 try:
+    lifecycle = installation.utils.read_lifecycle()
+
+    if not lifecycle["stable"]:
+        print """
+WARNING: You're about to install an unstable development version of Critic.
+
+If you're setting up a production server, you're most likely better off
+installing from the latest stable branch.
+
+The latest stable branch is the default branch (i.e. HEAD) in Critic's GitHub
+repository at
+
+  https://github.com/jensl/critic.git
+
+To interrogate it from the command-line, run
+
+  $ git ls-remote --symref https://github.com/jensl/critic.git HEAD
+"""
+
+        if not installation.input.yes_or_no(
+                "Do you want to continue installing the unstable version?",
+                default=True):
+            print
+            print "Installation aborted."
+            print
+            sys.exit(1)
+
     sha1 = "0" * 40
 
     # If Git is already installed, check for local modifications.  If Git isn't

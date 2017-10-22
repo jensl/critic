@@ -471,3 +471,20 @@ class DatabaseSchema(object):
             else:
                 print >>sys.stderr, "Unexpected SQL statement: %r" % statement
                 sys.exit(1)
+
+def read_lifecycle(git=None, sha1=None):
+    filename = "installation/lifecycle.json"
+    if sha1 is None:
+        path = os.path.join(installation.root_dir, filename)
+        with open(path, "r") as lifecycle_file:
+            lifecycle_source = lifecycle_file.read()
+    else:
+        lifecycle_source = read_file(git, sha1, filename)
+        if lifecycle_source is None:
+            # For systems installed before the lifecycle.json file was
+            # introduced, hard-code the file's initial content.
+            return {
+                "branch": "version/1",
+                "stable": True
+            }
+    return deunicode(json.loads(lifecycle_source))

@@ -147,6 +147,49 @@ by "git rev-parse".
 old_critic_sha1 = data["sha1"]
 new_critic_sha1 = installation.utils.run_git([git, "rev-parse", "HEAD"],
                                              cwd=installation.root_dir).strip()
+
+old_lifecycle = installation.utils.read_lifecycle(git, old_critic_sha1)
+new_lifecycle = installation.utils.read_lifecycle()
+
+if old_lifecycle["stable"] != new_lifecycle["stable"]:
+    if old_lifecycle["stable"]:
+        print """
+WARNING: You're about to switch to an unstable development version of Critic!
+
+If this is a production system, you are most likely better off staying on the
+current branch, or switching to the latest stable branch, if there the current
+branch isn't it.
+
+The latest stable branch is the default branch (i.e. HEAD) in Critic's GitHub
+repository at
+
+  https://github.com/jensl/critic.git
+
+To interrogate it from the command-line, run
+
+  $ git ls-remote --symref https://github.com/jensl/critic.git HEAD
+
+HINT: If you installed from the 'master' branch prior to October 2017, then it
+      was at that time a stable branch (and also the only available option.)
+      At this point in time, a stable branch 'stable/1' was branched off, and
+      'master' became an unstable development branch.
+
+      In other words, if you are currently on 'master', you most likely want to
+      switch to 'stable/1', or the latest stable branch (see above,) now.
+"""
+
+        if not installation.input.yes_or_no(
+                "Do you want to continue upgrading to the unstable version?",
+                default=arguments.headless):
+            print
+            print "Installation aborted."
+            print
+            sys.exit(1)
+    else:
+        print """
+NOTE: Switching from an unstable version to a stable version.
+"""
+
 print """
 Previously installed version: %s
 Will now upgrade to version:  %s
