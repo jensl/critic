@@ -14,14 +14,16 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-import debug
-import base
-import auth
-import paths
-import services
-import mimetypes
-import executables
-import limits
-import extensions
-import database
-import smtp
+from __future__ import absolute_import
+
+from . import debug
+from . import base
+from . import auth
+from . import paths
+from . import services
+from . import mimetypes
+from . import executables
+from . import limits
+from . import extensions
+from . import database
+from . import smtp
