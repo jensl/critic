@@ -60,6 +60,9 @@ This user does not need to match a system user on this machine.
         if arguments.admin_email: email = arguments.admin_email
         else: email = installation.input.string(prompt="Administrator email address:")
 
+        if email.endswith("@"):
+            email += installation.system.hostname
+
         if arguments.admin_fullname: fullname = arguments.admin_fullname
         else: fullname = installation.input.string(prompt="Administrator full name:")
 

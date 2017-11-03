@@ -28,6 +28,17 @@ git_dir = "/var/git"
 log_dir = "/var/log/critic"
 run_dir = "/var/run/critic"
 
+def add_arguments(mode, parser):
+    if mode == "install":
+        parser.add_argument("--etc-dir", help="directory where the Critic system configuration is stored", action="store")
+        parser.add_argument("--bin-dir", help="directory where the Critic system executables are installed", action="store")
+        parser.add_argument("--install-dir", help="directory where the Critic source code is installed", action="store")
+        parser.add_argument("--data-dir", help="directory where Critic's persistent data files are stored", action="store")
+        parser.add_argument("--cache-dir", help="directory where Critic's temporary data files are stored", action="store")
+        parser.add_argument("--git-dir", help="directory where the main Git repositories are stored", action="store")
+        parser.add_argument("--log-dir", help="directory where Critic's log files are stored", action="store")
+        parser.add_argument("--run-dir", help="directory where Critic's runtime files are stored", action="store")
+
 def prepare(mode, arguments, data):
     global etc_dir, install_dir, data_dir, cache_dir, git_dir, log_dir, run_dir
 

@@ -191,7 +191,7 @@ package you need to install is 'git-core' (or 'git' in newer versions, but
 
   https://github.com/git/git"""),
 
-    Executable("psql", ["postgresql", "postgresql-client"], """\
+    Executable("psql", ["postgresql-client"], """\
 Make sure the PostgreSQL database server and its client utilities are installed.
 In Debian/Ubuntu, the packages you need to install are 'postgresql' and
 'postgresql-client'."""),
@@ -216,6 +216,14 @@ In Debian/Ubuntu, the module is provided by the 'python-pygments' package.  The
 source code can be downloaded here:
 
   http://pygments.org/download/"""),
+
+]
+
+postgresql_server_prerequisites = [
+
+    Executable("pg_config", ["postgresql"], """\
+Make sure the PostgreSQL database server and its client utilities are installed.
+In Debian/Ubuntu, the package you need to install is 'postgresql'.""")
 
 ]
 
@@ -298,6 +306,9 @@ def resolve_prerequisites():
         prerequisites.extend(nginx_prerequisites)
     if "uwsgi" in installation.config.web_server_integration:
         prerequisites.extend(uwsgi_prerequisites)
+
+    if installation.database.server_hostname is None:
+        prerequisites.append(postgresql_server_prerequisites)
 
 def prepare(mode, arguments, data):
     global headless

@@ -23,22 +23,50 @@ import subprocess
 
 import installation
 
+server_hostname = None
+server_port = None
+username = None
+password = None
+name = None
+
 user_created = False
 database_created = False
 language_created = False
 
 def psql_import(sql_file, as_user=None):
-    if as_user is None:
-        as_user = installation.system.username
-    temp_file = tempfile.mkstemp()[1]
-    shutil.copy(os.path.join(installation.root_dir, sql_file), temp_file)
-    # Make sure file is readable by postgres user
-    os.chmod(temp_file, 0644)
-    subprocess.check_output(
-        ["su", "-s", "/bin/sh", "-c", "psql -v ON_ERROR_STOP=1 -f %s" % temp_file, as_user])
-    os.unlink(temp_file)
+    if hostname is None:
+        if as_user is None:
+            as_user = installation.system.username
+        temp_file = tempfile.mkstemp()[1]
+        shutil.copy(os.path.join(installation.root_dir, sql_file), temp_file)
+        # Make sure file is readable by postgres user
+        os.chmod(temp_file, 0644)
+        subprocess.check_output(
+            ["su", "-s", "/bin/sh", "-c", "psql -v ON_ERROR_STOP=1 -f %s" % temp_file, as_user])
+        os.unlink(temp_file)
+    else:
+        subprocess.check_call(
+            ["psql", "-e", "-f", sql_file, "postgresql://%s:%s@%s:%d/%s" % (username, password, server_hostname, server_port, name)])
 
 def add_arguments(mode, parser):
+    if mode == "install":
+        parser.add_argument(
+            "--db-server-hostname",
+            help="Database server hostname [default: use local database]")
+        parser.add_argument(
+            "--db-server-port", type=int, default=5432,
+            help="Database server port")
+
+        parser.add_argument(
+            "--db-username", default="critic",
+            help="Database username")
+        parser.add_argument(
+            "--db-password", default="critic",
+            help="Database password")
+        parser.add_argument(
+            "--db-name", default="critic",
+            help="Database name")
+
     if mode == "upgrade":
         parser.add_argument("--backup-database", dest="database_backup", action="store_const", const=True,
                             help="backup database to default location without asking")
@@ -46,6 +74,15 @@ def add_arguments(mode, parser):
                             help="do not backup database before upgrading")
 
 def prepare(mode, arguments, data):
+    global server_hostname, server_port, username, password, name
+
+    if arguments.db_server_hostname:
+        server_hostname = arguments.db_server_hostname
+        server_port = arguments.db_server_port
+        username = arguments.db_username
+        password = arguments.db_password
+        name = arguments.db_name
+
     if mode == "upgrade":
         default_path = os.path.join(data["installation.paths.data_dir"],
                                     "backups",
@@ -90,8 +127,20 @@ backup of the database first is strongly recommended.
                     stdout=output_file)
 
     data["installation.database.driver"] = "postgresql"
-    data["installation.database.parameters"] = { "database": "critic",
-                                                 "user": data["installation.system.username"] }
+
+    if server_hostname is None:
+        data["installation.database.parameters"] = {
+            "database": "critic",
+            "user": data["installation.system.username"]
+        }
+    else:
+        data["installation.database.parameters"] = {
+            "host": server_hostname,
+            "port": str(server_port),
+            "user": username,
+            "password": password,
+            "dbname": name,
+        }
 
     return True
 
@@ -130,7 +179,7 @@ SCHEMA_FILES = [
 
 PGSQL_FILES = ["installation/data/comments.pgsql"]
 
-def install(data):
+def install_local():
     global user_created, database_created, language_created
 
     postgresql_version_output = subprocess.check_output(
@@ -178,32 +227,33 @@ ERROR: Critic requires PostgreSQL 9.1.x or later!
 
         subprocess.check_output(["su", "-c", "psql -v ON_ERROR_STOP=1 -c 'GRANT ALL ON DATABASE \"critic\" TO \"%s\";'" % installation.system.username, "postgres"])
 
-        for schema_file in SCHEMA_FILES:
-            psql_import(schema_file)
-        for pgsql_file in PGSQL_FILES:
-            psql_import(pgsql_file)
+def install(data):
+    for schema_file in SCHEMA_FILES:
+        psql_import(schema_file)
+    for pgsql_file in PGSQL_FILES:
+        psql_import(pgsql_file)
 
-        import psycopg2
+    import psycopg2
 
-        def adapt(value): return psycopg2.extensions.adapt(value).getquoted()
+    def adapt(value): return psycopg2.extensions.adapt(value).getquoted()
 
-        if installation.config.access_scheme in ("http", "https"):
-            anonymous_scheme = authenticated_scheme = installation.config.access_scheme
-        else:
-            anonymous_scheme = "http"
-            authenticated_scheme = "https"
+    if installation.config.access_scheme in ("http", "https"):
+        anonymous_scheme = authenticated_scheme = installation.config.access_scheme
+    else:
+        anonymous_scheme = "http"
+        authenticated_scheme = "https"
 
-        add_systemidentity_query = (
-            """INSERT INTO systemidentities (key, name, anonymous_scheme,
-                                             authenticated_scheme, hostname,
-                                             description, installed_sha1)
-                    VALUES ('main', 'main', %s, %s, %s, 'Main', %s);"""
-            % (adapt(anonymous_scheme), adapt(authenticated_scheme),
-               adapt(installation.system.hostname), adapt(data["sha1"])))
+    add_systemidentity_query = (
+        """INSERT INTO systemidentities (key, name, anonymous_scheme,
+                                         authenticated_scheme, hostname,
+                                         description, installed_sha1)
+                VALUES ('main', 'main', %s, %s, %s, 'Main', %s);"""
+        % (adapt(anonymous_scheme), adapt(authenticated_scheme),
+           adapt(installation.system.hostname), adapt(data["sha1"])))
 
-        installation.process.check_input(
-            ["su", "-s", "/bin/sh", "-c", "psql -q -v ON_ERROR_STOP=1 -f -", installation.system.username],
-            stdin=add_systemidentity_query)
+    installation.process.check_input(
+        ["su", "-s", "/bin/sh", "-c", "psql -q -v ON_ERROR_STOP=1 -f -", installation.system.username],
+        stdin=add_systemidentity_query)
 
     return True
 

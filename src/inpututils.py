@@ -96,7 +96,7 @@ def password(prompt, default=None, twice=True):
             finally:
                 termios.tcsetattr(sys.stdin, termios.TCSADRAIN, old)
         else:
-            password = sys.stdin.readline().rstrip("\n")
+            password = string(prompt)
         print
         if default and not password: return default
         else: return password
