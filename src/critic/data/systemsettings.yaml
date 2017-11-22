@@ -1,0 +1,638 @@
+# Basic system settings
+system:
+  hostname:
+    value: null
+    description:
+      Primary fully qualified domain name of the Critic system. If null, the
+      name is determined on start-up by running `hostname --fqdn`.
+  email:
+    value: null
+    description:
+      System email address, which is used as "Sender" of outgoing emails, and
+      also as "From" when it doesn't make sense to use a user's email address.
+      If null, an address is constructed using the `system.hostname` setting.
+  recipients:
+    value: []
+    description:
+      List of recipients of emails about the system, such as error reports or
+      notifications about user registrations. If empty, such emails are not
+      sent.
+  is_development:
+    value: false
+    description:
+      Enables development mode, which mainly affects how unexpected runtime
+      errors are handled.
+
+# Web frontend settings
+frontend:
+  authentication_mode:
+    value: "critic"
+    description:
+      Authentication mode. Available options are "critic", in which case Critic
+      validates credentials using one of the supported databases, "host", in
+      which case the web server handles authentication and sets the REMOTE_USER
+      CGI variable to the name of the authenticated user, or the name of a
+      configured and enabled external (e.g. OAuth2) authentication provider.
+  session_type:
+    value: "cookie"
+    description:
+      Session type. Only used with `frontend.authentication_mode` is set to
+      "critic". Available options are "cookie", in which case a session cookie
+      is used to track the session, and "httpauth", in which case HTTP Basic
+      authentication is used. If `frontend.authentication_mode` is set to an
+      external authentication provider, a session cookie is used
+      unconditionally.
+  session_max_age:
+    value: null
+    description:
+      Session max age. If null, sessions stay valid until the user explicitly
+      signs out.
+  access_scheme:
+    value: "http"
+    description:
+      Supported front-end access scheme. Available options are "http", in which
+      case no scheme-switching redirects are made, and authentication is
+      supported unsafely over unencrypted HTTP, and "https", in which case all
+      accesses over HTTP are redirected to HTTPS.
+
+# Authentication settings
+authentication:
+  # SSH access
+  enable_ssh_access:
+    value: false
+    description:
+      Enables SSH public key management APIs. The actual running of an SSH
+      server that uses the managed public keys is not controlled by this
+      setting.
+  ssh_account_name:
+    value: "critic"
+    description: Name of account that users sign in as over SSH to access Git repositories.
+
+  # Authentication databases
+  databases:
+    internal:
+      enabled:
+        value: true
+        description: Authenticate using hashed passwords stored in Critic's main database.
+      # Password hashing
+      accepted_schemes:
+        value: ["argon2"]
+        description:
+          Accepted password hashing schemes. If a user's stored password was
+          hashed using a scheme not in the list, the user will not be able to
+          authenticate. This can only happen if a scheme is removed from the
+          list.
+      used_scheme:
+        value: "argon2"
+        description:
+          The password hashing scheme used to hash passwords. It is used when
+          hashing new passwords. Existing passwords hashed using a different
+          (but accepted) scheme are automatically "upgraded" upon the next
+          successful authentication.
+      minimum_rounds:
+        value: 100
+        description:
+          Minimum rounds of hashing to apply when hashing password. Existing
+          passwords are "upgraded" upon the next successful authentication if
+          hashed with fewer rounds than this.
+
+    ldap:
+      enabled:
+        value: false
+        description: Authenticate using an external LDAP database.
+      settings:
+        fields:
+          value:
+            - identifier: "username"
+              label: "Username"
+            - identifier: "password"
+              label: "Password"
+              is_password: true
+          description: List of input fields to show in the sign-in UI.
+        url:
+          value: null
+          description: LDAP server URL.
+        use_tls:
+          value: true
+          description: Enable (and require) TLS when connecting to the LDAP server.
+        credentials_field:
+          value: null
+          description:
+            The identifier of the input field containing the authentication
+            credentials, i.e. the password. If null, use the first field whose
+            `is_password` attribute is true.
+        search_base:
+          value: null
+          description: LDAP search base.
+        search_filter:
+          value: null
+          description: LDAP search filter.
+        create_user:
+          value: true
+          description:
+            Enables automatic creation of Critic users upon successful LDAP
+            authentication, when the "LDAP username" does not match the name of
+            an existing Critic user.
+        username_attribute:
+          value: null
+          description:
+            Name of LDAP attribute containing the username of the Critic user
+            that was authenticated.
+        fullname_attribute:
+          value: null
+          description:
+            Name of LDAP attribute containing the user's full name. Only used
+            when a new Critic user is created post-authentication.
+        email_attribute:
+          value: null
+          description:
+            Name of LDAP attribute containing the user's email address. Only
+            used when a new Critic user is created post-authentication.
+        required_groups:
+          value: []
+          description:
+            List of LDAP groups that a user must be member of to be granted
+            access to Critic.
+        cache_max_age:
+          value: 300
+          description:
+            Number of seconds to cache a successful authentication before asking
+            the LDAP server again. The cache is only used when HTTP
+            authentication is used, in which case each request requires checking
+            credentials.
+
+  used_database:
+    value: "internal"
+    description: Name of authentication database to use.
+  enable_access_tokens:
+    value: true
+    description: Enables Critic's access token mechanism.
+
+  # External (OAuth2) authentication providers
+  external_providers:
+    github:
+      enabled:
+        value: false
+        description: Enables authentication via GitHub.
+      allow_user_registration:
+        value: false
+        description:
+          Enables registration of new connected Critic account following
+          successful authentication via GitHub, overriding the
+          `users.allow_registration` setting.
+      bypass_createuser:
+        value: false
+        description:
+          Bypass the "create user" UI when registering a new connected Critic
+          account following successful authentication via GitHub. The name of
+          the created account will be the same as the name of the GitHub
+          account.
+      verify_email_address:
+        value: false
+        description: Require verification of email addresses retrieved from GitHub.
+      redirect_uri:
+        value: "/api/externalauth/github/finish"
+        description: URL to which GitHub is instructed to redirect back to after
+          authentication. This must match value in the the GitHub application
+          configuration.
+      client_id:
+        value: null
+        description: Client id, generated by GitHub when creating the application.
+      client_secret:
+        value: null
+        description: Client secret, generated by GitHub when creating the application.
+
+    google:
+      enabled:
+        value: false
+        description: Enables authentication via Google.
+      required_domain:
+        value: ".*"
+        description:
+          Python regular expression that must match the full domain of the
+          Google account's email address to allow the authenticated user access
+          to Critic.
+      allow_user_registration:
+        value: false
+        description:
+          Enables registration of new connected Critic account following
+          successful authentication via Google, overriding the
+          `users.allow_registration` setting.
+      bypass_createuser:
+        value: false
+        description:
+          Bypass the "create user" UI when registering a new connected Critic
+          account following successful authentication via Google. The name of
+          the created account will be the username portion of the Google
+          account's email address.
+      verify_email_address:
+        value: false
+        description: Require verification of email addresses retrieved from Google.
+      redirect_uri:
+        value: "/api/externalauth/google/finish"
+        description: URL to which Google is instructed to redirect back to after
+          authentication. This must match value in the the Google application
+          configuration.
+      client_id:
+        value: null
+        description: Client id, generated by Google when creating the application.
+      client_secret:
+        value: null
+        description: Client secret, generated by Google when creating the application.
+
+# User management
+users:
+  allow_anonymous:
+    value: true
+    description: Enables read-only access to the system without authentication.
+  allow_registration:
+    value: false
+    description:
+      Enables user registration, meaning new (unauthenticated) users can
+      register Critic accounts themselves, and then sign in.
+  name_pattern:
+    value: "\\w[-\\._\\w]*\\w"
+    description:
+      Python regular expression that must match the full username provided
+      by new users when registering accounts, if `users.allow_registration`
+      is enabled.
+  name_pattern_description:
+    value: Must contain only alpha-numerics, periods, underscores or dashes, and
+      must start and end with alpha-numerics, and be at least two characters
+      long.
+    description:
+      Message displayed to users when registering new accounts, to describe
+      the username restrictions.
+  verify_email_addresses:
+    value: true
+    description:
+      Enables (and requires) verification of user-provided email addresses
+      before they are used by Critic.
+
+# Git repository management
+repositories:
+  review_branch_pattern:
+    value: "^r/.*"
+    description:
+      Python regular expression that must match the full branch name (minus
+      the "refs/heads/" prefix) to consider it a review branch.
+  strict_review_branch_pattern:
+    value: true
+    description:
+      If enabled, the `repositories.review_branch_pattern` setting is strictly
+      applied to all review branch names, meaning they must all match the
+      pattern. If disabled, that setting is only used when determining whether
+      a newly pushed branch is intended as a review branch, while explicitly
+      created review branches can be named whatever.
+  archive_review_branches:
+    value: true
+    description:
+      Enables "archival" of review branches belonging to closed or dropped
+      reviews. The archival is done in such a way that all commits referenced
+      by the branch are still referenced, but neither the branch nor the
+      commits would be fetched by a typical `git clone`/`git fetch`.
+  archive_delay_closed:
+    value: "7 days"
+    description:
+      Amount of time to leave a review branch after the review has been
+      closed, before it is archived (if archival is enabled.)
+  archive_delay_dropped:
+    value: "1 day"
+    description:
+      Amount of time to leave a review branch after the review has been
+      dropped, before it is archived (if archival is enabled.)
+  url_types:
+    git:
+      display:
+        value: false
+        description:
+          Display `git://<hostname>/<path>` style URLs in the UI. Note that
+          `git daemon` must be run for such URLs to actually work, and that
+          this is not done by default, regardless of this setting.
+    http:
+      enabled:
+        value: true
+        description:
+          Enable access to Git repositories via the web front-end. This is
+          always supported, with no extra configuration required.
+      display:
+        value: true
+        description: Display `http://<hostname>/<path>` and/or
+          `https://<hostname>/<path>` style URLs in the UI.
+    ssh:
+      display:
+        value: false
+        description:
+          Display `ssh://<hostname>/<path>` style URLs in the UI. If the
+          `account` setting is set, `ssh://<account>@<hostname>/<path>` style
+          URLs will be displayed.
+      account:
+        value: null
+        description:
+          Use a single account name when accessing Git repositories over SSH.
+          This assumes that public keys are used to determine who the
+          accessing user is. This setting only controls how URLs are displayed
+          in the UI.
+    host:
+      display:
+        value: false
+        description:
+          Display `<hostname>:<path>` style URLs in the UI. If the `account`
+          setting is set, `<account>@<hostname>:<path>` style URLs will be
+          displayed.
+      account:
+        value: null
+        description:
+          Use a single account name when accessing Git repositories over SSH.
+          This assumes that public keys are used to determine who the
+          accessing user is. This setting only controls how URLs are displayed
+          in the UI.
+  tags_update_interval:
+    value: "1 hour"
+    description: Default update interval for tags mirrored from a remote repository.
+  branch_update_interval:
+    value: "1 hour"
+    description: Default update interval for branches mirrored from a remote repository.
+  default_documentation_paths:
+    value:
+      - "README.md"
+      - "README.rst"
+      - "README.txt"
+      - "README"
+    description:
+      List of candidate documentation (entry point) paths. The first one in the
+      list that exists in a repository is picked as its documentation path.
+
+# Content and encodings
+content:
+  default_encodings:
+    value: ["utf-8"]
+    description:
+      Default encodings used for text with unknown encoding, such as Git
+      commit metadata and the contents of text files with no supported
+      encoding declaration. The listed encodings are tried in order, and the
+      first one that decodes the bytes without error is selected. Note that
+      some encodings, such as "latin-1", will never fail to decode, so only
+      makes sense at the end of the list. If none of the listed encodings
+      succeed, bytes are decoded as 7-bit ASCII, with question marks replacing
+      any out-of-range bytes.
+  mimetypes:
+    value: {}
+    description:
+      Mapping from filename suffix to MIME type. If no match is found for a
+      filename, the standard Python module `mimetypes` is used as a fallback.
+      This setting is primarily used when displaying the contents of files in
+      Git repositories.
+
+# Email delivery settings
+# smtp:
+#   configured:
+#     value: false
+#     description: Enables email delivery.
+#   address:
+#     host:
+#       value: null
+#       description: SMTP server hostname.
+#     port:
+#       value: 25
+#       description: SMTP server port.
+#   use_smtps:
+#     value: false
+#     description: Use/require SMTPS / "TLS Wrapper" when connecting to the SMTP server.
+#   use_starttls:
+#     value: false
+#     description:
+#       Use/require the STARTTLS command to switch the SMTP server connection to
+#       TLS mode after the initial hand-shake.
+#   credentials:
+#     username:
+#       value: null
+#       privileged: true
+#       description: SMTP server credentials (username).
+#     password:
+#       value: null
+#       privileged: true
+#       description: SMTP server credentials (password).
+
+# Limits
+limits:
+  maximum_added_lines_recognized:
+    value: 8000
+    description:
+      Maximum lines of added file to include in diffs, when the file's
+      language or syntax is recognized. Added files larger than this are still
+      mentioned in the diff, but the actual content is not fetched unless the
+      user asks for it.
+  maximum_added_lines_unrecognized:
+    value: 2000
+    description:
+      Maximum lines of added file to include in diffs, when the file's
+      language or syntax is NOT recognized. Added files larger than this are
+      still mentioned in the diff, but the actual content is not fetched
+      unless the user asks for it.
+
+# Extension settings
+extensions:
+  enabled:
+    value: true
+    description: Enables extension support.
+  user_extensions:
+    value: false
+    description:
+      Enables support for extensions published (added to the system) by regular
+      users.
+  flavors:
+    native:
+      enabled:
+        value: true
+        description:
+          Enables native extensions, i.e. extensions written in Python, that
+          directly access Critic's internal APIs, and if they like, the SQL
+          database.
+      only_system:
+        value: true
+        description:
+          Only allow native system extensions, not user extensions. Native
+          extensions are essentially unrestricted in what they can do, so
+          allowing user extensions of this type implies a lot of trust in those
+          users.
+    v8:
+      enabled:
+        value: false
+        description:
+          Enables the "js/v8" extension flavor, which executes extensions in
+          a custom JavaScript interpreter based on V8.
+      executable:
+        value: null
+        description: Path to the interpreter executable.
+
+# Background services
+services:
+  manager:
+    services:
+      value:
+        - pubsub
+        - branchtracker
+        - branchupdater
+        - differenceengine
+        - extensionhost
+        #- extensionrunner
+        - extensiontasks
+        - gateway
+        - gitaccessor
+        - githook
+        #- maildelivery
+        - maintenance
+        - replayer
+        #- reviewevents
+        - reviewupdater
+        - workers
+      description: Services to run.
+  differenceengine:
+    workers:
+      value: null
+      description:
+        Number of worker child processes to run. If null, one per CPU (core)
+        on the system is used.
+    parallel_jobs:
+      value: null
+      description:
+        Number of parallel jobs to run. If null, one per CPU (core) on the
+        system is used.
+  extensionrunner:
+    cached_flavor:
+      value: "v8"
+      description: The flavor to maintain a set of prepared extension processes for.
+    prepared_processes:
+      value: 5
+      description:
+        Number of prepared (started, ready and waiting) extension processes
+        to aim for.
+  gateway:
+    enabled:
+      value: false
+      description:
+        Enables the gateway service, which allows access to other services
+        via TCP. Note that the communication is not encrypted, and if needed,
+        must be secured via firewall rules or similar.
+    secret:
+      value: null
+      privileged: true
+      description:
+        Secret cookie that clients must present in the hand-shake. This
+        effectively just ensures that the client also has access to the SQL
+        database. A new random cookie is set every time the gateway service
+        starts.
+    address:
+      host:
+        value: null
+        description: Host (i.e. interface) to listen at. If null, listen at all
+          interfaces.
+      port:
+        value: 9987
+        description: Port to listen at.
+  maildelivery:
+    connection_timeout:
+      value: 60
+      description:
+        Timeout in seconds before abandoning an attempt to connect to the SMTP
+        server. Upon failure, the service will wait for a short amount of time
+        and then simply try again.
+    connection_idle_timeout:
+      value: 30
+      description:
+        Amount of time in seconds to keep the SMTP server connection alive while
+        idle before disconnecting.
+  workers:
+    enabled:
+      value: false
+      description: Enables the workers service, which maintains a set of running
+        `criticctl run-worker` processes.
+    workers:
+      value: null
+      description:
+        Number of workers to run. If null, one per CPU (core) on the system is
+        used.
+  extensionhost:
+    enabled:
+      value: true
+      description:
+        Enables the extension host service, which subscribes to PubSub channels
+        on behalf of extensions, and calls the extension for each published message.
+    workers:
+      value: 0
+      description: If non-zero, the service also maintains this many running
+        `criticctl run-extensionhost` worker processes. If negative, run as many
+        worker processes as there are CPU cores on the system.
+  maintenance:
+    run_at:
+      value: "04:00"
+      description: Time of day to perform assorted maintenance tasks.
+
+# Syntax highlighting
+syntax:
+  languages:
+    c/c++:
+      globs:
+        value: ["*.h", "*.hh", "*.hxx", "*.c", "*.cc", "*.cpp", "*.cxx"]
+        description: File name globs.
+      emacs_modes:
+        value: ["c", "c++"]
+        description: Emacs mode names.
+      vim_filetypes:
+        value: ["c", "cpp"]
+        description: Vim file types.
+    css:
+      globs:
+        value: ["*.css"]
+        description: File name globs.
+    go:
+      globs:
+        value: ["*.go"]
+        description: File name globs.
+    javascript:
+      globs:
+        value: ["*.js", "*.jsx", "*.jsm"]
+        description: File name globs.
+      emacs_modes:
+        value: ["javascript"]
+        description: Emacs mode names.
+      vim_filetypes:
+        value: ["javascript"]
+        description: Vim file types.
+    json:
+      globs:
+        value: ["*.json"]
+        description: File name globs.
+      emacs_modes:
+        value: ["json"]
+        description: Emacs mode names.
+      vim_filetypes:
+        value: ["json"]
+        description: Vim file types.
+    markdown:
+      globs:
+        value: ["*.md"]
+        description: File name globs.
+    python:
+      globs:
+        value: ["*.py"]
+        description: File name globs.
+      emacs_modes:
+        value: ["python"]
+        description: Emacs mode names.
+      interpreters:
+        value: ["python", "python[23]", "python[2.3]\\.\\d"]
+        description: Shebang interpreter file names.
+    scss:
+      globs:
+        value: ["*.scss"]
+        description: File name globs.
+    sql:
+      globs:
+        value: ["*.sql"]
+        description: File name globs.
+    yaml:
+      globs:
+        value: ["*.yaml", "*.yml"]
+        description: File name globs.

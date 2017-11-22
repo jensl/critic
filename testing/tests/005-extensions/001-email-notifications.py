@@ -1,0 +1,19 @@
+instance.criticctl(
+    [
+        "settings",
+        "set",
+        "extensions.enabled:true",
+        "extensions.flavors.native.enabled:true",
+    ]
+)
+instance.restart()
+instance.criticctl(
+    [
+        "addextension",
+        "--name",
+        "email-notifications",
+        "--uri",
+        repository.url(name="email-notifications"),
+        "--install-live",
+    ]
+)

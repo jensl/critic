@@ -40,9 +40,16 @@ CREATE TABLE customchangesets
   ( changeset INTEGER PRIMARY KEY REFERENCES changesets ON DELETE CASCADE,
     time TIMESTAMP );
 
-CREATE TABLE mergereplays
-  ( original INTEGER PRIMARY KEY REFERENCES commits ON DELETE CASCADE,
-    replay INTEGER NOT NULL REFERENCES commits ON DELETE CASCADE );
+CREATE TABLE mergereplays (
+
+  original INTEGER,
+  replay INTEGER NOT NULL,
+
+  PRIMARY KEY (original),
+  FOREIGN KEY (original) REFERENCES commits ON DELETE CASCADE,
+  FOREIGN KEY (replay) REFERENCES commits ON DELETE CASCADE
+
+);
 
 CREATE TABLE fileversions
   ( changeset INTEGER NOT NULL REFERENCES changesets ON DELETE CASCADE,

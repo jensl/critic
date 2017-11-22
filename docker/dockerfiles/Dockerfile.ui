@@ -1,0 +1,20 @@
+FROM node:alpine AS builder
+
+RUN apk add --update brotli
+
+WORKDIR /ui
+
+ADD ui/package*.json ./
+RUN npm ci
+
+ADD ui/*.json ./
+ADD ui/src src
+ADD ui/public public
+RUN npm run-script build
+
+RUN gzip -9 -k /ui/build/static/js/*.js /ui/build/static/js/*.map
+RUN brotli -9 -k /ui/build/static/js/*.js /ui/build/static/js/*.map
+
+FROM scratch
+
+COPY --from=builder /ui/build /build

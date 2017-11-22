@@ -19,6 +19,7 @@ import sys
 
 import testing
 
+
 class Instance(testing.Instance):
     flags_on = ["local"]
 
@@ -26,11 +27,25 @@ class Instance(testing.Instance):
         return testing.has_flag("HEAD", flag)
 
     def run_unittest(self, args):
-        PYTHONPATH = os.path.join(os.getcwd(), "src")
-        argv = [sys.executable, "-u", "-m", "run_unittest"] + args
-        return self.executeProcess(argv, cwd="src", log_stderr=False,
-                                   env={ "PYTHONPATH": PYTHONPATH })
+        PYTHONPATH = os.path.join(os.getcwd())
+        argv = [sys.executable, "-u", "-m", "critic.base.run_unittest"] + args
+        return self.executeProcess(
+            argv, cwd="src", log_stderr=False, env={"PYTHONPATH": PYTHONPATH}
+        )
 
     def filter_service_logs(self, level, service_names):
         # We have no services.
         pass
+
+
+def setup(subparsers):
+    parser = subparsers.add_parser(
+        "local",
+        description="Local tests only.",
+        help=(
+            "Local testing means testing without actually installing Critic "
+            "first. This is very quick, but can only run a limited set of "
+            "unit tests."
+        ),
+    )
+    parser.set_defaults(flavor="local")

@@ -1,0 +1,35 @@
+{
+  "folders": [
+    {
+      "path": "."
+    }
+  ],
+  "settings": {
+    "files.exclude": {
+      ".state_dir": true,
+      "*.egg-info": true,
+      "**/__pycache__": true,
+      "**/*.egg-info": true,
+      "**/*.whl": true,
+      "**/node_modules": true
+    },
+    "python.linting.ignorePatterns": [
+      ".vscode/*.py",
+      "**/site-packages/**/*.py",
+      "testing/tests/**/*.py"
+    ],
+    "editor.formatOnSave": true,
+    "typescript.tsserver.maxTsServerMemory": 8192,
+    "typescript.tsdk": "ui/node_modules/typescript/lib",
+    "python.linting.mypyEnabled": true,
+    "python.linting.pylintEnabled": false,
+    "python.dataScience.enabled": false,
+    "python.dataScience.gatherToScript": false,
+    "python.analysis.disabled": [
+      "no-cls-argument",
+      "typing-generic-arguments"
+    ],
+    "python.jediEnabled": false,
+    "python.pythonPath": "/usr/local/bin/python"
+  }
+}

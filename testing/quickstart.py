@@ -14,42 +14,40 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-import sys
-import os
-import subprocess
-import signal
-import threading
-import time
 import json
+import os
+import queue
+import signal
+import subprocess
+import sys
+import threading
 
 import testing
 
-class RepositoryURL(object):
-    def __init__(self, path, name):
-        self.path = path
-        self.name = name
 
 class Instance(testing.Instance):
-    flags_off = ["full", "postgresql", "extensions", "upgrade", "uninstall"]
+    flags_off = ["extensions", "full", "postgresql", "sshd", "uninstall", "upgrade"]
 
     install_commit = "HEAD"
     tested_commit = "HEAD"
 
-    def __init__(self, frontend):
+    def __init__(self, arguments, frontend):
         super(Instance, self).__init__()
+        self.arguments = arguments
         self.frontend = frontend
         self.mailbox = None
         self.process = None
         self.hostname = "localhost"
+        self.queue = queue.Queue()
         self.registeruser("admin")
 
     def __enter__(self):
         return self
 
-    def __exit__(self, *args):
+    def __exit__(self, *exc_info):
         if self.process:
             self.stop()
-        return False
+        return super().__exit__(*exc_info)
 
     @property
     def etc_dir(self):
@@ -70,21 +68,36 @@ class Instance(testing.Instance):
     def execute(self, *args, **kwargs):
         raise testing.NotSupported("quick-started instance doesn't support execute()")
 
-    def criticctl(self, argv):
+    def criticctl(self, argv, *, stdin_data=None):
+        if self.arguments.debug:
+            argv = ["--verbose", *argv]
+
         for index, arg in enumerate(argv):
             if arg[0] == "'" == arg[-1]:
                 argv[index] = arg[1:-1]
 
-        argv = [os.path.join(self.state_dir, "bin", "criticctl")] + argv
+        argv = [self.criticctl_path, *argv]
 
         testing.logger.debug("Running: %s" % " ".join(argv))
 
+        if stdin_data is None:
+            stdin_mode = subprocess.DEVNULL
+        else:
+            stdin_mode = subprocess.PIPE
+
+        env = os.environ.copy()
+        env["CRITIC_HOME"] = self.state_dir
+
         process = subprocess.Popen(
             argv,
+            stdin=stdin_mode,
             stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE)
+            stderr=subprocess.PIPE,
+            encoding="utf-8",
+            env=env,
+        )
 
-        stdout, stderr = process.communicate()
+        stdout, stderr = process.communicate(stdin_data)
 
         for line in stdout.splitlines():
             testing.logger.log(testing.STDOUT, line)
@@ -96,22 +109,6 @@ class Instance(testing.Instance):
         else:
             raise testing.CriticctlError(" ".join(argv), stdout, stderr)
 
-    def adduser(self, name, email=None, fullname=None, password=None):
-        if email is None:
-            email = "%s@example.org" % name
-        if fullname is None:
-            fullname = "%s von Testing" % name.capitalize()
-        if password is None:
-            password = "testing"
-
-        self.criticctl(["adduser",
-                        "--name", name,
-                        "--email", email,
-                        "--fullname", fullname,
-                        "--password", password])
-
-        self.registeruser(name)
-
     def has_flag(self, flag):
         return testing.has_flag("HEAD", flag)
 
@@ -122,26 +119,61 @@ class Instance(testing.Instance):
         path = self.repository_path(repository)
         if name is None:
             return path
-        return RepositoryURL(path, name)
+        return testing.repository.RepositoryURL(path, REMOTE_USER=name)
 
-    def install(self, repository, override_arguments={}, other_cwd=False,
-                quick=False, interactive=False):
-        argv = [sys.executable, "-u", "quickstart.py",
-                "--testing",
-                "--admin-username", "admin",
-                "--admin-fullname", "Testing Administrator",
-                "--admin-email", "admin@example.org",
-                "--admin-password", "testing",
-                "--system-recipient", "system@example.org",
-                "--http-port", "0", # Use a random port.
-                "--smtp-port", str(self.mailbox.port),
-                "--smtp-username", self.mailbox.credentials["username"],
-                "--smtp-password", self.mailbox.credentials["password"]]
+    def readline(self):
+        return self.queue.get()
+
+    def install(
+        self,
+        repository,
+        override_arguments={},
+        other_cwd=False,
+        quick=False,
+        interactive=False,
+    ):
+        argv = [
+            sys.executable,
+            "-u",
+            "quickstart.py",
+            "--testing",
+            "--state-dir",
+            self.state_dir,
+        ]
+
+        if self.arguments.debug:
+            argv.append("--debug")
+
+        argv.extend(
+            [
+                "--admin-username",
+                "admin",
+                "--admin-fullname",
+                "Testing Administrator",
+                "--admin-email",
+                "admin@example.org",
+                "--admin-password",
+                "testing",
+                "--system-recipient",
+                "system@example.org",
+                "--enable-maildelivery",
+                "--http-port",
+                str(self.arguments.http_port),
+                "--http-lb-backends=1",
+                "--smtp-port",
+                str(self.mailbox.port),
+                "--smtp-username",
+                self.mailbox.credentials["username"],
+                "--smtp-password",
+                self.mailbox.credentials["password"],
+            ]
+        )
 
         testing.logger.debug("Running: %s" % " ".join(argv))
 
         self.process = subprocess.Popen(
-            argv, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            argv, stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding="utf-8"
+        )
 
         def consume(stream, loglevel):
             try:
@@ -149,71 +181,76 @@ class Instance(testing.Instance):
                     line = stream.readline()
                     if not line:
                         break
-                    testing.logger.log(loglevel, line.rstrip())
+                    line = line.rstrip()
+                    if line.startswith("<<<") and line.endswith(">>>"):
+                        self.queue.put(line[3:-3])
+                    else:
+                        testing.logger.log(loglevel, line)
             except IOError:
                 pass
+            self.queue.put(None)
+
+        stdout_thread = threading.Thread(
+            target=consume, args=(self.process.stdout, testing.STDOUT)
+        )
+        stdout_thread.daemon = True
+        stdout_thread.start()
 
         stderr_thread = threading.Thread(
-            target=consume, args=(self.process.stderr, testing.STDERR))
+            target=consume, args=(self.process.stderr, testing.STDERR)
+        )
         stderr_thread.daemon = True
         stderr_thread.start()
 
-        line = self.process.stdout.readline().strip()
-        key, _, value = line.partition("=")
+        def read_output(expected_key):
+            line = self.readline()
+            if line is None:
+                raise testing.InstanceError("Quickstart process died!")
+            key, _, value = line.partition("=")
+            if key != expected_key:
+                raise testing.InstanceError("Unexpected output: %r" % line)
+            return value
 
-        if key != "STATE":
-            raise testing.InstanceError("Unexpected output: %r" % line)
+        testing.logger.debug("State directory: %s" % self.state_dir)
 
-        self.state_dir = value
+        self.criticctl_path = read_output("CRITICCTL")
 
-        testing.logger.debug("State directory: %s" % value)
-
-        line = self.process.stdout.readline().strip()
-        key, _, value = line.partition("=")
-
-        if key != "HTTP":
-            raise testing.InstanceError("Unexpected output: %r" % line)
-
-        hostname, _, port = value.partition(":")
+        listening_address = read_output("HTTP")
+        hostname, _, port = listening_address.partition(":")
 
         self.frontend.hostname = hostname
         self.frontend.http_port = int(port)
 
         testing.logger.debug("HTTP address: %s:%s" % (hostname, port))
 
-        line = self.process.stdout.readline().strip()
-
-        if line != "STARTED":
-            raise testing.InstanceError("Unexpected output: %r" % line)
+        read_output("STARTED")
 
         # Add some regular users.
-        for name in ("alice", "bob", "dave", "erin"):
+        for name in sorted(self.users_to_add):
             self.adduser(name)
-
-        self.adduser("howard")
-        self.criticctl(["addrole",
-                        "--name", "howard",
-                        "--role", "newswriter"])
 
         try:
             self.frontend.run_basic_tests()
             self.mailbox.check_empty()
         except testing.TestFailure as error:
-            if error.message:
-                testing.logger.error("Basic test: %s" % error.message)
+            if error.args:
+                testing.logger.error("Basic test: %s" % error)
 
             # If basic tests fail, there's no reason to further test this
             # instance; it seems to be properly broken.
             raise testing.InstanceError
 
-        testing.logger.info("Quick-started Critic in %s (%d)"
-                            % (self.state_dir, self.frontend.http_port))
+        testing.logger.info(
+            "Quick-started Critic in %s (%d)"
+            % (self.state_dir, self.frontend.http_port)
+        )
 
     def check_upgrade(self):
         raise testing.NotSupported("quick-started instance can't be upgraded")
 
-    def upgrade(self, override_arguments={}, other_cwd=False, quick=False,
-                interactive=False):
+    def upgrade(
+        self, override_arguments={}, other_cwd=False, quick=False, interactive=False
+    ):
         pass
 
     def check_extend(self, repository, pre_upgrade=False):
@@ -229,58 +266,88 @@ class Instance(testing.Instance):
         pass
 
     def run_unittest(self, args):
-        PYTHONPATH = ":".join([os.path.join(self.state_dir, "etc/main"),
-                               os.path.join(os.getcwd(), "src"),
-                               os.getcwd()])
-        argv = [sys.executable, "-u", "-m", "run_unittest"] + args
-        return self.executeProcess(argv, cwd="src", log_stderr=False,
-                                   env={ "PYTHONPATH": PYTHONPATH })
+        argv = [
+            os.path.join(self.state_dir, "bin", "python"),
+            "-u",
+            "-m",
+            "critic.base.run_unittest",
+        ] + args
+        return self.executeProcess(argv, log_stderr=False)
 
     def gc(self, repository):
         self.executeProcess(
             ["git", "gc", "--prune=now"],
-            cwd=os.path.join(self.state_dir, "git", repository))
-
-    def synchronize_service(self, service_name, force_maintenance=False, timeout=30):
-        helper = "testing/input/service_synchronization_helper.py"
-        testing.logger.debug("Synchronizing service: %s" % service_name)
-        pidfile_path = os.path.join(
-            self.state_dir, "run/main", service_name + ".pid")
-        if force_maintenance:
-            signum = signal.SIGUSR2
-        else:
-            signum = signal.SIGUSR1
-        before = time.time()
-        try:
-            self.executeProcess(
-                ["python", helper, pidfile_path, str(signum), str(timeout)])
-        except testing.CommandError:
-            testing.logger.warning("Failed to synchronize service: %s"
-                                   % service_name)
-        else:
-            after = time.time()
-            testing.logger.debug("Synchronized service: %s in %.2f seconds"
-                                 % (service_name, after - before))
+            cwd=os.path.join(self.state_dir, "git", repository),
+        )
 
     def filter_service_logs(self, level, service_names):
         helper = "testing/input/service_log_filter.py"
         logfile_paths = {
             os.path.join(
-                self.state_dir, "log/main", service_name + ".log"): service_name
-            for service_name in service_names }
-        try:
-            data = json.loads(self.executeProcess(
-                ["python", helper, level] + list(logfile_paths.keys()),
-                log_stdout=False))
-            return { logfile_paths[logfile_path]: entries
-                     for logfile_path, entries in sorted(data.items()) }
-        except testing.CommandError:
-            return None
+                self.state_dir, "log/main", service_name + ".log"
+            ): service_name
+            for service_name in service_names
+        }
+        data = json.loads(
+            self.executeProcess(
+                ["python", helper, level] + list(logfile_paths.keys()), log_stdout=False
+            )
+        )
+        return {
+            logfile_paths[logfile_path]: entries
+            for logfile_path, entries in sorted(data.items())
+        }
 
     def restart(self):
         self.process.send_signal(signal.SIGUSR1)
 
-        line = self.process.stdout.readline().strip()
+        line = self.readline()
 
         if line != "RESTARTED":
             raise testing.InstanceError("Unexpected output: %r" % line)
+
+    def customization(self, action, name):
+        argv = [os.path.join(self.state_dir, "bin", "pip"), action]
+        module_name = f"critic-{name}-customization"
+
+        if action == "install":
+            argv.append(os.path.join(os.path.dirname(__file__), "input", module_name))
+        else:
+            argv.extend(["--yes", module_name])
+
+        testing.logger.debug("Running: %s", " ".join(argv))
+
+        process = subprocess.Popen(
+            argv,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            encoding="utf-8",
+        )
+
+        stdout, stderr = process.communicate()
+
+        for line in stdout.splitlines():
+            testing.logger.log(testing.STDOUT, line)
+        for line in stderr.splitlines():
+            testing.logger.log(testing.STDERR, line)
+
+        if process.returncode != 0:
+            raise testing.TestFailure(" ".join(argv), stdout, stderr)
+
+
+def setup(subparsers):
+    parser = subparsers.add_parser(
+        "quickstart",
+        description="Test against a quickstarted Critic instance.",
+        help=(
+            "Start Critic using the `quickstart.py` script, and run tests "
+            "against it. This flavor of testing supports almost all tests, "
+            "and can be performed as a regular user with very limited "
+            "preparations."
+        ),
+    )
+    parser.add_argument(
+        "--http-port", type=int, default=0, help="HTTP port [default=random]"
+    )
+    parser.set_defaults(flavor="quickstart")

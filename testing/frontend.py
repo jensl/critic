@@ -14,52 +14,37 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-import json
 import contextlib
+import json
+import re
+import requests
+import traceback
 import urllib
-
-try:
-    import requests
-    import BeautifulSoup
-except ImportError:
-    # testing/main.py detects and abort if either of these are missing, so just
-    # ignore errors here.
-    pass
 
 import testing
 
+
 class Error(testing.TestFailure):
-    def __init__(self, url, message):
-        super(Error, self).__init__("page '%s' failed: %s" % (url, message))
-        self.url = url
+    def __init__(self, method, path, message):
+        super().__init__(f"request '{method} {path}' failed: {message}")
+        self.path = path
+
 
 class HTTPError(Error):
-    def __init__(self, url, expected, actual, body=None):
-        message = "HTTP status differs: expected=%r, actual=%r" % (expected, actual)
+    def __init__(self, method, path, expected, actual, body=None):
+        message = f"HTTP status differs: expected={expected}, actual={actual}"
         if body:
             message += "\n" + body
-        super(HTTPError, self).__init__(url, message)
+        super(HTTPError, self).__init__(method, path, message)
         self.expected = expected
         self.actual = actual
 
-class PageError(Error):
-    def __init__(self, url, key, expected, actual):
-        super(PageError, self).__init__(
-            url, "%s differs: expected=%r, actual=%r" % (key, expected, actual))
-        self.key = key
-        self.expected = expected
-        self.actual = actual
 
-class OperationError(Error):
-    def __init__(self, url, message=None, key=None, expected=None, actual=None):
-        if message is None:
-            message = ""
-        if key:
-            message += "%s differs: expected=%r, actual=%r" % (key, expected, actual)
-        super(OperationError, self).__init__(url, message)
-        self.key = key
-        self.expected = expected
-        self.actual = actual
+class AccessDenied(Error):
+    def __init__(self, method, path, message):
+        super().__init__(method, path, message)
+        self.message = message
+
 
 class SessionBase(object):
     def apply(self, kwargs):
@@ -67,14 +52,21 @@ class SessionBase(object):
 
     def process_response(self, response):
         if "sid" in response.cookies:
-            raise Error(response.url, "unexpected session cookie set")
+            raise Error(
+                response.request.method, response.url, "unexpected session cookie set"
+            )
+
 
 class NoSession(SessionBase):
     pass
 
+
 class CookieSession(SessionBase):
     def __init__(self, sid=None):
         self.sid = sid
+
+    def __repr__(self):
+        return "CookieSession(sid=%r)" % self.sid
 
     def apply(self, kwargs):
         if self.sid is not None:
@@ -91,20 +83,30 @@ class CookieSession(SessionBase):
                 # get that information from the response.
                 self.sid = None
 
+
 class HTTPAuthSession(SessionBase):
-    def __init__(self, username, password):
+    def __init__(self, *, username=None, password=None, token=None):
         self.username = username
         self.password = password
+        self.token = token
 
     def apply(self, kwargs):
-        kwargs["auth"] = (self.username, self.password)
+        if self.username:
+            kwargs["auth"] = (self.username, self.password or self.token)
+        elif self.token:
+            headers = kwargs.setdefault("headers", {})
+            headers["authorization"] = f"Bearer {self.token}"
+
 
 class Frontend(object):
     def __init__(self, hostname, http_port=8080):
         self.hostname = hostname
         self.http_port = http_port
-        self.sessions = [NoSession()]
         self.instance = None
+
+    def reset_for_test(self):
+        self.sessions = [NoSession()]
+        self.session_cookies = {}
 
     @property
     def current_session(self):
@@ -115,234 +117,16 @@ class Frontend(object):
             username += "@"
         else:
             username = ""
-        return "http://%s%s:%d" % (username, self.hostname, self.http_port)
-
-    def page(self, url, params={}, expect={},
-             expected_content_type="text/html",
-             expected_http_status=200,
-             disable_redirects=False,
-             post=None, put=None, delete=False):
-        full_url = "%s/%s" % (self.prefix(), url)
-
-        log_url = full_url
-        if params:
-            query = urllib.parse.urlencode(sorted(params.items()))
-            log_url = "%s?%s" % (log_url, query)
-
-        testing.logger.debug("Fetching page: %s ..." % log_url)
-
-        kwargs = {}
-
-        self.current_session.apply(kwargs)
-
-        if post is not None:
-            kwargs["data"] = post
-            method = "POST"
-        elif put is not None:
-            kwargs["data"] = put
-            method = "PUT"
-        elif delete:
-            method = "DELETE"
+        if self.http_port != 80:
+            port = f":{self.http_port}"
         else:
-            method = "GET"
+            port = ""
+        return "http://%s%s%s" % (username, self.hostname, port)
 
-        response = requests.request(method,
-                                    full_url,
-                                    params=params,
-                                    allow_redirects=not disable_redirects,
-                                    **kwargs)
-
-        self.current_session.process_response(response)
-
-        def text(response):
-            if hasattr(response, "text"):
-                if callable(response.text):
-                    return response.text()
-                else:
-                    return response.text
-            else:
-                return response.content
-
-        if isinstance(expected_http_status, int):
-            expected_http_status = [expected_http_status]
-
-        try:
-            if response.status_code not in expected_http_status:
-                if response.headers["content-type"].startswith("text/plain"):
-                    body = text(response)
-                else:
-                    body = None
-                raise HTTPError(url, expected_http_status, response.status_code, body)
-        except testing.TestFailure as error:
-            testing.logger.error("Page '%s': %s" % (url, error.message))
-            raise testing.TestFailure
-
-        if response.status_code >= 400 and 200 in expected_http_status:
-            # The caller expected a successful load or an error.  Signal errors
-            # by returning None.
-            return None
-
-        if response.status_code >= 300 and response.status_code < 400 \
-                and disable_redirects:
-            # Redirection, and the caller disabled following it.  The caller is
-            # interested in the redirect itself, so return the whole response.
-            return response
-
-        testing.logger.debug("Fetched page: %s" % log_url)
-
-        document = text(response)
-
-        content_type, _, _ = response.headers["content-type"].partition(";")
-
-        if isinstance(expected_content_type, str):
-            expected_content_type = (expected_content_type,)
-
-        if response.status_code == 200:
-            if content_type not in expected_content_type:
-                testing.logger.error(
-                    "Page '%s': wrong content type: %s" % (url, content_type))
-                raise testing.TestFailure
-
-        if content_type == "text/html":
-            document = BeautifulSoup.BeautifulSoup(document)
-
-            div_fatal = document.find("div", attrs={ "class": "fatal" })
-            if div_fatal:
-                message = div_fatal.find("pre")
-                testing.logger.error(
-                    "Page '%s': crash during incremental page generation:\n%s"
-                    % (url, message.string if message else "<no message found>"))
-                raise testing.TestFailure
-
-        if expect:
-            testing.logger.debug("Checking page: %s ..." % log_url)
-
-            failed_checks = False
-
-            for key, check in expect.items():
-                try:
-                    check(document)
-                except testing.expect.FailedCheck as failed_check:
-                    print(text(response))
-                    testing.logger.error("Page '%s', test '%s': %s"
-                                         % (url, key, failed_check.message))
-                    failed_checks = True
-                except Exception as error:
-                    raise Error(url, "'%s' checker failed: %s" % (key, str(error)))
-
-            if failed_checks:
-                raise testing.TestFailure
-
-            testing.logger.debug("Checked page: %s ..." % log_url)
-
-        return document
-
-    def operation(self, url, data, expect={}):
-        full_url = "%s/%s" % (self.prefix(), url)
-
-        testing.logger.debug("Executing operation: %s ..." % full_url)
-
-        kwargs = {}
-
-        self.current_session.apply(kwargs)
-
-        if not isinstance(data, str):
-            data = json.dumps(data)
-            kwargs.setdefault("headers", {})["Content-Type"] = "text/json"
-
-        response = requests.post(full_url,
-                                 data=data,
-                                 **kwargs)
-
-        try:
-            if response.status_code != 200:
-                raise HTTPError(url, 200, response.status_code)
-
-            if expect is None:
-                result = response.content
-            elif hasattr(response, "json"):
-                if callable(response.json):
-                    try:
-                        result = response.json()
-                    except:
-                        raise OperationError(url, message="malformed response (not JSON)")
-                else:
-                    result = response.json
-                    if result is None:
-                        raise OperationError(url, message="malformed response (not JSON)")
-            else:
-                try:
-                    result = json.loads(response.content)
-                except ValueError:
-                    raise OperationError(url, message="malformed response (not JSON)")
-        except testing.TestFailure as error:
-            testing.logger.error("Operation '%s': %s" % (url, error.message))
-            raise testing.TestFailure
-
-        self.current_session.process_response(response)
-
-        testing.logger.debug("Executed operation: %s" % full_url)
-
-        if expect is not None:
-            testing.logger.debug("Checking operation: %s" % full_url)
-
-            # Check result["status"] first; if it doesn't have the expected value,
-            # it's likely all other expected keys are simply missing from the
-            # result, and thus produce rather meaningless errors.
-            expected = expect.get("status", "ok")
-            actual = result.get("status")
-            if actual != expected:
-                if actual == "error":
-                    extra = "\nError:\n  %s" % "\n  ".join(result.get("error").splitlines())
-                elif actual == "failure":
-                    extra = " (code=%r)" % result.get("code")
-                else:
-                    extra = ""
-                testing.logger.error(
-                    "Operation '%s', key 'status': check failed: "
-                    "expected=%r, actual=%r%s"
-                    % (url, expected, actual, extra))
-                raise testing.TestFailure
-
-            failed_checks = False
-
-            # Then check any other expected keys.
-            for key, expected in expect.items():
-                if key != "status":
-                    actual = result.get(key)
-                    if callable(expected):
-                        checked = expected(actual)
-                        if checked:
-                            expected, actual = checked
-                        else:
-                            continue
-                    if expected != actual:
-                        testing.logger.error(
-                            "Operation '%s', key '%s': check failed: "
-                            "expected=%r, actual=%r"
-                            % (url, key, expected, actual))
-                        failed_checks = True
-
-            if failed_checks:
-                raise testing.TestFailure
-
-            testing.logger.debug("Checked operation: %s" % full_url)
-
-        return result
-
-    def json(self, path, expect=None, params={}, expected_http_status=200,
-             post=None, put=None, delete=False):
-        url = "api/v1/" + path
-        full_url = "http://%s:%d/%s" % (self.hostname, self.http_port, url)
-
-        log_url = full_url
-        if params:
-            query = urllib.parse.urlencode(sorted(params.items()))
-            log_url = "%s?%s" % (log_url, query)
-
-        kwargs = { "params": params,
-                   "headers": { "Accept": "application/vnd.api+json" } }
-        method = "GET"
+    def request(
+        self, path, *, params=None, post=None, put=None, delete=False, **kwargs
+    ):
+        params = dict(params or {})
 
         self.current_session.apply(kwargs)
 
@@ -354,191 +138,187 @@ class Frontend(object):
             kwargs["data"] = json.dumps(put)
         elif delete:
             method = "DELETE"
+        else:
+            method = "GET"
 
-        testing.logger.debug("Accessing JSON API: %s %s ..."
-                             % (method, log_url))
+        # No built-in HTTP endpoints returns a redirect, except the OAuth API, which
+        # redirects to external (fake) servers, and for which we want to check the
+        # redirect rather than load the target URL.
+        kwargs.setdefault("allow_redirects", False)
 
-        response = requests.request(method, full_url, **kwargs)
+        testing.logger.debug(f"{kwargs=}")
 
-        testing.logger.debug("Accessed JSON API: %s %s ..."
-                             % (method, log_url))
+        response = requests.request(
+            method,
+            f"http://{self.hostname}:{self.http_port}/{path}",
+            params=params,
+            **kwargs,
+        )
 
         self.current_session.process_response(response)
 
-        def response_json():
-            if hasattr(response, "json"):
-                if callable(response.json):
-                    try:
-                        result = response.json()
-                    except:
-                        raise OperationError(url, message="malformed response (not JSON)")
-                else:
-                    result = response.json
-                    if result is None:
-                        raise OperationError(url, message="malformed response (not JSON)")
+        return response
+
+    def json(
+        self,
+        path,
+        *,
+        expect=None,
+        extract=None,
+        check=None,
+        params=None,
+        include=None,
+        expected_http_status=None,
+        post=None,
+        put=None,
+        delete=False,
+        expect_access_denied=None,
+        **kwargs,
+    ):
+        full_path = "api/v1/" + path
+
+        log_url = f"http://{self.hostname}:{self.http_port}/{full_path}"
+        if params:
+            query = urllib.parse.urlencode(sorted(params.items()))
+            log_url = "%s?%s" % (log_url, query)
+
+        if post is not None:
+            method = "POST"
+            payload = post
+        elif put is not None:
+            method = "PUT"
+            payload = put
+        else:
+            payload = None
+            if delete:
+                method = "DELETE"
             else:
-                try:
-                    result = json.loads(response.content)
-                except ValueError:
-                    raise OperationError(url, message="malformed response (not JSON)")
-            return result
+                method = "GET"
+
+        if expected_http_status is None:
+            expected_http_status = 200 if not delete else 204
+
+        testing.logger.debug("Accessing JSON API: %s %s ..." % (method, log_url))
+
+        if payload is not None:
+            kwargs["data"] = json.dumps(payload)
+            testing.logger.debug("Payload: %s", json.dumps(payload, indent=2))
+
+        if include is not None:
+            params["include"] = ",".join(include)
+
+        response = self.request(
+            full_path,
+            params=params,
+            post=post,
+            put=put,
+            delete=delete,
+            headers={"Accept": "application/vnd.api+json"},
+            **kwargs,
+        )
+
+        testing.logger.debug("Accessed JSON API: %s %s ..." % (method, log_url))
+
+        def response_json():
+            try:
+                return response.json()
+            except ValueError:
+                testing.logger.debug("Response body: %r", response.text)
+                raise Error(method, full_path, message="malformed response (not JSON)")
+
+        if expect_access_denied:
+            expected_http_status = [403]
 
         if isinstance(expected_http_status, int):
             expected_http_status = [expected_http_status]
 
         try:
             if response.status_code not in expected_http_status:
-                if response.status_code in (400, 404):
+                if response.status_code in (400, 403, 404):
                     try:
                         error = response_json()["error"]
-                    except OperationError:
+                    except Error:
                         testing.logger.exception("Unexpected response")
                     except KeyError:
                         testing.logger.error("Malformed JSON error response")
                     else:
                         testing.logger.error(
                             "JSON error:\n  Title: %s\n  Message: %s"
-                            % (error["title"], error["message"]))
-                raise HTTPError(url, expected_http_status, response.status_code)
+                            % (error["title"], error["message"])
+                        )
+                if response.status_code == 500:
+                    testing.logger.error(response.content.decode())
+                raise HTTPError(
+                    method, full_path, expected_http_status, response.status_code
+                )
 
             if response.status_code == 204:
                 # No content.
                 return None
 
-            if hasattr(response, "json"):
-                if callable(response.json):
-                    try:
-                        result = response.json()
-                    except:
-                        raise OperationError(url, message="malformed response (not JSON)")
-                else:
-                    result = response.json
-                    if result is None:
-                        raise OperationError(url, message="malformed response (not JSON)")
-            else:
-                try:
-                    result = json.loads(response.content)
-                except ValueError:
-                    raise OperationError(url, message="malformed response (not JSON)")
+            if response.status_code == 403:
+                content_type = response.headers["Content-Type"]
+                mime_type = content_type.partition(";")[0].strip()
+                if mime_type == "text/plain":
+                    if expect_access_denied == response.text:
+                        return
+                    raise AccessDenied(method, full_path, response.text)
+
+            if expect_access_denied:
+                raise Error(method, full_path, "access allowed unexpectedly")
+
+            result = response_json()
         except testing.TestFailure as error:
-            testing.logger.error("JSON '%s': %s" % (path, error.message))
+            testing.logger.error(str(error))
             raise testing.TestFailure
 
-        def deunicode(value):
-            if isinstance(value, list):
-                return [deunicode(v) for v in value]
-            elif isinstance(value, dict):
-                return { deunicode(k): deunicode(v) for k, v in value.items() }
-            elif isinstance(value, str):
-                return value.encode("utf-8")
-            return value
+        if expect is not None:
+            testing.logger.debug("Checking JSON: %s" % log_url)
 
-        result = deunicode(result)
+            errors = testing.expect.check_object(expect, result, path=path, silent=True)
 
-        if expect is None:
-            return result
+            if errors:
+                testing.logger.error(
+                    "Wrong JSON received for %s:\n  %s" % (path, "\n  ".join(errors))
+                )
+                testing.logger.error("Received JSON: %s" % json.dumps(result, indent=2))
+                testing.logger.error("".join(traceback.format_stack(limit=2)[:-2]))
 
-        testing.logger.debug("Checking JSON: %s" % log_url)
+                location = testing.expect.FailedCheck.current_location()
+                if location:
+                    testing.logger.error(
+                        "Called from:\n  %s",
+                        "\n  ".join(
+                            f"{filename}:{linenr}" for filename, linenr in location
+                        ),
+                    )
 
-        errors = []
+            testing.logger.debug("Checked JSON: %s" % log_url)
 
-        def describe(value):
-            if isinstance(value, dict) or value is dict:
-                return "object"
-            if isinstance(value, list) or value is list:
-                return "array"
-            if isinstance(value, set):
-                return "one of: " % ",".join(sorted(value))
-            if isinstance(value, type):
-                return { int: "integer", float: "float", str: "string" }[value]
-            if isinstance(value, (str, int, float)):
-                return repr(value)
-            if value is None:
-                return "null"
-            return "unexpected"
+        if extract is not None:
+            path_element = r"\[(\d+)\]|(?:^|\.)(\w+)"
 
-        def check_object(path, expected, actual):
-            if not isinstance(actual, dict):
-                errors.append("%s: value is %s, expected object"
-                              % (path, describe(actual)))
-                return
-            if expected is dict:
-                return
-            expected_keys = set(expected.keys())
-            actual_keys = set(actual.keys())
-            if "*" in expected_keys:
-                expected_keys.remove("*")
-            elif actual_keys - expected_keys:
-                errors.append("%s: unexpected keys: %r"
-                              % (path, tuple(actual_keys - expected_keys)))
-            if expected_keys - actual_keys:
-                errors.append("%s: missing keys: %r"
-                              % (path, tuple(expected_keys - actual_keys)))
-            for key in sorted(expected_keys & actual_keys):
-                check("%s/%s" % (path, key), expected[key], actual[key])
+            def pick_single(what, data):
+                assert isinstance(what, str)
+                if not re.fullmatch(f"({path_element})+", what):
+                    raise testing.Error(f"invalid `what` argument: {what!r}")
+                for (index, key) in re.findall(path_element, what):
+                    if index:
+                        data = data[int(index)]
+                    else:
+                        data = data[key]
+                return data
 
-        def check_array(path, expected, actual):
-            if not isinstance(actual, list):
-                errors.append("%s: value is %s, expected array"
-                            % (path, describe(actual)))
-            if expected is list:
-                return
-            if len(actual) != len(expected):
-                errors.append("%s: wrong array length: got %s, expected %s"
-                              % (path, len(actual), len(expected)))
-                return
-            for index, (expected, actual) in enumerate(zip(expected, actual)):
-                check("%s[%d]" % (path, index), expected, actual)
+            def pick(what, data):
+                if isinstance(what, (tuple, list, set)):
+                    return type(what)(pick(element, data) for element in what)
+                elif isinstance(what, dict):
+                    assert len(what) == 1
+                    for pick_from, pick_what in what.items():
+                        return pick(pick_what, pick_single(pick_from, data))
+                return pick_single(what, data)
 
-        def check_set(path, expected, actual):
-            if not isinstance(actual, str):
-                errors.append("%s: value is %s, expected string"
-                              % (path, describe(actual)))
-            if actual not in expected:
-                errors.append("%s: value is %s, expected %s"
-                              % (path, describe(actual), describe(expected)))
-
-        def check_null(path, actual):
-            if actual is not None:
-                errors.append("%s: value is %s, expected null"
-                              % (path, describe(actual)))
-
-        def check_value(path, expected, actual):
-            if isinstance(actual, (dict, list)):
-                errors.append("%s: value is %s, expected %s"
-                              % (path, describe(actual), describe(expected)))
-            if isinstance(expected, type):
-                if not isinstance(actual, expected):
-                    errors.append("%s: wrong value: got %r, expected %r"
-                                  % (path, actual, describe(expected)))
-            elif actual != expected:
-                errors.append("%s: wrong value: got %r, expected %r"
-                              % (path, actual, expected))
-
-        def check(path, expected, actual):
-            errors_before = len(errors)
-            if callable(expected) and not isinstance(expected, type):
-                errors.extend(expected(path, actual, check) or ())
-            elif isinstance(expected, dict) or expected is dict:
-                check_object(path, expected, actual)
-            elif isinstance(expected, list) or expected is list:
-                check_array(path, expected, actual)
-            elif isinstance(expected, set):
-                check_set(path, expected, actual)
-            elif expected is None:
-                check_null(path, actual)
-            else:
-                check_value(path, expected, actual)
-            return errors_before == len(errors)
-
-        check(path, expect, result)
-
-        if errors:
-            testing.logger.error("Wrong JSON received for %s:\n  %s"
-                                 % (path, "\n  ".join(errors)))
-            testing.logger.error("Received JSON: %r" % result)
-
-        testing.logger.debug("Checked JSON: %s" % log_url)
+            return pick(extract, result)
 
         return result
 
@@ -552,7 +332,7 @@ class Frontend(object):
         finally:
             # Sign out unless we seem to have signed out already. Some tests may
             # want to do the signout explicitly, which is fine.
-            if self.current_session.sid is not None:
+            if signout and self.current_session.sid is not None:
                 try:
                     signout()
                 except testing.TestFailure as failure:
@@ -562,8 +342,7 @@ class Frontend(object):
                     testing.logger.exception("Failed to sign out!")
 
                 if self.current_session.sid is not None:
-                    testing.expect.check("<signed out>",
-                                         "<session cookie not removed>")
+                    testing.expect.check("<signed out>", "<session cookie not removed>")
 
             # Dropping the cookie effectively signs out even if the "endsession"
             # operation failed.
@@ -583,35 +362,31 @@ class Frontend(object):
         self.sessions.append(CookieSession())
 
     def validatelogin(self, username, password, expect_failure=False):
-        data = { "fields": { "username": username,
-                             "password": password }}
-
-        # Check if the current commit predates the user authentication
-        # restructuring that added the "fields" wrapper.
-        if self.instance.current_commit:
-            if not testing.exists_at(
-                    self.instance.current_commit, "src/auth/database.py"):
-                data = data["fields"]
+        data = {"fields": {"username": username, "password": password}}
 
         if expect_failure:
-            expect = { "message": expect_failure }
+            expect = {"message": expect_failure}
         else:
-            expect = { "message": None }
+            expect = {"message": None}
 
-        self.operation(
-            "validatelogin",
-            data=data,
-            expect=expect)
+        self.operation("validatelogin", data=data, expect=expect)
 
     @contextlib.contextmanager
-    def signin(self, username="admin", password="testing", use_httpauth=False,
-               use_json_api=False, access_token=None):
-        if access_token:
-            username = access_token["part1"]
-            password = access_token["part2"]
+    def signin(
+        self,
+        username="admin",
+        password="testing",
+        use_httpauth=False,
+        token=None,
+        cached=True,
+    ):
+        if token:
+            username = password = None
             use_httpauth = True
         if use_httpauth:
-            self.sessions.append(HTTPAuthSession(username, password))
+            self.sessions.append(
+                HTTPAuthSession(username=username, password=password, token=token)
+            )
             try:
                 yield
             finally:
@@ -619,41 +394,38 @@ class Frontend(object):
         else:
             with self.no_session():
                 self.collect_session_cookie()
-                if use_json_api:
+                if cached and username in self.session_cookies:
+                    self.sessions[-1].sid = self.session_cookies[username]
+                    signout = None
+                else:
                     self.json(
                         "sessions",
-                        post={
-                            "username": username,
-                            "password": password
-                        },
+                        post={"username": username, "password": password},
                         expect={
                             "user": self.instance.userid(username),
                             "type": "normal",
-                            "*": "*"
-                        })
-                    def signout():
-                        self.json(
-                            "sessions/current",
-                            delete=True,
-                            expected_http_status=204)
-                else:
-                    self.validatelogin(username, password)
-                    def signout():
-                        self.operation("endsession", data={})
+                            "*": "*",
+                        },
+                    )
+                    if cached:
+                        self.session_cookies[username] = self.sessions[-1].sid
+                        signout = None
+                    else:
+
+                        def signout():
+                            self.json(
+                                "sessions/current",
+                                delete=True,
+                                expected_http_status=204,
+                            )
+
                 with self.cookie_session(signout):
                     yield
 
     def run_basic_tests(self):
-        # The /tutorials page is essentially static content and doesn't require
-        # a signed in user, so a good test-case for checking if the site is up
-        # and accessible at all.
-        self.page("tutorial", expect={ "document_title": testing.expect.document_title("Tutorials"),
-                                       "content_title": testing.expect.paleyellow_title(0, "Tutorials") })
+        self.json("users/me", expected_http_status=404)
 
-        # The /validatelogin operation is a) necessary for most meaningful
-        # additional testing, and b) a simple enough operation to test.
-        with self.signin():
-            # Load /home to determine whether /validatelogin successfully signed in
-            # (and that we stored the session id cookie correctly.)
-            self.page("home", expect={ "document_title": testing.expect.document_title("Testing Administrator's Home"),
-                                       "content_title": testing.expect.paleyellow_title(0, "Testing Administrator's Home") })
+        with self.signin("admin"):
+            self.json(
+                "users/me", expect={"id": self.instance.userid("admin"), "*": "*"}
+            )

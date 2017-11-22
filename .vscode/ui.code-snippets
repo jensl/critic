@@ -1,0 +1,100 @@
+{
+  "Redux Action Definition": {
+    "scope": "typescript",
+    "prefix": "action",
+    "body": [
+      "export const ${1/(^[A-Z]+[a-z]+)|([A-Z]+[a-z]+)/${1:/upcase}${2:+_}${2:/upcase}/g} = \"${1/(^[A-Z]+[a-z]+)|([A-Z]+[a-z]+)/${1:/upcase}${2:+_}${2:/upcase}/g}\"",
+      "export interface ${1:name}Action {",
+      "  type: typeof ${1/(^[A-Z]+[a-z]+)|([A-Z]+[a-z]+)/${1:/upcase}${2:+_}${2:/upcase}/g}",
+      "  $0",
+      "}"
+    ],
+    "description": "Redux action type constant + interface boilerplate"
+  },
+
+  "Import Immutable.js": {
+    "scope": "javascript,typescript,typescriptreact",
+    "prefix": "impimm",
+    "body": ["import Immutable from \"immutable\""],
+    "description": "Import Immutable.js as `Immutable`"
+  },
+
+  "Import from Lodash": {
+    "scope": "javascript,typescript,typescriptreact",
+    "prefix": "lodash",
+    "body": ["import ${1:name} from \"lodash/${1}\""],
+    "description": "Import one function from Lodash"
+  },
+
+  "Import component from Material UI": {
+    "scope": "typescriptreact",
+    "prefix": "muiComponent",
+    "body": ["import ${1:name} from \"@material-ui/core/${1}\""],
+    "description": "Import a component from Material UI"
+  },
+
+  "Import icon from Material UI": {
+    "scope": "typescriptreact",
+    "prefix": "muiIcon",
+    "body": ["import ${1:name}Icon from \"@material-ui/icons/${1}\""],
+    "description": "Import an icon from Material UI"
+  },
+
+  "Base Component": {
+    "scope": "typescriptreact",
+    "prefix": "baseComponent",
+    "body": [
+      "/*",
+      " * Copyright 2019 the Critic contributors, Opera Software ASA",
+      " *",
+      " * Licensed under the Apache License, Version 2.0 (the \"License\"); you may not",
+      " * use this file except in compliance with the License.  You may obtain a copy",
+      " * of the License at",
+      " *",
+      " *     http://www.apache.org/licenses/LICENSE-2.0",
+      " *",
+      " * Unless required by applicable law or agreed to in writing, software",
+      " * distributed under the License is distributed on an \"AS IS\" BASIS, WITHOUT",
+      " * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.  See the",
+      " * License for the specific language governing permissions and limitations under",
+      " * the License.",
+      " */",
+      "",
+      "import React, { FunctionComponent } from \"react\"",
+      "import { connect } from \"react-redux\"",
+      "import clsx from \"clsx\"",
+      "",
+      "import { makeStyles } from \"@material-ui/core/styles\"",
+      "",
+      "import Registry from \".\"",
+      "import { State } from \"../state\"",
+      "",
+      "const useStyles = makeStyles(theme => ({",
+      "  ${TM_FILENAME_BASE/(^[A-Z])?[.]?([^.]+)/${1:/downcase}${2}/g}: {},",
+      "}))",
+      "",
+      "type OwnProps = {",
+      "  className?: string",
+      "}",
+      "",
+      "type ConnectedProps = {}",
+      "",
+      "const ${TM_FILENAME_BASE/([.]?([^.]+))/${2}/g}: FunctionComponent<OwnProps & ConnectedProps> = ({",
+      "  className,",
+      "}) => {",
+      "  const classes = useStyles()",
+      "  return (",
+      "    <div className={clsx(className, classes.${TM_FILENAME_BASE/(^[A-Z])?([.]?([^.]+))/${1:/downcase}${3}/g})}>",
+      "      ${TM_FILENAME_BASE/([.])?([^.]+)/${1:+_}${2:/upcase}/g}",
+      "    </div>",
+      "  )",
+      "}",
+      "",
+      "export default Registry.add(",
+      "  \"${TM_FILENAME_BASE}\",",
+      "  connect((state: State) => ({}))(${TM_FILENAME_BASE/([.]?([^.]+))/${2}/g})",
+      ")"
+    ],
+    "description": "Base connected component using Material UI"
+  }
+}

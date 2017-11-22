@@ -1,0 +1,29 @@
+FROM python:alpine AS builder
+
+RUN apk add --update build-base postgresql-dev python-dev
+
+RUN pip install --no-compile --upgrade pip wheel
+RUN pip install --no-compile aiohttp aiopg pyyaml
+
+WORKDIR /build
+ADD setup.py setup.py
+ADD critic/ critic/
+RUN pip wheel --wheel-dir=/wheels .
+
+FROM python:alpine
+
+RUN apk add --no-cache --update libpq
+COPY --from=builder \
+  /usr/local/lib/python3.8/site-packages \
+  /usr/local/lib/python3.8/site-packages
+COPY --from=builder \
+  /wheels \
+  /wheels
+RUN pip install --no-cache-dir --no-compile /wheels/*.whl
+
+ENTRYPOINT [ \
+  "/usr/local/bin/criticctl", \
+  "run-extensionhost", \
+  "--bare-dir=/versions", \
+  "--critic-wheel=/wheels/critic-1.0.0-py3-none-any.whl" \
+]

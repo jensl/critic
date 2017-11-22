@@ -1,0 +1,35 @@
+ARG base_image=critic/base:latest
+ARG ui_image=critic/ui:latest
+
+FROM ${base_image} AS base
+FROM ${ui_image} AS ui
+
+FROM ubuntu:18.04
+
+ARG apt_get_args
+RUN \
+  DEBIAN_FRONTEND=noninteractive apt-get -qq ${apt_get_args} \
+    update \
+  && \
+  DEBIAN_FRONTEND=noninteractive apt-get -qq ${apt_get_args} \
+    install --yes --no-install-recommends \
+      apache2 \
+      python3-setuptools \
+      libpq5
+
+COPY --from=base /var/lib/critic /var/lib/critic
+COPY --from=ui /build/static /var/lib/critic/ui/static
+COPY docker/scripts/run-critic.py /run-critic.py
+
+ENV CRITICCTL=/var/lib/critic/bin/criticctl
+
+# The `criticctl run-httpd` command has defaults that are based on Apache HTTPD
+# documentation. These extra arguments adjust for things in the Ubuntu package
+# that deviate from that, such as the main binary being named `apache2` instead
+# of `httpd`, and some modules being built-in.
+ENV EXTRA_RUN_ARGS="--with-httpd=/usr/sbin/apache2 \
+                    --without-module=log_config \
+                    --without-module=logio \
+                    --without-module=unixd"
+
+ENTRYPOINT ["/run-critic.py"]

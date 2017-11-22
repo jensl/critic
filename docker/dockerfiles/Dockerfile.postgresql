@@ -1,0 +1,5 @@
+ARG version=latest
+FROM postgres:${version}
+
+COPY docker/scripts/initdb-critic.sh \
+     /docker-entrypoint-initdb.d/initdb-critic.sh

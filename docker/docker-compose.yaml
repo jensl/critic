@@ -1,0 +1,120 @@
+version: '3'
+
+services:
+  database:
+    image: critic/postgresql:${VERSION:-latest}
+    restart: always
+    environment:
+      - "PGDATA=/var/lib/postgresql/data/pgdata"
+    volumes:
+      - "database:/var/lib/postgresql/data"
+    networks:
+      - internal
+
+  services:
+    image: critic/single:${VERSION:-latest}
+    command: ["services"]
+    restart: "no"
+    depends_on:
+      - database
+    environment:
+      - "SYSTEM_HOSTNAME=critic.docker"
+      - "DATABASE_HOST=database"
+      - "CRITIC_UID=${CRITIC_UID:-}"
+      - "CRITIC_GID=${CRITIC_GID:-}"
+      - "VERBOSE=1"
+    volumes:
+      - "${REPOSITORIES:-/var/git}:/var/git"
+    networks:
+      - internal
+
+  sshd:
+    image: critic/sshd:${VERSION:-latest}
+    command: ["sshd"]
+    restart: "no"
+    depends_on:
+      - database
+      - services
+    environment:
+      - "SERVICES_HOST=services"
+      - "DATABASE_HOST=database"
+    networks:
+      - internal
+      - external
+    ports:
+      - "${SSH_PORT:-2222}:22"
+
+  api:
+    image: critic/single:${VERSION:-latest}
+    command: ["aiohttp"]
+    restart: "no"
+    depends_on:
+      - database
+      - services
+    environment:
+      - "SERVICES_HOST=services"
+      - "DATABASE_HOST=database"
+      - "VERBOSE=1"
+    networks:
+      - internal
+
+  frontend:
+    image: critic/frontend:${VERSION:-latest}
+    command: ["httpd"]
+    restart: "no"
+    depends_on:
+      - database
+      - services
+      - api
+    environment:
+      - "SERVICES_HOST=services"
+      - "DATABASE_HOST=database"
+      - "SERVER_ADMIN=hostmaster@critic"
+      - "SERVER_NAME=critic.docker"
+      - "VERBOSE=1"
+    networks:
+      - internal
+      - external
+    ports:
+      - "${FRONTEND_PORT:-8080}:80"
+
+  loadbalancer:
+    image: critic/single:${VERSION:-latest}
+    command: ["loadbalancer"]
+    restart: "no"
+    depends_on:
+      - database
+      - services
+      - api
+    environment:
+      - "SERVICES_HOST=services"
+      - "DATABASE_HOST=database"
+      - "VERBOSE=1"
+    networks:
+      - internal
+      - external
+    ports:
+      - "${FRONTEND_PORT:-8080}:80"
+
+  httpd:
+    image: critic/httpd:${VERSION:-latest}
+    depends_on:
+      - api
+    environment:
+      - "SERVER_ADMIN=N/A"
+      - "SERVER_NAME=critic"
+      - "API_HOST=api"
+      - "API_PORT=80"
+    networks:
+      - internal
+      - external
+    ports:
+      - "${FRONTEND_PORT:-8080}:80"
+
+volumes:
+  database:
+  data:
+
+networks:
+  internal:
+  external:

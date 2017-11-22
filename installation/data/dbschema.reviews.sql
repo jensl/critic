@@ -45,7 +45,7 @@ CREATE TABLE reviews
 CREATE INDEX reviews_branch ON reviews (branch);
 
 CREATE TABLE scheduledreviewbrancharchivals
-  ( review INTEGER PRIMARY KEY REFERENCES reviews (id),
+  ( review INTEGER PRIMARY KEY REFERENCES reviews ON DELETE CASCADE,
     deadline TIMESTAMP NOT NULL );
 
 CREATE TABLE reviewfilters
@@ -78,7 +78,7 @@ CREATE TABLE reviewusers
     type reviewusertype NOT NULL DEFAULT 'automatic',
 
     PRIMARY KEY (review, uid),
-    FOREIGN KEY (review) REFERENCES reviews(id) ON DELETE CASCADE,
+    FOREIGN KEY (review) REFERENCES reviews ON DELETE CASCADE,
     FOREIGN KEY (uid) REFERENCES users(id) );
 CREATE INDEX reviewusers_uid ON reviewusers (uid);
 
@@ -275,7 +275,7 @@ CREATE TABLE reviewmessageids
 CREATE INDEX reviewmessageids_review ON reviewmessageids (review);
 
 CREATE TABLE reviewrecipientfilters
-  ( review INTEGER NOT NULL REFERENCES reviews,
+  ( review INTEGER NOT NULL REFERENCES reviews ON DELETE CASCADE,
     uid INTEGER REFERENCES users,
     include BOOLEAN NOT NULL,
 

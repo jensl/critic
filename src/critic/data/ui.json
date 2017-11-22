@@ -1,0 +1,1 @@
+{"cloud": "Amazon S3", "bucket": {"region": "eu-west-1", "name": "ui.critic-review.org"}, "archive": {"name": "ui-45a3ad5e7e3c3b134fb57ead6ad8c3e12d48311d56aaaea1135560ab3d5530d8.tar.xz", "size": 624400, "sha256": "45a3ad5e7e3c3b134fb57ead6ad8c3e12d48311d56aaaea1135560ab3d5530d8"}}

@@ -1,0 +1,91 @@
+External Authentication
+=======================
+
+Critic supports letting an external system authenticate users using the [OAuth
+2.0 protocol][oauth2].  This is convenient if the target audience of the Critic
+system can be assumed to already have accounts in the external system, as they
+would not need to set and remember a separate password in the Critic system.
+
+Basic operation
+---------------
+
+An external authentication provider can be used in two different ways:
+
+* It can be supported as an alternative alongside regular password-based
+  authentication, in which case Critic's "Sign in" page will contain a link to
+  the external authentication provider below the username/password fields.
+* It can also be used as the only way of authentication users, in which case the
+  "Sign in" link will redirect directly to the external authentication provider.
+
+The first mode is achieved by simply enabling one or more external
+authentication providers.  The second mode is achieved by setting the
+  <code>AUTHENTICATION_MODE</code>
+variable in
+  <code>%(configuration.paths.settings)s/configuration/base.py</code>
+to the name of the external provider (<code>"github"</code> or
+<code>"google"</code>).
+
+Note that in the second mode, access to Git repositories over HTTP/HTTPS will
+not be supported, since Git only supports authentication using HTTP
+authentication (using the "Authorization" request header.)  Also, if anonymous
+access is disabled, all unauthenticated accesses to the Critic system redirects
+immediately to the external authentication provider, which may be confusing
+unless the user is prepared for it.
+
+[oauth2]: http://oauth.net/2/
+
+Supported authentication providers
+----------------------------------
+
+Two providers of OAuth 2.0 authentication are supported by Critic out of the
+box: GitHub and Google.
+
+GitHub
+------
+To use GitHub for authentication, an OAuth application for the Critic instance
+needs to be created in the [GitHub account settings UI][github].  The
+application creation form will ask for some information about the application.
+The "Authorization callback URL" value requires particular attention: it must be
+set to
+  <code>%(configuration.URL)s/oauth/github</code>.
+
+  If you're reading this tutorial on a different Critic system than the one
+  being configured, this URL need to be adjusted accordingly, of course.
+
+After creating the application, copy the generated "Client ID" and "Client
+Secret" into the
+  <code>PROVIDERS["github"]</code>
+dictionary in
+  <code>%(configuration.paths.settings)s/configuration/auth.py</code>,
+update the rest of the settings there appropriately, and then restart Critic by
+running (as root)
+
+| criticctl restart
+
+[github]: https://github.com/settings/applications/new
+
+Google
+------
+To use Google for authentication, a project needs to be created at the [Google
+developers console][google].  Once created, an OAuth client ID is created in the
+project's management UI: "APIs & auth" &#x2192; "Credentials" &#x2192; "Create
+new client ID".  The "Authorized Javascript origins" and "Authorized redirect
+URI" values require particular attention: The former must be set to
+  <code>%(configuration.URL)s</code>
+and the latter must be set to
+  <code>%(configuration.URL)s/oauth/github</code>.
+
+  If you're reading this tutorial on a different Critic system than the one
+  being configured, there URLs need to be adjusted accordingly, of course.
+
+After creating the project and OAuth client ID, copy the generated "Client ID"
+and "Client Secret" into the
+  <code>PROVIDERS["google"]</code>
+dictionary in
+  <code>%(configuration.paths.settings)s/configuration/auth.py</code>,
+update the rest of the settings there appropriately, and then restart Critic by
+running (as root)
+
+| criticctl restart
+
+[google]: https://cloud.google.com/console/project

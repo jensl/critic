@@ -1,0 +1,20 @@
+version: '3'
+
+services:
+  legacy-upgrade:
+    image: critic/legacy-upgrade:${VERSION:-latest}
+    restart: "no"
+    depends_on:
+      - database
+    environment:
+      - "DATABASE_HOST=database"
+    networks:
+      - internal
+    volumes:
+      # Directory containing mirrors (`git clone --mirror`) of each repository
+      # on the legacy Critic system.
+      - "${REPOSITORIES}:/var/git"
+      # Directory containing snapshot of legacy Critic system to upgrade:
+      #  - criticdb.dump: Database dump (`pg_dump -Fc -f criticdb.dump critic`)
+      #  - etc_critic.tar.gz: Archive of /etc/critic/
+      - "${LEGACY}:/legacy"

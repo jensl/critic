@@ -1,0 +1,23 @@
+version: 0.2
+
+phases:
+  install:
+    runtime-versions:
+      python: 3.7
+      nodejs: 10
+
+  pre_build:
+    commands:
+      - "python --version"
+      - "node --version"
+      - "pip install --upgrade pip wheel"
+      - "pip install brotli"
+      - "python ui/build.py --no-build"
+
+  build:
+    commands:
+      - "python ui/build.py --archive-type=tar.xz"
+
+artifacts:
+  files:
+    - "ui-*.tar.xz"

@@ -1,0 +1,21 @@
+version: 0.2
+
+phases:
+  install:
+    runtime-versions:
+      docker: 18
+      python: 3.7
+
+  pre_build:
+    commands:
+      - "docker version"
+      - "python --version"
+      - "pip install --upgrade pip wheel"
+      - "pip install requests"
+
+  build:
+    commands:
+      - "python -m testing --debug --debug-mails docker --follow-log=services --follow-log=api"
+
+artifacts:
+  type: "NONE"

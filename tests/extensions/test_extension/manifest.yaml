@@ -1,0 +1,14 @@
+authors:
+  - Jens Widell <jens@critic-review.org>
+description: Email notifications
+
+package:
+  type: python
+  entrypoints:
+    handle_endpoint: test_extension:handle_endpoint
+
+roles:
+  - type: endpoint
+    description: Endpoint for doing stuff.
+    name: main
+    entrypoint: handle_endpoint

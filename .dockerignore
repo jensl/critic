@@ -1,0 +1,22 @@
+# By default, ignore everything.
+*
+
+# Include the docker-specific input files.
+!docker/scripts
+!docker/conf
+
+# Include all Python source code, and package metadata.
+!critic
+!README.rst
+!requirements.txt
+!setup.py
+# ... except cached compiled Python code.
+**/__pycache__
+
+# Include the UI build output.
+!ui
+ui/node_modules
+
+# Include files used by Dockerfile.legacy-upgrade.
+#!criticdb.dump
+#!etc_critic.tar.gz

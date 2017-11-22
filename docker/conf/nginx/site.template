@@ -1,0 +1,17 @@
+server {
+    listen 80;
+
+    server_name $SERVER_NAME;
+
+    location / {
+        proxy_pass http://$CONTAINER_HOST:$CONTAINER_PORT;
+    }
+
+    location /static/ {
+        alias /critic/static/;
+        expires 30d;
+        gzip on;
+        gzip_types text/css application/javascript;
+        gzip_static on;
+    }
+}

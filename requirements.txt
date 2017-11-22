@@ -1,0 +1,14 @@
+aiohttp
+aiopg
+argon2_cffi
+msgpack-python
+passlib
+psycopg2
+pygments
+pygments-lexer-babylon
+pytest
+pytest-asyncio
+pyyaml
+requests
+snapshottest
+sshpubkeys

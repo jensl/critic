@@ -1,0 +1,52 @@
+# Structure: List of objects with `name` and `description` keys, both strings.
+
+- name: assigned
+  description: You are assigned to review changes in this review.
+
+- name: active
+  description: You have reviewed changes in this review already.
+
+# Implied: |assigned|
+- name: pending
+  description:
+    There are new changes that you are assigned to review, and that no-one has
+    marked as reviewed yet.
+
+# Implied: |assigned|
+- name: unseen
+  description:
+    There are new changes that you are assigned to review, and haven't marked
+    as reviewed yet. Other reviewers have marked them as reviewed, however.
+
+# Implied: |assigned|
+- name: single
+  description:
+    You are assigned to review some changes in this review that no other user is
+    assigned to review.
+
+# Implied: |assigned| and |pending|, and not |active| or |single|
+- name: available
+  description:
+    You are assigned to review some changes in this review. Other users may also
+    be assigned to review them, but neither you nor any of them have reviewed
+    any of the changes yet.
+
+# Implied: |assigned| and |active|
+- name: primary
+  description:
+    You are assigned to review changes in this review and have already reviewed
+    some of them. There are other users assigned to review the changes, but none
+    of them have reviewed anything so far.
+
+# Implied: not |assigned| or |active|
+- name: watching
+  description: You are watching this review.
+
+- name: unreviewed_followup
+  description:
+    You are assigned to review currently unreviewed changes in this review, and
+    the changes are in commits added to the review after you last reviewed
+    changes in the review.
+
+- name: unpublished
+  description: You have unpublished changes in this review.

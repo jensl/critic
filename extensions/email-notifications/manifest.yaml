@@ -1,0 +1,14 @@
+authors:
+  - Jens Widell <jens@critic-review.org>
+description: Email notifications
+
+package:
+  type: python
+  entrypoints:
+    reviewevent: emails.reviewevents:main
+
+roles:
+  - type: subscription
+    description: Handle review events
+    channel: reviewevents
+    entrypoint: reviewevent

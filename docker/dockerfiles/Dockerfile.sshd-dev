@@ -1,0 +1,23 @@
+ARG base_version=latest-dev
+FROM critic/base:${base_version} AS base
+
+FROM ubuntu:18.04
+
+ARG apt_get_args
+RUN \
+  DEBIAN_FRONTEND=noninteractive apt-get -qq ${apt_get_args} \
+    update \
+  && \
+  DEBIAN_FRONTEND=noninteractive apt-get -qq ${apt_get_args} \
+    install --yes --no-install-recommends \
+      openssh-client \
+      openssh-server \
+      python3-setuptools
+
+COPY --from=base /var/lib/critic /var/lib/critic
+COPY --from=base /run-critic.py /run-critic.py
+
+ENV CRITICCTL=/var/lib/critic/bin/criticctl
+
+ENTRYPOINT ["/run-critic.py"]
+CMD ["sshd"]

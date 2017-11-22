@@ -14,25 +14,26 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
+import base64
+import email
+import re
 import socket
 import threading
-import time
-import re
-import email
-import base64
 
 import testing
 
+
 class MissingMail(testing.TestFailure):
     def __init__(self, criteria):
-        super(MissingMail, self).__init__(
-            "No mail matching %r received" % criteria)
+        super(MissingMail, self).__init__("No mail matching %r received" % criteria)
         self.criteria = criteria
+
 
 class User(object):
     def __init__(self, name, address):
         self.name = name
         self.address = address
+
 
 class Mail(object):
     def __init__(self, return_path):
@@ -40,6 +41,10 @@ class Mail(object):
         self.recipient = None
         self.headers = {}
         self.lines = []
+
+    @property
+    def subject(self):
+        return self.header("Subject", "<no subject>")
 
     def header(self, name, default=None):
         if name.lower() in self.headers:
@@ -52,24 +57,36 @@ class Mail(object):
             for header in self.headers[header_name]:
                 yield (header["name"], header["value"])
 
+    def __repr__(self):
+        return "Mail(recipient=%r, subject=%r)" % (
+            self.recipient,
+            self.header("Subject"),
+        )
+
     def __str__(self):
-        return "%s\n\n%s" % ("\n".join(("%s: %s" % header)
-                                       for header in self.all_headers()),
-                             "\n".join(self.lines))
+        return "%s\n\n%s" % (
+            "\n".join(("%s: %s" % header) for header in self.all_headers()),
+            "\n".join(self.lines),
+        )
+
 
 class EOF(Exception):
     pass
 
+
 class Quit(Exception):
     pass
 
+
 class Error(Exception):
     pass
+
 
 class ParseError(Error):
     def __init__(self, line):
         super(ParseError, self).__init__("line=%r" % line)
         self.line = line
+
 
 class Client(threading.Thread):
     def __init__(self, mailbox, client, debug_mails):
@@ -79,20 +96,20 @@ class Client(threading.Thread):
         self.client = client
         self.client.settimeout(None)
         self.debug_mails = debug_mails
-        self.buffered = ""
+        self.buffered = b""
         self.start()
 
     def sendline(self, string):
-        self.client.sendall("%s\r\n" % string)
+        self.client.sendall(("%s\r\n" % string).encode())
 
     def recvline(self):
-        while "\r\n" not in self.buffered:
+        while b"\r\n" not in self.buffered:
             data = self.client.recv(4096)
             if not data:
                 raise EOF
             self.buffered += data
-        line, self.buffered = self.buffered.split("\r\n", 1)
-        return line
+        line, self.buffered = self.buffered.split(b"\r\n", 1)
+        return line.decode()
 
     def expectline(self, pattern):
         line = self.recvline()
@@ -115,32 +132,37 @@ class Client(threading.Thread):
                 self.sendline("250 AUTH LOGIN")
 
                 line = self.recvline()
-                match = re.match(r"auth\s+login(?:\s+(.+))?$",
-                                 line, re.IGNORECASE)
+                match = re.match(r"auth\s+login(?:\s+(.+))?$", line, re.IGNORECASE)
                 if not match:
                     raise ParseError(line)
 
                 (username_b64,) = match.groups()
 
                 if not username_b64:
-                    self.sendline("334 %s" % base64.b64encode("Username:"))
+                    self.sendline(
+                        "334 %s" % str(base64.b64encode(b"Username:"), encoding="ascii")
+                    )
                     username_b64 = self.recvline()
 
-                self.sendline("334 %s" % base64.b64encode("Password:"))
+                self.sendline(
+                    "334 %s" % str(base64.b64encode(b"Password:"), encoding="ascii")
+                )
                 password_b64 = self.recvline()
 
                 try:
-                    username = base64.b64decode(username_b64)
+                    username = str(base64.b64decode(username_b64), encoding="ascii")
                 except TypeError:
                     raise Error("Invalid base64: %r" % username_b64)
 
                 try:
-                    password = base64.b64decode(password_b64)
+                    password = str(base64.b64decode(password_b64), encoding="ascii")
                 except TypeError:
                     raise Error("Invalid base64: %r" % password_b64)
 
-                if username != self.credentials["username"] \
-                        or password != self.credentials["password"]:
+                if (
+                    username != self.credentials["username"]
+                    or password != self.credentials["password"]
+                ):
                     raise Error("Wrong credentials: %r / %r" % (username, password))
 
                 self.sendline("235 Welcome, %s!" % username)
@@ -190,12 +212,13 @@ class Client(threading.Thread):
             headers = mail.headers.setdefault(name.lower(), [])
             for value in message.get_all(name):
                 value = re.sub("\r\n[ \t]+", " ", value)
-                headers.append({ "name": name, "value": value })
+                headers.append({"name": name, "value": value})
 
-        mail.lines = message.get_payload(decode=True).splitlines()
+        mail.lines = message.get_payload(decode=True).decode().splitlines()
 
-        testing.logger.debug("Received mail to: <%s> \"%s\""
-                             % (mail.recipient, mail.header("Subject")))
+        testing.logger.debug(
+            'Received mail to: <%s> "%s"' % (mail.recipient, mail.header("Subject"))
+        )
 
         if self.debug_mails:
             source = "--------------------------------------------------\n"
@@ -218,7 +241,7 @@ class Client(threading.Thread):
             while True:
                 self.receive()
         except Error as error:
-            testing.logger.error("Mailbox: Client error: %s" % error.message)
+            testing.logger.error("Mailbox: Client error: %s" % error)
         except Quit:
             testing.logger.debug("Mailbox: Client quit.")
         except EOF:
@@ -232,6 +255,7 @@ class Client(threading.Thread):
             self.client.close()
         except socket.error:
             pass
+
 
 class Listener(threading.Thread):
     def __init__(self, mailbox, debug_mails):
@@ -257,6 +281,7 @@ class Listener(threading.Thread):
 
     def stop(self):
         self.stopped = True
+
 
 class Mailbox(object):
     def __init__(self, instance, credentials=None, debug_mails=False):
@@ -318,11 +343,14 @@ class Mailbox(object):
         self.listener.stop()
 
     def check_empty(self):
+        if self.instance:
+            self.instance.synchronize_service("maildelivery")
         try:
             while True:
                 unexpected = self.pop()
-                testing.logger.error("Unexpected mail to <%s>:\n%s"
-                                     % (unexpected.recipient, unexpected))
+                testing.logger.error(
+                    "Unexpected mail to <%s>:\n%s" % (unexpected.recipient, unexpected)
+                )
         except MissingMail:
             pass
 
@@ -337,18 +365,53 @@ class Mailbox(object):
         self.stop()
         return False
 
+
 class WithSubject(object):
     def __init__(self, value):
         self.regexp = re.compile(value)
+
     def __call__(self, mail):
         return self.regexp.match(mail.header("Subject")) is not None
+
     def __repr__(self):
         return "subject=%r" % self.regexp.pattern
+
 
 class ToRecipient(object):
     def __init__(self, address):
         self.address = address
+
     def __call__(self, mail):
         return mail.recipient == self.address
+
     def __repr__(self):
         return "recipient=<%s>" % self.address
+
+
+if __name__ == "__main__":
+    import argparse
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--debug", action="store_true")
+    parser.add_argument("--quiet", action="store_true")
+
+    credentials_group = parser.add_argument_group("Credentials")
+    credentials_group.add_argument("--username")
+    credentials_group.add_argument("--password")
+
+    arguments = parser.parse_args()
+
+    testing.configureLogging(arguments=arguments)
+
+    if arguments.username and arguments.password:
+        credentials = {"username": arguments.username, "password": arguments.password}
+    else:
+        credentials = None
+
+    mailbox = Mailbox(None, credentials=credentials, debug_mails=arguments.debug)
+
+    testing.logger.info("Listening at port %d", mailbox.port)
+
+    with mailbox:
+        while testing.pause("Press ctrl-c to exit.") != "stop":
+            pass

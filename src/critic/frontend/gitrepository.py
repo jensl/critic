@@ -1,0 +1,152 @@
+# -*- mode: python; encoding: utf-8 -*-
+#
+# Copyright 2017 the Critic contributors, Opera Software ASA
+#
+# Licensed under the Apache License, Version 2.0 (the "License"); you may not
+# use this file except in compliance with the License.  You may obtain a copy of
+# the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.  See the
+# License for the specific language governing permissions and limitations under
+# the License.
+
+import asyncio
+import io
+import logging
+
+logger = logging.getLogger(__name__)
+
+from critic import api
+
+
+async def identifyFromRequest(req, *, require_suffix=None):
+    assert isinstance(require_suffix, bool)
+
+    components = req.path.split("/")
+    for index in range(1, len(components) + 1):
+        repository_path = "/".join(components[:index])
+        additional_path = "/".join(components[index:])
+
+        if not require_suffix and not repository_path.endswith(".git"):
+            repository_path += ".git"
+
+        if repository_path.endswith(".git"):
+            try:
+                repository = await api.repository.fetch(
+                    req.critic, path=repository_path
+                )
+            except api.repository.InvalidRepositoryPath:
+                pass
+            else:
+                return repository, additional_path
+
+    return None, None
+
+
+class NeedsUser(Exception):
+    pass
+
+
+async def invokeHttpBackend(req, repository, path):
+    request_environ = req.getEnvironment()
+
+    environ = {
+        "GIT_HTTP_EXPORT_ALL": "true",
+        "REMOTE_ADDR": request_environ.get("REMOTE_ADDR", "unknown"),
+        "PATH_INFO": "/" + req.path,
+        # "PATH_TRANSLATED": os.path.join(repository.path, path),
+        "REQUEST_METHOD": req.method,
+        "QUERY_STRING": req.query,
+    }
+
+    if "CONTENT_TYPE" in request_environ:
+        environ["CONTENT_TYPE"] = request_environ["CONTENT_TYPE"]
+
+    for name, value in request_environ.items():
+        if name.startswith("HTTP_"):
+            environ[name] = value
+
+    if "HTTP_CONTENT_ENCODING" in environ:
+        del environ["HTTP_CONTENT_ENCODING"]
+        if "HTTP_CONTENT_LENGTH" in environ:
+            del environ["HTTP_CONTENT_LENGTH"]
+
+    user = req.critic.effective_user
+
+    if not user.is_anonymous:
+        environ["REMOTE_USER"] = user.name
+
+    needs_user = False
+
+    async def handle_headers(headers_data):
+        nonlocal needs_user
+        for header in headers_data:
+            name, _, value = header.strip().partition(b":")
+            name = name.strip()
+            value = value.strip()
+            if name.lower() == b"status":
+                status_code, _, status_text = value.partition(b" ")
+                status_code = int(status_code, base=10)
+                if status_code == 403 and user.is_anonymous:
+                    needs_user = True
+                req.setStatus(status_code, str(status_text.strip(), encoding="ascii"))
+            elif name.lower() == b"content-type":
+                req.setContentType(str(value, encoding="ascii"))
+            else:
+                req.addResponseHeader(
+                    str(name, encoding="ascii"), str(value, encoding="ascii")
+                )
+        if not needs_user:
+            await req.start()
+
+    logger.info("Running 'git http-backend': %s %s", req.method, req.getRequestURI())
+    logger.debug("Repository: %s", repository.path)
+
+    loop = req.critic.loop
+    input_queue = asyncio.Queue(loop=loop)
+    output_queue = asyncio.Queue(loop=loop)
+
+    async def write_input():
+        while True:
+            data = await req.read(65536)
+            await input_queue.put(data)
+            if not data:
+                break
+
+    async def read_output():
+        buffered = io.BytesIO()
+        while True:
+            data = await output_queue.get()
+            if not data:
+                break
+            if not req.isStarted():
+                try:
+                    headers_end = data.index(b"\r\n\r\n")
+                except ValueError:
+                    buffered.write(data)
+                    continue
+                buffered.write(data[:headers_end])
+                buffered.seek(0)
+                await handle_headers(buffered)
+                data = data[headers_end + 4 :]
+            if data and req.isStarted():
+                await req.write(data)
+
+    tasks = [
+        repository.low_level.stream("http-backend", input_queue, output_queue, environ),
+        read_output(),
+    ]
+
+    if req.method in ("POST", "PUT"):
+        tasks.append(write_input())
+    else:
+        await input_queue.put(b"")
+
+    await asyncio.gather(*tasks, loop=loop)
+
+    if needs_user:
+        raise NeedsUser()

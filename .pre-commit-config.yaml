@@ -1,0 +1,57 @@
+repos:
+  - repo: git://github.com/pre-commit/pre-commit-hooks
+    rev: v2.1.0
+    hooks:
+      - id: trailing-whitespace
+        exclude: >
+          (?x)^(
+            critic/resources/third-party/.*|
+            .*/fonts/.*|
+            .*/css/.*\.min\.css|
+            .*/config\.json\.example
+          )$
+      - id: check-merge-conflict
+      - id: no-commit-to-branch
+      - id: end-of-file-fixer
+      - id: check-yaml
+        types: [yaml]
+      - id: flake8
+        name: Flake8 (correctness)
+        types: [file, python]
+        args: [--select=F, W]
+        exclude: >
+          (?x)^(
+            testing/tests/.*|
+            .*_unittest.py
+          )$
+      - id: flake8
+        name: Flake8 (style)
+        types: [file, python]
+        files: >
+          (?x)^(
+            critic/api/.*|
+            critic/background/.*|
+            critic/dbaccess/.*|
+            critic/criticctl/.*|
+            critic/gitaccess/.*
+          )$
+        args: [--select=E]
+
+  - repo: https://github.com/prettier/prettier
+    rev: 1.17.0
+    hooks:
+      - id: prettier
+        name: Prettier (JavaScript)
+        types: [file, text, javascript]
+        files: ^ui/src/.*$
+        args: [--config, ui/.prettierrc]
+      - id: prettier
+        name: Prettier (CSS)
+        types: [file, text, css]
+        files: ^ui/src/.*$
+        args: [--config, ui/.prettierrc]
+
+  - repo: https://github.com/ambv/black
+    rev: stable
+    hooks:
+      - id: black

@@ -7,22 +7,26 @@ import testing
 TESTS = None
 TESTS_BY_FILENAME = {}
 
+
 def automaticDependencies(filename):
-    this_dirname = os.path.dirname(filename)
     for test in TESTS:
-        other_dirname = os.path.dirname(test.filename)
-        if this_dirname.startswith(other_dirname):
-            if os.path.sep not in other_dirname \
-                    or len(other_dirname) < len(this_dirname):
-                yield test
+        if filename < test.filename:
+            break
+        dirname = os.path.dirname(test.filename)
+        if not dirname:
+            yield test
+
 
 RE_DEPENDENCY = re.compile(r"#\s+@dependency\s+([^\s]+)")
+RE_USERS = re.compile(r"#\s+@users?\s+(\w+(?:,\s*\w+)*)")
 RE_FLAG = re.compile(r"#\s+@flag\s+([-\w]+)")
 RE_IGNORE = re.compile(r"(?:\s*#.*)?\s*$")
+
 
 class Test(object):
     def __init__(self, filename):
         self.filename = filename
+        self.name = os.path.basename(filename)[: -len(".py")]
         self.groups = []
         dirname = filename
         while True:
@@ -31,6 +35,7 @@ class Test(object):
                 break
             self.groups.insert(0, dirname)
         self.dependencies = set()
+        self.users = set()
         self.flags = set()
 
         has_dependency_declarations = []
@@ -39,7 +44,7 @@ class Test(object):
             path = os.path.join("testing", "tests", path)
             if not os.path.isfile(path):
                 return
-            with open(path) as source_file:
+            with open(path, "r", encoding="utf-8") as source_file:
                 for index, line in enumerate(source_file):
                     match = RE_DEPENDENCY.match(line)
                     if match:
@@ -49,10 +54,15 @@ class Test(object):
                             pass
                         elif dependency not in TESTS_BY_FILENAME:
                             testing.logger.error(
-                                "%s:%d: invalid depdency: %s"
-                                % (filename, index + 1, dependency))
+                                "%s:%d: invalid dependency: %s"
+                                % (filename, index + 1, dependency)
+                            )
                         else:
                             self.dependencies.add(TESTS_BY_FILENAME[dependency])
+                        continue
+                    match = RE_USERS.match(line)
+                    if match:
+                        self.users.update(map(str.strip, match.group(1).split(",")))
                         continue
                     match = RE_FLAG.match(line)
                     if match:
@@ -71,21 +81,26 @@ class Test(object):
                 break
             process_file(os.path.join(dirname, "__init__.py"))
 
-        if not has_dependency_declarations:
-            self.dependencies.update(automaticDependencies(filename))
+        self.dependencies.update(automaticDependencies(filename))
 
         TESTS.append(self)
         TESTS_BY_FILENAME[self.filename] = self
 
     def __str__(self):
         return self.filename
+
     def __hash__(self):
         return hash(self.filename)
+
     def __eq__(self, other):
         return self.filename == str(other)
 
     def __repr__(self):
-        return "Test(%r): %r" % (self.filename, sorted([test.filename for test in self.dependencies]))
+        return "Test(%r): %r" % (
+            self.filename,
+            sorted([test.filename for test in self.dependencies]),
+        )
+
 
 def findTests():
     global TESTS
@@ -97,6 +112,8 @@ def findTests():
 
     def traverse(dirname):
         for filename in sorted(os.listdir(dirname)):
+            if filename.startswith("_"):
+                continue
             filename = os.path.join(dirname, filename)
             if os.path.isdir(filename):
                 traverse(filename)
@@ -104,10 +121,11 @@ def findTests():
                 Test(os.path.relpath(filename, "testing/tests"))
             elif not RE_IGNORE_FILENAME.search(filename):
                 testing.logger.warning(
-                    "%s: unexpected non-test file under testing/tests/"
-                    % filename)
+                    "%s: unexpected non-test file under testing/tests/" % filename
+                )
 
     traverse("testing/tests")
+
 
 def filterPatterns(patterns):
     RE_LEADING_TESTS = re.compile("^(?:testing/)?tests(?:/|$)")
@@ -118,23 +136,28 @@ def filterPatterns(patterns):
 
     return patterns
 
+
 def selectTests(patterns, strict, flags_on=set(), flags_off=set()):
     if TESTS is None:
         findTests()
 
-    patterns = filterPatterns(patterns)
+    patterns = filterPatterns(patterns or [])
 
     if not patterns and not flags_on and not flags_off:
         return TESTS, set()
 
     selected = set()
     dependencies = set()
+    users = set()
 
     def select(test, is_dependency=False):
+        assert not (flags_on - test.flags), ("on", test.flags, flags_on)
+        assert not (flags_off & test.flags), ("off", test.flags, flags_off)
         if test in selected:
             # Test already selected.
             return
         selected.add(test.filename)
+        users.update(test.users)
         if strict:
             # Don't select dependencies when strict=True.
             return
@@ -164,4 +187,4 @@ def selectTests(patterns, strict, flags_on=set(), flags_off=set()):
         else:
             select(test)
 
-    return [test for test in TESTS if test in selected], dependencies
+    return [test for test in TESTS if test in selected], dependencies, users

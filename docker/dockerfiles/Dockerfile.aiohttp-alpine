@@ -1,0 +1,4 @@
+ARG base_version=alpine
+FROM critic/base:${base_version}
+
+CMD ["aiohttp"]

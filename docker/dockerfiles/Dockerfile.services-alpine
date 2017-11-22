@@ -1,0 +1,6 @@
+ARG base_version=alpine
+FROM critic/base:${base_version}
+
+RUN apk --update add git git-daemon && rm -r /var/cache/apk/*
+
+CMD ["services"]

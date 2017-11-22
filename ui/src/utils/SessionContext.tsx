@@ -1,0 +1,58 @@
+/*
+ * Copyright 2017 the Critic contributors, Opera Software ASA
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not
+ * use this file except in compliance with the License.  You may obtain a copy
+ * of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.  See the
+ * License for the specific language governing permissions and limitations under
+ * the License.
+ */
+
+import React, { useContext, FunctionComponent } from "react"
+import Immutable from "immutable"
+import { connect } from "react-redux"
+
+import User from "../resources/user"
+import { State } from "../state"
+
+export type SessionID = number
+
+type SessionProps = {
+  sessionID: SessionID
+  signedInUser: User | null
+  isSignedIn: boolean
+}
+
+class Value extends Immutable.Record<SessionProps>({
+  sessionID: -1,
+  signedInUser: null,
+  isSignedIn: false,
+}) {}
+
+const SessionContext = React.createContext(new Value())
+
+const SetSession: FunctionComponent<SessionProps> = ({
+  children,
+  ...props
+}) => (
+  <SessionContext.Provider value={new Value(props)}>
+    {children}
+  </SessionContext.Provider>
+)
+
+export const useSessionID = () => useContext(SessionContext).sessionID
+export const useSignedInUser = () => useContext(SessionContext).signedInUser
+
+export default connect((state: State) => {
+  const session = state.resource.sessions.get("current", null)
+  const sessionID = session && session.user !== null ? session.user : -1
+  const isSignedIn = sessionID !== -1
+  const signedInUser = state.resource.users.byID.get(sessionID, null)
+  return { sessionID, signedInUser, isSignedIn }
+})(SetSession)

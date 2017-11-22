@@ -1,0 +1,31 @@
+FROM ubuntu:18.04
+
+ARG apt_get_args
+RUN \
+  DEBIAN_FRONTEND=noninteractive apt-get -qq ${apt_get_args} \
+    update \
+  && \
+  DEBIAN_FRONTEND=noninteractive apt-get -qq ${apt_get_args} \
+    install --yes --no-install-recommends \
+      python3-pip \
+      python3-setuptools \
+      python3-wheel \
+      python3-venv \
+      python3-dev \
+      libpq-dev \
+      gcc \
+  && \
+  python3 -m venv /var/lib/critic
+
+COPY requirements.txt /critic-review/requirements.txt
+
+RUN \
+  /var/lib/critic/bin/pip --no-cache-dir --disable-pip-version-check \
+    install -r /critic-review/requirements.txt
+
+COPY setup.py README.rst /critic-review/
+COPY critic /critic-review/critic
+
+RUN \
+  /var/lib/critic/bin/pip --no-cache-dir --disable-pip-version-check \
+    install /critic-review/

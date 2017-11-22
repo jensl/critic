@@ -1,0 +1,10 @@
+ARG httpd_version=latest
+ARG ui_image=critic/ui:latest
+
+FROM ${ui_image} AS ui
+FROM httpd:${httpd_version}
+
+COPY --from=ui /build/static /critic/static
+COPY docker/conf/httpd/httpd.conf conf/httpd.conf
+
+STOPSIGNAL SIGKILL

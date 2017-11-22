@@ -1,0 +1,31 @@
+ARG base_image=critic/base:latest
+ARG ui_image=critic/ui:latest
+
+FROM ${base_image} AS base
+FROM ${ui_image} AS ui
+
+FROM ubuntu:18.04
+
+ARG apt_get_args
+RUN \
+  DEBIAN_FRONTEND=noninteractive apt-get -qq ${apt_get_args} \
+    update \
+  && \
+  DEBIAN_FRONTEND=noninteractive apt-get -qq ${apt_get_args} \
+    install --yes --no-install-recommends \
+      ca-certificates \
+      python3-setuptools \
+      libpq5
+
+COPY --from=base /var/lib/critic /var/lib/critic
+COPY --from=ui \
+     /build/index.html \
+     /build/manifest.json \
+     /build/favicon.png \
+     /var/lib/critic/ui/
+COPY docker/scripts/run-critic.py /run-critic.py
+
+ENV CRITICCTL=/var/lib/critic/bin/criticctl
+
+ENTRYPOINT ["/run-critic.py"]
+CMD ["aiohttp"]

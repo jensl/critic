@@ -4,3 +4,12 @@
 *.pyo
 *~
 testing/cache
+build/
+dist/
+critic_review.egg-info/
+.eggs/
+.vscode/
+.mypy_cache/
+critic-1.0.0-py3-none-any.whl
+src/critic.egg-info/
+.dmypy.json

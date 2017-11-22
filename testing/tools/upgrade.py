@@ -19,23 +19,66 @@ import time
 
 import testing
 
+
 def main():
     parser = argparse.ArgumentParser(
-        description="Critic testing framework: instance upgrade utility")
-    parser.add_argument("--debug", help="Enable DEBUG level logging", action="store_true")
-    parser.add_argument("--quiet", help="Disable INFO level logging", action="store_true")
-    parser.add_argument("--vm-identifier", help="VirtualBox instance name or UUID", required=True)
-    parser.add_argument("--vm-hostname", help="VirtualBox instance hostname [default=VM_IDENTIFIER]")
-    parser.add_argument("--vm-snapshot", help="VirtualBox snapshot (name or UUID) to upgrade", default="clean")
-    parser.add_argument("--vm-ssh-port", help="VirtualBox instance SSH port [default=22]", type=int, default=22)
-    parser.add_argument("--pause-before-upgrade", help="Pause before upgrading", action="store_true")
-    parser.add_argument("--pause-after-upgrade", help="Pause after upgrading", action="store_true")
-    parser.add_argument("--no-upgrade", action="store_true", help="Do not upgrade installed packages")
-    parser.add_argument("--install", action="append", help="Install named package")
-    parser.add_argument("--custom", action="store_true",
-                        help="Stop for custom maintenance, and always retake snapshot")
-    parser.add_argument("--reboot", action="store_true",
-                        help="Reboot VM before retaking snapshot")
+        description="Critic testing framework: instance upgrade utility"
+    )
+    parser.add_argument(
+        "--debug", action="store_true", help="Enable DEBUG level logging"
+    )
+    parser.add_argument(
+        "--quiet", action="store_true", help="Disable INFO level logging"
+    )
+
+    parser.add_argument_group("VirtualBox instance options")
+    parser.add_argument(
+        "--identifier",
+        required=True,
+        dest="vm_identifier",
+        metavar="IDENTIFIER",
+        help="VirtualBox instance name (or UUID)",
+    )
+    parser.add_argument(
+        "--hostname",
+        dest="vm_hostname",
+        metavar="HOSTNAME",
+        help=("VirtualBox instance hostname " "[default=same as instance name]"),
+    )
+    parser.add_argument(
+        "--ssh-port",
+        type=int,
+        default=22,
+        dest="vm_ssh_port",
+        metavar="PORT",
+        help="VirtualBox instance SSH port [default=22]",
+    )
+    parser.add_argument(
+        "--restore-snapshot",
+        required=True,
+        dest="vm_snapshot",
+        metavar="NAME",
+        help="Snapshot to restore before upgrading",
+    )
+    parser.add_argument(
+        "--take-snapshot",
+        metavar="NAME",
+        help=("Snapshot to take when finished " "[default=same as restored snapshot]"),
+    )
+
+    parser.add_argument_group("Mode of operation")
+    parser.add_argument(
+        "--upgrade", action="store_true", help="Upgrade all installed packages"
+    )
+    parser.add_argument("--install", action="append", help="Install new package")
+    parser.add_argument(
+        "--custom",
+        action="store_true",
+        help=("Pause for custom maintenance " "[default unless --upgrade/--install]"),
+    )
+    parser.add_argument(
+        "--reboot", action="store_true", help="Reboot before retaking snapshot"
+    )
 
     arguments = parser.parse_args()
 
@@ -44,65 +87,43 @@ def main():
 
     instance = testing.virtualbox.Instance(arguments)
 
+    if arguments.take_snapshot:
+        instance.check_snapshot(arguments.take_snapshot, allow_missing=True)
+
     with instance:
         instance.start()
 
-        if not arguments.no_upgrade:
-            logger.debug("Upgrading guest OS ...")
-
-            update_output = instance.execute(
-                ["sudo", "DEBIAN_FRONTEND=noninteractive",
-                 "apt-get", "-q", "-y", "update"])
-
-            logger.debug("Output from 'apt-get -q -y update':\n" + update_output)
-
-            upgrade_output = instance.execute(
-                ["sudo", "DEBIAN_FRONTEND=noninteractive",
-                 "apt-get", "-q", "-y", "upgrade"])
-
-            logger.debug("Output from 'apt-get -q -y upgrade':\n" + upgrade_output)
-
-            retake_snapshot = False
-
-            if "The following packages will be upgraded:" in upgrade_output.splitlines():
-                retake_snapshot = True
+        if arguments.upgrade:
+            logger.info("Upgrading installed packages ...")
+            instance.apt_install(upgrade=True)
 
         if arguments.install:
-            install_output = instance.execute(
-                ["sudo", "DEBIAN_FRONTEND=noninteractive",
-                 "apt-get", "-q", "-y", "install"] + arguments.install)
+            logger.info("Installing new packages ...")
+            instance.apt_install(*arguments.install)
 
-            logger.debug("Output from 'apt-get -q -y install':\n" +
-                         install_output)
-
-            retake_snapshot = True
-
-        if arguments.custom:
+        if arguments.custom or not (arguments.upgrade or arguments.install):
             testing.pause()
-            retake_snapshot = True
 
-        if retake_snapshot:
-            if arguments.reboot:
-                instance.execute(["sudo", "reboot"])
+        if arguments.reboot:
+            logger.info("Rebooting ...")
+            instance.execute(["sudo", "reboot"])
 
-                logger.debug("Sleeping 10 seconds ...")
-                time.sleep(10)
+            logger.debug("Sleeping 10 seconds ...")
+            time.sleep(10)
 
-                instance.wait()
+            instance.wait()
 
-                logger.debug("Sleeping 10 seconds ...")
-                time.sleep(10)
+            logger.debug("Sleeping 10 seconds ...")
+            time.sleep(10)
 
-                logger.info("Rebooted VM: %s" % arguments.vm_identifier)
+        logger.debug("Retaking snapshot ...")
 
-            logger.info("Upgraded guest OS")
-            logger.debug("Retaking snapshot ...")
+        take_snapshot = arguments.take_snapshot or instance.snapshot
 
-            instance.retake_snapshot(arguments.vm_snapshot)
+        event = instance.retake_snapshot(take_snapshot)
 
-            logger.info("Snapshot '%s' upgraded!" % arguments.vm_snapshot)
-        else:
-            logger.info("No packages upgraded in guest OS")
+        logger.info("Snapshot %r %s", take_snapshot, event)
+
 
 if __name__ == "__main__":
     main()

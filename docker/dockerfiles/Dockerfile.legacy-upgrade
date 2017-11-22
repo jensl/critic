@@ -1,0 +1,38 @@
+ARG base_version=latest
+FROM critic/base:${base_version} AS base
+
+FROM ubuntu:18.04
+
+ARG apt_get_args
+
+RUN \
+  DEBIAN_FRONTEND=noninteractive apt-get ${apt_get_args} \
+    update \
+  && \
+  DEBIAN_FRONTEND=noninteractive apt-get ${apt_get_args} \
+    install --yes --no-install-recommends \
+      git \
+      postgresql-client \
+      wait-for-it \
+      python3-distutils
+
+# Archive containing all configuration files. In a default legacy Critic
+# installation, an appropriate way to create this archive would be:
+#
+#   $ (cd /etc/critic && tar czf - main/) > etc_critic.tar.gz
+#
+#COPY etc_critic.tar.gz /legacy/etc_critic.tar.gz
+
+# Database dump. In a default legacy Critic installation, create this file by
+# running this command as root:
+#
+#   $ su -c "pg_dump -Fc -f criticdb.dump" critic
+#
+#COPY criticdb.dump /legacy/criticdb.dump
+
+COPY --from=base /var/lib/critic /var/lib/critic
+COPY docker/scripts/legacy-upgrade.sh /legacy-upgrade.sh
+
+ENV CRITICCTL=/var/lib/critic/bin/criticctl
+
+ENTRYPOINT ["/legacy-upgrade.sh"]

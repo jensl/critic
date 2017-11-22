@@ -1,0 +1,25 @@
+ARG base_version=alpine
+FROM critic/base:${base_version} AS base
+
+FROM alpine:latest
+
+RUN \
+  apk --update add bash python3 libpq openssh-server \
+  && \
+  rm -r /var/cache/apk/* \
+  && \
+  addgroup -S critic \
+  && \
+  adduser -S -H -D -G critic -h /var/lib/critic critic \
+  && \
+  adduser -S -H -D -G critic -h /var/lib/critic -s /bin/sh git \
+  && \
+  passwd -u git
+
+COPY --from=base /var/lib/critic /var/lib/critic
+COPY docker/scripts/run-critic.py run-critic.py
+
+ENV CRITICCTL=/var/lib/critic/bin/criticctl
+
+ENTRYPOINT ["/run-critic.py"]
+CMD ["sshd"]

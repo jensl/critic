@@ -20,24 +20,31 @@ import logging
 import re
 import json
 
+
 def level_value(level):
     return getattr(logging, level.upper())
+
 
 filter_level = level_value(sys.argv[1])
 logfile_paths = sys.argv[2:]
 
+
 def include_entry(entry_level):
     return filter_level <= level_value(entry_level)
+
 
 HEADER = r"\d{4}-\d\d-\d\d \d\d:\d\d:\d\d,\d\d\d -  *"
 
 RE_ENTRY = re.compile(
-    "{header}(([A-Z]+) - .*?)(?=$|\n{header}[A-Z]+ - )".format(header=HEADER),
-    re.DOTALL)
+    "{header}(([A-Z]+) - .*?)(?=$|\n{header}[A-Z]+ - )".format(header=HEADER), re.DOTALL
+)
 
 data = {}
 
 for logfile_path in logfile_paths:
+    if not os.path.isfile(logfile_path):
+        continue
+
     with open(logfile_path) as logfile:
         log = logfile.read()
 
@@ -64,8 +71,5 @@ for logfile_path in logfile_paths:
     with open(logfile_path + ".skip", "w") as logfile_skip:
         logfile_skip.write(str(skip))
 
-if data:
-    json.dump(data, sys.stdout)
-    sys.exit(0)
-
-sys.exit(1)
+json.dump(data, sys.stdout)
+sys.exit(0)

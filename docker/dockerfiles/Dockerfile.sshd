@@ -1,0 +1,25 @@
+ARG base_image=critic/base:latest
+FROM ${base_image} AS base
+
+FROM ubuntu:18.04
+
+ARG apt_get_args
+RUN \
+  DEBIAN_FRONTEND=noninteractive apt-get -qq ${apt_get_args} \
+    update \
+  && \
+  DEBIAN_FRONTEND=noninteractive apt-get -qq ${apt_get_args} \
+    install --yes --no-install-recommends \
+      openssh-client \
+      openssh-server \
+      python3-setuptools \
+      libpq5
+
+COPY --from=base /var/lib/critic /var/lib/critic
+COPY docker/scripts/run-critic.py /run-critic.py
+COPY docker/scripts/lookup-ssh-key.sh /lookup-ssh-key.sh
+
+ENV CRITICCTL=/var/lib/critic/bin/criticctl
+
+ENTRYPOINT ["/run-critic.py"]
+CMD ["sshd"]
