@@ -24,7 +24,7 @@ import changeset.utils
 
 from extensions import getExtensionInstallPath
 from extensions.extension import Extension
-from extensions.execute import ProcessTimeout, ProcessFailure, executeProcess
+from extensions.execute import ProcessError, ProcessTimeout, ProcessFailure, executeProcess
 from extensions.manifest import Manifest, ManifestError, ProcessCommitsRole
 
 def execute(db, user, review, all_commits, old_head, new_head, output):
