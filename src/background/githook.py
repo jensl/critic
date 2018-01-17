@@ -237,6 +237,20 @@ been sent to the system administrator(s).
             if user_name == configuration.base.SYSTEM_USER_NAME and lines[1]:
                 user_name = lines[1]
 
+            # Lines 5 onwards are environment variables, until a line with
+            # "END_ENVIRONMENT_VARIABLES" by itself appears.
+            environment = {}
+            next_line = 4
+            while lines[next_line] != "END_ENVIRONMENT_VARIABLES":
+                fields = lines[next_line].split('=', 1)
+                environment[fields[0]] = fields[1]
+                next_line = next_line + 1
+
+            # Then the input follows.
+            input_line = next_line + 1
+
+            # FIXME: figure out where the child process is created, and add these environment variables
+
             self.__request = { "user_name": user_name,
                                "repository_name": lines[2],
                                "flags": lines[3],
@@ -244,7 +258,7 @@ been sent to the system administrator(s).
                                           "old_sha1": old_sha1,
                                           "new_sha1": new_sha1 }
                                         for old_sha1, new_sha1, name
-                                        in map(str.split, lines[4:])] }
+                                        in map(str.split, lines[input_line:])] }
 
             self.server.info("session started: %s / %s"
                              % (self.__request["user_name"],
