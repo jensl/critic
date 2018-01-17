@@ -14,16 +14,18 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
+from __future__ import print_function
+
 import sys
 
 def check(message=None):
     if sys.version_info[0] != 2 or sys.version_info[1] < 7:
-        print """
+        print("""
 ERROR: Unsupported Python version!  Critic requires Python 2.7.x or
 later, and does not support Python 3.x.
-"""
+""")
 
         if message:
-            print message
+            print(message)
 
         sys.exit(2)

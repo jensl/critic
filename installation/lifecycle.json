@@ -1,4 +1,4 @@
 {
-	"branch": "stable/1",
-	"stable": true
+	"branch": "master",
+	"stable": false
 }
