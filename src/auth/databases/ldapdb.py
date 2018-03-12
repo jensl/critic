@@ -71,6 +71,10 @@ class LDAP(auth.Database):
         connection = ldap.initialize(self.configuration["url"])
         if self.configuration["use_tls"]:
             connection.start_tls_s()
+        bind_dn = self.configuration["bind_dn"]
+        bind_password = self.configuration["bind_password"]
+        if bind_dn is not None and bind_password is not None:
+            connection.simple_bind_s(bind_dn, bind_password)
         return connection
 
     def __isMemberOfGroup(self, connection, group, fields):

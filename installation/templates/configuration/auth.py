@@ -107,6 +107,13 @@ DATABASES = {
         # Use TLS when connecting to LDAP server.
         "use_tls": True,
 
+        # LDAP service account.
+        #
+        # If the LDAP server does not allow anonymous access, configure
+        # an account with permission to search users.
+        "bind_dn": None,
+        "bind_password": None,
+
         # Credentials field.
         #
         # Identifier of the field whose value will be used as the credentials
