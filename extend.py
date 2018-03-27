@@ -31,6 +31,8 @@ import multiprocessing
 import tempfile
 import pwd
 
+from distutils.version import LooseVersion
+
 import installation
 
 parser = argparse.ArgumentParser(description="Critic extension support installation script",
@@ -197,7 +199,7 @@ if prereqs:
                 "libcurl4-%s-dev" % arguments.libcurl_flavor)
         else:
             print """
-No version of libcurl-dev appears to be install.  There are usually multiple
+No version of libcurl-dev appears to be installed.  There are usually multiple
 versions available to install using different libraries (openssl, gnutls or nss)
 for secure communication.  If curl is already installed, you probably need to
 install a matching version of libcurl-dev.
@@ -228,8 +230,8 @@ env = os.environ.copy()
 if build and not arguments.no_compiler_check:
     version = subprocess.check_output([compiler, "--version"])
     if version.startswith("g++"):
-        version = subprocess.check_output([compiler, "-dumpversion"]).strip().split(".")
-        if (int(version[0]), int(version[1])) < (4, 7):
+        version = subprocess.check_output([compiler, "-dumpversion"]).strip()
+        if LooseVersion(version) < LooseVersion("4.7"):
             print """
 ERROR: GCC version 4.7 or later required to build v8-jsshell.
 HINT: Set $CXX to use a different compiler than '%s', or use
