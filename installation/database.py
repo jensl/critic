@@ -20,6 +20,7 @@ import os
 import time
 import errno
 import subprocess
+from pipes import quote
 
 import installation
 
@@ -33,20 +34,25 @@ user_created = False
 database_created = False
 language_created = False
 
+
+def psql_run(*args, **kwargs):
+    as_user = kwargs.get('as_user') or installation.system.username
+    params = list(args)
+    if server_hostname is not None:
+        params.append("postgresql://%s:%s@%s:%d/%s" % (username, password, server_hostname, server_port, name))
+    to_run = ['su', '-s', '/bin/sh', '-c', 'psql -v ON_ERROR_STOP=1 %s' % ' '.join(
+            quote(parm) for parm in params)]
+    if as_user:
+        to_run.append(as_user)
+    return to_run
+
 def psql_import(sql_file, as_user=None):
-    if hostname is None:
-        if as_user is None:
-            as_user = installation.system.username
-        temp_file = tempfile.mkstemp()[1]
-        shutil.copy(os.path.join(installation.root_dir, sql_file), temp_file)
-        # Make sure file is readable by postgres user
-        os.chmod(temp_file, 0644)
-        subprocess.check_output(
-            ["su", "-s", "/bin/sh", "-c", "psql -v ON_ERROR_STOP=1 -f %s" % temp_file, as_user])
-        os.unlink(temp_file)
-    else:
-        subprocess.check_call(
-            ["psql", "-e", "-f", sql_file, "postgresql://%s:%s@%s:%d/%s" % (username, password, server_hostname, server_port, name)])
+    temp_file = tempfile.mkstemp()[1]
+    shutil.copy(os.path.join(installation.root_dir, sql_file), temp_file)
+    # Make sure file is readable by postgres user
+    os.chmod(temp_file, 0644)
+    subprocess.check_output(psql_run('-f', temp_file, as_user=as_user))
+    os.unlink(temp_file)
 
 def add_arguments(mode, parser):
     if mode == "install":
@@ -207,10 +213,13 @@ ERROR: Critic requires PostgreSQL 9.1.x or later!
     # 'root_dir', so set cwd to something that Critic system / "postgres" users
     # has access to.
     with installation.utils.temporary_cwd():
-        subprocess.check_output(["su", "-c", "psql -v ON_ERROR_STOP=1 -c 'CREATE USER \"%s\";'" % installation.system.username, "postgres"])
+        uname = installation.system.username
+        subprocess.check_output(["su", "-c", 'createuser "%s"' % uname,
+                                 "postgres"])
         user_created = True
-
-        subprocess.check_output(["su", "-c", "psql -v ON_ERROR_STOP=1 -c 'CREATE DATABASE \"critic\";'", "postgres"])
+        subprocess.check_output(
+            ["su", "-c", 'createdb -T template0 -E utf8 -O "{0}" "{0}"'.format(uname),
+             "postgres"])
         database_created = True
 
         try:
@@ -228,6 +237,9 @@ ERROR: Critic requires PostgreSQL 9.1.x or later!
         subprocess.check_output(["su", "-c", "psql -v ON_ERROR_STOP=1 -c 'GRANT ALL ON DATABASE \"critic\" TO \"%s\";'" % installation.system.username, "postgres"])
 
 def install(data):
+    if not server_hostname:
+        install_local()
+
     for schema_file in SCHEMA_FILES:
         psql_import(schema_file)
     for pgsql_file in PGSQL_FILES:
@@ -252,7 +264,7 @@ def install(data):
            adapt(installation.system.hostname), adapt(data["sha1"])))
 
     installation.process.check_input(
-        ["su", "-s", "/bin/sh", "-c", "psql -q -v ON_ERROR_STOP=1 -f -", installation.system.username],
+        psql_run('-q', as_user=installation.system.username),
         stdin=add_systemidentity_query)
 
     return True
@@ -289,6 +301,6 @@ def undo():
     if language_created:
         subprocess.check_output(["su", "-c", "droplang plpgsql critic", "postgres"])
     if database_created:
-        subprocess.check_output(["su", "-c", "psql -v ON_ERROR_STOP=1 -c 'DROP DATABASE \"critic\";'", "postgres"])
+        subprocess.check_output(["su", "-c", "dropdb critic", "postgres"])
     if user_created:
-        subprocess.check_output(["su", "-c", "psql -v ON_ERROR_STOP=1 -c 'DROP USER \"%s\";'" % installation.system.username, "postgres"])
+        subprocess.check_output(["su", "-c", "dropuser critic", "postgres"])

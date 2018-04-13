@@ -308,7 +308,7 @@ def resolve_prerequisites():
         prerequisites.extend(uwsgi_prerequisites)
 
     if installation.database.server_hostname is None:
-        prerequisites.append(postgresql_server_prerequisites)
+        prerequisites.extend(postgresql_server_prerequisites)
 
 def prepare(mode, arguments, data):
     global headless
@@ -322,7 +322,6 @@ def install(data):
 Critic Installation: Prerequisites
 ==================================
 """
-
     if not all(prerequisite.install() for prerequisite in prerequisites):
         return False
 
