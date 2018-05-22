@@ -398,8 +398,9 @@ def renderConfig(req, db, user):
 
             h2 = table.tr("extension").td("extension", colspan=3).h2()
             h2.span("name").text(extension_name)
-            h2.text(" by ")
-            h2.span("author").text(author.fullname)
+            if author:
+                h2.text(" by ")
+                h2.span("author").text(author.fullname)
 
             for preference in preferences:
                 preference_url = preference["url"]
