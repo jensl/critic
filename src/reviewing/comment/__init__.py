@@ -216,7 +216,7 @@ class CommentChain:
                                  chainunread(commentchains.id, %s)
                             FROM commentchains
                             JOIN users ON (users.id=commentchains.uid)
-                            JOIN useremails ON (useremails.id=users.email)
+                 LEFT OUTER JOIN useremails ON (useremails.id=users.email)
                             JOIN comments ON (comments.id=commentchains.first_comment)
                  LEFT OUTER JOIN commentchainchanges AS drafttype ON (drafttype.chain=commentchains.id
                                                                   AND drafttype.uid=%s
