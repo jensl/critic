@@ -363,7 +363,8 @@ if enable and not configuration.extensions.ENABLED:
     try:
         subprocess.check_output(
             ["su", "-s", "/bin/bash",
-             "-c", "psql -q -c 'SELECT 1 FROM extensions LIMIT 1'",
+             "-c", "psql -h %s -q -c 'SELECT 1 FROM extensions LIMIT 1'" % configuration.database.PARAMETERS["host"],
+             configuration.base.
              configuration.base.SYSTEM_USER_NAME],
             stderr=subprocess.STDOUT)
     except subprocess.CalledProcessError:
