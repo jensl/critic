@@ -954,11 +954,12 @@ def renderShowReview(req, db, user):
                 nunread = chain.countUnread()
 
                 cell = row.td("when")
-                if ncomments <= 1:
-                    if nunread: cell.b().text("Unread")
-                    else: cell.text("No replies")
+                if ncomments == nunread:
+                    cell.b().text("Unread")
+                elif ncomments <= 1:
+                    cell.text("No replies")
                 else:
-                    if nunread: cell.b().text("%d of %d unread" % (nunread, ncomments))
+                    if nunread: cell.b().text("%d of %d unread" % (nunread, ncomments - 1))
                     else: cell.text("%d repl%s" % (ncomments - 1, "ies" if ncomments > 2 else "y"))
 
         if draft_issues:
