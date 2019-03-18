@@ -453,7 +453,7 @@ def sendReviewPlaceholder(db, to_user, review, message_id=None):
         checkEmailEnabled(db, to_user)
         subject = generateSubjectLine(db, to_user, review, 'newishReview')
     except MailDisabled:
-        return []
+        return None, message_id
 
     line_length = to_user.getPreference(db, "email.lineLength")
     hr = "-" * line_length
