@@ -145,7 +145,7 @@ class Extension(object):
             with open(os.path.join(install_path, "MANIFEST")) as manifest_file:
                 source = manifest_file.read()
 
-            path = "<snapshot of commit %s>" % sha1[:8]
+            path = install_path
         elif version in self.__manifest:
             return self.__manifest[version]
 
