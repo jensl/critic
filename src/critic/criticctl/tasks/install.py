@@ -19,6 +19,21 @@ import distutils.spawn
 import json
 import logging
 import os
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    List,
+    Literal,
+    Mapping,
+    Optional,
+    Protocol,
+    Sequence,
+    Tuple,
+    TypedDict,
+    Union,
+    cast,
+)
 import psycopg2
 import re
 import secrets
@@ -28,10 +43,29 @@ import subprocess
 import sys
 from psycopg2 import ProgrammingError, OperationalError
 
+from critic.base import DatabaseParameters
+
 logger = logging.getLogger(__name__)
 
 from critic import api
 from critic import base
+from critic import data
+from .upgrade import list_migrations
+from ..utils import InvalidUser, as_user
+from .types import DatabaseConnection
+from .utils import (
+    FilesystemLocationsArguments,
+    DatabaseBackupArguments,
+    ensure_dir,
+    ensure_system_user_and_group,
+    fail,
+    identify_os,
+    install,
+    setup_database_backup,
+    setup_filesystem_locations,
+    wait_for_connection,
+    write_configuration,
+)
 
 name = "install"
 description = "Install the base Critic system."
@@ -60,9 +94,42 @@ SCHEMA_FILES = [
 ]
 
 
-def get_hostname():
-    from . import identify_os
+class Arguments(FilesystemLocationsArguments, DatabaseBackupArguments, Protocol):
+    configuration: Optional[base.Configuration]
 
+    flavor: Literal["monolithic", "services", "auxilliary", "quickstart"]
+    is_testing: bool
+
+    # Dependencies
+    install_postgresql: bool
+
+    # System details
+    identity: str
+    etc_dir: str
+    system_username: str
+    system_uid: int
+    system_groupname: str
+    system_gid: int
+    system_hostname: str
+
+    # Critic services
+    services_host: Optional[str]
+    services_port: int
+    services_wait: Optional[int]
+
+    # Database settings
+    database_host: Optional[str]
+    database_port: int
+    database_wait: Optional[int]
+    database_name: str
+    database_username: str
+    database_password: Optional[str]
+    no_create_database: bool
+    recreate_database: bool
+    no_create_database_user: bool
+
+
+def get_hostname() -> Optional[str]:
     if identify_os() == "alpine":
         argv = ["hostname", "-f"]
     else:
@@ -73,11 +140,14 @@ def get_hostname():
         return None
 
 
-PSQL_EXECUTABLE = None
+psql_executable: Optional[str] = None
 
 
-def psql_argv(*, arguments=None, database=None):
-    argv = [PSQL_EXECUTABLE, "-v", "ON_ERROR_STOP=1", "-w"]
+def psql_argv(
+    *, arguments: Optional[Arguments] = None, database: Optional[str] = None
+) -> Tuple[List[str], str]:
+    assert psql_executable
+    argv = [psql_executable, "-v", "ON_ERROR_STOP=1", "-w"]
     default_username = "postgres"
     if arguments is not None:
         if arguments.database_host:
@@ -97,9 +167,13 @@ def psql_argv(*, arguments=None, database=None):
     return argv, default_username
 
 
-def psql(command, *, database=None, arguments=None, username=None):
-    from . import as_user
-
+def psql(
+    command: str,
+    *,
+    arguments: Arguments,
+    database: Optional[str] = None,
+    username: Optional[str] = None,
+) -> None:
     argv, default_username = psql_argv(arguments=arguments, database=database)
     argv.extend(["-c", command])
     if username is None:
@@ -112,22 +186,20 @@ def psql(command, *, database=None, arguments=None, username=None):
         subprocess.check_output(argv, stderr=subprocess.STDOUT, env=env)
 
 
-def psql_list_roles(arguments):
-    from . import as_user
-
-    argv, default_username = psql_argv(arguments=arguments)
+def psql_list_roles(arguments: Arguments) -> Sequence[str]:
+    argv, _ = psql_argv(arguments=arguments)
     argv.extend(["--no-align", "--tuples-only", "-c", "SELECT rolname FROM pg_roles"])
     with as_user(name="postgres"):
         return subprocess.check_output(argv).decode().splitlines()
 
 
 class SQLScript:
-    def __init__(self, script_source):
+    def __init__(self, script_source: str):
         self.commands = []
-        command = []
-        quotes = []
+        command: List[str] = []
+        quotes: List[str] = []
         for line in script_source.splitlines():
-            fragment, _, comment = line.strip().partition("--")
+            fragment, _, _ = line.strip().partition("--")
             fragment = fragment.strip()
             if not fragment:
                 continue
@@ -142,28 +214,40 @@ class SQLScript:
                 command = []
 
 
+class SettingItem(TypedDict):
+    description: str
+    value: Any
+    privileged: bool
+
+
 # Note: Imported and used in |upgrade/migrations/convert_from_legacy.py|.
-def insert_systemsettings(connection, arguments, override_settings):
+def insert_systemsettings(
+    connection: DatabaseConnection,
+    arguments: Arguments,
+    override_settings: Mapping[str, Any],
+) -> None:
     from critic import data
 
-    settings = {}
+    settings: Dict[str, Tuple[str, Any, bool]] = {}
 
-    def process(key_path, structure):
+    def process(key_path: Tuple[str, ...], structure: Any) -> None:
         assert isinstance(structure, dict), (key_path, structure)
         if "value" in structure and "description" in structure:
+            item = cast(SettingItem, structure)
             assert key_path
             key = ".".join(key_path)
             assert key not in settings
             settings[key] = (
-                structure["description"],
-                structure["value"],
-                structure.get("privileged", False),
+                item["description"],
+                item["value"],
+                bool(item.get("privileged", False)),
             )
         else:
-            for key, substructure in structure.items():
-                process(key_path + [key], substructure)
+            items = cast(Mapping[str, Any], structure)
+            for key, substructure in items.items():
+                process(key_path + (key,), substructure)
 
-    process([], data.load_yaml("systemsettings.yaml"))
+    process((), data.load_yaml("systemsettings.yaml"))
 
     for key, override_value in override_settings.items():
         description, _, privileged = settings[key]
@@ -180,7 +264,7 @@ def insert_systemsettings(connection, arguments, override_settings):
     )
 
 
-def sql_command_summary(command):
+def sql_command_summary(command: str) -> str:
     match = re.match(
         r"^(CREATE (?:TABLE|(?:UNIQUE )?INDEX|TYPE|VIEW) \w+|ALTER TABLE \w+)", command
     )
@@ -189,10 +273,9 @@ def sql_command_summary(command):
     return command
 
 
-def initialize_database(critic, arguments, connection):
-    from critic import data
-    from .upgrade import list_migrations
-
+def initialize_database(
+    critic: api.critic.Critic, arguments: Arguments, connection: DatabaseConnection
+) -> None:
     cursor = connection.cursor()
 
     for script_filename in SCHEMA_FILES:
@@ -213,7 +296,7 @@ def initialize_database(critic, arguments, connection):
 
     logger.debug("Inserted system identity: %s", arguments.identity)
 
-    override_settings = {"system.hostname": arguments.system_hostname}
+    override_settings: Dict[str, Any] = {"system.hostname": arguments.system_hostname}
 
     if arguments.flavor == "services":
         override_settings.update(
@@ -227,38 +310,38 @@ def initialize_database(critic, arguments, connection):
 
     logger.debug("Inserted system settings")
 
-    preferences = data.load_json("preferences.json")
+    # preferences = data.load_json("preferences.json")
 
-    for preference_name, preference_data in sorted(preferences.items()):
-        relevance = preference_data.get("relevance", {})
-        is_string = preference_data["type"] == "string"
-        cursor.execute(
-            """INSERT
-                    INTO preferences (item, type, description, per_system,
-                                    per_user, per_repository, per_filter)
-                VALUES (%s, %s, %s, %s, %s, %s, %s)""",
-            (
-                preference_name,
-                preference_data["type"],
-                preference_data["description"],
-                relevance.get("system", True),
-                relevance.get("user", True),
-                relevance.get("repository", False),
-                relevance.get("filter", False),
-            ),
-        )
-        cursor.execute(
-            """INSERT
-                    INTO userpreferences (item, integer, string)
-                VALUES (%s, %s, %s)""",
-            (
-                preference_name,
-                int(preference_data["default"]) if not is_string else None,
-                preference_data["default"] if is_string else None,
-            ),
-        )
+    # for preference_name, preference_data in sorted(preferences.items()):
+    #     relevance = preference_data.get("relevance", {})
+    #     is_string = preference_data["type"] == "string"
+    #     cursor.execute(
+    #         """INSERT
+    #                 INTO preferences (item, type, description, per_system,
+    #                                 per_user, per_repository, per_filter)
+    #             VALUES (%s, %s, %s, %s, %s, %s, %s)""",
+    #         (
+    #             preference_name,
+    #             preference_data["type"],
+    #             preference_data["description"],
+    #             relevance.get("system", True),
+    #             relevance.get("user", True),
+    #             relevance.get("repository", False),
+    #             relevance.get("filter", False),
+    #         ),
+    #     )
+    #     cursor.execute(
+    #         """INSERT
+    #                 INTO userpreferences (item, integer, string)
+    #             VALUES (%s, %s, %s)""",
+    #         (
+    #             preference_name,
+    #             int(preference_data["default"]) if not is_string else None,
+    #             preference_data["default"] if is_string else None,
+    #         ),
+    #     )
 
-    logger.debug("Inserted preferences")
+    # logger.debug("Inserted preferences")
 
     cursor.executemany(
         """INSERT
@@ -275,9 +358,9 @@ def initialize_database(critic, arguments, connection):
     logger.debug("Inserted system events for skipped migrations")
 
 
-async def ensure_database(critic, arguments, restore_user):
-    from . import fail
-
+async def ensure_database(
+    critic: api.critic.Critic, arguments: Arguments, restore_user: Callable[[], None]
+) -> None:
     configuration = base.configuration()
     parameters = configuration["database.parameters"]
 
@@ -323,9 +406,7 @@ async def ensure_database(critic, arguments, restore_user):
     await upgrade(critic, base.configuration(), arguments)
 
 
-def setup(parser):
-    from . import setup_filesystem_locations, setup_database_backup
-
+def setup(parser: argparse.ArgumentParser) -> None:
     hostname = get_hostname()
 
     parser.add_argument(
@@ -352,6 +433,7 @@ def setup(parser):
     )
     system_group.add_argument(
         "--system-uid",
+        type=int,
         help=(
             "User id to create system user with. Only used when a new system "
             "user is actually created."
@@ -362,6 +444,7 @@ def setup(parser):
     )
     system_group.add_argument(
         "--system-gid",
+        type=int,
         help=(
             "Group id to create system group with. Only used when a new "
             "system group is actually created."
@@ -404,60 +487,52 @@ def setup(parser):
         ),
     )
     database_group.add_argument(
-        "--database-driver",
-        choices=("postgresql", "sqlite"),
-        default="postgresql",
-        help="Type of database to install.",
-    )
-    database_group.add_argument(
-        "--database-path", help="[sqlite] Path of database file."
-    )
-    database_group.add_argument(
         "--database-host",
-        help="[postgresql] Optional remote host running the database server.",
+        help="Optional remote host running the database server.",
     )
     database_group.add_argument(
         "--database-port",
         default=5432,
         type=int,
-        help="[postgresql] Database server TCP port.",
+        help="Database server TCP port.",
     )
     database_group.add_argument(
         "--database-wait",
         type=int,
         help=(
-            "[postgresql] Wait at most this many seconds for the database "
+            "Wait at most this many seconds for the database "
             "host to start accepting connections."
         ),
     )
     database_group.add_argument(
         "--database-name",
         default="critic",
-        help="[postgresql] Name of database to create/connect to.",
+        help="Name of database to create/connect to.",
     )
     database_group.add_argument(
         "--database-username",
         default="critic",
-        help="[postgresql] Name of database user to create/connect as.",
+        help="Name of database user to create/connect as.",
     )
     database_group.add_argument(
-        "--database-password", help="[postgresql] Database password."
+        "--database-password",
+        help="Database password.",
     )
     database_group.add_argument(
         "--no-create-database",
         action="store_true",
-        help="[postgresql] Assume that the named database exists already.",
+        help="Assume that the named database exists already.",
     )
     database_group.add_argument(
         "--recreate-database",
         action="store_true",
-        help="[postgresql] Drop the named database first if it exists already.",
+        help="Drop the named database first if it exists already.",
     )
     database_group.add_argument(
         "--no-create-database-user",
         action="store_true",
         help=(
-            "[postgresql] Assume that the named database user exists already "
+            "Assume that the named database user exists already "
             "and has the required access to the named database."
         ),
     )
@@ -467,16 +542,14 @@ def setup(parser):
     # unless a migration will run that modifies the database.
     setup_database_backup(parser)
 
-    parser.set_defaults(run_as_root=True)
+    parser.set_defaults(run_as_root=True, etc_dir="")
 
 
-def ensure_postgresql(arguments):
-    from . import InvalidUser, fail, install
+def ensure_postgresql(arguments: Arguments) -> None:
+    global psql_executable
 
-    global PSQL_EXECUTABLE
-
-    PSQL_EXECUTABLE = distutils.spawn.find_executable("psql")
-    if not PSQL_EXECUTABLE:
+    psql_executable = distutils.spawn.find_executable("psql")
+    if not psql_executable:
         if not arguments.install_postgresql:
             fail(
                 "Could not find `psql` executable in $PATH!",
@@ -485,8 +558,8 @@ def ensure_postgresql(arguments):
                 "is available and rerun this command.",
             )
         install("postgresql-client")
-        PSQL_EXECUTABLE = distutils.spawn.find_executable("psql")
-        if not PSQL_EXECUTABLE:
+        psql_executable = distutils.spawn.find_executable("psql")
+        if not psql_executable:
             fail("Still could not find `psql` executable in $PATH!")
 
     try:
@@ -513,10 +586,11 @@ def ensure_postgresql(arguments):
             fail("Still could not connect!")
 
 
-def setup_postgresql_database(arguments):
-    from . import fail, wait_for_connection
-
-    kwargs = {"dbname": arguments.database_name, "user": arguments.database_username}
+def setup_postgresql_database(arguments: Arguments) -> base.DatabaseParameters:
+    kwargs: Dict[str, Union[str, int]] = {
+        "dbname": arguments.database_name,
+        "user": arguments.database_username,
+    }
 
     if arguments.database_password:
         kwargs["password"] = arguments.database_password
@@ -619,31 +693,15 @@ def setup_postgresql_database(arguments):
     return {"args": [], "kwargs": kwargs}
 
 
-def setup_sqlite_database(arguments):
-    return {"args": [arguments.database_path], "kwargs": {}}
-
-
-async def main(critic, arguments):
-    from . import (
-        fail,
-        as_user,
-        wait_for_connection,
-        ensure_dir,
-        ensure_system_user_and_group,
-        write_configuration,
-    )
-
+async def main(critic: api.critic.Critic, arguments: Arguments) -> int:
     if arguments.flavor in ("monolithic", "services", "quickstart"):
-        if arguments.database_driver == "postgresql" and not arguments.database_host:
+        if not arguments.database_host:
             ensure_postgresql(arguments)
 
         if arguments.system_hostname is None:
             fail("Must specify --system-hostname with --flavor=%s!" % arguments.flavor)
     elif not arguments.database_host:
         fail("Must specify --database-host with --flavor=%s!" % arguments.flavor)
-
-    if arguments.database_driver == "sqlite" and arguments.flavor != "quickstart":
-        fail("Must specify --flavor=quickstart with --database-driver=sqlite!")
 
     system_uid, system_gid = ensure_system_user_and_group(
         arguments,
@@ -654,12 +712,9 @@ async def main(critic, arguments):
         home_dir=arguments.home_dir,
     )
 
-    if arguments.database_driver == "postgresql":
-        database_parameters = setup_postgresql_database(arguments)
-    else:
-        database_parameters = setup_sqlite_database(arguments)
+    database_parameters = setup_postgresql_database(arguments)
 
-    def resolve(path):
+    def resolve(path: str) -> str:
         return path.format(identity=arguments.identity)
 
     ensure_dir(base.settings_dir(), uid=system_uid, gid=system_gid)
@@ -683,14 +738,13 @@ async def main(critic, arguments):
 
     logger.debug(f"{sys.argv[0]=}")
 
-    configuration = {
+    configuration: Dict[str, Union[str, int, DatabaseParameters, None]] = {
         # Basic system details.
         "system.identity": arguments.identity,
         "system.username": arguments.system_username,
         "system.groupname": arguments.system_groupname,
         "system.flavor": arguments.flavor,
         # Database connection settings.
-        "database.driver": arguments.database_driver,
         "database.parameters": database_parameters,
         # System paths.
         "paths.home": arguments.home_dir,
@@ -730,11 +784,14 @@ async def main(critic, arguments):
 
     if arguments.flavor == "quickstart":
         configuration["system.is_quickstarted"] = True
+        configuration["paths.source"] = arguments.source_dir
+    else:
+        configuration["paths.source"] = None
 
     if arguments.is_testing:
         configuration["system.is_testing"] = True
 
-    write_configuration(configuration)
+    write_configuration(cast(base.Configuration, configuration))
 
     if arguments.flavor in ("monolithic", "services", "quickstart"):
         with as_user(uid=system_uid) as restore_user:
@@ -750,11 +807,11 @@ async def main(critic, arguments):
         # system every time the container is recreated. For a traditional
         # monolithic install, there would be no directories at this point, and
         # this code does nothing.
-        in_repository = False
+        in_repository: Optional[str] = None
         for dirpath, dirnames, filenames in os.walk(arguments.repositories_dir):
             logger.debug("Directory: %s", dirpath)
             if in_repository and not dirpath.startswith(in_repository + "/"):
-                in_repository = False
+                in_repository = None
             if (
                 not in_repository
                 and dirpath.endswith(".git")
@@ -786,3 +843,5 @@ async def main(critic, arguments):
         # FIXME: Check that database contains record of all migrations, to
         # ensure that running code is compatible with database state.
         pass
+
+    return 0

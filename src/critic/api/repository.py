@@ -18,6 +18,8 @@ from __future__ import annotations
 
 import re
 from typing import (
+    Awaitable,
+    Callable,
     Optional,
     Sequence,
     Literal,
@@ -31,6 +33,7 @@ from typing import (
 
 from critic import api
 from critic import gitaccess
+from critic.api.apiobject import FunctionRef
 from critic.gitaccess import SHA1, ObjectType
 
 RE_SHA1 = re.compile("^[0-9A-Fa-f]{40}$")
@@ -112,17 +115,17 @@ class Repository(api.APIObject):
     def path(self) -> str:
         """The repository's (relative) file-system path
 
-           The path is relative the directory in which all repositories are
-           stored on the host where Critic's services run. In most cases, the
-           absolute file-system path is not relevant."""
+        The path is relative the directory in which all repositories are
+        stored on the host where Critic's services run. In most cases, the
+        absolute file-system path is not relevant."""
         return self._impl.path
 
     @property
     async def is_ready(self) -> bool:
         """True if the repository is ready for use
 
-           This returns False temporarily after a repository has been added to
-           the database, until it has also been created on disk."""
+        This returns False temporarily after a repository has been added to
+        the database, until it has also been created on disk."""
         return await self._impl.isReady(self.critic)
 
     @property
@@ -134,84 +137,83 @@ class Repository(api.APIObject):
     async def urls(self) -> Sequence[str]:
         """The repository's URLs
 
-           The URL types included depends on the effective user's
-           'repository.urlType' preference setting."""
+        The URL types included depends on the effective user's
+        'repository.urlType' preference setting."""
         return await self._impl.getURLs(self)
 
     @property
     def low_level(self) -> gitaccess.GitRepository:
         """Low-level interface for accessing the Git repository
 
-           The interface is returned as a gitaccess.GitRepository object. This
-           interface should typically not be used directly."""
+        The interface is returned as a gitaccess.GitRepository object. This
+        interface should typically not be used directly."""
         return self._impl.getLowLevel(self.critic)
 
-    class Head:
-        def __init__(self, repository: Repository) -> None:
-            self.__repository = repository
-
+    class Head(Protocol):
         @property
-        async def value(self) -> str:
+        async def value(self) -> Optional[str]:
             """The string value of the repository's HEAD reference"""
-            return self.__repository._impl.getHeadValue(self.__repository)
+            ...
 
         @property
         async def commit(self) -> Optional[api.commit.Commit]:
             """The commit referenced by the repository's HEAD, or None
 
-               The commit is returned as an api.commit.Commit object. None is
-               returned if the repository's HEAD does not reference a commit
-               (e.g. if it references a non-existing branch.)"""
-            return self.__repository._impl.getHeadCommit(self.__repository)
+            The commit is returned as an api.commit.Commit object. None is
+            returned if the repository's HEAD does not reference a commit
+            (e.g. if it references a non-existing branch.)"""
+            ...
 
         @property
         async def branch(self) -> Optional[api.branch.Branch]:
             """The branch referenced by the repository's HEAD, or None
 
-               The branch is returned as an api.branch.Branch object. None is
-               returned if the repository's HEAD does not reference a branch, or
-               if the referenced branch does not exist."""
-            return self.__repository._impl.getHeadBranch(self.__repository)
+            The branch is returned as an api.branch.Branch object. None is
+            returned if the repository's HEAD does not reference a branch, or
+            if the referenced branch does not exist."""
+            ...
 
     @property
     def head(self) -> Repository.Head:
-        return Repository.Head(self)
+        return self._impl.getHead(self)
 
     @overload
-    async def resolveRef(self, ref: str, *, expect: ObjectType = None) -> SHA1:
+    async def resolveRef(
+        self, ref: str, *, expect: Optional[ObjectType] = None
+    ) -> SHA1:
         ...
 
     @overload
     async def resolveRef(
-        self, ref: str, *, expect: ObjectType = None, short: Literal[True]
+        self, ref: str, *, expect: Optional[ObjectType] = None, short: Literal[True]
     ) -> str:
         ...
 
     async def resolveRef(
-        self, ref: str, *, expect: ObjectType = None, short: bool = False
+        self, ref: str, *, expect: Optional[ObjectType] = None, short: bool = False
     ) -> Union[SHA1, str]:
         """Resolve the given ref to a SHA-1 using 'git rev-parse'
 
-           If 'expect' is not None, it should be a string containing a Git
-           object type, such as "commit", "tag", "tree" or "blob".  When given,
-           it is passed on to 'git rev-parse' using the "<ref>^{<expect>}"
-           syntax.
+        If 'expect' is not None, it should be a string containing a Git
+        object type, such as "commit", "tag", "tree" or "blob".  When given,
+        it is passed on to 'git rev-parse' using the "<ref>^{<expect>}"
+        syntax.
 
-           If 'short' is True, 'git rev-parse' is given the '--short' argument,
-           which causes it to return a shortened SHA-1.  If 'short' is an int,
-           it is given as the argument value: '--short=N'.
+        If 'short' is True, 'git rev-parse' is given the '--short' argument,
+        which causes it to return a shortened SHA-1.  If 'short' is an int,
+        it is given as the argument value: '--short=N'.
 
-           If the ref can't be resolved, an InvalidRef exception is raised."""
+        If the ref can't be resolved, an InvalidRef exception is raised."""
         return await self._impl.resolveRef(self, str(ref), expect, short)
 
-    async def listRefs(self, *, pattern: str = None) -> Set[str]:
+    async def listRefs(self, *, pattern: Optional[str] = None) -> Set[str]:
         """List refs using 'git for-each-ref'
 
-           By default, '--format=%(refname)' is used, and the return value is a
-           set of the refs output.
+        By default, '--format=%(refname)' is used, and the return value is a
+        set of the refs output.
 
-           If 'pattern' is not None, it's given to 'git for-each-ref' as the
-           last argument, to search for refs whose names match the pattern."""
+        If 'pattern' is not None, it's given to 'git for-each-ref' as the
+        last argument, to search for refs whose names match the pattern."""
         if pattern is not None:
             pattern = str(pattern)
             assert not pattern.startswith("-")
@@ -220,18 +222,18 @@ class Repository(api.APIObject):
     async def listCommits(
         self,
         *,
-        include: Refs = None,
-        exclude: Refs = None,
-        paths: Iterable[str] = None,
-        min_parents: int = None,
-        max_parents: int = None,
+        include: Optional[Refs] = None,
+        exclude: Optional[Refs] = None,
+        paths: Optional[Iterable[str]] = None,
+        min_parents: Optional[int] = None,
+        max_parents: Optional[int] = None,
     ) -> Sequence[api.commit.Commit]:
         """List commits using 'git rev-list'
 
-           Call 'git rev-list' to list commits reachable from the commits in
-           'include' but not reachable from the commits in 'exclude'.
+        Call 'git rev-list' to list commits reachable from the commits in
+        'include' but not reachable from the commits in 'exclude'.
 
-           The return value is a list of api.commit.Commit objects."""
+        The return value is a list of api.commit.Commit objects."""
 
         def is_valid_ref(ref: Refs) -> Optional[str]:
             if isinstance(ref, (api.commit.Commit, str)):
@@ -272,10 +274,10 @@ class Repository(api.APIObject):
     async def mergeBase(self, *commits: api.commit.Commit) -> api.commit.Commit:
         """Calculate merge-base of two or more commits
 
-           If a single commit argument is specified, it must be a merge commit,
-           and the merge-base of all of its parents is returned.
+        If a single commit argument is specified, it must be a merge commit,
+        and the merge-base of all of its parents is returned.
 
-           The return value is an api.commit.Commit object."""
+        The return value is an api.commit.Commit object."""
         assert commits
         assert all(isinstance(commit, api.commit.Commit) for commit in commits)
         if len(commits) == 1:
@@ -287,19 +289,19 @@ class Repository(api.APIObject):
     async def protectCommit(self, commit: api.commit.Commit) -> None:
         """Create a "hidden" ref to |commit|
 
-           This is done to prevent it from being pruned from the repository by
-           the next `git gc` run.
+        This is done to prevent it from being pruned from the repository by
+        the next `git gc` run.
 
-           The ref is created under refs/keepalive/, and is thus not fetched by
-           a typically configured repository clone."""
+        The ref is created under refs/keepalive/, and is thus not fetched by
+        a typically configured repository clone."""
         await self._impl.protectCommit(commit)
 
     async def getFileContents(
         self,
         *,
-        commit: api.commit.Commit = None,
-        file: api.file.File = None,
-        sha1: SHA1 = None,
+        commit: Optional[api.commit.Commit] = None,
+        file: Optional[api.file.File] = None,
+        sha1: Optional[SHA1] = None,
     ) -> Optional[bytes]:
         assert (commit is None) == (file is None)
         assert (commit is None) != (sha1 is None)
@@ -312,8 +314,8 @@ class Repository(api.APIObject):
         def commits(self) -> int:
             """Approximate number of commits in the repository
 
-               Specifically, this is the number of commits associated with
-               "unmerged" non-review branches in the repository."""
+            Specifically, this is the number of commits associated with
+            "unmerged" non-review branches in the repository."""
             ...
 
         @property
@@ -325,15 +327,15 @@ class Repository(api.APIObject):
         def reviews(self) -> int:
             """The total number of reviews in the repository
 
-               This includes open and closed reviews, but not draft or dropped
-               ones."""
+            This includes open and closed reviews, but not draft or dropped
+            ones."""
             ...
 
     @property
     async def statistics(self) -> Statistics:
         """Return some statistics about the repository
 
-           The statistics are returned as a Statistics object."""
+        The statistics are returned as a Statistics object."""
         return await self._impl.getStatistics(self.critic)
 
     async def getSetting(self, name: str, default: T) -> T:
@@ -357,25 +359,21 @@ async def fetch(critic: api.critic.Critic, /, *, path: str) -> Repository:
 
 async def fetch(
     critic: api.critic.Critic,
-    repository_id: int = None,
+    repository_id: Optional[int] = None,
     /,
     *,
-    name: str = None,
-    path: str = None,
+    name: Optional[str] = None,
+    path: Optional[str] = None,
 ) -> Repository:
     """Fetch a Repository object with the given id, name or path"""
-    from .impl import repository as impl
-
-    return await impl.fetch(critic, repository_id, name, path)
+    return await fetchImpl.get()(critic, repository_id, name, path)
 
 
 async def fetchAll(critic: api.critic.Critic) -> Sequence[Repository]:
     """Fetch Repository objects for all repositories
 
-       The return value is a list ordered by the repositories' names."""
-    from .impl import repository as impl
-
-    return await impl.fetchAll(critic)
+    The return value is a list ordered by the repositories' names."""
+    return await fetchAllImpl.get()(critic)
 
 
 async def fetchHighlighted(
@@ -383,35 +381,45 @@ async def fetchHighlighted(
 ) -> Sequence[Repository]:
     """Fetch Repository objects for repositories that are extra relevant
 
-       The return value is a list ordered by the repositories' names."""
-    from .impl import repository as impl
-
-    return await impl.fetchHighlighted(critic, user)
+    The return value is a list ordered by the repositories' names."""
+    return await fetchHighlightedImpl.get()(critic, user)
 
 
 def validateName(name: str) -> str:
     """Validate a (potential) repository name
 
-       If the name is valid, it is returned unchanged. Otherwise an Error
-       exception is raised, whose message describe how the name is invalid.
+    If the name is valid, it is returned unchanged. Otherwise an Error
+    exception is raised, whose message describe how the name is invalid.
 
-       Note that it is not considered an error that the name names a current
-       repository in the system, or that it doesn't."""
-    from .impl import repository as impl
-
-    return impl.validateName(name)
+    Note that it is not considered an error that the name names a current
+    repository in the system, or that it doesn't."""
+    return validateNameImpl.get()(name)
 
 
 def validatePath(path: str) -> str:
     """Validate a (potential) repository path
 
-       The path should be a relative path.
+    The path should be a relative path.
 
-       If the path is valid, it is returned unchanged. Otherwise an Error
-       exception is raised, whose message describe how the path is invalid."""
-    from .impl import repository as impl
-
-    return impl.validatePath(path)
+    If the path is valid, it is returned unchanged. Otherwise an Error
+    exception is raised, whose message describe how the path is invalid."""
+    return validatePathImpl.get()(path)
 
 
 resource_name = table_name = "repositories"
+
+
+fetchImpl: FunctionRef[
+    Callable[
+        [api.critic.Critic, Optional[int], Optional[str], Optional[str]],
+        Awaitable[Repository],
+    ]
+] = FunctionRef()
+fetchAllImpl: FunctionRef[
+    Callable[[api.critic.Critic], Awaitable[Sequence[Repository]]]
+] = FunctionRef()
+fetchHighlightedImpl: FunctionRef[
+    Callable[[api.critic.Critic, api.user.User], Awaitable[Sequence[Repository]]]
+] = FunctionRef()
+validateNameImpl: FunctionRef[Callable[[str], str]] = FunctionRef()
+validatePathImpl: FunctionRef[Callable[[str], str]] = FunctionRef()

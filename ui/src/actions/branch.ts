@@ -14,7 +14,7 @@
  * the License.
  */
 
-import { fetch, withArgument, withParameters } from "../resources"
+import { fetch, include, withArgument, withParameters } from "../resources"
 import { AsyncThunk, Dispatch, Thunk } from "../state"
 import {
   BRANCH_COMMITS_UPDATE,
@@ -49,7 +49,7 @@ export const branchCommitsUpdate = (
     offset = null,
     count = null,
   }: BranchCommitsUpdateKey,
-  commitIDs: CommitID[]
+  commitIDs: CommitID[],
 ): Action => ({
   type: BRANCH_COMMITS_UPDATE,
   branchID,
@@ -63,7 +63,7 @@ export const setRecentBranches = (
   repositoryID: number,
   offset: number,
   count: number,
-  branchIDs: BranchID[]
+  branchIDs: BranchID[],
 ): Action => ({
   type: SET_RECENT_BRANCHES,
   repositoryID,
@@ -72,9 +72,10 @@ export const setRecentBranches = (
   branchIDs,
 })
 
-const loadCreated = (userID: number, count = 5): AsyncThunk<void> => async (
-  dispatch
-) => {
+export const loadCreated = (
+  userID: number,
+  count = 5,
+): AsyncThunk<void> => async (dispatch) => {
   const { primary } = await dispatch(
     fetch(
       "branches",
@@ -82,14 +83,15 @@ const loadCreated = (userID: number, count = 5): AsyncThunk<void> => async (
         created_by: userID,
         exclude_reviewed_branches: "yes",
         count,
-      })
-    )
+      }),
+      include("repositories"),
+    ),
   )
   if (primary) dispatch(setCreatedBranches(primary.map((branch) => branch.id)))
 }
 
 const loadUpdated = (userID: number, count = 5): AsyncThunk<void> => async (
-  dispatch
+  dispatch,
 ) => {
   const { primary } = await dispatch(
     fetch(
@@ -98,14 +100,14 @@ const loadUpdated = (userID: number, count = 5): AsyncThunk<void> => async (
         updated_by: userID,
         exclude_reviewed_branches: "yes",
         count,
-      })
-    )
+      }),
+    ),
   )
   if (primary) dispatch(setUpdatedBranches(primary.map((branch) => branch.id)))
 }
 
 export const loadBranchesForDashboard = (userID: UserID): Thunk<void> => (
-  dispatch
+  dispatch,
 ) => {
   dispatch(loadCreated(userID))
   dispatch(loadUpdated(userID))
@@ -115,7 +117,7 @@ type BranchByIDParam = { branchID: BranchID }
 type BranchByNameParams = { repositoryID: RepositoryID; name: string }
 
 const isBranchByIDParam = (
-  input: BranchByIDParam | BranchByNameParams
+  input: BranchByIDParam | BranchByNameParams,
 ): input is BranchByIDParam => "branchID" in input
 
 export const loadBranch = (input: BranchByIDParam | BranchByNameParams) =>
@@ -123,20 +125,18 @@ export const loadBranch = (input: BranchByIDParam | BranchByNameParams) =>
     "branches",
     isBranchByIDParam(input)
       ? withArgument(input.branchID)
-      : withParameters({ repository: input.repositoryID, name: input.name })
+      : withParameters({ repository: input.repositoryID, name: input.name }),
   )
+
+type BranchCommitsOptions = {
+  afterRebaseID?: number | null
+  offset?: number
+  count?: number
+}
 
 export const loadBranchCommits = (
   branchID: BranchID,
-  {
-    afterRebaseID = null,
-    offset = 0,
-    count = 25,
-  }: {
-    afterRebaseID?: number | null
-    offset?: number
-    count?: number
-  }
+  { afterRebaseID = null, offset = 0, count = 25 }: BranchCommitsOptions = {},
 ) => async (dispatch: Dispatch) => {
   const params: RequestParams = { offset, count, branch: branchID }
   if (afterRebaseID !== null) params.after_rebase = afterRebaseID
@@ -148,8 +148,8 @@ export const loadBranchCommits = (
     dispatch(
       branchCommitsUpdate(
         key,
-        primary.map((commit) => commit.id)
-      )
+        primary.map((commit) => commit.id),
+      ),
     )
   }
 }
@@ -162,13 +162,13 @@ export const loadRecentBranches = (
   }: {
     offset?: number
     count?: number
-  }
+  },
 ) => async (dispatch: Dispatch) => {
   const { primary } = await dispatch(
     fetch("branches", {
       params: { repository: repositoryID, order_by: "updated", offset, count },
       include: ["commits", "branches"],
-    })
+    }),
   )
   if (primary) {
     const branchIDs = primary.map((branch) => branch.id)

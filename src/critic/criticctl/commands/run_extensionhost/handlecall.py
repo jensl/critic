@@ -1,24 +1,21 @@
 from __future__ import annotations
 
-import asyncio
-import io
 import logging
-import os
-import pickle
-import struct
-from typing import AsyncIterator, Iterator, List, Optional, Union, cast
+from typing import List, Union, cast
 
 logger = logging.getLogger(__name__)
 
 from critic import api
-from critic import extensions
 from critic import pubsub
 from critic.background.extensionhost import (
     CallError,
     CallRequest,
     CallResponse,
+    CallResponseItem,
     EndpointRole,
     SubscriptionRole,
+    EndpointRequest,
+    SubscriptionMessage,
 )
 
 from .extension import Extension
@@ -30,10 +27,13 @@ HEADER_FMT = "!I"
 async def handle_call(
     request: pubsub.IncomingRequest,
 ) -> Union[CallResponse, CallError]:
-    message: object = request.payload
+    logger.debug(f"handle_call: {request=}")
+    message = cast(object, request.payload)
     assert isinstance(message, CallRequest)
 
     extension = await Extension.ensure(message.version_id)
+    command: Union[EndpointRequest, SubscriptionMessage]
+    role: api.extensionversion.ExtensionVersion.Role
 
     if isinstance(message.role, EndpointRole):
         role_type = "endpoint"
@@ -45,7 +45,7 @@ async def handle_call(
             return CallError(
                 f"No matching role found in extension manifest: {message.role!r}"
             )
-    elif isinstance(message.role, SubscriptionRole):
+    elif isinstance(message.role, SubscriptionRole):  # type: ignore
         role_type = "subscription"
         command = message.role.message
         for role in extension.manifest.subscriptions:
@@ -70,7 +70,9 @@ async def handle_call(
         )
 
     async with extension.ensure_process(role_type, entrypoint) as process:
-        response_items = []
+        logger.debug(f"{process=}")
+
+        response_items: List[CallResponseItem] = []
 
         try:
             async for response in process.handle(

@@ -18,12 +18,16 @@ from __future__ import annotations
 
 import logging
 import textwrap
-from typing import Collection, Optional
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 
 from .ensurechangesets import ensure_changesets
-from .processrebase import RebaseProcessingFailure, process_rebase
+from .processrebase import (
+    RebaseProcessingFailure,
+    RebaseProcessingResult,
+    process_rebase,
+)
 from ..githook import emit_output, set_pendingrefupdate_state
 from critic import api
 
@@ -39,6 +43,7 @@ async def process_review_branch_update(
     disassociated_commits = await branchupdate.disassociated_commits
 
     rebase = await review.pending_rebase
+    rebase_processing_result: Optional[RebaseProcessingResult]
 
     added_commits: Optional[api.commitset.CommitSet] = None
     if rebase:
@@ -61,6 +66,7 @@ async def process_review_branch_update(
         assert not disassociated_commits
         added_commits = associated_commits
         added_changesets = ()
+        rebase_processing_result = None
 
     if added_commits:
         output = "Adding %d commit%s to the review ..." % (
@@ -79,7 +85,9 @@ async def process_review_branch_update(
         await modifier.recordBranchUpdate(branchupdate)
 
         if rebase:
-            modifier.finishRebase(
+            assert rebase_processing_result
+
+            await modifier.finishRebase(
                 rebase,
                 branchupdate,
                 new_upstream=rebase_processing_result.new_upstream,

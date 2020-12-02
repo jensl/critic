@@ -14,8 +14,10 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
+import argparse
 import logging
 import time
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +27,7 @@ name = "calibrate-pwhash"
 description = "Calibrate password hashing."
 
 
-def setup(parser):
+def setup(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--hash-time",
         type=float,
@@ -35,7 +37,7 @@ def setup(parser):
     parser.set_defaults(need_session=True)
 
 
-async def main(critic, arguments):
+async def main(critic: api.critic.Critic, arguments: Any) -> int:
     import passlib.context
 
     authentication_mode = api.critic.settings().frontend.authentication_mode
@@ -65,8 +67,8 @@ async def main(critic, arguments):
 
         before = time.process_time()
 
-        for n in range(10):
-            calibration_context.encrypt("password")
+        for _ in range(10):
+            calibration_context.hash("password")
 
         # It's possible encryption was fast enough to measure as zero, or some
         # other ridiculously small number.  "Round" it up to at least one
@@ -88,8 +90,10 @@ async def main(critic, arguments):
     )
 
     setting = await api.systemsetting.fetch(
-        critic, "authentication.databases.internal.minimum_rounds"
+        critic, key="authentication.databases.internal.minimum_rounds"
     )
 
-    async with api.transaction.start(critic) as transaction:
-        transaction.setSystemSetting(setting, min_rounds_value)
+    async with api.transaction.start(critic, accept_no_pubsub=True) as transaction:
+        await transaction.modifySystemSetting(setting).setValue(min_rounds_value)
+
+    return 0

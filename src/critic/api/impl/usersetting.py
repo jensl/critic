@@ -18,8 +18,9 @@ from __future__ import annotations
 
 from typing import Tuple, Any, Optional, Set, Mapping, List
 
-from . import apiobject
 from critic import api
+from critic.api import usersetting as public
+from . import apiobject
 
 
 WrapperType = api.usersetting.UserSetting
@@ -36,8 +37,9 @@ class UserSetting(apiobject.APIObject[WrapperType, RowType, int]):
     async def getUser(self, critic: api.critic.Critic) -> api.user.User:
         return await api.user.fetch(critic, self.__user_id)
 
-    @staticmethod
+    @classmethod
     async def refresh(
+        cls,
         critic: api.critic.Critic,
         tables: Set[str],
         cached_objects: Mapping[Any, WrapperType],
@@ -54,6 +56,7 @@ class UserSetting(apiobject.APIObject[WrapperType, RowType, int]):
         )
 
 
+@public.fetchImpl
 @UserSetting.cached
 async def fetch(
     critic: api.critic.Critic,
@@ -84,6 +87,7 @@ async def fetch(
             raise api.usersetting.NotDefined(scope, name)
 
 
+@public.fetchAllImpl
 async def fetchAll(
     critic: api.critic.Critic, scope: Optional[str]
 ) -> List[WrapperType]:
@@ -92,10 +96,7 @@ async def fetchAll(
         conditions.append("scope={scope}")
     async with UserSetting.query(
         critic,
-        f"""SELECT {UserSetting.columns()}
-              FROM {UserSetting.table()}
-             WHERE {" AND ".join(conditions)}
-          ORDER BY id""",
+        conditions,
         user=critic.effective_user,
         scope=scope,
     ) as result:

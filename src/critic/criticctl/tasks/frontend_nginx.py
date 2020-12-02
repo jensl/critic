@@ -14,7 +14,8 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-import distutils
+import argparse
+import distutils.spawn
 import json
 import logging
 import mimetypes
@@ -22,6 +23,10 @@ import os
 import tempfile
 
 logger = logging.getLogger(__name__)
+
+from critic import api
+from ..utils import as_root
+from .utils import fail, install, service
 
 UWSGI_CONTAINER = """
 
@@ -133,7 +138,7 @@ name = "frontend:nginx"
 description = "Configure nginx as HTTP(S) front-end."
 
 
-def setup(parser):
+def setup(parser: argparse.ArgumentParser) -> None:
     from critic import api
 
     identity = parser.get_default("configuration")["system.identity"]
@@ -211,11 +216,7 @@ def setup(parser):
     parser.set_defaults(need_session=True)
 
 
-async def main(critic, arguments):
-    from critic import api
-
-    from . import fail, as_root, install, service
-
+async def main(critic: api.critic.Critic, arguments: argparse.Namespace) -> int:
     settings = api.critic.settings()
 
     nginx_executable = distutils.spawn.find_executable("nginx")
@@ -338,13 +339,17 @@ async def main(critic, arguments):
     if arguments.enable_site:
         service("restart", "nginx")
 
-    http_frontend = await api.systemsetting.fetch(critic, "frontend.http_frontend")
-    access_scheme = await api.systemsetting.fetch(critic, "frontend.access_scheme")
+    http_frontend = await api.systemsetting.fetch(critic, key="frontend.http_frontend")
+    access_scheme = await api.systemsetting.fetch(critic, key="frontend.access_scheme")
 
     async with api.transaction.start(critic) as transaction:
-        transaction.setSystemSetting(http_frontend, "nginx")
-        transaction.setSystemSetting(access_scheme, arguments.access_scheme)
+        await transaction.modifySystemSetting(http_frontend).setValue("nginx")
+        await transaction.modifySystemSetting(access_scheme).setValue(
+            arguments.access_scheme
+        )
 
     logger.info("Updated Critic's system settings:")
     logger.info("  frontend.http_frontend=%s", json.dumps("nginx"))
     logger.info("  frontend.access_scheme=%s", json.dumps(arguments.access_scheme))
+
+    return 0

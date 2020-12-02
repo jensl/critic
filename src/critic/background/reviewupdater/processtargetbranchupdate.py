@@ -17,11 +17,12 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict
+from typing import Any, Awaitable, Callable, Dict, Mapping, Optional, Sequence
 
 logger = logging.getLogger(__name__)
 
 from critic import api
+from critic import dbaccess
 from critic.base import asserted
 from critic.gitaccess import GitError
 
@@ -29,8 +30,12 @@ from ..replayer import list_unmerged_paths
 
 
 async def process_target_branch_update(
-    review: api.review.Review, branchupdate: api.branchupdate.BranchUpdate
-) -> Dict[str, Any]:
+    review: api.review.Review,
+    branchupdate: api.branchupdate.BranchUpdate,
+    callback: Callable[
+        [dbaccess.TransactionCursor, Mapping[str, Any]], Awaitable[None]
+    ],
+) -> None:
     critic = review.critic
 
     integration = asserted(await review.integration)
@@ -60,11 +65,14 @@ async def process_target_branch_update(
 
     gitrepository.clear_user_details()
 
+    unmerged_files: Optional[Sequence[api.file.File]]
     if unmerged_paths:
         unmerged_files = await api.file.fetchMany(critic, paths=unmerged_paths)
         if not updates:
             updates = {"integration": {}}
         updates["integration"]["conflicts"] = sorted(file.id for file in unmerged_files)
+    else:
+        unmerged_files = None
 
     async with critic.transaction() as cursor:
         await cursor.execute(
@@ -77,7 +85,7 @@ async def process_target_branch_update(
             behind=new_behind,
         )
 
-        if unmerged_paths:
+        if unmerged_files:
             await cursor.execute(
                 """DELETE
                      FROM reviewintegrationconflicts
@@ -88,7 +96,11 @@ async def process_target_branch_update(
                 """INSERT
                      INTO reviewintegrationconflicts (review, file)
                    VALUES ({review}, {file})""",
-                (dict(review=review, file=file) for file in unmerged_files),
+                (
+                    dbaccess.parameters(review=review, file=file)
+                    for file in unmerged_files
+                ),
             )
 
-    return updates
+        if updates:
+            await callback(cursor, updates)

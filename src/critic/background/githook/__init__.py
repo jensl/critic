@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import logging
 import re
-from typing import Any, Dict, Literal, Optional, TypedDict
+from typing import Dict, Literal, Optional, TypedDict
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +35,7 @@ RefUpdate = TypedDict(
 
 
 class ValidateError:
-    def __init__(self, title: str, message: str = None):
+    def __init__(self, title: str, message: Optional[str] = None):
         self.title = title
         self.message = message
 
@@ -46,7 +46,7 @@ class ValidateError:
 Flags = Dict[str, dbaccess.SQLValue]
 
 
-def reflow(text: str, *, hanging_indent: str = None) -> str:
+def reflow(text: str, *, hanging_indent: int = 0) -> str:
     """Reflow text to a line length suitable for Git hook output"""
     return textutils.reflow(
         text, line_length=80 - len("remote: "), hanging_indent=hanging_indent
@@ -73,7 +73,7 @@ async def emit_output(
     critic: api.critic.Critic,
     pendingrefupdate_id: Optional[int],
     output: Optional[str],
-    error: str = None,
+    error: Optional[str] = None,
 ) -> None:
     if pendingrefupdate_id is None:
         return

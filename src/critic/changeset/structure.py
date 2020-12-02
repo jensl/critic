@@ -17,7 +17,7 @@
 import logging
 import stat
 from dataclasses import dataclass
-from typing import AsyncIterable, Collection, Optional
+from typing import AsyncIterable, Collection, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +26,7 @@ from critic import dbaccess
 from critic import gitaccess
 from critic.api.transaction.protocol import CreatedAPIObject
 from critic import pubsub
-from critic.gitaccess import SHA1, GitTreeEntry, GitTree, GitRepository
+from critic.gitaccess import SHA1, GitTreeEntry, GitRepository
 
 
 def _join_paths(dirname: Optional[str], basename: str) -> str:
@@ -84,11 +84,11 @@ async def diff_trees(
     repository: GitRepository,
     old_tree_sha1: SHA1,
     new_tree_sha1: SHA1,
-    path: str = None,
+    path: Optional[str] = None,
 ) -> AsyncIterable[ChangedEntry]:
     """Compare two trees and return a list of differing entries
 
-       The return value is a list of ChangedEntry objects."""
+    The return value is a list of ChangedEntry objects."""
 
     old_tree = (
         await repository.fetchone(old_tree_sha1, wanted_object_type="tree")
@@ -159,7 +159,7 @@ async def compare_commits(
     repository: GitRepository,
     from_commit_sha1: SHA1,
     to_commit_sha1: SHA1,
-    include_paths: Collection[str] = None,
+    include_paths: Optional[Collection[str]] = None,
 ) -> Collection[ChangedEntry]:
     if from_commit_sha1 is None:
         from_tree_sha1 = gitaccess.EMPTY_TREE_SHA1
@@ -172,7 +172,6 @@ async def compare_commits(
         changed_entry
         async for changed_entry in diff_trees(repository, from_tree_sha1, to_tree_sha1)
     ]
-    changed_paths = set(changed_entry.path for changed_entry in changed_entries)
 
     if include_paths is not None:
         changed_entries = [
@@ -197,13 +196,13 @@ async def compare_commits(
 
 
 async def request(
-    from_commit,
-    to_commit,
+    from_commit: api.commit.Commit,
+    to_commit: api.commit.Commit,
     *,
-    request_content=False,
-    request_highlight=False,
-    conflicts=False,
-):
+    request_content: bool = False,
+    request_highlight: bool = False,
+    conflicts: bool = False,
+) -> int:
     from . import content
 
     assert isinstance(to_commit, api.commit.Commit)
@@ -218,7 +217,8 @@ async def request(
     async with critic.transaction() as cursor:
         try:
             if from_commit is None:
-                async with cursor.query(
+                async with dbaccess.Query[int](
+                    cursor,
                     """SELECT id
                          FROM changesets
                         WHERE repository={repository}
@@ -230,7 +230,8 @@ async def request(
                 ) as result:
                     changeset_id = await result.scalar()
             else:
-                async with cursor.query(
+                async with dbaccess.Query[int](
+                    cursor,
                     """SELECT id
                          FROM changesets
                         WHERE repository={repository}
@@ -252,7 +253,8 @@ async def request(
                 changeset_id=changeset_id,
             )
         except dbaccess.ZeroRowsInResult:
-            async with cursor.query(
+            async with dbaccess.Query[int](
+                cursor,
                 """INSERT
                      INTO changesets (repository, to_commit, from_commit, is_replay)
                    VALUES ({repository}, {to_commit}, {from_commit}, {conflicts})""",
@@ -277,7 +279,9 @@ async def request(
     return changeset_id
 
 
-async def request_merge(parent, merge):
+async def request_merge(
+    parent: api.commit.Commit, merge: api.commit.Commit
+) -> Tuple[int, int]:
     from . import content
 
     assert isinstance(parent, api.commit.Commit)
@@ -288,7 +292,8 @@ async def request_merge(parent, merge):
     critic = merge.critic
     repository = merge.repository
 
-    async with critic.query(
+    async with api.critic.Query[Tuple[int, int]](
+        critic,
         """SELECT to_commit, id
              FROM changesets
             WHERE repository={repository}
@@ -297,8 +302,8 @@ async def request_merge(parent, merge):
         repository=repository,
         parent=parent,
         merge=merge,
-    ) as result:
-        changeset_ids = dict(await result.all())
+    ) as changesets_result:
+        changeset_ids = dict(await changesets_result.all())
 
     if changeset_ids:
         changeset_id = changeset_ids[merge.id]
@@ -307,16 +312,10 @@ async def request_merge(parent, merge):
         # Calculate merge base and insert the pair of changesets we want.
         mergebase = await repository.mergeBase(merge)
 
-        tables = [
-            "changesets",
-            "changesetcontentdifferences",
-            "changesethighlightrequests",
-            "highlightfiles",
-        ]
-
         async with critic.transaction() as cursor:
             # Primary changeset between merge parent and merge commit.
-            async with cursor.query(
+            async with dbaccess.Query[int](
+                cursor,
                 """INSERT
                      INTO changesets (
                             repository, to_commit, from_commit, for_merge
@@ -326,13 +325,14 @@ async def request_merge(parent, merge):
                 merge=merge,
                 parent=parent,
                 returning="id",
-            ) as result:
-                changeset_id = await result.scalar()
+            ) as request_primary_result:
+                changeset_id = await request_primary_result.scalar()
 
             await content.request(critic, changeset_id, in_transaction=cursor)
 
             # Reference changeset between merge base to merge parent.
-            async with cursor.query(
+            async with dbaccess.Query[int](
+                cursor,
                 """INSERT
                      INTO changesets (
                             repository, to_commit, from_commit, for_merge
@@ -343,8 +343,8 @@ async def request_merge(parent, merge):
                 merge=merge,
                 mergebase=mergebase,
                 returning="id",
-            ) as result:
-                reference_id = await result.scalar()
+            ) as request_reference_result:
+                reference_id = await request_reference_result.scalar()
 
             await content.request(
                 critic, reference_id, request_highlight=False, in_transaction=cursor
@@ -355,14 +355,14 @@ async def request_merge(parent, merge):
                     cursor,
                     pubsub.PublishMessage(
                         pubsub.ChannelName("changesets"),
-                        CreatedAPIObject("changesets", changeset_id),
+                        pubsub.Payload(CreatedAPIObject("changesets", changeset_id)),
                     ),
                 )
                 await client.publish(
                     cursor,
                     pubsub.PublishMessage(
                         pubsub.ChannelName("changesets"),
-                        CreatedAPIObject("changesets", reference_id),
+                        pubsub.Payload(CreatedAPIObject("changesets", reference_id)),
                     ),
                 )
 

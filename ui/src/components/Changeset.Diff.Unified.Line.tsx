@@ -6,10 +6,19 @@ import { makeStyles } from "@material-ui/core/styles"
 import Registry from "."
 import Line from "./Changeset.Diff.Line"
 import ChangesetComment from "./Changeset.Comment"
-import { DiffLine } from "../resources/filediff"
-import { useSelector } from "../store"
-import { LineComments } from "./Changeset.Diff.Chunk"
+import {
+  kContextLine,
+  kDeletedLine,
+  kInsertedLine,
+  kModifiedLine,
+  kReplacedLine,
+  kWhitespaceLine,
+  DiffLine,
+} from "../resources/filediff"
 import { ChangesetID, FileID } from "../resources/types"
+import { SelectionScope } from "../reducers/uiSelectionScope"
+import { pure } from "recompose"
+import { LineComments } from "../selectors/fileDiff"
 
 const useStyles = makeStyles((theme) => ({
   changesetDiffUnifiedLine: {
@@ -46,8 +55,6 @@ const useStyles = makeStyles((theme) => ({
   code: {
     whiteSpace: "pre-wrap",
     flexGrow: 1,
-    paddingLeft: theme.spacing(0.5),
-    paddingRight: theme.spacing(0.5),
   },
   newLineNumber: {
     textAlign: "left",
@@ -70,7 +77,9 @@ type OwnProps = {
   fileID: FileID
   line: DiffLine
   side?: "old" | "new"
-  comments: LineComments
+  comments: LineComments | null
+  selectionScope: SelectionScope | null
+  inView: boolean
 }
 
 const UnifiedLine: FunctionComponent<OwnProps> = ({
@@ -80,69 +89,65 @@ const UnifiedLine: FunctionComponent<OwnProps> = ({
   line,
   side,
   comments,
+  selectionScope,
+  inView,
 }) => {
+  const { type, oldID, oldOffset, newID, newOffset } = line
+
   let lineID = `f${fileID}`
-  if (side !== "new") lineID += ":" + line.oldID
-  if (side !== "old") lineID += ":" + line.newID
+  if (side !== "new") lineID += ":" + oldID
+  if (side !== "old") lineID += ":" + newID
 
   const classes = useStyles()
+
   const {
-    isSelected,
+    selectedIDs = null,
     firstSelectedID = null,
     lastSelectedID = null,
     isRangeSelecting = false,
-  } = useSelector((state) => {
-    const {
-      selectedIDs,
-      firstSelectedID,
-      lastSelectedID,
-      isRangeSelecting,
-    } = state.ui.selectionScope
-    const isSelected = selectedIDs.has(lineID)
-    if (!isSelected) return { isSelected }
-    return {
-      isSelected,
-      firstSelectedID,
-      lastSelectedID,
-      isRangeSelecting,
-    }
-  })
+  } = selectionScope || {}
 
-  const { oldSide, newSide } = comments
+  const isSelected = selectedIDs?.has(lineID) ?? false
+
+  const { oldSide = null, newSide = null } = comments ?? {}
   const oldMarkerClass = clsx(
     classes.marker,
     side !== "new" && {
-      [classes.markerOpenIssue]: oldSide.hasOpenIssues,
-      [classes.markerClosedIssue]: oldSide.hasClosedIssues,
+      [classes.markerOpenIssue]: oldSide?.hasOpenIssues,
+      [classes.markerClosedIssue]: oldSide?.hasClosedIssues,
       [classes.markerNote]:
-        oldSide.hasNotes && !oldSide.hasOpenIssues && !oldSide.hasClosedIssues,
-    }
+        oldSide?.hasNotes &&
+        !oldSide?.hasOpenIssues &&
+        !oldSide?.hasClosedIssues,
+    },
   )
   const newMarkerClass = clsx(
     classes.marker,
     side !== "old" && {
-      [classes.markerOpenIssue]: newSide.hasOpenIssues,
-      [classes.markerClosedIssue]: newSide.hasClosedIssues,
+      [classes.markerOpenIssue]: newSide?.hasOpenIssues,
+      [classes.markerClosedIssue]: newSide?.hasClosedIssues,
       [classes.markerNote]:
-        newSide.hasNotes && !newSide.hasOpenIssues && !newSide.hasClosedIssues,
-    }
+        newSide?.hasNotes &&
+        !newSide?.hasOpenIssues &&
+        !newSide?.hasClosedIssues,
+    },
   )
   let commentItems =
-    side === "old"
-      ? oldSide.comments.map((comment) => (
+    (side === "old"
+      ? oldSide?.comments.map((comment) => (
           <ChangesetComment
             key={comment.id}
             className={classes.comment}
             comment={comment}
           />
         ))
-      : newSide.comments.map((comment) => (
+      : newSide?.comments.map((comment) => (
           <ChangesetComment
             key={comment.id}
             className={classes.comment}
             comment={comment}
           />
-        ))
+        ))) ?? []
 
   if (
     isSelected &&
@@ -152,9 +157,9 @@ const UnifiedLine: FunctionComponent<OwnProps> = ({
   ) {
     const firstLine = parseInt(
       (/^f\d+:[on](\d+)$/.exec(firstSelectedID) || ["", "0"])[1],
-      10
+      10,
     )
-    const lastLine = side === "old" ? line.old_offset : line.new_offset
+    const lastLine = side === "old" ? oldOffset : newOffset
     commentItems.push(
       <ChangesetComment
         key="new-comment"
@@ -166,7 +171,7 @@ const UnifiedLine: FunctionComponent<OwnProps> = ({
           firstLine,
           lastLine,
         }}
-      />
+      />,
     )
   }
 
@@ -174,25 +179,29 @@ const UnifiedLine: FunctionComponent<OwnProps> = ({
     <>
       <div
         className={clsx(className, classes.changesetDiffUnifiedLine, "line", {
-          context: side === undefined,
-          deleted: side === "old",
-          inserted: side === "new",
+          context: type === kContextLine,
+          deleted: type === kDeletedLine,
+          inserted: type === kInsertedLine,
+          modified: type === kModifiedLine,
+          replaced: type === kReplacedLine,
+          whitespace: type === kWhitespaceLine,
         })}
       >
         <span className={clsx(classes.lineNumber, classes.oldLineNumber)}>
-          {side !== "new" ? line.old_offset : null}
+          {side !== "new" ? oldOffset : null}
         </span>
         <span className={oldMarkerClass} />
         <Line
           className={clsx(classes.code, side)}
           lineID={lineID}
-          content={line.content}
+          line={line}
           side={side}
           isSelected={isSelected}
+          inView={inView}
         />
         <span className={newMarkerClass} />
         <span className={clsx(classes.lineNumber, classes.newLineNumber)}>
-          {side !== "old" ? line.new_offset : null}
+          {side !== "old" ? newOffset : null}
         </span>
       </div>
       {commentItems}
@@ -200,4 +209,4 @@ const UnifiedLine: FunctionComponent<OwnProps> = ({
   )
 }
 
-export default Registry.add("Changeset.Diff.Unified.Line", UnifiedLine)
+export default Registry.add("Changeset.Diff.Unified.Line", pure(UnifiedLine))

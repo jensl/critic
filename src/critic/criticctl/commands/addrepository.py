@@ -14,9 +14,11 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
+import argparse
 import asyncio
 import logging
 import os
+from typing import Optional, Sequence
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +34,7 @@ class InvalidSpec(Exception):
 
 
 class Spec:
-    def __init__(self, spec):
+    def __init__(self, spec: str):
         remote, colon, local = spec.partition(":")
         if not colon:
             local = remote
@@ -42,7 +44,7 @@ class Spec:
             raise InvalidSpec("%s: invalid source branch specification", spec)
 
 
-async def check_source(arguments):
+async def check_source(arguments: argparse.Namespace) -> Optional[Sequence[Spec]]:
     url = arguments.source
     specs = [Spec(spec) for spec in arguments.branches or []]
     refs = ["HEAD"] + [f"refs/heads/" + spec.remote for spec in specs]
@@ -75,7 +77,7 @@ async def check_source(arguments):
     return specs
 
 
-def setup(parser):
+def setup(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--name",
         required=True,
@@ -115,9 +117,9 @@ def setup(parser):
     parser.set_defaults(need_session=True, tags=False)
 
 
-async def main(critic, arguments):
-    name = arguments.name.strip()
-    path = arguments.path
+async def main(critic: api.critic.Critic, arguments: argparse.Namespace) -> int:
+    name: str = arguments.name.strip()
+    path: str = arguments.path
 
     try:
         await api.repository.fetch(critic, name=name)
@@ -149,17 +151,19 @@ async def main(critic, arguments):
         specs = await check_source(arguments)
         if specs is None:
             return 1
+    else:
+        specs = None
 
     async with api.transaction.start(critic) as transaction:
-        modifier = transaction.createRepository(name, path)
+        modifier = await transaction.createRepository(name, path)
 
-        if arguments.source:
+        if specs:
             for spec in specs:
                 await modifier.trackBranch(arguments.source, spec.remote, spec.local)
             if arguments.tags:
-                modifier.trackTags(arguments.source)
+                await modifier.trackTags(arguments.source)
 
-    repository = await modifier
+        repository = modifier.subject
 
     logger.info("Created repository %s [id=%d]", repository.name, repository.id)
 
@@ -170,3 +174,5 @@ async def main(critic, arguments):
         await asyncio.sleep(0.2)
 
     logger.info("Repository ready to be used.")
+
+    return 0

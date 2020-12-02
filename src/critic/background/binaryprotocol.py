@@ -8,13 +8,11 @@ import struct
 from typing import (
     Any,
     AsyncIterator,
-    Awaitable,
     Callable,
     Generic,
     Optional,
     Tuple,
     TypeVar,
-    Union,
 )
 
 logger = logging.getLogger(__name__)
@@ -53,7 +51,9 @@ class BinaryProtocolClient(Generic[InputMessage, OutputMessage], ClientBase):
     was_disconnected: "asyncio.Future[None]"
 
     def __init__(
-        self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
+        self,
+        reader: asyncio.StreamReader,
+        writer: asyncio.StreamWriter,
     ):
         super().__init__(reader, writer)
         self.protocol_id = None
@@ -181,12 +181,9 @@ class BinaryProtocolClient(Generic[InputMessage, OutputMessage], ClientBase):
         pass
 
 
-BinaryClientType = TypeVar("BinaryClientType", bound=BinaryProtocolClient)
-
-
 class BinaryProtocol(
-    Generic[BinaryClientType, InputMessage, OutputMessage],
-    ProtocolBase[BinaryClientType],
+    Generic[InputMessage, OutputMessage],
+    ProtocolBase[BinaryProtocolClient[InputMessage, OutputMessage]],
 ):
     manage_socket = True
 
@@ -220,8 +217,6 @@ class BinaryProtocol(
     GZIP_THRESHOLD = 256
     FLAG_GZIP = 1 << 0
 
-    message_encoding = None
-
     async def handle_client(
         self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
     ) -> None:
@@ -248,14 +243,20 @@ class BinaryProtocol(
         )
         client.ensure_future(client.handle_connected())
 
-    async def handle_client_connected(self, client: BinaryClientType) -> None:
+    async def handle_client_connected(
+        self, client: BinaryProtocolClient[InputMessage, OutputMessage]
+    ) -> None:
         pass
 
-    def handle_client_disconnected(self, client: BinaryClientType) -> None:
+    def handle_client_disconnected(
+        self, client: BinaryProtocolClient[InputMessage, OutputMessage]
+    ) -> None:
         self._remove_client(client)
 
     def dispatch_message(
-        self, client: BinaryClientType, message: InputMessage
+        self,
+        client: BinaryProtocolClient[InputMessage, OutputMessage],
+        message: InputMessage,
     ) -> AsyncIterator[OutputMessage]:
         raise Exception("must be overridden")
 

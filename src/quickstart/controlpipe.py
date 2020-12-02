@@ -7,17 +7,21 @@ import pickle
 import struct
 import sys
 import traceback
-from typing import AsyncIterator, Protocol, Set
+from typing import AsyncIterator, Optional, Protocol, Set
 
 logger = logging.getLogger(__name__)
+
+from .arguments import Arguments
 
 HEADER_FMT = "!I"
 
 
 class System(Protocol):
-    @property
-    def state_dir(self) -> str:
-        ...
+    arguments: Arguments
+    criticctl_path: Optional[str]
+    server_host: Optional[str]
+    server_port: int
+    state_dir: str
 
     async def restart(self) -> bool:
         ...
@@ -26,7 +30,9 @@ class System(Protocol):
 class ControlPipe(logging.Handler):
     class Client:
         def __init__(
-            self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter = None
+            self,
+            reader: asyncio.StreamReader,
+            writer: Optional[asyncio.StreamWriter] = None,
         ):
             self.reader = reader
             self.writer = writer
@@ -109,14 +115,19 @@ class ControlPipe(logging.Handler):
             )
             if self.system.server_host:
                 await client.write(
-                    {"http": (self.system.server_host, self.system.server_port,)}
+                    {
+                        "http": (
+                            self.system.server_host,
+                            self.system.server_port,
+                        )
+                    }
                 )
 
         asyncio.create_task(initialize())
 
         async for msg in client.read():
             if isinstance(msg, dict):
-                if msg.get("request") == "restart":
+                if "request" in msg and msg["request"] == "restart":
                     await self.system.restart()
 
         logger.debug("client disconnected")
@@ -137,7 +148,7 @@ class ControlPipe(logging.Handler):
                     "name": record.name,
                     "message": record.msg % record.args if record.args else record.msg,
                     "traceback": (
-                        "".join(traceback.format_exception(*record.exc_info))
+                        "".join(traceback.format_exception(*record.exc_info))  # type: ignore
                         if record.exc_info
                         else None
                     ),

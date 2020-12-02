@@ -14,6 +14,8 @@
  * the License.
  */
 
+import { immerable } from "immer"
+
 import { primaryMap } from "../reducers/resource"
 import { FileID, RepositoryID } from "./types"
 
@@ -25,11 +27,13 @@ type FileContentProps = {
 }
 
 class FileContent {
+  [immerable] = true
+
   constructor(
     readonly repository: RepositoryID,
     readonly file: FileID,
     readonly sha1: string,
-    readonly lines: any[]
+    readonly lines: any[],
   ) {}
 
   static new(props: FileContentProps) {
@@ -37,13 +41,13 @@ class FileContent {
       props.repository,
       props.file,
       props.sha1,
-      props.lines
+      props.lines,
     )
   }
 
   static reducer = primaryMap<FileContent, string>(
     "filecontents",
-    (filecontent) => `${filecontent.repository}:${filecontent.file}`
+    (filecontent) => `${filecontent.repository}:${filecontent.file}`,
   )
 
   get props(): FileContentProps {

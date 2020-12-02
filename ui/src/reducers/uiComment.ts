@@ -27,7 +27,6 @@ import {
   Action,
 } from "../actions"
 import { CommentID } from "../resources/types"
-import Comment from "../resources/comment"
 
 export class CommentInput extends Immutable.Record<{
   commentID: CommentID
@@ -65,13 +64,13 @@ export const comment = (state = new State(), action: Action) => {
     case EXPAND_COMMENT:
       return state.set(
         "expandedCommentIDs",
-        state.expandedCommentIDs.add(action.commentID)
+        state.expandedCommentIDs.add(action.commentID),
       )
 
     case COLLAPSE_COMMENT:
       return state.set(
         "expandedCommentIDs",
-        state.expandedCommentIDs.delete(action.commentID)
+        state.expandedCommentIDs.delete(action.commentID),
       )
 
     case SET_SELECTED_ELEMENTS:
@@ -88,19 +87,13 @@ export const comment = (state = new State(), action: Action) => {
     case DATA_UPDATE:
       let nextInputs = state.inputs
       if (action.updates) {
-        for (const comment of action.updates.get(
-          "comments",
-          Immutable.List<Comment>()
-        ) as Immutable.List<Comment>) {
-          if (
-            !comment.is_draft &&
-            !(comment.draft_changes && comment.draft_changes.reply)
-          ) {
+        for (const comment of action.updates.get("comments") ?? []) {
+          if (!comment.isDraft && !comment.draftChanges?.reply) {
             nextInputs = nextInputs.delete(comment.id)
           } else if (!nextInputs.has(comment.id)) {
             nextInputs = nextInputs.set(
               comment.id,
-              new CommentInput({ commentID: comment.id })
+              new CommentInput({ commentID: comment.id }),
             )
           }
         }
@@ -109,7 +102,8 @@ export const comment = (state = new State(), action: Action) => {
         // Note: A deleted reply are handled by the previous block, as
         //       an updated comment going from having a draft reply to
         //       not having one.
-        for (const commentID of action.deleted.get("comments", [])) {
+        const deleted = (action.deleted.get("comments") ?? []) as CommentID[]
+        for (const commentID of deleted) {
           nextInputs = nextInputs.delete(commentID)
         }
       }

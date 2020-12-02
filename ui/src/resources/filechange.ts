@@ -14,6 +14,8 @@
  * the License.
  */
 
+import { immerable } from "immer"
+
 import { primaryMap } from "../reducers/resource"
 
 type FileChangeProps = {
@@ -26,13 +28,15 @@ type FileChangeProps = {
 }
 
 class FileChange {
+  [immerable] = true
+
   constructor(
     readonly file: number,
     readonly changeset: number,
     readonly oldSha1: string | null,
     readonly oldMode: string | null,
     readonly newSha1: string | null,
-    readonly newMode: string | null
+    readonly newMode: string | null,
   ) {}
 
   static new(props: FileChangeProps) {
@@ -42,13 +46,13 @@ class FileChange {
       props.old_sha1,
       props.old_mode,
       props.new_sha1,
-      props.new_mode
+      props.new_mode,
     )
   }
 
   static reducer = primaryMap<FileChange, string>(
     "filechanges",
-    (filechange) => `${filechange.changeset}:${filechange.file}`
+    (filechange) => `${filechange.changeset}:${filechange.file}`,
   )
 
   get props(): FileChangeProps {
@@ -59,6 +63,13 @@ class FileChange {
       new_sha1: this.newSha1,
       new_mode: this.newMode,
     }
+  }
+
+  get wasDeleted() {
+    return this.newSha1 === null
+  }
+  get wasAdded() {
+    return this.oldSha1 === null
   }
 }
 

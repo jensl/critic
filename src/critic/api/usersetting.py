@@ -14,9 +14,19 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-from typing import Any, Sequence, TypeVar, Tuple, overload
+from typing import (
+    Any,
+    Awaitable,
+    Callable,
+    Optional,
+    Sequence,
+    TypeVar,
+    Tuple,
+    overload,
+)
 
 from critic import api
+from critic.api.apiobject import FunctionRef
 
 
 class Error(api.APIError, object_type="user setting"):
@@ -86,8 +96,8 @@ class UserSetting(api.APIObject):
     def value(self) -> Any:
         """The setting's value
 
-           The value is stored as JSON but returned in parsed form, and can thus
-           be a dictionary, list, string, number, boolean or None."""
+        The value is stored as JSON but returned in parsed form, and can thus
+        be a dictionary, list, string, number, boolean or None."""
         return self._impl.value
 
 
@@ -103,27 +113,25 @@ async def fetch(critic: api.critic.Critic, /, *, scope: str, name: str) -> UserS
 
 async def fetch(
     critic: api.critic.Critic,
-    usersetting_id: int = None,
+    usersetting_id: Optional[int] = None,
     *,
-    scope: str = None,
-    name: str = None,
+    scope: Optional[str] = None,
+    name: Optional[str] = None,
 ) -> UserSetting:
     """Fetch a UserSetting object with the given its id or scope and name
 
-       If 'usersetting_id' is not None, 'scope' and 'name' must be None. If
-       'usersetting_id' is None, 'scope' and 'name' must both be non-None.
+    If 'usersetting_id' is not None, 'scope' and 'name' must be None. If
+    'usersetting_id' is None, 'scope' and 'name' must both be non-None.
 
-       Only the effective user's settings can be accessed.
+    Only the effective user's settings can be accessed.
 
-       Exceptions:
+    Exceptions:
 
-         InvalidId: if 'usersetting_id' is used but the id is not
-                               valid.
-         NotDefined: if 'scope' and 'name' are used but no such
-                                setting is defined."""
-    from .impl import usersetting as impl
-
-    return await impl.fetch(critic, usersetting_id, scope, name)
+      InvalidId: if 'usersetting_id' is used but the id is not
+                            valid.
+      NotDefined: if 'scope' and 'name' are used but no such
+                             setting is defined."""
+    return await fetchImpl.get()(critic, usersetting_id, scope, name)
 
 
 T = TypeVar("T")
@@ -141,17 +149,37 @@ async def get(
 
 
 async def fetchAll(
-    critic: api.critic.Critic, *, scope: str = None
+    critic: api.critic.Critic, *, scope: Optional[str] = None
 ) -> Sequence[UserSetting]:
     """Fetch UserSetting objects for all settings
 
-       Only the effective user's settings can be accessed.
+    Only the effective user's settings can be accessed.
 
-       If 'scope' is not None, only settings with a matching scope are
-       fetched."""
-    from .impl import usersetting as impl
-
-    return await impl.fetchAll(critic, scope)
+    If 'scope' is not None, only settings with a matching scope are
+    fetched."""
+    return await fetchAllImpl.get()(critic, scope)
 
 
 resource_name = table_name = "usersettings"
+
+
+fetchImpl: FunctionRef[
+    Callable[
+        [
+            api.critic.Critic,
+            Optional[int],
+            Optional[str],
+            Optional[str],
+        ],
+        Awaitable[UserSetting],
+    ]
+] = FunctionRef()
+fetchAllImpl: FunctionRef[
+    Callable[
+        [
+            api.critic.Critic,
+            Optional[str],
+        ],
+        Awaitable[Sequence[UserSetting]],
+    ]
+] = FunctionRef()

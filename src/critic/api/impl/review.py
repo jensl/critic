@@ -35,40 +35,94 @@ from typing import (
 
 logger = logging.getLogger(__name__)
 
-from . import apiobject
-
 from critic import api
+from critic.api import review as public
 from critic import auth
+from critic.base.types import BooleanWithReason
 from critic import dbaccess
+from . import apiobject
+from .critic import Critic
 
 PROGRESS = "Review.progress"
 TAGS = "Review.tags"
 LAST_CHANGED = "Review.last_changed"
 
 
-@dataclass(frozen=True)
+@dataclass
 class Progress:
-    reviewing: float
-    open_issues: int
+    __reviewing: float
+    __open_issues: int
+
+    @property
+    def reviewing(self) -> float:
+        return self.__reviewing
+
+    @property
+    def open_issues(self) -> int:
+        return self.__open_issues
 
 
 @dataclass(frozen=True)
 class Integration:
-    target_branch: api.branch.Branch
-    commits_behind: Optional[int]
-    state: api.review.IntegrationState
-    squashed: bool
-    autosquashed: bool
-    strategy_used: Optional[api.review.IntegrationStrategy]
-    conflicts: FrozenSet[api.file.File]
-    error_message: Optional[str]
+    __target_branch: api.branch.Branch
+    __commits_behind: Optional[int]
+    __state: api.review.IntegrationState
+    __squashed: bool
+    __autosquashed: bool
+    __strategy_used: Optional[api.review.IntegrationStrategy]
+    __conflicts: FrozenSet[api.file.File]
+    __error_message: Optional[str]
+
+    @property
+    def target_branch(self) -> api.branch.Branch:
+        return self.__target_branch
+
+    @property
+    def commits_behind(self) -> Optional[int]:
+        return self.__commits_behind
+
+    @property
+    def state(self) -> api.review.IntegrationState:
+        return self.__state
+
+    @property
+    def squashed(self) -> bool:
+        return self.__squashed
+
+    @property
+    def autosquashed(self) -> bool:
+        return self.__autosquashed
+
+    @property
+    def strategy_used(self) -> Optional[api.review.IntegrationStrategy]:
+        return self.__strategy_used
+
+    @property
+    def conflicts(self) -> FrozenSet[api.file.File]:
+        return self.__conflicts
+
+    @property
+    def error_message(self) -> Optional[str]:
+        return self.__error_message
 
 
 @dataclass(frozen=True)
 class CommitChangeCount:
-    commit_id: int
-    total_changes: int
-    reviewed_changes: int
+    __commit_id: int
+    __total_changes: int
+    __reviewed_changes: int
+
+    @property
+    def commit_id(self) -> int:
+        return self.__commit_id
+
+    @property
+    def total_changes(self) -> int:
+        return self.__total_changes
+
+    @property
+    def reviewed_changes(self) -> int:
+        return self.__reviewed_changes
 
 
 WrapperType = api.review.Review
@@ -127,7 +181,7 @@ class Review(apiobject.APIObject[WrapperType, ArgumentsType, int]):
             self.summary,
             self.description,
             self.__integration_target_id,
-            self.__integration_branchupdate_id,
+            self.__integration_branchupdate_id,  # type: ignore
             self.integration_behind,
             self.integration_performed,
         ) = args
@@ -150,9 +204,9 @@ class Review(apiobject.APIObject[WrapperType, ArgumentsType, int]):
         self.__last_changed = None
 
     @staticmethod
-    async def checkAccess(review: WrapperType) -> None:
+    async def checkAccess(wrapper: WrapperType) -> None:
         # Access the repository object to trigger an access control check.
-        await review.repository
+        await wrapper.repository
 
     @staticmethod
     async def filterInaccessible(
@@ -167,6 +221,36 @@ class Review(apiobject.APIObject[WrapperType, ArgumentsType, int]):
             else:
                 result.append(review)
         return result
+
+    async def canPublish(self, critic: api.critic.Critic) -> BooleanWithReason:
+        if self.state != "draft":
+            return BooleanWithReason("Review already published")
+        if not self.summary:
+            return BooleanWithReason("Review summary not set")
+        if self.__branch_id is None:
+            return BooleanWithReason("Review branch not set")
+        if await self.getInitialCommitsPending(critic):
+            return BooleanWithReason("Initial commits still pending")
+        return BooleanWithReason()
+
+    async def canClose(self, critic: api.critic.Critic) -> BooleanWithReason:
+        if self.state != "open":
+            return BooleanWithReason("Only open reviews can be closed")
+        if not await self.isAccepted(critic):
+            return BooleanWithReason("Only accepted reviews can be closed")
+        return BooleanWithReason()
+
+    async def canDrop(self, critic: api.critic.Critic) -> BooleanWithReason:
+        if self.state != "open":
+            return BooleanWithReason("Only open reviews can be dropped")
+        if await self.isAccepted(critic):
+            return BooleanWithReason("Aaccepted review can not be dropped")
+        return BooleanWithReason()
+
+    async def canReopen(self, critic: api.critic.Critic) -> BooleanWithReason:
+        if self.state not in ("closed", "dropped"):
+            return BooleanWithReason("Only closed or dropped reviews can be reopened")
+        return BooleanWithReason()
 
     async def isAccepted(self, critic: api.critic.Critic) -> bool:
         if self.__is_accepted is None:
@@ -269,7 +353,8 @@ class Review(apiobject.APIObject[WrapperType, ArgumentsType, int]):
     async def __fetchWatcherIds(self, critic: api.critic.Critic) -> None:
         if self.__watcher_ids is None:
             # Find all users associated in any way with the review.
-            async with critic.query(
+            async with api.critic.Query[int](
+                critic,
                 """SELECT uid
                      FROM reviewusers
                     WHERE review={review_id}""",
@@ -320,7 +405,8 @@ class Review(apiobject.APIObject[WrapperType, ArgumentsType, int]):
             critic = wrapper.critic
             if await self.getInitialCommitsPending(critic):
                 return None
-            async with critic.query(
+            async with api.critic.Query[int](
+                critic,
                 """SELECT changeset
                      FROM reviewchangesets
                     WHERE review={review_id}""",
@@ -336,7 +422,8 @@ class Review(apiobject.APIObject[WrapperType, ArgumentsType, int]):
 
     async def getFiles(self, critic: api.critic.Critic) -> FrozenSet[api.file.File]:
         if self.__files is None:
-            async with critic.query(
+            async with api.critic.Query[int](
+                critic,
                 """SELECT DISTINCT file
                      FROM reviewfiles
                     WHERE review={review_id}""",
@@ -348,8 +435,8 @@ class Review(apiobject.APIObject[WrapperType, ArgumentsType, int]):
 
     async def getPendingRebase(
         self, wrapper: WrapperType
-    ) -> Optional[api.log.rebase.Rebase]:
-        rebases = await api.log.rebase.fetchAll(
+    ) -> Optional[api.rebase.Rebase]:
+        rebases = await api.rebase.fetchAll(
             wrapper.critic, review=wrapper, pending=True
         )
         if rebases:
@@ -389,7 +476,8 @@ class Review(apiobject.APIObject[WrapperType, ArgumentsType, int]):
     async def isReviewableCommit(
         self, critic: api.critic.Critic, commit: api.commit.Commit
     ) -> bool:
-        async with critic.query(
+        async with api.critic.Query[int](
+            critic,
             """SELECT 1
                  FROM reviewchangesets AS rc
                  JOIN changesets ON (changesets.id=rc.changeset)
@@ -407,7 +495,7 @@ class Review(apiobject.APIObject[WrapperType, ArgumentsType, int]):
 
         review_ids = []
         for review in cached_reviews.values():
-            if review._impl.__progress is None:
+            if Review.fromWrapper(review).__progress is None:
                 review_ids.append(review.id)
 
         def zero_counts() -> List[int]:
@@ -445,12 +533,12 @@ class Review(apiobject.APIObject[WrapperType, ArgumentsType, int]):
             open_issues = open_issues_per_review[review_id]
             reviewed_count = counts[1]
             total_count = sum(counts)
-            review._impl.__progress = Progress(
+            Review.fromWrapper(review).__progress = Progress(
                 (float(reviewed_count) / total_count) if total_count else 0, open_issues
             )
 
     async def getProgress(self, critic: api.critic.Critic) -> WrapperType.Progress:
-        async with critic._impl.criticalSection(PROGRESS):
+        async with Critic.fromWrapper(critic).criticalSection(PROGRESS):
             if self.__progress is None:
                 await Review.__fetchProgress(critic)
                 assert self.__progress is not None
@@ -495,7 +583,8 @@ class Review(apiobject.APIObject[WrapperType, ArgumentsType, int]):
             total_changes_dict = {}
             reviewed_changes_dict = {}
 
-            async with critic.query(
+            async with api.critic.Query[Tuple[int, int]](
+                critic,
                 """SELECT to_commit, SUM(deleted + inserted)
                      FROM reviewfiles AS rf
                      JOIN changesets ON (changesets.id=rf.changeset)
@@ -505,7 +594,8 @@ class Review(apiobject.APIObject[WrapperType, ArgumentsType, int]):
             ) as result:
                 async for commit_id, changes in result:
                     total_changes_dict[commit_id] = changes
-            async with critic.query(
+            async with api.critic.Query[Tuple[int, int]](
+                critic,
                 """SELECT to_commit, SUM(deleted + inserted)
                      FROM reviewfiles AS rf
                      JOIN changesets ON (changesets.id=rf.changeset)
@@ -529,7 +619,8 @@ class Review(apiobject.APIObject[WrapperType, ArgumentsType, int]):
         return self.__progress_per_commit
 
     async def getInitialCommitsPending(self, critic: api.critic.Critic) -> bool:
-        async with critic.query(
+        async with api.critic.Query[int](
+            critic,
             """SELECT 1
                  FROM reviewcommits
                 WHERE review={review_id}
@@ -547,7 +638,8 @@ class Review(apiobject.APIObject[WrapperType, ArgumentsType, int]):
     async def getPendingUpdate(
         self, critic: api.critic.Critic
     ) -> Optional[api.branchupdate.BranchUpdate]:
-        async with critic.query(
+        async with api.critic.Query[int](
+            critic,
             """SELECT id
                  FROM branchupdates
       LEFT OUTER JOIN reviewupdates ON (branchupdate=id)
@@ -568,11 +660,12 @@ class Review(apiobject.APIObject[WrapperType, ArgumentsType, int]):
 
         review_ids = []
         for review in cached_reviews.values():
-            if review._impl.__reviewtag_ids is None:
+            if Review.fromWrapper(review).__reviewtag_ids is None:
                 review_ids.append(review.id)
 
         reviewtag_ids: Dict[int, Set[int]] = defaultdict(set)
-        async with critic.query(
+        async with api.critic.Query[Tuple[int, int]](
+            critic,
             """SELECT review, tag
                  FROM reviewusertags
                 WHERE {review=review_ids:array}
@@ -585,12 +678,12 @@ class Review(apiobject.APIObject[WrapperType, ArgumentsType, int]):
 
         for review_id in review_ids:
             review = cached_reviews[review_id]
-            review._impl.__reviewtag_ids = reviewtag_ids[review_id]
+            Review.fromWrapper(review).__reviewtag_ids = reviewtag_ids[review_id]
 
     async def getTags(
         self, critic: api.critic.Critic
     ) -> Sequence[api.reviewtag.ReviewTag]:
-        async with critic._impl.criticalSection(TAGS):
+        async with Critic.fromWrapper(critic).criticalSection(TAGS):
             if self.__reviewtag_ids is None:
                 await Review.__fetchTags(critic)
                 assert self.__reviewtag_ids is not None
@@ -602,7 +695,7 @@ class Review(apiobject.APIObject[WrapperType, ArgumentsType, int]):
 
         review_ids = []
         for review in cached_reviews.values():
-            if review._impl.__last_changed is None:
+            if Review.fromWrapper(review).__last_changed is None:
                 review_ids.append(review.id)
 
         last_changed = {}
@@ -619,36 +712,41 @@ class Review(apiobject.APIObject[WrapperType, ArgumentsType, int]):
 
         for review_id in review_ids:
             review = cached_reviews[review_id]
-            review._impl.__last_changed = last_changed[review_id]
+            Review.fromWrapper(review).__last_changed = last_changed[review_id]
 
     async def getLastChanged(self, critic: api.critic.Critic) -> datetime.datetime:
-        async with critic._impl.criticalSection(LAST_CHANGED):
+        async with Critic.fromWrapper(critic).criticalSection(LAST_CHANGED):
             if self.__last_changed is None:
                 await Review.__fetchLastChanged(critic)
                 assert self.__last_changed is not None
         return self.__last_changed
 
     async def prefetchCommits(self, critic: api.critic.Critic) -> None:
-        async with critic.query(
+        commit_ids: Set[Optional[int]]
+        async with api.critic.Query[int](
+            critic,
             """SELECT commit
                  FROM reviewcommits
                 WHERE review={review_id}""",
             review_id=self.id,
-        ) as result:
-            commit_ids = set(await result.scalars())
-        async with critic.query(
+        ) as commit_result:
+            commit_ids = set(await commit_result.scalars())
+        async with api.critic.Query[
+            Tuple[Optional[int], Optional[int], Optional[int], Optional[int]]
+        ](
+            critic,
             """SELECT old_upstream, new_upstream, equivalent_merge,
                       replayed_rebase
                  FROM reviewrebases
                 WHERE review={review_id}""",
             review_id=self.id,
-        ) as result:
+        ) as rebases_result:
             async for (
                 old_upstream,
                 new_upstream,
                 equivalent_merge,
                 replayed_rebase,
-            ) in result:
+            ) in rebases_result:
                 commit_ids.add(old_upstream)
                 commit_ids.add(new_upstream)
                 commit_ids.add(equivalent_merge)
@@ -657,7 +755,9 @@ class Review(apiobject.APIObject[WrapperType, ArgumentsType, int]):
             commit_ids.remove(None)
         except KeyError:
             pass
-        await api.commit.prefetch(await self.getRepository(critic), commit_ids)
+        await api.commit.prefetch(
+            await self.getRepository(critic), cast(Set[int], commit_ids)
+        )
 
     async def getIntegration(
         self, wrapper: WrapperType
@@ -668,7 +768,19 @@ class Review(apiobject.APIObject[WrapperType, ArgumentsType, int]):
         critic = wrapper.critic
         state: api.review.IntegrationState = "planned"
 
-        async with critic.query(
+        async with api.critic.Query[
+            Tuple[
+                bool,
+                bool,
+                bool,
+                bool,
+                bool,
+                Optional[api.review.IntegrationStrategy],
+                Optional[bool],
+                Optional[str],
+            ]
+        ](
+            critic,
             """SELECT do_squash, squashed, do_autosquash, autosquashed,
                       do_integrate, strategy_used, successful, error_message
                  FROM reviewintegrationrequests
@@ -676,7 +788,7 @@ class Review(apiobject.APIObject[WrapperType, ArgumentsType, int]):
              ORDER BY id DESC
                 LIMIT 1""",
             review=self.id,
-        ) as result:
+        ) as reviewintegrationrequests_result:
             try:
                 (
                     do_squash,
@@ -687,9 +799,10 @@ class Review(apiobject.APIObject[WrapperType, ArgumentsType, int]):
                     strategy_used,
                     successful,
                     error_message,
-                ) = await result.one()
-            except result.ZeroRowsInResult:
-                squashed = autosquashed = strategy_used = successful = None
+                ) = await reviewintegrationrequests_result.one()
+            except reviewintegrationrequests_result.ZeroRowsInResult:
+                squashed = autosquashed = False
+                strategy_used = successful = None
                 error_message = None
             else:
                 if any(
@@ -714,8 +827,8 @@ class Review(apiobject.APIObject[WrapperType, ArgumentsType, int]):
                      FROM reviewintegrationconflicts
                     WHERE review={review}""",
                 review=self.id,
-            ) as result:
-                file_ids = await result.scalars()
+            ) as reviewintegrationconflicts_result:
+                file_ids = await reviewintegrationconflicts_result.scalars()
             conflicts = frozenset(await api.file.fetchMany(critic, file_ids))
         else:
             conflicts = frozenset()
@@ -731,8 +844,8 @@ class Review(apiobject.APIObject[WrapperType, ArgumentsType, int]):
             error_message,
         )
 
-    @staticmethod
-    def refresh_tables() -> Set[str]:
+    @classmethod
+    def refresh_tables(cls) -> Set[str]:
         return {
             "reviews",
             "reviewcommits",
@@ -744,6 +857,7 @@ class Review(apiobject.APIObject[WrapperType, ArgumentsType, int]):
         }
 
 
+@public.fetchImpl
 @Review.cached
 async def fetch(
     critic: api.critic.Critic,
@@ -767,12 +881,15 @@ async def fetch(
     return review
 
 
+@public.fetchManyImpl
 @Review.cachedMany
 async def fetchMany(
     critic: api.critic.Critic, review_ids: Iterable[int]
 ) -> Sequence[WrapperType]:
     async with Review.query(
-        critic, ["id=ANY({review_ids})"], review_ids=list(review_ids),
+        critic,
+        ["id=ANY({review_ids})"],
+        review_ids=list(review_ids),
     ) as result:
         reviews = await Review.make(critic, result)
     for review in reviews:
@@ -780,6 +897,7 @@ async def fetchMany(
     return reviews
 
 
+@public.fetchAllImpl
 async def fetchAll(
     critic: api.critic.Critic,
     repository: Optional[api.repository.Repository],

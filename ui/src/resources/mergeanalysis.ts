@@ -14,6 +14,8 @@
  * the License.
  */
 
+import { immerable } from "immer"
+
 import { primaryMap } from "../reducers/resource"
 import { MacroChunk, MacroChunkData } from "./filediff"
 import { ChangesetID, CommitID, FileID } from "./types"
@@ -31,17 +33,19 @@ type MergeAnalysisProps = {
 }
 
 class MergeAnalysis {
+  [immerable] = true
+
   constructor(
     readonly merge: CommitID,
     readonly changesRelativeParents: ChangesRelativeParent[],
-    readonly conflictResolutions: ChangesetID
+    readonly conflictResolutions: ChangesetID,
   ) {}
 
   static new(props: MergeAnalysisProps) {
     return new MergeAnalysis(
       props.merge,
       props.changes_relative_parents,
-      props.conflict_resolutions
+      props.conflict_resolutions,
     )
   }
 
@@ -49,14 +53,14 @@ class MergeAnalysis {
     return {
       ...value,
       changes_relative_parents: ChangesRelativeParent.make(
-        value.changes_relative_parents
+        value.changes_relative_parents,
       ),
     }
   }
 
   static reducer = primaryMap<MergeAnalysis, number>(
     "mergeanalyses",
-    (analysis) => analysis.merge
+    (analysis) => analysis.merge,
   )
 
   get props(): MergeAnalysisProps {
@@ -81,17 +85,19 @@ type ChangesRelativeParentProps = {
 }
 
 class ChangesRelativeParent {
+  [immerable] = true
+
   constructor(
     readonly parent: number,
     readonly files: FileID[],
-    readonly macroChunks: Map<FileID, MacroChunk[]>
+    readonly macroChunks: Map<FileID, MacroChunk[]>,
   ) {}
 
   static new(props: ChangesRelativeParentProps) {
     return new ChangesRelativeParent(
       props.parent,
       props.files,
-      props.macro_chunks
+      props.macro_chunks,
     )
   }
 
@@ -103,7 +109,7 @@ class ChangesRelativeParent {
           macro_chunks: new Map(
             Object.entries(value.macro_chunks).map(([fileID, macroChunks]) => {
               return [parseInt(fileID, 10), MacroChunk.make(macroChunks)]
-            })
+            }),
           ),
         })
       }

@@ -17,27 +17,34 @@
 from __future__ import annotations
 
 import logging
-from typing import Optional, Sequence, Any, Awaitable
+from typing import Sequence
 
 logger = logging.getLogger(__name__)
 
 from critic import api
-from critic import jsonapi
+from critic.api.transaction.usersshkey.modify import ModifyUserSSHKey
+from ..check import convert
+from ..exceptions import PathError, UsageError
+from ..resourceclass import ResourceClass
+from ..parameters import Parameters
+from ..types import JSONInput, JSONResult
+from ..utils import numeric_id
+from ..values import Values
 
 
 async def modify(
     transaction: api.transaction.Transaction, usersshkey: api.usersshkey.UserSSHKey
-) -> api.transaction.usersshkey.ModifyUserSSHKey:
+) -> ModifyUserSSHKey:
     return await transaction.modifyUser(await usersshkey.user).modifySSHKey(usersshkey)
 
 
-class UserSSHKeys(jsonapi.ResourceClass, api_module=api.usersshkey):
+class UserSSHKeys(ResourceClass[api.usersshkey.UserSSHKey], api_module=api.usersshkey):
     contexts = (None, "users")
 
     @staticmethod
     async def json(
-        parameters: jsonapi.Parameters, value: api.usersshkey.UserSSHKey
-    ) -> jsonapi.JSONResult:
+        parameters: Parameters, value: api.usersshkey.UserSSHKey
+    ) -> JSONResult:
         return {
             "id": value.id,
             "user": value.user,
@@ -48,47 +55,45 @@ class UserSSHKeys(jsonapi.ResourceClass, api_module=api.usersshkey):
             "fingerprint": value.fingerprint,
         }
 
-    @staticmethod
+    @classmethod
     async def single(
-        parameters: jsonapi.Parameters, argument: str
+        cls, parameters: Parameters, argument: str
     ) -> api.usersshkey.UserSSHKey:
         """Retrieve one (or more) SSH keys.
 
-           KEY_ID : integer
+        KEY_ID : integer
 
-           Retrieve an SSH key identified by its unique numeric id."""
+        Retrieve an SSH key identified by its unique numeric id."""
 
         if not api.critic.settings().authentication.enable_ssh_access:
-            raise jsonapi.UsageError("SSH access support is disabled")
+            raise UsageError("SSH access support is disabled")
 
-        value = await api.usersshkey.fetch(
-            parameters.critic, jsonapi.numeric_id(argument)
-        )
+        value = await api.usersshkey.fetch(parameters.critic, numeric_id(argument))
 
         if "users" in parameters.context:
             if await value.user != parameters.context["users"]:
-                raise jsonapi.PathError("SSH key does not belong to specified user")
+                raise PathError("SSH key does not belong to specified user")
 
         return value
 
     @staticmethod
     async def multiple(
-        parameters: jsonapi.Parameters,
+        parameters: Parameters,
     ) -> Sequence[api.usersshkey.UserSSHKey]:
         """All SSH keys."""
 
         if not api.critic.settings().authentication.enable_ssh_access:
-            raise jsonapi.UsageError("SSH access support is disabled")
+            raise UsageError("SSH access support is disabled")
 
-        user = await Users.deduce(parameters)
+        user = await parameters.deduce(api.user.User)
 
         return await api.usersshkey.fetchAll(parameters.critic, user=user)
 
     @staticmethod
     async def create(
-        parameters: jsonapi.Parameters, data: jsonapi.JSONInput
+        parameters: Parameters, data: JSONInput
     ) -> api.usersshkey.UserSSHKey:
-        converted = await jsonapi.convert(
+        converted = await convert(
             parameters,
             {"user?": api.user.User, "type": str, "key": str, "comment?": str},
             data,
@@ -100,33 +105,32 @@ class UserSSHKeys(jsonapi.ResourceClass, api_module=api.usersshkey):
         )
 
         async with api.transaction.start(critic) as transaction:
-            modifier = transaction.modifyUser(user).addSSHKey(
-                converted["type"], converted["key"], converted.get("comment")
-            )
+            return (
+                await transaction.modifyUser(user).addSSHKey(
+                    converted["type"], converted["key"], converted.get("comment")
+                )
+            ).subject
 
-        return await modifier
-
-    @staticmethod
+    @classmethod
     async def update(
-        parameters: jsonapi.Parameters,
-        values: jsonapi.Values[api.usersshkey.UserSSHKey],
-        data: jsonapi.JSONInput,
+        cls,
+        parameters: Parameters,
+        values: Values[api.usersshkey.UserSSHKey],
+        data: JSONInput,
     ) -> None:
-        converted = await jsonapi.convert(parameters, {"comment": str}, data)
+        converted = await convert(parameters, {"comment": str}, data)
         comment = converted["comment"]
 
         async with api.transaction.start(parameters.critic) as transaction:
             for usersshkey in values:
-                (await modify(transaction, usersshkey)).setComment(comment)
+                await (await modify(transaction, usersshkey)).setComment(comment)
 
-    @staticmethod
+    @classmethod
     async def delete(
-        parameters: jsonapi.Parameters,
-        values: jsonapi.Values[api.usersshkey.UserSSHKey],
+        cls,
+        parameters: Parameters,
+        values: Values[api.usersshkey.UserSSHKey],
     ) -> None:
         async with api.transaction.start(parameters.critic) as transaction:
             for usersshkey in values:
-                (await modify(transaction, usersshkey)).delete()
-
-
-from .users import Users
+                await (await modify(transaction, usersshkey)).delete()

@@ -14,34 +14,47 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
+from __future__ import annotations
+
 import logging
+from typing import Dict, Iterable, Mapping, Optional, Set, Tuple
 
 logger = logging.getLogger(__name__)
 
 from critic import api
+from critic.gitaccess import SHA1
 
 
 class Location:
-    def __init__(self, file, sha1, first_line, last_line, is_new=True):
+    def __init__(
+        self,
+        file: api.file.File,
+        sha1: SHA1,
+        first_line: int,
+        last_line: int,
+        is_new: bool = True,
+    ):
         self.file = file
         self.sha1 = sha1
         self.first_line = first_line
         self.last_line = last_line
         self.is_new = is_new
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "Location(%d-%d @ %r)" % (self.first_line, self.last_line, self.sha1)
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.sha1
 
-    def __hash__(self):
+    def __hash__(self) -> int:
         return hash(str(self))
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
         return str(self) == str(other)
 
-    async def __find_filediff(self, from_commit, to_commit):
+    async def __find_filediff(
+        self, from_commit: api.commit.Commit, to_commit: api.commit.Commit
+    ) -> Optional[api.filediff.Filediff]:
         changeset = await api.changeset.fetch(
             from_commit.critic, from_commit=from_commit, to_commit=to_commit
         )
@@ -61,14 +74,16 @@ class Location:
         except api.filechange.InvalidId:
             return None
 
-    async def translate_forwards(self, parent_commit, child_commit):
+    async def translate_forwards(
+        self, parent_commit: api.commit.Commit, child_commit: api.commit.Commit
+    ) -> Optional[Location]:
         """Return a forward translated location, or None
 
-           "Forward" means the location is assumed to be in the old side of the
-           diff, and should be translated to the new side.
+        "Forward" means the location is assumed to be in the old side of the
+        diff, and should be translated to the new side.
 
-           If any block of changed lines overlap this location's lines, None is
-           returned."""
+        If any block of changed lines overlap this location's lines, None is
+        returned."""
 
         filediff = await self.__find_filediff(parent_commit, child_commit)
 
@@ -104,6 +119,8 @@ class Location:
                 # the location.
                 break
 
+        assert filediff.filechange.new_sha1
+
         return Location(
             self.file,
             filediff.filechange.new_sha1,
@@ -111,14 +128,16 @@ class Location:
             self.last_line + delta,
         )
 
-    async def translate_backwards(self, parent_commit, child_commit):
+    async def translate_backwards(
+        self, parent_commit: api.commit.Commit, child_commit: api.commit.Commit
+    ) -> Optional[Location]:
         """Return a backwards translated location, or None
 
-           "Backwards" means the location is assumed to be in the old side of
-           the diff, and should be translated to the new side.
+        "Backwards" means the location is assumed to be in the old side of
+        the diff, and should be translated to the new side.
 
-           If any block of changed lines overlap this location's lines, None is
-           returned."""
+        If any block of changed lines overlap this location's lines, None is
+        returned."""
 
         # Note: This function translates from commit A to commit B via the
         #       changeset |B..A|. We could of course have used the changeset
@@ -159,6 +178,8 @@ class Location:
                 # the location.
                 break
 
+        assert filediff.filechange.old_sha1
+
         return Location(
             self.file,
             filediff.filechange.old_sha1,
@@ -167,7 +188,7 @@ class Location:
         )
 
     @staticmethod
-    async def fromAPI(api_location):
+    async def fromAPI(api_location: api.comment.FileVersionLocation) -> Location:
         file_information = await api_location.file_information
         return Location(
             file_information.file,
@@ -178,52 +199,73 @@ class Location:
 
 
 class PropagationResult:
-    def __init__(self, locations):
+    addressed_by: Optional[api.commit.Commit]
+
+    def __init__(self, locations: Iterable[Location]):
         self.locations = set(locations)
         self.addressed_by = None
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "PropagationResult(locations=%r, addressed_by=%r)" % (
             self.locations,
             self.addressed_by,
         )
 
 
+Locations = Mapping[SHA1, Tuple[int, int]]
+
+
 class PropagateInCommitSet:
-    def __init__(self, commits, file, existing_locations={}):
+    locations: Dict[SHA1, Location]
+    final_locations: Dict[api.commit.Commit, Location]
+    __addressed_by: Set[api.commit.Commit]
+    __processed: Set[api.commit.Commit]
+
+    def __init__(
+        self,
+        commits: api.commitset.CommitSet,
+        file: api.file.File,
+        existing_locations: Locations = {},
+    ):
         self.commits = commits
         self.file = file
-        self.locations = {}  # {location => location}
-        self.final_locations = {}  # {commit => location}
+        self.locations = {}
+        self.final_locations = {}
         self.__addressed_by = set()
         self.__processed = set()
 
         for sha1, (first_line, last_line) in existing_locations.items():
             self.add_location(sha1, first_line - 1, last_line - 1)
 
-    def add_location(self, sha1, first_line, last_line):
+    def add_location(
+        self, sha1: SHA1, first_line: int, last_line: int
+    ) -> Optional[Location]:
         return self.__add_location(
             Location(self.file, sha1, first_line, last_line, is_new=False)
         )
 
-    def __add_location(self, location):
+    def __add_location(self, location: Optional[Location]) -> Optional[Location]:
         if not location:
             return location
-        return self.locations.setdefault(location, location)
+        return self.locations.setdefault(location.sha1, location)
 
-    async def __child_location(self, commit, location, child):
+    async def __child_location(
+        self, commit: api.commit.Commit, location: Location, child: api.commit.Commit
+    ) -> Optional[Location]:
         try:
             file_information = await child.getFileInformation(self.file)
             sha1 = file_information.sha1 if file_information else None
         except api.commit.NotAFile:
             sha1 = None
-        if sha1 in self.locations:
+        if sha1 and sha1 in self.locations:
             return self.locations[sha1]
         return self.__add_location(
             await location.translate_forwards(parent_commit=commit, child_commit=child)
         )
 
-    async def forwards(self, commit, location):
+    async def forwards(
+        self, commit: api.commit.Commit, location: Optional[Location]
+    ) -> None:
         if not location:
             logger.debug("propagate forwards: %s (N/A)", commit.sha1[:8])
             self.__addressed_by.add(commit)
@@ -257,13 +299,15 @@ class PropagateInCommitSet:
         if commit in self.commits:
             await self.backwards(commit, location)
 
-    async def __parent_location(self, commit, location, parent):
+    async def __parent_location(
+        self, commit: api.commit.Commit, location: Location, parent: api.commit.Commit
+    ) -> Optional[Location]:
         try:
             file_information = await parent.getFileInformation(self.file)
             sha1 = file_information.sha1 if file_information else None
         except api.commit.NotAFile:
             sha1 = None
-        if sha1 in self.locations:
+        if sha1 and sha1 in self.locations:
             return self.locations[sha1]
         return self.__add_location(
             await location.translate_backwards(
@@ -271,7 +315,9 @@ class PropagateInCommitSet:
             )
         )
 
-    async def backwards(self, commit, location):
+    async def backwards(
+        self, commit: api.commit.Commit, location: Optional[Location]
+    ) -> None:
         if not location:
             logger.debug("propagate backwards: %s (N/A)", commit.sha1[:8])
             return
@@ -302,7 +348,7 @@ class PropagateInCommitSet:
             await self.backwards(parent, parent_location)
 
     @property
-    def addressed_by(self):
+    def addressed_by(self) -> api.commit.Commit:
         if len(self.__addressed_by) == 1:
             (addressed_by,) = self.__addressed_by
             return addressed_by
@@ -311,20 +357,30 @@ class PropagateInCommitSet:
             # branch splits where the comment exists, and then both sides change
             # the lines, and are later merged together. We arbitrarily pick the
             # commit in |added_commits| that comes first in topological order.
+            commit: Optional[api.commit.Commit]
             for commit in self.commits.topo_ordered:
                 if commit in self.__addressed_by:
-                    return commit
-            assert not "reached"
+                    break
+            else:
+                # This line should never be reached!
+                commit = None
+            assert commit
+            return commit
 
 
-async def propagate_in_new_commits(critic, location, existing_locations, added_commits):
+async def propagate_in_new_commits(
+    critic: api.critic.Critic,
+    location: api.comment.FileVersionLocation,
+    existing_locations: Locations,
+    added_commits: api.commitset.CommitSet,
+) -> PropagationResult:
     """Propagate the comment into the added commits
 
-       The comment must have been translated to the current tip of the review
-       branch, meaning its FileVersionLocations's |commit| attribute must be
-       that commit.
+    The comment must have been translated to the current tip of the review
+    branch, meaning its FileVersionLocations's |commit| attribute must be
+    that commit.
 
-       Returns a PropagationResult object."""
+    Returns a PropagationResult object."""
 
     commit = await location.commit
 
@@ -336,7 +392,7 @@ async def propagate_in_new_commits(critic, location, existing_locations, added_c
 
     await propagate.forwards(commit, await Location.fromAPI(location))
 
-    result = PropagationResult(propagate.locations)
+    result = PropagationResult(propagate.locations.values())
 
     if not propagate.final_locations:
         result.addressed_by = propagate.addressed_by
@@ -345,11 +401,14 @@ async def propagate_in_new_commits(critic, location, existing_locations, added_c
 
 
 async def propagate_new_comment(
-    review, comment_location=None, *, existing_locations={}
+    review: api.review.Review,
+    comment_location: api.comment.FileVersionLocation,
+    *,
+    existing_locations: Locations = {}
 ):
     """Propagate a new comment to other commits in the review
 
-       Returns a PropagationResult object."""
+    Returns a PropagationResult object."""
 
     file = await comment_location.file
 
@@ -358,23 +417,27 @@ async def propagate_new_comment(
     commit = await comment_location.commit
     if not commit:
         changeset = await comment_location.changeset
+        assert changeset
         if comment_location.side == "old":
             commit = await changeset.from_commit
         else:
             commit = await changeset.to_commit
+        assert commit
 
-    location = await Location.fromAPI(comment_location)
+    location: Optional[Location] = await Location.fromAPI(comment_location)
+    assert location
 
     # Find the partition containing the primary commented commit.
     partition = await review.first_partition
     while True:
         if commit in partition.commits or commit in partition.commits.tails:
             break
+        assert partition.following
         partition = partition.following.partition
 
     primary_partition = partition
 
-    result = PropagationResult({location})
+    result = PropagationResult((location,))
     final_locations = {}
 
     # Propagate forwards first, to determine whether the comment is active or
@@ -387,7 +450,7 @@ async def propagate_new_comment(
 
             await propagate.forwards(commit, location)
 
-            result.locations.update(propagate.locations)
+            result.locations.update(propagate.locations.values())
             final_locations.update(propagate.final_locations)
 
             if partition.commits.heads.difference(propagate.final_locations):
@@ -400,10 +463,16 @@ async def propagate_new_comment(
 
         rebase = edge.rebase
         branchupdate = await rebase.branchupdate
+        assert branchupdate
 
         if rebase.type == "move":
+            assert isinstance(rebase, api.rebase.MoveRebase)
+
+            parent_commit = await branchupdate.from_head
+            assert parent_commit
+
             location = await location.translate_forwards(
-                parent_commit=await branchupdate.from_head,
+                parent_commit=parent_commit,
                 child_commit=await branchupdate.to_head,
             )
 
@@ -418,13 +487,17 @@ async def propagate_new_comment(
 
     # Also propagate backwards. This does not affect the comment's state.
     edge = primary_partition.following
-    while edge:
+    while location and edge:
         rebase = edge.rebase
         branchupdate = await rebase.branchupdate
+        assert branchupdate
 
         if rebase.type == "move":
+            parent_commit = await branchupdate.from_head
+            assert parent_commit
+
             location = await location.translate_backwards(
-                parent_commit=await branchupdate.from_head,
+                parent_commit=parent_commit,
                 child_commit=await branchupdate.to_head,
             )
         else:
@@ -433,7 +506,10 @@ async def propagate_new_comment(
         if not location:
             break
 
-        final_locations[await branchupdate.from_head] = location
+        from_head = await branchupdate.from_head
+        assert from_head
+
+        final_locations[from_head] = location
 
         commits = edge.partition.commits
         if commits:
@@ -447,7 +523,7 @@ async def propagate_new_comment(
 
             await propagate.backwards(commit, location)
 
-            result.locations.update(propagate.locations)
+            result.locations.update(propagate.locations.values())
             final_locations.update(propagate.final_locations)
 
         edge = edge.partition.following

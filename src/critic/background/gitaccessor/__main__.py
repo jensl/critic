@@ -18,46 +18,29 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import os
 import traceback
 from typing import (
-    Any,
     AsyncIterable,
     AsyncIterator,
     Dict,
-    Literal,
     Optional,
-    Sequence,
-    TypedDict,
-    Union,
-    cast,
 )
 
 logger = logging.getLogger("critic.background.gitaccessor")
 
-from critic import background
 from critic import gitaccess
 
 from ..service import BackgroundService, call
 from ..binaryprotocol import BinaryProtocolClient, BinaryProtocol
 from .protocol import (
     FetchRequest,
-    FetchObject,
-    FetchError,
     FetchResponse,
     FetchRangeRequest,
-    FetchRangeObject,
-    FetchRangeEnd,
-    FetchRangeError,
     FetchRangeResponse,
     CallRequest,
-    CallResult,
-    CallError,
     CallResponse,
     StreamRequest,
     StreamInput,
-    StreamOutput,
-    StreamEnd,
     StreamError,
     StreamResponse,
     InputMessage,
@@ -70,7 +53,7 @@ class GitAccessorClient(BinaryProtocolClient[InputMessage, OutputMessage]):
 
 
 class GitAccessorService(
-    BackgroundService, BinaryProtocol[GitAccessorClient, InputMessage, OutputMessage]
+    BackgroundService, BinaryProtocol[InputMessage, OutputMessage]
 ):
     name = "gitaccessor"
 
@@ -113,14 +96,20 @@ class GitAccessorService(
     ) -> GitAccessorClient:
         return GitAccessorClient(reader, writer)
 
-    def client_connected(self, client: GitAccessorClient) -> None:
+    def client_connected(
+        self, client: BinaryProtocolClient[InputMessage, OutputMessage]
+    ) -> None:
         logger.debug("client connected")
 
-    def client_disconnected(self, client: GitAccessorClient) -> None:
+    def client_disconnected(
+        self, client: BinaryProtocolClient[InputMessage, OutputMessage]
+    ) -> None:
         logger.debug("client disconnected")
 
     async def dispatch_message(
-        self, client: GitAccessorClient, message: InputMessage
+        self,
+        client: BinaryProtocolClient[InputMessage, OutputMessage],
+        message: InputMessage,
     ) -> AsyncIterator[OutputMessage]:
         response: Optional[AsyncIterable[OutputMessage]] = None
 
@@ -146,10 +135,10 @@ class GitAccessorService(
                 response = self.handle_fetchrange(repository, message)
             elif isinstance(message, CallRequest):
                 response = self.handle_call(repository, message)
-            elif isinstance(message, StreamRequest):
+            elif isinstance(message, StreamRequest):  # type: ignore
                 response = self.handle_stream(repository, message)
             else:
-                raise Exception("Invalid message: request=%r" % message["request"])
+                raise Exception("Invalid message: %r" % message)
 
             async for output_message in response:
                 yield output_message
@@ -170,7 +159,7 @@ class GitAccessorService(
     async def handle_fetchrange(
         self, repository: gitaccess.GitRepository, request: FetchRangeRequest
     ) -> AsyncIterator[FetchRangeResponse]:
-        async for object_id, raw_object in repository.fetch(
+        async for _, raw_object in repository.fetch(
             include=request.include,
             exclude=request.exclude,
             order=request.order,
@@ -183,7 +172,9 @@ class GitAccessorService(
         yield request.response_end()
 
     async def handle_call(
-        self, repository: gitaccess.GitRepository, request: CallRequest,
+        self,
+        repository: gitaccess.GitRepository,
+        request: CallRequest,
     ) -> AsyncIterator[CallResponse]:
         yield request.response(
             await (getattr(repository, request.call))(*request.args, **request.kwargs)

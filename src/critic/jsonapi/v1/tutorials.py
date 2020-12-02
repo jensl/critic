@@ -16,23 +16,21 @@
 
 from __future__ import annotations
 
-from typing import Sequence, Optional, Union
-
 from critic import api
-from critic import jsonapi
+from ..resourceclass import ResourceClass
+from ..parameters import Parameters
+from ..types import JSONResult
 
 
-class Tutorials(jsonapi.ResourceClass[api.tutorial.Tutorial], api_module=api.tutorial):
+class Tutorials(ResourceClass[api.tutorial.Tutorial], api_module=api.tutorial):
     """Tutorial texts."""
 
     @staticmethod
-    async def json(
-        parameters: jsonapi.Parameters, value: api.tutorial.Tutorial
-    ) -> jsonapi.JSONResult:
+    async def json(parameters: Parameters, value: api.tutorial.Tutorial) -> JSONResult:
         return {"id": value.id, "source": value.source}
 
-    @staticmethod
+    @classmethod
     async def single(
-        parameters: jsonapi.Parameters, argument: str
+        cls, parameters: Parameters, argument: str
     ) -> api.tutorial.Tutorial:
         return await api.tutorial.fetch(parameters.critic, argument)

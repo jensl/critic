@@ -1,6 +1,6 @@
 import os
 
-from . import ManifestError
+from .error import ManifestError
 from .role import Role
 
 

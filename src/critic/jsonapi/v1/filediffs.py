@@ -27,12 +27,18 @@ from typing import (
     Tuple,
     TypedDict,
     Union,
+    cast,
 )
 
 logger = logging.getLogger(__name__)
 
 from critic import api
-from critic import jsonapi
+from ..exceptions import ResultDelayed, UsageError
+from ..resourceclass import ResourceClass
+from ..parameters import Parameters
+from ..types import JSONResult
+from ..utils import numeric_id
+from ..valuewrapper import ValueWrapper, plain
 
 Part = Union[
     str, Tuple[str, Optional[api.filediff.PartType], Optional[api.filediff.PartState]]
@@ -40,7 +46,12 @@ Part = Union[
 Parts = Sequence[Part]
 ReadableLine = TypedDict(
     "ReadableLine",
-    {"type": str, "old_offset": int, "new_offset": int, "content": Sequence[Part],},
+    {
+        "type": str,
+        "old_offset": int,
+        "new_offset": int,
+        "content": Sequence[Part],
+    },
 )
 ReadableChunk = TypedDict(
     "ReadableChunk",
@@ -101,16 +112,16 @@ def reduce_chunk_compact(chunk: api.filediff.MacroChunk) -> CompactChunk:
 
 
 def select_reduce_chunk(
-    parameters: jsonapi.Parameters,
+    parameters: Parameters,
 ) -> Callable[[api.filediff.MacroChunk], Chunk]:
-    compact = parameters.getQueryParameter("compact", choices=("yes", "no"))
+    compact = parameters.query.get("compact", choices=("yes", "no"))
     if compact == "yes":
         return reduce_chunk_compact
     return reduce_chunk_readable
 
 
 class Filediffs(
-    jsonapi.ResourceClass[api.filediff.Filediff],
+    ResourceClass[api.filediff.Filediff],
     api_module=api.filediff,
     exceptions=(api.filediff.Error, api.filechange.Error),
 ):
@@ -119,9 +130,7 @@ class Filediffs(
     contexts = (None, "changesets")
 
     @staticmethod
-    async def json(
-        parameters: jsonapi.Parameters, value: api.filediff.Filediff
-    ) -> jsonapi.JSONResult:
+    async def json(parameters: Parameters, value: api.filediff.Filediff) -> JSONResult:
         """TODO: add documentation"""
 
         reduce_chunk = select_reduce_chunk(parameters)
@@ -129,11 +138,11 @@ class Filediffs(
         # TODO: load this from the user's config (or make it mandatory and let
         # the client handle config loading).
         context_lines_default = 3
-        context_lines = parameters.getQueryParameter(
+        context_lines = parameters.query.get(
             "context_lines", str(context_lines_default), converter=int
         )
         if context_lines < 0:
-            raise jsonapi.UsageError.invalidParameter(
+            raise UsageError.invalidParameter(
                 "context_lines",
                 message="Negative number of context lines not supported",
             )
@@ -141,21 +150,21 @@ class Filediffs(
         # TODO: load this from the user's config (or make it mandatory and let
         # the client handle config loading).
         minimum_gap_default = 3
-        minimum_gap = parameters.getQueryParameter(
+        minimum_gap = parameters.query.get(
             "minimum_gap", str(minimum_gap_default), converter=int
         )
         if minimum_gap <= 0:
-            raise jsonapi.UsageError.invalidParameter(
+            raise UsageError.invalidParameter(
                 "minimum_gap", message="Minimum gap must be non-zero and positive"
             )
 
-        async def macro_chunks() -> jsonapi.ValueWrapper[Sequence[Chunk]]:
+        async def macro_chunks() -> Optional[ValueWrapper[Sequence[Chunk]]]:
             comments: Optional[Sequence[api.comment.Comment]]
-            comment = await Comments.deduce(parameters)
+            comment = await parameters.deduce(api.comment.Comment)
             if comment is not None:
                 comments = [comment]
             else:
-                review = await Reviews.deduce(parameters)
+                review = await parameters.deduce(api.review.Review)
                 if review is not None:
                     comments = await api.comment.fetchAll(
                         parameters.critic,
@@ -169,7 +178,9 @@ class Filediffs(
             )
             if chunks is None:
                 return None
-            return jsonapi.plain([reduce_chunk(chunk) for chunk in chunks])
+            return plain(
+                cast(Sequence[Chunk], [reduce_chunk(chunk) for chunk in chunks])
+            )
 
         return {
             "file": value.filechange,
@@ -185,22 +196,20 @@ class Filediffs(
             "macro_chunks": macro_chunks(),
         }
 
-    @staticmethod
+    @classmethod
     async def many(
-        parameters: jsonapi.Parameters, arguments: Sequence[str]
+        cls, parameters: Parameters, arguments: Sequence[str]
     ) -> Sequence[api.filediff.Filediff]:
         """TODO: add documentation"""
 
-        changeset = await Changesets.deduce(parameters)
+        changeset = await parameters.deduce(api.changeset.Changeset)
         if changeset is None:
-            raise jsonapi.UsageError(
-                "changeset needs to be specified, ex. &changeset=<id>"
-            )
+            raise UsageError("changeset needs to be specified, ex. &changeset=<id>")
 
         if not await changeset.ensure(block=False):
-            raise jsonapi.ResultDelayed("Changeset is not finished")
+            raise ResultDelayed("Changeset is not finished")
 
-        file_ids = [jsonapi.numeric_id(argument) for argument in arguments]
+        file_ids = [numeric_id(argument) for argument in arguments]
         files = await api.file.fetchMany(parameters.critic, file_ids)
         filechanges = await api.filechange.fetchMany(changeset, files)
 
@@ -213,18 +222,16 @@ class Filediffs(
 
     @staticmethod
     async def multiple(
-        parameters: jsonapi.Parameters,
+        parameters: Parameters,
     ) -> Sequence[api.filediff.Filediff]:
         """TODO: add documentation"""
 
-        changeset = await Changesets.deduce(parameters)
+        changeset = await parameters.deduce(api.changeset.Changeset)
         if changeset is None:
-            raise jsonapi.UsageError(
-                "changeset needs to be specified, ex. &changeset=<id>"
-            )
+            raise UsageError("changeset needs to be specified, ex. &changeset=<id>")
 
         if not await changeset.ensure(block=False):
-            raise jsonapi.ResultDelayed("Changeset is not finished")
+            raise ResultDelayed("Changeset is not finished")
 
         return sorted(await api.filediff.fetchAll(changeset))
 
@@ -235,8 +242,3 @@ class Filediffs(
     @staticmethod
     def sort_key(item: Dict[str, Any]) -> Any:
         return (item["changeset"], item["file"])
-
-
-from .changesets import Changesets
-from .comments import Comments
-from .reviews import Reviews

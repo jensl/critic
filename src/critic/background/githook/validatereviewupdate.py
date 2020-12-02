@@ -83,7 +83,7 @@ async def validate_review_update(
         new_upstream: Optional[api.commit.Commit]
         old_upstream: Optional[api.commit.Commit]
 
-        if isinstance(pending_rebase, api.log.rebase.MoveRebase):
+        if isinstance(pending_rebase, api.rebase.MoveRebase):
             new_upstream = await pending_rebase.new_upstream
             old_upstream = await pending_rebase.old_upstream
         else:

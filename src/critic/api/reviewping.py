@@ -24,9 +24,10 @@ with a certain status (see `User.STATUS_VALUES`).
 
 from __future__ import annotations
 
-from typing import Sequence
+from typing import Awaitable, Callable, Sequence
 
 from critic import api
+from critic.api.apiobject import FunctionRef
 
 
 class Error(api.APIError, object_type="review ping"):
@@ -77,9 +78,7 @@ async def fetch(
 
     Raises:
         InvalidReviewEvent: The event object is not of type "pinged"."""
-    from .impl import reviewping as impl
-
-    return await impl.fetch(critic, event)
+    return await fetchImpl.get()(critic, event)
 
 
 async def fetchAll(
@@ -90,10 +89,16 @@ async def fetchAll(
     Args:
         critic (critic.api.critic.Critic): The current session.
         review (critic.api.review.Review): The review whose pings to fetch."""
-    from .impl import reviewping as impl
-
-    return await impl.fetchAll(critic, review)
+    return await fetchAllImpl.get()(critic, review)
 
 
 resource_name = table_name = "reviewpings"
 id_column = "event"
+
+
+fetchImpl: FunctionRef[
+    Callable[[api.critic.Critic, api.reviewevent.ReviewEvent], Awaitable[ReviewPing]]
+] = FunctionRef()
+fetchAllImpl: FunctionRef[
+    Callable[[api.critic.Critic, api.review.Review], Awaitable[Sequence[ReviewPing]]]
+] = FunctionRef()

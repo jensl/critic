@@ -26,7 +26,10 @@ import { useDiscussionContext } from "../utils/DiscussionContext"
 
 const useStyles = makeStyles((theme) => ({
   discussionEntryEdit: {
-    padding: theme.spacing(0.5, 1),
+    ...theme.typography.body1,
+    padding: theme.spacing(1, 2),
+    background: theme.palette.background.paper,
+    color: theme.palette.text.primary,
   },
 }))
 
@@ -47,6 +50,7 @@ const Edit: React.FunctionComponent<Props> = ({ className, text }) => {
       rows={3}
       defaultValue={value || ""}
       onChange={(ev) => setValue(ev.target.value)}
+      autoFocus
     />
   )
 }

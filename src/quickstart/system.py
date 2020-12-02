@@ -9,13 +9,26 @@ import os
 import pwd
 import re
 import shutil
-import signal
 import sys
 import tempfile
 import time
-from typing import Any, AsyncIterator, Awaitable, Callable, Dict, List, Optional, TextIO
+from typing import (
+    Any,
+    AsyncIterator,
+    Awaitable,
+    Callable,
+    Dict,
+    Optional,
+    TextIO,
+    TypedDict,
+    cast,
+)
 
-from . import ControlPipe, Database, activity, execute
+from .arguments import Arguments
+from .controlpipe import ControlPipe
+from .database import Database
+from .execute import execute
+from .outputmanager import activity
 
 logger = logging.getLogger(__name__)
 
@@ -27,17 +40,22 @@ class InstallFailed(Exception):
     pass
 
 
+class LogRecord(TypedDict):
+    level: int
+    name: str
+    message: str
+
+
 class System:
-    run_frontend: Optional[asyncio.Task]
-    run_services: Optional[asyncio.Task]
+    run_frontend: Optional["asyncio.Task[Any]"]
+    run_services: Optional["asyncio.Task[Any]"]
     server_host: Optional[str]
     server_port: int
 
     criticctl_path: Optional[str]
-    __criticctl_argv: List[str]
     __criticctl_env: Dict[str, str]
 
-    def __init__(self, arguments: Any, state_dir: str, state_is_temporary: bool):
+    def __init__(self, arguments: Arguments, state_dir: str, state_is_temporary: bool):
         self.arguments = arguments
         self.database = Database(arguments, state_dir, state_is_temporary)
         self.state_dir = state_dir
@@ -93,7 +111,7 @@ class System:
             async for msg in client.read():
                 assert isinstance(msg, dict)
                 if "log" in msg:
-                    record = msg["log"]
+                    record = cast(LogRecord, msg["log"])
                     if log_filter:
                         log_filter(record["message"])
                     logging.getLogger(record["name"]).log(
@@ -101,12 +119,12 @@ class System:
                     )
                 if "stdout" in msg:
                     if stdout_sink:
-                        stdout_sink.write(msg["stdout"])
+                        stdout_sink.write(cast(str, msg["stdout"]))
 
         kwargs.setdefault("stdout_handler", stdout_handler)
 
         return await execute(
-            self.criticctl_path, *output_args, *args, **kwargs, **self.__criticctl_env
+            self.criticctl_path, *output_args, *args, **kwargs, **self.__criticctl_env  # type: ignore
         )
 
     @property
@@ -160,32 +178,21 @@ class System:
         ):
             with activity("Configuring Critic"):
                 install_args = [
-                    "--flavor",
-                    "quickstart",
+                    "--flavor=quickstart",
                     "--is-testing",
-                    "--system-username",
-                    username,
-                    "--system-groupname",
-                    groupname,
-                    "--database-name",
-                    self.database.name,
-                    "--database-username",
-                    self.database.username,
-                    "--database-password",
-                    self.database.password,
-                    "--database-host",
-                    self.database.host,
-                    "--database-port",
-                    str(self.database.port),
-                    "--database-wait",
-                    "30",
+                    f"--system-username={username}",
+                    f"--system-groupname={groupname}",
+                    f"--database-name={self.database.name}",
+                    f"--database-username={self.database.username}",
+                    f"--database-password={self.database.password}",
+                    f"--database-host={self.database.host}",
+                    f"--database-port={self.database.port}",
+                    "--database-wait=30",
                 ]
 
                 await self.criticctl("run-task", "install", *install_args)
 
                 updates = [
-                    "system.recipients:%s"
-                    % json.dumps(self.arguments.system_recipient),
                     "frontend.access_scheme:%s" % json.dumps("http"),
                     "authentication.enable_ssh_access:true",
                     "services.workers.enabled:true",
@@ -271,9 +278,9 @@ class System:
                 async for msg in client.read():
                     if isinstance(msg, dict):
                         if "log" in msg:
-                            logger.handle(msg["log"])
+                            logger.handle(cast(logging.LogRecord, msg["log"]))
                             continue
-                        if msg.get("event") == "started":
+                        if "event" in msg and cast(str, msg["event"]) == "started":
                             future.set_result(True)
 
             logger.debug("running services")
@@ -310,24 +317,17 @@ class System:
                 has_address.set()
             return True
 
-        frontend_args = [
-            "--flavor",
-            self.arguments.http_flavor,
-            "--update-identity",
-            self.arguments.identity,
-        ]
+        frontend_args = []
         if self.server_host is not None:
             frontend_args.extend(["--listen-host", self.server_host])
         if self.server_port is not None:
             frontend_args.extend(["--listen-port", str(self.server_port)])
-        if self.arguments.http_lb_frontend:
-            frontend_args.extend(["--flavor", self.arguments.http_lb_frontend])
         if self.arguments.http_lb_backends:
             frontend_args.extend(["--scale", str(self.arguments.http_lb_backends)])
         if self.arguments.http_profile:
             frontend_args.append("--profile")
 
-        with activity("Starting HTTP front-end (%s)" % self.arguments.http_flavor):
+        with activity("Starting HTTP front-end"):
             self.run_frontend = asyncio.create_task(
                 self.criticctl(
                     "run-frontend", *frontend_args, log_filter=extract_address
@@ -342,6 +342,8 @@ class System:
             if self.run_frontend.done():
                 logger.error("Failed to start HTTP front-end!")
                 return False
+
+        await self.generate_extensions_profile()
 
         self.controlpipe.write({"event": "started"})
         return True
@@ -384,3 +386,14 @@ class System:
     async def restart(self) -> bool:
         await self.stop()
         return await self.start()
+
+    async def generate_extensions_profile(self) -> None:
+        with activity("Generating extensions profile"):
+            await self.criticctl(
+                "run-task",
+                "generate-extensions-profile",
+                "--extensions-dir",
+                os.path.join(self.arguments.root_dir, "extensions"),
+                "--autocommit",
+                "--discover",
+            )

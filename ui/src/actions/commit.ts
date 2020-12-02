@@ -21,7 +21,7 @@ import { InvalidItem, CommitRefsUpdateAction, COMMIT_REFS_UPDATE } from "."
 import { CommitID, RepositoryID, ReviewID } from "../resources/types"
 
 export const commitRefsUpdate = (
-  refs: Map<string, CommitID | InvalidItem>
+  refs: Map<string, CommitID | InvalidItem>,
 ): CommitRefsUpdateAction => ({
   type: COMMIT_REFS_UPDATE,
   refs,
@@ -67,13 +67,13 @@ type LoadCommitByIDOptions = (ReviewIDOption | RepositoryIDOption) &
 
 export const loadCommitByID = (
   commitID: CommitID,
-  options: LoadCommitByIDOptions
+  options: LoadCommitByIDOptions,
 ) => async (dispatch: Dispatch, getState: GetState) => {
   const commit = getState().resource.commits.byID.get(commitID)
 
   if (!commit || options.description === "default") {
     const { primary } = await dispatch(
-      fetch("commits", ...fetchParams({ commitID, ...options }))
+      fetch("commits", ...fetchParams({ commitID, ...options })),
     )
 
     if (!primary) return
@@ -81,7 +81,7 @@ export const loadCommitByID = (
     const commit = primary[0]
 
     const hasRepositoryID = (
-      options: LoadCommitByIDOptions
+      options: LoadCommitByIDOptions,
     ): options is RepositoryIDOption => "repositoryID" in options
 
     if (hasRepositoryID(options)) {
@@ -89,8 +89,8 @@ export const loadCommitByID = (
         commitRefsUpdate(
           new Map<string, CommitID | InvalidItem>([
             [`${options.repositoryID}:${commit.sha1}`, commit.id],
-          ])
-        )
+          ]),
+        ),
       )
     }
   }
@@ -108,9 +108,9 @@ export const resolveRef = ({
   const refKey = `${repositoryID}:${ref}`
   const commitID = getState().resource.extra.commitRefs.get(refKey)
 
-  if (commitID === null || description !== null) {
+  if (typeof commitID !== "number" || description !== null) {
     const { primary } = await dispatch(
-      fetch("commits", ...fetchParams({ ref, repositoryID, description }))
+      fetch("commits", ...fetchParams({ ref, repositoryID, description })),
     )
 
     if (!primary) return

@@ -24,24 +24,23 @@ logger = logging.getLogger(__name__)
 from critic import api
 from critic.gitaccess import SHA1
 
-from .job import Job
+from .job import Job, RunnerType
 from .jobgroup import JobGroup
 
 
-class CustomHighlight(JobGroup["CustomHighlight"]):
+class CustomHighlight(JobGroup):
     def __init__(
         self,
-        runner: jobrunner.JobRunner,
+        runner: RunnerType,
         request_id: int,
         repository_id: int,
         file_id: int,
     ):
-        super().__init__(runner, key=(request_id, repository_id))
+        super().__init__(
+            runner, key=(request_id, repository_id), repository_id=repository_id
+        )
         self.request_id = request_id
-        self.repository_id = repository_id
         self.file_id = file_id
-        self.conflicts = False
-        self.language_ids = runner.language_ids
 
     def __str__(self) -> str:
         return "custom highlight %d" % self.request_id
@@ -80,7 +79,7 @@ class CustomHighlight(JobGroup["CustomHighlight"]):
 
         self.add_jobs(jobs)
 
-    def jobs_finished(self, jobs: Collection[Job[CustomHighlight]]) -> None:
+    def jobs_finished(self, jobs: Collection[Job]) -> None:
         # Publish a message to notify interested parties about the
         # updated completion level.
         logger.debug("%s: %d jobs_finished", self, len(jobs))
@@ -88,9 +87,12 @@ class CustomHighlight(JobGroup["CustomHighlight"]):
     def group_finished(self) -> None:
         logger.debug("%s: finished", self)
 
+    async def process_traceback(self, critic: api.critic.Critic, job: Job) -> None:
+        pass
+
     @staticmethod
     async def find_incomplete(
-        critic: api.critic.Critic, runner: jobrunner.JobRunner
+        critic: api.critic.Critic, runner: RunnerType
     ) -> Collection[CustomHighlight]:
         async with api.critic.Query[Tuple[int, int, int]](
             critic,
@@ -107,6 +109,3 @@ class CustomHighlight(JobGroup["CustomHighlight"]):
                 CustomHighlight(runner, request_id, repository_id, file_id)
                 async for request_id, file_id, repository_id in result
             }
-
-
-from . import jobrunner

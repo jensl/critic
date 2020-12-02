@@ -3,7 +3,7 @@ from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
 
-from . import Request
+from .request import Request
 
 from critic import api
 from critic import gitaccess

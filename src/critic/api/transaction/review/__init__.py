@@ -16,126 +16,126 @@
 
 from __future__ import annotations
 
-import asyncio
 import logging
-from typing import Tuple, Optional, Union, Callable, Coroutine, Any, cast
+from typing import Collection, Optional, Union, Callable, Coroutine, Any, cast
 
 logger = logging.getLogger(__name__)
 
-from .. import Transaction, Finalizer, Insert, LazyAPIObject, protocol
 from critic import api
 from critic import dbaccess
+from ..protocol import CreatedReviewEvent
+from ..base import Finalizer, TransactionBase
+from ..createapiobject import CreateAPIObject, APIObjectType
 
 
-class CreatedReview(LazyAPIObject, api_module=api.review):
-    state = "draft"
+def raiseUnlessPublished(review: api.review.Review) -> None:
+    if review.state == "draft":
+        raise api.review.Error("Review has not been published")
 
+
+class CreateReviewObject(CreateAPIObject[APIObjectType]):
     def __init__(
         self,
-        transaction: Transaction,
-        branch: Optional[Union[api.branch.Branch, CreatedBranch]],
-        commits: api.commitset.CommitSet,
-    ) -> None:
-        super().__init__(transaction)
-        self.__branch = branch
-        self.__commits = commits
-
-    @property
-    async def branch(self) -> Optional[Union[api.branch.Branch, CreatedBranch]]:
-        return self.__branch
-
-    @property
-    async def commits(self) -> api.commitset.CommitSet:
-        return self.__commits
-
-    @property
-    async def initial_commits_pending(self) -> bool:
-        return True
-
-
-class CreatedReviewObject(LazyAPIObject):
-    def __init__(
-        self, transaction: Transaction, review: Union[api.review.Review, CreatedReview]
+        transaction: TransactionBase,
+        review: api.review.Review,
     ) -> None:
         super().__init__(transaction)
         self.review = review
 
-    def scopes(self) -> LazyAPIObject.Scopes:
+    def scopes(self) -> Collection[str]:
         return (f"reviews/{int(self.review)}",)
 
 
-class CreatedReviewEvent(CreatedReviewObject, api_module=api.reviewevent):
+class CreateReviewEvent(
+    CreateReviewObject[api.reviewevent.ReviewEvent], api_module=api.reviewevent
+):
+    __created: Optional[api.reviewevent.ReviewEvent]
+
     def __init__(
         self,
-        transaction: Transaction,
-        review: Union[api.review.Review, CreatedReview],
+        transaction: TransactionBase,
+        review: api.review.Review,
         user: api.user.User,
         event_type: api.reviewevent.EventType,
     ):
         super().__init__(transaction, review)
         self.user = user
         self.type = event_type
-        self.__created = False
+        self.__created = None
 
     def __hash__(self) -> int:
-        return hash((CreatedReviewEvent, self.review, self.user.id, self.type))
+        return hash((CreateReviewEvent, self.review, self.user.id, self.type))
 
     def __eq__(self, other: object) -> bool:
         return (
-            isinstance(other, CreatedReviewEvent)
+            isinstance(other, CreateReviewEvent)
             and self.review == other.review
             and self.user == other.user
             and self.type == other.type
         )
 
     async def create_payload(
-        self, resource_name: str, subject: api.review.Review, /
-    ) -> protocol.CreatedReviewEvent:
-        return protocol.CreatedReviewEvent(
+        self, resource_name: str, subject: api.reviewevent.ReviewEvent, /
+    ) -> CreatedReviewEvent:
+        return CreatedReviewEvent(
             resource_name, subject.id, int(self.review), self.type
         )
 
-    def __create(self) -> Optional[CreatedReviewEvent]:
-        if self.__created:
-            return None
-        self.insert(review=self.review, uid=self.user, type=self.type)
-        self.__created = True
-        return self
+    async def __create(self) -> api.reviewevent.ReviewEvent:
+        if self.__created is None:
+            self.__created = await self.insert(
+                review=self.review, uid=self.user, type=self.type
+            )
+        return self.__created
 
     @staticmethod
-    def ensure(
-        transaction: Transaction,
-        review: Union[api.review.Review, CreatedReview],
+    async def ensure(
+        transaction: TransactionBase,
+        review: api.review.Review,
         event_type: api.reviewevent.EventType,
         *,
-        user: api.user.User = None,
-    ) -> Optional[CreatedReviewEvent]:
+        user: Optional[api.user.User] = None,
+    ) -> api.reviewevent.ReviewEvent:
         if user is None:
             user = transaction.critic.effective_user
-        return transaction.shared.ensure(
-            CreatedReviewEvent(transaction, review, user, event_type)
+        return await transaction.shared.ensure(
+            CreateReviewEvent(transaction, review, user, event_type)
         ).__create()
 
-
-class CreatedBatch(CreatedReviewObject, api_module=api.batch):
-    pass
-
-
-class CreatedReviewFilter(CreatedReviewObject, api_module=api.reviewfilter):
-    pass
-
-
-class CreatedReviewPing(CreatedReviewObject, api_module=api.reviewping):
     @staticmethod
-    async def fetch(
-        critic: api.critic.Critic, event_id: int
-    ) -> api.reviewping.ReviewPing:
-        event = await api.reviewevent.fetch(critic, event_id)
-        return await api.reviewping.fetch(critic, event)
+    async def create(
+        transaction: TransactionBase,
+        review: api.review.Review,
+        event_type: api.reviewevent.EventType,
+        *,
+        user: Optional[api.user.User] = None,
+    ) -> api.reviewevent.ReviewEvent:
+        if user is None:
+            user = transaction.critic.effective_user
+        return await CreateReviewEvent(transaction, review, user, event_type).__create()
+
+
+class CreatedBatch(CreateReviewObject[api.batch.Batch], api_module=api.batch):
+    pass
+
+
+class CreateReviewFilter(
+    CreateReviewObject[api.reviewfilter.ReviewFilter], api_module=api.reviewfilter
+):
+    pass
+
+
+class CreatedReviewPing(
+    CreateReviewObject[api.reviewping.ReviewPing], api_module=api.reviewping
+):
+    async def fetch(self, event_id: int, /) -> api.reviewping.ReviewPing:
+        event = await api.reviewevent.fetch(self.critic, event_id)
+        return await api.reviewping.fetch(self.critic, event)
 
 
 class CreatedReviewIntegrationRequest(
-    CreatedReviewObject, api_module=api.reviewintegrationrequest
+    CreateReviewObject[api.reviewintegrationrequest.ReviewIntegrationRequest],
+    api_module=api.reviewintegrationrequest,
 ):
     pass
 
@@ -154,7 +154,7 @@ class ReviewUser(Finalizer):
         return hash((ReviewUser, self.review, self.user))
 
     async def __call__(
-        self, _: Transaction, cursor: dbaccess.TransactionCursor
+        self, _: TransactionBase, cursor: dbaccess.TransactionCursor
     ) -> None:
         is_owner = add_user = False
 
@@ -198,10 +198,10 @@ class ReviewUser(Finalizer):
 
     @staticmethod
     def ensure(
-        transaction: Transaction,
+        transaction: TransactionBase,
         review: api.review.Review,
         user: api.user.User,
-        is_owner: bool = None,
+        is_owner: Optional[bool] = None,
     ) -> None:
         transaction.finalizers.add(ReviewUser(review, user, is_owner))
 
@@ -234,7 +234,7 @@ class ReviewUserTag(Finalizer):
         return isinstance(other, ReviewUser)
 
     async def __call__(
-        self, _: Transaction, cursor: dbaccess.TransactionCursor
+        self, _: TransactionBase, cursor: dbaccess.TransactionCursor
     ) -> None:
         # This crashes (raises an exception that we don't catch) if the named
         # tag is not found in |reviewtags|.
@@ -289,7 +289,7 @@ class ReviewUserTag(Finalizer):
 
     @staticmethod
     def ensure(
-        transaction: Transaction,
+        transaction: TransactionBase,
         review: api.review.Review,
         user: api.user.User,
         tag: str,
@@ -309,10 +309,3 @@ async def has_unpublished_changes(
 ) -> bool:
     unpublished = await api.batch.fetchUnpublished(review, user)
     return not await unpublished.is_empty
-
-
-from .create import create_review
-from .modify import ModifyReview
-from ..branch import CreatedBranch
-
-__all__ = ["create_review", "ModifyReview"]

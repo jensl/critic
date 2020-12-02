@@ -14,7 +14,7 @@
  * the License.
  */
 
-import { fetch } from "../resources"
+import { fetch, withArgument } from "../resources"
 
 export const loadTutorial = (tutorialID: string) =>
-  fetch("tutorials", tutorialID)
+  fetch("tutorials", withArgument(tutorialID))

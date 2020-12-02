@@ -14,6 +14,8 @@
  * the License.
  */
 
+import { immerable } from "immer"
+
 import { primaryMap } from "../reducers/resource"
 
 type TutorialData = {
@@ -24,6 +26,8 @@ type TutorialData = {
 type TutorialProps = TutorialData
 
 class Tutorial {
+  [immerable] = true
+
   constructor(readonly id: string, readonly source: string) {}
 
   static new(props: TutorialProps) {

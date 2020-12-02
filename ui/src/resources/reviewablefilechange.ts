@@ -14,6 +14,8 @@
  * the License.
  */
 
+import { immerable } from "immer"
+
 import { primaryMap } from "../reducers/resource"
 import { UserID } from "./types"
 
@@ -44,6 +46,8 @@ type ReviewableFileChangeProps = {
 }
 
 class ReviewableFileChange {
+  [immerable] = true
+
   constructor(
     readonly id: number,
     readonly review: number,
@@ -54,7 +58,7 @@ class ReviewableFileChange {
     readonly isReviewed: boolean,
     readonly reviewedBy: ReadonlySet<number>,
     readonly assignedReviewers: ReadonlySet<number>,
-    readonly draftChanges: DraftChanges | null
+    readonly draftChanges: DraftChanges | null,
   ) {}
 
   static new(props: ReviewableFileChangeProps) {
@@ -68,7 +72,7 @@ class ReviewableFileChange {
       props.is_reviewed,
       props.reviewed_by,
       props.assigned_reviewers,
-      props.draft_changes
+      props.draft_changes,
     )
   }
 
@@ -83,7 +87,7 @@ class ReviewableFileChange {
   }
 
   static reducer = primaryMap<ReviewableFileChange, number>(
-    "reviewablefilechanges"
+    "reviewablefilechanges",
   )
 
   get props(): ReviewableFileChangeProps {
@@ -107,6 +111,8 @@ type DraftChangesData = {
 type DraftChangesProps = DraftChangesData
 
 class DraftChanges {
+  [immerable] = true
+
   constructor(readonly author: UserID, readonly newIsReviewed: boolean) {}
 
   static new(props: DraftChangesProps) {

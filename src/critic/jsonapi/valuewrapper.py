@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Generic, TypeVar, Collection, Any
+from typing import Generic, TypeVar, Collection
 
 
 WrappedType = TypeVar("WrappedType")

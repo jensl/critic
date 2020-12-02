@@ -21,8 +21,9 @@ from typing import Tuple, Optional, Sequence
 
 logger = logging.getLogger(__name__)
 
-from .apiobject import APIObject
 from critic import api
+from critic.api import externalaccount as public
+from .apiobject import APIObject
 
 
 WrapperType = api.externalaccount.ExternalAccount
@@ -59,12 +60,18 @@ class ExternalAccount(APIObject[WrapperType, ArgumentsType, int]):
     def is_connected(self) -> bool:
         return self.__user_id is not None
 
+    def getProvider(self) -> Optional[api.externalaccount.Provider]:
+        from critic import auth
+
+        return auth.Provider.enabled().get(self.provider_name)
+
     async def getUser(self, critic: api.critic.Critic) -> Optional[api.user.User]:
         if self.__user_id is None:
             return None
         return await api.user.fetch(critic, self.__user_id)
 
 
+@public.fetchImpl
 @ExternalAccount.cached
 async def fetch(
     critic: api.critic.Critic,
@@ -99,6 +106,7 @@ async def fetch(
             ) from None
 
 
+@public.fetchAllImpl
 async def fetchAll(
     critic: api.critic.Critic,
     user: Optional[api.user.User],

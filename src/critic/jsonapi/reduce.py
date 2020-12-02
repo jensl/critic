@@ -15,7 +15,7 @@ T = TypeVar("T", contravariant=True)
 
 
 class JSONFunction(Protocol[T]):
-    def __call__(self, parameters: Parameters, value: T) -> JSONResult:
+    async def __call__(self, parameters: Parameters, value: T, /) -> JSONResult:
         ...
 
 
@@ -29,7 +29,7 @@ async def reduceValues(
     parameters: Parameters,
     json_fn: JSONFunction[T],
     values: Values[T],
-    included_values: Set[Any],
+    included_values: Set[T],
 ) -> List[JSONResult]:
     if not values:
         return []

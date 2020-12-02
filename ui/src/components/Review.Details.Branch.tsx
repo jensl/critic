@@ -26,7 +26,7 @@ const ReviewDetailsBranch: FunctionComponent<OwnProps> = ({ className }) => {
   const integrationTarget = review.integration ? (
     <>
       <ArrowRightAltIcon className={classes.arrow} />
-      <BranchName branchID={review.integration.target_branch} />
+      <BranchName branchID={review.integration.targetBranch} />
     </>
   ) : null
   return (

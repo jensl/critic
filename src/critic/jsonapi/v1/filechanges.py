@@ -16,32 +16,42 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, Sequence, Optional, Union
+from typing import Any, Dict, Sequence, Optional
 
 from critic import api
-from critic import jsonapi
+from ..parameters import Parameters
+from ..exceptions import UsageError
+from ..resourceclass import ResourceClass
+from ..parameters import Parameters
+from ..types import JSONResult
+from ..utils import numeric_id
 
 
-class FileChanges(
-    jsonapi.ResourceClass[api.filechange.FileChange], api_module=api.filechange
-):
+async def _requireChangeset(parameters: Parameters) -> api.changeset.Changeset:
+    changeset = await parameters.deduce(api.changeset.Changeset)
+    if not changeset:
+        raise UsageError.missingParameter("changeset")
+    return changeset
+
+
+class FileChanges(ResourceClass[api.filechange.FileChange], api_module=api.filechange):
     """File changes for a changeset"""
 
     contexts = (None, "repositories", "changesets")
 
     @staticmethod
     async def json(
-        parameters: jsonapi.Parameters, value: api.filechange.FileChange
-    ) -> jsonapi.JSONResult:
+        parameters: Parameters, value: api.filechange.FileChange
+    ) -> JSONResult:
         """{
-             "id": integer, // the file's id
-             "path": string, // the file's path
-             "changeset": integer, // the changeset's id
-             "old_sha1": string, // the sha1 identifying the file's old blob
-             "old_mode": string, // the old file permissions
-             "new_sha1": string, // the sha1 identifying the file's new blob
-             "new_mode": string, // the new file permissions
-           }"""
+          "id": integer, // the file's id
+          "path": string, // the file's path
+          "changeset": integer, // the changeset's id
+          "old_sha1": string, // the sha1 identifying the file's old blob
+          "old_mode": string, // the old file permissions
+          "new_sha1": string, // the sha1 identifying the file's new blob
+          "new_mode": string, // the new file permissions
+        }"""
 
         return {
             "file": value.file,
@@ -52,74 +62,65 @@ class FileChanges(
             "new_mode": value.new_mode,
         }
 
-    @staticmethod
+    @classmethod
     async def single(
-        parameters: jsonapi.Parameters, argument: str
+        cls, parameters: Parameters, argument: str
     ) -> api.filechange.FileChange:
         """Retrieve one (or more) filechanges (changed files).
 
-           FILE_ID : integer
+        FILE_ID : integer
 
-           Retrieve the changes to a file identified by its unique numeric id.
+        Retrieve the changes to a file identified by its unique numeric id.
 
-           changeset : CHANGESET : -
+        changeset : CHANGESET : -
 
-           Retrieve the changes from a changeset identified by its unique
-           numeric id.
+        Retrieve the changes from a changeset identified by its unique
+        numeric id.
 
-           reposititory : REPOSITORY : -
+        reposititory : REPOSITORY : -
 
-           The repository in which the files exist."""
+        The repository in which the files exist."""
 
         return await api.filechange.fetch(
-            await Changesets.deduce(parameters, required=True),
-            await api.file.fetch(parameters.critic, jsonapi.numeric_id(argument)),
+            await _requireChangeset(parameters),
+            await api.file.fetch(parameters.critic, numeric_id(argument)),
         )
 
     @staticmethod
     async def multiple(
-        parameters: jsonapi.Parameters,
+        parameters: Parameters,
     ) -> Sequence[api.filechange.FileChange]:
         """Retrieve all filechanges (changed files) from a changeset.
 
-           changeset : CHANGESET : -
+        changeset : CHANGESET : -
 
-           Retrieve the changed from a changeset indentified by its unique
-           numeric id.
+        Retrieve the changed from a changeset indentified by its unique
+        numeric id.
 
-           reposititory : REPOSITORY : -
+        reposititory : REPOSITORY : -
 
-           The repository in which the files exist."""
+        The repository in which the files exist."""
 
-        return await api.filechange.fetchAll(
-            await Changesets.deduce(parameters, required=True)
-        )
+        return await api.filechange.fetchAll(await _requireChangeset(parameters))
 
-    @staticmethod
+    @classmethod
     async def deduce(
-        parameters: jsonapi.Parameters,
+        cls,
+        parameters: Parameters,
     ) -> Optional[api.filechange.FileChange]:
-        changeset = await Changesets.deduce(parameters)
+        changeset = await parameters.deduce(api.changeset.Changeset)
         if changeset is None:
-            raise jsonapi.UsageError(
-                "changeset needs to be specified, ex. &changeset=<id>"
-            )
-        filechange = parameters.context.get(FileChanges.name)
-        filechange_parameter = parameters.getQueryParameter("filechange")
+            raise UsageError("changeset needs to be specified, ex. &changeset=<id>")
+        filechange = parameters.in_context(api.filechange.FileChange)
+        filechange_parameter = parameters.query.get("filechange")
         if filechange_parameter is not None:
             if filechange is not None:
-                raise jsonapi.UsageError.redundantParameter("filechange")
-            file_id = jsonapi.numeric_id(filechange_parameter)
+                raise UsageError.redundantParameter("filechange")
+            file_id = numeric_id(filechange_parameter)
             filechange = await api.filechange.fetch(
                 changeset, await api.file.fetch(parameters.critic, file_id)
             )
         return filechange
-
-    @staticmethod
-    async def setAsContext(
-        parameters: jsonapi.Parameters, filechange: api.filechange.FileChange
-    ) -> None:
-        parameters.setContext(FileChanges.name, filechange)
 
     @staticmethod
     def resource_id(value: api.filechange.FileChange) -> int:
@@ -128,6 +129,3 @@ class FileChanges(
     @staticmethod
     def sort_key(item: Dict[str, Any]) -> Any:
         return (item["changeset"], item["file"])
-
-
-from .changesets import Changesets

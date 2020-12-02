@@ -2,19 +2,20 @@ import asyncio
 import fnmatch
 import logging
 import os
+from typing import Any, Dict, Sequence, Tuple
 
 logger = logging.getLogger(__name__)
 
 
 class LogFilesFollower:
-    def __init__(self, path, pattern):
+    def __init__(self, path: str, pattern: str):
         super().__init__()
         self.daemon = True
         self.path = path
         self.pattern = pattern
-        self.seen = {}
+        self.seen: Dict[str, int] = {}
 
-    def __list(self):
+    def __list(self) -> Sequence[Tuple[str, int]]:
         files = []
         for filename in os.listdir(self.path):
             if fnmatch.fnmatch(filename, self.pattern):
@@ -22,7 +23,7 @@ class LogFilesFollower:
                 files.append((filename, size))
         return files
 
-    def __check(self):
+    def __check(self) -> None:
         for filename, size in self.__list():
             seen = self.seen.get(filename, 0)
             if size > seen:
@@ -37,14 +38,14 @@ class LogFilesFollower:
                     logger.info("%s: %s", filename, line)
                 self.seen[filename] = size - len(contents)
 
-    async def run(self):
+    async def run(self) -> None:
         self.seen.update(self.__list())
         while True:
             self.__check()
             await asyncio.sleep(1)
 
-    def start(self):
-        async def done(fut):
+    def start(self) -> None:
+        async def done(fut: "asyncio.Future[Any]"):
             try:
                 await fut
             except Exception:

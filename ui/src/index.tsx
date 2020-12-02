@@ -32,13 +32,6 @@ document.addEventListener("DOMContentLoaded", () =>
         </SetSession>
       </BrowserRouter>
     </Provider>,
-    document.getElementById("root")
-  )
+    document.getElementById("root"),
+  ),
 )
-
-if (process.env.NODE_ENV === "development") {
-  const Immutable = require("immutable")
-  const installDevTools = require("immutable-devtools")
-
-  installDevTools(Immutable)
-}

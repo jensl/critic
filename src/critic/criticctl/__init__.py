@@ -18,13 +18,11 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-import contextlib
 import grp
 import logging
 import os
 import pwd
 import sys
-import traceback
 from typing import Callable, Optional
 
 logger = logging.getLogger(__name__)
@@ -32,104 +30,24 @@ logger = logging.getLogger(__name__)
 from critic import api
 from critic import base
 from critic import dbaccess
-
-
-is_virtualenv = sys.prefix != sys.base_prefix
+from .utils import (
+    InvalidUser,
+    is_quickstarted,
+    is_virtualenv,
+    as_user,
+    set_is_quickstarted,
+)
 
 
 def home_dir():
     return os.environ.get(
-        "CRITIC_HOME", sys.prefix if is_virtualenv else "/var/lib/critic"
+        "CRITIC_HOME", sys.prefix if is_virtualenv() else "/var/lib/critic"
     )
 
 
 def check_if_quickstarted():
     quickstart_pidfile = os.path.join(home_dir(), "quickstart.pid")
     return os.path.isfile(quickstart_pidfile)
-
-
-is_quickstarted = None
-
-
-@contextlib.contextmanager
-def temporary_cwd(cwd, use_fallback=True):
-    previous_cwd = os.getcwd()
-
-    try:
-        os.chdir(cwd)
-    except OSError:
-        if not use_fallback:
-            raise
-        os.chdir("/")
-
-    try:
-        yield
-    finally:
-        os.chdir(previous_cwd)
-
-
-class InvalidUser(Exception):
-    pass
-
-
-@contextlib.contextmanager
-def as_user(*, uid=None, name=None):
-    assert (uid is None) != (name is None)
-
-    if uid is not None:
-        pwentry = pwd.getpwuid(uid)
-    else:
-        try:
-            pwentry = pwd.getpwnam(name)
-        except KeyError:
-            raise InvalidUser("%s: no such user" % name) from None
-
-    if uid == os.geteuid() or os.getuid() != 0:
-        yield lambda: None
-        return
-
-    previous_euid = os.geteuid()
-
-    try:
-        os.seteuid(pwentry.pw_uid)
-    except OSError as error:
-        logger.error("Failed to set effective uid: %s", error)
-        sys.exit(1)
-
-    def restore_user():
-        nonlocal previous_euid
-        if previous_euid is not None:
-            os.seteuid(previous_euid)
-            previous_euid = None
-
-    with temporary_cwd(pwentry.pw_dir):
-        try:
-            yield restore_user
-        finally:
-            restore_user()
-
-
-@contextlib.contextmanager
-def as_root():
-    if is_quickstarted:
-        yield
-        return
-
-    euid = os.geteuid()
-    egid = os.getegid()
-
-    try:
-        os.seteuid(0)
-        os.setegid(0)
-    except OSError as error:
-        logger.error("Failed to set effective uid/gid: %s", error)
-        sys.exit(1)
-
-    try:
-        yield
-    finally:
-        os.setegid(egid)
-        os.seteuid(euid)
 
 
 class Outputter:
@@ -146,7 +64,9 @@ class Outputter:
 
 
 async def run(
-    *, configuration: base.Configuration = None, critic: api.critic.Critic = None
+    *,
+    configuration: Optional[base.Configuration] = None,
+    critic: Optional[api.critic.Critic] = None,
 ) -> int:
     class CustomFormatter(argparse.ArgumentDefaultsHelpFormatter):
         def add_text(self, text: Optional[str]) -> None:
@@ -184,8 +104,8 @@ async def run(
         color=False,
         configuration=configuration,
         critic=critic,
-        is_quickstarted=is_quickstarted,
-        must_be_root=not is_quickstarted,
+        is_quickstarted=is_quickstarted(),
+        must_be_root=not is_quickstarted(),
     )
 
     subparsers = parser.add_subparsers(metavar="COMMAND", help="Command to perform.")
@@ -224,10 +144,10 @@ async def run(
     arguments = parser.parse_args()
 
     class LevelFilter(logging.Filter):
-        def __init__(self, predicate):
+        def __init__(self, predicate: Callable[[int], bool]):
             self.predicate = predicate
 
-        def filter(self, record):
+        def filter(self, record: logging.LogRecord) -> bool:
             return self.predicate(record.levelno)
 
     root_logger = logging.getLogger()
@@ -272,7 +192,7 @@ async def run(
 
     must_be_root = arguments.must_be_root
 
-    if not critic and not is_quickstarted:
+    if not critic and not is_quickstarted():
         must_be_root = True
 
     if must_be_root and os.getuid() != 0:
@@ -296,18 +216,12 @@ async def run(
                 logger.error("Failed to set effective uid/gid: %s", error)
             return 1
 
-    async def apply(function, *args):
-        result = function(*args)
-        if asyncio.iscoroutine(result):
-            return await result
-        return result
-
     if getattr(arguments, "need_session", False):
         if critic is None:
             logger.error("Need session!")
             return 1
 
-    returncode = await apply(arguments.command_main, critic, arguments)
+    returncode = await arguments.command_main(critic, arguments)
 
     if returncode is None:
         returncode = 0
@@ -316,16 +230,16 @@ async def run(
 
 
 async def bootstrap():
-    global is_quickstarted
-
-    is_quickstarted = check_if_quickstarted()
+    set_is_quickstarted(check_if_quickstarted())
 
     try:
         configuration = base.configuration()
     except base.MissingConfiguration:
         configuration = None
 
-    async def run_with_session(restore_user):
+    from critic import bootstrap as _
+
+    async def run_with_session(restore_user: Callable[[], None]):
         async with api.critic.startSession(for_system=True) as critic:
             restore_user()
             return await run(configuration=configuration, critic=critic)

@@ -16,9 +16,10 @@
 
 from __future__ import annotations
 
-from typing import Sequence, Optional, overload
+from typing import Awaitable, Callable, Sequence, Optional, overload
 
 from critic import api
+from critic.api.apiobject import FunctionRef
 
 
 class Error(api.APIError, object_type="user SSH key"):
@@ -82,23 +83,33 @@ async def fetch(
 
 async def fetch(
     critic: api.critic.Critic,
-    usersshkey_id: int = None,
+    usersshkey_id: Optional[int] = None,
     /,
     *,
-    key_type: str = None,
-    key: str = None,
+    key_type: Optional[str] = None,
+    key: Optional[str] = None,
 ) -> Optional[UserSSHKey]:
-    from .impl import usersshkey as impl
-
-    return await impl.fetch(critic, usersshkey_id, key_type, key)
+    return await fetchImpl.get()(critic, usersshkey_id, key_type, key)
 
 
 async def fetchAll(
-    critic: api.critic.Critic, *, user: api.user.User = None
+    critic: api.critic.Critic, *, user: Optional[api.user.User] = None
 ) -> Sequence[UserSSHKey]:
-    from .impl import usersshkey as impl
-
-    return await impl.fetchAll(critic, user)
+    return await fetchAllImpl.get()(critic, user)
 
 
 resource_name = table_name = "usersshkeys"
+
+
+fetchImpl: FunctionRef[
+    Callable[
+        [api.critic.Critic, Optional[int], Optional[str], Optional[str]],
+        Awaitable[Optional[UserSSHKey]],
+    ]
+] = FunctionRef()
+fetchAllImpl: FunctionRef[
+    Callable[
+        [api.critic.Critic, Optional[api.user.User]],
+        Awaitable[Sequence[UserSSHKey]],
+    ]
+] = FunctionRef()

@@ -14,9 +14,10 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
+import argparse
 import json
 import sys
-from typing import Any, Optional
+from typing import Any
 
 from critic import api
 
@@ -28,14 +29,14 @@ class InvalidJSON(Exception):
     pass
 
 
-def check_json(key, value):
+def check_json(key: str, value: str) -> Any:
     try:
         return json.loads(value)
     except ValueError as error:
         raise InvalidJSON("%s: invalid value: %s" % (key, error))
 
 
-def setup(parser):
+def setup(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--indent", type=int, help="Amount of indentation in JSON output."
     )
@@ -108,11 +109,11 @@ async def main(critic: api.critic.Critic, arguments: Any) -> int:
                 response[key] = setting.value
         elif arguments.operation == "get-all":
 
-            def include(setting):
+            def include(setting: api.systemsetting.SystemSetting):
                 if not arguments.prefix:
                     return True
                 for prefix in arguments.prefix:
-                    if setting.id.startswith(prefix + "."):
+                    if setting.key.startswith(prefix + "."):
                         return True
                 return False
 
@@ -123,6 +124,7 @@ async def main(critic: api.critic.Critic, arguments: Any) -> int:
             }
         elif arguments.operation == "set":
             updates = []
+            update: str
             for update in arguments.update:
                 key, colon, value = update.partition(":")
                 setting = await api.systemsetting.fetch(critic, key=key)
@@ -134,7 +136,7 @@ async def main(critic: api.critic.Critic, arguments: Any) -> int:
                 critic, accept_no_pubsub=True
             ) as transaction:
                 for setting, value in updates:
-                    transaction.modifySystemSetting(setting).setValue(value)
+                    await transaction.modifySystemSetting(setting).setValue(value)
             response = None
         elif arguments.operation == "create":
             if arguments.key is not None:
@@ -149,7 +151,7 @@ async def main(critic: api.critic.Critic, arguments: Any) -> int:
                 async with api.transaction.start(
                     critic, accept_no_pubsub=True
                 ) as transaction:
-                    transaction.createSystemSetting(
+                    await transaction.createSystemSetting(
                         arguments.key, arguments.description, value
                     )
             else:
@@ -158,7 +160,7 @@ async def main(critic: api.critic.Critic, arguments: Any) -> int:
                     critic, accept_no_pubsub=True
                 ) as transaction:
                     for setting_input in settings_input:
-                        transaction.createSystemSetting(**setting_input)
+                        await transaction.createSystemSetting(**setting_input)
             response = None
         else:
             assert not "reached"

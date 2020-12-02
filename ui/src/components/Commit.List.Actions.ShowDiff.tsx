@@ -7,7 +7,6 @@ import Button from "@material-ui/core/Button"
 
 import Registry from "."
 import { ActionProps } from "./Commit.List.Actions.types"
-import Commit from "../resources/commit"
 
 const useStyles = makeStyles({
   commitListActionsShowDiff: {},
@@ -24,11 +23,11 @@ const ShowDiff: FunctionComponent<ActionProps & OwnProps> = ({
 }) => {
   const classes = useStyles()
   var diffPath = pathPrefix
-  if (selectedCommits.size === 1)
-    diffPath += `/commit/${selectedCommits.first<Commit>().sha1}`
+  if (selectedCommits.length === 1)
+    diffPath += `/commit/${selectedCommits[0].sha1}`
   else {
-    const lastCommit = selectedCommits.first<Commit>()
-    const firstCommit = selectedCommits.last<Commit>()
+    const lastCommit = selectedCommits[0]
+    const firstCommit = selectedCommits[selectedCommits.length - 1]
     diffPath += `/diff/${firstCommit.sha1}^..${lastCommit.sha1}`
   }
   return (

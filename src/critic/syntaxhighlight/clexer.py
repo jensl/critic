@@ -155,13 +155,27 @@
 #   directives) are converted to the shortest possible sequence of whitespace
 #   that preserves the line and column number of following tokens.
 
+# FIXME: Discontinue this lexer.
+# type: ignore
+
+from __future__ import annotations
+
 import re
-import sys
-import itertools
-import traceback
+from typing import (
+    Any,
+    Iterable,
+    Iterator,
+    List,
+    Mapping,
+    Optional,
+    Sequence,
+    Tuple,
+    Union,
+    cast,
+)
 
 
-def rejoin(items, escape):
+def rejoin(items: Sequence[str], escape: bool) -> str:
     if escape:
         fixed = []
         for item in sorted(items, key=len, reverse=True):
@@ -374,12 +388,12 @@ RE_FLOAT_LITERAL = re.compile("^" + FLOAT_LITERAL + "$")
 
 
 class CLexerException(Exception):
-    def __init__(self, message):
+    def __init__(self, message: str):
         Exception.__init__(self, message)
 
 
 class CLexerGroupingException(Exception):
-    def __init__(self, message, tokens):
+    def __init__(self, message: str, tokens: Sequence[Union[str, Token]]):
         Exception.__init__(self, message)
         self.__tokens = tokens
 
@@ -387,29 +401,29 @@ class CLexerGroupingException(Exception):
         return self.__tokens
 
 
-def iskeyword(value):
+def iskeyword(value: str) -> bool:
     return (str(value)[0].isalpha() or str(value)[0] == "_") and str(value) in KEYWORDS
 
 
-def isidentifier(value):
+def isidentifier(value: str) -> bool:
     return (str(value)[0].isalpha() or str(value)[0] == "_") and str(
         value
     ) not in KEYWORDS
 
 
-def isspace(value):
+def isspace(value: str) -> bool:
     return str(value).isspace()
 
 
-def iscomment(value):
+def iscomment(value: str) -> bool:
     return str(value)[0:2] in ("/*", "//")
 
 
-def isppdirective(value):
+def isppdirective(value: str) -> bool:
     return str(value).lstrip(" \t").startswith("#")
 
 
-def isconflictmarker(value):
+def isconflictmarker(value: str) -> bool:
     value = str(value)
     return (
         value.startswith("<<<<<<<")
@@ -418,19 +432,21 @@ def isconflictmarker(value):
     )
 
 
-def isint(value):
+def isint(value: str) -> bool:
     return RE_INT_LITERAL.match(str(value)) is not None
 
 
-def isfloat(value):
+def isfloat(value: str) -> bool:
     return RE_FLOAT_LITERAL.match(str(value)) is not None
 
 
-def isbyteordermark(value):
+def isbyteordermark(value: str) -> bool:
     return str(value) == BYTE_ORDER_MARK
 
 
-def split(input, include_ws=True, include_comments=True):
+def split(
+    input: str, include_ws: bool = True, include_comments: bool = True
+) -> Sequence[str]:
     if include_ws:
         expression = RE_CTOKENS_INCLUDE_WS
     else:
@@ -443,67 +459,72 @@ def split(input, include_ws=True, include_comments=True):
 
 
 class Token:
-    def __init__(self, value, filename="<unknown>", line=0, column=0):
+    def __init__(
+        self, value: str, filename: str = "<unknown>", line: int = 0, column: int = 0
+    ):
         self.__value = value
         self.__filename = filename
         self.__line = line
         self.__column = column
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.__value
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return repr(self.__value)
 
-    def __hash__(self):
+    def __hash__(self) -> int:
         return hash(self.__value)
 
-    def __bool__(self):
+    def __bool__(self) -> bool:
         return not (self.isspace() or self.iscomment())
 
-    def filename(self):
+    def __len__(self) -> int:
+        return len(self.__value)
+
+    def filename(self) -> str:
         return self.__filename
 
-    def line(self):
+    def line(self) -> int:
         return self.__line
 
-    def column(self):
+    def column(self) -> int:
         return self.__column
 
-    def iskeyword(self):
+    def iskeyword(self) -> bool:
         return iskeyword(self.__value)
 
-    def isidentifier(self):
+    def isidentifier(self) -> bool:
         return isidentifier(self.__value)
 
-    def isspace(self):
+    def isspace(self) -> bool:
         return isspace(self.__value)
 
-    def iscomment(self):
+    def iscomment(self) -> bool:
         return iscomment(self.__value)
 
-    def isppdirective(self):
+    def isppdirective(self) -> bool:
         return isppdirective(self.__value)
 
-    def isconflictmarker(self):
+    def isconflictmarker(self) -> bool:
         return isconflictmarker(self.__value)
 
-    def isstring(self):
+    def isstring(self) -> bool:
         return self.__value[0] == '"' or self.__value.startswith('L"')
 
-    def ischar(self):
+    def ischar(self) -> bool:
         return self.__value[0] == "'" or self.__value.startswith("L'")
 
-    def isint(self):
+    def isint(self) -> bool:
         return isint(self.__value)
 
-    def isfloat(self):
+    def isfloat(self) -> bool:
         return isfloat(self.__value)
 
-    def isbyteordermark(self):
+    def isbyteordermark(self) -> bool:
         return isbyteordermark(self.__value)
 
-    def reduced(self):
+    def reduced(self) -> str:
         if self.isspace() or self.iscomment():
             if self.__value.startswith("//"):
                 return ""
@@ -519,8 +540,16 @@ class Token:
         else:
             return self.__value
 
+    def count(self, ch: str) -> int:
+        return self.__value.count(ch)
 
-def tokenize(tokens, filename="<unknown>"):
+    def rindex(self, ch: str) -> int:
+        return self.__value.rindex(ch)
+
+
+def tokenize(
+    tokens: Sequence[Union[str, Token]], filename: str = "<unknown>"
+) -> Iterator[Token]:
     line = 1
     column = 0
 
@@ -539,11 +568,16 @@ def tokenize(tokens, filename="<unknown>"):
             column += len(token)
 
 
-def locate(tokens, index):
+TokenOrString = Union[str, Token]
+TokenList = List[TokenOrString]
+NestedTokenList = List[Union[TokenOrString, List[Any]]]
+
+
+def locate(tokens: TokenList, index: int) -> Tuple[int, int]:
     line = 1
     column = 0
 
-    for token_index, token in enumerate(flatten(tokens)):
+    for token_index, token in enumerate(tokens):
         if index == token_index:
             break
         linebreaks = token.count("\n")
@@ -560,20 +594,20 @@ DEFAULT_GROUP = {"(": ")", "{": "}", "[": "]"}
 DEFAULT_GROUP_REVERSE = {")": "(", "}": "{", "]": "["}
 
 
-def group(tokens, groups=None):
+def group(tokens: List[TokenOrString], groups: Optional[Mapping[str, str]] = None):
     if groups is None:
         groups = DEFAULT_GROUP
         reverse = DEFAULT_GROUP_REVERSE
     else:
         reverse = dict([(end, start) for start, end in groups.items()])
 
-    stack = [("<EOF>", [], -1)]
+    stack: List[Tuple[str, NestedTokenList, int]] = [("<EOF>", [], -1)]
     currentEnd = stack[-1][0]
     currentList = stack[-1][1]
 
     for index, token in enumerate(tokens):
         if token in groups:
-            stack.append((groups[token], [token], index))
+            stack.append((groups[str(token)], [token], index))
             currentList = stack[-1][1]
             currentEnd = stack[-1][0]
         elif token == currentEnd:
@@ -606,20 +640,24 @@ def group(tokens, groups=None):
     return currentList
 
 
-def group1(iterable, end, groups=None):
+def group1(
+    iterable: Iterable[TokenOrString],
+    end: str,
+    groups: Optional[Mapping[str, str]] = None,
+) -> Tuple[NestedTokenList, TokenOrString]:
     if groups is None:
         groups = DEFAULT_GROUP
         reverse = DEFAULT_GROUP_REVERSE
     else:
         reverse = dict([(end, start) for start, end in groups.items()])
 
-    stack = [("<EOF>", [])]
+    stack: List[Tuple[str, NestedTokenList]] = [("<EOF>", [])]
     currentEnd = stack[-1][0]
     currentList = stack[-1][1]
 
     for token in iterable:
         if token in groups:
-            stack.append((groups[token], [token]))
+            stack.append((groups[str(token)], [token]))
             currentList = stack[-1][1]
             currentEnd = stack[-1][0]
         elif token == end and len(stack) == 1:
@@ -637,7 +675,8 @@ def group1(iterable, end, groups=None):
                 stack[-1][1].append(currentList)
                 currentList = stack[-1][1]
             raise CLexerGroupingException(
-                "expected '%s', got '%s'" % (currentEnd, token), flatten(currentList)
+                "expected '%s', got '%s'" % (currentEnd, token),
+                [*flatten(currentList)],
             )
         else:
             currentList.append(token)
@@ -654,7 +693,7 @@ def group1(iterable, end, groups=None):
     )
 
 
-def partition(tokens, separator):
+def partition(tokens: Iterable[str], separator: str) -> Sequence[Sequence[str]]:
     current = []
     partitions = [current]
     try:
@@ -673,21 +712,15 @@ def partition(tokens, separator):
             return partitions
 
 
-def flatten(tokens):
-    tokens = iter(tokens)
-
-    try:
-        while True:
-            token = next(tokens)
-            if isinstance(token, list):
-                tokens = itertools.chain(token, tokens)
-            else:
-                yield token
-    except StopIteration:
-        pass
+def flatten(tokens: NestedTokenList) -> Iterator[str]:
+    for token in tokens:
+        if isinstance(token, str):
+            yield token
+        else:
+            yield from flatten(cast(NestedTokenList, token))
 
 
-def join(tokens, insertSpaces=True):
+def join(tokens: NestedTokenList, insertSpaces: bool = True) -> str:
     if insertSpaces:
         result = ""
         lastWasSpace = True
@@ -709,7 +742,9 @@ if __name__ == "__main__":
     assert not RE_CTOKENS.match("\r")
     assert not RE_CTOKENS.match("\n")
 
-    def testToken(token, subpattern, rest="", isOperator=False):
+    def testToken(
+        token: str, subpattern: str, rest: str = "", isOperator: bool = False
+    ) -> None:
         wholeMatch = RE_CTOKENS.match(token)
         assert wholeMatch
         assert wholeMatch.group(0) + rest == token

@@ -16,6 +16,8 @@
  * the License.
  */
 
+import { immerable } from "immer"
+
 import { primaryMap } from "../reducers/resource"
 
 type UserEmailData = {
@@ -29,12 +31,14 @@ type UserEmailData = {
 type UserEmailProps = UserEmailData
 
 class UserEmail {
+  [immerable] = true
+
   constructor(
     readonly id: number,
     readonly user: number,
     readonly address: string,
     readonly status: "trusted" | "verified" | "unverified",
-    readonly isSelected: boolean
+    readonly isSelected: boolean,
   ) {}
 
   static new(props: UserEmailProps) {
@@ -43,7 +47,7 @@ class UserEmail {
       props.user,
       props.address,
       props.status,
-      props.is_selected
+      props.is_selected,
     )
   }
 

@@ -35,6 +35,7 @@ logger = logging.getLogger(__name__)
 
 from . import apiobject
 from critic import api
+from critic.api import commitset as public
 from critic.gitaccess import SHA1
 
 WrapperType = api.commitset.CommitSet
@@ -322,10 +323,12 @@ def createNow(
     return CommitSet().setNow(commits, all_parents).wrap(critic)
 
 
+@public.emptyImpl
 def empty(critic: api.critic.Critic) -> WrapperType:
     return CommitSet().wrap(critic)
 
 
+@public.createImpl
 async def create(
     critic: api.critic.Critic, commits: Iterable[api.commit.Commit]
 ) -> WrapperType:
@@ -335,6 +338,7 @@ async def create(
     return (await CommitSet().set(commits)).wrap(critic)
 
 
+@public.calculateFromRangeImpl
 async def calculateFromRange(
     critic: api.critic.Critic,
     from_commit: Optional[api.commit.Commit],
@@ -343,6 +347,7 @@ async def calculateFromRange(
     return await api.commit.fetchRange(from_commit=from_commit, to_commit=to_commit)
 
 
+@public.calculateFromBranchUpdateImpl
 async def calculateFromBranchUpdate(
     critic: api.critic.Critic,
     current_commits: Optional[WrapperType],

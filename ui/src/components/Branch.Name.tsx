@@ -1,35 +1,38 @@
 import React, { FunctionComponent } from "react"
-import clsx from "clsx"
-
-import { makeStyles, Theme } from "@material-ui/core/styles"
 
 import Registry from "."
+import Reference from "./Reference"
 import { useResource } from "../utils"
-
-const useStyles = makeStyles((theme: Theme) => ({
-  root: {
-    ...theme.critic.monospaceFont,
-    fontWeight: 500,
-    background: theme.palette.secondary.light,
-    borderColor: theme.palette.secondary.main,
-    borderWidth: 1,
-    borderStyle: "solid",
-    borderRadius: 4,
-    padding: "1px 6px",
-  },
-}))
+import { BranchID } from "../resources/types"
 
 type Props = {
   className?: string
-  branchID: number
+  branchID: BranchID
+  link?: boolean
 }
 
-const BranchName: FunctionComponent<Props> = ({ className, branchID }) => {
-  const classes = useStyles()
-  const branches = useResource("branches")
-  const branch = branches.byID.get(branchID)
+const BranchName: FunctionComponent<Props> = ({
+  className,
+  branchID,
+  link = false,
+}) => {
+  const branch = useResource("branches", ({ byID }) => byID.get(branchID))
+  const repository = useResource("repositories", ({ byID }) =>
+    byID.get(branch?.repository ?? -1),
+  )
   if (!branch) return null
-  return <code className={clsx(className, classes.root)}>{branch.name}</code>
+  return (
+    <Reference
+      className={className}
+      linkTo={
+        link && repository
+          ? `/repository/${repository.name}/branch/${branch.name}`
+          : undefined
+      }
+    >
+      {branch.name}
+    </Reference>
+  )
 }
 
 export default Registry.add("Branch.Name", BranchName)

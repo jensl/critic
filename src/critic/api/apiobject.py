@@ -25,10 +25,19 @@ from __future__ import annotations
 
 import importlib
 import types
-from typing import Any, Generic, TypeVar, SupportsInt
+from typing import (
+    Any,
+    Callable,
+    Generic,
+    Optional,
+    TypeVar,
+)
 
 from critic import api
 from critic import dbaccess
+
+
+Actual = TypeVar("Actual", bound="APIObject")
 
 
 class APIObject:
@@ -76,7 +85,10 @@ class APIObject:
 
     def __adapt__(self) -> dbaccess.SQLValue:
         """Adapt to SQL query parameter"""
-        return int(self)
+        try:
+            return int(self)
+        except TypeError:
+            raise TypeError(f"object has no id: {self!r}")
 
     @property
     def id(self) -> Any:
@@ -115,3 +127,34 @@ class APIObject:
     @classmethod
     def getResourceName(cls) -> str:
         return getattr(cls.getModule(), "resource_name")
+
+    @classmethod
+    def getTableName(cls) -> str:
+        return getattr(cls.getModule(), "table_name")
+
+    @classmethod
+    def getIdColumn(cls) -> str:
+        return getattr(cls.getModule(), "id_column", "id")
+
+    async def reload(self: Actual) -> Actual:
+        await self._impl.reload(self)
+        return self
+
+
+T = TypeVar("T", bound=Callable[..., Any])
+
+
+class FunctionRef(Generic[T]):
+    __value: Optional[T]
+
+    def __init__(self) -> None:
+        self.__value = None
+
+    def get(self) -> T:
+        assert self.__value is not None
+        return self.__value
+
+    def __call__(self, value: T) -> T:
+        assert self.__value is None
+        self.__value = value
+        return value

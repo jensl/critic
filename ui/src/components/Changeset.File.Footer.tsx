@@ -49,14 +49,12 @@ const useStyles = makeStyles((theme: Theme) => ({
 type Props = {
   className?: string
   file: File
-  fileChange: FileChange
   collapseFile: () => void
 }
 
 const ChangesetFileFooter: FunctionComponent<Props> = ({
   className,
   file,
-  fileChange,
   collapseFile,
 }) => {
   const classes = useStyles()

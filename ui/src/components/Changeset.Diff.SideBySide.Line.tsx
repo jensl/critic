@@ -15,9 +15,10 @@ import {
   kWhitespaceLine,
   DiffLine,
 } from "../resources/filediff"
-import { useSelector } from "../store"
-import { LineComments } from "./Changeset.Diff.Chunk"
 import { FileID, ChangesetID } from "../resources/types"
+import { SelectionScope } from "../reducers/uiSelectionScope"
+import { pure } from "recompose"
+import { LineComments } from "../selectors/fileDiff"
 
 const useStyles = makeStyles((theme: Theme) => ({
   changesetDiffSideBySideLine: {
@@ -83,7 +84,9 @@ type OwnProps = {
   changesetID: ChangesetID
   fileID: FileID
   line: DiffLine
-  comments: LineComments
+  comments: LineComments | null
+  selectionScope: SelectionScope | null
+  inView: boolean
 }
 
 const SideBySideLine: FunctionComponent<OwnProps> = ({
@@ -92,68 +95,48 @@ const SideBySideLine: FunctionComponent<OwnProps> = ({
   fileID,
   line,
   comments,
+  selectionScope,
+  inView,
 }) => {
   const oldID = `f${fileID}:${line.oldID}`
   const newID = `f${fileID}:${line.newID}`
 
   const classes = useStyles()
+
   const {
-    oldIsSelected,
-    newIsSelected,
+    selectedIDs = null,
     firstSelectedID = null,
     lastSelectedID = null,
     isRangeSelecting = false,
-  } = useSelector((state) => {
-    const {
-      selectedIDs,
-      firstSelectedID,
-      lastSelectedID,
-      isRangeSelecting,
-    } = state.ui.selectionScope
-    const oldIsSelected = selectedIDs.has(oldID)
-    const newIsSelected = selectedIDs.has(newID)
-    if (!oldIsSelected && !newIsSelected)
-      return { oldIsSelected, newIsSelected }
-    return {
-      oldIsSelected,
-      newIsSelected,
-      firstSelectedID,
-      lastSelectedID,
-      isRangeSelecting,
-    }
-  })
+  } = selectionScope || {}
+
+  const oldIsSelected = selectedIDs?.has(oldID) ?? false
+  const newIsSelected = selectedIDs?.has(newID) ?? false
 
   const { type } = line
-  const { oldSide, newSide } = comments
+  const { oldSide = null, newSide = null } = comments ?? {}
   const oldMarkerClass = clsx(classes.marker, {
-    [classes.markerOpenIssue]: oldSide.hasOpenIssues,
-    [classes.markerClosedIssue]: oldSide.hasClosedIssues,
+    [classes.markerOpenIssue]: oldSide?.hasOpenIssues,
+    [classes.markerClosedIssue]: oldSide?.hasClosedIssues,
     [classes.markerNote]:
-      oldSide.hasNotes && !oldSide.hasOpenIssues && !oldSide.hasClosedIssues,
+      oldSide?.hasNotes && !oldSide?.hasOpenIssues && !oldSide?.hasClosedIssues,
   })
   const newMarkerClass = clsx(classes.marker, {
-    [classes.markerOpenIssue]: newSide.hasOpenIssues,
-    [classes.markerClosedIssue]: newSide.hasClosedIssues,
+    [classes.markerOpenIssue]: newSide?.hasOpenIssues,
+    [classes.markerClosedIssue]: newSide?.hasClosedIssues,
     [classes.markerNote]:
-      newSide.hasNotes && !newSide.hasOpenIssues && !newSide.hasClosedIssues,
+      newSide?.hasNotes && !newSide?.hasOpenIssues && !newSide?.hasClosedIssues,
   })
 
   let createCommentOld: React.ReactElement | null = null
   let createCommentNew = null
-  console.log({
-    firstSelectedID,
-    isRangeSelecting,
-    oldIsSelected,
-    lastSelectedID,
-    oldID,
-  })
   if (firstSelectedID !== null && !isRangeSelecting) {
     if (oldIsSelected && lastSelectedID === oldID) {
       const firstLine = parseInt(
         (/^f\d+:o(\d+)$/.exec(firstSelectedID) || ["", "0"])[1],
-        10
+        10,
       )
-      const lastLine = line.old_offset
+      const lastLine = line.oldOffset
       createCommentOld = (
         <ChangesetComment
           key="new-comment-old"
@@ -171,9 +154,9 @@ const SideBySideLine: FunctionComponent<OwnProps> = ({
     if (newIsSelected && lastSelectedID === newID) {
       const firstLine = parseInt(
         (/^f\d+:n(\d+)$/.exec(firstSelectedID) || ["", "0"])[1],
-        10
+        10,
       )
-      const lastLine = line.new_offset
+      const lastLine = line.newOffset
       createCommentNew = (
         <ChangesetComment
           key="new-comment-new"
@@ -204,40 +187,42 @@ const SideBySideLine: FunctionComponent<OwnProps> = ({
             modified: type === kModifiedLine,
             replaced: type === kReplacedLine,
             whitespace: type === kWhitespaceLine,
-          }
+          },
         )}
       >
         <span className={classes.oldLineNumber}>
-          {type !== kInsertedLine ? line.old_offset : null}
+          {type !== kInsertedLine ? line.oldOffset : null}
         </span>
         <span className={oldMarkerClass} />
         <Line
           className={clsx(classes.codeLine, "old")}
           lineID={oldID}
-          content={type !== kInsertedLine ? line.content : null}
+          line={type !== kInsertedLine ? line : null}
           side={type !== kContextLine ? "old" : null}
           isSelected={oldIsSelected}
+          inView={inView}
         />
         <span className={oldMarkerClass} />
         <span className={newMarkerClass} />
         <Line
           className={clsx(classes.codeLine, "new")}
           lineID={newID}
-          content={type !== kDeletedLine ? line.content : null}
+          line={type !== kDeletedLine ? line : null}
           side={type !== kContextLine ? "new" : null}
           isSelected={newIsSelected}
+          inView={inView}
         />
         <span className={newMarkerClass} />
         <span className={classes.newLineNumber}>
-          {type !== kDeletedLine ? line.new_offset : null}
+          {type !== kDeletedLine ? line.newOffset : null}
         </span>
       </div>
       {createCommentOld !== null ||
-      oldSide.comments.length ||
+      oldSide?.comments.length ||
       createCommentNew !== null ||
-      newSide.comments.length ? (
+      newSide?.comments.length ? (
         <div className={classes.comments}>
-          {oldSide.comments.map((comment) => (
+          {oldSide?.comments.map((comment) => (
             <ChangesetComment
               key={comment.id}
               comment={comment}
@@ -245,7 +230,7 @@ const SideBySideLine: FunctionComponent<OwnProps> = ({
             />
           ))}
           {createCommentOld}
-          {newSide.comments.map((comment) => (
+          {newSide?.comments.map((comment) => (
             <ChangesetComment
               key={comment.id}
               comment={comment}
@@ -259,4 +244,7 @@ const SideBySideLine: FunctionComponent<OwnProps> = ({
   )
 }
 
-export default Registry.add("Changeset.Diff.SideBySide.Line", SideBySideLine)
+export default Registry.add(
+  "Changeset.Diff.SideBySide.Line",
+  pure(SideBySideLine),
+)

@@ -23,55 +23,71 @@ from typing import Any, Tuple
 
 logger = logging.getLogger(__name__)
 
-from . import Update, LazyAPIObject, Transaction, Modifier, protocol
-from .protocol import ModifiedSystemSetting
+from .item import Update
+from .base import TransactionBase
+from .modifier import Modifier
+from .protocol import CreatedSystemSetting, ModifiedSystemSetting
+from .createapiobject import CreateAPIObject
+from .systemevent import CreateSystemEvent
 from critic import api
 
 PayloadArgs = Tuple[str, str, str, Any]
 
 
-class CreatedSystemSetting(
-    LazyAPIObject[api.systemsetting.SystemSetting], api_module=api.systemsetting
+class CreateSystemSetting(
+    CreateAPIObject[api.systemsetting.SystemSetting], api_module=api.systemsetting
 ):
-    def __init__(self, transaction: Transaction, key: str):
+    def __init__(self, transaction: TransactionBase, key: str):
         super().__init__(transaction)
         self.key = key
 
     async def create_payload(
         self, resource_name: str, subject: api.systemsetting.SystemSetting, /
-    ) -> protocol.CreatedSystemSetting:
-        return protocol.CreatedSystemSetting(resource_name, subject.id, self.key)
+    ) -> CreatedSystemSetting:
+        return CreatedSystemSetting(resource_name, subject.id, self.key)
+
+    @staticmethod
+    async def make(
+        transaction: TransactionBase,
+        key: str,
+        description: str,
+        value: Any,
+        privileged: bool,
+    ) -> api.systemsetting.SystemSetting:
+        await CreateSystemEvent.make(
+            transaction,
+            "settings",
+            key,
+            "Setting created",
+            {} if privileged else {"value": value},
+        )
+        return await CreateSystemSetting(transaction, key).insert(
+            key=key,
+            description=description,
+            value=json.dumps(value),
+            privileged=privileged,
+        )
 
 
-def create_system_setting(
-    transaction: Transaction, key: str, description: str, value: Any, privileged: bool
-) -> CreatedSystemSetting:
-    transaction.addSystemEvent(
-        "settings", key, "Setting created", {} if privileged else {"value": value},
-    )
-    return CreatedSystemSetting(transaction, key).insert(
-        key=key, description=description, value=json.dumps(value), privileged=privileged
-    )
-
-
-class ModifySystemSetting(
-    Modifier[api.systemsetting.SystemSetting, CreatedSystemSetting]
-):
-    def setValue(self, value: Any) -> None:
-        if value == self.real.value:
+class ModifySystemSetting(Modifier[api.systemsetting.SystemSetting]):
+    async def setValue(self, value: Any) -> None:
+        if value == self.subject.value:
             return
         self.modified = True
-        if not self.real.is_privileged:
+        if not self.subject.is_privileged:
             self.updates["value"] = value
-        self.transaction.addSystemEvent(
+        await CreateSystemEvent.make(
+            self.transaction,
             "settings",
-            self.real.key,
+            self.subject.key,
             "Value modified",
             {}
-            if self.real.is_privileged
-            else {"old_value": self.real.value, "new_value": value},
+            if self.subject.is_privileged
+            else {"old_value": self.subject.value, "new_value": value},
         )
-        self.transaction.items.append(Update(self.real).set(value=json.dumps(value)))
+        await self.transaction.execute(
+            Update(self.subject).set(value=json.dumps(value))
+        )
 
     async def create_modified_payload(self) -> ModifiedSystemSetting:
         return ModifiedSystemSetting(
@@ -79,8 +95,8 @@ class ModifySystemSetting(
         )
 
     @staticmethod
-    def create(
-        transaction: Transaction,
+    async def create(
+        transaction: TransactionBase,
         key: str,
         description: str,
         value: Any,
@@ -88,5 +104,7 @@ class ModifySystemSetting(
     ) -> ModifySystemSetting:
         return ModifySystemSetting(
             transaction,
-            create_system_setting(transaction, key, description, value, privileged),
+            await CreateSystemSetting.make(
+                transaction, key, description, value, privileged
+            ),
         )

@@ -15,6 +15,7 @@
  */
 
 import { combineReducers } from "redux"
+import { immerable } from "immer"
 
 import { ResourceData } from "../types"
 import { primaryMap, lookupMap, auxilliaryMap } from "../reducers/resource"
@@ -29,10 +30,12 @@ type CommitUserInfoData = {
 type CommitUserInfoProps = CommitUserInfoData
 
 export class CommitUserInfo {
+  [immerable] = true
+
   constructor(
     readonly name: string,
     readonly email: string,
-    readonly timestamp: number
+    readonly timestamp: number,
   ) {}
 
   static new(props: CommitUserInfoProps) {
@@ -65,6 +68,8 @@ interface CommitProps {
 }
 
 class Commit {
+  [immerable] = true
+
   constructor(
     readonly id: CommitID,
     readonly sha1: string,
@@ -74,7 +79,7 @@ class Commit {
     readonly committer: CommitUserInfo,
     readonly parents: readonly CommitID[],
     readonly tree: string,
-    readonly description: CommitDescription | null
+    readonly description: CommitDescription | null,
   ) {}
 
   static new(props: CommitProps) {
@@ -87,7 +92,7 @@ class Commit {
       props.committer,
       props.parents,
       props.tree,
-      props.description
+      props.description,
     )
   }
 
@@ -104,11 +109,11 @@ class Commit {
     byID: primaryMap<Commit, CommitID>("commits"),
     bySHA1: lookupMap<Commit, string, CommitID>(
       "commits",
-      (commit) => commit.sha1
+      (commit) => commit.sha1,
     ),
     description: auxilliaryMap<Commit, CommitID, CommitDescription>(
       "commits",
-      (commit) => [commit.id, commit.description]
+      (commit) => [commit.id, commit.description],
     ),
   })
 
@@ -125,6 +130,8 @@ type CommitDescriptionData = {
 type CommitDescriptionProps = CommitDescriptionData
 
 export class CommitDescription {
+  [immerable] = true
+
   constructor(readonly branch: BranchID | null, readonly tag: string | null) {}
 
   static new(props: CommitDescriptionProps) {

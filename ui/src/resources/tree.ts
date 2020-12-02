@@ -14,6 +14,8 @@
  * the License.
  */
 
+import { immerable } from "immer"
+
 import { primaryMap } from "../reducers/resource"
 
 type TreeData = {
@@ -29,10 +31,12 @@ type TreeProps = {
 }
 
 export class Tree {
+  [immerable] = true
+
   constructor(
     readonly repository: number,
     readonly sha1: string,
-    readonly entries: Entry[]
+    readonly entries: Entry[],
   ) {}
 
   static new(props: TreeProps) {
@@ -48,7 +52,7 @@ export class Tree {
 
   static reducer = primaryMap<Tree, string>(
     "trees",
-    (tree) => `${tree.repository}:${tree.sha1}`
+    (tree) => `${tree.repository}:${tree.sha1}`,
   )
 
   get props(): TreeProps {
@@ -67,12 +71,14 @@ type EntryData = {
 type EntryProps = EntryData
 
 export class Entry {
+  [immerable] = true
+
   constructor(
     readonly mode: number,
     readonly name: string,
     readonly sha1: string,
     readonly size: number,
-    readonly target: string | null
+    readonly target: string | null,
   ) {}
 
   static new(props: EntryProps) {
@@ -81,7 +87,7 @@ export class Entry {
       props.name,
       props.sha1,
       props.size,
-      props.target
+      props.target,
     )
   }
 }

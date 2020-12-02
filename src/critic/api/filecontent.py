@@ -16,9 +16,19 @@
 
 from __future__ import annotations
 
-from typing import Sequence, Literal, Union, Protocol, overload
+from typing import (
+    Awaitable,
+    Callable,
+    Optional,
+    Sequence,
+    Literal,
+    Union,
+    Protocol,
+    overload,
+)
 
 from critic import api
+from critic.api.apiobject import FunctionRef
 from critic.gitaccess import SHA1
 
 
@@ -62,23 +72,31 @@ class FileContent(api.APIObject):
 
     @overload
     async def getLines(
-        self, first_line: int = None, last_line: int = None, *, plain: Literal[True]
+        self,
+        first_line: Optional[int] = None,
+        last_line: Optional[int] = None,
+        *,
+        plain: Literal[True],
     ) -> Sequence[str]:
         ...
 
     @overload
     async def getLines(
-        self, first_line: int = None, last_line: int = None, *, syntax: str = None
+        self,
+        first_line: Optional[int] = None,
+        last_line: Optional[int] = None,
+        *,
+        syntax: Optional[str] = None,
     ) -> Sequence[Line]:
         ...
 
     async def getLines(
         self,
-        first_line: int = None,
-        last_line: int = None,
+        first_line: Optional[int] = None,
+        last_line: Optional[int] = None,
         *,
         plain: bool = False,
-        syntax: str = None,
+        syntax: Optional[str] = None,
     ) -> Union[Sequence[str], Sequence[Line]]:
         if first_line is not None:
             first_line = int(first_line)
@@ -108,7 +126,11 @@ class Line(Protocol):
 
 @overload
 async def fetch(
-    repository: api.repository.Repository, /, *, sha1: SHA1, file: api.file.File = None
+    repository: api.repository.Repository,
+    /,
+    *,
+    sha1: SHA1,
+    file: Optional[api.file.File] = None,
 ) -> FileContent:
     ...
 
@@ -128,24 +150,34 @@ async def fetch(
     repository: api.repository.Repository,
     /,
     *,
-    sha1: SHA1 = None,
-    commit: api.commit.Commit = None,
-    file: api.file.File = None,
+    sha1: Optional[SHA1] = None,
+    commit: Optional[api.commit.Commit] = None,
+    file: Optional[api.file.File] = None,
 ) -> FileContent:
     """Retrieve the contents of a file
 
-       If |sha1| is not None, it should be the full 40 character hexadecimal
-       SHA-1 sum of the file's blob. No checking will be made to ensure it is
-       actually referenced by any particular path in any particular commit. If
-       |file| is also used, it only helps in determining the file's syntax. Can
-       not be combined with |commit|.
+    If |sha1| is not None, it should be the full 40 character hexadecimal
+    SHA-1 sum of the file's blob. No checking will be made to ensure it is
+    actually referenced by any particular path in any particular commit. If
+    |file| is also used, it only helps in determining the file's syntax. Can
+    not be combined with |commit|.
 
-       If |commit| is not None, |file| must also be used, and the contents of
-       the file in the specified commit are retrieved."""
-
-    from .impl import filecontent as impl
-
-    return await impl.fetch(repository, sha1, commit, file)
+    If |commit| is not None, |file| must also be used, and the contents of
+    the file in the specified commit are retrieved."""
+    return await fetchImpl.get()(repository, sha1, commit, file)
 
 
 resource_name = "filecontents"
+
+
+fetchImpl: FunctionRef[
+    Callable[
+        [
+            api.repository.Repository,
+            Optional[SHA1],
+            Optional[api.commit.Commit],
+            Optional[api.file.File],
+        ],
+        Awaitable[FileContent],
+    ]
+] = FunctionRef()

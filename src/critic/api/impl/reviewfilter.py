@@ -18,8 +18,9 @@ from __future__ import annotations
 
 from typing import Collection, Tuple, Sequence, Optional
 
-from . import apiobject
 from critic import api
+from critic.api import reviewfilter as public
+from . import apiobject
 
 
 WrapperType = api.reviewfilter.ReviewFilter
@@ -63,6 +64,7 @@ class ReviewFilter(apiobject.APIObject[WrapperType, ArgumentsType, int]):
         return await api.user.fetch(critic, self.__creator_id)
 
 
+@public.fetchImpl
 @ReviewFilter.cached
 async def fetch(critic: api.critic.Critic, filter_id: int) -> WrapperType:
     async with ReviewFilter.query(
@@ -71,6 +73,7 @@ async def fetch(critic: api.critic.Critic, filter_id: int) -> WrapperType:
         return await ReviewFilter.makeOne(critic, result)
 
 
+@public.fetchAllImpl
 async def fetchAll(
     critic: api.critic.Critic,
     review: Optional[api.review.Review],

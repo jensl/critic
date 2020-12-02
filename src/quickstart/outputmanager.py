@@ -5,13 +5,17 @@ import logging
 import sys
 import textwrap
 import time
-from typing import ClassVar
+from typing import ClassVar, Iterator, List, Tuple
+
+from .arguments import Arguments
 
 
 class OutputManager(logging.Handler):
     instance: ClassVar[OutputManager]
 
-    def __init__(self, arguments):
+    activities: List[Tuple[str, float]]
+
+    def __init__(self, arguments: Arguments):
         super().__init__()
         OutputManager.instance = self
         self.quiet = arguments.quiet
@@ -25,10 +29,10 @@ class OutputManager(logging.Handler):
             "%(levelname)s: %(name)s: %(message)s"
         )
 
-    def indent(self, message):
+    def indent(self, message: str) -> str:
         return textwrap.indent(message, "  " * len(self.activities))
 
-    def output(self, message, *, continue_partial_line=False):
+    def output(self, message: str, *, continue_partial_line: bool = False) -> None:
         if self.partial_line and not continue_partial_line:
             sys.stderr.write("\n")
         if len(message.splitlines()) > 1:
@@ -42,19 +46,25 @@ class OutputManager(logging.Handler):
         self.need_blankline = not (message == "\n" or message.endswith("\n\n"))
 
     @staticmethod
-    def blankline(*, forced=False):
+    def blankline(*, forced: bool = False) -> None:
         if OutputManager.instance.need_blankline or forced:
             OutputManager.instance.output("\n")
             OutputManager.instance.need_blankline = False
 
-    def start_activity(self, title, *, blankline_before=False):
+    def start_activity(self, title: str, *, blankline_before: bool = False) -> None:
         if not self.quiet:
             if blankline_before:
                 self.blankline()
             self.output(title + " ...")
             self.activities.append((title, time.time()))
 
-    def end_activity(self, expected_title, *, blankline_after=False, silent=False):
+    def end_activity(
+        self,
+        expected_title: str,
+        *,
+        blankline_after: bool = False,
+        silent: bool = False
+    ) -> None:
         if not self.quiet:
             title, started = self.activities.pop()
             assert title == expected_title
@@ -69,7 +79,7 @@ class OutputManager(logging.Handler):
             if blankline_after:
                 self.blankline()
 
-    def emit(self, record):
+    def emit(self, record: logging.LogRecord) -> None:
         blanklines = False
         if record.name.startswith("critic."):
             message = self.system_formatter.format(record)
@@ -94,7 +104,7 @@ class OutputManager(logging.Handler):
 
 
 @contextlib.contextmanager
-def activity(what, blanklines=False):
+def activity(what: str, blanklines: bool = False) -> Iterator[None]:
     OutputManager.instance.start_activity(what, blankline_before=blanklines)
     silent = True
     try:

@@ -1,5 +1,6 @@
 # mypy: ignore-errors
 
+
 def basic():
     from critic import api
 
@@ -16,8 +17,8 @@ def basic():
         return api.review.fetch(critic, branch=branch)
 
     def check_history_rewrite(rebase, old_head_summary, new_head_summary):
-        assert isinstance(rebase, api.log.rebase.HistoryRewrite)
-        assert api.log.rebase.fetch(critic, rebase_id=rebase.id) is rebase
+        assert isinstance(rebase, api.rebase.HistoryRewrite)
+        assert api.rebase.fetch(critic, rebase_id=rebase.id) is rebase
         assert rebase.branchupdate.from_head.summary == old_head_summary, (
             rebase.branchupdate.from_head.summary,
             old_head_summary,
@@ -35,8 +36,8 @@ def basic():
         new_upstream_summary,
         expect=None,
     ):
-        assert isinstance(rebase, api.log.rebase.MoveRebase)
-        assert api.log.rebase.fetch(critic, rebase_id=rebase.id) is rebase
+        assert isinstance(rebase, api.rebase.MoveRebase)
+        assert api.rebase.fetch(critic, rebase_id=rebase.id) is rebase
         assert all(
             isinstance(commit, api.commit.Commit)
             for commit in (
@@ -199,8 +200,8 @@ def basic():
     )
 
     try:
-        api.log.rebase.fetch(critic, rebase_id=10000)
-    except api.log.rebase.InvalidId:
+        api.rebase.fetch(critic, rebase_id=10000)
+    except api.rebase.InvalidId:
         pass
     except Exception as error:
         assert False, "wrong exception raised: %s" % error

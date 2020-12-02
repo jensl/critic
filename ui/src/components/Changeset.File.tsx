@@ -2,6 +2,8 @@ import React, { FunctionComponent } from "react"
 import { useHistory, useLocation } from "react-router"
 import clsx from "clsx"
 
+import Collapse from "@material-ui/core/Collapse"
+import Paper, { PaperProps } from "@material-ui/core/Paper"
 import { makeStyles, Theme } from "@material-ui/core/styles"
 
 import Registry from "."
@@ -10,26 +12,33 @@ import ChangesetFileChanges from "./Changeset.File.Changes"
 import ChangesetFileFooter from "./Changeset.File.Footer"
 import { setWith, setWithout, useChangeset, useResource } from "../utils"
 import { pathWithExpandedFiles } from "../utils/Changeset"
+import { ChunkComments } from "../selectors/fileDiff"
 
 const useStyles = makeStyles((theme: Theme) => ({
   root: {
-    ...theme.critic.diff.background,
+    paddingLeft: theme.spacing(2),
+    paddingRight: theme.spacing(2),
   },
-  expanded: {
-    margin: `${theme.spacing(1)}px 0`,
-  },
+  collapsed: { margin: theme.spacing(0.5, 0) },
+  expanded: { margin: theme.spacing(2, 0) },
 }))
 
-type Props = {
+export type Props = {
   className?: string
   fileID: number
-  variant?: "unified" | "side-by-side"
+  variant: "unified" | "side-by-side"
+  integrated: boolean
+  comments: readonly ChunkComments[] | null
+  PaperProps?: PaperProps
 }
 
 const ChangesetFile: FunctionComponent<Props> = ({
   className,
   fileID,
   variant,
+  integrated,
+  comments,
+  PaperProps = {},
 }) => {
   const classes = useStyles()
   const history = useHistory()
@@ -41,15 +50,15 @@ const ChangesetFile: FunctionComponent<Props> = ({
   const file = files.byID.get(fileID)
   const fileChange = fileChanges.get(`${changeset.id}:${fileID}`)
   const fileDiff = fileDiffs.get(`${changeset.id}:${fileID}`)
-  if (!file || !fileChange || !fileDiff) return null
+  if (!file) return null
   const isExpanded = expandedFileIDs.has(fileID)
   const expandFile = () =>
     history.replace(
-      pathWithExpandedFiles(location, setWith(expandedFileIDs, fileID))
+      pathWithExpandedFiles(location, setWith(expandedFileIDs, fileID)),
     )
   const collapseFile = () =>
     history.replace(
-      pathWithExpandedFiles(location, setWithout(expandedFileIDs, fileID))
+      pathWithExpandedFiles(location, setWithout(expandedFileIDs, fileID)),
     )
   const commonProps = {
     file,
@@ -60,19 +69,24 @@ const ChangesetFile: FunctionComponent<Props> = ({
     collapseFile,
   }
   return (
-    <div
+    <Paper
       className={clsx(className, classes.root, {
-        [classes.expanded]: isExpanded,
+        [classes.collapsed]: !integrated && !isExpanded,
+        [classes.expanded]: !integrated && isExpanded,
       })}
+      elevation={integrated ? 0 : undefined}
+      {...PaperProps}
     >
       <ChangesetFileHeader {...commonProps} />
-      {isExpanded && (
-        <>
-          <ChangesetFileChanges {...commonProps} variant={variant} />
-          <ChangesetFileFooter {...commonProps} />
-        </>
-      )}
-    </div>
+      <Collapse in={isExpanded} mountOnEnter unmountOnExit>
+        <ChangesetFileChanges
+          {...commonProps}
+          comments={comments}
+          variant={variant}
+        />
+        <ChangesetFileFooter {...commonProps} />
+      </Collapse>
+    </Paper>
   )
 }
 

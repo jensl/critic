@@ -17,26 +17,27 @@
 from __future__ import annotations
 
 import logging
-from typing import Sequence, Optional, Union
+from typing import Sequence
 
 logger = logging.getLogger(__name__)
 
 from critic import api
-from critic import jsonapi
+from ..resourceclass import ResourceClass
+from ..parameters import Parameters
+from ..types import JSONResult
+from ..utils import numeric_id
 
 
-class ReviewTags(
-    jsonapi.ResourceClass[api.reviewtag.ReviewTag], api_module=api.reviewtag
-):
+class ReviewTags(ResourceClass[api.reviewtag.ReviewTag], api_module=api.reviewtag):
     @staticmethod
     async def json(
-        parameters: jsonapi.Parameters, value: api.reviewtag.ReviewTag
-    ) -> jsonapi.JSONResult:
+        parameters: Parameters, value: api.reviewtag.ReviewTag
+    ) -> JSONResult:
         """ReviewTag {
-             "id": integer,
-             "name": string,
-             "description": string,
-           }"""
+          "id": integer,
+          "name": string,
+          "description": string,
+        }"""
 
         return {
             "id": value.id,
@@ -44,16 +45,14 @@ class ReviewTags(
             "description": value.description,
         }
 
-    @staticmethod
+    @classmethod
     async def single(
-        parameters: jsonapi.Parameters, argument: str
+        cls, parameters: Parameters, argument: str
     ) -> api.reviewtag.ReviewTag:
-        return await api.reviewtag.fetch(
-            parameters.critic, jsonapi.numeric_id(argument)
-        )
+        return await api.reviewtag.fetch(parameters.critic, numeric_id(argument))
 
     @staticmethod
     async def multiple(
-        parameters: jsonapi.Parameters,
+        parameters: Parameters,
     ) -> Sequence[api.reviewtag.ReviewTag]:
         return await api.reviewtag.fetchAll(parameters.critic)

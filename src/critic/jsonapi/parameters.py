@@ -16,266 +16,140 @@
 
 from __future__ import annotations
 
-import asyncio
 import contextlib
-import functools
-import itertools
-import json
-import logging
-from abc import ABC, abstractmethod
-from collections import defaultdict
-from types import ModuleType
+from dataclasses import dataclass
 from typing import (
     Any,
-    Awaitable,
-    Callable,
     Collection,
-    Coroutine,
     Dict,
-    Generic,
-    Iterable,
     List,
+    Literal,
+    Mapping,
     Optional,
-    Sequence,
     Set,
     Tuple,
     Type,
     TypeVar,
-    Union,
-    Mapping,
     Iterator,
     Protocol,
-    cast,
-    overload,
 )
 
 from critic import api
-
-from . import getAPIVersion
-from .exceptions import UsageError
+from .query import Query
 from .types import Request
 
-
 T = TypeVar("T")
+APIObject = TypeVar("APIObject", bound=api.APIObject)
+
+Fields = Tuple[Collection[str], Collection[str]]
 
 
-def _process_fields(value: str) -> Tuple[Set[str], Set[str]]:
-    included = set()
-    excluded = set()
-    included_names, _, excluded_names = value.partition("-")
-    if included_names:
-        for name in included_names.split(","):
-            included.add(name)
-            # For included fields on the form 'a.b.c', add the prefixes 'a.' and
-            # 'a.b.' as well, which causes the sub-objects containing 'a.b.c' to
-            # be included at all.
-            while True:
-                name, period, _ = name.rpartition(".")
-                if not period:
-                    break
-                included.add(name + period)
-    if excluded_names:
-        # Note: no need to handle prefixes as above here, obviously.
-        excluded.update(excluded_names.split(","))
-    return included, excluded
+@dataclass
+class Cookie:
+    value: str
+    secure: bool
 
 
-IncludeOptions = Dict[str, Union[bool, int, str]]
+class Cookies:
+    def __init__(self) -> None:
+        self.set_cookies: Dict[str, Cookie] = {}
+        self.del_cookies: List[str] = []
+
+    def set_cookie(self, name: str, value: str, *, secure: bool) -> None:
+        self.set_cookies[name] = Cookie(value, secure)
+
+    def del_cookie(self, name: str) -> None:
+        self.del_cookies.append(name)
 
 
-def _process_include(value: str) -> Mapping[str, IncludeOptions]:
-    included = {}
-    for item in value.split(","):
-        resource_name, _, options_string = item.partition(":")
-        options: IncludeOptions = {}
-        if options_string:
-            for option_string in options_string.split(":"):
-                name, eq, value = option_string.partition("=")
-                if not eq:
-                    options[name] = True
-                elif name == "limit":
-                    try:
-                        options[name] = int(value)
-                    except TypeError:
-                        raise UsageError("Invalid include limit: %r" % value)
-                else:
-                    options[name] = value
-        included[resource_name] = options
-    return included
+class Parameters(Protocol):
+    @property
+    def request(self) -> Request:
+        ...
 
+    @property
+    def critic(self) -> api.critic.Critic:
+        ...
 
-SPECIAL_QUERY_PARAMETERS = frozenset(["fields", "include", "debug"])
+    @property
+    def query(self) -> Query:
+        ...
 
+    @property
+    def cookies(self) -> Cookies:
+        ...
 
-class Parameters(object):
-    fields_per_type: Dict[str, Set[str]]
-    context: Dict[str, Any]
-    __resource_name: Optional[str]
-    __linked: Dict[str, Set[Any]]
-    primary_resource_type: Optional[str]
-    api_object_cache: Dict[int, Any]
+    @property
+    def include(self) -> Mapping[str, Mapping[str, object]]:
+        ...
 
-    def __init__(self, critic: api.critic.Critic, req: Request):
-        self.critic = critic
-        self.req = req
-        self.api_version = getAPIVersion(req)
-        self.debug = req.getParameter(
-            "debug", set(), filter=lambda value: set(value.split(","))
-        )
-        self.fields = req.getParameter("fields", (set(), set()), filter=_process_fields)
-        self.include = req.getParameter("include", {}, filter=_process_include)
-        self.fields_per_type = {}
-        self.__query_parameters = {
-            name: value
-            for name, value in req.getParameters().items()
-            if name not in SPECIAL_QUERY_PARAMETERS
-        }
-        self.__resource_name = None
-        self.range_accessed = False
-        self.context = {}
-        self.output_format = self.__query_parameters.get("output_format", "default")
-        self.__linked = defaultdict(set)
-        self.primary_resource_type = None
-        self.api_object_cache = {}
+    @property
+    def context(self) -> Dict[str, Any]:
+        ...
 
-    def __prepareType(self, resource_type: str) -> Set[str]:
-        if resource_type not in self.fields_per_type:
-            if resource_type == self.primary_resource_type:
-                default_fields = self.fields
-            else:
-                default_fields = set(), set()
-            self.fields_per_type[resource_type] = self.req.getParameter(
-                "fields[%s]" % resource_type, default_fields, filter=_process_fields
-            )
-        return self.fields_per_type[resource_type]
+    @property
+    def primary_resource_type(self) -> str:
+        ...
+
+    @primary_resource_type.setter
+    def primary_resource_type(self, value: str) -> None:
+        ...
+
+    @property
+    def range_accessed(self) -> bool:
+        ...
+
+    @property
+    def output_format(self) -> Literal["static", "default"]:
+        ...
+
+    @property
+    def debug(self) -> Collection[str]:
+        ...
+
+    @property
+    def api_version(self) -> Literal["v1"]:
+        ...
+
+    @property
+    def api_object_cache(self) -> Dict[int, object]:
+        ...
 
     def hasField(self, resource_type: str, key: str) -> bool:
-        included, excluded = self.__prepareType(resource_type)
-        if included:
-            return key in included
-        if excluded:
-            return key not in excluded
-        return True
+        ...
 
-    def getFieldsForType(self, resource_type: str) -> Set[str]:
-        return self.__prepareType(resource_type)
+    def getFieldsForType(self, resource_type: str) -> Fields:
+        ...
 
     @contextlib.contextmanager
-    def forResource(self, resource: Type[ResourceClass]) -> Iterator[None]:
-        assert self.__resource_name is None
-        self.__resource_name = resource.name
-        yield
-        self.__resource_name = None
-
-    @overload
-    def getQueryParameter(
-        self, name: str, /, *, choices: Collection[str] = None,
-    ) -> Optional[str]:
+    def forResource(self, resource_type: str) -> Iterator[None]:
         ...
-
-    @overload
-    def getQueryParameter(
-        self, name: str, default: str, /, *, choices: Collection[str] = None
-    ) -> str:
-        ...
-
-    @overload
-    def getQueryParameter(
-        self,
-        name: str,
-        /,
-        *,
-        converter: Callable[[str], T],
-        exceptions: Tuple[Type[BaseException], ...] = (ValueError,),
-    ) -> Optional[T]:
-        ...
-
-    @overload
-    def getQueryParameter(
-        self,
-        name: str,
-        default: str,
-        /,
-        *,
-        converter: Callable[[str], T],
-        exceptions: Tuple[Type[BaseException], ...] = (ValueError,),
-    ) -> T:
-        ...
-
-    def getQueryParameter(
-        self,
-        name: str,
-        default: str = None,
-        /,
-        *,
-        choices: Collection[str] = None,
-        converter: Callable[[str], T] = None,
-        exceptions: Tuple[Type[BaseException], ...] = (ValueError,),
-    ) -> Optional[Union[str, T]]:
-        value: Optional[str] = None
-        if self.__resource_name:
-            value = self.__query_parameters.get("%s[%s]" % (name, self.__resource_name))
-        if value is None:
-            value = self.__query_parameters.get(name)
-        if value is None:
-            value = default
-        if value is None:
-            return None
-        if converter:
-            try:
-                return converter(value)
-            except exceptions as error:
-                raise UsageError.invalidParameter(name, value, message=str(error))
-        if choices:
-            if value not in choices:
-                choices = sorted(choices)
-                expected = ", ".join(choices[:-1]) + " and " + choices[-1]
-                raise UsageError.invalidParameter(
-                    name, value, expected=f"one of {expected}"
-                )
-        return value
 
     def getRange(self) -> Tuple[Optional[int], Optional[int]]:
-        self.range_accessed = True
-        offset = self.getQueryParameter("offset", converter=int)
-        if offset is not None:
-            if offset < 0:
-                raise UsageError("Invalid offset parameter: %r" % offset)
-        count = self.getQueryParameter("count", converter=int)
-        if count is not None:
-            if count < 1:
-                raise UsageError("Invalid count parameter: %r" % count)
-        if offset and count:
-            return offset, offset + count
-        return offset, count
+        ...
 
     @contextlib.contextmanager
     def setSlice(self) -> Iterator[None]:
-        begin, end = self.getRange()
-        if begin is None or end is None:
-            yield
-        else:
-            offset = begin
-            if begin is None:
-                count = end
-            elif end is not None:
-                count = end - begin
-            with self.critic.pushSlice(offset=offset, count=count):
-                yield
+        ...
 
     def setContext(self, key: str, value: api.APIObject) -> None:
-        if key in self.context:
-            existing = self.context[key]
-            if existing is None or existing != value:
-                self.context[key] = None
-        else:
-            self.context[key] = value
+        ...
 
     def getLinked(self, resource_type: str) -> Set[Any]:
-        return self.__linked.pop(resource_type, set())
+        ...
 
     def addLinked(self, value: Any) -> None:
-        self.__linked[ResourceClass.find(value).name].add(value)
+        ...
 
+    def in_context(
+        self, value_class: Type[APIObject], default_value: Optional[APIObject] = None
+    ) -> Optional[APIObject]:
+        ...
 
-from .resourceclass import ResourceClass
+    async def deduce(self, value_class: Type[APIObject]) -> Optional[APIObject]:
+        ...
+
+    async def fromParameter(
+        self, value_class: Type[APIObject], name: str
+    ) -> Optional[APIObject]:
+        ...

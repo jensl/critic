@@ -17,11 +17,11 @@ async def log_process_output(
     process: asyncio.subprocess.Process,
     *,
     stdout_handler: Callable[[Optional[asyncio.StreamReader]], Awaitable[None]] = None,
-    stdout_sink: TextIO = None,
-    stdout_filter: LineFilter = None,
+    stdout_sink: Optional[TextIO] = None,
+    stdout_filter: Optional[LineFilter] = None,
     stderr_handler: Callable[[Optional[asyncio.StreamReader]], Awaitable[None]] = None,
-    stderr_sink: TextIO = None,
-    stderr_filter: LineFilter = None,
+    stderr_sink: Optional[TextIO] = None,
+    stderr_filter: Optional[LineFilter] = None,
 ):
     async def log_output(
         reader: Optional[asyncio.StreamReader],
@@ -67,11 +67,11 @@ async def log_process_output(
 async def execute(
     *args: str,
     stdout_handler: Callable[[Optional[asyncio.StreamReader]], Awaitable[None]] = None,
-    stdout_sink: TextIO = None,
-    stdout_filter: LineFilter = None,
+    stdout_sink: Optional[TextIO] = None,
+    stdout_filter: Optional[LineFilter] = None,
     stderr_handler: Callable[[Optional[asyncio.StreamReader]], Awaitable[None]] = None,
-    stderr_sink: TextIO = None,
-    stderr_filter: LineFilter = None,
+    stderr_sink: Optional[TextIO] = None,
+    stderr_filter: Optional[LineFilter] = None,
     **kwargs: Any,
 ) -> Optional[Union[Tuple[TextIO, TextIO], TextIO]]:
     commandline = " ".join(map(str, args))

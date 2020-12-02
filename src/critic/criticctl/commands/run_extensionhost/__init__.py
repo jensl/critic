@@ -19,7 +19,6 @@ from __future__ import annotations
 import argparse
 import asyncio
 import functools
-import glob
 import logging
 import os
 import signal
@@ -31,34 +30,13 @@ logger = logging.getLogger(__name__)
 from critic import api
 from critic import pubsub
 
+from .arguments import Arguments
 from .handlecall import handle_call
 from .extension import Extension
+from .state import STATE
 
 name = "run-extensionhost"
 title = "Run extension host"
-
-
-class State:
-    arguments: Any
-
-    def __init__(self) -> None:
-        self.arguments = None
-
-    @property
-    def base_dir(self) -> str:
-        return self.arguments.base_dir
-
-    @property
-    def critic_wheel(self) -> str:
-        if self.arguments.critic_wheel:
-            return self.arguments.critic_wheel
-        try:
-            return glob.glob(os.path.join(self.base_dir, "critic-*.whl"))[0]
-        except ValueError:
-            raise Exception("No Critic wheel found!") from None
-
-
-STATE = State()
 
 
 def setup(parser: argparse.ArgumentParser) -> None:
@@ -83,7 +61,9 @@ async def wrap_request(
 
 async def run(stopped: asyncio.Event) -> int:
     try:
-        async with pubsub.connect("extensionhost/runner") as client:
+        async with pubsub.connect(
+            "extensionhost/runner", parallel_requests=10
+        ) as client:
             await client.handle_requests(
                 pubsub.ChannelName("extension/call"),
                 functools.partial(wrap_request, handle_call),
@@ -100,7 +80,7 @@ async def run(stopped: asyncio.Event) -> int:
     return 0
 
 
-async def main(critic: api.critic.Critic, arguments: Any) -> int:
+async def main(critic: api.critic.Critic, arguments: Arguments) -> int:
     STATE.arguments = arguments
 
     assert STATE.base_dir

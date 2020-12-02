@@ -1,6 +1,7 @@
 import React, { FunctionComponent } from "react"
 
 import Registry from "."
+import NotFound from "./Application.NotFound"
 import LoaderBlock from "./Loader.Block"
 import ChangesetSingleCommit from "./Changeset.SingleCommit"
 import Breadcrumb from "./Breadcrumb"
@@ -8,7 +9,6 @@ import { resolveRef } from "../actions/commit"
 import {
   useReview,
   useSubscriptionIf,
-  getProperty,
   useResource,
   useResourceExtra,
 } from "../utils"
@@ -27,12 +27,13 @@ const ReviewCommit: FunctionComponent = () => {
   const review = useReview()
   useSubscriptionIf(review !== null && review.repository !== null, resolveRef, {
     ref,
-    repositoryID: getProperty(review, "repository", -1),
+    repositoryID: review?.repository,
   })
   if (!review) return null
   const commitID = commitRefs.get(`${review.repository}:${ref}`) ?? -1
-  if (!(typeof commitID === "number")) return null // FIXME: Handle this better.
+  if (!(typeof commitID === "number")) return <NotFound />
   const commit = commits.byID.get(commitID)
+  console.warn({ commitID, commit })
   if (!commit) return <LoaderBlock />
   return (
     <Breadcrumb category="commit" label={commit.sha1.substring(0, 8)}>

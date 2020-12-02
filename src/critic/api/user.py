@@ -25,6 +25,9 @@ with a certain status (see `User.STATUS_VALUES`).
 from __future__ import annotations
 
 from typing import (
+    Awaitable,
+    Callable,
+    Collection,
     FrozenSet,
     Iterable,
     List,
@@ -40,6 +43,7 @@ from typing import (
 
 from critic import api
 from critic import dbaccess
+from critic.api.apiobject import FunctionRef
 
 
 class Error(api.APIError, object_type="user"):
@@ -116,7 +120,7 @@ def as_status(value: str) -> Status:
 
 PasswordStatus = Literal["set", "not-set", "disabled"]
 PASSWORD_STATUS_VALUES: FrozenSet[PasswordStatus] = frozenset(
-    {"set", "not-set", "disabled"}
+    ["set", "not-set", "disabled"]
 )
 """Password status values.
 
@@ -180,11 +184,11 @@ class User(api.APIObject):
     def status(self) -> Status:
         """The user's status
 
-           For regular users, the value is one of the strings in the
-           User.STATUS_VALUES set.
+        For regular users, the value is one of the strings in the
+        User.STATUS_VALUES set.
 
-           For the anonymous user, the value is "anonymous".
-           For the Critic system user, the value is "system"."""
+        For the anonymous user, the value is "anonymous".
+        For the Critic system user, the value is "system"."""
         return self._impl.status
 
     @property
@@ -206,8 +210,8 @@ class User(api.APIObject):
     async def email(self) -> Optional[str]:
         """The user's selected primary email address
 
-           If the user has no primary email address or if the selected primary
-           email address is unverified, this attribute's value is None."""
+        If the user has no primary email address or if the selected primary
+        email address is unverified, this attribute's value is None."""
         useremail = await api.useremail.fetch(self.critic, user=self)
         assert useremail is None or useremail.status != "unverified"
         return useremail.address if useremail else None
@@ -216,11 +220,11 @@ class User(api.APIObject):
     async def git_emails(self) -> Set[str]:
         """The user's "git" email addresses
 
-           The value is a set of strings.
+        The value is a set of strings.
 
-           These addresses are used to identify the user as author or committer
-           of Git commits by matching the email address in the commit's meta
-           data."""
+        These addresses are used to identify the user as author or committer
+        of Git commits by matching the email address in the commit's meta
+        data."""
         return await self._impl.getGitEmails(self.critic)
 
     @property
@@ -231,8 +235,8 @@ class User(api.APIObject):
     ]:
         """The user's repository filters
 
-           The value is a dictionary mapping api.repository.Repository objects
-           to lists of api.repositoryfilter.RepositoryFilter objects."""
+        The value is a dictionary mapping api.repository.Repository objects
+        to lists of api.repositoryfilter.RepositoryFilter objects."""
         return await self._impl.getRepositoryFilters(self.critic)
 
     @property
@@ -242,12 +246,12 @@ class User(api.APIObject):
     def hasRole(self, role: str) -> bool:
         """Return True if the user has the named role
 
-           If the argument is not a valid role name, an InvalidRole exception is
-           raised."""
+        If the argument is not a valid role name, an InvalidRole exception is
+        raised."""
         return self._impl.hasRole(role)
 
     # async def getPreference(
-    #     self, item: str, *, repository: api.repository.Repository = None
+    #     self, item: str, *, repository: Optional[api.repository.Repository] = None
     # ) -> api.preference.Preference:
     #     """Fetch the user's preference setting for `item`
 
@@ -305,20 +309,20 @@ class User(api.APIObject):
     def password_status(self) -> PasswordStatus:
         """The user's password status
 
-           The password status will be one of the strings in the set
-           User.PASSWORD_STATUS_VALUES:
+        The password status will be one of the strings in the set
+        User.PASSWORD_STATUS_VALUES:
 
-             "set": The user has a password set.
-             "not-set": The user has no password set, but could set one provided
-                        they have some other means of authenticating.
-             "disabled": The user has no password, and can not set one, either
-                         because the user is not current, or because password
-                         authentication is disabled, or not handled by Critic.
+          "set": The user has a password set.
+          "not-set": The user has no password set, but could set one provided
+                     they have some other means of authenticating.
+          "disabled": The user has no password, and can not set one, either
+                      because the user is not current, or because password
+                      authentication is disabled, or not handled by Critic.
 
-           This value should be used by a account UI to determine what kind of
-           password update UI to display.
+        This value should be used by a account UI to determine what kind of
+        password update UI to display.
 
-           Note: The user's password is of course not accessible."""
+        Note: The user's password is of course not accessible."""
         return self._impl.password_status
 
 
@@ -333,7 +337,11 @@ async def fetch(critic: api.critic.Critic, /, *, name: str) -> User:
 
 
 async def fetch(
-    critic: api.critic.Critic, user_id: int = None, /, *, name: str = None
+    critic: api.critic.Critic,
+    user_id: Optional[int] = None,
+    /,
+    *,
+    name: Optional[str] = None,
 ) -> User:
     """Fetch a User object by user id or name.
 
@@ -351,9 +359,7 @@ async def fetch(
     Raises:
         InvalidUserId: The `user_id` is not a valid user id.
         InvalidUserName: The `name` is not a valid user name."""
-    from .impl import user as _impl
-
-    return await _impl.fetch(critic, user_id, name)
+    return await fetchImpl.get()(critic, user_id, name)
 
 
 @overload
@@ -372,49 +378,52 @@ async def fetchMany(
 
 async def fetchMany(
     critic: api.critic.Critic,
-    user_ids: Iterable[int] = None,
+    user_ids: Optional[Iterable[int]] = None,
     /,
     *,
-    names: Iterable[str] = None,
+    names: Optional[Iterable[str]] = None,
 ) -> Sequence[User]:
     """Fetch many User objects with given user ids or names
 
-       Exactly one of the 'user_ids' and 'names' arguments can be used.
+    Exactly one of the 'user_ids' and 'names' arguments can be used.
 
-       If the value of the provided 'user_ids' or 'names' argument is a set, the
-       return value is a also set of User objects, otherwise it is a list of
-       User objects, in the same order as the argument sequence.
+    If the value of the provided 'user_ids' or 'names' argument is a set, the
+    return value is a also set of User objects, otherwise it is a list of
+    User objects, in the same order as the argument sequence.
 
-       Exceptions:
+    Exceptions:
 
-         InvalidUserIds: if 'user_ids' is used and any element in it is not a
-                         valid user id.
-         InvalidUserNames: if 'names' is used and any element in it is not a
-                           valid user name."""
-    from .impl import user as _impl
-
-    return await _impl.fetchMany(critic, user_ids, names)
+      InvalidUserIds: if 'user_ids' is used and any element in it is not a
+                      valid user id.
+      InvalidUserNames: if 'names' is used and any element in it is not a
+                        valid user name."""
+    if user_ids is not None:
+        user_ids = list(user_ids)
+    if names is not None:
+        names = list(names)
+    return await fetchManyImpl.get()(critic, user_ids, names)
 
 
 async def fetchAll(
-    critic: api.critic.Critic, /, *, status: Union[Status, Iterable[Status]] = None,
+    critic: api.critic.Critic,
+    /,
+    *,
+    status: Optional[Union[Status, Iterable[Status]]] = None,
 ) -> Sequence[User]:
     """Fetch User objects for all users of the system
 
-       If |status| is not None, it must be one of the user statuses "current",
-       "absent", "retired" or "disabled", or an iterable containing one or more
-       of those strings."""
-    from .impl import user as _impl
-
+    If |status| is not None, it must be one of the user statuses "current",
+    "absent", "retired" or "disabled", or an iterable containing one or more
+    of those strings."""
     statuses: Optional[Set[Status]]
     if status is not None:
         if isinstance(status, str):
-            statuses = {status}
+            statuses = {as_status(status)}
         else:
             statuses = set(status)
     else:
         statuses = None
-    return await _impl.fetchAll(critic, statuses)
+    return await fetchAllImpl.get()(critic, statuses)
 
 
 def anonymous(critic: api.critic.Critic) -> User:
@@ -425,16 +434,30 @@ def anonymous(critic: api.critic.Critic) -> User:
 
     Returns:
         An `User` object whose `User.is_anonymous` is `True`."""
-    from .impl import user as _impl
-
-    return _impl.anonymous(critic)
+    return anonymousImpl.get()(critic)
 
 
 def system(critic: api.critic.Critic) -> User:
     """Fetch a User object representing the system"""
-    from .impl import user as _impl
-
-    return _impl.system(critic)
+    return systemImpl.get()(critic)
 
 
 resource_name = table_name = "users"
+
+
+fetchImpl: FunctionRef[
+    Callable[[api.critic.Critic, Optional[int], Optional[str]], Awaitable[User]]
+] = FunctionRef()
+fetchManyImpl: FunctionRef[
+    Callable[
+        [api.critic.Critic, Optional[Sequence[int]], Optional[Sequence[str]]],
+        Awaitable[Sequence[User]],
+    ]
+] = FunctionRef()
+fetchAllImpl: FunctionRef[
+    Callable[
+        [api.critic.Critic, Optional[Collection[Status]]], Awaitable[Sequence[User]]
+    ]
+] = FunctionRef()
+anonymousImpl: FunctionRef[Callable[[api.critic.Critic], User]] = FunctionRef()
+systemImpl: FunctionRef[Callable[[api.critic.Critic], User]] = FunctionRef()

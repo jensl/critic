@@ -18,13 +18,14 @@ from __future__ import annotations
 
 import logging
 import stat
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Tuple, Optional, Sequence, Any
 
 logger = logging.getLogger(__name__)
 
 from .apiobject import APIObject
 from critic import api
+from critic.api import tree as public
 from critic import gitaccess
 from critic import textutils
 from critic.gitaccess import SHA1
@@ -32,21 +33,47 @@ from critic.gitaccess import SHA1
 
 @dataclass
 class Entry:
-    tree: api.tree.Tree
-    mode: int
-    name: str
-    sha1: SHA1
-    size: Optional[int]
-    isDirectory: bool = field(init=False)
-    isSymbolicLink: bool = field(init=False)
-    isRegularFile: bool = field(init=False)
-    isSubModule: bool = field(init=False)
+    __tree: api.tree.Tree
+    __mode: int
+    __name: str
+    __sha1: SHA1
+    __size: Optional[int]
 
-    def __post_init__(self) -> None:
-        self.isDirectory = stat.S_ISDIR(self.mode)
-        self.isSymbolicLink = stat.S_ISLNK(self.mode)
-        self.isRegularFile = stat.S_ISREG(self.mode)
-        self.isSubModule = (self.mode & 0o777000) == 0o160000
+    @property
+    def tree(self) -> api.tree.Tree:
+        return self.__tree
+
+    @property
+    def mode(self) -> int:
+        return self.__mode
+
+    @property
+    def name(self) -> str:
+        return self.__name
+
+    @property
+    def sha1(self) -> SHA1:
+        return self.__sha1
+
+    @property
+    def size(self) -> Optional[int]:
+        return self.__size
+
+    @property
+    def isDirectory(self) -> bool:
+        return stat.S_ISDIR(self.mode)
+
+    @property
+    def isSymbolicLink(self) -> bool:
+        return stat.S_ISLNK(self.mode)
+
+    @property
+    def isRegularFile(self) -> bool:
+        return stat.S_ISREG(self.mode)
+
+    @property
+    def isSubModule(self) -> bool:
+        return (self.mode & 0o777000) == 0o160000
 
 
 WrapperType = api.tree.Tree
@@ -67,9 +94,9 @@ class Tree(APIObject[WrapperType, ArgumentsType, CacheKeyType]):
     def cacheKey(wrapper: WrapperType) -> CacheKeyType:
         return (wrapper.repository.id, wrapper.sha1)
 
-    @staticmethod
-    def makeCacheKey(args: ArgumentsType) -> CacheKeyType:
-        repository, sha1, entries = args
+    @classmethod
+    def makeCacheKey(cls, args: ArgumentsType) -> CacheKeyType:
+        repository, sha1, _ = args
         return (repository.id, sha1)
 
     @staticmethod
@@ -79,9 +106,8 @@ class Tree(APIObject[WrapperType, ArgumentsType, CacheKeyType]):
         repository: Optional[api.repository.Repository]
         sha1: Optional[SHA1]
         commit: Optional[api.commit.Commit]
-        path: Optional[str]
         entry: Optional[api.tree.Tree.Entry]
-        repository, sha1, commit, path, entry = args
+        repository, sha1, commit, _, entry = args
         if repository is not None:
             assert sha1 is not None
             return critic, (repository.id, sha1)
@@ -109,9 +135,12 @@ class Tree(APIObject[WrapperType, ArgumentsType, CacheKeyType]):
         return self.__entries
 
     async def readLink(self, entry: api.tree.Tree.Entry) -> str:
-        return textutils.decode(await self.repository.getFileContents(sha1=entry.sha1))
+        contents = await self.repository.getFileContents(sha1=entry.sha1)
+        assert contents is not None
+        return textutils.decode(contents)
 
 
+@public.fetchImpl
 @Tree.cached
 async def fetch(
     critic: api.critic.Critic,
@@ -124,7 +153,7 @@ async def fetch(
     if commit is not None:
         assert path is not None
         repository = commit.repository
-        if path == "/":
+        if not path or path == "/":
             sha1 = commit.tree
         else:
             entries = await repository.low_level.lstree(commit.sha1, path.rstrip("/"))
@@ -145,4 +174,4 @@ async def fetch(
     except gitaccess.GitFetchError:
         raise api.tree.InvalidSHA1(repository, sha1)
 
-    return await Tree.makeOne(repository.critic, (repository, sha1, entries))
+    return await Tree.makeOne(repository.critic, values=(repository, sha1, entries))

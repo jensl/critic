@@ -16,17 +16,27 @@
 
 from __future__ import annotations
 
-from typing import Iterator, FrozenSet, Sequence, Union, Iterable, Optional
+from typing import (
+    Awaitable,
+    Callable,
+    Iterator,
+    FrozenSet,
+    Sequence,
+    Union,
+    Iterable,
+    Optional,
+)
 
 from critic import api
+from critic.api.apiobject import FunctionRef
 
 
 class InvalidCommitRange(Exception):
     """Raised by calculateFromRange() when the range is not simple
 
-       Simple in this context means that the commit that defines the start of
-       the range is an ancestor of the commit that defines the end of the range,
-       and all commits in-between."""
+    Simple in this context means that the commit that defines the start of
+    the range is an ancestor of the commit that defines the end of the range,
+    and all commits in-between."""
 
     pass
 
@@ -62,21 +72,21 @@ class CommitSet(api.APIObject):
     def date_ordered(self) -> Iterator[api.commit.Commit]:
         """The commits in the set in (commit) timestamp order
 
-           The return value is a generator producing api.commit.Commit objects.
-           Commits are guaranteed to precede their parents, even if the actual
-           commit timestamp order is the opposite."""
+        The return value is a generator producing api.commit.Commit objects.
+        Commits are guaranteed to precede their parents, even if the actual
+        commit timestamp order is the opposite."""
         return self._impl.getDateOrdered()
 
     @property
     def topo_ordered(self) -> Iterator[api.commit.Commit]:
         """The commits in the set in "topological" order
 
-           The return value is a generator producing api.commit.Commit objects.
-           Commits are guaranteed to precede their parents, and as far as
-           possible immediately precede their parent.
+        The return value is a generator producing api.commit.Commit objects.
+        Commits are guaranteed to precede their parents, and as far as
+        possible immediately precede their parent.
 
-           It is only valid to call this function on commit sets with a single
-           head (those whose 'heads' attribute returns a set of length 1.)"""
+        It is only valid to call this function on commit sets with a single
+        head (those whose 'heads' attribute returns a set of length 1.)"""
         assert not self or len(self.heads) == 1, repr(list(self))
         return self._impl.getTopoOrdered()
 
@@ -84,32 +94,32 @@ class CommitSet(api.APIObject):
     def heads(self) -> FrozenSet[api.commit.Commit]:
         """The head commits of the set
 
-           The return value is a frozenset of Commit objects.
+        The return value is a frozenset of Commit objects.
 
-           A "head commit" is defined as any commit in the set that is
-           not an immediate parent of another commit in the set."""
+        A "head commit" is defined as any commit in the set that is
+        not an immediate parent of another commit in the set."""
         return self._impl.heads
 
     @property
     def tails(self) -> FrozenSet[api.commit.Commit]:
         """The tail commits of the set
 
-           The return value is a frozenset of Commit objects.
+        The return value is a frozenset of Commit objects.
 
-           A "tail commit" is defined as any commit that is a parent of
-           a commit in the set but isn't itself in the set."""
+        A "tail commit" is defined as any commit that is a parent of
+        a commit in the set but isn't itself in the set."""
         return self._impl.tails
 
     @property
     async def filtered_tails(self) -> FrozenSet[api.commit.Commit]:
         """The filtered tail commits of the set
 
-           The return value is a frozenset of Commit objects.
+        The return value is a frozenset of Commit objects.
 
-           The returned set will contain each tail commit that isn't an ancestor
-           of another tail commit of the set. If the tail commits of the set are
-           all different commits on an upstream branch, then this will only
-           return the latest one."""
+        The returned set will contain each tail commit that isn't an ancestor
+        of another tail commit of the set. If the tail commits of the set are
+        all different commits on an upstream branch, then this will only
+        return the latest one."""
 
         return await self._impl.getFilteredTails(self.critic)
 
@@ -125,14 +135,14 @@ class CommitSet(api.APIObject):
     def getChildrenOf(self, commit: api.commit.Commit) -> FrozenSet[api.commit.Commit]:
         """Return the commits in the set that are children of the commit
 
-           The return value is a set of Commit objects."""
+        The return value is a set of Commit objects."""
         return self._impl.getChildrenOf(commit)
 
     def getParentsOf(self, commit: api.commit.Commit) -> Sequence[api.commit.Commit]:
         """Return the intersection of the commit's parents and the set
 
-           The return value is a list of Commit objects, in the same
-           order as in "commit.parents"."""
+        The return value is a list of Commit objects, in the same
+        order as in "commit.parents"."""
         return self._impl.getParentsOf(commit)
 
     def getDescendantsOf(
@@ -143,12 +153,12 @@ class CommitSet(api.APIObject):
     ) -> CommitSet:
         """Return the intersection of the commit's descendants and the set
 
-           The return value is another CommitSet object.  If 'include_self' is
-           True, the commit itself is included in the returned set.
+        The return value is another CommitSet object.  If 'include_self' is
+        True, the commit itself is included in the returned set.
 
-           The argument can also be a iterable, in which case the returned set
-           is the union of the sets that would be returned for each commit in
-           the iterable."""
+        The argument can also be a iterable, in which case the returned set
+        is the union of the sets that would be returned for each commit in
+        the iterable."""
         if isinstance(commit, api.commit.Commit):
             commits = [commit]
         else:
@@ -164,12 +174,12 @@ class CommitSet(api.APIObject):
     ) -> CommitSet:
         """Return the intersection of the commit's ancestors and the set
 
-           The return value is another CommitSet object.  If 'include_self' is
-           True, the commit itself is included in the returned set.
+        The return value is another CommitSet object.  If 'include_self' is
+        True, the commit itself is included in the returned set.
 
-           The argument can also be a iterable, in which case the returned set
-           is the union of the sets that would be returned for each commit in
-           the iterable."""
+        The argument can also be a iterable, in which case the returned set
+        is the union of the sets that would be returned for each commit in
+        the iterable."""
         if isinstance(commit, api.commit.Commit):
             commits = [commit]
         else:
@@ -198,19 +208,14 @@ class CommitSet(api.APIObject):
 
 
 def empty(critic: api.critic.Critic) -> CommitSet:
-    from .impl import commitset as impl
-
-    assert isinstance(critic, api.critic.Critic)
-    return impl.empty(critic)
+    return emptyImpl.get()(critic)
 
 
 async def create(
     critic: api.critic.Critic, commits: Iterable[api.commit.Commit]
 ) -> CommitSet:
     """Create a CommitSet object from an iterable of Commit objects"""
-    from .impl import commitset as impl
-
-    return await impl.create(critic, commits)
+    return await createImpl.get()(critic, commits)
 
 
 async def calculateFromRange(
@@ -219,13 +224,8 @@ async def calculateFromRange(
     to_commit: api.commit.Commit,
 ) -> CommitSet:
     """Calculate a set of commits from a commit range"""
-    from .impl import commitset as impl
-
-    assert isinstance(critic, api.critic.Critic)
-    assert from_commit is None or isinstance(from_commit, api.commit.Commit)
-    assert isinstance(to_commit, api.commit.Commit)
     assert from_commit is None or from_commit.repository == to_commit.repository
-    return await impl.calculateFromRange(critic, from_commit, to_commit)
+    return await calculateFromRangeImpl.get()(critic, from_commit, to_commit)
 
 
 async def calculateFromBranchUpdate(
@@ -233,7 +233,7 @@ async def calculateFromBranchUpdate(
     current_commits: Optional[CommitSet],
     from_commit: api.commit.Commit,
     to_commit: api.commit.Commit,
-    force_include: Iterable[api.commit.Commit] = None,
+    force_include: Optional[Iterable[api.commit.Commit]] = None,
 ) -> CommitSet:
     """Calculate set of commits to associate with branch when updating it
 
@@ -255,16 +255,32 @@ async def calculateFromBranchUpdate(
     described in the previous paragraph, is instead included. It is an error if
     any commit in the |force_include| set is never considered for inclusion at
     all, i.e. if the resulting set is not a super-set of |force_include|."""
-    from .impl import commitset as impl
-
-    assert isinstance(critic, api.critic.Critic)
     if current_commits is not None:
-        if not isinstance(current_commits, CommitSet):
-            current_commits = await create(critic, current_commits)
         assert from_commit in current_commits.heads or not current_commits
-    assert isinstance(from_commit, api.commit.Commit)
-    assert isinstance(to_commit, api.commit.Commit)
-    assert force_include is None or isinstance(force_include, (set, CommitSet))
-    return await impl.calculateFromBranchUpdate(
+    return await calculateFromBranchUpdateImpl.get()(
         critic, current_commits, from_commit, to_commit, force_include
     )
+
+
+emptyImpl: FunctionRef[Callable[[api.critic.Critic], CommitSet]] = FunctionRef()
+createImpl: FunctionRef[
+    Callable[[api.critic.Critic, Iterable[api.commit.Commit]], Awaitable[CommitSet]]
+] = FunctionRef()
+calculateFromRangeImpl: FunctionRef[
+    Callable[
+        [api.critic.Critic, Optional[api.commit.Commit], api.commit.Commit],
+        Awaitable[CommitSet],
+    ]
+] = FunctionRef()
+calculateFromBranchUpdateImpl: FunctionRef[
+    Callable[
+        [
+            api.critic.Critic,
+            Optional[CommitSet],
+            api.commit.Commit,
+            api.commit.Commit,
+            Optional[Iterable[api.commit.Commit]],
+        ],
+        Awaitable[CommitSet],
+    ]
+] = FunctionRef()

@@ -16,9 +16,10 @@
 
 from __future__ import annotations
 
-from typing import Sequence
+from typing import Awaitable, Callable, Optional, Sequence
 
 from critic import api
+from critic.api.apiobject import FunctionRef
 
 
 class Error(api.APIError, object_type="review scope filter"):
@@ -57,17 +58,27 @@ class ReviewScopeFilter(api.APIObject):
 
 
 async def fetch(critic: api.critic.Critic, filter_id: int, /) -> ReviewScopeFilter:
-    from .impl import reviewscopefilter as impl
-
-    return await impl.fetch(critic, filter_id)
+    return await fetchImpl.get()(critic, filter_id)
 
 
 async def fetchAll(
-    critic: api.critic.Critic, /, *, repository: api.repository.Repository = None
+    critic: api.critic.Critic,
+    /,
+    *,
+    repository: Optional[api.repository.Repository] = None,
 ) -> Sequence[ReviewScopeFilter]:
-    from .impl import reviewscopefilter as impl
-
-    return await impl.fetchAll(critic, repository)
+    return await fetchAllImpl.get()(critic, repository)
 
 
 resource_name = table_name = "reviewscopefilters"
+
+
+fetchImpl: FunctionRef[
+    Callable[[api.critic.Critic, int], Awaitable[ReviewScopeFilter]]
+] = FunctionRef()
+fetchAllImpl: FunctionRef[
+    Callable[
+        [api.critic.Critic, Optional[api.repository.Repository]],
+        Awaitable[Sequence[ReviewScopeFilter]],
+    ]
+] = FunctionRef()

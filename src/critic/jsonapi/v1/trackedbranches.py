@@ -17,16 +17,20 @@
 from __future__ import annotations
 
 import logging
-from typing import Sequence, Optional, Union
+from typing import Sequence, Union
 
 logger = logging.getLogger(__name__)
 
 from critic import api
-from critic import jsonapi
+from ..exceptions import UsageError
+from ..resourceclass import ResourceClass
+from ..parameters import Parameters
+from ..types import JSONResult
+from ..utils import numeric_id
 
 
 class TrackedBranches(
-    jsonapi.ResourceClass[api.trackedbranch.TrackedBranch], api_module=api.trackedbranch
+    ResourceClass[api.trackedbranch.TrackedBranch], api_module=api.trackedbranch
 ):
     """The Git repositories on this system."""
 
@@ -34,19 +38,19 @@ class TrackedBranches(
 
     @staticmethod
     async def json(
-        parameters: jsonapi.Parameters, value: api.trackedbranch.TrackedBranch
-    ) -> jsonapi.JSONResult:
+        parameters: Parameters, value: api.trackedbranch.TrackedBranch
+    ) -> JSONResult:
         """TrackedBranch {
-             "id": integer, // the repository's id
-             "disabled": boolean, /// true if the tracking is disabled
-             "name": string, // the branch name in the local repository
-             "repository": integer, // the repository
-             "branch": integer or null, // the local branch,
-             "source": {
-               "url": string, // remote repository URL
-               "name": string, // the branch name in the remote repository
-             }
-           }"""
+          "id": integer, // the repository's id
+          "disabled": boolean, /// true if the tracking is disabled
+          "name": string, // the branch name in the local repository
+          "repository": integer, // the repository
+          "branch": integer or null, // the local branch,
+          "source": {
+            "url": string, // remote repository URL
+            "name": string, // the branch name in the remote repository
+          }
+        }"""
 
         source = value.source
 
@@ -59,42 +63,38 @@ class TrackedBranches(
             "source": {"url": source.url, "name": source.name},
         }
 
-    @staticmethod
+    @classmethod
     async def single(
-        parameters: jsonapi.Parameters, argument: str
+        cls, parameters: Parameters, argument: str
     ) -> api.trackedbranch.TrackedBranch:
         """Retrieve one (or more) tracked branches in this system.
 
-           TRACKEDBRANCH_ID : integer
+        TRACKEDBRANCH_ID : integer
 
-           Retrieve a tracked branch identified by its unique numeric id."""
+        Retrieve a tracked branch identified by its unique numeric id."""
 
-        return await api.trackedbranch.fetch(
-            parameters.critic, jsonapi.numeric_id(argument)
-        )
+        return await api.trackedbranch.fetch(parameters.critic, numeric_id(argument))
 
     @staticmethod
     async def multiple(
-        parameters: jsonapi.Parameters,
+        parameters: Parameters,
     ) -> Union[
         api.trackedbranch.TrackedBranch, Sequence[api.trackedbranch.TrackedBranch]
     ]:
-        branch = await Branches.deduce(parameters)
+        branch = await parameters.deduce(api.branch.Branch)
         if not branch:
-            review = await Reviews.deduce(parameters)
+            review = await parameters.deduce(api.review.Review)
             if review:
                 branch = await review.branch
         if branch:
             return await api.trackedbranch.fetch(parameters.critic, branch=branch)
 
-        repository = await Repositories.deduce(parameters)
+        repository = await parameters.deduce(api.repository.Repository)
 
-        name_argument = parameters.getQueryParameter("name")
+        name_argument = parameters.query.get("name")
         if name_argument:
             if not repository:
-                raise jsonapi.UsageError(
-                    "Named branch access must have repository specified."
-                )
+                raise UsageError("Named branch access must have repository specified.")
             return await api.trackedbranch.fetch(
                 parameters.critic, repository=repository, name=name_argument
             )
@@ -102,8 +102,3 @@ class TrackedBranches(
         return await api.trackedbranch.fetchAll(
             parameters.critic, repository=repository
         )
-
-
-from .branches import Branches
-from .repositories import Repositories
-from .reviews import Reviews

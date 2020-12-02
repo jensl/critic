@@ -20,8 +20,10 @@ class ClientBase:
     tasks: Set["asyncio.Future[Any]"]
 
     def __init__(
-        self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
-    ) -> None:
+        self,
+        reader: asyncio.StreamReader,
+        writer: asyncio.StreamWriter,
+    ):
         self.reader = reader
         self.writer = writer
         self.tasks = set()
@@ -54,7 +56,6 @@ class ProtocolBase(Generic[ClientType], ABC):
         self.clients = set()
 
     def handle_connection(self) -> asyncio.StreamReaderProtocol:
-        logger.debug("handle_connection()")
         return asyncio.StreamReaderProtocol(asyncio.StreamReader(), self.handle_client)
 
     @abstractmethod

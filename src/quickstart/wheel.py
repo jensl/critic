@@ -10,7 +10,7 @@ from .outputmanager import activity
 from .system import System
 
 
-def find(state_dir: str) -> Optional[str]:
+def find_wheel(state_dir: str) -> Optional[str]:
     wheels = glob.glob(os.path.join(state_dir, "critic-*.whl"))
     if not wheels:
         return None
@@ -19,8 +19,8 @@ def find(state_dir: str) -> Optional[str]:
     return wheels[0]
 
 
-async def build(system: System, current_mtime: float) -> str:
-    wheel = find(system.state_dir)
+async def build_wheel(system: System, current_mtime: float) -> str:
+    wheel = find_wheel(system.state_dir)
 
     if wheel:
         if os.stat(wheel).st_mtime < current_mtime:
@@ -38,7 +38,7 @@ async def build(system: System, current_mtime: float) -> str:
             system.arguments.root_dir,
         )
 
-    wheel = find(system.state_dir)
+    wheel = find_wheel(system.state_dir)
 
     assert wheel
     return wheel

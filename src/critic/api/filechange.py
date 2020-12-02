@@ -16,9 +16,10 @@
 
 from __future__ import annotations
 
-from typing import Iterable, Sequence, Optional
+from typing import Awaitable, Callable, Iterable, Sequence, Optional
 
 from critic import api
+from critic.api.apiobject import FunctionRef
 from critic.gitaccess import SHA1
 
 
@@ -87,24 +88,35 @@ class FileChange(api.APIObject):
 
 
 async def fetch(changeset: api.changeset.Changeset, file: api.file.File) -> FileChange:
-    from .impl import filechange as impl
-
-    return await impl.fetch(changeset.critic, changeset, file)
+    return await fetchImpl.get()(changeset.critic, changeset, file)
 
 
 async def fetchMany(
     changeset: api.changeset.Changeset, files: Iterable[api.file.File]
 ) -> Sequence[FileChange]:
-    from .impl import filechange as impl
-
-    return await impl.fetchMany(changeset.critic, changeset, list(files))
+    return await fetchManyImpl.get()(changeset.critic, changeset, list(files))
 
 
 async def fetchAll(changeset: api.changeset.Changeset) -> Sequence[FileChange]:
-    from .impl import filechange as impl
-
-    return await impl.fetchAll(changeset)
+    return await fetchAllImpl.get()(changeset)
 
 
 resource_name = "filechanges"
 table_name = "changesetfiles"
+
+
+fetchImpl: FunctionRef[
+    Callable[
+        [api.critic.Critic, api.changeset.Changeset, api.file.File],
+        Awaitable[FileChange],
+    ]
+] = FunctionRef()
+fetchManyImpl: FunctionRef[
+    Callable[
+        [api.critic.Critic, api.changeset.Changeset, Sequence[api.file.File]],
+        Awaitable[Sequence[FileChange]],
+    ]
+] = FunctionRef()
+fetchAllImpl: FunctionRef[
+    Callable[[api.changeset.Changeset], Awaitable[Sequence[FileChange]]]
+] = FunctionRef()

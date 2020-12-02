@@ -1,0 +1,2 @@
+class ManifestError(Exception):
+    pass

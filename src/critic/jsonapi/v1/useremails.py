@@ -17,40 +17,44 @@
 from __future__ import annotations
 
 import logging
-from typing import Sequence, Optional, Union
+from typing import Sequence
 
 logger = logging.getLogger(__name__)
 
 from critic import api
-from critic import jsonapi
+from ..check import convert
+from ..exceptions import PathError
+from ..resourceclass import ResourceClass
+from ..parameters import Parameters
+from ..types import JSONInput, JSONResult
+from ..utils import numeric_id
+from ..values import Values
 
 
-class UserEmails(
-    jsonapi.ResourceClass[api.useremail.UserEmail], api_module=api.useremail
-):
+class UserEmails(ResourceClass[api.useremail.UserEmail], api_module=api.useremail):
     """A user's primary email addresses.
 
-       A "primary" email address is one that Critic would send emails to.  A
-       user can have multiple primary email addresses registered, but at most
-       one of them can be selected.  Emails are only sent to a selected primary
-       email address.
+    A "primary" email address is one that Critic would send emails to.  A
+    user can have multiple primary email addresses registered, but at most
+    one of them can be selected.  Emails are only sent to a selected primary
+    email address.
 
-       A user also has a set of "Git" email addresses.  Those are only compared
-       against Git commit meta-data, and are never used when sending emails."""
+    A user also has a set of "Git" email addresses.  Those are only compared
+    against Git commit meta-data, and are never used when sending emails."""
 
     contexts = ("users", None)
 
     @staticmethod
     async def json(
-        parameters: jsonapi.Parameters, value: api.useremail.UserEmail
-    ) -> jsonapi.JSONResult:
+        parameters: Parameters, value: api.useremail.UserEmail
+    ) -> JSONResult:
         """Email {
-             "id": int,              // the address's unique id
-             "user": int,            // owning user's id
-             "address": string,      // the email address
-             "is_selected": boolean, // true if address is selected
-             "status": "verified", "trusted" or "unverified"
-           }"""
+          "id": int,              // the address's unique id
+          "user": int,            // owning user's id
+          "address": string,      // the email address
+          "is_selected": boolean, // true if address is selected
+          "status": "verified", "trusted" or "unverified"
+        }"""
 
         return {
             "id": value.id,
@@ -60,36 +64,32 @@ class UserEmails(
             "status": value.status,
         }
 
-    @staticmethod
+    @classmethod
     async def single(
-        parameters: jsonapi.Parameters, argument: str
+        cls, parameters: Parameters, argument: str
     ) -> api.useremail.UserEmail:
         """Retrieve one (or more) user email addresses.
 
-           ADDRESS_ID : integer
+        ADDRESS_ID : integer
 
-           Retrieve an email address identified by its unique numeric id."""
-        useremail = await api.useremail.fetch(
-            parameters.critic, jsonapi.numeric_id(argument)
-        )
+        Retrieve an email address identified by its unique numeric id."""
+        useremail = await api.useremail.fetch(parameters.critic, numeric_id(argument))
 
-        user = await Users.deduce(parameters)
+        user = await parameters.deduce(api.user.User)
         if user and user != await useremail.user:
-            raise jsonapi.PathError("Email address does not belong to specified user")
+            raise PathError("Email address does not belong to specified user")
 
         return useremail
 
     @staticmethod
     async def multiple(
-        parameters: jsonapi.Parameters,
+        parameters: Parameters,
     ) -> Sequence[api.useremail.UserEmail]:
         """All primary email addresses."""
 
-        user = await Users.deduce(parameters)
-        status = parameters.getQueryParameter(
-            "status", converter=api.useremail.as_status
-        )
-        selected = parameters.getQueryParameter("selected", choices={"yes", "no"})
+        user = await parameters.deduce(api.user.User)
+        status = parameters.query.get("status", converter=api.useremail.as_status)
+        selected = parameters.query.get("selected", choices={"yes", "no"})
 
         return await api.useremail.fetchAll(
             parameters.critic, user=user, status=status, selected=selected == "yes"
@@ -97,9 +97,9 @@ class UserEmails(
 
     @staticmethod
     async def create(
-        parameters: jsonapi.Parameters, data: jsonapi.JSONInput
+        parameters: Parameters, data: JSONInput
     ) -> api.useremail.UserEmail:
-        converted = await jsonapi.convert(
+        converted = await convert(
             parameters,
             {
                 "user?": api.user.User,
@@ -120,23 +120,19 @@ class UserEmails(
             kwargs["status"] = converted["status"]
 
         async with api.transaction.start(critic) as transaction:
-            modifier = transaction.modifyUser(user).addEmailAddress(
-                converted["address"], **kwargs
-            )
+            return (
+                await transaction.modifyUser(user).addEmailAddress(
+                    converted["address"], **kwargs
+                )
+            ).subject
 
-        return await modifier
-
-    @staticmethod
+    @classmethod
     async def delete(
-        parameters: jsonapi.Parameters, values: jsonapi.Values[api.useremail.UserEmail]
+        cls, parameters: Parameters, values: Values[api.useremail.UserEmail]
     ) -> None:
         async with api.transaction.start(parameters.critic) as transaction:
             for useremail in values:
-                (
-                    await transaction.modifyUser(
-                        await useremail.user
-                    ).modifyEmailAddress(useremail)
-                ).delete()
-
-
-from .users import Users
+                modifier = await transaction.modifyUser(
+                    await useremail.user
+                ).modifyEmailAddress(useremail)
+                await modifier.delete()

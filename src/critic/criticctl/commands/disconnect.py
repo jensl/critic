@@ -14,17 +14,20 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
+import argparse
 import logging
+from typing import  Protocol
 
 logger = logging.getLogger(__name__)
 
 from critic import api
+from critic import auth
 
 name = "disconnect"
 title = "Disconnect external account"
 
 
-def setup(parser):
+def setup(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--username", required=True, help="Name of Critic user to connect."
     )
@@ -35,9 +38,14 @@ def setup(parser):
     parser.set_defaults(need_session=True)
 
 
-def main(critic, arguments):
+class Arguments(Protocol):
+    username: str
+    provider: str
+
+
+async def main(critic: api.critic.Critic, arguments: Arguments) -> int:
     try:
-        user = api.user.fetch(critic, name=arguments.username)
+        user = await api.user.fetch(critic, name=arguments.username)
     except api.user.InvalidName:
         logger.error("%s: no such user", arguments.username)
         return 1
@@ -53,32 +61,26 @@ def main(critic, arguments):
             )
         else:
             logger.info("No providers are enabled.")
+        return 1
 
-    with critic.database.updating_cursor("externalusers") as cursor:
-        cursor.execute(
-            """SELECT account
-                 FROM externalusers
-                WHERE uid=%s
-                  AND provider=%s""",
-            (user.id, provider.name),
+    try:
+        external_account = await api.externalaccount.fetch(
+            critic, provider_name=provider.name, user=user
         )
+    except api.externalaccount.NotFound:
+        logger.error(
+            "%s: user is not connected to a %s", user.name, provider.getTitle()
+        )
+        return 1
 
-        for (account,) in cursor:
-            cursor.execute(
-                """DELETE
-                     FROM externalusers
-                    WHERE uid=%s
-                      AND provider=%s""",
-                (user.id, provider.name),
-            )
+    async with api.transaction.start(critic) as transaction:
+        await transaction.modifyUser(user).disconnectFrom(external_account)
 
-            logger.info(
-                "%s: disconnected from %s %r", user.name, provider.getTitle(), account
-            )
+    logger.info(
+        "%s: disconnected from %s %r",
+        user.name,
+        provider.getTitle(),
+        external_account.account_id,
+    )
 
-            break
-        else:
-            logger.error(
-                "%s: user not connected to a %s", user.name, provider.getTitle()
-            )
-            return 1
+    return 0

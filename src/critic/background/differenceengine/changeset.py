@@ -24,26 +24,33 @@ logger = logging.getLogger(__name__)
 from critic import api
 from critic.gitaccess import SHA1
 
-from . import deserialize_key
+from . import deserialize_key, serialize_key
 from .changedfile import ChangedFile
 from .changedlines import ChangedLines
 from .jobgroup import JobGroup
+from .job import Job, RunnerType
 
 
-class Changeset(JobGroup["Changeset"]):
+class Changeset(JobGroup):
     def __init__(
         self,
-        runner: jobrunner.JobRunner,
+        runner: RunnerType,
         changeset_id: int,
         repository_id: int,
         conflicts: bool,
     ):
-        super().__init__(runner, key=(changeset_id,))
-        self.changeset_id = changeset_id
-        self.repository_id = repository_id
-        self.conflicts = conflicts
-        self.language_ids = runner.language_ids
+        super().__init__(runner, key=(changeset_id,), repository_id=repository_id)
+        self.__changeset_id = changeset_id
+        self.__conflicts = conflicts
         self.syntax_highlight = False
+
+    @property
+    def changeset_id(self) -> int:
+        return self.__changeset_id
+
+    @property
+    def conflicts(self) -> bool:
+        return self.__conflicts
 
     def __str__(self) -> str:
         return "changeset %d" % self.changeset_id
@@ -98,7 +105,7 @@ class Changeset(JobGroup["Changeset"]):
         ) as pending_changesets:
             (
                 structure_difference_processed,
-                structure_difference_complete,
+                _,  # structure_difference_complete
                 to_commit_id,
                 to_commit_sha1,
                 from_commit_id,
@@ -147,6 +154,7 @@ class Changeset(JobGroup["Changeset"]):
                 )
         else:
             reference_processed = True
+            reference_id = -1
 
         if not structure_difference_processed:
             self.add_job(
@@ -208,7 +216,7 @@ class Changeset(JobGroup["Changeset"]):
                 )
                 # The reference changeset should now be picked up for content
                 # difference processing.
-                self.runner.find_new_incomplete = True
+                self.runner.find_new_incomplete()
 
             # Mark the (primary) changeset as complete.
             await cursor.execute(
@@ -268,7 +276,7 @@ class Changeset(JobGroup["Changeset"]):
                 content_difference_complete_before and syntax_highlight_complete_before
             )
 
-        content_difference_jobs: Set[job.Job[Changeset]] = set()
+        content_difference_jobs: Set[Job] = set()
 
         ChangedFilesRow = Tuple[int, str, SHA1, int, SHA1, int]
 
@@ -355,6 +363,7 @@ class Changeset(JobGroup["Changeset"]):
             file_ids=list(per_file.keys()),
         ) as changed_lines_result:
             previous_file_id = None
+            delete_offset = insert_offset = 0
             async for (
                 file_id,
                 index,
@@ -395,7 +404,9 @@ class Changeset(JobGroup["Changeset"]):
         #
         # Note: This may lead to us setting |complete| to true below.  This is
         # intentional to stop us from looking at this changeset any more.
-        content_difference_jobs -= self.failed
+        content_difference_jobs = {
+            job for job in content_difference_jobs if job.key not in self.failed
+        }
 
         if content_difference_jobs:
             self.add_jobs(content_difference_jobs)
@@ -447,8 +458,8 @@ class Changeset(JobGroup["Changeset"]):
 
             logger.debug("changed_files=%r", changed_files)
 
-            syntax_highlight_jobs: Set[job.Job[Changeset]] = set()
-            detect_file_language_jobs: Set[job.Job[Changeset]] = set()
+            syntax_highlight_jobs: Set[Job] = set()
+            detect_file_language_jobs: Set[Job] = set()
 
             async with api.critic.Query[Tuple[int, SHA1, bool, bool, str]](
                 critic,
@@ -487,7 +498,9 @@ class Changeset(JobGroup["Changeset"]):
             #
             # Note: This may lead to us setting |complete| to true below.  This
             # is intentional to stop us from looking at this changeset any more.
-            syntax_highlight_jobs -= self.failed
+            syntax_highlight_jobs = {
+                job for job in syntax_highlight_jobs if job.key not in self.failed
+            }
 
             if syntax_highlight_jobs:
                 self.add_jobs(syntax_highlight_jobs)
@@ -507,7 +520,11 @@ class Changeset(JobGroup["Changeset"]):
                 # Note: This may lead to us setting |evaluated| to true below.
                 # This is intentional to stop us from looking at this changeset
                 # any more.
-                detect_file_language_jobs -= self.failed
+                detect_file_language_jobs = {
+                    job
+                    for job in detect_file_language_jobs
+                    if job.key not in self.failed
+                }
 
                 logger.debug("detect_file_language_jobs=%r", detect_file_language_jobs)
 
@@ -540,7 +557,7 @@ class Changeset(JobGroup["Changeset"]):
                     # updated completion level.
                     self.runner.service.update_changeset(self.changeset_id)
 
-    def jobs_finished(self, jobs: Collection[job.Job[Changeset]]) -> None:
+    def jobs_finished(self, jobs: Collection[Job]) -> None:
         # Publish a message to notify interested parties about the
         # updated completion level.
         logger.debug("%d: %d jobs_finished", self.changeset_id, len(jobs))
@@ -552,7 +569,7 @@ class Changeset(JobGroup["Changeset"]):
 
     @staticmethod
     async def find_incomplete(
-        critic: api.critic.Critic, runner: jobrunner.JobRunner
+        critic: api.critic.Critic, runner: RunnerType
     ) -> Collection[Changeset]:
         # First, find all changesets with an incomplete structure difference,
         # skipping the reference changeset for merges.
@@ -614,5 +631,16 @@ class Changeset(JobGroup["Changeset"]):
             for changeset_id, repository_id, conflicts in changesets
         )
 
-
-from . import job, jobrunner
+    async def process_traceback(self, critic: api.critic.Critic, job: Job) -> None:
+        async with critic.transaction() as cursor:
+            await cursor.execute(
+                """INSERT INTO changeseterrors (
+                    changeset, job_key, fatal, traceback
+                ) VALUES (
+                    {changeset}, {job_key}, {fatal}, {traceback}
+                )""",
+                changeset=self.changeset_id,
+                job_key=serialize_key(job.key),
+                fatal=job.is_fatal,
+                traceback=job.traceback,
+            )

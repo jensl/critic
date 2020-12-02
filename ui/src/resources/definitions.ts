@@ -88,6 +88,7 @@ const resourceDefinitions: ResourceDefinitions = {
 
   extensioninstallations: {
     recordType: ExtensionInstallation,
+    defaultInclude: ["extensions", "extensionversions"],
   },
 
   extensionversions: {

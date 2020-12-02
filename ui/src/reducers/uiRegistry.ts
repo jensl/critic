@@ -14,18 +14,18 @@
  * the License.
  */
 
-import { FunctionComponent } from "react"
+import { ComponentType, FunctionComponent } from "react"
 
 import produce from "./immer"
 import { START, UIAddon } from "../actions"
 
-type BaseComponent = FunctionComponent<any>
+type BaseComponent = ComponentType<any>
 
 type OverrideComponentProps = {
   BaseComponent: BaseComponent
 }
 
-type OverrideComponent = FunctionComponent<
+type OverrideComponent = ComponentType<
   { [key: string]: any } & OverrideComponentProps
 >
 
@@ -40,7 +40,7 @@ class Component {
 class Override {
   constructor(
     readonly uiAddon: UIAddon,
-    readonly callback: OverrideComponent
+    readonly callback: OverrideComponent,
   ) {}
 }
 
@@ -49,7 +49,7 @@ export const baseComponents: { [key: string]: BaseComponent } = {}
 export const registry = produce<Map<string, Component>>((draft, action) => {
   if (action.type === START) {
     Object.entries(baseComponents).forEach(([key, base]) =>
-      draft.set(key, new Component(base))
+      draft.set(key, new Component(base)),
     )
   }
 }, new Map())

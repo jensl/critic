@@ -13,6 +13,7 @@ import {
   CommentID,
   ChangesetID,
 } from "../resources/types"
+import { immerable } from "immer"
 
 export class InvalidItem {
   constructor(readonly id: number | string) {}
@@ -266,24 +267,21 @@ export interface DataUpdateAction extends DataUpdateParams {
   type: typeof DATA_UPDATE
 }
 
-export const PUSH_BREADCRUMB = "PUSH_BREADCRUMB"
-export interface PushBreadcrumbAction {
-  type: typeof PUSH_BREADCRUMB
+export type Breadcrumb = {
   category: string
   label: string
   path: string | null
-  token: Token
 }
 
-export const POP_BREADCRUMB = "POP_BREADCRUMB"
-export interface PopBreadcrumbAction {
-  type: typeof POP_BREADCRUMB
-  token: Token
+export const SET_BREADCRUMBS = "SET_BREADCRUMBS"
+export interface SetBreadcrumbsAction {
+  type: typeof SET_BREADCRUMBS
+  crumbs: Breadcrumb[]
 }
 
 export const PUSH_KEYBOARD_SHORTCUT_SCOPE = "PUSH_KEYBOARD_SHORTCUT_SCOPE"
 export type KeyboardShortcutHandlerFunc = (
-  ev: KeyboardEvent
+  ev: KeyboardEvent,
 ) => boolean | { preventDefault: boolean }
 export type KeyboardShortcutScopeType =
   | "default"
@@ -333,7 +331,7 @@ export interface UserSettingsLoadedAction {
 
 export type SaveActionCreator = (
   controlValue: string,
-  wasDismissed: boolean
+  wasDismissed: boolean,
 ) => any
 
 export const REGISTER_CONNECTED_INPUT = "REGISTER_CONNECTED_INPUT"
@@ -501,13 +499,15 @@ type ToastProps = {
 }
 
 export class Toast {
+  [immerable] = true
+
   constructor(
     readonly token: null | Token,
     readonly type: null | string,
     readonly title: null | string,
     readonly timeoutMS: null | number,
     readonly content?: null | string | JSX.Element,
-    readonly state?: null | ToastState
+    readonly state?: null | ToastState,
   ) {}
 
   static new(props: ToastProps) {
@@ -517,8 +517,12 @@ export class Toast {
       props.title,
       props.timeoutMS,
       props.content,
-      props.state
+      props.state,
     )
+  }
+
+  withState(state: ToastState) {
+    return Toast.new({ ...this, state })
   }
 }
 
@@ -532,7 +536,7 @@ export const SET_TOAST_STATE = "SET_TOAST_STATE"
 export interface SetToastStateAction {
   type: typeof SET_TOAST_STATE
   token: Token
-  state: ToastState | null
+  state: ToastState
 }
 
 export const TOAST_REMOVED = "TOAST_REMOVED"
@@ -555,14 +559,17 @@ export interface TreesUpdate {
   sha1: string
 }
 
-export type ComponentListId = "SYSTEM_SETTINGS_PANE" | "ACCOUNT_SETTINGS_PANE"
+export type ItemList = "account-settings-panels" | "system-settings-panels"
 
-export const ADD_COMPONENT_TO_LIST = "ADD_COMPONENT_TO_LIST"
-export interface AddComponentToList {
-  type: typeof ADD_COMPONENT_TO_LIST
-  componentList: ComponentListId
-  component: React.FunctionComponent<{}>
-  uiAddon: UIAddon
+export const ADD_ITEM_TO_LIST = "ADD_ITEM_TO_LIST"
+export interface AddItemToList {
+  type: typeof ADD_ITEM_TO_LIST
+  list: ItemList
+  extensionID: ExtensionID
+  itemID: string
+  render: FunctionComponent<{}>
+  before: string | null
+  after: string | null
 }
 
 export type Action =
@@ -590,8 +597,7 @@ export type Action =
   | DocumentClickedAction
   | AddLinkifierAction
   | RemoveLinkifierAction
-  | PushBreadcrumbAction
-  | PopBreadcrumbAction
+  | SetBreadcrumbsAction
   | PushKeyboardShortcutScopeAction
   | PopKeyboardShortcutScopeAction
   | SetSingleSpaceWidthAction
@@ -626,4 +632,4 @@ export type Action =
   | LoginFailureAction
   | DownloadAction
   | TreesUpdate
-  | AddComponentToList
+  | AddItemToList

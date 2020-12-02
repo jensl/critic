@@ -22,171 +22,135 @@ from typing import (
     Container,
     Dict,
     Iterable,
-    Literal,
     Optional,
     overload,
-    Union,
 )
 
 logger = logging.getLogger(__name__)
 
-from . import (
-    CreatedReview,
-    CreatedReviewEvent,
-    CreatedBatch,
-    CreatedReviewIntegrationRequest,
-    CreatedReviewFilter,
-    CreatedReviewPing,
-    ReviewUser,
-)
-from .updatereviewtags import UpdateReviewTags
-from .. import Transaction, Query, Insert, InsertMany, Update, Delete, Modifier
-
 from critic import api
 from critic import dbaccess
+from ..base import TransactionBase
+from ..item import Insert, InsertMany, FetchScalars, Delete
+from ..modifier import Modifier
+from ..comment.mixin import ModifyReview as CommentMixin
+from ..rebase.mixin import ModifyReview as RebaseMixin
+from ..reviewfilter.mixin import ModifyReview as ReviewFilterMixin
+from ..reviewintegrationrequest.mixin import (
+    ModifyReview as ReviewIntegrationRequestMixin,
+)
+from ..branch.modify import ModifyBranch
+from . import (
+    CreateReviewEvent,
+    ReviewUser,
+    raiseUnlessPublished,
+)
+from .create import CreateReview
+from .updatereviewtags import UpdateReviewTags
 
 
-class ModifyReview(Modifier[api.review.Review, CreatedReview]):
+class ModifyReview(
+    CommentMixin,
+    RebaseMixin,
+    ReviewFilterMixin,
+    ReviewIntegrationRequestMixin,
+    Modifier[api.review.Review],
+):
     def __init__(
-        self, transaction: Transaction, review: Union[api.review.Review, CreatedReview]
+        self,
+        transaction: TransactionBase,
+        review: api.review.Review,
     ) -> None:
         super().__init__(transaction, review)
-        if self.is_real:
-            transaction.lock("reviews", id=self.real.id)
-            transaction.items.append(
-                Query(
-                    """UPDATE reviews
-                          SET serial=serial + 1
-                        WHERE id={review}""",
-                    review=review,
-                )
-            )
+        # transaction.lock("reviews", id=self.subject.id)
 
-    def __raiseUnlessPublished(self) -> None:
-        if self.subject.state == "draft":
-            raise api.review.Error("Review has not been published")
+    def _updateReviewTags(self) -> None:
+        self.transaction.finalizers.add(UpdateReviewTags(self.subject))
+
+    async def _clearReviewTags(self) -> None:
+        await self.transaction.execute(
+            Delete("reviewusertags").where(review=self.subject)
+        )
+
+    async def _setState(
+        self, state: api.review.State, event: api.reviewevent.EventType
+    ) -> None:
+        async with self.update() as update:
+            update.set(state=state)
+        await CreateReviewEvent.ensure(self.transaction, self.subject, event)
 
     async def publishReview(self) -> None:
-        from .publish import publish
-
-        if self.subject.state != "draft":
-            raise api.review.Error("Review already published")
-
-        if await self.subject.initial_commits_pending:
-            raise api.review.Error("Initial commits still pending")
-
-        publish(self.transaction, self.subject)
+        api.review.Error.raiseUnless(await (await self.subject.reload()).can_publish)
+        await self._setState("open", "published")
 
     async def closeReview(self) -> None:
-        if self.subject.state != "open":
-            raise api.review.Error("Only open reviews can be closed")
-        if not await self.real.is_accepted:
-            raise api.review.Error("Only accepted reviews can be closed")
-
-        self.transaction.items.append(
-            Update("reviews").set(state="closed").where(id=self.subject)
-        )
-        self.transaction.items.append(
-            Delete("reviewusertags").where(review=self.subject)
-        )
-
-        CreatedReviewEvent.ensure(self.transaction, self.subject, "closed")
+        api.review.Error.raiseUnless(await (await self.subject.reload()).can_close)
+        await self._setState("closed", "closed")
+        await self._clearReviewTags()
 
     async def dropReview(self) -> None:
-        if self.subject.state != "open":
-            raise api.review.Error("Only open reviews can be dropped")
-        if await self.real.is_accepted:
-            raise api.review.Error("Accepted review can not be dropped")
+        api.review.Error.raiseUnless(await (await self.subject.reload()).can_drop)
+        await self._setState("dropped", "dropped")
+        await self._clearReviewTags()
 
-        self.transaction.items.append(
-            Update("reviews").set(state="dropped").where(id=self.subject)
-        )
-        self.transaction.items.append(
-            Delete("reviewusertags").where(review=self.subject)
-        )
+    async def reopenReview(self) -> None:
+        api.review.Error.raiseUnless(await (await self.subject.reload()).can_reopen)
+        await self._setState("open", "reopened")
+        self._updateReviewTags()
 
-        CreatedReviewEvent.ensure(self.transaction, self.subject, "dropped")
+    async def setSummary(self, new_summary: str) -> None:
+        async with self.update() as update:
+            update.set(summary=new_summary)
 
-    def reopenReview(self) -> None:
-        if self.subject.state not in ("closed", "dropped"):
-            raise api.review.Error("Only closed or dropped reviews can be reopened")
-
-        self.transaction.items.append(Update(self.subject).set(state="open"))
-        self.transaction.finalizers.add(UpdateReviewTags(self.real))
-
-        CreatedReviewEvent.ensure(self.transaction, self.subject, "reopened")
-
-    def setSummary(self, new_summary: str) -> None:
-        self.transaction.items.append(Update(self.subject).set(summary=new_summary))
-
-    def setDescription(self, new_description: str) -> None:
-        self.transaction.items.append(
-            Update(self.subject).set(description=new_description)
-        )
+    async def setDescription(self, new_description: str) -> None:
+        async with self.update() as update:
+            update.set(description=new_description)
 
     async def setOwners(self, new_owners: Iterable[api.user.User]) -> None:
         new_owners = set(new_owners)
-        current_owners = await self.real.owners
+        current_owners = await self.subject.owners
 
         added_owners = set(new_owners) - current_owners
         removed_owners = current_owners - set(new_owners)
 
         for user in added_owners:
-            ReviewUser.ensure(self.transaction, self.real, user, is_owner=True)
+            ReviewUser.ensure(self.transaction, self.subject, user, is_owner=True)
         for user in removed_owners:
-            ReviewUser.ensure(self.transaction, self.real, user, is_owner=False)
+            ReviewUser.ensure(self.transaction, self.subject, user, is_owner=False)
 
-    async def createComment(
-        self,
-        comment_type: api.comment.CommentType,
-        author: api.user.User,
-        text: str,
-        location: api.comment.Location = None,
-    ) -> ModifyComment:
-        self.__raiseUnlessPublished()
-        return await ModifyComment.create(
-            self.transaction, self.real, comment_type, author, text, location
-        )
-
-    async def modifyComment(self, comment: api.comment.Comment) -> ModifyComment:
-        if await comment.review != self.subject:
-            raise api.review.Error("Cannot modify comment belonging to another review")
-
-        # Users are not (generally) allowed to modify other users' draft
-        # comments.
-        if comment.is_draft:
-            api.PermissionDenied.raiseUnlessUser(
-                self.transaction.critic, await comment.author
-            )
-
-        return ModifyComment(self.transaction, comment)
-
-    async def setBranch(self, branch: Union[api.branch.Branch, CreatedBranch]) -> None:
-        if await self.subject.branch is not None:
+    async def setBranch(self, branch: api.branch.Branch) -> ModifyBranch:
+        if await (await self.reload()).branch is not None:
             raise api.review.Error("Review already has a branch set")
 
-        self.transaction.items.append(Update(self.subject).set(branch=branch))
+        async with self.update() as update:
+            update.set(branch=branch)
 
-        # FIXME: This seems to imply a single review event may map to multiple
-        #        branch update records, which `ReviewEvent.branchupdate` doesn't
-        #        really support.
-
-        event = CreatedReviewEvent.ensure(
-            self.transaction, self.subject, "branchupdate"
+        branchupdate_ids = await self.transaction.execute(
+            FetchScalars[int]("branchupdates", "id").where(branch=branch)
         )
+        branchupdate_events: Dict[int, api.reviewevent.ReviewEvent] = {}
+        system = api.user.system(self.critic)
 
-        self.transaction.tables.add("reviewupdates")
-        self.transaction.items.append(
-            Query(
-                """INSERT
-                     INTO reviewupdates (branchupdate, event)
-                   SELECT id, {event}
-                     FROM branchupdates
-                    WHERE branch={branch}""",
-                event=event,
-                branch=branch,
+        for branchupdate_id in branchupdate_ids:
+            branchupdate_events[branchupdate_id] = await CreateReviewEvent.create(
+                self.transaction, self.subject, "branchupdate", user=system
+            )
+
+        await self.transaction.execute(
+            InsertMany(
+                "reviewupdates",
+                ["branchupdate", "event"],
+                (
+                    dbaccess.parameters(
+                        branchupdate=branchupdate_id,
+                        event=branchupdate_events[branchupdate_id],
+                    )
+                    for branchupdate_id in branchupdate_ids
+                ),
             )
         )
+
+        return ModifyBranch(self.transaction, branch)
 
     async def modifyBranch(self) -> ModifyBranch:
         branch = await self.subject.branch
@@ -194,124 +158,41 @@ class ModifyReview(Modifier[api.review.Review, CreatedReview]):
             raise api.review.Error("Review has no branch")
         return ModifyBranch(self.transaction, branch)
 
-    @overload
-    async def prepareRebase(
-        self, *, new_upstream: str, branch: api.branch.Branch = None
-    ) -> ModifyRebase:
-        ...
-
-    @overload
-    async def prepareRebase(
-        self, *, history_rewrite: Literal[True], branch: api.branch.Branch = None
-    ) -> ModifyRebase:
-        ...
-
-    async def prepareRebase(
-        self,
-        *,
-        new_upstream: str = None,
-        history_rewrite: Literal[True] = None,
-        branch: api.branch.Branch = None,
-    ) -> ModifyRebase:
-        self.__raiseUnlessPublished()
-        return await prepare_rebase(
-            self.transaction, self.real, new_upstream, bool(history_rewrite), branch
-        )
-
-    def modifyRebase(self, rebase: api.log.rebase.Rebase) -> ModifyRebase:
-        return ModifyRebase(self.transaction, rebase)
-
-    def finishRebase(
-        self,
-        rebase: api.log.rebase.Rebase,
-        branchupdate: api.branchupdate.BranchUpdate,
-        new_upstream: api.commit.Commit = None,
-        *,
-        equivalent_merge: api.commit.Commit = None,
-        replayed_rebase: api.commit.Commit = None,
-    ) -> None:
-        updates: Dict[str, dbaccess.Parameter] = {"branchupdate": branchupdate}
-
-        if isinstance(rebase, api.log.rebase.HistoryRewrite):
-            assert new_upstream is None
-            assert equivalent_merge is None
-            assert replayed_rebase is None
-        else:
-            assert isinstance(new_upstream, api.commit.Commit)
-            updates["new_upstream"] = new_upstream
-            assert equivalent_merge is None or replayed_rebase is None
-            if equivalent_merge is not None:
-                assert isinstance(equivalent_merge, api.commit.Commit)
-                updates["equivalent_merge"] = equivalent_merge
-            if replayed_rebase is not None:
-                assert isinstance(replayed_rebase, api.commit.Commit)
-                updates["replayed_rebase"] = replayed_rebase
-
-        self.transaction.tables.add("reviewrebases")
-        self.transaction.items.append(
-            Update("reviewrebases").set(**updates).where(id=rebase)
-        )
-
-    def recordRebase(
-        self,
-        branchupdate: Union[api.branchupdate.BranchUpdate, CreatedBranchUpdate],
-        *,
-        old_upstream: api.commit.Commit = None,
-        new_upstream: api.commit.Commit = None,
-    ) -> CreatedRebase:
-        event = CreatedReviewEvent.ensure(
-            self.transaction,
-            self.subject,
-            "branchupdate",
-            user=api.user.system(self.transaction.critic),
-        )
-
-        self.transaction.items.append(
-            Insert("reviewupdates").values(branchupdate=branchupdate, event=event)
-        )
-
-        return CreatedRebase(self.transaction, self.real, is_pending=False).insert(
-            review=self.subject,
-            branchupdate=branchupdate,
-            old_upstream=old_upstream,
-            new_upstream=new_upstream,
-        )
-
-    async def submitChanges(self, batch_comment: CreatedComment = None) -> CreatedBatch:
-        self.__raiseUnlessPublished()
-        return await submit_changes(self.transaction, self.real, batch_comment)
+    async def submitChanges(
+        self, batch_comment: Optional[api.comment.Comment] = None
+    ) -> api.batch.Batch:
+        raiseUnlessPublished(self.subject)
+        return await submit_changes(self.transaction, self.subject, batch_comment)
 
     async def discardChanges(self, discard: Container[api.batch.DiscardValue]) -> None:
-        self.__raiseUnlessPublished()
-        await discard_changes(self.transaction, self.real, discard)
+        raiseUnlessPublished(self.subject)
+        await discard_changes(self.transaction, self.subject, discard)
 
     async def markChangeAsReviewed(
         self, rfc: api.reviewablefilechange.ReviewableFileChange
     ) -> None:
-        self.__raiseUnlessPublished()
+        raiseUnlessPublished(self.subject)
         await mark_change_as_reviewed(self.transaction, rfc)
 
     async def markChangeAsPending(
         self, rfc: api.reviewablefilechange.ReviewableFileChange
     ) -> None:
-        self.__raiseUnlessPublished()
+        raiseUnlessPublished(self.subject)
         await mark_change_as_pending(self.transaction, rfc)
 
     async def recordBranchUpdate(
         self, branchupdate: api.branchupdate.BranchUpdate
-    ) -> CreatedReviewEvent:
+    ) -> api.reviewevent.ReviewEvent:
         api.PermissionDenied.raiseUnlessService("reviewupdater")
 
-        event = CreatedReviewEvent.ensure(
+        event = await CreateReviewEvent.ensure(
             self.transaction,
             self.subject,
             "branchupdate",
             user=await branchupdate.updater,
         )
 
-        assert event
-
-        self.transaction.items.append(
+        await self.transaction.execute(
             Insert("reviewupdates").values(branchupdate=branchupdate, event=event)
         )
 
@@ -324,12 +205,14 @@ class ModifyReview(Modifier[api.review.Review, CreatedReview]):
     ) -> None:
         api.PermissionDenied.raiseUnlessService("reviewupdater")
 
-        self.transaction.items.append(
+        await self.transaction.execute(
             InsertMany(
                 "reviewcommits",
                 ["review", "branchupdate", "commit"],
                 (
-                    dict(review=self.subject, branchupdate=branchupdate, commit=commit)
+                    dbaccess.parameters(
+                        review=self.subject, branchupdate=branchupdate, commit=commit
+                    )
                     for commit in commits
                 ),
             )
@@ -357,8 +240,8 @@ class ModifyReview(Modifier[api.review.Review, CreatedReview]):
         self,
         changesets: Collection[api.changeset.Changeset],
         *,
-        branchupdate: api.branchupdate.BranchUpdate = None,
-        commits: api.commitset.CommitSet = None,
+        branchupdate: Optional[api.branchupdate.BranchUpdate] = None,
+        commits: Optional[api.commitset.CommitSet] = None,
     ) -> None:
         api.PermissionDenied.raiseUnlessService("reviewupdater")
 
@@ -367,74 +250,35 @@ class ModifyReview(Modifier[api.review.Review, CreatedReview]):
             assert "changedlines" in completion_level, repr(completion_level)
 
         await add_changesets(
-            self.transaction, self.real, changesets, branchupdate, commits
+            self.transaction, self.subject, changesets, branchupdate, commits
         )
 
-    async def requestIntegration(
-        self,
-        do_squash: bool,
-        squash_message: Optional[str],
-        do_autosquash: bool,
-        do_integrate: bool,
-    ) -> CreatedReviewIntegrationRequest:
-        return await create_integration_request(
-            self.transaction,
-            self.real,
-            do_squash,
-            squash_message,
-            do_autosquash,
-            do_integrate,
-        )
-
-    def createFilter(
-        self,
-        subject: api.user.User,
-        filter_type: api.reviewfilter.FilterType,
-        path: str,
-        default_scope: bool,
-        scopes: Collection[api.reviewscope.ReviewScope],
-    ) -> CreatedReviewFilter:
-        return create_filter(
-            self.transaction,
-            self.real,
-            subject,
-            filter_type,
-            path,
-            default_scope,
-            scopes,
-        )
-
-    async def deleteFilter(self, filter: api.reviewfilter.ReviewFilter) -> None:
-        if await filter.review != self.subject:
-            raise api.review.Error("Cannot delete filter belonging to another review")
-        await delete_filter(self.transaction, self.real, filter)
-
-    async def pingReview(self, message: str) -> CreatedReviewPing:
-        return await ping_review(self.transaction, self.real, message)
+    async def pingReview(self, message: str) -> api.reviewping.ReviewPing:
+        return await ping_review(self.transaction, self.subject, message)
 
     async def deleteReview(self, *, deleting_repository: bool = False) -> None:
         if self.subject.state != "draft":
             api.PermissionDenied.raiseUnlessAdministrator(self.transaction.critic)
 
-        super().delete()
+        await super().delete()
 
         if not deleting_repository and await self.subject.branch:
             await (await self.modifyBranch()).deleteBranch()
 
     @staticmethod
     async def create(
-        transaction: Transaction,
+        transaction: TransactionBase,
         repository: api.repository.Repository,
         owners: Iterable[api.user.User],
         head: Optional[api.commit.Commit],
         commits: Optional[Iterable[api.commit.Commit]],
-        branch: Optional[Union[api.branch.Branch, CreatedBranch]],
+        branch: Optional[api.branch.Branch],
         target_branch: Optional[api.branch.Branch],
         via_push: bool,
     ) -> ModifyReview:
         return ModifyReview(
             transaction,
-            await create_review(
+            await CreateReview.make(
                 transaction,
                 repository,
                 owners,
@@ -447,17 +291,9 @@ class ModifyReview(Modifier[api.review.Review, CreatedReview]):
         )
 
 
-from .create import create_review
-from .preparerebase import prepare_rebase
 from .submitchanges import submit_changes
 from .discardchanges import discard_changes
 from .markchangeasreviewed import mark_change_as_reviewed
 from .markchangeaspending import mark_change_as_pending
 from .addchangesets import add_changesets
-from .integrationrequest import create_integration_request
-from .createfilter import create_filter
-from .deletefilter import delete_filter
 from .pingreview import ping_review
-from ..comment import CreatedComment, ModifyComment
-from ..branch import CreatedBranch, CreatedBranchUpdate, ModifyBranch
-from ..rebase import CreatedRebase, ModifyRebase

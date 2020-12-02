@@ -16,9 +16,10 @@
 
 from __future__ import annotations
 
-from typing import FrozenSet, Mapping, Sequence
+from typing import Awaitable, Callable, FrozenSet, Mapping, Sequence
 
 from critic import api
+from critic.api.apiobject import FunctionRef
 
 
 class Error(api.APIError, object_type="merge analysis"):
@@ -49,15 +50,15 @@ class MergeChangeset(api.APIObject):
     async def files(self) -> FrozenSet[api.file.File]:
         """The set of files that were modified by both sides of the merge
 
-           The returned value is a set of api.file.File objects.
+        The returned value is a set of api.file.File objects.
 
-           The two sides of the merge referred to by "both sides" are
-            1) between the merge-base and the parent, and
-            2) between the parent and the merge commit.
+        The two sides of the merge referred to by "both sides" are
+         1) between the merge-base and the parent, and
+         2) between the parent and the merge commit.
 
-           Note that only some, or none, of these files may have been changed on
-           both sides in such a way that there was a conflict. Inclusion in this
-           list simply means that the file has been modified at all."""
+        Note that only some, or none, of these files may have been changed on
+        both sides in such a way that there was a conflict. Inclusion in this
+        list simply means that the file has been modified at all."""
         return await self._impl.getFiles(self.critic)
 
     async def getMacroChunks(
@@ -65,21 +66,21 @@ class MergeChangeset(api.APIObject):
     ) -> Mapping[api.file.File, Sequence[api.filediff.MacroChunk]]:
         """Return the "relevant" changes, given an "adjacency limit"
 
-           The returned value is a dictionary mapping api.file.File objects to
-           lists of api.filediff.MacroChunk objects.
+        The returned value is a dictionary mapping api.file.File objects to
+        lists of api.filediff.MacroChunk objects.
 
-           Only files included in the set returned by |files| can appear as keys
-           in the dictionary, but all will not necessarily appear. The returned
-           dictionary can also be empty, if there are no "relevant" changes to
-           highlight at all.
+        Only files included in the set returned by |files| can appear as keys
+        in the dictionary, but all will not necessarily appear. The returned
+        dictionary can also be empty, if there are no "relevant" changes to
+        highlight at all.
 
-           The "adjacency limit" determines what set of changes to include. It
-           sets the maximum number of unchanged lines allowed between a block of
-           changed lines in the diff between the merge-base commit and the
-           parent commit, and a block of changed lines in the diff between the
-           parent commit and the merge commit, for the latter block to be
-           included in the returned filediff object. A zero limit means only
-           overlapping or directly adjacent changes are included."""
+        The "adjacency limit" determines what set of changes to include. It
+        sets the maximum number of unchanged lines allowed between a block of
+        changed lines in the diff between the merge-base commit and the
+        parent commit, and a block of changed lines in the diff between the
+        parent commit and the merge commit, for the latter block to be
+        included in the returned filediff object. A zero limit means only
+        overlapping or directly adjacent changes are included."""
         return await self._impl.getMacroChunks(
             self.critic, adjacency_limit, context_lines
         )
@@ -110,8 +111,8 @@ class MergeAnalysis(api.APIObject):
     async def changes_relative_parents(self) -> Sequence[MergeChangeset]:
         """Filtered changes relative each parent.
 
-           The returned value is a list of MergeChangeset objects, one for each
-           parent of the merge commit, in the same order as the parents."""
+        The returned value is a list of MergeChangeset objects, one for each
+        parent of the merge commit, in the same order as the parents."""
         return await self._impl.getChangesRelativeParent(self.critic)
 
     @property
@@ -157,9 +158,12 @@ async def fetch(merge: api.commit.Commit) -> MergeAnalysis:
 
     Returns:
         A `MergeAnalysis` object."""
-    from .impl import mergeanalysis as impl
-
-    return await impl.fetch(merge)
+    return await fetchImpl.get()(merge)
 
 
 resource_name = "mergeanalyses"
+
+
+fetchImpl: FunctionRef[
+    Callable[[api.commit.Commit], Awaitable[MergeAnalysis]]
+] = FunctionRef()

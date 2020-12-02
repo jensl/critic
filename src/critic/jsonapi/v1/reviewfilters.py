@@ -17,18 +17,22 @@
 from __future__ import annotations
 
 import logging
-from typing import Sequence, Optional, Union, Any
+from typing import Sequence, Union
 
 logger = logging.getLogger(__name__)
 
 from critic import api
-from critic import jsonapi
-
-from ..types import JSONInputItem
+from ..check import TypeCheckerContext, StringChecker, convert
+from ..exceptions import PathError, UsageError
+from ..resourceclass import ResourceClass
+from ..parameters import Parameters
+from ..types import JSONInputItem, JSONInput, JSONResult
+from ..utils import numeric_id
+from ..values import Values
 
 
 class ReviewFilters(
-    jsonapi.ResourceClass[api.reviewfilter.ReviewFilter], api_module=api.reviewfilter
+    ResourceClass[api.reviewfilter.ReviewFilter], api_module=api.reviewfilter
 ):
     """Filters that apply to changes in a single review."""
 
@@ -36,16 +40,16 @@ class ReviewFilters(
 
     @staticmethod
     async def json(
-        parameters: jsonapi.Parameters, value: api.reviewfilter.ReviewFilter
-    ) -> jsonapi.JSONResult:
+        parameters: Parameters, value: api.reviewfilter.ReviewFilter
+    ) -> JSONResult:
         """Filter {
-             "id": integer, // the filter's id
-             "subject": integer, // the filter's subject (affected user)
-             "review": integer, // the filter's review's id
-             "type": string, // "reviewer", "watcher" or "ignored"
-             "path": string, // the filtered path
-             "creator": integer, // the user who created the filter
-           }"""
+          "id": integer, // the filter's id
+          "subject": integer, // the filter's subject (affected user)
+          "review": integer, // the filter's review's id
+          "type": string, // "reviewer", "watcher" or "ignored"
+          "path": string, // the filtered path
+          "creator": integer, // the user who created the filter
+        }"""
 
         return {
             "id": value.id,
@@ -58,47 +62,45 @@ class ReviewFilters(
             "creator": value.creator,
         }
 
-    @staticmethod
+    @classmethod
     async def single(
-        parameters: jsonapi.Parameters, argument: str
+        cls, parameters: Parameters, argument: str
     ) -> api.reviewfilter.ReviewFilter:
         """Retrieve one (or more) of a user's repository filters.
 
-           FILTER_ID : integer
+        FILTER_ID : integer
 
-           Retrieve a filter identified by the filters's unique numeric id."""
+        Retrieve a filter identified by the filters's unique numeric id."""
 
-        filter = await api.reviewfilter.fetch(
-            parameters.critic, jsonapi.numeric_id(argument)
-        )
+        filter = await api.reviewfilter.fetch(parameters.critic, numeric_id(argument))
 
-        user = await Users.deduce(parameters)
+        user = await parameters.deduce(api.user.User)
         if user and user != filter.subject:
-            raise jsonapi.PathError("Filter does not belong to specified user")
+            raise PathError("Filter does not belong to specified user")
 
-        review = await Reviews.deduce(parameters)
+        review = await parameters.deduce(api.review.Review)
         if review and review != filter.review:
-            raise jsonapi.PathError("Filter does not belong to specified review")
+            raise PathError("Filter does not belong to specified review")
 
         return filter
 
     @staticmethod
     async def multiple(
-        parameters: jsonapi.Parameters,
+        parameters: Parameters,
     ) -> Sequence[api.reviewfilter.ReviewFilter]:
         """All review filters.
 
-           review : REVIEW_ID : -
+        review : REVIEW_ID : -
 
-           Include only filters that apply to the changes in the specified
-           review.
+        Include only filters that apply to the changes in the specified
+        review.
 
-           user : USER : -
+        user : USER : -
 
-           Include only filters whose subject is the specified user."""
+        Include only filters whose subject is the specified user."""
 
-        review = await Reviews.deduce(parameters)
-        subject = await Users.deduce(parameters)
+        review = await parameters.deduce(api.review.Review)
+        subject = await parameters.deduce(api.user.User)
 
         return await api.reviewfilter.fetchAll(
             parameters.critic, review=review, subject=subject
@@ -106,13 +108,15 @@ class ReviewFilters(
 
     @staticmethod
     async def create(
-        parameters: jsonapi.Parameters, data: jsonapi.JSONInput
+        parameters: Parameters, data: JSONInput
     ) -> Union[api.reviewfilter.ReviewFilter, Sequence[api.reviewfilter.ReviewFilter]]:
         from critic import reviewing
 
-        class FilterPath(jsonapi.check.StringChecker):
+        class FilterPath(StringChecker):
             async def check(
-                self, context: jsonapi.check.TypeCheckerContext, value: JSONInputItem,
+                self,
+                context: TypeCheckerContext,
+                value: JSONInputItem,
             ) -> str:
                 path = reviewing.filters.sanitizePath(
                     await super().check(context, value)
@@ -125,7 +129,7 @@ class ReviewFilters(
 
         critic = parameters.critic
 
-        one_converted, many_converted = await jsonapi.convert(
+        one_converted, many_converted = await convert(
             parameters,
             {
                 "subject?": api.user.User,
@@ -142,8 +146,8 @@ class ReviewFilters(
         all_converted = [one_converted] if one_converted else many_converted
         assert all_converted is not None
 
-        deduced_subject = await Users.deduce(parameters)
-        deduced_review = await Reviews.deduce(parameters)
+        deduced_subject = await parameters.deduce(api.user.User)
+        deduced_review = await parameters.deduce(api.review.Review)
 
         reviews = set(
             converted.get("review", deduced_review) for converted in all_converted
@@ -151,18 +155,16 @@ class ReviewFilters(
         reviews.discard(None)
 
         if not reviews:
-            raise jsonapi.UsageError("No review specified")
+            raise UsageError("No review specified")
         if len(reviews) > 1:
-            raise jsonapi.UsageError("Multiple reviews modified in one request")
+            raise UsageError("Multiple reviews modified in one request")
 
         (review,) = reviews
 
         for converted in all_converted:
             if "subject" in converted:
                 if deduced_subject and deduced_subject != converted["subject"]:
-                    raise jsonapi.UsageError(
-                        "Ambiguous request: multiple users specified"
-                    )
+                    raise UsageError("Ambiguous request: multiple users specified")
 
         if not deduced_subject:
             deduced_subject = critic.effective_user
@@ -174,31 +176,34 @@ class ReviewFilters(
 
             for converted in all_converted:
                 created_filters.append(
-                    review_modifier.createFilter(
-                        converted.get("subject", deduced_subject),
-                        converted["type"],
-                        converted["path"],
-                        converted.get("default_scope", True),
-                        converted.get("scopes", []),
-                    )
+                    (
+                        await review_modifier.createFilter(
+                            converted.get("subject", deduced_subject),
+                            converted["type"],
+                            converted["path"],
+                            converted.get("default_scope", True),
+                            converted.get("scopes", []),
+                        )
+                    ).subject
                 )
 
         if one_converted:
-            return await created_filters[0]
+            return created_filters[0]
 
-        return [await created_filter for created_filter in created_filters]
+        return created_filters
 
-    @staticmethod
+    @classmethod
     async def delete(
-        parameters: jsonapi.Parameters,
-        values: jsonapi.Values[api.reviewfilter.ReviewFilter],
+        cls,
+        parameters: Parameters,
+        values: Values[api.reviewfilter.ReviewFilter],
     ) -> None:
         reviews = set()
         for filter in values:
             reviews.add(await filter.review)
 
         if len(reviews) > 1:
-            raise jsonapi.UsageError("Multiple reviews modified in one request")
+            raise UsageError("Multiple reviews modified in one request")
 
         review = reviews.pop()
 
@@ -206,8 +211,4 @@ class ReviewFilters(
             modifier = transaction.modifyReview(review)
 
             for filter in values:
-                await modifier.deleteFilter(filter)
-
-
-from .reviews import Reviews
-from .users import Users
+                await (await modifier.modifyFilter(filter)).delete()

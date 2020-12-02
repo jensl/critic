@@ -14,23 +14,30 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-import asyncio
+import argparse
 import logging
 import sys
+from typing import  Protocol, cast
 
 logger = logging.getLogger(__name__)
+
+from critic import api
+from ..tasks import TaskFailed, TaskModule, modules
 
 name = "run-task"
 title = "Run task"
 allow_missing_configuration = True
 
 
-def setup(parser):
+class Arguments(Protocol):
+    task_module: TaskModule
+    parser: argparse.ArgumentParser
+
+
+def setup(parser: argparse.ArgumentParser) -> None:
     # FIXME: This is a fairly ugly hack to speed up execution.
     if "run-task" not in sys.argv:
         return
-
-    from .. import tasks
 
     configuration = parser.get_default("configuration")
     critic = parser.get_default("critic")
@@ -39,7 +46,7 @@ def setup(parser):
 
     subparsers = parser.add_subparsers(metavar="TASK")
 
-    for task_module in tasks.modules:
+    for task_module in modules:
         if not configuration:
             if not getattr(task_module, "allow_missing_configuration", False):
                 continue
@@ -55,17 +62,14 @@ def setup(parser):
         task_module.setup(task_parser)
 
 
-async def main(critic, arguments):
-    from .. import tasks
-
+async def main(critic: api.critic.Critic, arguments: Arguments) -> int:
     if not hasattr(arguments, "task_module"):
         arguments.parser.print_help()
         return 0
 
     try:
-        result = arguments.task_module.main(critic, arguments)
-        if asyncio.iscoroutine(result):
-            result = await result
-        return 0 if result is None else result
-    except tasks.TaskFailed:
+        return await arguments.task_module.main(
+            critic, cast(argparse.Namespace, arguments)
+        )
+    except TaskFailed:
         return 1

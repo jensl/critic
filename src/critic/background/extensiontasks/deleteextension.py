@@ -4,7 +4,7 @@ import shutil
 
 logger = logging.getLogger(__name__)
 
-from . import Request
+from .request import Request
 from critic import api
 
 
@@ -21,6 +21,7 @@ class DeleteExtension(Request[bool]):
 
 
 async def delete_extension(
-    critic: api.critic.Critic, extension: api.extension.Extension,
+    critic: api.critic.Critic,
+    extension: api.extension.Extension,
 ) -> bool:
     return await DeleteExtension(extension.id).issue()

@@ -17,33 +17,42 @@
 import argparse
 import base64
 import distutils.spawn
-import glob
+import functools
 import hashlib
 import io
 import json
 import multiprocessing
 import os
+from pathlib import Path
 import shutil
 import subprocess
 import sys
 import tarfile
+from tarfile import TarFile
+from typing import Any, Callable, Literal, Mapping, Tuple
 import zipfile
+from zipfile import ZipFile
 
-UI_DIR = os.path.dirname(__file__) or "."
-DATA_DIR = os.path.join(UI_DIR, "..", "critic", "data")
+UI_DIR = Path(__file__).resolve().parent
+DATA_DIR = UI_DIR.parent / "src" / "critic" / "data"
 
 EXTENSIONS_TO_COMPRESS = {"css", "eot", "html", "js", "map", "svg", "ttf"}
 EXTENSIONS_TO_STORE = {"br", "gz", "png", "woff", "woff2"}
 
+COMPRESS_GLOB = "js/*.js"
 
-def executable_argument(name):
+
+def executable_argument(name: str) -> Mapping[str, Any]:
     path = distutils.spawn.find_executable(name)
     if path is None:
         return {"required": True}
     return {"default": path}
 
 
-def compress(algorithm, path):
+Algorithm = Literal["gzip", "brotli"]
+
+
+def compress(algorithm: Algorithm, path: Path) -> Tuple[Algorithm, Path, float]:
     with open(path, "rb") as uncompressed_file:
         uncompressed_data = uncompressed_file.read()
         uncompressed_size = len(uncompressed_data)
@@ -51,17 +60,19 @@ def compress(algorithm, path):
     if algorithm == "gzip":
         import gzip
 
-        compressed_path = path + ".gz"
+        compressed_path = path.with_name(path.name + ".gz")
         with gzip.open(compressed_path, "wb") as gzip_file:
             gzip_file.write(uncompressed_data)
     elif algorithm == "brotli":
         import brotli
 
-        compressed_path = path + ".br"
+        compressed_path = path.with_name(path.name + ".br")
         with open(compressed_path, "wb") as brotli_file:
             brotli_file.write(brotli.compress(uncompressed_data))
+    else:
+        raise Exception("invalid algorithm")
 
-    compressed_size = os.path.getsize(compressed_path)
+    compressed_size = compressed_path.stat().st_size
     return (algorithm, compressed_path, compressed_size / uncompressed_size)
 
 
@@ -69,7 +80,7 @@ def main():
     compression_choices = ["gzip"]
 
     try:
-        import brotli  # noqa: F401
+        import brotli as _
     except ImportError:
         pass
     else:
@@ -78,6 +89,30 @@ def main():
     parser = argparse.ArgumentParser(
         "Critic UI builder", formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
+
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument(
+        "--development",
+        action="store_const",
+        const="development",
+        dest="mode",
+        help="Create a development build",
+    )
+    mode.add_argument(
+        "--production",
+        action="store_const",
+        const="production",
+        dest="mode",
+        help="Create a production build",
+    )
+    mode.add_argument(
+        "--profiling",
+        action="store_const",
+        const="profiling",
+        dest="mode",
+        help="Create a profiling build",
+    )
+    mode.set_defaults(mode="production")
 
     parser.add_argument(
         "--update", action="store_true", help="Run `npm update` before building"
@@ -162,28 +197,28 @@ def main():
     with open(config_json, "w", encoding="utf-8") as file:
         json.dump({"fetchDefaultOptions": {"credentials": "same-origin"}}, file)
 
-    build_dir = os.path.join(UI_DIR, "build")
+    build_dir = UI_DIR / "dist"
 
-    if not os.path.isfile(os.path.join(build_dir, "index.html")) or arguments.rebuild:
-        subprocess.check_call([arguments.npm, "run", "build"], cwd=UI_DIR)
+    if not (build_dir / "index.html").is_file() or arguments.rebuild:
+        subprocess.check_call(
+            [arguments.npm, "run-script", f"build-{arguments.mode}"], cwd=UI_DIR
+        )
 
     if arguments.compress:
-        build_static_dir = os.path.join(build_dir, "static")
+        build_static_dir = build_dir / "static"
         pool = multiprocessing.Pool()
 
-        def compress_done(result):
-            algorithm, compressed_path, ratio = result
-            print("Compressed %s: %.2f %%" % (compressed_path, 100 * ratio))
+        def compress_done(result: Tuple[Algorithm, Path, float]) -> None:
+            _, compressed_path, ratio = result
+            print(
+                "Compressed %s: %.2f %%"
+                % (compressed_path.relative_to(build_dir), 100 * ratio)
+            )
 
-        for dirpath, _, filenames in os.walk(build_static_dir):
-            for filename in filenames:
-                _, _, ext = filename.rpartition(".")
-                if ext in EXTENSIONS_TO_COMPRESS:
-                    path = os.path.join(dirpath, filename)
-                    for algorithm in arguments.compress:
-                        pool.apply_async(
-                            compress, (algorithm, path), callback=compress_done
-                        )
+        for path in build_static_dir.glob(COMPRESS_GLOB):
+            print(path)
+            for algorithm in arguments.compress:
+                pool.apply_async(compress, (algorithm, path), callback=compress_done)
 
         pool.close()
         pool.join()
@@ -191,7 +226,7 @@ def main():
     for archive_type in arguments.archive_type:
         archive_file = io.BytesIO()
 
-        def add_files(add):
+        def add_files(add: Callable[[str], None]) -> None:
             add("favicon.png")
             add("index.html")
             add("static/css/*.css")
@@ -204,33 +239,28 @@ def main():
         if archive_type in ("tar.gz", "tar.xz"):
             mode = "w:gz" if archive_type == "tar.gz" else "w:xz"
 
+            def add_tar(archive: TarFile, pattern: str) -> None:
+                for path in (build_dir / pattern).glob(pattern):
+                    archive.add(
+                        path, os.path.join("ui", os.path.relpath(path, build_dir))
+                    )
+
             with tarfile.open(mode=mode, fileobj=archive_file) as archive:
-
-                def add(pattern):
-                    for path in glob.glob(
-                        os.path.join(build_dir, pattern), recursive=True
-                    ):
-                        archive.add(
-                            path, os.path.join("ui", os.path.relpath(path, build_dir))
-                        )
-
-                add_files(add)
+                add_files(functools.partial(add_tar, archive))
         else:
+
+            def add_zip(archive: ZipFile, pattern: str) -> None:
+                for path in (build_dir / pattern).glob(pattern):
+                    filename = os.path.join("ui", os.path.relpath(path, build_dir))
+                    _, _, ext = filename.rpartition(".")
+                    if ext in EXTENSIONS_TO_STORE:
+                        compress_type = zipfile.ZIP_STORED
+                    else:
+                        compress_type = zipfile.ZIP_LZMA
+                    archive.write(path, filename, compress_type)
+
             with zipfile.ZipFile(archive_file, "w") as archive:
-
-                def add(pattern):
-                    for path in glob.glob(
-                        os.path.join(build_dir, pattern), recursive=True
-                    ):
-                        filename = os.path.join("ui", os.path.relpath(path, build_dir))
-                        _, _, ext = filename.rpartition(".")
-                        if ext in EXTENSIONS_TO_STORE:
-                            compress_type = zipfile.ZIP_STORED
-                        else:
-                            compress_type = zipfile.ZIP_LZMA
-                        archive.write(path, filename, compress_type)
-
-                add_files(add)
+                add_files(functools.partial(add_zip, archive))
 
         archive_contents = archive_file.getvalue()
         sha256_digest = hashlib.sha256(archive_contents).hexdigest()
@@ -246,7 +276,7 @@ def main():
 
     if arguments.upload:
         try:
-            import boto3
+            import boto3 as _
         except ModuleNotFoundError:
             print("You need to install `boto3` to upload!")
             return 1
@@ -284,19 +314,19 @@ def main():
         )
 
     if arguments.install:
-        install_dir = os.path.join(arguments.install, "ui")
+        install_dir = Path(arguments.install) / "ui"
 
         if not os.path.isdir(install_dir):
             os.makedirs(install_dir)
 
-        shutil.copy2(os.path.join(build_dir, "index.html"), install_dir)
+        shutil.copy2((build_dir / "index.html"), install_dir)
 
-        static_install_dir = os.path.join(install_dir, "static")
+        static_install_dir = install_dir / "static"
 
         if os.path.isdir(static_install_dir):
             shutil.rmtree(static_install_dir)
 
-        shutil.copytree(os.path.join(build_dir, "static"), static_install_dir)
+        shutil.copytree((build_dir / "static"), static_install_dir)
 
 
 if __name__ == "__main__":

@@ -14,49 +14,67 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
+from __future__ import annotations
+
+import aiohttp.web
+from abc import ABC, abstractmethod
+from typing import Any, Dict, Mapping, Optional
+
 from critic import api
-from critic import base
 
 
-class Provider:
+class Provider(ABC):
     @staticmethod
-    def enabled():
+    def enabled() -> Mapping[str, Provider]:
         from . import providers
 
         settings = api.critic.settings()
-        result = {}
+        result: Dict[str, Provider] = {}
         if settings:
             available = settings.authentication.external_providers
-            if base.configuration().get("system.is_testing"):
-                for name in available.keys():
-                    if not getattr(available, name).enabled:
-                        continue
-                    result[name] = providers.dummy.DummyOAuthProvider(name)
-            else:
-                if "github" in available and available.github.enabled:
-                    result["github"] = providers.github.GitHubAuthentication()
-                if "google" in available and available.google.enabled:
-                    result["google"] = providers.google.GoogleAuthentication()
+            # if base.configuration().get("system.is_testing"):
+            #     for name in available.keys():
+            #         if not getattr(available, name).enabled:
+            #             continue
+            #         result[name] = providers.dummy.DummyOAuthProvider(name)
+            # else:
+            if "github" in available and available.github.enabled:
+                result["github"] = providers.github.GitHubAuthentication()
+            if "google" in available and available.google.enabled:
+                result["google"] = providers.google.GoogleAuthentication()
         return result
 
     @property
-    def configuration(self):
+    def configuration(self) -> Any:
         providers = api.critic.settings().authentication.external_providers
         return getattr(providers, self.name)
 
-    def getTitle(self):
+    @property
+    @abstractmethod
+    def name(self) -> str:
+        ...
+
+    @abstractmethod
+    def getTitle(self) -> str:
         """Title, suitable as X in 'Sign in using your X'"""
-        pass
+        ...
 
-    def getAccountIdDescription(self):
+    @abstractmethod
+    def getAccountIdDescription(self) -> str:
         """Description of the value used as the account identifier"""
-        pass
+        ...
 
-    def getAccountURL(self, account_id):
+    def getAccountURL(self, account_id: str) -> Optional[str]:
         return None
 
-    def start(self, db, req, target_url=None):
-        pass
+    @abstractmethod
+    async def start(
+        self, critic: api.critic.Critic, req: aiohttp.web.BaseRequest
+    ) -> None:
+        ...
 
-    def finish(self, db, req):
-        pass
+    @abstractmethod
+    async def finish(
+        self, critic: api.critic.Critic, req: aiohttp.web.BaseRequest
+    ) -> None:
+        ...

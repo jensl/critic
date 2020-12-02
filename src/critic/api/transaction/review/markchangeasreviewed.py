@@ -20,14 +20,14 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-from . import ReviewUserTag, has_unpublished_changes
-from .. import Transaction, Query, Insert
-
 from critic import api
+from . import ReviewUserTag, has_unpublished_changes
+from ..item import Delete, Insert
+from ..base import TransactionBase
 
 
 async def mark_change_as_reviewed(
-    transaction: Transaction, rfc: api.reviewablefilechange.ReviewableFileChange
+    transaction: TransactionBase, rfc: api.reviewablefilechange.ReviewableFileChange
 ) -> None:
     critic = transaction.critic
 
@@ -53,20 +53,14 @@ async def mark_change_as_reviewed(
     transaction.tables.add("reviewfilechanges")
 
     if draft_changes:
-        transaction.items.append(
-            Query(
-                """DELETE
-                     FROM reviewfilechanges
-                    WHERE file={file}
-                      AND uid={user}
-                      AND NOT to_reviewed""",
-                file=rfc,
-                user=critic.effective_user,
+        await transaction.execute(
+            Delete("reviewfilechanges").where(
+                file=rfc, user=critic.effective_user, to_reviewed=False
             )
         )
 
     if critic.effective_user not in reviewed_by:
-        transaction.items.append(
+        await transaction.execute(
             Insert("reviewfilechanges").values(
                 file=rfc,
                 uid=critic.effective_user,

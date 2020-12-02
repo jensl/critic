@@ -18,12 +18,13 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Tuple, Sequence, Optional, FrozenSet, Set, Union, Iterable, List
+from typing import Tuple, Optional, FrozenSet, Set, Union, Iterable, List
 
 logger = logging.getLogger(__name__)
 
-from . import apiobject
 from critic import api
+from critic.api import changeset as public
+from . import apiobject
 from ...syntaxhighlight.ranges import SyntaxHighlightRanges
 
 
@@ -102,7 +103,6 @@ class Changeset(apiobject.APIObject[WrapperType, ArgumentsType, int]):
         wrapper: WrapperType,
         wanted_levels: Set[api.changeset.CompletionLevel] = set(),
     ) -> Union[bool, FrozenSet[api.changeset.CompletionLevel]]:
-        critic = wrapper.critic
         level: Set[api.changeset.CompletionLevel] = set()
 
         def want_level(level: api.changeset.CompletionLevel) -> bool:
@@ -130,10 +130,10 @@ class Changeset(apiobject.APIObject[WrapperType, ArgumentsType, int]):
                  FROM changesetcontentdifferences
                 WHERE changeset={changeset_id}""",
             changeset_id=self.id,
-        ) as result:
+        ) as content_complete_result:
             try:
-                content_complete = await result.scalar()
-            except result.ZeroRowsInResult:
+                content_complete = await content_complete_result.scalar()
+            except content_complete_result.ZeroRowsInResult:
                 content_complete = False
 
         if not content_complete:
@@ -145,15 +145,16 @@ class Changeset(apiobject.APIObject[WrapperType, ArgumentsType, int]):
             return return_value()
 
         if want_level("analysis") or want_level("syntaxhighlight"):
-            async with wrapper.critic.query(
+            async with api.critic.Query[int](
+                wrapper.critic,
                 """SELECT 1
                      FROM changesetchangedlines
                     WHERE changeset={changeset_id}
                       AND analysis IS NULL
                     LIMIT 1""",
                 changeset_id=self.id,
-            ) as result:
-                if await result.empty():
+            ) as analysis_result:
+                if await analysis_result.empty():
                     level.add("analysis")
 
             if wanted_reached():
@@ -166,12 +167,14 @@ class Changeset(apiobject.APIObject[WrapperType, ArgumentsType, int]):
             async with SyntaxHighlightRanges.make(repository) as ranges:
                 for filediff in filediffs:
                     if filediff.old_syntax is not None:
+                        assert filediff.filechange.old_sha1
                         ranges.add_file_version(
                             filediff.filechange.old_sha1,
                             filediff.old_syntax,
                             self.is_replay,
                         )
                     if filediff.new_syntax is not None:
+                        assert filediff.filechange.new_sha1
                         ranges.add_file_version(
                             filediff.filechange.new_sha1, filediff.new_syntax, False
                         )
@@ -201,7 +204,7 @@ class Changeset(apiobject.APIObject[WrapperType, ArgumentsType, int]):
 
         async def refresh() -> Changeset:
             await self.refresh(critic, {"changesets"}, {self.id: wrapper})
-            return wrapper._impl
+            return Changeset.fromWrapper(wrapper)
 
         iterations = 1
 
@@ -218,6 +221,7 @@ class Changeset(apiobject.APIObject[WrapperType, ArgumentsType, int]):
             iterations += 1
 
 
+@public.fetchImpl
 @Changeset.cached
 async def fetch(
     critic: api.critic.Critic,
@@ -243,14 +247,17 @@ async def fetch(
         except result.ZeroRowsInResult:
             raise api.changeset.InvalidId(invalid_id=changeset_id)
 
-    changeset._impl.set_is_direct(
+    Changeset.fromWrapper(changeset).set_is_direct(
         single_commit is not None
-        or (from_commit and to_commit and from_commit in to_commit.low_level.parents)
+        or bool(
+            from_commit and to_commit and from_commit in to_commit.low_level.parents
+        )
     )
 
     return changeset
 
 
+@public.fetchAutomaticImpl
 async def fetchAutomatic(
     review: api.review.Review, automatic: api.changeset.AutomaticMode
 ) -> WrapperType:
@@ -317,6 +324,7 @@ async def fetchAutomatic(
     # return await fetch(critic, None, from_commit, to_commit, single_commit)
 
 
+@public.fetchManyImpl
 async def fetchMany(
     critic: api.critic.Critic,
     changeset_ids: Optional[Iterable[int]],
@@ -347,9 +355,9 @@ async def get_changeset(
     conflicts: bool = False,
 ) -> api.changeset.Changeset:
     async with api.transaction.start(critic) as transaction:
-        changeset = await transaction.ensureChangeset(
+        modifier = await transaction.ensureChangeset(
             from_commit, to_commit, conflicts=conflicts
         )
-        changeset.requestContent().requestHighlight()
-
-    return await changeset
+        await modifier.requestContent()
+        await modifier.requestHighlight()
+        return modifier.subject

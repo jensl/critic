@@ -16,6 +16,8 @@
  * the License.
  */
 
+import { immerable } from "immer"
+
 import { primaryMap } from "../reducers/resource"
 import { ReplyID, CommentID, UserID } from "./types"
 
@@ -31,13 +33,15 @@ type ReplyData = {
 type ReplyProps = ReplyData
 
 class Reply {
+  [immerable] = true
+
   constructor(
     readonly id: ReplyID,
     readonly isDraft: boolean,
     readonly comment: CommentID,
     readonly author: UserID,
     readonly timestamp: number,
-    readonly text: string
+    readonly text: string,
   ) {}
 
   static new(props: ReplyProps) {
@@ -47,7 +51,7 @@ class Reply {
       props.comment,
       props.author,
       props.timestamp,
-      props.text
+      props.text,
     )
   }
 

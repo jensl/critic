@@ -23,8 +23,10 @@ from typing import Tuple, Optional, Iterable, Sequence, Dict, List, FrozenSet, S
 
 logger = logging.getLogger(__name__)
 
-from . import apiobject
 from critic import api
+from critic.api import reviewablefilechange as public
+from . import apiobject
+from .critic import Critic
 
 REVIEWED_BY = "ReviewableFileChange.reviewed_by"
 ASSIGNED_REVIEWERS = "ReviewableFileChange.assigned_reviewers"
@@ -33,8 +35,16 @@ DRAFT_CHANGES = "ReviewableFileChange.draft_changes"
 
 @dataclass(frozen=True)
 class DraftChanges:
-    author: api.user.User
-    new_is_reviewed: bool
+    __author: api.user.User
+    __new_is_reviewed: bool
+
+    @property
+    def author(self) -> api.user.User:
+        return self.__author
+
+    @property
+    def new_is_reviewed(self) -> bool:
+        return self.__new_is_reviewed
 
 
 WrapperType = api.reviewablefilechange.ReviewableFileChange
@@ -92,7 +102,7 @@ class ReviewableFileChange(apiobject.APIObject[WrapperType, ArgumentsType, int])
 
     async def getReviewScope(
         self, critic: api.critic.Critic
-    ) -> api.reviewscope.ReviewScope:
+    ) -> Optional[api.reviewscope.ReviewScope]:
         if self.__scope_id is None:
             return None
         return await api.reviewscope.fetch(critic, self.__scope_id)
@@ -104,7 +114,7 @@ class ReviewableFileChange(apiobject.APIObject[WrapperType, ArgumentsType, int])
         # reviewers hasn't been fetched yet.
         need_fetch = []
         for rfc in cached_objects.values():
-            if rfc._impl.__reviewed_by is None:
+            if ReviewableFileChange.fromWrapper(rfc).__reviewed_by is None:
                 need_fetch.append(rfc.id)
 
         reviewer_ids: Dict[int, List[int]] = defaultdict(list)
@@ -126,14 +136,16 @@ class ReviewableFileChange(apiobject.APIObject[WrapperType, ArgumentsType, int])
         }
 
         for rfc_id in need_fetch:
-            cached_objects[rfc_id]._impl.__reviewed_by = frozenset(
+            ReviewableFileChange.fromWrapper(
+                cached_objects[rfc_id]
+            ).__reviewed_by = frozenset(
                 all_users[reviewer_id] for reviewer_id in reviewer_ids[rfc_id]
             )
 
     async def getReviewedBy(
         self, critic: api.critic.Critic
     ) -> FrozenSet[api.user.User]:
-        async with critic._impl.criticalSection(REVIEWED_BY):
+        async with Critic.fromWrapper(critic).criticalSection(REVIEWED_BY):
             if self.__reviewed_by is None:
                 await self.__loadReviewedBy(critic)
                 assert self.__reviewed_by is not None
@@ -147,7 +159,7 @@ class ReviewableFileChange(apiobject.APIObject[WrapperType, ArgumentsType, int])
         # reviewers hasn't been fetched yet.
         need_fetch = []
         for rfc in cached_objects.values():
-            if rfc._impl.__assigned_reviewers is None:
+            if ReviewableFileChange.fromWrapper(rfc).__assigned_reviewers is None:
                 need_fetch.append(rfc.id)
 
         reviewer_ids: Dict[int, List[int]] = defaultdict(list)
@@ -168,14 +180,16 @@ class ReviewableFileChange(apiobject.APIObject[WrapperType, ArgumentsType, int])
         }
 
         for rfc_id in need_fetch:
-            cached_objects[rfc_id]._impl.__assigned_reviewers = frozenset(
+            ReviewableFileChange.fromWrapper(
+                cached_objects[rfc_id]
+            ).__assigned_reviewers = frozenset(
                 all_users[reviewer_id] for reviewer_id in reviewer_ids[rfc_id]
             )
 
     async def getAssignedReviewers(
         self, critic: api.critic.Critic
     ) -> FrozenSet[api.user.User]:
-        async with critic._impl.criticalSection(ASSIGNED_REVIEWERS):
+        async with Critic.fromWrapper(critic).criticalSection(ASSIGNED_REVIEWERS):
             if self.__assigned_reviewers is None:
                 await self.__loadAssignedReviewers(critic)
                 assert self.__assigned_reviewers is not None
@@ -190,9 +204,9 @@ class ReviewableFileChange(apiobject.APIObject[WrapperType, ArgumentsType, int])
         # Filter out those cached objects (including this) whose draft
         # changes hasn't been fetched yet.
         need_fetch = []
-        for filechange in cached_objects.values():
-            if not filechange._impl.__draft_changes_fetched:
-                need_fetch.append(filechange.id)
+        for rfc in cached_objects.values():
+            if not ReviewableFileChange.fromWrapper(rfc).__draft_changes_fetched:
+                need_fetch.append(rfc.id)
 
         async with critic.query(
             """SELECT file, to_reviewed
@@ -205,12 +219,14 @@ class ReviewableFileChange(apiobject.APIObject[WrapperType, ArgumentsType, int])
         ) as result:
             draft_changes = dict(await result.all())
 
-        for filechange_id in need_fetch:
-            filechange = cached_objects[filechange_id]
-            filechange._impl.__draft_changes_fetched = True
-            if filechange_id in draft_changes:
-                to_is_reviewed = draft_changes[filechange_id]
-                filechange._impl.__draft_changes = DraftChanges(user, to_is_reviewed)
+        for rfc_id in need_fetch:
+            rfc = cached_objects[rfc_id]
+            ReviewableFileChange.fromWrapper(rfc).__draft_changes_fetched = True
+            if rfc_id in draft_changes:
+                to_is_reviewed = draft_changes[rfc_id]
+                ReviewableFileChange.fromWrapper(rfc).__draft_changes = DraftChanges(
+                    user, to_is_reviewed
+                )
 
     async def getDraftChanges(
         self, critic: api.critic.Critic
@@ -221,17 +237,18 @@ class ReviewableFileChange(apiobject.APIObject[WrapperType, ArgumentsType, int])
         if user.type != "regular":
             return None
 
-        async with critic._impl.criticalSection(DRAFT_CHANGES):
+        async with Critic.fromWrapper(critic).criticalSection(DRAFT_CHANGES):
             if not self.__draft_changes_fetched:
                 await self.__loadDraftChanges(critic, user)
                 assert self.__draft_changes_fetched
         return self.__draft_changes
 
-    @staticmethod
-    def refresh_tables() -> Set[str]:
+    @classmethod
+    def refresh_tables(cls) -> Set[str]:
         return {"reviewfiles", "reviewfilechanges", "reviewuserfiles"}
 
 
+@public.fetchImpl
 @ReviewableFileChange.cached
 async def fetch(critic: api.critic.Critic, filechange_id: int) -> WrapperType:
     async with ReviewableFileChange.query(
@@ -244,16 +261,20 @@ async def fetch(critic: api.critic.Critic, filechange_id: int) -> WrapperType:
         return await ReviewableFileChange.makeOne(critic, result)
 
 
+@public.fetchManyImpl
 @ReviewableFileChange.cachedMany
 async def fetchMany(
     critic: api.critic.Critic, filechange_ids: Iterable[int]
 ) -> Sequence[WrapperType]:
     async with ReviewableFileChange.query(
-        critic, ["id=ANY ({filechange_ids})"], filechange_ids=filechange_ids,
+        critic,
+        ["id=ANY ({filechange_ids})"],
+        filechange_ids=filechange_ids,
     ) as result:
         return await ReviewableFileChange.make(critic, result)
 
 
+@public.fetchAllImpl
 async def fetchAll(
     review: api.review.Review,
     changeset: Optional[api.changeset.Changeset],
@@ -358,7 +379,9 @@ async def fetchAll(
             critic, review, defaultdict(list)
         )
         for rfc in rfcs:
-            per_changeset[rfc._impl.changeset_id].append(rfc)
+            per_changeset[ReviewableFileChange.fromWrapper(rfc).changeset_id].append(
+                rfc
+            )
         ReviewableFileChange.set_cached_custom(critic, review, per_changeset)
 
     return rfcs

@@ -16,10 +16,17 @@
 
 from __future__ import annotations
 
-from typing import Collection, Sequence, Optional, Union, TypedDict
+from typing import Collection, Sequence, Optional, TypedDict
 
 from critic import api
-from critic import jsonapi
+from ..check import convert
+from ..exceptions import UsageError
+from ..resourceclass import ResourceClass
+from ..parameters import Parameters
+from ..types import JSONInput, JSONResult
+from ..utils import numeric_id, sorted_by_id
+from ..values import Values
+from ..valuewrapper import ValueWrapper
 
 ReviewableFileChange = api.reviewablefilechange.ReviewableFileChange
 DraftChanges = TypedDict(
@@ -28,42 +35,38 @@ DraftChanges = TypedDict(
 
 
 class ReviewableFileChanges(
-    jsonapi.ResourceClass[ReviewableFileChange], api_module=api.reviewablefilechange
+    ResourceClass[ReviewableFileChange], api_module=api.reviewablefilechange
 ):
     """Reviewable file changes"""
 
     contexts = (None, "reviews", "changesets")
 
     @staticmethod
-    async def json(
-        parameters: jsonapi.Parameters, value: ReviewableFileChange
-    ) -> jsonapi.JSONResult:
+    async def json(parameters: Parameters, value: ReviewableFileChange) -> JSONResult:
         """{
-             "id": integer, // the object's unique id
-             "review": integer,
-             "changeset": integer,
-             "file": integer,
-             "deleted_lines": integer,
-             "inserted_lines": integer,
-             "is_reviewed": boolean,
-             "reviewed_by": integer[],
-             "assigned_reviewers": integer[],
-             "draft_changes": DraftChanges or null,
-           }
+          "id": integer, // the object's unique id
+          "review": integer,
+          "changeset": integer,
+          "file": integer,
+          "deleted_lines": integer,
+          "inserted_lines": integer,
+          "is_reviewed": boolean,
+          "reviewed_by": integer[],
+          "assigned_reviewers": integer[],
+          "draft_changes": DraftChanges or null,
+        }
 
-           DraftChanges {
-             "author": integer, // author of draft changes
-             "new_is_reviewed": boolean,
-             "new_reviewed_by": integer,
-           }"""
+        DraftChanges {
+          "author": integer, // author of draft changes
+          "new_is_reviewed": boolean,
+          "new_reviewed_by": integer,
+        }"""
 
-        async def reviewed_by() -> jsonapi.ValueWrapper[Collection[api.user.User]]:
-            return await jsonapi.sorted_by_id(await value.reviewed_by)
+        async def reviewed_by() -> ValueWrapper[Collection[api.user.User]]:
+            return await sorted_by_id(await value.reviewed_by)
 
-        async def assigned_reviewers() -> jsonapi.ValueWrapper[
-            Collection[api.user.User]
-        ]:
-            return await jsonapi.sorted_by_id(await value.assigned_reviewers)
+        async def assigned_reviewers() -> ValueWrapper[Collection[api.user.User]]:
+            return await sorted_by_id(await value.assigned_reviewers)
 
         async def draft_changes() -> Optional[DraftChanges]:
             draft_changes = await value.draft_changes
@@ -88,62 +91,62 @@ class ReviewableFileChanges(
             "draft_changes": draft_changes(),
         }
 
-    @staticmethod
+    @classmethod
     async def single(
-        parameters: jsonapi.Parameters, argument: str
+        cls, parameters: Parameters, argument: str
     ) -> ReviewableFileChange:
         """Retrieve one (or more) reviewable file change.
 
-           FILECHANGE_ID : integer
+        FILECHANGE_ID : integer
 
-           Retrieve the reviewable changes to a file in a commit identified by
-           its unique numeric id."""
+        Retrieve the reviewable changes to a file in a commit identified by
+        its unique numeric id."""
 
         return await api.reviewablefilechange.fetch(
-            parameters.critic, jsonapi.numeric_id(argument)
+            parameters.critic, numeric_id(argument)
         )
 
     @staticmethod
     async def multiple(
-        parameters: jsonapi.Parameters,
+        parameters: Parameters,
     ) -> Sequence[ReviewableFileChange]:
         """Retrieve all reviewable file changes in a review.
 
-           review : REVIEW_ID : -
+        review : REVIEW_ID : -
 
-           Retrieve the reviewable changes in the specified review.
+        Retrieve the reviewable changes in the specified review.
 
-           changeset : CHANGESET_ID : -
+        changeset : CHANGESET_ID : -
 
-           Retrieve the reviewable changes in the specified changeset.
+        Retrieve the reviewable changes in the specified changeset.
 
-           file : FILE : -
+        file : FILE : -
 
-           Retrieve the reviewable changes in the specified file only.
+        Retrieve the reviewable changes in the specified file only.
 
-           assignee : USER : -
+        assignee : USER : -
 
-           Retrieve reviewable changes assigned to the specified user only.
+        Retrieve reviewable changes assigned to the specified user only.
 
-           state : STATE : "pending" or "reviewed"
+        state : STATE : "pending" or "reviewed"
 
-           Retrieve reviewable changes in the specified state only."""
+        Retrieve reviewable changes in the specified state only."""
 
-        review = await Reviews.deduce(parameters)
-        changeset = await Changesets.deduce(parameters)
+        review = await parameters.deduce(api.review.Review)
+        changeset = await parameters.deduce(api.changeset.Changeset)
 
         if not review:
-            raise jsonapi.UsageError("Missing required parameter: review")
+            raise UsageError("Missing required parameter: review")
 
-        file = await Files.fromParameter(parameters, "file")
-        assignee = await Users.fromParameter(parameters, "assignee")
-        state_parameter = parameters.getQueryParameter("state")
+        file = await parameters.fromParameter(api.file.File, "file")
+        assignee = await parameters.fromParameter(api.user.User, "assignee")
+        state_parameter = parameters.query.get("state")
 
         if state_parameter is None:
             is_reviewed = None
         else:
             if state_parameter not in ("pending", "reviewed"):
-                raise jsonapi.UsageError(
+                raise UsageError(
                     "Invalid parameter value: state=%r "
                     "(value values are 'pending' and 'reviewed')" % state_parameter
                 )
@@ -157,20 +160,21 @@ class ReviewableFileChanges(
             is_reviewed=is_reviewed,
         )
 
-    @staticmethod
+    @classmethod
     async def update(
-        parameters: jsonapi.Parameters,
-        values: jsonapi.Values[ReviewableFileChange],
-        data: jsonapi.JSONInput,
+        cls,
+        parameters: Parameters,
+        values: Values[ReviewableFileChange],
+        data: JSONInput,
     ) -> None:
         critic = parameters.critic
 
         reviews = set([await filechange.review for filechange in values])
         if len(reviews) > 1:
-            raise jsonapi.UsageError("Multiple reviews updated")
+            raise UsageError("Multiple reviews updated")
         review = reviews.pop()
 
-        converted = await jsonapi.convert(
+        converted = await convert(
             parameters, {"draft_changes": {"new_is_reviewed": bool}}, data
         )
         is_reviewed = converted["draft_changes"]["new_is_reviewed"]
@@ -185,10 +189,7 @@ class ReviewableFileChanges(
                 for filechange in values:
                     await modifier.markChangeAsPending(filechange)
 
-        await jsonapi.v1.batches.includeUnpublished(parameters, review)
+        await includeUnpublished(parameters, review)
 
 
-from .changesets import Changesets
-from .files import Files
-from .reviews import Reviews
-from .users import Users
+from .batches import includeUnpublished

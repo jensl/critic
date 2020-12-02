@@ -17,12 +17,12 @@
 from __future__ import annotations
 
 import logging
-from typing import Dict, Mapping, Any, Sequence, Type, Iterable, Union, Optional
+from typing import Dict, Mapping, Any, Sequence, Iterable, Union, Optional
 
 logger = logging.getLogger(__name__)
 
 from critic import api
-from critic.api.transaction import accesscontrolprofile as transaction_acp
+from critic.api.transaction.accesscontrolprofile import modify as transaction_acp
 from critic.api.accesscontrolprofile import (
     RULE_VALUES,
     HTTP_METHODS,
@@ -33,7 +33,11 @@ from critic.api.accesscontrolprofile import (
 from ..check import RegularExpression, convert
 from ..exceptions import UsageError, PathError
 from ..parameters import Parameters
+from ..check import convert
+from ..exceptions import UsageError
 from ..resourceclass import ResourceClass
+from ..parameters import Parameters
+from ..types import JSONInput, JSONResult
 from ..types import JSONInput, JSONResult
 from ..utils import numeric_id
 from ..values import Values
@@ -64,23 +68,23 @@ PROFILE_WITH_TITLE = PROFILE.copy()
 PROFILE_WITH_TITLE["title?"] = str
 
 
-def updateProfile(
+async def updateProfile(
     profile_modifier: transaction_acp.ModifyAccessControlProfile,
     converted: Mapping[str, Any],
-) -> None:
-    def updateExceptions(
+) -> api.accesscontrolprofile.AccessControlProfile:
+    async def updateExceptions(
         exceptions_modifier: transaction_acp.ModifyExceptions,
         exceptions: Iterable[Mapping[str, Any]],
     ) -> None:
-        exceptions_modifier.deleteAll()
+        await exceptions_modifier.deleteAll()
         for exception in exceptions:
-            exceptions_modifier.add(**exception)
+            await exceptions_modifier.add(**exception)
 
-    def updateCategory(category: api.accesscontrolprofile.CategoryType) -> None:
+    async def updateCategory(category: api.accesscontrolprofile.CategoryType) -> None:
         if category not in converted:
             return
         if "rule" in converted[category]:
-            profile_modifier.setRule(category, converted[category]["rule"])
+            await profile_modifier.setRule(category, converted[category]["rule"])
         if "exceptions" in converted[category]:
             exceptions_modifier: transaction_acp.ModifyExceptions
             if category == "http":
@@ -89,14 +93,18 @@ def updateProfile(
                 exceptions_modifier = profile_modifier.modifyRepositoriesExceptions()
             else:
                 exceptions_modifier = profile_modifier.modifyExtensionsExceptions()
-            updateExceptions(exceptions_modifier, converted[category]["exceptions"])
+            await updateExceptions(
+                exceptions_modifier, converted[category]["exceptions"]
+            )
 
     if "title" in converted:
-        profile_modifier.setTitle(converted["title"])
+        await profile_modifier.setTitle(converted["title"])
 
-    updateCategory("http")
-    updateCategory("repositories")
-    updateCategory("extensions")
+    await updateCategory("http")
+    await updateCategory("repositories")
+    await updateCategory("extensions")
+
+    return profile_modifier.subject
 
 
 ACP = api.accesscontrolprofile.AccessControlProfile
@@ -110,33 +118,33 @@ class AccessControlProfiles(ResourceClass[ACP], api_module=api.accesscontrolprof
     @staticmethod
     async def json(parameters: Parameters, value: ACP) -> JSONResult:
         """AccessControlProfile {
-             "id": integer,
-             "title": string or null,
-             "http": {
-               "rule": "allow" or "deny",
-               "exceptions: [{
-                 "id": integer,
-                 "request_method": string or null,
-                 "path_pattern": string or null
-               }]
-             },
-             "repositories": {
-               "rule": "allow" or "deny",
-               "exceptions: [{
-                 "id": integer,
-                 "access_type": "read" or "modify",
-                 "repository": integer
-               }]
-             },
-             "extensions": {
-               "rule": "allow" or "deny",
-               "exceptions: [{
-                 "id": integer,
-                 "access_type": "install" or "execute",
-                 "extension": string,
-               }]
-             }
-           }"""
+          "id": integer,
+          "title": string or null,
+          "http": {
+            "rule": "allow" or "deny",
+            "exceptions: [{
+              "id": integer,
+              "request_method": string or null,
+              "path_pattern": string or null
+            }]
+          },
+          "repositories": {
+            "rule": "allow" or "deny",
+            "exceptions: [{
+              "id": integer,
+              "access_type": "read" or "modify",
+              "repository": integer
+            }]
+          },
+          "extensions": {
+            "rule": "allow" or "deny",
+            "exceptions: [{
+              "id": integer,
+              "access_type": "install" or "execute",
+              "extension": string,
+            }]
+          }
+        }"""
 
         token = await value.access_token
 
@@ -200,14 +208,14 @@ class AccessControlProfiles(ResourceClass[ACP], api_module=api.accesscontrolprof
             "extensions": extensions_category(),
         }
 
-    @staticmethod
-    async def single(parameters: Parameters, argument: str) -> ACP:
+    @classmethod
+    async def single(cls, parameters: Parameters, argument: str) -> ACP:
         """Retrieve one (or more) access control profiles.
 
-           PROFILE_ID : integer
+        PROFILE_ID : integer
 
-           Retrieve an access control profile identified by the profile's unique
-           numeric id."""
+        Retrieve an access control profile identified by the profile's unique
+        numeric id."""
 
         return await api.accesscontrolprofile.fetch(
             parameters.critic, numeric_id(argument)
@@ -217,24 +225,24 @@ class AccessControlProfiles(ResourceClass[ACP], api_module=api.accesscontrolprof
     async def multiple(parameters: Parameters) -> Union[ACP, Sequence[ACP]]:
         """Retrieve all primary access control profiles in the system.
 
-           title : TITLE : string
+        title : TITLE : string
 
-           Retrieve only access control profiles with a matching title."""
-        token = await AccessTokens.deduce(parameters)
+        Retrieve only access control profiles with a matching title."""
+        token = await parameters.deduce(api.accesstoken.AccessToken)
         if token:
             profile = await token.profile
             if profile is None:
                 raise PathError("Access token has no associated profile")
             return profile
-        title_parameter = parameters.getQueryParameter("title")
+        title_parameter = parameters.query.get("title")
         return await api.accesscontrolprofile.fetchAll(
             parameters.critic, title=title_parameter
         )
 
-    @staticmethod
-    async def deduce(parameters: Parameters) -> Optional[ACP]:
-        profile = parameters.context.get("accesscontrolprofiles")
-        profile_parameter = parameters.getQueryParameter("profile")
+    @classmethod
+    async def deduce(cls, parameters: Parameters) -> Optional[ACP]:
+        profile = parameters.in_context(api.accesscontrolprofile.AccessControlProfile)
+        profile_parameter = parameters.query.get("profile")
         if profile_parameter is not None:
             if profile is not None:
                 raise UsageError(
@@ -252,27 +260,27 @@ class AccessControlProfiles(ResourceClass[ACP], api_module=api.accesscontrolprof
         converted = await convert(parameters, PROFILE_WITH_TITLE, data)
 
         async with api.transaction.start(critic) as transaction:
-            modifier = transaction.createAccessControlProfile()
-            updateProfile(modifier, converted)
+            return await updateProfile(
+                await transaction.createAccessControlProfile(), converted
+            )
 
-        return await modifier
-
-    @staticmethod
+    @classmethod
     async def update(
-        parameters: Parameters, values: Values[ACP], data: JSONInput,
+        cls,
+        parameters: Parameters,
+        values: Values[ACP],
+        data: JSONInput,
     ) -> None:
         converted = await convert(parameters, PROFILE_WITH_TITLE, data)
 
         async with api.transaction.start(parameters.critic) as transaction:
             for profile in values:
-                modifier = transaction.modifyAccessControlProfile(profile)
-                updateProfile(modifier, converted)
+                await updateProfile(
+                    transaction.modifyAccessControlProfile(profile), converted
+                )
 
-    @staticmethod
-    async def delete(parameters: Parameters, values: Values[ACP]) -> None:
+    @classmethod
+    async def delete(cls, parameters: Parameters, values: Values[ACP]) -> None:
         async with api.transaction.start(parameters.critic) as transaction:
             for profile in values:
-                transaction.modifyAccessControlProfile(profile).delete()
-
-
-from .accesstokens import AccessTokens
+                await transaction.modifyAccessControlProfile(profile).delete()

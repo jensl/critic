@@ -14,21 +14,19 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-from __future__ import annotations
+from typing import Collection
 
-import logging
-from typing import Union, Tuple
-
-logger = logging.getLogger(__name__)
-
-from .. import LazyAPIObject, Transaction
 from critic import api
+from ..base import TransactionBase
+from ..createapiobject import CreateAPIObject, APIObjectType
 
 
-class CreatedRepository(LazyAPIObject, api_module=api.repository):
-    pass
+class CreateRepositoryObject(CreateAPIObject[APIObjectType]):
+    def __init__(
+        self, transaction: TransactionBase, repository: api.repository.Repository
+    ):
+        super().__init__(transaction)
+        self.repository = repository
 
-
-from .modify import ModifyRepository
-
-__all__ = ["ModifyRepository"]
+    def scopes(self) -> Collection[str]:
+        return (f"repositories/{self.repository.id}",)

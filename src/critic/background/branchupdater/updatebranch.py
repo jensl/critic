@@ -17,13 +17,12 @@
 from __future__ import annotations
 
 import logging
-from typing import Iterable, Any, List, Optional
+from typing import Iterable, List, Optional
 
 logger = logging.getLogger(__name__)
 
 from .findbasebranch import find_base_branch
 from critic import api
-from ...background.githook import emit_output
 
 
 async def update_branch(
@@ -32,10 +31,10 @@ async def update_branch(
     to_commit: api.commit.Commit,
     *,
     is_updating_review: bool = False,
-    pendingrefupdate_id: int = None,
-    output: List[str] = None,
+    pendingrefupdate_id: Optional[int] = None,
+    output: Optional[List[str]] = None,
     perform_update: bool = False,
-    force_associate: Iterable[api.commit.Commit] = None,
+    force_associate: Optional[Iterable[api.commit.Commit]] = None,
 ) -> api.branchupdate.BranchUpdate:
     critic = branch.critic
     repository = await branch.repository
@@ -123,7 +122,7 @@ async def update_branch(
         branch_modifier = await transaction.modifyRepository(repository).modifyBranch(
             branch
         )
-        created_branchupdate = await branch_modifier.recordUpdate(
+        branchupdate = await branch_modifier.recordUpdate(
             to_commit,
             base_branch,
             associated_commits,
@@ -135,4 +134,4 @@ async def update_branch(
         if perform_update:
             transaction.post_commit_callbacks.append(do_update_branch)
 
-    return await created_branchupdate
+    return branchupdate

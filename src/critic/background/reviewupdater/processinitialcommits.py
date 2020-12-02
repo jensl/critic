@@ -16,13 +16,11 @@
 
 from __future__ import annotations
 
-import asyncio
 import logging
 
 logger = logging.getLogger(__name__)
 
 from critic import api
-from critic import pubsub
 
 
 async def process_initial_commits(review: api.review.Review) -> None:
@@ -61,4 +59,3 @@ async def process_initial_commits(review: api.review.Review) -> None:
     async with api.transaction.start(critic) as transaction:
         modifier = transaction.modifyReview(review)
         await modifier.addChangesets(changesets, commits=initial_commits)
-        api.transaction.review.CreatedReviewEvent.ensure(transaction, review, "ready")

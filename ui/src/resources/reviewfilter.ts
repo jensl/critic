@@ -16,6 +16,8 @@
  * the License.
  */
 
+import { immerable } from "immer"
+
 import { primaryMap } from "../reducers/resource"
 
 type ReviewFilterProps = {
@@ -28,13 +30,15 @@ type ReviewFilterProps = {
 }
 
 class ReviewFilter {
+  [immerable] = true
+
   constructor(
     readonly id: number,
     readonly subject: number,
     readonly review: number,
     readonly type: "reviewer" | "watcher" | "ignored",
     readonly path: string,
-    readonly creator: number
+    readonly creator: number,
   ) {}
 
   static new(props: ReviewFilterProps) {
@@ -44,7 +48,7 @@ class ReviewFilter {
       props.review,
       props.type,
       props.path,
-      props.creator
+      props.creator,
     )
   }
 

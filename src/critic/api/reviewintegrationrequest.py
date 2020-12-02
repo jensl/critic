@@ -16,9 +16,11 @@
 
 from __future__ import annotations
 
-from typing import Optional, Sequence
+from typing import Awaitable, Callable, Optional, Sequence
 
 import logging
+
+from critic.api.apiobject import FunctionRef
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +29,7 @@ from critic import api
 
 class Error(api.APIError, object_type="review integration request"):
     """Base exception for all errors related to the ReviewIntegrationRequest
-       class."""
+    class."""
 
     pass
 
@@ -100,22 +102,37 @@ class ReviewIntegrationRequest(api.APIObject):
 
 
 async def fetch(critic: api.critic.Critic, request_id: int) -> ReviewIntegrationRequest:
-    from .impl import reviewintegrationrequest as impl
-
-    return await impl.fetch(critic, request_id)
+    return await fetchImpl.get()(critic, request_id)
 
 
 async def fetchAll(
     critic: api.critic.Critic,
     *,
-    review: api.review.Review = None,
-    target_branch: api.branch.Branch = None,
-    performed: bool = None,
-    successful: bool = None
+    review: Optional[api.review.Review] = None,
+    target_branch: Optional[api.branch.Branch] = None,
+    performed: Optional[bool] = None,
+    successful: Optional[bool] = None
 ) -> Sequence[ReviewIntegrationRequest]:
-    from .impl import reviewintegrationrequest as impl
-
-    return await impl.fetchAll(critic, review, target_branch, performed, successful)
+    return await fetchAllImpl.get()(
+        critic, review, target_branch, performed, successful
+    )
 
 
 resource_name = table_name = "reviewintegrationrequests"
+
+
+fetchImpl: FunctionRef[
+    Callable[[api.critic.Critic, int], Awaitable[ReviewIntegrationRequest]]
+] = FunctionRef()
+fetchAllImpl: FunctionRef[
+    Callable[
+        [
+            api.critic.Critic,
+            Optional[api.review.Review],
+            Optional[api.branch.Branch],
+            Optional[bool],
+            Optional[bool],
+        ],
+        Awaitable[Sequence[ReviewIntegrationRequest]],
+    ]
+] = FunctionRef()

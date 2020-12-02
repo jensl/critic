@@ -7,7 +7,8 @@ import tempfile
 import time
 import venv
 import zipfile
-from typing import Dict, Set
+from pathlib import Path
+from typing import Optional, cast
 
 logger = logging.getLogger(__name__)
 
@@ -26,8 +27,9 @@ def create_venv(target_dir: str) -> None:
 
 
 async def prepare_extension(
-    critic_wheel: str,
-    target_dir: str,
+    critic_wheel: Optional[Path],
+    source_dir: Optional[Path],
+    target_dir: Path,
     extension_name: str,
     version_id: int,
     manifest: api.extensionversion.ExtensionVersion.Manifest,
@@ -36,26 +38,39 @@ async def prepare_extension(
 
     loop = asyncio.get_running_loop()
 
-    def mtime(path: str) -> float:
-        return os.stat(path).st_mtime
+    assert (critic_wheel is None) != (source_dir is None)
 
-    critic_wheel_mtime = mtime(critic_wheel)
+    prepared_path = target_dir / ".prepared"
 
-    prepared_path = os.path.join(target_dir, ".prepared")
+    def mtime(path: Path) -> float:
+        return path.stat().st_mtime
 
-    if os.path.isdir(target_dir):
-        if os.path.exists(prepared_path):
-            if mtime(prepared_path) < critic_wheel_mtime:
-                logger.debug(
-                    "%s: existing version dir has out-of-date Critic version",
-                    target_dir,
-                )
+    if critic_wheel:
+        critic_wheel_mtime = mtime(critic_wheel)
+
+        if target_dir.is_dir():
+            if prepared_path.exists():
+                if mtime(prepared_path) < critic_wheel_mtime:
+                    logger.debug(
+                        "%s: existing version dir has out-of-date Critic version",
+                        target_dir,
+                    )
+                else:
+                    logger.debug("%s: using pre-existing version dir", target_dir)
+                    return
             else:
-                logger.debug("%s: using pre-existing version dir", target_dir)
-                return
-        else:
-            logger.debug("%s: deleting unfinished pre-existing version dir", target_dir)
-        await loop.run_in_executor(None, shutil.rmtree, target_dir)
+                logger.debug(
+                    "%s: deleting unfinished pre-existing version dir", target_dir
+                )
+            await loop.run_in_executor(None, shutil.rmtree, target_dir)
+
+        install_critic_args = [str(critic_wheel)]
+    else:
+        if prepared_path.exists():
+            logger.debug("%s: using pre-existing version dir", target_dir)
+            return
+
+        install_critic_args = ["-e", str(source_dir)]
 
     pip = os.path.join(target_dir, "bin", "pip")
 
@@ -79,7 +94,10 @@ async def prepare_extension(
         await process.wait()
         logger.debug("%s: installing Critic...", target_dir)
         process = await asyncio.create_subprocess_exec(
-            pip, "install", critic_wheel, stdout=asyncio.subprocess.DEVNULL
+            pip,
+            "install",
+            *install_critic_args,
+            stdout=asyncio.subprocess.DEVNULL,
         )
         await process.wait()
 
@@ -96,11 +114,14 @@ async def prepare_extension(
 
         failed = False
         for task in completed:
-            assert isinstance(task, asyncio.Task)
             try:
                 await task
             except Exception as error:
-                logger.error("Task failed: %s: %s", task.get_name(), error)
+                logger.error(
+                    "Task failed: %s: %s",
+                    cast(asyncio.Task[None], task).get_name(),
+                    error,
+                )
                 failed = True
 
         if failed:
@@ -145,6 +166,9 @@ async def prepare_extension(
     with open(prepared_path, "w") as file:
         print(time.ctime(), file=file)
 
-    os.utime(prepared_path, (critic_wheel_mtime, critic_wheel_mtime))
+    if critic_wheel:
+        critic_wheel_mtime = mtime(critic_wheel)
+
+        os.utime(prepared_path, (critic_wheel_mtime, critic_wheel_mtime))
 
     logger.debug("%s: finished", target_dir)

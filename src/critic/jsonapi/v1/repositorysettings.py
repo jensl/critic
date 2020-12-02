@@ -16,32 +16,44 @@
 
 from __future__ import annotations
 
-from typing import Sequence, Optional, Union
+from typing import Sequence, Union
 
 from critic import api
-from critic import jsonapi
+from critic.api.transaction.repositorysetting.modify import ModifyRepositorySetting
+from ..check import convert
+from ..exceptions import UsageError
+from ..resourceclass import ResourceClass
+from ..parameters import Parameters
+from ..types import JSONInput, JSONResult
+from ..utils import numeric_id
+from ..values import Values
 
 RepositorySetting = api.repositorysetting.RepositorySetting
 
 
+async def modify(
+    transaction: api.transaction.Transaction,
+    setting: api.repositorysetting.RepositorySetting,
+) -> ModifyRepositorySetting:
+    return transaction.modifyRepository(await setting.repository).modifySetting(setting)
+
+
 class RepositorySettings(
-    jsonapi.ResourceClass[RepositorySetting], api_module=api.repositorysetting
+    ResourceClass[RepositorySetting], api_module=api.repositorysetting
 ):
     """Repository settings."""
 
     contexts = (None, "repositories")
 
     @staticmethod
-    async def json(
-        parameters: jsonapi.Parameters, value: RepositorySetting
-    ) -> jsonapi.JSONResult:
+    async def json(parameters: Parameters, value: RepositorySetting) -> JSONResult:
         """RepositorySetting {
-             "id": integer, // the setting's unique id
-             "repository": integer, // the affected repository
-             "scope": string, // the setting's scope
-             "name": string, // the setting's name
-             "value": any
-           }"""
+          "id": integer, // the setting's unique id
+          "repository": integer, // the affected repository
+          "scope": string, // the setting's scope
+          "name": string, // the setting's name
+          "value": any
+        }"""
 
         return {
             "id": value.id,
@@ -51,44 +63,42 @@ class RepositorySettings(
             "value": value.value,
         }
 
-    @staticmethod
-    async def single(
-        parameters: jsonapi.Parameters, argument: str
-    ) -> RepositorySetting:
+    @classmethod
+    async def single(cls, parameters: Parameters, argument: str) -> RepositorySetting:
         """Retrieve one (or more) repository settings of this system.
 
-           SETTING_ID : integer
+        SETTING_ID : integer
 
-           Retrieve a repository setting identified by its unique numeric id"""
+        Retrieve a repository setting identified by its unique numeric id"""
 
         return await api.repositorysetting.fetch(
-            parameters.critic, jsonapi.numeric_id(argument)
+            parameters.critic, numeric_id(argument)
         )
 
     @staticmethod
     async def multiple(
-        parameters: jsonapi.Parameters,
+        parameters: Parameters,
     ) -> Union[RepositorySetting, Sequence[RepositorySetting]]:
         """Retrieve a single named repository setting or multiple repository settings.
 
-           scope : SCOPE : string
+        scope : SCOPE : string
 
-           Retrieve only repository settings with the given scope.
+        Retrieve only repository settings with the given scope.
 
-           name : NAME : string
+        name : NAME : string
 
-           Retrieve only the repository setting with the given name. Must be combined
-           with the |scope| parameter."""
+        Retrieve only the repository setting with the given name. Must be combined
+        with the |scope| parameter."""
 
-        repository = await Repositories.deduce(parameters)
-        scope = parameters.getQueryParameter("scope")
-        name = parameters.getQueryParameter("name")
+        repository = await parameters.deduce(api.repository.Repository)
+        scope = parameters.query.get("scope")
+        name = parameters.query.get("name")
 
         if name is not None:
             if not repository:
-                raise jsonapi.UsageError.missingParameter("repository")
+                raise UsageError.missingParameter("repository")
             if scope is None:
-                raise jsonapi.UsageError(
+                raise UsageError(
                     "The 'name' parameter must be used together with the 'scope' "
                     "parameter"
                 )
@@ -101,12 +111,10 @@ class RepositorySettings(
         )
 
     @staticmethod
-    async def create(
-        parameters: jsonapi.Parameters, data: jsonapi.JSONInput
-    ) -> RepositorySetting:
+    async def create(parameters: Parameters, data: JSONInput) -> RepositorySetting:
         critic = parameters.critic
 
-        converted = await jsonapi.convert(
+        converted = await convert(
             parameters,
             {
                 "repository?": api.repository.Repository,
@@ -117,46 +125,42 @@ class RepositorySettings(
             data,
         )
 
-        repository = await Repositories.deduce(parameters)
+        repository = await parameters.deduce(api.repository.Repository)
 
         if not repository:
             if "repository" not in converted:
-                raise jsonapi.UsageError.missingInput("repository")
+                raise UsageError.missingInput("repository")
             repository = converted["repository"]
         elif converted.get("repository", repository) != repository:
-            raise jsonapi.UsageError("Conflicting repositories specified")
+            raise UsageError("Conflicting repositories specified")
         assert repository
 
         async with api.transaction.start(critic) as transaction:
-            modifier = await transaction.modifyRepository(repository).defineSetting(
-                converted["scope"], converted["name"], converted["value"],
-            )
+            return (
+                await transaction.modifyRepository(repository).defineSetting(
+                    converted["scope"],
+                    converted["name"],
+                    converted["value"],
+                )
+            ).subject
 
-        return await modifier
-
-    @staticmethod
+    @classmethod
     async def update(
-        parameters: jsonapi.Parameters,
-        values: jsonapi.Values[RepositorySetting],
-        data: jsonapi.JSONInput,
+        cls,
+        parameters: Parameters,
+        values: Values[RepositorySetting],
+        data: JSONInput,
     ) -> None:
-        converted = await jsonapi.convert(parameters, {"value": None}, data)
+        converted = await convert(parameters, {"value": None}, data)
 
         async with api.transaction.start(parameters.critic) as transaction:
             for setting in values:
-                transaction.modifyRepository(await setting.repository).modifySetting(
-                    setting
-                ).setValue(converted["value"])
+                await (await modify(transaction, setting)).setValue(converted["value"])
 
-    @staticmethod
+    @classmethod
     async def delete(
-        parameters: jsonapi.Parameters, values: jsonapi.Values[RepositorySetting]
+        cls, parameters: Parameters, values: Values[RepositorySetting]
     ) -> None:
         async with api.transaction.start(parameters.critic) as transaction:
             for setting in values:
-                transaction.modifyRepository(await setting.repository).modifySetting(
-                    setting
-                ).delete()
-
-
-from .repositories import Repositories
+                await (await modify(transaction, setting)).delete()

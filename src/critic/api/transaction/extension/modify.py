@@ -16,31 +16,37 @@
 
 from __future__ import annotations
 
-from typing import Union, Optional
+from typing import Optional
 
-from . import CreatedExtension
-from .. import Transaction, Delete, Modifier
 from critic import api
+from ..base import TransactionBase
+from ..modifier import Modifier
+from .create import CreateExtension
 
 
-class ModifyExtension(Modifier[api.extension.Extension, CreatedExtension]):
+class ModifyExtension(Modifier[api.extension.Extension]):
     def __init__(
         self,
-        transaction: Transaction,
-        subject: Union[api.extension.Extension, CreatedExtension],
+        transaction: TransactionBase,
+        subject: api.extension.Extension,
         user: Optional[api.user.User],
     ) -> None:
         super().__init__(transaction, subject)
         self.user = user
 
-    async def update(self) -> None:
-        raise Exception("NOT IMPLEMENTED")
+    # async def update(self) -> None:
+    #     raise Exception("NOT IMPLEMENTED")
+
+    async def setURL(self, value: str) -> ModifyExtension:
+        async with self.update() as update:
+            update.set(url=value)
+        return self
 
     async def deleteExtension(self, *, forced: bool = False) -> None:
         from critic.background import extensiontasks
 
         critic = self.transaction.critic
-        extension = self.real
+        extension = self.subject
 
         installations = await api.extensioninstallation.fetchAll(
             critic, extension=extension
@@ -50,7 +56,7 @@ class ModifyExtension(Modifier[api.extension.Extension, CreatedExtension]):
                 raise api.extension.Error("Extension has active installations")
             api.PermissionDenied.raiseUnlessAdministrator(critic)
 
-        super().delete()
+        await super().delete()
 
         async def delete_extension() -> None:
             await extensiontasks.delete_extension(critic, extension)
@@ -59,16 +65,14 @@ class ModifyExtension(Modifier[api.extension.Extension, CreatedExtension]):
 
     @staticmethod
     async def create(
-        transaction: Transaction,
+        transaction: TransactionBase,
         name: str,
         uri: str,
         *,
-        publisher: api.user.User = None
+        publisher: Optional[api.user.User] = None
     ) -> ModifyExtension:
-        from .create import create_extension
-
         return ModifyExtension(
             transaction,
-            await create_extension(transaction, name, uri, publisher),
+            await CreateExtension.make(transaction, name, uri, publisher),
             publisher,
         )

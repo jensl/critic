@@ -16,9 +16,10 @@
 
 from __future__ import annotations
 
-from typing import Tuple, Optional, Set, Sequence, Mapping, Any, Type, List, Iterable
+from typing import Tuple, Optional, Set, Sequence, Mapping, Any, Type, List
 
 from critic import api
+from critic.api import accesstoken as public
 from . import apiobject
 from .accesscontrolprofile import AccessControlProfile
 
@@ -62,8 +63,8 @@ class AccessToken(apiobject.APIObject[WrapperType, ArgumentsType, int]):
             return None
         return await api.accesscontrolprofile.fetch(critic, self.__profile_id)
 
-    @staticmethod
-    def default_joins() -> Sequence[str]:
+    @classmethod
+    def default_joins(cls) -> Sequence[str]:
         acps = AccessControlProfile.table()
         return [f"{acps} ON ({acps}.access_token={AccessToken.table()}.id)"]
 
@@ -72,13 +73,14 @@ class AccessToken(apiobject.APIObject[WrapperType, ArgumentsType, int]):
         cls: Type[AccessToken],
         critic: api.critic.Critic,
         tables: Set[str],
-        cached_tokens: Mapping[Any, WrapperType],
+        cached_objects: Mapping[Any, WrapperType],
     ) -> None:
         if not tables.intersection(("accesstokens", "accesscontrolprofiles")):
             return
-        await super().refresh(critic, tables, cached_tokens)
+        await super().refresh(critic, tables, cached_objects)
 
 
+@public.fetchImpl
 @AccessToken.cached
 async def fetch(critic: api.critic.Critic, token_id: int) -> WrapperType:
     async with AccessToken.query(
@@ -87,6 +89,7 @@ async def fetch(critic: api.critic.Critic, token_id: int) -> WrapperType:
         return await AccessToken.makeOne(critic, result)
 
 
+@public.fetchAllImpl
 async def fetchAll(
     critic: api.critic.Critic, user: Optional[api.user.User]
 ) -> List[WrapperType]:

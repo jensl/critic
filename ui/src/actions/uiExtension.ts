@@ -14,57 +14,58 @@
  * the License.
  */
 
-import { fetchUIAddon } from "./extension"
-import { createUIAddon } from "../utils/Extension"
+// import { fetchUIAddon } from "./extension"
+// import { createUIAddon } from "../utils/Extension"
 import {
+  Action,
   UIAddon,
   REGISTER_UI_ADDON,
   UNREGISTER_UI_ADDON,
-  ADD_EXTENSION_LINKIFIER,
-  GenerateURLFunc,
-  RenderLinkFunc,
-  ADD_EXTENSION_PAGE,
-  RenderPageFunc,
-  RegisterUIAddonAction,
-  UnregisterUIAddonAction,
-  AddExtensionPageAction,
-  AddExtensionLinkifierAction,
+  // ADD_EXTENSION_LINKIFIER,
+  // GenerateURLFunc,
+  // RenderLinkFunc,
+  // ADD_EXTENSION_PAGE,
+  // RenderPageFunc,
+  // AddExtensionPageAction,
+  // AddExtensionLinkifierAction,
 } from "../actions"
-import Extension from "../resources/extension"
-import ExtensionInstallation from "../resources/extensioninstallation"
-import { Thunk } from "../state"
+// import Extension from "../resources/extension"
+// import ExtensionInstallation from "../resources/extensioninstallation"
+// import { AsyncThunk } from "../state"
 
-export const registerUIAddon = (uiAddon: UIAddon): RegisterUIAddonAction => ({
+export const registerUIAddon = (uiAddon: UIAddon): Action => ({
   type: REGISTER_UI_ADDON,
   uiAddon,
 })
 
-export const unregisterUIAddon = (
-  uiAddon: UIAddon
-): UnregisterUIAddonAction => ({
+export const unregisterUIAddon = (uiAddon: UIAddon): Action => ({
   type: UNREGISTER_UI_ADDON,
   uiAddon,
 })
 
-export const installUIAddon = (
-  extension: Extension,
-  installation: ExtensionInstallation,
-  { name, has_js, has_css }: { name: string; has_js: boolean; has_css: boolean }
-): AsyncThunk<void> => async (dispatch) => {
-  if (has_js) {
-    const source = await dispatch(fetchUIAddon(extension, name, "js"))
-    const uiAddon = await createUIAddon(extension, installation, name, source)
-    dispatch(registerUIAddon(uiAddon)) // FIXME
-    uiAddon.install()
-  }
-}
+// export const installUIAddon = (
+//   extension: Extension,
+//   installation: ExtensionInstallation,
+//   {
+//     name,
+//     has_js,
+//     has_css,
+//   }: { name: string; has_js: boolean; has_css: boolean },
+// ): AsyncThunk<void> => async (dispatch) => {
+//   if (has_js) {
+//     const source = await dispatch(fetchUIAddon(extension, name, "js"))
+//     const uiAddon = await createUIAddon(extension, installation, name, source)
+//     dispatch(registerUIAddon(uiAddon)) // FIXME
+//     uiAddon.install()
+//   }
+// }
 
-export const uninstallUIAddon = (uiAddon: UIAddon): AsyncThunk<void> => async (
-  dispatch
-) => {
-  uiAddon.uninstall()
-  dispatch(unregisterUIAddon(uiAddon))
-}
+// export const uninstallUIAddon = (uiAddon: UIAddon): AsyncThunk<void> => async (
+//   dispatch,
+// ) => {
+//   uiAddon.uninstall()
+//   dispatch(unregisterUIAddon(uiAddon))
+// }
 
 /* export const ADD_REVIEW_CARD = "ADD_REVIEW_CARD"
 export const addReviewCard = (extension, component) => ({

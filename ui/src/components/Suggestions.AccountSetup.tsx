@@ -1,40 +1,62 @@
 import React, { FunctionComponent } from "react"
-import clsx from "clsx"
+import { Link as RouterLink } from "react-router-dom"
 
-import { makeStyles } from "@material-ui/core/styles"
+import Typography from "@material-ui/core/Typography"
+import { styled } from "@material-ui/core/styles"
 
 import Registry from "."
 import Panel from "./Suggestions.Panel"
-import { loadSystemSetting } from "../actions/system"
+import { loadSystemSettingByKey } from "../actions/system"
 import { useSubscription, useResource } from "../utils"
 
-const useStyles = makeStyles((theme) => ({
-  suggestionsAccountSetup: {},
+const Link = styled(RouterLink)(({ theme }) => ({
+  color: "inherit",
+  textDecoration: "none",
+
+  "&:hover": {
+    textDecoration: "underline",
+  },
 }))
+
+type ReasonProps = {
+  linkTo: string
+}
+
+const Reason: React.FunctionComponent<ReasonProps> = ({ linkTo, children }) => (
+  <Link to={linkTo}>
+    <Typography variant="body1">{children}</Typography>
+  </Link>
+)
 
 type Props = {
   className?: string
 }
 
+const kEnableSSHAccess = "authentication.enable_ssh_access"
+
 const SuggestionsAccountSetup: FunctionComponent<Props> = ({ className }) => {
-  const classes = useStyles()
+  useSubscription(loadSystemSettingByKey, kEnableSSHAccess)
   const systemSettings = useResource("systemsettings")
-  useSubscription(loadSystemSetting, {
-    systemSettingID: "authentication.enable_ssh_access",
-  })
-  const reasons = ["Review your personal details and email address"]
-  const enableSSHAccess = systemSettings.get(
-    "authentication.enable_ssh_access",
-    null
-  )
+  const enableSSHAccess = systemSettings.byKey.get(kEnableSSHAccess)
+  const reasons = [
+    <Reason linkTo="/settings/account/personal-details">
+      Review your personal details and email address
+    </Reason>,
+  ]
   if (enableSSHAccess)
-    reasons.push("Add one or more SSH keys to access Git repositories")
+    reasons.push(
+      <Reason linkTo="/settings/account/ssh-keys">
+        Add one or more SSH keys to access Git repositories
+      </Reason>,
+    )
   reasons.push(
-    "Add filters to be notified about changes in code you're interested in"
+    <Reason linkTo="/settings/account/">
+      Add filters to be notified about changes in code you're interested in
+    </Reason>,
   )
   return (
     <Panel
-      className={clsx(className, classes.suggestionsAccountSetup)}
+      className={className}
       panelID="accountSetup"
       heading="Account setup"
       subheading=""

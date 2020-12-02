@@ -24,8 +24,17 @@ import { JSONData } from "../types"
 
 export class NotLoaded extends Error {}
 
-interface ConvertValueFunc<T> {
+interface ConvertFromJSON<T> {
   (value: JSONData): T
+}
+
+interface ConvertToJSON<T> {
+  (value: T): JSONData
+}
+
+type Convert<T> = {
+  fromJSON: ConvertFromJSON<T>
+  toJSON: ConvertToJSON<T>
 }
 
 export class UserSetting<T> {
@@ -34,11 +43,14 @@ export class UserSetting<T> {
   constructor(
     readonly name: string,
     readonly fallbackValue: T,
-    readonly convert?: ConvertValueFunc<T>
+    readonly convert: Convert<T> = {
+      fromJSON: (value) => (value as unknown) as T,
+      toJSON: (value) => (value as unknown) as JSONData,
+    },
   ) {
     this.overrideValue = new Value<T | undefined>(
       `UserSetting/${name}`,
-      undefined
+      undefined,
     )
   }
 
@@ -52,9 +64,7 @@ export class UserSetting<T> {
       return this.fallbackValue
     const userSetting = byID.get(byName.get(this.name) ?? -1)
     if (!userSetting) return this.fallbackValue
-    return this.convert
-      ? this.convert(userSetting.value as JSONData)
-      : (userSetting.value as T)
+    return this.convert.fromJSON(userSetting.value as JSONData)
   }
 
   set(value: T) {
@@ -63,9 +73,7 @@ export class UserSetting<T> {
       dispatch(this.overrideValue.set(value))
       const session = getState().resource.sessions.get("current")
       if (session && session.user !== null) {
-        await dispatch(
-          setUserSetting(this.name, (value as unknown) as JSONData)
-        )
+        await dispatch(setUserSetting(this.name, this.convert.toJSON(value)))
         dispatch(this.overrideValue.delete())
       }
     }
@@ -77,7 +85,7 @@ export class UserSetting<T> {
 }
 
 export const useUserSetting = <T>(
-  setting: UserSetting<T>
+  setting: UserSetting<T>,
 ): [T, (newValue: T) => Promise<void>] => {
   const dispatch = useDispatch()
   return [

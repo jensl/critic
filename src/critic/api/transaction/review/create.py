@@ -17,131 +17,143 @@
 from __future__ import annotations
 
 import logging
-from typing import Iterable, Optional, Union
+from typing import Iterable, Optional
 
 logger = logging.getLogger(__name__)
 
-from . import CreatedReview, CreatedReviewEvent
-from .. import Transaction, Query, Insert, InsertMany
-from ..branch import validate_commit_set
-
 from critic import api
+from critic import dbaccess
+from . import CreateReviewEvent
+from ..item import InsertMany
+from ..base import TransactionBase
+from ..branch import validate_commit_set
+from ..createapiobject import CreateAPIObject
+from ..item import Insert
 
 
-async def create_review(
-    transaction: Transaction,
-    repository: api.repository.Repository,
-    owners: Iterable[api.user.User],
-    head: Optional[api.commit.Commit],
-    commits: Optional[Iterable[api.commit.Commit]],
-    branch: Optional[Union[api.branch.Branch, CreatedBranch]],
-    target_branch: Optional[api.branch.Branch],
-    via_push: bool,
-) -> CreatedReview:
-    critic = transaction.critic
+class CreateReview(CreateAPIObject[api.review.Review], api_module=api.review):
+    @staticmethod
+    async def make(
+        transaction: TransactionBase,
+        repository: api.repository.Repository,
+        owners: Iterable[api.user.User],
+        head: Optional[api.commit.Commit],
+        commits: Optional[Iterable[api.commit.Commit]],
+        branch: Optional[api.branch.Branch],
+        target_branch: Optional[api.branch.Branch],
+        via_push: bool,
+    ) -> api.review.Review:
+        critic = transaction.critic
 
-    if branch:
-        commits = await branch.commits
-        head = await branch.head
-    else:
-        assert commits is not None
-        commits, head = await validate_commit_set(critic, head, commits)
-
-    commits_behind: Optional[int]
-    if target_branch:
-        try:
-            tracked_branch = await api.trackedbranch.fetch(
-                transaction.critic, branch=target_branch
-            )
-        except api.trackedbranch.NotFound:
-            pass
+        if branch:
+            commits = await branch.commits
+            head = await branch.head
         else:
-            raise api.review.Error(
-                f"Invalid target branch: {target_branch.name} tracks "
-                f"{tracked_branch.source.name} in {tracked_branch.source.url}"
-            ) from None
-        upstreams = await commits.filtered_tails
-        if len(upstreams) != 1:
-            raise api.review.Error("Branch has multiple upstream commits")
-        (upstream,) = upstreams
-        if not await upstream.isAncestorOf(await target_branch.head):
-            raise api.review.Error("Branch is not based on target branch")
-        commits_behind = await repository.low_level.revlist(
-            include=[(await target_branch.head).sha1], exclude=[head.sha1], count=True
-        )
-    else:
-        commits_behind = None
+            assert commits is not None
+            commits, head = await validate_commit_set(critic, head, commits)
 
-    summary: Optional[str]
-    if len(commits) == 1:
-        (commit,) = commits
-        summary = commit.summary
-    else:
-        summary = None
-
-    review = CreatedReview(transaction, branch, commits).insert(
-        repository=repository,
-        summary=summary,
-        branch=branch,
-        integration_target=target_branch,
-        integration_behind=commits_behind,
-    )
-
-    event = CreatedReviewEvent.ensure(transaction, review, "created")
-
-    transaction.items.append(
-        InsertMany(
-            "reviewusers",
-            ["review", "uid", "owner"],
-            (dict(review=review, uid=owner, owner=True) for owner in owners),
-        )
-    )
-
-    if branch:
-        transaction.tables.add("reviewcommits")
-        if not via_push:
-            transaction.items.append(
-                Query(
-                    """INSERT
-                         INTO reviewcommits (review, commit)
-                       SELECT {review}, commit
-                         FROM branchcommits
-                        WHERE branch={branch}""",
-                    review=review,
-                    branch=branch,
+        commits_behind: Optional[int]
+        if target_branch:
+            try:
+                tracked_branch = await api.trackedbranch.fetch(
+                    transaction.critic, branch=target_branch
                 )
+            except api.trackedbranch.NotFound:
+                pass
+            else:
+                raise api.review.Error(
+                    f"Invalid target branch: {target_branch.name} tracks "
+                    f"{tracked_branch.source.name} in {tracked_branch.source.url}"
+                ) from None
+            upstreams = await commits.filtered_tails
+            if len(upstreams) != 1:
+                raise api.review.Error("Branch has multiple upstream commits")
+            (upstream,) = upstreams
+            if not await upstream.isAncestorOf(await target_branch.head):
+                raise api.review.Error("Branch is not based on target branch")
+            commits_behind = await repository.low_level.revlist(
+                include=[(await target_branch.head).sha1],
+                exclude=[head.sha1],
+                count=True,
             )
+        else:
+            commits_behind = None
 
-            transaction.tables.add("reviewupdates")
-            transaction.items.append(
-                Query(
-                    """INSERT
-                         INTO reviewupdates (branchupdate, event)
-                       SELECT id, {event}
-                         FROM branchupdates
-                        WHERE branch={branch}""",
-                    event=event,
-                    branch=branch,
-                )
-            )
-    else:
-        transaction.items.append(
+        summary: Optional[str]
+        if len(commits) == 1:
+            (commit,) = commits
+            summary = commit.summary
+        else:
+            summary = None
+
+        review = await CreateReview(transaction).insert(
+            repository=repository,
+            summary=summary,
+            branch=branch,
+            integration_target=target_branch,
+            integration_behind=commits_behind,
+        )
+
+        event = await CreateReviewEvent.ensure(transaction, review, "created")
+
+        await transaction.execute(
             InsertMany(
-                "reviewcommits",
-                ["review", "commit"],
-                (dict(review=review, commit=commit) for commit in commits),
+                "reviewusers",
+                ["review", "uid", "owner"],
+                (
+                    dbaccess.parameters(review=review, uid=owner, owner=True)
+                    for owner in owners
+                ),
             )
         )
 
-        async def protectCommit() -> None:
-            assert head
-            await repository.protectCommit(head)
+        if branch:
+            if not via_push:
+                await transaction.execute(
+                    Insert("reviewcommits")
+                    .columns("review", "commit")
+                    .query(
+                        """
+                        SELECT {review}, commit
+                          FROM branchcommits
+                         WHERE branch={branch}
+                        """,
+                        review=review,
+                        branch=branch,
+                    )
+                )
 
-        transaction.pre_commit_callbacks.append(protectCommit)
+                await transaction.execute(
+                    Insert("reviewupdates")
+                    .columns("branchupdate", "event")
+                    .query(
+                        """
+                        SELECT id, {event}
+                          FROM branchupdates
+                         WHERE branch={branch}
+                        """,
+                        event=event,
+                        branch=branch,
+                    )
+                )
+        else:
+            await transaction.execute(
+                InsertMany(
+                    "reviewcommits",
+                    ["review", "commit"],
+                    (
+                        dbaccess.parameters(review=review, commit=commit)
+                        for commit in commits
+                    ),
+                )
+            )
 
-    transaction.wakeup_service("reviewupdater")
+            async def protectCommit() -> None:
+                assert head
+                await repository.protectCommit(head)
 
-    return review
+            transaction.pre_commit_callbacks.append(protectCommit)
 
+        transaction.wakeup_service("reviewupdater")
 
-from ..branch import CreatedBranch
+        return review

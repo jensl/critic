@@ -1,5 +1,6 @@
 {
   "compilerOptions": {
+    "outDir": "./dist/",
     "target": "es2015",
     "lib": ["dom", "dom.iterable", "esnext"],
     "allowJs": true,
@@ -13,9 +14,10 @@
     "moduleResolution": "node",
     "resolveJsonModule": true,
     "isolatedModules": true,
-    "noEmit": true,
+    "noEmit": false,
     "jsx": "react",
-    "noFallthroughCasesInSwitch": false
+    "noFallthroughCasesInSwitch": false,
+    "types": []
   },
   "include": ["src"]
 }

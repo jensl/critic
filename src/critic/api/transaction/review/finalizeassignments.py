@@ -21,7 +21,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 from .reviewassignmentstransaction import ReviewAssignmentsTransaction
-from .. import Transaction, Finalizer
+from ..base import TransactionBase, Finalizer
 
 from critic import api
 from critic import dbaccess
@@ -41,11 +41,11 @@ class FinalizeAssignments(Finalizer):
         return hash((FinalizeAssignments, self.review, self.user))
 
     async def __call__(
-        self, _: Transaction, cursor: dbaccess.TransactionCursor
+        self, _: TransactionBase, cursor: dbaccess.TransactionCursor
     ) -> None:
         from ....reviewing.assignments import calculateAssignments, currentAssignments
 
-        transaction_id = int(self.assignments_transaction)
+        transaction_id = self.assignments_transaction.id
 
         expected_assignments = await calculateAssignments(
             self.review, subject=self.user

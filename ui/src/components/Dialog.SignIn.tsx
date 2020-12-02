@@ -14,7 +14,7 @@
  * the License.
  */
 
-import React, { FunctionComponent } from "react"
+import React, { FunctionComponent, useState } from "react"
 
 import { makeStyles } from "@material-ui/core/styles"
 import Button from "@material-ui/core/Button"
@@ -23,17 +23,19 @@ import DialogActions from "@material-ui/core/DialogActions"
 import DialogContent from "@material-ui/core/DialogContent"
 import DialogTitle from "@material-ui/core/DialogTitle"
 import TextField from "@material-ui/core/TextField"
+import Alert from "@material-ui/lab/Alert"
 
 import Registry from "."
 import WithProgress from "./Button.WithProgress"
-import { useDialog, useResource } from "../utils"
+import { useDialog, useResource, useSignedInUser } from "../utils"
 import { login, FieldValues } from "../actions/session"
 import { Field } from "../resources/session"
 import { useDispatch, useSelector } from "../store"
+import User from "../resources/user"
 
 export const kDialogID = "signIn"
 
-const useStyles = makeStyles({
+const useStyles = makeStyles((theme) => ({
   wrapper: {
     position: "relative",
   },
@@ -49,14 +51,22 @@ const useStyles = makeStyles({
       marginTop: 0,
     },
   },
-})
+  alert: {
+    marginBottom: theme.spacing(1),
+  },
+}))
 
-const SignIn: FunctionComponent = () => {
+type Props = {
+  callback?: ((user: User | null) => void) | null
+  reason?: string
+}
+
+const SignIn: FunctionComponent<Props> = ({ callback, reason }) => {
   const classes = useStyles()
   const dispatch = useDispatch()
   const { isOpen, closeDialog } = useDialog(kDialogID)
   const { signInPending, signInSuccessful, signInError } = useSelector(
-    (state) => state.ui.session
+    (state) => state.ui.session,
   )
   const session = useResource("sessions").get("current")
   if (!session) return null
@@ -65,10 +75,14 @@ const SignIn: FunctionComponent = () => {
     const data: FieldValues = {}
     session.fields.forEach((field) => {
       data[field.identifier] = (document.getElementById(
-        fieldID(field)
+        fieldID(field),
       ) as HTMLInputElement).value
     })
-    if (await dispatch(login(data))) closeDialog()
+    const user = await dispatch(login(data))
+    if (user) {
+      if (callback) callback(user)
+      else closeDialog()
+    }
   }
   const fields = session.fields.map((field) => {
     const hasError =
@@ -86,20 +100,33 @@ const SignIn: FunctionComponent = () => {
       />
     )
   })
+
+  const onClose = () => {
+    if (callback) callback(null)
+    else closeDialog()
+  }
+
   return (
     <Dialog
-      open={isOpen}
-      onClose={closeDialog}
+      open={callback === undefined ? isOpen : !!callback}
+      onClose={onClose}
       aria-labelledby="simple-dialog-title"
     >
       <DialogTitle id="simple-dialog-title">Sign in</DialogTitle>
       <DialogContent>
+        {reason && (
+          <Alert className={classes.alert} severity="info">
+            {reason}
+          </Alert>
+        )}
         <form className={classes.form}>{fields}</form>
       </DialogContent>
       <DialogActions>
+        <Button onClick={onClose}>Cancel</Button>
         <WithProgress inProgress={signInPending} successful={signInSuccessful}>
           <Button
             color="primary"
+            variant="contained"
             disabled={signInPending || signInSuccessful}
             onClick={doSignIn}
           >
@@ -109,6 +136,31 @@ const SignIn: FunctionComponent = () => {
       </DialogActions>
     </Dialog>
   )
+}
+
+type RequireSession = () => Promise<User | null>
+
+export const useRequireSession = (
+  reason: string,
+): [RequireSession, JSX.Element | null] => {
+  const user = useSignedInUser()
+  const [{ callback }, setCallback] = useState<{
+    callback?: (user: User | null) => void
+  }>({})
+
+  if (user) return [async () => user, null]
+
+  const requireSession = () =>
+    new Promise<User | null>((resolve) => {
+      setCallback({
+        callback: (user) => {
+          setCallback({})
+          resolve(user)
+        },
+      })
+    })
+
+  return [requireSession, <SignIn callback={callback} reason={reason} />]
 }
 
 export default Registry.add("Dialog.SignIn", SignIn)

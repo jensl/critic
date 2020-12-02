@@ -93,8 +93,8 @@ class FetchJob:
         self,
         object_id: Optional[SHA1],
         *,
-        wanted_object_type: ObjectType = None,
-        object_factory: Type[GitObject] = None,
+        wanted_object_type: Optional[ObjectType] = None,
+        object_factory: Optional[Type[GitObject]] = None,
     ) -> None:
         self.object_id = object_id
         self.wanted_object_type = wanted_object_type

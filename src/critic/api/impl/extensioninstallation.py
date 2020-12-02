@@ -21,8 +21,9 @@ from typing import Tuple, Optional, Sequence, Dict
 
 logger = logging.getLogger(__name__)
 
-from . import apiobject
 from critic import api
+from critic.api import extensioninstallation as public
+from . import apiobject
 
 
 WrapperType = api.extensioninstallation.ExtensionInstallation
@@ -38,6 +39,10 @@ class ExtensionInstallation(apiobject.APIObject[WrapperType, ArgumentsType, int]
         (self.id, self.__extension_id, self.__version_id, self.__user_id) = args
         self.is_live = self.__version_id is None
         self.is_universal = self.__user_id is None
+
+    @property
+    def extension_id(self) -> int:
+        return self.__extension_id
 
     async def getExtension(self, critic: api.critic.Critic) -> api.extension.Extension:
         return await api.extension.fetch(critic, self.__extension_id)
@@ -64,6 +69,7 @@ class ExtensionInstallation(apiobject.APIObject[WrapperType, ArgumentsType, int]
         return version.snapshot_path
 
 
+@public.fetchImpl
 @ExtensionInstallation.cached
 async def fetch(
     critic: api.critic.Critic,
@@ -108,6 +114,7 @@ async def fetch(
     return installations[0]
 
 
+@public.fetchAllImpl
 async def fetchAll(
     critic: api.critic.Critic,
     extension: Optional[api.extension.Extension],
@@ -118,11 +125,7 @@ async def fetchAll(
     if extension:
         conditions.append("extension={extension}")
     if version:
-        if isinstance(version, str) and version == "live":
-            conditions.append("version IS NULL")
-            version = None
-        else:
-            conditions.append("version={version}")
+        conditions.append("version={version}")
     if user:
         if user.is_anonymous:
             conditions.append("uid IS NULL")
@@ -143,7 +146,7 @@ async def fetchAll(
     # then "apply", and the version installed by the user themselves will win.
     per_extension: Dict[int, WrapperType] = {}
     for installation in installations:
-        extension_id = installation._impl.__extension_id
+        extension_id = ExtensionInstallation.fromWrapper(installation).extension_id
         if extension_id in per_extension and installation.is_universal:
             # This installation is the second we see, and it's universal,
             # so we skip it. If it was the second and not universal, the
@@ -151,6 +154,6 @@ async def fetchAll(
             continue
         per_extension[extension_id] = installation
     return [
-        per_extension[installation._impl.__extension_id]
+        per_extension[ExtensionInstallation.fromWrapper(installation).extension_id]
         for installation in installations
     ]

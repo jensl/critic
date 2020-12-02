@@ -14,6 +14,7 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
+import argparse
 import logging
 import time
 
@@ -31,7 +32,7 @@ server authenticating users using SSH keys stored in Critic's database.
 """
 
 
-def setup(parser):
+def setup(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--expected-user", help="Name of user we wish to authenticate.")
     parser.add_argument(
         "--authenticating-user", help="Name of user trying to authenticate."
@@ -42,7 +43,7 @@ def setup(parser):
     parser.set_defaults(must_be_root=False)
 
 
-async def main(critic, arguments):
+async def main(critic: api.critic.Critic, arguments: argparse.Namespace) -> int:
     log_file = open("/tmp/lookup_ssh_key.log", "a")
 
     print("1", str(time.time()), file=log_file)
@@ -64,3 +65,5 @@ async def main(critic, arguments):
         print(f"wrong user: {arguments.authenticating_user}", file=log_file)
 
     print("2", str(time.time()), file=log_file)
+
+    return 0

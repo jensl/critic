@@ -14,22 +14,24 @@
  * the License.
  */
 
+/* eslint-disable import/first */
+
 import { createStore, applyMiddleware, Middleware } from "redux"
 import thunkMiddleware from "redux-thunk"
 import { createLogger } from "redux-logger"
 //import { persistStore, autoRehydrate } from "redux-persist"
 //import { createBlacklistFilter } from "redux-persist-transform-filter"
 //import immutableTransform from "redux-persist-transform-immutable"
+import {
+  useDispatch as _useDispatch,
+  useSelector as _useSelector,
+} from "react-redux"
 
 import Reducer from "./reducers"
 //import { recordTypes as resourceRecordTypes } from "./resources"
 //import { recordTypes as reducerRecordTypes } from "./reducers"
 import { START } from "./actions"
 import { Dispatch, State } from "./state"
-import {
-  useDispatch as _useDispatch,
-  useSelector as _useSelector,
-} from "react-redux"
 
 const middleware: Middleware[] = [thunkMiddleware]
 

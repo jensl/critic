@@ -19,19 +19,111 @@ from __future__ import annotations
 import logging
 import time
 from abc import ABC, abstractmethod
-from typing import Collection, Generic, Iterable, Optional, Sequence, TypeVar
+from typing import (
+    Collection,
+    Iterable,
+    Optional,
+    Protocol,
+    Set,
+    TypeVar,
+)
 
 logger = logging.getLogger(__name__)
 
 from critic import api
+from critic import gitaccess
+from critic import pubsub
 
-from . import serialize_key, Key
+from . import Key
+from .fileids import FileIds
+from .languageids import LanguageIds
 
 JobType = TypeVar("JobType", bound="Job")
-GroupType = TypeVar("GroupType", bound="jobgroup.JobGroup")
 
 
-class Job(Generic[GroupType], ABC):
+class ServiceType(Protocol):
+    @property
+    async def pubsub_client(self) -> pubsub.Client:
+        ...
+
+    def monitor_changeset(self, changeset_id: int) -> None:
+        ...
+
+    def update_changeset(self, changeset_id: int) -> None:
+        ...
+
+    def forget_changeset(self, changeset_id: int) -> None:
+        ...
+
+
+class RunnerType(Protocol):
+    @property
+    def service(self) -> ServiceType:
+        ...
+
+    @property
+    def language_ids(self) -> LanguageIds:
+        ...
+
+    @property
+    def file_ids(self) -> FileIds:
+        ...
+
+    def find_new_incomplete(self) -> None:
+        ...
+
+
+class GroupType(Protocol):
+    @property
+    def key(self) -> Key:
+        ...
+
+    @property
+    def runner(self) -> RunnerType:
+        ...
+
+    @property
+    def service(self) -> ServiceType:
+        ...
+
+    @property
+    def language_ids(self) -> LanguageIds:
+        ...
+
+    @property
+    def running(self) -> Set[Job]:
+        ...
+
+    @property
+    def processed(self) -> Set[Job]:
+        ...
+
+    @property
+    def repository_id(self) -> int:
+        ...
+
+    @property
+    def changeset_id(self) -> int:
+        ...
+
+    @property
+    def conflicts(self) -> bool:
+        ...
+
+    def repository(self) -> gitaccess.GitRepository:
+        ...
+
+    def add_jobs(self, jobs: Iterable[Job], /) -> bool:
+        ...
+
+    def jobs_finished(self, jobs: Collection[Job]) -> None:
+        ...
+
+    async def process_traceback(self, critic: api.critic.Critic, job: Job) -> None:
+        ...
+
+
+class Job(ABC):
     # Higher values => lower priority.  Jobs with higher priority are
     # unconditionally started before jobs with lower priority.
     #
@@ -102,21 +194,19 @@ class Job(Generic[GroupType], ABC):
     async def update_database(self, critic: api.critic.Critic) -> None:
         pass
 
-    def follow_ups(self) -> Iterable[Job[GroupType]]:
+    def follow_ups(self) -> Iterable[Job]:
         return set()
 
     def split(self: JobType) -> Optional[Collection[JobType]]:
         return None
 
-    async def process_result(
-        self, critic: api.critic.Critic
-    ) -> Collection[Job[GroupType]]:
+    async def process_result(self, critic: api.critic.Critic) -> Collection[Job]:
         await self.update_database(critic)
         return set(self.follow_ups())
 
     async def process_traceback(
         self, critic: api.critic.Critic
-    ) -> Optional[Collection[Job[GroupType]]]:
+    ) -> Optional[Collection[Job]]:
         assert self.error is not None and self.traceback is not None
 
         logger.error(
@@ -132,21 +222,6 @@ class Job(Generic[GroupType], ABC):
             # actually failed.
             return partial_jobs
 
-        if isinstance(self.group, changeset.Changeset):
-            async with critic.transaction() as cursor:
-                await cursor.execute(
-                    """INSERT INTO changeseterrors (
-                        changeset, job_key, fatal, traceback
-                    ) VALUES (
-                        {changeset}, {job_key}, {fatal}, {traceback}
-                    )""",
-                    changeset=self.group.changeset_id,
-                    job_key=serialize_key(self.key),
-                    fatal=self.is_fatal,
-                    traceback=self.traceback,
-                )
+        await self.group.process_traceback(critic, self)
 
         return None
-
-
-from . import jobgroup, changeset

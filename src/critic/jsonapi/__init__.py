@@ -16,76 +16,37 @@
 
 from __future__ import annotations
 
-import asyncio
-import contextlib
-import functools
-import itertools
+import aiohttp.web
 import json
 import logging
-from abc import ABC, abstractmethod
-from collections import defaultdict
-from types import ModuleType
 from typing import (
     Any,
-    Awaitable,
-    Callable,
-    Collection,
-    Coroutine,
     Dict,
-    Generic,
-    Iterable,
     List,
     Optional,
     Sequence,
     Set,
-    Tuple,
     Type,
     TypeVar,
     Union,
-    Mapping,
-    Iterator,
-    Protocol,
     Literal,
     cast,
-    overload,
 )
 
 logger = logging.getLogger(__name__)
 
 from critic import api
 from critic import auth
-from ..wsgi import request
-from critic.base import asyncutils
-from critic.base.profiling import timed
 
 from .exceptions import (
     Error,
     PathError,
     UsageError,
-    InputError,
     PermissionDenied,
     ResultDelayed,
     ResourceSkipped,
 )
-
-
-def getAPIVersion(req: Request) -> Literal["v1"]:
-    path = req.path.split("/")
-
-    assert len(path) >= 1 and path[0] == "api"
-
-    if len(path) < 2:
-        raise PathError("Missing API version")
-
-    api_version = path[1]
-
-    if api_version != "v1":
-        raise PathError("Unsupported API version: %r" % api_version)
-
-    return api_version
-
-
-from .types import Request
+from .utils import getAPIVersion
 
 
 T = TypeVar("T")
@@ -98,7 +59,6 @@ def identity(value: str) -> str:
 
 from .parameters import Parameters
 from .linked import Linked
-from .valuewrapper import ValueWrapper, plain, immediate, basic_list
 
 
 # def find(resource_name: str) -> Any:
@@ -110,30 +70,18 @@ from .valuewrapper import ValueWrapper, plain, immediate, basic_list
 #     )
 
 
-from .utils import (
-    id_or_name,
-    numeric_id,
-    maybe_await,
-    sorted_by_id,
-    many,
-    delay,
-)
+from .values import Values, MultipleValues
 
-from . import check
-
-from .check import convert, ensure
-from .values import Values, SingleValue, MultipleValues
-
-from .types import JSONInput, JSONResult
+from .types import JSONInput, JSONResult, Request
 
 
-from .resourceclass import NotSupported, ResourceClass, VALUE_CLASSES
+from .resourceclass import NotSupported, ResourceClass, APIObject
 
 from . import v1
 from . import documentation
 
 
-from .reduce import reduceValue, reduceValues
+from .reduce import reduceValue, reduceValues, JSONFunction
 from .filterjson import filter_json
 
 
@@ -164,7 +112,9 @@ async def finishLinked(
                 if not linked_values:
                     continue
             if "limit" in options:
-                if len(already_linked) + len(linked_values) > options["limit"]:
+                limit = options["limit"]
+                assert isinstance(limit, int)
+                if len(already_linked) + len(linked_values) > limit:
                     linked_json[resource_type] = "limited"
                     continue
             linked_resource_class = ResourceClass.lookup([api_version, resource_type])
@@ -175,7 +125,8 @@ async def finishLinked(
                 if not linked_values:
                     continue
             resource_linked_json = linked_json[resource_type]
-            if resource_linked_json == "limited":
+            if isinstance(resource_linked_json, str):
+                assert resource_linked_json == "limited"
                 continue
             resource_linked_json.extend(
                 await filter_json(
@@ -195,7 +146,8 @@ async def finishLinked(
         linked = additional_linked
 
         for resource_type, linked_items in linked_json.items():
-            if linked_items == "limited":
+            if isinstance(linked_items, str):
+                assert linked_items == "limited"
                 continue
 
             linked_items.sort(
@@ -209,23 +161,22 @@ async def finishGET(
     critic: api.critic.Critic,
     req: Request,
     parameters: Parameters,
-    resource_class: Type[ResourceClass],
-    values: Values[T],
+    resource_class: Type[ResourceClass[APIObject]],
+    values: Values[APIObject],
 ) -> JSONResult:
-    included_values: Set[T] = set()
+    included_values: Set[APIObject] = set()
     resource_json: Any
 
+    json_fn: JSONFunction[T] = resource_class.json  # type: ignore
+
     try:
-        if isinstance(values, MultipleValues):
+        if values.is_multiple:
             resource_json = await reduceValues(
-                parameters, resource_class.json, values, included_values
+                parameters, json_fn, values, included_values
             )
         else:
-            assert isinstance(values, SingleValue)
             try:
-                resource_json = await reduceValue(
-                    parameters, resource_class.json, values.get()
-                )
+                resource_json = await reduceValue(parameters, json_fn, values.get())
             except ResourceSkipped as error:
                 raise PathError(str(error))
             try:
@@ -247,7 +198,10 @@ async def finishGET(
     if isinstance(resource_json, list):
         top_json = {
             resource_class.name: await filter_json(
-                parameters, linked, resource_class, resource_json
+                parameters,
+                linked,
+                resource_class,
+                cast(Sequence[JSONResult], resource_json),
             )
         }
     else:
@@ -303,14 +257,14 @@ async def finishGET(
 
 def requireSignIn(critic: api.critic.Critic) -> None:
     if critic.actual_user is None:
-        raise UsageError("Sign-in required")
+        raise UsageError("Sign-in required", code="SESSION_REQUIRED")
 
 
 async def finishPOST(
     critic: api.critic.Critic,
     req: Request,
     parameters: Parameters,
-    resource_class: Type[ResourceClass],
+    resource_class: Type[ResourceClass[APIObject]],
     data: Any,
 ) -> JSONResult:
     if not resource_class.anonymous_create:
@@ -326,10 +280,10 @@ async def finishPOST(
 
     while True:
         try:
-            values = Values.make(await resource_class.create(parameters, data))
-            assert all(
-                isinstance(value, resource_class.value_class) for value in values
+            values = Values[APIObject].make(
+                await resource_class.create(parameters, data)  # type: ignore
             )
+            assert all(resource_class.isInstance(value) for value in values)
         except resource_class.exceptions as error:
             raise UsageError(str(error), error=error)
         else:
@@ -342,9 +296,9 @@ async def finishPUT(
     critic: api.critic.Critic,
     req: Request,
     parameters: Parameters,
-    resource_class: Type[ResourceClass],
-    values: Values,
-    data: Any,
+    resource_class: Type[ResourceClass[APIObject]],
+    values: Values[APIObject],
+    data: Union[JSONInput, Sequence[JSONInput]],
 ) -> JSONResult:
     if not resource_class.anonymous_update:
         requireSignIn(critic)
@@ -352,7 +306,11 @@ async def finishPUT(
     if isinstance(data, list):
         assert not values
         try:
-            values = Values.make(await resource_class.update_many(parameters, data))
+            values = Values[APIObject].make(
+                await resource_class.update_many(  # type: ignore
+                    parameters, cast(Sequence[JSONInput], data)
+                )
+            )
         except NotSupported:
             raise UsageError(
                 "Resource class does not support updating: %s" % resource_class.name
@@ -361,7 +319,7 @@ async def finishPUT(
             raise UsageError(str(error))
     elif values:
         try:
-            await resource_class.update(parameters, values, data)
+            await resource_class.update(parameters, values, cast(JSONInput, data))
         except NotSupported:
             raise UsageError(
                 "Resource class does not support updating: %s" % resource_class.name
@@ -376,16 +334,18 @@ async def finishDELETE(
     critic: api.critic.Critic,
     req: Request,
     parameters: Parameters,
-    resource_class: Type[ResourceClass],
-    values: Values,
+    resource_class: Type[ResourceClass[APIObject]],
+    values: Values[APIObject],
 ) -> JSONResult:
     if not resource_class.anonymous_delete:
         requireSignIn(critic)
 
-    resource_ids: List[int]
+    resource_ids: Sequence[object]
 
     if parameters.output_format == "static":
-        resource_ids = [resource.id for resource in values]
+        resource_ids = [resource_class.valueId(resource) for resource in values]
+    else:
+        resource_ids = ()
 
     try:
         return_value = await resource_class.delete(parameters, values)
@@ -398,13 +358,14 @@ async def finishDELETE(
 
     if return_value is None:
         if parameters.output_format == "static":
+            parameters.primary_resource_type = resource_class.name
             top_json: JSONResult = {"deleted": {resource_class.name: resource_ids}}
             linked = await finishLinked(getAPIVersion(req), Linked(parameters), set())
             if linked is not None:
                 top_json["linked"] = linked
             return top_json
 
-        raise request.NoContent()
+        raise aiohttp.web.HTTPNoContent()
 
     return await finishGET(
         critic, req, parameters, resource_class, Values.make(return_value)
@@ -414,40 +375,43 @@ async def finishDELETE(
 from .evaluate import evaluateSingle, evaluateMany, evaluateMultiple
 
 
-async def handleRequestInternal(critic: api.critic.Critic, req: Request) -> JSONResult:
-    parameters = Parameters(critic, req)
+async def handleRequestInternal(parameters: Parameters) -> JSONResult:
+    request = parameters.request
+    critic = parameters.critic
 
     if "dbqueries" in parameters.debug:
         critic.database.enable_accounting()
 
     if not parameters.api_version:
-        if req.method == "GET":
+        if request.method == "GET":
             documentation.describeRoot()
         else:
-            raise UsageError("Invalid %s request" % req.method)
+            raise UsageError("Invalid %s request" % request.method)
 
     prefix: List[str] = [parameters.api_version]
-    path = req.path.rstrip("/").split("/")[2:]
+    path = request.path.strip("/").split("/")[2:]
 
     if not path:
-        if req.method == "GET":
-            describe_parameter = parameters.getQueryParameter("describe")
-            if describe_parameter:
-                v1.documentation.describeResource(describe_parameter)
-            v1.documentation.describeVersion()
-        else:
-            raise UsageError("Invalid %s request" % req.method)
+        # if request.method == "GET":
+        #     describe_parameter = parameters.query.get("describe")
+        #     if describe_parameter:
+        #         v1.documentation.describeResource(describe_parameter)
+        #     v1.documentation.describeVersion()
+        # else:
+        raise UsageError("Invalid %s request" % request.method)
 
     data: Optional[JSONInput] = None
 
-    if req.method in ("POST", "PUT"):
+    if request.method in ("POST", "PUT"):
         try:
-            data = json.loads(await req.read())
+            data = json.loads(await request.read())
         except ValueError:
-            raise UsageError("Invalid %s request body" % req.method)
+            raise UsageError("Invalid %s request body" % request.method)
 
-    resource_class: Optional[Type[ResourceClass]] = None
+    resource_class: Optional[Type[ResourceClass[api.APIObject]]] = None
     resource_path: List[str] = []
+
+    values: Optional[Values[Any]]
 
     while True:
         next_component = path.pop(0)
@@ -506,9 +470,11 @@ async def handleRequestInternal(critic: api.critic.Critic, req: Request) -> JSON
             if path and resource_class.single:
                 arguments: Sequence[str] = list(filter(None, path.pop(0).split(",")))
                 if len(arguments) == 0 or (len(arguments) > 1 and path):
-                    raise UsageError("Invalid resource path: %s" % req.path)
-                if req.method == "POST" and not path:
-                    raise UsageError("Invalid resource path for POST: %s" % req.path)
+                    raise UsageError("Invalid resource path: %s" % request.path)
+                if request.method == "POST" and not path:
+                    raise UsageError(
+                        "Invalid resource path for POST: %s" % request.path
+                    )
                 try:
                     if len(arguments) == 1:
                         values = await evaluateSingle(
@@ -519,15 +485,18 @@ async def handleRequestInternal(critic: api.critic.Critic, req: Request) -> JSON
                             parameters, resource_class, arguments
                         )
                 except resource_class.exceptions as error:
-                    if parameters.output_format == "static":
+                    if (
+                        parameters.query.get("output_format", choices=("static",))
+                        == "static"
+                    ):
                         raise PathError(str(error))
                     raise
                 if len(arguments) > 1 or not path:
                     break
             elif not path:
-                if req.method == "POST":
+                if request.method == "POST":
                     break
-                elif req.method == "PUT" and isinstance(data, list):
+                elif request.method == "PUT" and isinstance(data, list):  # type: ignore
                     break
                 try:
                     values = await evaluateMultiple(parameters, resource_class)
@@ -540,28 +509,78 @@ async def handleRequestInternal(critic: api.critic.Critic, req: Request) -> JSON
     if path:
         raise UsageError("Invalid path")
 
-    if req.method == "GET":
+    if request.method == "GET":
         assert values is not None
-        return await finishGET(critic, req, parameters, resource_class, values)
-    elif req.method == "POST":
-        return await finishPOST(critic, req, parameters, resource_class, data)
-    elif req.method == "PUT":
+        return await finishGET(critic, request, parameters, resource_class, values)
+    elif request.method == "POST":
+        return await finishPOST(critic, request, parameters, resource_class, data)
+    elif request.method == "PUT":
         assert values is not None
-        return await finishPUT(critic, req, parameters, resource_class, values, data)
-    elif req.method == "DELETE":
+        return await finishPUT(
+            critic,
+            request,
+            parameters,
+            resource_class,
+            values,
+            cast(Union[JSONInput, Sequence[JSONInput]], data),
+        )
+    elif request.method == "DELETE":
         assert values is not None
-        return await finishDELETE(critic, req, parameters, resource_class, values)
+        return await finishDELETE(critic, request, parameters, resource_class, values)
 
-    raise UsageError(f"Unsupported method: {req.method}")
+    raise UsageError(f"Unsupported method: {request.method}")
 
 
-async def handleRequest(critic: api.critic.Critic, req: Request) -> JSONResult:
+async def handlePreloadRequest(critic: api.critic.Critic, request: Request) -> Any:
+    from .parametersimpl import ParametersImpl
+
+    parameters = ParametersImpl(critic, request)
+
     try:
-        return await handleRequestInternal(critic, req)
+        return await handleRequestInternal(parameters)
+    except Exception:
+        logger.exception("Failed to handle preload request: %s", request.path)
+        return None
+
+
+async def handleRequest(
+    critic: api.critic.Critic, request: aiohttp.web.BaseRequest
+) -> aiohttp.web.StreamResponse:
+    from .parametersimpl import ParametersImpl
+
+    parameters = ParametersImpl(critic, cast(Request, request))
+
+    try:
+        result = await handleRequestInternal(parameters)
     except (api.PermissionDenied, auth.AccessDenied) as error:
         raise PermissionDenied(str(error))
     except api.ResultDelayedError as error:
         raise ResultDelayed("Please try again later: %s" % error)
+    except Error as error:
+        raise error.http_exception
+    else:
+        response = aiohttp.web.StreamResponse()
+        response.content_type = "application/json"
+
+        is_secure = request.scheme == "https"
+
+        for name, cookie in parameters.cookies.set_cookies.items():
+            response.set_cookie(name, cookie.value, secure=is_secure and cookie.secure)  # type: ignore
+        for name in parameters.cookies.del_cookies:
+            response.del_cookie(name)
+
+        await response.prepare(request)
+
+        indent = parameters.query.get("indent", converter=int)
+        if indent is not None:
+            payload = json.dumps(result, indent=indent)
+        else:
+            payload = json.dumps(result)
+
+        await response.write(payload.encode())
+        await response.write_eof()
+
+        return response
 
 
-__all__ = ["check", "convert", "ensure", "Nullable"]
+__all__ = ["v1"]

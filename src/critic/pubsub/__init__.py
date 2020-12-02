@@ -9,11 +9,13 @@ from typing import (
     NewType,
     Optional,
     Protocol,
+    Sequence,
     Tuple,
     Union,
 )
 
 from critic import api
+from critic.api.apiobject import FunctionRef
 
 ChannelName = NewType("ChannelName", str)
 Payload = NewType("Payload", object)
@@ -104,7 +106,7 @@ class Subscription(Protocol):
     def request_callback(self) -> Optional[RequestCallback]:
         ...
 
-    def unsubscribe(self) -> None:
+    async def unsubscribe(self) -> None:
         ...
 
 
@@ -128,31 +130,44 @@ class PublishMessage:
 from .client import Client
 
 
+connectImpl: FunctionRef[
+    Callable[
+        [
+            str,
+            Optional[Callable[[], None]],
+            bool,
+            int,
+            Literal["immediate", "lazy"],
+            bool,
+        ],
+        AsyncContextManager[Client],
+    ]
+] = FunctionRef()
+
+
 def connect(
     client_name: str,
     *,
-    disconnected: Callable[[], None] = None,
+    disconnected: Optional[Callable[[], None]] = None,
+    parallel_requests: int = 1,
     persistent: bool = False,
     mode: Literal["immediate", "lazy"] = "immediate",
     accept_failure: bool = False,
 ) -> AsyncContextManager[Client]:
-    from critic.background.pubsub import client
-
-    return client.ClientImpl(
-        client_name,
-        disconnected=disconnected,
-        persistent=persistent,
-        mode=mode,
-        accept_failure=accept_failure,
+    return connectImpl.get()(
+        client_name, disconnected, persistent, parallel_requests, mode, accept_failure
     )
+
+
+publishImpl: FunctionRef[
+    Callable[[api.critic.Critic, str, Sequence[PublishMessage]], Awaitable[None]]
+] = FunctionRef()
 
 
 async def publish(
     critic: api.critic.Critic, client_name: str, *messages: PublishMessage
 ) -> None:
-    from critic.background.pubsub import client
-
-    return await client.publish(critic, client_name, *messages)
+    return await publishImpl.get()(critic, client_name, messages)
 
 
 __all__ = [

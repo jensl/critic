@@ -30,8 +30,7 @@ const RepositoryDiff: FunctionComponent = () => {
   const { id: repositoryID } = useRepository()!
   const review = useReview()
   useSubscription(loadChangesetBySHA1, {
-    fromCommitRef,
-    toCommitRef,
+    refs: { fromCommitRef, toCommitRef },
     repositoryID,
     reviewID: id(review),
   })
@@ -42,7 +41,7 @@ const RepositoryDiff: FunctionComponent = () => {
   const fromCommitID = commitRefs.get(`${repositoryID}:${fromCommitRef}`)
   if (typeof fromCommitID !== "number")
     return nullBecause(
-      `no fromCommitID: "${repositoryID}:${fromCommitRef}" not in commitRefs`
+      `no fromCommitID: "${repositoryID}:${fromCommitRef}" not in commitRefs`,
     )
   const fromCommit = commits.byID.get(fromCommitID)
   if (!fromCommit)
@@ -50,17 +49,17 @@ const RepositoryDiff: FunctionComponent = () => {
   const toCommitID = commitRefs.get(`${repositoryID}:${toCommitRef}`)
   if (typeof toCommitID !== "number")
     return nullBecause(
-      `no toCommitID: "${repositoryID}:${toCommitRef}" not in commitRefs`
+      `no toCommitID: "${repositoryID}:${toCommitRef}" not in commitRefs`,
     )
   const toCommit = commits.byID.get(toCommitID)
   if (!toCommit)
     return nullBecause(`no toCommit: ${toCommitID} not in commits.byID`)
   const changesetID = changesets.byCommits.get(
-    `${fromCommit.id}..${toCommit.id}`
+    `${fromCommit.id}..${toCommit.id}`,
   )
   if (typeof changesetID !== "number")
     return nullBecause(
-      `no changesetID: ${fromCommit.id}..${toCommit.id} not in changesets.byCommits`
+      `no changesetID: ${fromCommit.id}..${toCommit.id} not in changesets.byCommits`,
     )
   const changeset = changesets.byID.get(changesetID)
   if (!changeset)

@@ -20,6 +20,7 @@ from typing import Tuple, Optional, Sequence, Any
 
 from . import apiobject
 from critic import api
+from critic.api import repositorysetting as public
 
 WrapperType = api.repositorysetting.RepositorySetting
 ArgumentsType = Tuple[int, int, str, str, Any]
@@ -38,6 +39,7 @@ class RepositorySetting(apiobject.APIObject[WrapperType, ArgumentsType, int]):
         return await api.repository.fetch(critic, self.__repository_id)
 
 
+@public.fetchImpl
 @RepositorySetting.cached
 async def fetch(
     critic: api.critic.Critic,
@@ -68,6 +70,7 @@ async def fetch(
             raise
 
 
+@public.fetchAllImpl
 async def fetchAll(
     critic: api.critic.Critic,
     repository: Optional[api.repository.Repository],

@@ -16,9 +16,10 @@
 
 from __future__ import annotations
 
-from typing import Protocol, Sequence, Optional, overload
+from typing import Awaitable, Callable, Protocol, Sequence, Optional, overload
 
 from critic import api
+from critic.api.apiobject import FunctionRef
 from critic.gitaccess import SHA1
 
 
@@ -131,8 +132,8 @@ class Tree(api.APIObject):
         """The entries of this directory
 
 
-           The entries are returned as a list of Entry objects, ordered
-           lexicographically by name."""
+        The entries are returned as a list of Entry objects, ordered
+        lexicographically by name."""
         return self._impl.getEntries(self)
 
     async def readLink(self, entry: Tree.Entry) -> str:
@@ -157,14 +158,12 @@ async def fetch(*, entry: Tree.Entry) -> Tree:
 
 async def fetch(
     *,
-    repository: api.repository.Repository = None,
-    sha1: SHA1 = None,
-    commit: api.commit.Commit = None,
-    path: str = None,
-    entry: Tree.Entry = None
+    repository: Optional[api.repository.Repository] = None,
+    sha1: Optional[SHA1] = None,
+    commit: Optional[api.commit.Commit] = None,
+    path: Optional[str] = None,
+    entry: Optional[Tree.Entry] = None
 ) -> Tree:
-    from .impl import tree as impl
-
     if repository:
         critic = repository.critic
     elif commit:
@@ -173,7 +172,22 @@ async def fetch(
         assert entry and entry.isDirectory
         critic = entry.tree.critic
 
-    return await impl.fetch(critic, repository, sha1, commit, path, entry)
+    return await fetchImpl.get()(critic, repository, sha1, commit, path, entry)
 
 
 resource_name = "trees"
+
+
+fetchImpl: FunctionRef[
+    Callable[
+        [
+            api.critic.Critic,
+            Optional[api.repository.Repository],
+            Optional[SHA1],
+            Optional[api.commit.Commit],
+            Optional[str],
+            Optional[Tree.Entry],
+        ],
+        Awaitable[Tree],
+    ]
+] = FunctionRef()

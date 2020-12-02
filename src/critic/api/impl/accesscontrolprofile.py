@@ -20,10 +20,10 @@ from dataclasses import dataclass
 from typing import Optional, Tuple, Generic, TypeVar, Sequence
 
 from critic import api
+from critic.api import accesscontrolprofile as public
 from .apiobject import APIObject
 
-public = api.accesscontrolprofile
-public_class = api.accesscontrolprofile.AccessControlProfile
+public_class = public.AccessControlProfile
 
 # HTTPException = public_class.HTTPException
 # RepositoryException = public_class.RepositoryException
@@ -32,23 +32,59 @@ public_class = api.accesscontrolprofile.AccessControlProfile
 
 @dataclass(frozen=True)
 class HTTPException:
-    id: int
-    request_method: Optional[public.HTTPMethod]
-    path_pattern: Optional[str]
+    __id: int
+    __request_method: Optional[public.HTTPMethod]
+    __path_pattern: Optional[str]
+
+    @property
+    def id(self) -> int:
+        return self.__id
+
+    @property
+    def request_method(self) -> Optional[public.HTTPMethod]:
+        return self.__request_method
+
+    @property
+    def path_pattern(self) -> Optional[str]:
+        return self.__path_pattern
 
 
 @dataclass(frozen=True)
 class RepositoryException:
-    id: int
-    access_type: Optional[public.RepositoryAccessType]
-    repository: Optional[api.repository.Repository]
+    __id: int
+    __access_type: Optional[public.RepositoryAccessType]
+    __repository: Optional[api.repository.Repository]
+
+    @property
+    def id(self) -> int:
+        return self.__id
+
+    @property
+    def access_type(self) -> Optional[public.RepositoryAccessType]:
+        return self.__access_type
+
+    @property
+    def repository(self) -> Optional[api.repository.Repository]:
+        return self.__repository
 
 
 @dataclass(frozen=True)
 class ExtensionException:
-    id: int
-    access_type: Optional[public.ExtensionAccessType]
-    extension: Optional[api.extension.Extension]
+    __id: int
+    __access_type: Optional[public.ExtensionAccessType]
+    __extension: Optional[api.extension.Extension]
+
+    @property
+    def id(self) -> int:
+        return self.__id
+
+    @property
+    def access_type(self) -> Optional[public.ExtensionAccessType]:
+        return self.__access_type
+
+    @property
+    def extension(self) -> Optional[api.extension.Extension]:
+        return self.__extension
 
 
 ExceptionType = TypeVar("ExceptionType")
@@ -56,8 +92,16 @@ ExceptionType = TypeVar("ExceptionType")
 
 @dataclass(frozen=True)
 class Category(Generic[ExceptionType]):
-    rule: public.RuleValue
-    exceptions: Sequence[ExceptionType]
+    __rule: public.RuleValue
+    __exceptions: Sequence[ExceptionType]
+
+    @property
+    def rule(self) -> public.RuleValue:
+        return self.__rule
+
+    @property
+    def exceptions(self) -> Sequence[ExceptionType]:
+        return self.__exceptions
 
 
 WrapperType = public.AccessControlProfile
@@ -74,6 +118,10 @@ ArgumentsType = Tuple[
 class AccessControlProfile(APIObject[WrapperType, ArgumentsType, int]):
     wrapper_class = api.accesscontrolprofile.AccessControlProfile
     column_names = ["id", "title", "access_token", "http", "repositories", "extensions"]
+
+    http_rule: public.RuleValue
+    repositories_rule: public.RuleValue
+    extensions_rule: public.RuleValue
 
     def __init__(
         self, args: ArgumentsType = (None, None, None, "allow", "allow", "allow")
@@ -97,7 +145,8 @@ class AccessControlProfile(APIObject[WrapperType, ArgumentsType, int]):
     async def getHTTP(
         self, critic: api.critic.Critic
     ) -> public.Category[public.HTTPException]:
-        async with critic.query(
+        async with api.critic.Query[Tuple[int, public.HTTPMethod, str]](
+            critic,
             """SELECT id, request_method, path_pattern
                  FROM accesscontrol_http
                 WHERE profile={profile_id}
@@ -115,7 +164,8 @@ class AccessControlProfile(APIObject[WrapperType, ArgumentsType, int]):
     async def getRepositories(
         self, critic: api.critic.Critic
     ) -> public.Category[public.RepositoryException]:
-        async with critic.query(
+        async with api.critic.Query[Tuple[int, public.RepositoryAccessType, int]](
+            critic,
             """SELECT id, access_type, repository
                  FROM accesscontrol_repositories
                 WHERE profile={profile_id}
@@ -141,7 +191,8 @@ class AccessControlProfile(APIObject[WrapperType, ArgumentsType, int]):
     ) -> public.Category[public.ExtensionException]:
         if not api.critic.settings().extensions.enabled:
             return Category(self.extensions_rule, [])
-        async with critic.query(
+        async with api.critic.Query[Tuple[int, public.ExtensionAccessType, str]](
+            critic,
             """SELECT id, access_type, extension_key
                  FROM accesscontrol_extensions
                 WHERE profile={profile_id}
@@ -163,6 +214,7 @@ class AccessControlProfile(APIObject[WrapperType, ArgumentsType, int]):
             )
 
 
+@public.fetchImpl
 @AccessControlProfile.cached
 async def fetch(critic: api.critic.Critic, profile_id: Optional[int]) -> WrapperType:
     if profile_id is not None:
@@ -229,6 +281,7 @@ async def fetch(critic: api.critic.Critic, profile_id: Optional[int]) -> Wrapper
     return AccessControlProfile().wrap(critic)
 
 
+@public.fetchAllImpl
 async def fetchAll(
     critic: api.critic.Critic, title: Optional[str]
 ) -> Sequence[WrapperType]:

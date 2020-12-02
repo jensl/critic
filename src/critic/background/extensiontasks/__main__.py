@@ -1,15 +1,14 @@
 from __future__ import annotations
 
 import logging
-from typing import List, Set
+from typing import List, Set, cast
 
 logger = logging.getLogger("critic.background.extensiontasks")
 
 from critic import background
-from critic import extensions
 from critic import pubsub
 
-from . import Request
+from .request import Request
 
 
 class ExtensionTasks(background.service.BackgroundService):
@@ -59,7 +58,7 @@ class ExtensionTasks(background.service.BackgroundService):
                     finished_events=finished_events,
                 )
 
-    async def pubsub_connected(self, client: pubsub.Client) -> None:
+    async def pubsub_connected(self, client: pubsub.Client, /) -> None:
         await client.handle_requests(
             pubsub.ChannelName("extensiontasks"), self.handle_request
         )
@@ -68,8 +67,8 @@ class ExtensionTasks(background.service.BackgroundService):
         self, channel_name: pubsub.ChannelName, request: pubsub.IncomingRequest
     ) -> None:
         await request.notify_delivery()
-        payload = request.payload
-        assert isinstance(payload, Request)
+        assert isinstance(request.payload, Request)
+        payload = cast(Request[object], request.payload)
         try:
             async with self.start_session() as critic:
                 result = await payload.dispatch(critic)

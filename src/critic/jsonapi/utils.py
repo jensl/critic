@@ -3,21 +3,22 @@ from __future__ import annotations
 import inspect
 from typing import (
     Any,
-    Tuple,
-    Optional,
     Awaitable,
-    Union,
-    TypeVar,
-    Iterable,
     Callable,
+    Collection,
+    Iterable,
+    Literal,
+    Optional,
     Protocol,
     Sequence,
-    Container,
-    Collection,
+    Tuple,
+    TypeVar,
+    Union,
     cast,
 )
 
-from .exceptions import UsageError
+from .exceptions import PathError, UsageError
+from .types import Request
 from .valuewrapper import basic_list, ValueWrapper
 
 
@@ -83,3 +84,19 @@ def many(converter: Callable[[str], T]) -> Callable[[str], Sequence[T]]:
 
 async def delay(fn: Callable[[], Awaitable[T]]) -> T:
     return await fn()
+
+
+def getAPIVersion(req: Request) -> Literal["v1"]:
+    path = req.path.strip("/").split("/")
+
+    assert len(path) >= 1 and path[0] == "api"
+
+    if len(path) < 2:
+        raise PathError("Missing API version")
+
+    api_version = path[1]
+
+    if api_version != "v1":
+        raise PathError("Unsupported API version: %r" % api_version)
+
+    return api_version

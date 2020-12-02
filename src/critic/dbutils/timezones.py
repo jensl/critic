@@ -28,9 +28,6 @@ async def loadTimezones(critic):
 
     from critic import base
 
-    if base.configuration()["database.driver"] != "postgresql":
-        return
-
     async def insert_timezone(cursor, name, abbrev, utc_offset):
         await cursor.execute(
             """INSERT INTO timezones (name, abbrev, utc_offset)
@@ -69,9 +66,6 @@ async def updateTimezones(critic):
     """
 
     from critic import base
-
-    if base.configuration()["database.driver"] != "postgresql":
-        return
 
     async with critic.transaction() as cursor:
         await cursor.execute(

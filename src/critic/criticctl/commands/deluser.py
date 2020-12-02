@@ -14,7 +14,9 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
+import argparse
 import logging
+from typing import Literal, Protocol
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +43,7 @@ associated with all historic actions of the user.
 """
 
 
-def setup(parser):
+def setup(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--username", required=True, help="Name of the user to delete")
 
     mode_group = parser.add_mutually_exclusive_group(required=True)
@@ -63,7 +65,12 @@ def setup(parser):
     parser.set_defaults(need_session=True)
 
 
-async def main(critic, arguments):
+class Arguments(Protocol):
+    username: str
+    status: Literal["retired", "disabled"]
+
+
+async def main(critic: api.critic.Critic, arguments: Arguments) -> int:
     try:
         user = await api.user.fetch(critic, name=arguments.username)
     except api.user.InvalidName:
@@ -71,9 +78,11 @@ async def main(critic, arguments):
         return 1
 
     async with api.transaction.start(critic) as transaction:
-        transaction.modifyUser(user).setStatus(arguments.status)
+        await transaction.modifyUser(user).setStatus(arguments.status)
 
     if arguments.status == "retired":
         logger.info("Retired user %s [id=%d]", arguments.username, user.id)
     else:
         logger.info("Disabled account %s [id=%d]", arguments.username, user.id)
+
+    return 0

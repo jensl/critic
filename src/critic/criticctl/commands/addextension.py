@@ -14,6 +14,7 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
+import argparse
 import logging
 
 logger = logging.getLogger(__name__)
@@ -25,12 +26,14 @@ name = "addextension"
 title = "Add extension"
 
 
-def setup(parser):
+def setup(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
-        "--name", required=True, help="Extension name.",
+        "--name",
+        required=True,
+        help="Extension name.",
     )
     parser.add_argument(
-        "--uri", required=True, help="Git repository URI to clone from."
+        "--url", required=True, help="Git repository URI to clone from."
     )
     group = parser.add_mutually_exclusive_group()
     group.add_argument(
@@ -46,26 +49,24 @@ def setup(parser):
     parser.set_defaults(need_session=True)
 
 
-async def main(critic: api.critic.Critic, arguments):
+async def main(critic: api.critic.Critic, arguments: argparse.Namespace) -> int:
     name = arguments.name.strip()
-    uri = arguments.uri.strip()
+    url = arguments.url.strip()
 
     try:
-        scan_result = await extensiontasks.scan_external(critic, uri)
+        scan_result = await extensiontasks.scan_external(critic, url)
     except extensiontasks.Error as error:
-        logger.error("Failed to scan extension repository: %s", uri)
+        logger.error("Failed to scan extension repository: %s", url)
         logger.error("Error: %s", str(error))
         return 1
 
     if scan_result.versions:
         logger.info("Available versions:")
-        for name, sha1 in sorted(scan_result.versions.items()):
+        for name, _ in sorted(scan_result.versions.items()):
             logger.info(" - %s", name)
 
     async with api.transaction.start(critic) as transaction:
-        extension = (await transaction.createExtension(name, uri)).extension
-
-    extension = await extension
+        extension = (await transaction.createExtension(name, url)).subject
 
     logger.info("Created extension %s [id=%d]", extension.name, extension.id)
 
@@ -78,7 +79,9 @@ async def main(critic: api.critic.Critic, arguments):
             version_desc = f"version {arguments.install}"
         try:
             version = await api.extensionversion.fetch(
-                critic, extension=extension, name=version_name,
+                critic,
+                extension=extension,
+                name=version_name,
             )
         except api.extensionversion.InvalidName:
             logger.error("Extension version not found!")
@@ -88,3 +91,5 @@ async def main(critic: api.critic.Critic, arguments):
             await transaction.installExtension(extension, version)
 
         logger.info("Installed %s for all users.", version_desc)
+
+    return 0

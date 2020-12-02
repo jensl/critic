@@ -16,14 +16,18 @@
 
 from __future__ import annotations
 
-from typing import Iterable, Union, Optional, Tuple
+from typing import Collection, Iterable, Union, Optional, Tuple
 
-from .. import LazyAPIObject, Transaction, protocol
 from critic import api
+from ..base import TransactionBase
+from ..createapiobject import CreateAPIObject, APIObjectType
 
 
 async def validate_branch_name(
-    repository: api.repository.Repository, name: str, *, ignore_conflict: str = None
+    repository: api.repository.Repository,
+    name: str,
+    *,
+    ignore_conflict: Optional[str] = None,
 ) -> None:
     from ....background.githook.validaterefcreation import validate_ref_creation
 
@@ -60,48 +64,20 @@ async def validate_commit_set(
     return commitset, head
 
 
-class CreatedBranch(LazyAPIObject[api.branch.Branch], api_module=api.branch):
+class CreateBranchObject(CreateAPIObject[APIObjectType]):
     def __init__(
         self,
-        transaction: api.transaction.Transaction,
-        commits: api.commitset.CommitSet,
-        head: api.commit.Commit,
-    ):
-        super().__init__(transaction)
-        self.__commits = commits
-        self.__head = head
-
-    @property
-    async def commits(self) -> api.commitset.CommitSet:
-        return self.__commits
-
-    @property
-    async def head(self) -> api.commit.Commit:
-        return self.__head
-
-    async def create_payload(
-        self, resource_name: str, branch: api.branch.Branch, /
-    ) -> protocol.CreatedAPIObject:
-        return protocol.CreatedBranch(
-            resource_name, branch.id, (await branch.repository).id, branch.name
-        )
-
-
-class CreatedBranchObject(LazyAPIObject):
-    def __init__(
-        self, transaction: Transaction, branch: Union[api.branch.Branch, CreatedBranch]
+        transaction: TransactionBase,
+        branch: api.branch.Branch,
     ) -> None:
         super().__init__(transaction)
         self.branch = branch
 
-    def scopes(self) -> LazyAPIObject.Scopes:
+    def scopes(self) -> Collection[str]:
         return (f"branches/{int(self.branch)}",)
 
 
-class CreatedBranchUpdate(CreatedBranchObject, api_module=api.branchupdate):
+class CreateBranchUpdate(
+    CreateBranchObject[api.branchupdate.BranchUpdate], api_module=api.branchupdate
+):
     pass
-
-
-from .modify import ModifyBranch
-
-__all__ = ["create_branch", "ModifyBranch"]

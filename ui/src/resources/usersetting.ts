@@ -17,6 +17,7 @@
  */
 
 import { combineReducers } from "redux"
+import { immerable } from "immer"
 
 import { primaryMap, lookupMap } from "../reducers/resource"
 import { UserSettingID, UserID } from "./types"
@@ -29,11 +30,13 @@ type UserSettingProps = {
 }
 
 class UserSetting {
+  [immerable] = true
+
   constructor(
     readonly id: UserSettingID,
     readonly user: UserID,
     readonly name: string,
-    readonly value: unknown
+    readonly value: unknown,
   ) {}
 
   static new(props: UserSettingProps) {
@@ -44,7 +47,7 @@ class UserSetting {
     byID: primaryMap<UserSetting, UserSettingID>("usersettings"),
     byName: lookupMap<UserSetting, string, UserSettingID>(
       "usersettings",
-      (setting) => setting.name
+      (setting) => setting.name,
     ),
   })
 

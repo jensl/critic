@@ -16,19 +16,22 @@
 
 from __future__ import annotations
 
-import contextlib
 import logging
-import time
 from typing import Sequence, Optional, Union
 
 logger = logging.getLogger(__name__)
 
 from critic import api
-from critic import jsonapi
+from ..exceptions import UsageError
+from ..resourceclass import ResourceClass
+from ..parameters import Parameters
+from ..types import JSONResult
+from ..utils import id_or_name, numeric_id
+from ..values import Values
 
 
 class Branches(
-    jsonapi.ResourceClass[api.branch.Branch],
+    ResourceClass[api.branch.Branch],
     api_module=api.branch,
     exceptions=(api.branch.Error, api.repository.Error),
 ):
@@ -37,9 +40,7 @@ class Branches(
     contexts = (None, "repositories")
 
     @staticmethod
-    async def json(
-        parameters: jsonapi.Parameters, value: api.branch.Branch
-    ) -> jsonapi.JSONResult:
+    async def json(parameters: Parameters, value: api.branch.Branch) -> JSONResult:
         """Branch {
           "id": integer, // the branch's id
           "type": "normal" or "review", // the branch's type
@@ -64,21 +65,19 @@ class Branches(
             "updates": value.updates,
         }
 
-    @staticmethod
-    async def single(
-        parameters: jsonapi.Parameters, argument: str
-    ) -> api.branch.Branch:
+    @classmethod
+    async def single(cls, parameters: Parameters, argument: str) -> api.branch.Branch:
         """Retrieve one (or more) branches in the Git repositories.
 
         BRANCH_ID : integer
 
         Retrieve a branch identified by its unique numeric id."""
 
-        return await api.branch.fetch(parameters.critic, jsonapi.numeric_id(argument))
+        return await api.branch.fetch(parameters.critic, numeric_id(argument))
 
     @staticmethod
     async def multiple(
-        parameters: jsonapi.Parameters,
+        parameters: Parameters,
     ) -> Union[api.branch.Branch, Sequence[api.branch.Branch]]:
         """Retrieve all branches in the Git repositories.
 
@@ -107,24 +106,22 @@ class Branches(
         date with the most recently updated branch first. Can not be combined
         with `created_by`."""
 
-        repository = await Repositories.deduce(parameters)
-        name_parameter = parameters.getQueryParameter("name")
+        repository = await parameters.deduce(api.repository.Repository)
+        name_parameter = parameters.query.get("name")
         if name_parameter:
             if repository is None:
-                raise jsonapi.UsageError(
-                    "Named branch access must have repository specified."
-                )
+                raise UsageError("Named branch access must have repository specified.")
             return await api.branch.fetch(
                 parameters.critic, repository=repository, name=name_parameter
             )
-        created_by = await Users.fromParameter(parameters, "created_by")
-        updated_by = await Users.fromParameter(parameters, "updated_by")
+        created_by = await parameters.fromParameter(api.user.User, "created_by")
+        updated_by = await parameters.fromParameter(api.user.User, "updated_by")
         if created_by is not None and updated_by is not None:
-            raise jsonapi.UsageError("Both `created_by` and `updated_by` used.")
+            raise UsageError("Both `created_by` and `updated_by` used.")
         exclude_reviewed_branches = (
-            parameters.getQueryParameter("exclude_reviewed_branches") == "yes"
+            parameters.query.get("exclude_reviewed_branches") == "yes"
         )
-        order_by = parameters.getQueryParameter(
+        order_by = parameters.query.get(
             "order_by", "name", converter=api.branch.as_order
         )
         return await api.branch.fetchAll(
@@ -136,9 +133,9 @@ class Branches(
             order=order_by,
         )
 
-    @staticmethod
+    @classmethod
     async def delete(
-        parameters: jsonapi.Parameters, values: jsonapi.Values[api.branch.Branch]
+        cls, parameters: Parameters, values: Values[api.branch.Branch]
     ) -> None:
         async with api.transaction.start(parameters.critic) as transaction:
             for branch in values:
@@ -148,22 +145,22 @@ class Branches(
                     ).modifyBranch(branch)
                 ).deleteBranch()
 
-    @staticmethod
-    async def deduce(parameters: jsonapi.Parameters) -> Optional[api.branch.Branch]:
-        branch = parameters.context.get("branches")
-        branch_parameter = parameters.getQueryParameter("branch")
+    @classmethod
+    async def deduce(cls, parameters: Parameters) -> Optional[api.branch.Branch]:
+        branch = parameters.in_context(api.branch.Branch)
+        branch_parameter = parameters.query.get("branch")
         if branch_parameter is not None:
             if branch is not None:
-                raise jsonapi.UsageError(
+                raise UsageError(
                     "Redundant query parameter: branch=%s" % branch_parameter
                 )
-            branch_id, name = jsonapi.id_or_name(branch_parameter)
+            branch_id, name = id_or_name(branch_parameter)
             if branch_id is not None:
                 branch = await api.branch.fetch(parameters.critic, branch_id)
             else:
-                repository = await Repositories.deduce(parameters)
+                repository = await parameters.deduce(api.repository.Repository)
                 if repository is None:
-                    raise jsonapi.UsageError(
+                    raise UsageError(
                         "Named branch access must have repository specified."
                     )
                 branch = await api.branch.fetch(
@@ -171,13 +168,3 @@ class Branches(
                 )
 
         return branch
-
-    @staticmethod
-    async def setAsContext(
-        parameters: jsonapi.Parameters, branch: api.branch.Branch
-    ) -> None:
-        parameters.setContext(Branches.name, branch)
-
-
-from .repositories import Repositories
-from .users import Users

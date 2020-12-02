@@ -28,7 +28,7 @@ from critic import gitaccess
 
 
 async def replay_rebase(
-    rebase: api.log.rebase.MoveRebase,
+    rebase: api.rebase.MoveRebase,
     branchupdate: api.branchupdate.BranchUpdate,
     new_upstream: api.commit.Commit,
 ) -> api.commit.Commit:

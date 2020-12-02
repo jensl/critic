@@ -18,45 +18,45 @@ from __future__ import annotations
 
 import base64
 import logging
-from typing import Optional
+from typing import Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
-from . import CreatedAccessToken
-from .. import Insert, Transaction
-from ..accesscontrolprofile import CreatedAccessControlProfile
 from critic import api
 from critic import auth
+from ..accesscontrolprofile.create import CreateAccessControlProfile
+from ..base import TransactionBase
+from ..createapiobject import CreateAPIObject
 
 
-def create_accesstoken(
-    transaction: Transaction,
-    access_type: api.accesstoken.AccessType,
-    title: Optional[str],
-    user: Optional[api.user.User],
-) -> CreatedAccessToken:
-    critic = transaction.critic
-    if access_type == "user":
-        assert user is not None
-        api.PermissionDenied.raiseUnlessUser(critic, user)
-    else:
-        assert user is None
-        api.PermissionDenied.raiseUnlessAdministrator(critic)
-        if access_type == "anonymous":
-            user = api.user.anonymous(transaction.critic)
+class CreateAccessToken(
+    CreateAPIObject[api.accesstoken.AccessToken], api_module=api.accesstoken
+):
+    @staticmethod
+    async def make(
+        transaction: TransactionBase,
+        access_type: api.accesstoken.AccessType,
+        title: Optional[str],
+        user: Optional[api.user.User],
+    ) -> Tuple[api.accesstoken.AccessToken, str]:
+        critic = transaction.critic
+        if access_type == "user":
+            assert user is not None
+            api.PermissionDenied.raiseUnlessUser(critic, user)
         else:
-            assert access_type == "system"
-            user = api.user.system(transaction.critic)
+            assert user is None
+            api.PermissionDenied.raiseUnlessAdministrator(critic)
+            if access_type == "anonymous":
+                user = api.user.anonymous(transaction.critic)
+            else:
+                assert access_type == "system"
+                user = api.user.system(transaction.critic)
 
-    token = auth.getToken(encode=base64.b64encode, length=33)
-
-    access_token = CreatedAccessToken(transaction, user, token).insert(
-        access_type=access_type, uid=user, token=token, title=title
-    )
-    access_token.setProfile(
-        CreatedAccessControlProfile(transaction, access_token).insert(
-            access_token=access_token
+        token_value = auth.getToken(encode=base64.b64encode, length=33)
+        token = await CreateAccessToken(transaction).insert(
+            access_type=access_type, uid=user, token=token_value, title=title
         )
-    )
 
-    return access_token
+        await CreateAccessControlProfile.make(transaction, token)
+
+        return token, token_value

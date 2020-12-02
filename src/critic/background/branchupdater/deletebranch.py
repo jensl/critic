@@ -15,6 +15,7 @@
 # the License.
 
 import logging
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +24,7 @@ from ...background.githook import emit_output
 
 
 async def delete_branch(
-    branch: api.branch.Branch, pendingrefupdate_id: int = None
+    branch: api.branch.Branch, pendingrefupdate_id: Optional[int] = None
 ) -> None:
     critic = branch.critic
     output = "Deleted branch with %d associated commits." % branch.size

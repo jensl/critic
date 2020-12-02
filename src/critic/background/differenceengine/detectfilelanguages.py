@@ -26,19 +26,17 @@ from typing import (
     Optional,
     Sequence,
     Tuple,
-    TypedDict,
 )
 
 logger = logging.getLogger(__name__)
 
 from critic import api
+from critic import dbaccess
 from critic.dbaccess import Parameters
 from critic.gitaccess import SHA1
 
-from .changeset import Changeset
 from .changedfile import ChangedFile
-from .job import Job
-from .examinefiles import ExamineFiles
+from .job import Job, GroupType
 from .syntaxhighlightfile import (
     SyntaxHighlightFile,
     syntax_highlight_old,
@@ -57,9 +55,9 @@ class Language(NamedTuple):
     id: int
 
 
-class DetectFileLanguages(Job[Changeset]):
+class DetectFileLanguages(Job):
     # Detect file languages quite soon.
-    priority = ExamineFiles.priority + 1
+    priority = 1  # ExamineFiles.priority + 1
 
     # Failure to syntax highlight a file is non-fatal; we can just display a
     # non-highlighted version of the file.
@@ -70,7 +68,7 @@ class DetectFileLanguages(Job[Changeset]):
     language_by_sha1: Dict[SHA1, Language]
 
     def __init__(
-        self, group: Changeset, file_versions: Sequence[Tuple[ChangedFile, SHA1, bool]]
+        self, group: GroupType, file_versions: Sequence[Tuple[ChangedFile, SHA1, bool]]
     ):
         super().__init__(
             group,
@@ -124,13 +122,13 @@ class DetectFileLanguages(Job[Changeset]):
                             {repository_id}, {sha1}, {language_id}, {conflicts}
                           ) ON CONFLICT DO NOTHING""",
                 (
-                    dict(
+                    dbaccess.parameters(
                         repository_id=repository_id,
                         sha1=sha1,
                         language_id=self.language_by_sha1[sha1].id,
                         conflicts=conflicts,
                     )
-                    for changed_file, sha1, conflicts in self.file_versions
+                    for _, sha1, conflicts in self.file_versions
                     if sha1 in self.language_by_sha1
                 ),
             )
@@ -176,7 +174,7 @@ class DetectFileLanguages(Job[Changeset]):
                 )
 
     def follow_ups(self) -> Iterable[SyntaxHighlightFile]:
-        for changed_file, sha1, conflicts in self.file_versions:
+        for _, sha1, conflicts in self.file_versions:
             language = self.language_by_sha1.get(sha1)
             if language is None:
                 continue
@@ -184,7 +182,7 @@ class DetectFileLanguages(Job[Changeset]):
 
     @staticmethod
     def for_files(
-        changeset: Changeset,
+        group: GroupType,
         changed_files: Iterable[ChangedFile],
         *,
         skip_file_versions: Collection[Tuple[int, SHA1]] = frozenset(),
@@ -205,7 +203,7 @@ class DetectFileLanguages(Job[Changeset]):
                 ):
                     assert changed_file.old_sha1
                     file_versions.append(
-                        (changed_file, changed_file.old_sha1, changeset.conflicts)
+                        (changed_file, changed_file.old_sha1, group.conflicts)
                     )
                 if (
                     not changed_file.is_removed
@@ -222,7 +220,5 @@ class DetectFileLanguages(Job[Changeset]):
 
         for offset in range(0, len(file_versions), CHUNK_SIZE):
             yield (
-                DetectFileLanguages(
-                    changeset, file_versions[offset : offset + CHUNK_SIZE]
-                )
+                DetectFileLanguages(group, file_versions[offset : offset + CHUNK_SIZE])
             )

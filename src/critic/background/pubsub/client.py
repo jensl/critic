@@ -22,23 +22,19 @@ import logging
 import os
 import pickle
 import secrets
-from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from typing import (
     Any,
     AsyncContextManager,
-    AsyncIterator,
     Awaitable,
     Callable,
-    Collection,
     Dict,
-    List,
     Literal,
     Optional,
     Protocol,
+    Sequence,
     Set,
     Tuple,
-    overload,
 )
 
 logger = logging.getLogger(__name__)
@@ -62,6 +58,8 @@ from critic.pubsub import (
     Client,
     Error,
     RequestError,
+    connectImpl,
+    publishImpl,
 )
 
 from . import protocol
@@ -105,10 +103,10 @@ async def invoke_request_callback(
 @dataclass
 class SubscriptionImpl:
     client: ClientImpl
-    channel_name: ChannelName
-    message_callback: Optional[MessageCallback] = None
-    request_callback: Optional[RequestCallback] = None
-    reservation_id: Optional[ReservationId] = None
+    __channel_name: ChannelName
+    __message_callback: Optional[MessageCallback] = None
+    __request_callback: Optional[RequestCallback] = None
+    __reservation_id: Optional[ReservationId] = None
 
     def __hash__(self) -> int:
         return hash(id(self))
@@ -116,22 +114,48 @@ class SubscriptionImpl:
     def __eq__(self, other: object) -> bool:
         return id(self) == id(other)
 
-    def unsubscribe(self) -> None:
-        self.client.unsubscribe(subscription=self)
+    @property
+    def channel_name(self) -> ChannelName:
+        return self.__channel_name
+
+    @property
+    def reservation_id(self) -> Optional[ReservationId]:
+        return self.__reservation_id
+
+    @property
+    def message_callback(self) -> Optional[MessageCallback]:
+        return self.__message_callback
+
+    @property
+    def request_callback(self) -> Optional[RequestCallback]:
+        return self.__request_callback
+
+    async def unsubscribe(self) -> None:
+        await self.client.unsubscribe(subscription=self)
 
 
 class OutgoingRequestImpl:
-    delivery: asyncio.Future
-    response: asyncio.Future
+    __delivery: "asyncio.Future[None]"
+    __response: "asyncio.Future[object]"
 
     def __init__(self) -> None:
         loop = asyncio.get_running_loop()
-        self.delivery = loop.create_future()
-        self.response = loop.create_future()
+        self.__delivery = loop.create_future()
+        self.__response = loop.create_future()
+
+    @property
+    def delivery(self) -> "asyncio.Future[None]":
+        return self.__delivery
+
+    @property
+    def response(self) -> "asyncio.Future[object]":
+        return self.__response
 
 
 class RequestNotifyResponse(Protocol):
-    async def __call__(self, *, value: Any = None, message: str = None) -> None:
+    async def __call__(
+        self, *, value: Optional[Any] = None, message: Optional[str] = None
+    ) -> None:
         ...
 
 
@@ -143,10 +167,21 @@ class IncomingRequestImpl:
         request_id: RequestId,
         payload: Payload,
     ):
-        self.notify_delivery = notify_delivery
+        self.__notify_delivery = notify_delivery
         self.__notify_response = notify_response
-        self.request_id = request_id
-        self.payload = payload
+        self.__request_id = request_id
+        self.__payload = payload
+
+    @property
+    def request_id(self) -> RequestId:
+        return self.__request_id
+
+    @property
+    def payload(self) -> Payload:
+        return self.__payload
+
+    async def notify_delivery(self) -> None:
+        await self.__notify_delivery()
 
     async def notify_response(self, value: Any) -> None:
         await self.__notify_response(value=value)
@@ -165,13 +200,13 @@ class ClientImpl:
     __requests: Dict[RequestId, OutgoingRequestImpl]
     __subscriptions: Dict[ChannelName, Set[Subscription]]
     __promiscuous_callback: Optional[PromiscuousCallback]
-    __published: List[protocol.ClientPublish]
+    # __published: List[protocol.ClientPublish]
 
     def __init__(
         self,
         name: str,
         *,
-        disconnected: Callable[[], None] = None,
+        disconnected: Optional[Callable[[], None]] = None,
         persistent: bool = False,
         parallel_requests: int = 1,
         mode: Literal["immediate", "lazy"] = "immediate",
@@ -195,7 +230,7 @@ class ClientImpl:
         )
         self.__subscriptions = {}
         self.__promiscuous_callback = None
-        self.__published = []
+        # self.__published = []
 
     def _token(self) -> protocol.Token:
         self.__token_counter += 1
@@ -238,16 +273,18 @@ class ClientImpl:
         ) as result:
             reservation_ids = await result.scalars()
         if reservation_ids:
-            message_id = await dbaccess.Insert[protocol.MessageId](
-                cursor,
+            message_id = await cursor.insert(
                 "pubsubmessages",
                 {"payload": pickle.dumps(payload)},
                 returning="message_id",
+                value_type=protocol.MessageId,
             )
             await cursor.insertmany(
                 "pubsubreservedmessages",
                 (
-                    dict(reservation_id=reservation_id, message_id=message_id)
+                    dbaccess.parameters(
+                        reservation_id=reservation_id, message_id=message_id
+                    )
                     for reservation_id in reservation_ids
                 ),
             )
@@ -261,11 +298,11 @@ class ClientImpl:
         else:
             reservations = []
 
-        message = protocol.ClientPublish(
-            self._token(), channel_names, payload, reservations
+        client_publish = protocol.ClientPublish(
+            self._token(), tuple(channel_names), payload, reservations
         )
         future = self.__futures[
-            message.token
+            client_publish.token
         ] = asyncio.get_running_loop().create_future()
 
         async def flush() -> None:
@@ -275,24 +312,24 @@ class ClientImpl:
                 logger.debug("message not sent: Pub/Sub not answering")
                 return
 
-            logger.debug("outgoing: %r", message)
+            assert self.__connection
+
+            logger.debug("outgoing: %r", client_publish)
 
             try:
-                await self.__connection.write_message(message)
+                await self.__connection.write_message(client_publish)
             except Exception as error:
                 logger.exception(f"failed to send message: {error}")
 
-        def commit_callback(loop: asyncio.AbstractEventLoop) -> None:
+        async def commit_callback() -> None:
             logger.debug("commit_callback")
-            loop.create_task(flush())
+            await flush()
 
-        def rollback_callback() -> None:
+        async def rollback_callback() -> None:
             logger.debug("rollback_callback")
             future.cancel()
 
-        cursor.transaction.add_commit_callback(
-            functools.partial(commit_callback, asyncio.get_running_loop())
-        )
+        cursor.transaction.add_commit_callback(commit_callback)
         cursor.transaction.add_rollback_callback(rollback_callback)
 
         return future
@@ -302,12 +339,12 @@ class ClientImpl:
         channel_name: ChannelName,
         callback: MessageCallback,
         *,
-        reservation_id: ReservationId = None,
+        reservation_id: Optional[ReservationId] = None,
     ) -> SubscriptionImpl:
         await self.ready
         assert not self.__promiscuous_callback
         subscription = SubscriptionImpl(
-            self, channel_name, message_callback=callback, reservation_id=reservation_id
+            self, channel_name, callback, None, reservation_id
         )
         subscriptions = self.__subscriptions.setdefault(channel_name, set())
         subscriptions.add(subscription)
@@ -365,7 +402,7 @@ class ClientImpl:
         callback: RequestCallback,
     ) -> SubscriptionImpl:
         await self.ready
-        subscription = SubscriptionImpl(self, channel_name, request_callback=callback)
+        subscription = SubscriptionImpl(self, channel_name, None, callback)
         subscriptions = self.__subscriptions.setdefault(channel_name, set())
         subscriptions.add(subscription)
         if len(subscriptions) == 1:
@@ -428,7 +465,7 @@ class ClientImpl:
                 continue
             incoming_request = IncomingRequestImpl(
                 functools.partial(self.__write, message.delivery(self._token())),
-                functools.partial(self.__notify_result, message),
+                functools.partial(self.__notify_result, message),  # type: ignore
                 message.request_id,
                 message.payload,
             )
@@ -438,7 +475,7 @@ class ClientImpl:
                 )
             )
 
-    async def __incoming(self, message: Any = None) -> None:
+    async def __incoming(self, message: Optional[Any] = None) -> None:
         if message is None:
             logger.debug("connection closed")
             if self.__disconnected:
@@ -477,6 +514,7 @@ class ClientImpl:
             message, (protocol.ServerRequestDelivery, protocol.ServerRequestResult)
         ):
             outgoing_request = self.__requests[message.request_id]
+            request_future: "asyncio.Future[Any]"
             if isinstance(message, protocol.ServerRequestDelivery):
                 request_future = outgoing_request.delivery
             else:
@@ -486,7 +524,7 @@ class ClientImpl:
             elif isinstance(message.response, protocol.Value):
                 request_future.set_result(message.response.value)
             else:
-                request_future.set_result(message.response)
+                request_future.set_result(None)
             return
 
         logger.warning("Unexpected message received: %r", message)
@@ -499,19 +537,23 @@ class ClientImpl:
         await self.__connection.write_message(message)
         await self.__futures[message.token]
 
-    async def __flush(self) -> None:
-        assert self.__connection
-        loop = asyncio.get_running_loop()
-        futures = []
-        for message in self.__published:
-            future = self.__futures[message.token] = loop.create_future()
-            futures.append(future)
-            logger.debug("outgoing: %r", message)
-            await self.__connection.write_message(message)
-        await asyncio.wait(futures)
+    # async def __flush(self) -> None:
+    #     assert self.__connection
+    #     loop = asyncio.get_running_loop()
+    #     futures = []
+    #     for message in self.__published:
+    #         future = self.__futures[message.token] = loop.create_future()
+    #         futures.append(future)
+    #         logger.debug("outgoing: %r", message)
+    #         await self.__connection.write_message(message)
+    #     await asyncio.wait(futures)
 
     async def __notify_result(
-        self, request: protocol.ServerRequest, *, value: Any = None, message: str = None
+        self,
+        request: protocol.ServerRequest,
+        *,
+        value: Optional[Any] = None,
+        message: Optional[str] = None,
     ) -> None:
         await self.__write(
             request.result(
@@ -520,7 +562,7 @@ class ClientImpl:
             )
         )
 
-    async def __connect(self, *, parallel_requests: int = 1) -> None:
+    async def __connect(self) -> None:
         while True:
             try:
                 self.__connection = MessageChannel[
@@ -558,6 +600,7 @@ class ClientImpl:
 
     async def __aexit__(self, *exc_info: Any) -> None:
         if self.__mode == "lazy" and self.__futures:
+            logger.debug("lazy connect...")
             try:
                 await self.ready
             except Exception:
@@ -565,6 +608,7 @@ class ClientImpl:
                     logger.info("Failed to establish pub/sub connection")
                     return
                 raise
+            logger.debug("lazy connected!")
         if self.__connection and not self.__closed.done():
             if self.__futures:
                 await asyncio.wait(self.__futures.values())
@@ -572,12 +616,28 @@ class ClientImpl:
             self.__connection = None
 
 
-def connect(client_name: str) -> AsyncContextManager[Client]:
-    return ClientImpl(client_name)
+@connectImpl
+def connect(
+    client_name: str,
+    disconnected: Optional[Callable[[], None]],
+    persistent: bool,
+    parallel_requests: int,
+    mode: Literal["immediate", "lazy"],
+    accept_failure: bool,
+) -> AsyncContextManager[Client]:
+    return ClientImpl(
+        client_name,
+        disconnected=disconnected,
+        persistent=persistent,
+        parallel_requests=parallel_requests,
+        mode=mode,
+        accept_failure=accept_failure,
+    )
 
 
+@publishImpl
 async def publish(
-    critic: api.critic.Critic, client_name: str, *messages: PublishMessage
+    critic: api.critic.Critic, client_name: str, messages: Sequence[PublishMessage]
 ) -> None:
     async with ClientImpl(client_name) as client:
         async with critic.transaction() as cursor:

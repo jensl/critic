@@ -25,7 +25,7 @@ import MarkdownDocument from "./Markdown.Document"
 
 const useStyles = makeStyles((theme) => ({
   discussionEntryText: {},
-  markdown: { margin: theme.spacing(1) },
+  markdown: { margin: theme.spacing(1, 2) },
 }))
 
 type Props = {
@@ -41,7 +41,11 @@ const Text: React.FunctionComponent<Props> = ({ className, text }) => {
       elevation={0}
     >
       <div className={classes.markdown}>
-        <MarkdownDocument>{text}</MarkdownDocument>
+        {text.trim() ? (
+          <MarkdownDocument>{text}</MarkdownDocument>
+        ) : (
+          <em>Empty comment</em>
+        )}
       </div>
     </Paper>
   )

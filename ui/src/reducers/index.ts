@@ -273,7 +273,7 @@ const commitRefs = produce(
     if (action.type === COMMIT_REFS_UPDATE)
       for (const [ref, value] of action.refs) draft.set(ref, value)
   },
-  new Map()
+  new Map(),
 )
 
 export type CommitRefs = ReturnType<typeof commitRefs>
@@ -281,6 +281,7 @@ export type CommitRefs = ReturnType<typeof commitRefs>
 const commentLocations = produce(
   (draft: Map<string, Location>, action: Action) => {
     if (action.type === "DATA_UPDATE" && action.updates.has("comments")) {
+      console.log({ action })
       const add = (comment: Comment, location: Location | null) => {
         if (location && location.changeset)
           draft.set(`${location.changeset}:${comment.id}`, location)
@@ -291,7 +292,7 @@ const commentLocations = produce(
       }
     }
   },
-  new Map()
+  new Map(),
 )
 
 export type CommentLocations = ReturnType<typeof commentLocations>
@@ -317,7 +318,7 @@ const branchCommits = produce(
       else perBranch.all = commitIDs
     }
   },
-  new Map()
+  new Map(),
 )
 
 type TreesExtra = {
@@ -330,11 +331,11 @@ const trees = produce<TreesExtra>(
       const { repositoryID, commitID, path, sha1 } = action
       draft.byCommitPath.set(
         `${repositoryID}:${commitID}:${path}`,
-        `${repositoryID}:${sha1}`
+        `${repositoryID}:${sha1}`,
       )
     }
   },
-  { byCommitPath: new Map() }
+  { byCommitPath: new Map() },
 )
 
 type UserSettingsExtra = {
@@ -357,7 +358,7 @@ const userSettings = produce<UserSettingsExtra>(
         break
     }
   },
-  { loadedFor: null }
+  { loadedFor: null },
 )
 
 export const extra = combineReducers({

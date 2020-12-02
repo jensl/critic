@@ -19,15 +19,16 @@ from __future__ import annotations
 import sshpubkeys
 from typing import Tuple, Optional, Sequence
 
-from . import apiobject
 from critic import api
+from critic.api import usersshkey as public
+from . import apiobject
 
 
 WrapperType = api.usersshkey.UserSSHKey
 ArgumentsType = Tuple[int, int, str, str, str]
 
 
-class UserSSHKey(apiobject.APIObject):
+class UserSSHKey(apiobject.APIObject[WrapperType, ArgumentsType, int]):
     wrapper_class = api.usersshkey.UserSSHKey
     column_names = ["id", "uid", "type", "key", "comment"]
 
@@ -52,6 +53,7 @@ class UserSSHKey(apiobject.APIObject):
         return self.__parsedKey().hash_md5().replace("MD5:", "")
 
 
+@public.fetchImpl
 @UserSSHKey.cached
 async def fetch(
     critic: api.critic.Critic,
@@ -76,6 +78,7 @@ async def fetch(
     return usersshkey
 
 
+@public.fetchAllImpl
 async def fetchAll(
     critic: api.critic.Critic, user: Optional[api.user.User]
 ) -> Sequence[WrapperType]:

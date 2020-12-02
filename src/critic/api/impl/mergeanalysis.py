@@ -125,10 +125,13 @@ class MergeChangeset(APIObject[api.mergeanalysis.MergeChangeset, ArgumentsType, 
             if not included_indexes:
                 continue
 
-            result[file] = await primary_filediff.getMacroChunks(
+            chunks = await primary_filediff.getMacroChunks(
                 context_lines,
                 block_filter=lambda block: block.index in included_indexes,
             )
+
+            if chunks is not None:
+                result[file] = chunks
 
         return result
 
@@ -204,4 +207,4 @@ class MergeAnalysis(APIObject[WrapperType, api.commit.Commit, api.commit.Commit]
 async def fetch(merge: api.commit.Commit) -> WrapperType:
     if not merge.is_merge:
         raise api.mergeanalysis.Error("commit is not a merge")
-    return await MergeAnalysis.makeOne(merge.critic, merge)
+    return await MergeAnalysis.makeOne(merge.critic, values=merge)

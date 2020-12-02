@@ -17,6 +17,7 @@
  */
 
 import { combineReducers } from "redux"
+import { immerable } from "immer"
 
 import { primaryMap, lookupMap } from "../reducers/resource"
 import { JSONData } from "../types"
@@ -25,25 +26,34 @@ import { SystemSettingID } from "./types"
 type SystemSettingProps = {
   id: SystemSettingID
   key: string
+  description: string
   value: JSONData
 }
 
 class SystemSetting {
+  [immerable] = true
+
   constructor(
     readonly id: SystemSettingID,
     readonly key: string,
-    readonly value: JSONData
+    readonly description: string,
+    readonly value: any,
   ) {}
 
   static new(props: SystemSettingProps) {
-    return new SystemSetting(props.id, props.key, props.value)
+    return new SystemSetting(
+      props.id,
+      props.key,
+      props.description,
+      props.value,
+    )
   }
 
   static reducer = combineReducers({
     byID: primaryMap<SystemSetting, number>("systemsettings"),
     byKey: lookupMap<SystemSetting, string, number>(
-      "repositories",
-      (setting) => setting.key
+      "systemsettings",
+      (setting) => setting.key,
     ),
   })
 

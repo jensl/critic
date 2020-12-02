@@ -7,17 +7,23 @@ import logging
 import os
 import signal
 import sys
-from typing import Any
+from typing import Any, cast
 
+from .arguments import Arguments, parse_arguments
 from .system import System
-from . import wheel
+from .compilation import Compilation
+from .execute import ExecuteError, execute
+from .logfilesfollower import LogFilesFollower
+from .outputmanager import OutputManager, activity
+from .ui import UI
+from .wheel import build_wheel
 
 logger = logging.getLogger(__name__)
 
 
 def getNewestModificationTime(arguments: Any) -> float:
     newest: float = 0
-    for dirpath, dirnames, filenames in os.walk(
+    for dirpath, _, filenames in os.walk(
         os.path.join(arguments.root_dir, "src", "critic")
     ):
         for filename in filenames:
@@ -28,16 +34,6 @@ def getNewestModificationTime(arguments: Any) -> float:
 
 
 async def run(system: System) -> int:
-    from . import (
-        Compilation,
-        ExecuteError,
-        LogFilesFollower,
-        OutputManager,
-        UI,
-        activity,
-        execute,
-    )
-
     arguments = system.arguments
 
     with activity("Starting PostgreSQL"):
@@ -74,7 +70,7 @@ async def run(system: System) -> int:
     running_mtime = getNewestModificationTime(arguments)
 
     if arguments.enable_extensions:
-        await wheel.build(system, running_mtime)
+        await build_wheel(system, running_mtime)
 
     logger.info("Listening at: http://%s/", system.server_address)
 
@@ -121,7 +117,7 @@ async def run(system: System) -> int:
                                 await system.restart()
                             running_mtime = current_mtime
                             if arguments.enable_extensions:
-                                await wheel.build(system, current_mtime)
+                                await build_wheel(system, current_mtime)
             else:
                 await shutdown_requested.wait()
         finally:
@@ -143,7 +139,7 @@ async def run(system: System) -> int:
                         if not await system.restart():
                             return 1
                 if arguments.enable_extensions:
-                    await wheel.build(system, current_mtime)
+                    await build_wheel(system, current_mtime)
 
                 running_mtime = current_mtime
             else:
@@ -152,9 +148,7 @@ async def run(system: System) -> int:
     return 0
 
 
-def setup_logging(arguments: Any) -> None:
-    from . import OutputManager
-
+def setup_logging(arguments: Arguments) -> None:
     if arguments.quiet:
         log_level = logging.WARNING
     elif arguments.debug:
@@ -179,9 +173,7 @@ def setup_logging(arguments: Any) -> None:
 
 
 async def main(root_dir: str) -> int:
-    from . import Compilation, activity, parse_arguments
-
-    arguments = parse_arguments(root_dir)
+    arguments = cast(Arguments, parse_arguments(root_dir))
 
     setup_logging(arguments)
 

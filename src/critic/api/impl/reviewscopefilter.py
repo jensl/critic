@@ -16,10 +16,11 @@
 
 from __future__ import annotations
 
-from typing import Tuple, Optional, Sequence, Any
+from typing import Tuple, Optional, Sequence
 
-from . import apiobject
 from critic import api
+from critic.api import reviewscopefilter as public
+from . import apiobject
 
 WrapperType = api.reviewscopefilter.ReviewScopeFilter
 ArgumentsType = Tuple[int, int, int, str, bool]
@@ -49,6 +50,7 @@ class ReviewScopeFilter(apiobject.APIObject[WrapperType, ArgumentsType, int]):
         return await api.reviewscope.fetch(critic, self.__scope_id)
 
 
+@public.fetchImpl
 @ReviewScopeFilter.cached
 async def fetch(critic: api.critic.Critic, filter_id: int) -> WrapperType:
     async with ReviewScopeFilter.query(
@@ -57,6 +59,7 @@ async def fetch(critic: api.critic.Critic, filter_id: int) -> WrapperType:
         return await ReviewScopeFilter.makeOne(critic, result)
 
 
+@public.fetchAllImpl
 async def fetchAll(
     critic: api.critic.Critic, repository: Optional[api.repository.Repository]
 ) -> Sequence[WrapperType]:

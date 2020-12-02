@@ -1,7 +1,6 @@
 import React, { useEffect, FunctionComponent } from "react"
 
-import { pushBreadcrumb } from "../actions/uiBreadcrumbs"
-import { useDispatch } from "../store"
+import { PushBreadcrumb } from "../utils/BreadcrumbContext"
 
 type Props = {
   category: string
@@ -14,15 +13,8 @@ const Breadcrumb: FunctionComponent<Props> = ({
   label,
   path = null,
   children,
-}) => {
-  const dispatch = useDispatch()
-  useEffect(() => dispatch(pushBreadcrumb(category, label, path)), [
-    dispatch,
-    category,
-    label,
-    path,
-  ])
-  return <>{children}</>
-}
+}) => (
+  <PushBreadcrumb crumb={{ category, label, path }}>{children}</PushBreadcrumb>
+)
 
 export default Breadcrumb

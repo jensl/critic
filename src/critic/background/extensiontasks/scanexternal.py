@@ -5,7 +5,7 @@ from typing import Dict, Optional
 
 logger = logging.getLogger(__name__)
 
-from . import Request
+from .request import Request
 
 from critic import api
 from critic import gitaccess
@@ -19,17 +19,17 @@ class ScanExternalResult:
 
 
 class ScanExternal(Request[ScanExternalResult]):
-    def __init__(self, uri: str):
-        self.uri = uri
+    def __init__(self, url: str):
+        self.url = url
 
     async def dispatch(self, critic: api.critic.Critic) -> ScanExternalResult:
         gitrepository = gitaccess.GitRepository.direct()
         scan_result = ScanExternalResult()
         try:
             remote_refs = await gitrepository.lsremote(
-                self.uri, "HEAD", "refs/heads/version/*"
+                self.url, "HEAD", "refs/heads/version/*"
             )
-        except gitaccess.GitError as error:
+        except gitaccess.GitError:
             logger.exception("Error scanning external extension repository")
             raise
         for refname, value in remote_refs.refs.items():
@@ -41,5 +41,5 @@ class ScanExternal(Request[ScanExternalResult]):
         return scan_result
 
 
-async def scan_external(critic: api.critic.Critic, uri: str) -> ScanExternalResult:
-    return await ScanExternal(uri).issue()
+async def scan_external(critic: api.critic.Critic, url: str) -> ScanExternalResult:
+    return await ScanExternal(url).issue()

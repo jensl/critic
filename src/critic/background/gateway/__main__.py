@@ -18,8 +18,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from dataclasses import dataclass
-from typing import Any, AsyncIterator, Callable, Literal, Optional, Tuple, TypedDict
+from typing import Any, AsyncIterator, Callable, Tuple
 
 logger = logging.getLogger("critic.background.gateway")
 
@@ -80,7 +79,7 @@ class GatewayClient(BinaryProtocolClient[Any, Any]):
             logger.exception("failed to handle client")
 
 
-class GatewayService(BackgroundService, BinaryProtocol[GatewayClient, Any, Any]):
+class GatewayService(BackgroundService, BinaryProtocol[Any, Any]):
     name = "gateway"
 
     def create_client(
@@ -126,8 +125,8 @@ class GatewayService(BackgroundService, BinaryProtocol[GatewayClient, Any, Any])
         client.write_message(response)
         client.disconnect()
 
-    @staticmethod
-    def socket_path() -> None:
+    @classmethod
+    def socket_path(cls) -> None:
         return None
 
     @classmethod

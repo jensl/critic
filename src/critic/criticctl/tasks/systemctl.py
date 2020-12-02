@@ -20,38 +20,35 @@ import subprocess
 
 logger = logging.getLogger(__name__)
 
-SYSTEMCTL = None
+from .utils import fail
 
 
-def _require_systemctl():
-    from . import fail
-
-    global SYSTEMCTL
-    SYSTEMCTL = distutils.spawn.find_executable("systemctl")
-    if not SYSTEMCTL:
+def _require_systemctl() -> str:
+    systemctl = distutils.spawn.find_executable("systemctl")
+    if not systemctl:
         fail("Could not find `systemctl` executable in $PATH!")
+    return systemctl
 
 
 def check():
     _require_systemctl()
 
 
-def run(command, *args):
-    _require_systemctl()
-    return subprocess.check_output([SYSTEMCTL, command] + list(args))
+def run(command: str, *args: str):
+    return subprocess.check_output((_require_systemctl(), command) + args)
 
 
-def start_service(service_name):
+def start_service(service_name: str) -> None:
     run("restart", service_name)
     logger.info("Started service: %s", service_name)
 
 
-def restart_service(service_name):
+def restart_service(service_name: str) -> None:
     run("restart", service_name)
     logger.info("Restarted service: %s", service_name)
 
 
-def stop_service(service_name):
+def stop_service(service_name: str) -> None:
     run("stop", service_name)
     logger.info("Stopped service: %s", service_name)
 

@@ -1,26 +1,69 @@
 from __future__ import annotations
-from contextlib import asynccontextmanager
 
-from types import TracebackType
+import http
 from typing import (
-    Any,
     AsyncContextManager,
     AsyncIterator,
-    Dict,
+    ClassVar,
     Literal,
+    Mapping,
     Optional,
     Protocol,
-    Type,
     Union,
 )
-from multidict import CIMultiDict, CIMultiDictProxy, MultiDictProxy
+from multidict import CIMultiDictProxy, MultiDictProxy
 
 from critic import api
 
 
+class HTTPResponse(Exception):
+    headers: Mapping[str, str]
+
+    def __init__(
+        self,
+        status_code: int,
+        status_text: Optional[str] = None,
+        /,
+        *,
+        body: Optional[str] = None,
+        headers: Optional[Mapping[str, str]] = None,
+    ):
+        self.status_code = status_code
+        self.status_text = status_text or http.HTTPStatus(status_code).phrase
+        self.body = body
+        self.headers = headers or {"content-type": "text/plain"}
+
+
+class HTTPNoContent(HTTPResponse):
+    def __init__(self) -> None:
+        super().__init__(http.HTTPStatus.NO_CONTENT)
+
+
+class HTTPError(HTTPResponse):
+    __status_code: ClassVar[int]
+
+    def __init_subclass__(cls, *, status_code: int) -> None:
+        cls.__status_code = status_code
+
+    def __init__(self, body: str, *, headers: Optional[Mapping[str, str]] = None):
+        super().__init__(self.__status_code, body=body, headers=headers)
+
+
+class HTTPNotFound(HTTPError, status_code=http.HTTPStatus.NOT_FOUND):
+    pass
+
+
+class HTTPBadRequest(HTTPError, status_code=http.HTTPStatus.BAD_REQUEST):
+    pass
+
+
+class HTTPForbidden(HTTPError, status_code=http.HTTPStatus.FORBIDDEN):
+    pass
+
+
 class Response(Protocol):
     @property
-    def headers(self) -> CIMultiDictProxy:
+    def headers(self) -> CIMultiDictProxy[str]:
         ...
 
     async def write(self, data: Union[bytes, str]) -> None:
@@ -37,15 +80,15 @@ class Request(Protocol):
         ...
 
     @property
-    def query(self) -> MultiDictProxy:
+    def query(self) -> MultiDictProxy[str]:
         ...
 
     @property
-    def headers(self) -> CIMultiDictProxy:
+    def headers(self) -> CIMultiDictProxy[str]:
         ...
 
     @property
-    async def has_body(self) -> bool:
+    def has_body(self) -> bool:
         ...
 
     async def read(self) -> bytes:
@@ -60,11 +103,20 @@ class Request(Protocol):
     def response(
         self,
         status_code: int,
-        status_text: str = None,
+        status_text: Optional[str] = None,
         /,
-        headers: Dict[str, str] = None,
+        headers: Optional[Mapping[str, str]] = None,
     ) -> AsyncContextManager[Response]:
         ...
+
+    async def json_response(
+        self, status_code: int = 200, /, *, payload: object
+    ) -> None:
+        ...
+
+
+class RequestHandle(AsyncContextManager[Request], Protocol):
+    ...
 
 
 class Endpoint(Protocol):
@@ -73,5 +125,5 @@ class Endpoint(Protocol):
         ...
 
     @property
-    def requests(self) -> AsyncIterator[Request]:
+    def requests(self) -> AsyncIterator[RequestHandle]:
         ...

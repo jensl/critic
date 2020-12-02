@@ -14,6 +14,8 @@
  * the License.
  */
 
+import { immerable } from "immer"
+
 import { ResourceData } from "../types"
 import { primaryMap } from "../reducers/resource"
 import {
@@ -30,6 +32,23 @@ import {
 } from "./types"
 
 export type LineIDs = readonly string[]
+
+type CommentData = {
+  id: CommentID
+  type: CommentType
+  is_draft: boolean
+  state: IssueState
+  review: ReviewID
+  author: UserID
+  location: LocationData | null
+  translated_location: LocationData | null
+  resolved_by: UserID | null
+  addressed_by: CommitID | null
+  timestamp: number
+  text: string
+  replies: ReplyID[]
+  draft_changes: DraftChangesData | null
+}
 
 type CommentProps = {
   id: CommentID
@@ -49,6 +68,8 @@ type CommentProps = {
 }
 
 class Comment {
+  [immerable] = true
+
   constructor(
     readonly id: CommentID,
     readonly type: CommentType,
@@ -63,10 +84,11 @@ class Comment {
     readonly timestamp: number,
     readonly text: string,
     readonly replies: readonly ReplyID[],
-    readonly draftChanges: DraftChanges | null
+    readonly draftChanges: DraftChanges | null,
   ) {}
 
   static new(props: CommentProps) {
+    console.warn("Comment.new", { props })
     return new Comment(
       props.id,
       props.type,
@@ -81,17 +103,19 @@ class Comment {
       props.timestamp,
       props.text,
       props.replies,
-      props.draft_changes
+      props.draft_changes,
     )
   }
 
-  static prepare(value: ResourceData): Partial<CommentProps> {
-    return {
+  static prepare(value: CommentData): CommentProps {
+    const prepared = {
       ...value,
       location: Location.make(value.location),
       translated_location: Location.make(value.translated_location),
       draft_changes: DraftChanges.make(value.draft_changes),
     }
+    console.warn("Comment.prepare", { value, prepared })
+    return prepared
   }
 
   static reducer = primaryMap<Comment, CommentID>("comments")
@@ -104,7 +128,7 @@ class Comment {
         for (let offset = firstLine; offset <= lastLine; ++offset) {
           yield `${file}:${side}:${offset}`
         }
-      })()
+      })(),
     )
   }
 
@@ -128,7 +152,7 @@ class Comment {
   }
 }
 
-type LocationProps = {
+type LocationData = {
   type: CommentLocationType
   first_line: number
   last_line: number
@@ -138,7 +162,11 @@ type LocationProps = {
   side: null | "old" | "new"
 }
 
+type LocationProps = LocationData
+
 export class Location {
+  [immerable] = true
+
   constructor(
     readonly type: CommentLocationType,
     readonly firstLine: number,
@@ -146,7 +174,7 @@ export class Location {
     readonly file: FileID | null,
     readonly changeset: ChangesetID | null,
     readonly commit: CommitID | null,
-    readonly side: "old" | "new" | null
+    readonly side: "old" | "new" | null,
   ) {}
 
   static new(props: LocationProps) {
@@ -157,13 +185,26 @@ export class Location {
       props.file,
       props.changeset,
       props.commit,
-      props.side
+      props.side,
     )
   }
 
-  static make(value: ResourceData | null) {
-    return value && Location.new(value as LocationProps)
+  static make(value: LocationData | null) {
+    return value && Location.new(value)
   }
+
+  get props(): LocationProps {
+    return { ...this, first_line: this.firstLine, last_line: this.lastLine }
+  }
+}
+
+type DraftChangesData = {
+  author: UserID
+  is_draft: boolean
+  reply: ReplyID | null
+  new_type: CommentType | null
+  new_state: IssueState | null
+  new_location: LocationData | null
 }
 
 type DraftChangesProps = {
@@ -176,13 +217,15 @@ type DraftChangesProps = {
 }
 
 class DraftChanges {
+  [immerable] = true
+
   constructor(
     readonly author: UserID,
     readonly isDraft: boolean,
     readonly reply: ReplyID | null,
     readonly newType: CommentType | null,
     readonly newState: IssueState | null,
-    readonly newLocation: Location | null
+    readonly newLocation: Location | null,
   ) {}
 
   static new(props: DraftChangesProps) {
@@ -192,12 +235,28 @@ class DraftChanges {
       props.reply,
       props.new_type,
       props.new_state,
-      props.new_location
+      props.new_location,
     )
   }
 
-  static make(value: ResourceData | null) {
-    return value && DraftChanges.new(value as DraftChangesProps)
+  static make(value: DraftChangesData | null) {
+    return (
+      value &&
+      DraftChanges.new({
+        ...value,
+        new_location: Location.make(value.new_location),
+      })
+    )
+  }
+
+  get props(): DraftChangesProps {
+    return {
+      ...this,
+      is_draft: this.isDraft,
+      new_type: this.newType,
+      new_state: this.newState,
+      new_location: this.newLocation,
+    }
   }
 }
 

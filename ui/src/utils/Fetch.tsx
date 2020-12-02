@@ -26,7 +26,6 @@ import {
   FetchJSONResult,
   RequestParams,
   ExpectStatusCallback,
-  HTTPMethod,
 } from "./Fetch.types"
 import { ResourceData } from "../types"
 
@@ -47,7 +46,7 @@ export class FetchException {
 const displayErrorMessage = (
   path: string,
   options: RequestInit,
-  response: any
+  response: any,
 ) => (dispatch: Dispatch) => {
   const message = (
     <div>
@@ -70,7 +69,7 @@ const displayErrorMessage = (
       title: "API request failed",
       content: message,
       timeoutMS: 10000,
-    })
+    }),
   )
 }
 
@@ -99,7 +98,7 @@ export const fetchText = async ({
     .filter((key) => params[key] !== undefined)
     .map(
       (key) =>
-        `${encodeURIComponent(key)}=${encodeURIComponent(String(params[key]))}`
+        `${encodeURIComponent(key)}=${encodeURIComponent(String(params[key]))}`,
     )
     .join("&")
 
@@ -169,8 +168,8 @@ export const fetchJSON = ({
     .map(
       (key) =>
         `${encodeURIComponent(key)}=${encodeURIComponent(
-          String(useParams[key])
-        )}`
+          String(useParams[key]),
+        )}`,
     )
 
   const components = path.split("/")
@@ -194,18 +193,15 @@ export const fetchJSON = ({
   }
 
   if (post !== null) {
-    useOptions.method = HTTPMethod.POST
+    useOptions.method = "POST"
     useOptions.body = JSON.stringify(post)
   } else if (put !== null) {
-    useOptions.method = HTTPMethod.PUT
+    useOptions.method = "PUT"
     useOptions.body = JSON.stringify(put)
   }
 
   if (useExpectStatus === null) {
-    if (
-      options.method === HTTPMethod.DELETE &&
-      useParams.output_format !== "static"
-    ) {
+    if (options.method === "DELETE" && useParams.output_format !== "static") {
       useExpectStatus = (status) => status === 204
     } else {
       useExpectStatus = (status) => status === 200
@@ -234,7 +230,7 @@ export const fetchJSON = ({
               title: error.title,
               content: error.message,
               timeoutMS: 10000,
-            })
+            }),
           )
         }
       } else dispatch(displayErrorMessage(path, useOptions, response))

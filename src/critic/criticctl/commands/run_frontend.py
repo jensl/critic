@@ -16,11 +16,13 @@
 
 from __future__ import annotations
 
+import aiohttp
+import aiohttp.web
+from aiohttp.abc import AbstractAccessLogger
 import argparse
 import asyncio
 import collections
 import cProfile
-import json
 import logging
 import multiprocessing
 import os
@@ -29,11 +31,15 @@ import signal
 import sys
 import tempfile
 import traceback
-from typing import Any
+from typing import Any, Deque, List, Optional, Protocol
 
 logger = logging.getLogger(__name__)
 
 from critic import api
+from critic import auth
+from critic import frontend
+from critic import jsonapi
+from ..utils import as_root
 
 
 name = "run-frontend"
@@ -49,22 +55,23 @@ systems.
 The front-end is not daemonized; this command simply never exits until aborted,
 e.g. by pressing CTRL-c.
 
-Two flavors of HTTP front-end are supported:
-
-  --flavor=wsgiref (default)
-
-    Runs the server using the builtin wsgiref.simple_server package.
-
-  --flavor=aiohttp
-
-    Runs the server using the aiohttp package, which runs a single-process,
-    single-threaded server that serves multiple requests in parallel via an
-    `asyncio` event loop.
-
 """
 
 
-def format_sockname(sockname: tuple) -> str:
+class Arguments(Protocol):
+    binary_output: bool
+    loglevel: int
+
+    listen_host: Optional[str]
+    listen_port: int
+    unix: Optional[str]
+    unix_socket_owner: Optional[str]
+    profile: bool
+    scale: int
+    worker: bool
+
+
+def format_sockname(sockname: Any) -> str:
     if len(sockname) == 2:
         # IPv4
         server_host, server_port = sockname
@@ -78,7 +85,9 @@ def format_sockname(sockname: tuple) -> str:
     return f"{server_host}:{server_port}"
 
 
-async def server_started(critic, arguments, server_sockname):
+async def server_started(
+    critic: api.critic.Critic, arguments: Arguments, server_sockname: Any
+) -> None:
     if len(server_sockname) != 2:
         return
 
@@ -88,107 +97,45 @@ async def server_started(critic, arguments, server_sockname):
         logger.exception("Unsupported server socket name")
         return
 
-    if arguments.update_identity:
-        async with critic.transaction() as cursor:
-            await cursor.execute(
-                """UPDATE systemidentities
-                      SET hostname={hostname}
-                    WHERE key={identity}""",
-                hostname=server_address,
-                identity=arguments.update_identity,
-            )
-
     logger.info(f"Listening at http://{server_address}")
 
 
-async def run_wsgiref(critic, arguments, stopped):
-    import wsgiref.simple_server
-
-    from ...wsgi.main import application
-
-    class CriticWSGIRequestHandler(wsgiref.simple_server.WSGIRequestHandler):
-        def log_message(self, *args, **kwargs):
-            fmt, request_line, status, response_size = args
-            logger.debug('"%s" => %s (%s bytes)', request_line, status, response_size)
-
-    server = wsgiref.simple_server.make_server(
-        host=arguments.listen_host,
-        port=arguments.port,
-        app=application,
-        handler_class=CriticWSGIRequestHandler,
-    )
-
-    await server_started(critic, arguments, (server.server_name, server.server_port))
-
-    try:
-        # This call will never return normally.
-        server.serve_forever()
-    except KeyboardInterrupt:
-        pass
-
-
-async def run_aiohttp(
-    critic: api.critic.Critic, arguments: Any, stopped: asyncio.Event
+async def run_worker(
+    critic: api.critic.Critic, arguments: Arguments, stopped: asyncio.Event
 ) -> None:
-    import aiohttp.web
-
-    from ...wsgi.request import HTTPResponse, AIOHTTPRequest
-    from critic import auth
-    from critic import frontend
-    from critic import jsonapi
-
-    # from critic import resources
-
     loop = asyncio.get_event_loop()
 
     async def process_request(
-        request: aiohttp.web.BaseRequest, req: AIOHTTPRequest
+        critic: api.critic.Critic,
+        request: aiohttp.web.BaseRequest,
     ) -> aiohttp.web.StreamResponse:
-        await auth.AccessControl.forRequest(req)
-        await auth.AccessControl.accessHTTP(req)
+        await auth.AccessControl.forRequest(request)
+        await auth.AccessControl.accessHTTP(request)
 
         try:
-            await frontend.externalauth.handle(req)
+            await frontend.externalauth.handle(critic, request)
         except frontend.NotHandled:
             pass
 
         try:
-            return await frontend.extensions.handle(req.critic, request)
+            return await frontend.extensions.handle(critic, request)
         except frontend.NotHandled:
             pass
 
         try:
-            return await frontend.download.handle(req)
+            return await frontend.download.handle(critic, request)
         except frontend.NotHandled:
             pass
 
-        if req.path.startswith("api/"):
-            try:
-                data = await jsonapi.handleRequest(req.critic, req)
-            except jsonapi.Error as error:
-                req.setStatus(error.http_status)
-                data = error.as_json()
-            try:
-                data_json = json.dumps(data, indent=2)
-            except TypeError:
-                logger.error(repr(data))
-                raise
-            req.setContentType("application/json")
-            await req.start()
-            try:
-                encoded = data_json.encode()
-            except TypeError:
-                logger.debug(repr(data_json))
-                raise
-            await req.write(encoded)
-            return req.response
+        if request.path.startswith("/api/"):
+            return await jsonapi.handleRequest(critic, request)
 
-        if req.path == "ws":
-            return await frontend.websocket.serve(req)
+        if request.path == "/ws":
+            return await frontend.websocket.serve(request)
 
-        if req.path.startswith("static/"):
+        if request.path.startswith("/static/"):
             try:
-                return await frontend.ui.serveStatic(req)
+                return await frontend.ui.serveStatic(request)
             except frontend.ui.NotFound:
                 return aiohttp.web.Response(text="Not found", status=404)
 
@@ -198,50 +145,46 @@ async def run_aiohttp(
         #     await req.write(resources.fetch("favicon.png")[0])
         #     return req.response
 
-        is_git_ua = req.getRequestHeader("User-Agent", "").startswith("git/")
+        is_git_ua = request.headers.get("user-agent", "").startswith("git/")
 
         repository, path = await frontend.gitrepository.identifyFromRequest(
-            req, require_suffix=not is_git_ua
+            critic, request, require_suffix=not is_git_ua
         )
         if repository:
+            assert path is not None
             try:
-                await frontend.gitrepository.invokeHttpBackend(req, repository, path)
+                return await frontend.gitrepository.invokeHttpBackend(
+                    critic, request, repository, path
+                )
             except frontend.gitrepository.NeedsUser:
                 raise aiohttp.web.HTTPUnauthorized(
                     text="Must be signed in",
                     headers={"WWW-Authenticate": 'Basic realm="Critic"'},
                 )
-            else:
-                return req.response
 
         try:
-            await frontend.ui.serveIndexHtml(req)
+            return await frontend.ui.serveIndexHtml(critic, request)
         except frontend.ui.NotFound:
             return aiohttp.web.Response(text="UI not available", status=404)
-        else:
-            return req.response
 
     async def handle_request(
         request: aiohttp.web.BaseRequest,
     ) -> aiohttp.web.StreamResponse:
+        profile: Optional[cProfile.Profile]
         if arguments.profile:
             profile = cProfile.Profile()
             profile.enable()
+        else:
+            profile = None
         response = None
         try:
-            async with api.critic.startSession(
-                for_user=True, loop=request.loop
-            ) as critic:
-                async with AIOHTTPRequest(critic, request) as req:
-                    try:
-                        response = await process_request(request, req)
-                    except HTTPResponse as http_response:
-                        await http_response.execute(req)
-                        response = req.response
-                    except asyncio.CancelledError:
-                        if not req.finished:
-                            logger.debug("Request cancelled")
-                        raise
+            async with api.critic.startSession(for_user=True) as critic:
+                try:
+                    response = await process_request(critic, request)
+                except asyncio.CancelledError:
+                    # if not req.finished:
+                    #     logger.debug("Request cancelled")
+                    raise
         except auth.AccessDenied as error:
             return aiohttp.web.Response(text=str(error), status=403)
         except asyncio.CancelledError:
@@ -252,7 +195,7 @@ async def run_aiohttp(
             logger.exception("Request failed")
             return aiohttp.web.Response(text=traceback.format_exc(), status=500)
         finally:
-            if arguments.profile:
+            if profile:
                 profile.disable()
                 stats = pstats.Stats(profile)
                 stats.sort_stats("time")
@@ -263,17 +206,18 @@ async def run_aiohttp(
         return response
 
     async def start() -> None:
-        from .. import as_root
-
         # class AccessHandler(logging.Handler):
         #     def emit(self, record: logging.LogRecord) -> None:
         #         logger.log(record.levelno, record.msg % record.args)
         # logging.getLogger("aiohttp.access").addHandler(AccessHandler())
 
-        from aiohttp.abc import AbstractAccessLogger
-
         class AccessLogger(AbstractAccessLogger):
-            def log(self, request, response, time):
+            def log(
+                self,
+                request: aiohttp.web.BaseRequest,
+                response: aiohttp.web.StreamResponse,
+                time: float,
+            ) -> None:
                 logger.info(
                     f"{request.remote} "
                     f'"{request.method} {request.path} '
@@ -320,16 +264,18 @@ async def run_aiohttp(
     await stopped.wait()
 
 
-async def run_lb_frontend(critic, arguments, stopped):
-    from .. import as_root
-
-    worker_tasks = []
-    worker_processes = []
-    worker_paths = collections.deque()
+async def run_load_balancer(
+    critic: api.critic.Critic, arguments: Arguments, stopped: asyncio.Event
+) -> None:
+    worker_tasks: List["asyncio.Task[None]"] = []
+    worker_processes: List[asyncio.subprocess.Process] = []
+    worker_paths: Deque[str] = collections.deque()
 
     semaphore = asyncio.Semaphore(value=0)
 
-    async def handle_client(client_reader, client_writer):
+    async def handle_client(
+        client_reader: asyncio.StreamReader, client_writer: asyncio.StreamWriter
+    ) -> None:
         async with semaphore:
             worker_path = worker_paths.popleft()
             worker_paths.append(worker_path)
@@ -342,7 +288,9 @@ async def run_lb_frontend(critic, arguments, stopped):
 
         worker_reader, worker_writer = await asyncio.open_unix_connection(worker_path)
 
-        async def forward(reader, writer):
+        async def forward(
+            reader: asyncio.StreamReader, writer: asyncio.StreamWriter
+        ) -> None:
             try:
                 while True:
                     data = await reader.read(65536)
@@ -362,10 +310,9 @@ async def run_lb_frontend(critic, arguments, stopped):
             return_exceptions=True,
         )
 
-        async def close_stream(writer):
+        async def close_stream(writer: asyncio.StreamWriter):
             writer.close()
-            if hasattr(writer, "wait_closed"):
-                await writer.wait_closed()
+            await writer.wait_closed()
 
         await asyncio.gather(
             close_stream(worker_writer),
@@ -373,11 +320,13 @@ async def run_lb_frontend(critic, arguments, stopped):
             return_exceptions=True,
         )
 
-    async def check_backend(worker_path):
-        import aiohttp
-
+    async def check_backend(worker_path: str) -> bool:
         try:
             connector = aiohttp.UnixConnector(path=worker_path)
+        except Exception:
+            logger.exception("Load balancer backend check failed!")
+            return False
+        try:
             async with aiohttp.request(
                 "GET",
                 "http://localhost/api/v1/sessions/current",
@@ -395,7 +344,7 @@ async def run_lb_frontend(critic, arguments, stopped):
         finally:
             await connector.close()
 
-    async def run_worker(index):
+    async def run_worker(index: int) -> None:
         worker_path = os.path.join(work_dir, "worker-%d.unix" % index)
 
         argv = [sys.argv[0]]
@@ -410,14 +359,9 @@ async def run_lb_frontend(critic, arguments, stopped):
             [
                 "run-frontend",
                 "--worker",
-                "--flavor",
-                arguments.flavor,
-                "--unix",
-                worker_path,
+                f"--unix={worker_path}",
             ]
         )
-        if arguments.update_identity:
-            argv.extend(["--update-identity", arguments.update_identity])
         if arguments.profile:
             argv.append("--profile")
 
@@ -448,7 +392,7 @@ async def run_lb_frontend(critic, arguments, stopped):
 
     async def start():
         for index in range(arguments.scale):
-            worker_tasks.append(asyncio.ensure_future(run_worker(index)))
+            worker_tasks.append(asyncio.create_task(run_worker(index)))
 
         if arguments.unix:
             server = await asyncio.start_unix_server(handle_client, path=arguments.unix)
@@ -467,8 +411,9 @@ async def run_lb_frontend(critic, arguments, stopped):
                     port=arguments.listen_port,
                 )
 
-            for socket in server.sockets:
-                await server_started(critic, arguments, socket.getsockname())
+            if server.sockets:
+                for socket in server.sockets:
+                    await server_started(critic, arguments, socket.getsockname())
 
     async def stop():
         logger.info("Stopping load balancer")
@@ -484,14 +429,7 @@ async def run_lb_frontend(critic, arguments, stopped):
         await stop()
 
 
-def setup(parser):
-    parser.add_argument(
-        "--flavor",
-        choices=("wsgiref", "aiohttp"),
-        default="aiohttp",
-        help="Flavor of HTTP server to run.",
-    )
-    parser.add_argument("--update-identity", help="Update the named system identity.")
+def setup(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--listen-host",
         help=(
@@ -538,17 +476,10 @@ def setup(parser):
     )
     scaling.add_argument("--worker", action="store_true", help=argparse.SUPPRESS)
 
-    load_balancer = parser.add_argument_group("Load balancer")
-    load_balancer.add_argument(
-        "--announce-backend",
-        action="store_true",
-        help="Announce backend for dynamic load balancer.",
-    )
-
     parser.set_defaults(need_session=True)
 
 
-async def main(critic, arguments):
+async def main(critic: api.critic.Critic, arguments: Arguments) -> int:
     stopped = asyncio.Event()
 
     def stop():
@@ -558,8 +489,8 @@ async def main(critic, arguments):
     critic.loop.add_signal_handler(signal.SIGTERM, stop)
 
     if arguments.scale and not arguments.worker:
-        await run_lb_frontend(critic, arguments, stopped)
-    elif arguments.flavor == "wsgiref":
-        await run_wsgiref(critic, arguments, stopped)
+        await run_load_balancer(critic, arguments, stopped)
     else:
-        await run_aiohttp(critic, arguments, stopped)
+        await run_worker(critic, arguments, stopped)
+
+    return 0

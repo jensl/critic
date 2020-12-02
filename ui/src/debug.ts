@@ -22,16 +22,17 @@ export const assertNotReached = IS_DEVELOPMENT
   ? (message = "This line should not be reachable!"): never => {
       throw new DebugError(message)
     }
-  : () => null
+  : () => {}
 
-export const assertTrue = IS_DEVELOPMENT
-  ? (actual: boolean, message = "Expected true") => {
-      if (!actual) {
-        console.error("assertTrue failed", { actual })
-        throw new DebugError(`assertTrue(): ${message}`)
-      }
-    }
-  : () => null
+export function assertTrue(
+  actual: boolean,
+  message: string = "Expected true",
+): asserts actual {
+  if (!actual) {
+    console.error("assertTrue failed", { actual })
+    throw new DebugError(`assertTrue(): ${message}`)
+  }
+}
 
 export const assertFalse = IS_DEVELOPMENT
   ? (actual: boolean, message = "Expected false") => {
@@ -40,7 +41,7 @@ export const assertFalse = IS_DEVELOPMENT
         throw new DebugError(`assertFalse(): ${message}`)
       }
     }
-  : () => null
+  : () => {}
 
 export const assertEqual = IS_DEVELOPMENT
   ? <T>(a: T, b: T, message = "Expected equal") => {
@@ -49,7 +50,7 @@ export const assertEqual = IS_DEVELOPMENT
         throw new DebugError(`asssertEqual(): ${message}`)
       }
     }
-  : () => null
+  : () => {}
 
 export const assertNotEqual = IS_DEVELOPMENT
   ? <T>(a: T, b: T, message = "Expected not equal") => {
@@ -58,11 +59,11 @@ export const assertNotEqual = IS_DEVELOPMENT
         throw new DebugError(`asssertNotEqual(): ${message}`)
       }
     }
-  : () => null
+  : () => {}
 
 export function assertString(
   actual: unknown,
-  message = "Expected string"
+  message = "Expected string",
 ): asserts actual is string {
   if (typeof actual !== "string") {
     console.error("assertString failed", { actual })
@@ -72,7 +73,7 @@ export function assertString(
 
 export function assertNumber(
   actual: unknown,
-  message = "Expected number"
+  message = "Expected number",
 ): asserts actual is number {
   if (typeof actual !== "number") {
     console.error("assertNumber failed", { actual })
@@ -87,11 +88,11 @@ export const assertNull = IS_DEVELOPMENT
         throw new DebugError(`assertFalse(): ${message}`)
       }
     }
-  : () => null
+  : () => {}
 
 export function assertNotNull<T>(
   actual: T,
-  message: string = "Expected not null"
+  message: string = "Expected not null",
 ): asserts actual is NonNullable<T> {
   if (actual === null) {
     console.error("assertFalse failed", { actual })
@@ -106,13 +107,13 @@ export const assertInstanceOf = IS_DEVELOPMENT
         throw new DebugError(`assertTrue(): ${message}`)
       }
     }
-  : () => null
+  : () => {}
 
 type NonArray<T> = T extends any[] ? never : T extends object ? T : never
 
 export function assertIsObject<T>(
   actual: T,
-  message = "Expected object"
+  message = "Expected object",
 ): asserts actual is NonArray<T> {
   if (!actual || typeof actual !== "object" || Array.isArray(actual)) {
     console.error("assertIsObject failed", { actual })

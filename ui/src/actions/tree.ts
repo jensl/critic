@@ -14,26 +14,29 @@
  * the License.
  */
 
-import { fetch } from "../resources"
+import { fetch, withParameters } from "../resources"
 import Tree from "../resources/tree"
 import { RepositoryID, CommitID } from "../resources/types"
-import { Dispatch } from "../state"
+import { AsyncThunk } from "../state"
 
 export const loadTree = (
   repositoryID: RepositoryID,
   commitID: CommitID,
-  path: string = "/"
-) => async (dispatch: Dispatch) => {
+  path: string = "/",
+): AsyncThunk<Tree | null> => async (dispatch) => {
   const { primary } = await dispatch(
-    fetch("trees", {
-      repository: repositoryID,
-      commit: commitID,
-      path: path || "/",
-    })
+    fetch(
+      "trees",
+      withParameters({
+        repository: repositoryID,
+        commit: commitID,
+        path,
+      }),
+    ),
   )
 
-  const tree = primary.first<Tree>()
-  if (!tree) return null
+  if (!primary.length) return null
+  const tree = primary[0]
 
   dispatch({
     type: "TREES_UPDATE",

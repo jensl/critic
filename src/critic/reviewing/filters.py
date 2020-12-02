@@ -68,7 +68,7 @@ def validPattern(pattern: str) -> bool:
         return False
 
 
-def compilePattern(pattern: str) -> re.Pattern:
+def compilePattern(pattern: str) -> re.Pattern[str]:
     wildcards = {
         "**/": "(?:[^/]+/)*",
         "**": "(?:[^/]+(?:/|$))*",
@@ -76,10 +76,10 @@ def compilePattern(pattern: str) -> re.Pattern:
         "?": "[^/]",
     }
 
-    def escape(match: re.Match) -> str:
+    def escape(match: re.Match[str]) -> str:
         return "\\" + match.group(0)
 
-    def replacement(match: re.Match) -> str:
+    def replacement(match: re.Match[str]) -> str:
         return wildcards[match.group(0)]
 
     pattern = re.sub(r"[[{()+^$.\\|]", escape, pattern)
@@ -94,7 +94,7 @@ def hasWildcard(string: str) -> bool:
 class Path(object):
     fixedDirname: str
     wildDirname: Optional[str]
-    filenameRegExp: Optional[re.Pattern]
+    filenameRegExp: Optional[re.Pattern[str]]
 
     def __init__(self, path: str):
         path = path.lstrip("/")
@@ -138,7 +138,7 @@ class Path(object):
     def __repr__(self) -> str:
         return "Path(%r)" % self.path
 
-    def match(self, path) -> bool:
+    def match(self, path: str) -> bool:
         return bool(self.regexp.match(path))
 
     @staticmethod

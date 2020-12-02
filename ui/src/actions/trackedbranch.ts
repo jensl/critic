@@ -14,8 +14,8 @@
  * the License.
  */
 
-import { fetch } from "../resources"
+import { fetch, withParameters } from "../resources"
 import { RepositoryID } from "../resources/types"
 
 export const loadTrackedBranches = (repositoryID: RepositoryID) =>
-  fetch("trackedbranches", { repository: repositoryID })
+  fetch("trackedbranches", withParameters({ repository: repositoryID }))

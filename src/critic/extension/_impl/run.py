@@ -22,15 +22,15 @@ import os
 import signal
 import sys
 import traceback
-from typing import AsyncContextManager
 
 logger = logging.getLogger(__name__)
 
 from critic import api
+from critic import bootstrap as _
 from critic.background.extensionhost import CallError
 from critic.base import asyncutils, binarylog
 
-from . import write_message
+from . import Runner, write_message
 from .endpoint import EndpointImpl
 from .subscription import SubscriptionImpl
 
@@ -78,6 +78,8 @@ async def main_async() -> int:
         return 1
 
     async with api.critic.startSession(for_system=True) as critic:
+        runner: Runner
+
         if arguments.role_type == "endpoint":
             runner = EndpointImpl(critic, command_reader, response_writer)
         elif arguments.role_type == "subscription":
@@ -91,7 +93,7 @@ async def main_async() -> int:
             details = str(error)
             stacktrace = traceback.format_exc()
 
-            if not runner.handle_exception(details, stacktrace):
+            if not await runner.handle_exception(details, stacktrace):
                 await write_message(
                     response_writer,
                     CallError("Extension crashed", details, stacktrace),

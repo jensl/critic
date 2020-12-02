@@ -14,14 +14,14 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
+import argparse
 import logging
 import os
-import subprocess
 import sys
 
 logger = logging.getLogger(__name__)
 
-from critic import base
+from critic import api
 
 name = "run-services"
 title = "Start Critic background services"
@@ -38,7 +38,7 @@ service definition, and is not intended to be used directly.
 """
 
 
-def setup(parser):
+def setup(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--startup-timeout",
         type=int,
@@ -65,7 +65,7 @@ def setup(parser):
     parser.set_defaults(run_as_root=True)
 
 
-async def main(critic, arguments):
+async def main(critic: api.critic.Critic, arguments: argparse.Namespace) -> int:
     await critic.close()
 
     if arguments.no_detach:

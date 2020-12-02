@@ -18,26 +18,28 @@ from __future__ import annotations
 
 import logging
 from typing import (
-    Awaitable,
     Collection,
-    Dict,
     FrozenSet,
     List,
-    Literal,
-    Mapping,
     Optional,
     Sequence,
-    Set,
     TypedDict,
     Union,
-    overload,
 )
 
 logger = logging.getLogger(__name__)
 
 from critic import api
-from critic import jsonapi
-from critic.jsonapi import ValueWrapper
+from ..check import convert
+from ..exceptions import UsageError
+from ..resourceclass import ResourceClass
+from ..parameters import Parameters
+from ..types import JSONInput, JSONResult
+from ..types import JSONInput, JSONResult
+from ..utils import many, numeric_id, sorted_by_id
+from ..values import Values
+from ..valuewrapper import ValueWrapper
+from .timestamp import timestamp
 
 
 class ChangeCount(TypedDict):
@@ -48,7 +50,7 @@ class ChangeCount(TypedDict):
 
 class Partition(TypedDict):
     commits: Collection[api.commit.Commit]
-    rebase: Optional[api.log.rebase.Rebase]
+    rebase: Optional[api.rebase.Rebase]
 
 
 class Progress(TypedDict):
@@ -71,7 +73,7 @@ async def change_counts_as_dict(value: api.review.Review) -> Collection[ChangeCo
 async def partitions(value: api.review.Review) -> Collection[Partition]:
     result: List[Partition] = []
 
-    def add_partition(partition: api.log.partition.Partition) -> None:
+    def add_partition(partition: api.partition.Partition) -> None:
         if partition is None:
             return
 
@@ -93,17 +95,17 @@ async def partitions(value: api.review.Review) -> Collection[Partition]:
 
 async def changesets(
     value: api.review.Review,
-) -> ValueWrapper[Collection[api.changeset.Changeset]]:
+) -> Optional[ValueWrapper[Collection[api.changeset.Changeset]]]:
     changesets = await value.changesets
     if changesets is None:
         return None
-    return await jsonapi.sorted_by_id(changesets.values())
+    return await sorted_by_id(changesets.values())
 
 
 async def filters(
     value: api.review.Review,
 ) -> ValueWrapper[Collection[api.reviewfilter.ReviewFilter]]:
-    return await jsonapi.sorted_by_id(value.filters)
+    return await sorted_by_id(value.filters)
 
 
 async def progress(value: api.review.Review) -> Progress:
@@ -141,44 +143,15 @@ async def integration(review: api.review.Review) -> Optional[Integration]:
     }
 
 
-class JSONResult(TypedDict):
-    id: int
-    state: api.review.State
-    is_accepted: Awaitable[bool]
-    summary: Optional[str]
-    description: Optional[str]
-    repository: Awaitable[api.repository.Repository]
-    branch: Awaitable[Optional[api.branch.Branch]]
-    owners: Awaitable[ValueWrapper[Collection[api.user.User]]]
-    active_reviewers: Awaitable[ValueWrapper[Collection[api.user.User]]]
-    assigned_reviewers: Awaitable[ValueWrapper[Collection[api.user.User]]]
-    watchers: Awaitable[ValueWrapper[Collection[api.user.User]]]
-    partitions: Awaitable[Collection[Partition]]
-    changesets: Awaitable[ValueWrapper[Collection[api.changeset.Changeset]]]
-    issues: Awaitable[ValueWrapper[Collection[api.comment.Comment]]]
-    notes: Awaitable[ValueWrapper[Collection[api.comment.Comment]]]
-    pending_update: Awaitable[Optional[api.branchupdate.BranchUpdate]]
-    pending_rebase: Awaitable[Optional[api.log.rebase.Rebase]]
-    progress: Awaitable[Progress]
-    progress_per_commit: Awaitable[Collection[ChangeCount]]
-    filters: Awaitable[ValueWrapper[Collection[api.reviewfilter.ReviewFilter]]]
-    tags: Awaitable[ValueWrapper[Collection[api.reviewtag.ReviewTag]]]
-    last_changed: Awaitable[Optional[float]]
-    pings: Awaitable[ValueWrapper[Collection[api.reviewping.ReviewPing]]]
-    integration: Awaitable[Optional[Integration]]
-
-
 class Reviews(
-    jsonapi.ResourceClass[api.review.Review],
+    ResourceClass[api.review.Review],
     api_module=api.review,
     exceptions=(api.review.Error, api.repository.Error, api.branch.Error),
 ):
     """The reviews in this system."""
 
     @staticmethod
-    async def json(
-        parameters: jsonapi.Parameters, value: api.review.Review
-    ) -> JSONResult:
+    async def json(parameters: Parameters, value: api.review.Review) -> JSONResult:
         """Review {
           "id": integer,
           "state": string,
@@ -235,40 +208,38 @@ class Reviews(
             "description": value.description,
             "repository": value.repository,
             "branch": value.branch,
-            "owners": jsonapi.sorted_by_id(value.owners),
-            "active_reviewers": jsonapi.sorted_by_id(value.active_reviewers),
-            "assigned_reviewers": jsonapi.sorted_by_id(value.assigned_reviewers),
-            "watchers": jsonapi.sorted_by_id(value.watchers),
+            "owners": sorted_by_id(value.owners),
+            "active_reviewers": sorted_by_id(value.active_reviewers),
+            "assigned_reviewers": sorted_by_id(value.assigned_reviewers),
+            "watchers": sorted_by_id(value.watchers),
             "partitions": partitions(value),
             "changesets": changesets(value),
-            "issues": jsonapi.sorted_by_id(value.issues),
-            "notes": jsonapi.sorted_by_id(value.notes),
+            "issues": sorted_by_id(value.issues),
+            "notes": sorted_by_id(value.notes),
             "pending_update": value.pending_update,
             "pending_rebase": value.pending_rebase,
             "progress": progress(value),
             "progress_per_commit": change_counts_as_dict(value),
             "filters": filters(value),
-            "tags": jsonapi.sorted_by_id(value.tags),
-            "last_changed": jsonapi.v1.timestamp(value.last_changed),
-            "pings": jsonapi.sorted_by_id(value.pings),
+            "tags": sorted_by_id(value.tags),
+            "last_changed": timestamp(value.last_changed),
+            "pings": sorted_by_id(value.pings),
             "integration": integration(value),
         }
 
-    @staticmethod
-    async def single(
-        parameters: jsonapi.Parameters, argument: str
-    ) -> api.review.Review:
+    @classmethod
+    async def single(cls, parameters: Parameters, argument: str) -> api.review.Review:
         """Retrieve one (or more) reviews in this system.
 
         REVIEW_ID : integer
 
         Retrieve a review identified by its unique numeric id."""
 
-        return await api.review.fetch(parameters.critic, jsonapi.numeric_id(argument))
+        return await api.review.fetch(parameters.critic, numeric_id(argument))
 
     @staticmethod
     async def multiple(
-        parameters: jsonapi.Parameters,
+        parameters: Parameters,
     ) -> Union[api.review.Review, Sequence[api.review.Review]]:
         """Retrieve all reviews in this system.
 
@@ -299,29 +270,23 @@ class Reviews(
         category. Unpublished reviews are only included in the "outgoing"
         category (assuming the current user owns the unpublished review.)"""
 
-        branch = await Branches.deduce(parameters)
+        branch = await parameters.deduce(api.branch.Branch)
         if branch:
             return await api.review.fetch(parameters.critic, branch=branch)
 
-        repository = await Repositories.deduce(parameters)
-        state = parameters.getQueryParameter(
-            "state", converter=jsonapi.many(api.review.as_state)
-        )
-        category = parameters.getQueryParameter(
-            "category", converter=api.review.as_category
-        )
+        repository = await parameters.deduce(api.repository.Repository)
+        state = parameters.query.get("state", converter=many(api.review.as_state))
+        category = parameters.query.get("category", converter=api.review.as_category)
 
         return await api.review.fetchAll(
             parameters.critic, repository=repository, state=state, category=category
         )
 
     @staticmethod
-    async def create(
-        parameters: jsonapi.Parameters, data: jsonapi.JSONInput
-    ) -> api.review.Review:
+    async def create(parameters: Parameters, data: JSONInput) -> api.review.Review:
         critic = parameters.critic
 
-        converted = await jsonapi.convert(
+        converted = await convert(
             parameters,
             {
                 "repository!": api.repository.Repository,
@@ -348,18 +313,18 @@ class Reviews(
             except api.branch.InvalidName:
                 pass
             else:
-                raise jsonapi.UsageError.invalidInput(
+                raise UsageError.invalidInput(
                     data, "branch", details="the branch already exists"
                 )
 
         async with api.transaction.start(critic) as transaction:
-            created_branch: Optional[api.transaction.branch.CreatedBranch]
+            created_branch: Optional[api.branch.Branch]
             if "branch" in converted:
                 created_branch = (
                     await transaction.modifyRepository(
                         converted["repository"]
                     ).createBranch("review", converted["branch"], commits)
-                ).created
+                ).subject
                 commits = None
             else:
                 created_branch = None
@@ -373,21 +338,22 @@ class Reviews(
             )
 
             if "summary" in converted:
-                review_modifier.setSummary(converted["summary"])
+                await review_modifier.setSummary(converted["summary"])
             if "description" in converted:
-                review_modifier.setSummary(converted["description"])
+                await review_modifier.setSummary(converted["description"])
 
-        return await review_modifier
+            return review_modifier.subject
 
-    @staticmethod
+    @classmethod
     async def update(
-        parameters: jsonapi.Parameters,
-        values: jsonapi.Values[api.review.Review],
-        data: jsonapi.JSONInput,
+        cls,
+        parameters: Parameters,
+        values: Values[api.review.Review],
+        data: JSONInput,
     ) -> None:
         critic = parameters.critic
 
-        converted = await jsonapi.convert(
+        converted = await convert(
             parameters,
             {
                 "state?": api.review.STATE_VALUES,
@@ -401,17 +367,17 @@ class Reviews(
 
         if "branch" in converted:
             if len(values) > 1:
-                raise jsonapi.UsageError("Will not update branch of multiple reviews")
+                raise UsageError("Will not update branch of multiple reviews")
 
         async with api.transaction.start(critic) as transaction:
             for review in values:
                 modifier = transaction.modifyReview(review)
 
                 if "summary" in converted:
-                    modifier.setSummary(converted["summary"])
+                    await modifier.setSummary(converted["summary"])
 
                 if "description" in converted:
-                    modifier.setDescription(converted["description"])
+                    await modifier.setDescription(converted["description"])
 
                 if "branch" in converted:
                     if await review.branch is None:
@@ -425,7 +391,7 @@ class Reviews(
                                 converted["branch"],
                                 await review.commits,
                             )
-                        ).created
+                        ).subject
 
                         await modifier.setBranch(branch)
                     else:
@@ -445,16 +411,16 @@ class Reviews(
                         if review.state == "draft":
                             await modifier.publishReview()
                         elif review.state != "open":
-                            modifier.reopenReview()
+                            await modifier.reopenReview()
                     elif review.state == "open":
                         if new_state == "dropped":
                             await modifier.dropReview()
-                        elif review.isAccepted and new_state == "closed":
+                        elif review.is_accepted and new_state == "closed":
                             await modifier.closeReview()
 
-    @staticmethod
+    @classmethod
     async def delete(
-        parameters: jsonapi.Parameters, values: jsonapi.Values[api.review.Review]
+        cls, parameters: Parameters, values: Values[api.review.Review]
     ) -> None:
         critic = parameters.critic
 
@@ -462,41 +428,25 @@ class Reviews(
             for review in values:
                 await transaction.modifyReview(review).deleteReview()
 
-    @overload
-    @staticmethod
-    async def deduce(parameters: jsonapi.Parameters) -> Optional[api.review.Review]:
-        ...
-
-    @overload
-    @staticmethod
-    async def deduce(
-        parameters: jsonapi.Parameters, *, required: Literal[True]
-    ) -> api.review.Review:
-        ...
-
-    @staticmethod
-    async def deduce(
-        parameters: jsonapi.Parameters, *, required: bool = False
-    ) -> Optional[api.review.Review]:
-        review = parameters.context.get("reviews")
-        review_parameter = parameters.getQueryParameter("review")
+    @classmethod
+    async def deduce(cls, parameters: Parameters) -> Optional[api.review.Review]:
+        review = parameters.in_context(api.review.Review)
+        review_parameter = parameters.query.get("review")
         if review_parameter is not None:
             if review is not None:
-                raise jsonapi.UsageError(
+                raise UsageError(
                     "Redundant query parameter: review=%s" % review_parameter
                 )
             review = await api.review.fetch(
-                parameters.critic, jsonapi.numeric_id(review_parameter)
+                parameters.critic, numeric_id(review_parameter)
             )
-        if required and not review:
-            raise jsonapi.UsageError.missingParameter("review")
         return review
 
-    @staticmethod
+    @classmethod
     async def setAsContext(
-        parameters: jsonapi.Parameters, review: api.review.Review
+        cls, parameters: Parameters, review: api.review.Review, /
     ) -> None:
-        parameters.setContext(Reviews.name, review)
+        await super().setAsContext(parameters, review)
 
         # Also set the review's repository and branch as context.
         await Repositories.setAsContext(parameters, await review.repository)
@@ -505,8 +455,9 @@ class Reviews(
             await Branches.setAsContext(parameters, branch)
 
         # Finally, include the current user's unpublished batch in the result.
-        await jsonapi.v1.batches.includeUnpublished(parameters, review)
+        await includeUnpublished(parameters, review)
 
 
+from .batches import includeUnpublished
 from .branches import Branches
 from .repositories import Repositories

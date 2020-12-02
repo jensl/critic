@@ -21,23 +21,24 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
-from . import CreatedExtensionInstallation
-from .. import Transaction, Finalizer, Insert
-
 from critic import api
 from critic import auth
 from critic import dbaccess
-from critic.background import extensiontasks
+from ..createapiobject import CreateAPIObject
+from ..base import TransactionBase, Finalizer
+from ..systemsetting import CreateSystemSetting
 
 
 class Finalize(Finalizer):
     tables = {"pubsubreservations", "extensionpubsubreservations"}
 
-    def __init__(self, installation: CreatedExtensionInstallation) -> None:
+    def __init__(
+        self, installation: api.extensioninstallation.ExtensionInstallation
+    ) -> None:
         self.installation = installation
 
     async def __call__(
-        self, transaction: Transaction, cursor: dbaccess.TransactionCursor
+        self, transaction: TransactionBase, cursor: dbaccess.TransactionCursor
     ) -> None:
         async with dbaccess.Query[str](
             cursor,
@@ -55,7 +56,10 @@ class Finalize(Finalizer):
 
         for channel in channels:
             reservation_id = await cursor.insert(
-                "pubsubreservations", {"channel": channel}, returning="reservation_id"
+                "pubsubreservations",
+                {"channel": channel},
+                returning="reservation_id",
+                value_type=int,
             )
             await cursor.insert(
                 "extensionpubsubreservations",
@@ -66,46 +70,50 @@ class Finalize(Finalizer):
         transaction.wakeup_service("pubsub")
 
 
-async def create_extensioninstallation(
-    transaction: Transaction,
-    extension: api.extension.Extension,
-    version: api.extensionversion.ExtensionVersion,
-    user: Optional[api.user.User],
-) -> CreatedExtensionInstallation:
-    await auth.AccessControl.accessExtension(extension, "install")
+class CreateExtensionInstallation(
+    CreateAPIObject[api.extensioninstallation.ExtensionInstallation],
+    api_module=api.extensioninstallation,
+):
+    @staticmethod
+    async def make(
+        transaction: TransactionBase,
+        extension: api.extension.Extension,
+        version: api.extensionversion.ExtensionVersion,
+        user: Optional[api.user.User],
+    ) -> api.extensioninstallation.ExtensionInstallation:
+        await auth.AccessControl.accessExtension(extension, "install")
 
-    assert user is None or user.type == "regular"
+        assert user is None or user.type == "regular"
 
-    if user is None:
-        # "Universal" installation: affects all users.
-        api.PermissionDenied.raiseUnlessAdministrator(transaction.critic)
-    else:
-        api.PermissionDenied.raiseUnlessUser(transaction.critic, user)
-
-    manifest = await version.manifest
-    for setting_data in manifest.low_level.settings:
-        try:
-            await api.systemsetting.fetch(transaction.critic, key=setting_data.key)
-        except api.systemsetting.InvalidKey:
-            pass
+        if user is None:
+            # "Universal" installation: affects all users.
+            api.PermissionDenied.raiseUnlessAdministrator(transaction.critic)
         else:
-            continue
+            api.PermissionDenied.raiseUnlessUser(transaction.critic, user)
 
-        transaction.createSystemSetting(
-            setting_data.key,
-            setting_data.description,
-            setting_data.value,
-            privileged=setting_data.privileged,
-        )
+        manifest = await version.manifest
+        for setting_data in manifest.low_level.settings:
+            key: str = setting_data.key
 
-    installation = CreatedExtensionInstallation(transaction)
+            try:
+                await api.systemsetting.fetch(transaction.critic, key=key)
+            except api.systemsetting.InvalidKey:
+                pass
+            else:
+                continue
 
-    transaction.items.append(
-        Insert("extensioninstalls", returning="id", collector=installation).values(
+            await CreateSystemSetting.make(
+                transaction,
+                setting_data.key,
+                setting_data.description,
+                setting_data.value,
+                privileged=setting_data.privileged,
+            )
+
+        installation = await CreateExtensionInstallation(transaction).insert(
             extension=extension, version=version, uid=user
         )
-    )
 
-    transaction.finalizers.add(Finalize(installation))
+        transaction.finalizers.add(Finalize(installation))
 
-    return installation
+        return installation

@@ -28,8 +28,8 @@ from critic import gitaccess
 async def find_base_branch(
     tip: api.commit.Commit,
     *,
-    commits: Iterable[gitaccess.GitCommit] = None,
-    exclude_branches: Iterable[api.branch.Branch] = None
+    commits: Optional[Iterable[gitaccess.GitCommit]] = None,
+    exclude_branches: Optional[Iterable[api.branch.Branch]] = None
 ) -> Tuple[Optional[api.branch.Branch], api.commitset.CommitSet]:
     """Find the base branch for a newly created branch given its tip
 

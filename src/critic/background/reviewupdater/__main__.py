@@ -19,7 +19,9 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections import defaultdict
-from typing import Any, Awaitable, Dict, Optional, Set, Tuple
+from typing import Any, Awaitable, Dict, List, Mapping, Set, Tuple
+
+from critic import dbaccess
 
 logger = logging.getLogger("critic.background.reviewupdater")
 
@@ -50,7 +52,7 @@ class ReviewUpdater(BackgroundService):
         self.__processing_integration_requests = set()
         self.__processing_target_branchupdate = {}
 
-    async def pubsub_connected(self, client: pubsub.Client) -> None:
+    async def pubsub_connected(self, client: pubsub.Client, /) -> None:
         async def handle_message(
             channel: pubsub.ChannelName, message: pubsub.Message
         ) -> None:
@@ -124,8 +126,27 @@ class ReviewUpdater(BackgroundService):
             review = await api.review.fetch(critic, review_id)
             branchupdate = await api.branchupdate.fetch(critic, branchupdate_id)
 
+            async def publish(
+                cursor: dbaccess.TransactionCursor, updates: Mapping[str, Any]
+            ) -> None:
+                pubsub_client = await self.pubsub_client
+                await pubsub_client.publish(
+                    cursor,
+                    pubsub.PublishMessage(
+                        pubsub.ChannelName(f"reviews/{review_id}"),
+                        pubsub.Payload(
+                            {
+                                "scope": "reviews",
+                                "action": "updated",
+                                "id": review_id,
+                                "updates": updates,
+                            }
+                        ),
+                    ),
+                )
+
             try:
-                updates = await process_target_branch_update(review, branchupdate)
+                await process_target_branch_update(review, branchupdate, publish)
             except Exception:
                 logger.exception(
                     "Failed to process target branch update: r/%d", review_id
@@ -133,26 +154,11 @@ class ReviewUpdater(BackgroundService):
             else:
                 logger.info("Processed target branch update: r/%d", review_id)
 
-                if self.pubsub and updates:
-                    await self.pubsub.publish(
-                        pubsub.PublishMessage(
-                            pubsub.ChannelName(f"reviews/{review_id}"),
-                            pubsub.Payload(
-                                {
-                                    "scope": "reviews",
-                                    "action": "updated",
-                                    "id": review_id,
-                                    "updates": updates,
-                                }
-                            ),
-                        )
-                    )
-
     async def wake_up(self) -> None:
         logger.debug("woke up")
 
         async with self.start_session() as critic:
-            tasks = []
+            tasks: List["asyncio.Future[None]"] = []
 
             def add_task(coroutine: Awaitable[None]) -> "asyncio.Future[None]":
                 task = asyncio.ensure_future(coroutine)
@@ -196,7 +202,7 @@ class ReviewUpdater(BackgroundService):
                                 )
                             )
 
-                initial_commits = defaultdict(set)
+                initial_commits: Dict[int, Set[int]] = defaultdict(set)
 
                 async with critic.query(
                     """SELECT reviewcommits.review, reviewcommits.commit
@@ -303,7 +309,7 @@ class ReviewUpdater(BackgroundService):
                     logger.debug("all tasks finished")
                     break
 
-                tasks = list(pending)
+                tasks[:] = pending
 
         logger.debug("going back to sleep")
 

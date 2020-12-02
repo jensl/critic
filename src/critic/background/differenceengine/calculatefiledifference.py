@@ -22,32 +22,31 @@ from typing import Collection, Dict, Iterable, Optional, Sequence
 logger = logging.getLogger(__name__)
 
 from critic import api
+from critic import dbaccess
 from critic import diff
 from critic.gitaccess import SHA1
 
-from .changeset import Changeset
 from .changedfile import ChangedFile
 from .changedlines import ChangedLines
-from .examinefiles import ExamineFiles
-from .job import Job
+from .job import Job, GroupType
 
 
-class CalculateFileDifference(Job[Changeset]):
+class CalculateFileDifference(Job):
     """Calculate content difference for one changed file
 
-       Followed up by AnalyzeChangedLines for each block of changed lines that
-       both deletes and inserts lines."""
+    Followed up by AnalyzeChangedLines for each block of changed lines that
+    both deletes and inserts lines."""
 
     # Sort of redundant: we will never create any CalculateFileDifference jobs
     # until we've examined the files, and we always examine all files with a
     # single job.
-    priority = ExamineFiles.priority + 1
+    priority = 1  # ExamineFiles.priority + 1
 
     result: Dict[ChangedFile, diff.parse.FileDifference]
 
     def __init__(
         self,
-        group: Changeset,
+        group: GroupType,
         from_commit_sha1: SHA1,
         to_commit_sha1: SHA1,
         changed_files: Sequence[ChangedFile],
@@ -62,17 +61,17 @@ class CalculateFileDifference(Job[Changeset]):
         self.result = {}
 
     async def execute(self) -> None:
-        try:
-            async with self.group.repository() as repository:
-                for changed_file in self.changed_files:
+        async with self.group.repository() as repository:
+            for changed_file in self.changed_files:
+                try:
                     self.result[changed_file] = await diff.parse.file_difference(
                         repository,
                         self.from_commit_sha1,
                         self.to_commit_sha1,
                         changed_file.path,
                     )
-        except diff.parse.ParseError as error:
-            raise Exception("%s: %s" % (changed_file.path, error))
+                except diff.parse.ParseError as error:
+                    raise Exception("%s: %s" % (changed_file.path, error))
 
     async def update_database(self, critic: api.critic.Critic) -> None:
         async with critic.transaction() as cursor:
@@ -91,7 +90,7 @@ class CalculateFileDifference(Job[Changeset]):
                                 {insert_length}, {analysis}
                               )""",
                     (
-                        dict(
+                        dbaccess.parameters(
                             changeset_id=self.group.changeset_id,
                             file_id=changed_file.file_id,
                             index=index,
@@ -108,10 +107,10 @@ class CalculateFileDifference(Job[Changeset]):
                         for (
                             index,
                             offset,
-                            delete_offset,
+                            _,
                             delete_count,
                             delete_length,
-                            insert_offset,
+                            _,
                             insert_count,
                             insert_length,
                         ) in blocks
@@ -135,15 +134,18 @@ class CalculateFileDifference(Job[Changeset]):
             return None
         return [
             CalculateFileDifference(
-                self.group, self.from_commit_sha1, self.to_commit_sha1, [changed_file],
+                self.group,
+                self.from_commit_sha1,
+                self.to_commit_sha1,
+                [changed_file],
             )
             for changed_file in self.changed_files
         ]
 
-    def follow_ups(self) -> Iterable[Job[Changeset]]:
+    def follow_ups(self) -> Iterable[Job]:
         from .analyzechangedlines import AnalyzeChangedLines
 
-        for changed_file, (blocks, old_linebreak, new_linebreak) in self.result.items():
+        for changed_file, (blocks, _, _) in self.result.items():
             if not blocks:
                 continue
             yield from AnalyzeChangedLines.for_blocks(
@@ -152,7 +154,7 @@ class CalculateFileDifference(Job[Changeset]):
 
     @staticmethod
     def for_files(
-        group: Changeset,
+        group: GroupType,
         from_commit_sha1: SHA1,
         to_commit_sha1: SHA1,
         changed_files: Sequence[ChangedFile],

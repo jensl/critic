@@ -26,7 +26,7 @@ from typing import (
     Coroutine,
 )
 
-from . import protocol
+from .protocol import PublishedMessage
 
 from critic import pubsub
 
@@ -34,17 +34,17 @@ from critic import pubsub
 class Publisher(Protocol):
     async def publish(
         self,
-    ) -> Optional[Tuple[Sequence[pubsub.ChannelName], protocol.PublishedMessage]]:
+    ) -> Optional[Tuple[Sequence[pubsub.ChannelName], PublishedMessage]]:
         ...
 
 
 class SimplePublisher(Publisher):
-    def __init__(self, message: protocol.PublishedMessage):
+    def __init__(self, message: PublishedMessage):
         self.message = message
 
     async def publish(
         self,
-    ) -> Tuple[Sequence[pubsub.ChannelName], protocol.PublishedMessage]:
+    ) -> Tuple[Sequence[pubsub.ChannelName], PublishedMessage]:
         return self.message.scopes(), self.message
 
 

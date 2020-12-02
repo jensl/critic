@@ -1,19 +1,12 @@
 import asyncio
-import functools
-import gzip
 import logging
 import logging.handlers
-import pickle
-import struct
 from typing import (
-    Any,
     AsyncIterator,
     Awaitable,
     Callable,
     Generic,
     Optional,
-    Tuple,
-    TypeVar,
     Union,
 )
 
@@ -23,7 +16,7 @@ from critic import api
 from critic import base
 
 from . import gateway
-from .protocolbase import ClientBase, ConnectionClosed, ProtocolBase
+from .protocolbase import ConnectionClosed
 from .binaryprotocol import (
     BinaryProtocolClient,
     BinaryProtocol,
@@ -38,7 +31,7 @@ class GatewayError(ServiceError):
 
 
 class MessageChannel(Generic[InputMessage, OutputMessage]):
-    __reading: Optional[asyncio.Future]
+    __reading: Optional["asyncio.Future[None]"]
     client: BinaryProtocolClient[
         Union[gateway.Response, OutputMessage],
         Union[gateway.ForwardRequest, InputMessage],
@@ -48,8 +41,10 @@ class MessageChannel(Generic[InputMessage, OutputMessage]):
         self,
         service_name: str,
         *,
-        loop: asyncio.AbstractEventLoop = None,
-        dispatch_message: Callable[[Optional[OutputMessage]], Awaitable[None]] = None,
+        loop: Optional[asyncio.AbstractEventLoop] = None,
+        dispatch_message: Optional[
+            Callable[[Optional[OutputMessage]], Awaitable[None]]
+        ] = None,
     ):
         self.service_name = service_name
         self.__loop = asyncio.get_event_loop() if loop is None else loop
@@ -64,11 +59,10 @@ class MessageChannel(Generic[InputMessage, OutputMessage]):
     async def __connect(self) -> None:
         if not is_background_service():
             gateway_settings = api.critic.settings().services.gateway
-            use_gateway = gateway_settings.enabled
         else:
-            use_gateway = False
+            gateway_settings = None
 
-        if use_gateway:
+        if gateway_settings and gateway_settings.enabled:
             configuration = base.configuration()
 
             host = configuration["services.host"]
@@ -133,7 +127,7 @@ class MessageChannel(Generic[InputMessage, OutputMessage]):
             message = await self.client.read_message()
             if message is None:
                 logger.debug("read_messages(): eof")
-                asyncio.ensure_future(self.channel_closed(), loop=self.__loop)
+                asyncio.create_task(self.channel_closed())
                 return
             assert not isinstance(message, gateway.Response)
             yield message
@@ -162,6 +156,9 @@ class MessageChannel(Generic[InputMessage, OutputMessage]):
                 logger.debug("reading stopped")
         except (asyncio.CancelledError, ConnectionClosed):
             pass
+
+    async def channel_closed(self) -> None:
+        pass
 
     def __aiter__(self) -> AsyncIterator[OutputMessage]:
         return self.read_messages()

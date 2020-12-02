@@ -14,7 +14,9 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
+from typing import Awaitable, Callable
 from critic import api
+from critic.api.apiobject import FunctionRef
 
 
 class Error(api.APIError, object_type="tutorial"):
@@ -42,9 +44,12 @@ class Tutorial(api.APIObject):
 
 
 async def fetch(critic: api.critic.Critic, tutorial_id: str, /) -> Tutorial:
-    from .impl import tutorial as impl
-
-    return await impl.fetch(critic, tutorial_id)
+    return await fetchImpl.get()(critic, tutorial_id)
 
 
 resource_name = "tutorials"
+
+
+fetchImpl: FunctionRef[
+    Callable[[api.critic.Critic, str], Awaitable[Tutorial]]
+] = FunctionRef()

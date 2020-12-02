@@ -16,9 +16,19 @@
 
 from __future__ import annotations
 
-from typing import Sequence, TypeVar, Tuple, Any, overload
+from typing import (
+    Awaitable,
+    Callable,
+    Optional,
+    Sequence,
+    TypeVar,
+    Tuple,
+    Any,
+    overload,
+)
 
 from critic import api
+from critic.api.apiobject import FunctionRef
 
 
 class Error(api.APIError, object_type="repository setting"):
@@ -88,8 +98,8 @@ class RepositorySetting(api.APIObject):
     def value(self) -> Any:
         """The setting's value
 
-           The value is stored as JSON but returned in parsed form, and can thus
-           be a dictionary, list, string, number, boolean or None."""
+        The value is stored as JSON but returned in parsed form, and can thus
+        be a dictionary, list, string, number, boolean or None."""
         return self._impl.value
 
 
@@ -112,12 +122,12 @@ async def fetch(
 
 async def fetch(
     critic: api.critic.Critic,
-    setting_id: int = None,
+    setting_id: Optional[int] = None,
     /,
     *,
-    repository: api.repository.Repository = None,
-    scope: str = None,
-    name: str = None,
+    repository: Optional[api.repository.Repository] = None,
+    scope: Optional[str] = None,
+    name: Optional[str] = None,
 ) -> RepositorySetting:
     """Fetch a RepositorySetting object with the given its id or scope and name
 
@@ -129,9 +139,7 @@ async def fetch(
         InvalidId: if `setting_id` is used but the id is not valid.
         NotDefined: if `scope` and `name` are used but no such setting is
                     defined."""
-    from .impl import repositorysetting as impl
-
-    return await impl.fetch(critic, setting_id, repository, scope, name)
+    return await fetchImpl.get()(critic, setting_id, repository, scope, name)
 
 
 T = TypeVar("T")
@@ -157,8 +165,8 @@ async def get(
 async def fetchAll(
     critic: api.critic.Critic,
     *,
-    repository: api.repository.Repository = None,
-    scope: str = None,
+    repository: Optional[api.repository.Repository] = None,
+    scope: Optional[str] = None,
 ) -> Sequence[RepositorySetting]:
     """Fetch RepositorySetting objects for all settings
 
@@ -166,11 +174,31 @@ async def fetchAll(
     repository are fetched.
 
     If 'scope' is not None, only settings with a matching scope are fetched."""
-    from .impl import repositorysetting as impl
-
-    assert isinstance(critic, api.critic.Critic)
-    assert repository is None or isinstance(repository, api.repository.Repository)
-    return await impl.fetchAll(critic, repository, scope)
+    return await fetchAllImpl.get()(critic, repository, scope)
 
 
 resource_name = table_name = "repositorysettings"
+
+
+fetchImpl: FunctionRef[
+    Callable[
+        [
+            api.critic.Critic,
+            Optional[int],
+            Optional[api.repository.Repository],
+            Optional[str],
+            Optional[str],
+        ],
+        Awaitable[RepositorySetting],
+    ]
+] = FunctionRef()
+fetchAllImpl: FunctionRef[
+    Callable[
+        [
+            api.critic.Critic,
+            Optional[api.repository.Repository],
+            Optional[str],
+        ],
+        Awaitable[Sequence[RepositorySetting]],
+    ]
+] = FunctionRef()

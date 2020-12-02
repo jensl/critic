@@ -170,7 +170,7 @@ class MaintenanceService(background.service.BackgroundService):
         async with self.start_session() as critic:
             repository = await api.repository.fetch(critic, repository_id)
             async with api.transaction.start(critic) as transaction:
-                transaction.modifyRepository(repository).setIsReady()
+                await transaction.modifyRepository(repository).setIsReady()
 
         # Often enough, one or more tracked branches are added directly
         # when a repository is created. The branch tracker will ignore

@@ -21,37 +21,40 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
-from . import CreatedExtension
-from .. import Transaction, Insert, InsertMany
-
 from critic import api
 from critic.background import extensiontasks
 
+from ..base import TransactionBase
+from ..createapiobject import CreateAPIObject
 
-async def create_extension(
-    transaction: Transaction, name: str, uri: str, publisher: Optional[api.user.User]
-) -> CreatedExtension:
-    critic = transaction.critic
 
-    if publisher is None or publisher != critic.actual_user:
-        api.PermissionDenied.raiseUnlessAdministrator(transaction.critic)
+class CreateExtension(
+    CreateAPIObject[api.extension.Extension], api_module=api.extension
+):
+    @staticmethod
+    async def make(
+        transaction: TransactionBase,
+        name: str,
+        url: str,
+        publisher: Optional[api.user.User],
+    ) -> api.extension.Extension:
+        critic = transaction.critic
 
-    try:
-        await extensiontasks.scan_external(critic, uri)
-    except extensiontasks.Error as error:
-        raise api.extension.Error(str(error))
+        if publisher is None or publisher != critic.actual_user:
+            api.PermissionDenied.raiseUnlessAdministrator(transaction.critic)
 
-    extension = CreatedExtension(transaction)
+        try:
+            await extensiontasks.scan_external(critic, url)
+        except extensiontasks.Error as error:
+            raise api.extension.Error(str(error))
 
-    transaction.items.append(
-        Insert("extensions", returning="id", collector=extension).values(
-            name=name, publisher=publisher, uri=uri
+        extension = await CreateExtension(transaction).insert(
+            name=name, publisher=publisher, uri=url
         )
-    )
 
-    async def clone_extension() -> None:
-        await extensiontasks.clone_external(critic, await extension)
+        async def clone_extension() -> None:
+            await extensiontasks.clone_external(critic, extension)
 
-    transaction.post_commit_callbacks.append(clone_extension)
+        transaction.post_commit_callbacks.append(clone_extension)
 
-    return extension
+        return extension

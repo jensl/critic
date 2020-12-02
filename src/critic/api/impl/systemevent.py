@@ -16,16 +16,16 @@
 
 from __future__ import annotations
 
-from typing import Tuple, Optional, Sequence, Iterable
+from typing import Tuple, Optional, Sequence
 
-import json
 import logging
 
 logger = logging.getLogger(__name__)
 
 from critic import api
+from critic.api import systemevent as public
 from critic import base
-from critic.base import dbaccess as base_dbaccess
+from critic.dbaccess import ProgrammingError
 
 from . import apiobject
 
@@ -41,6 +41,7 @@ class SystemEvent(apiobject.APIObject[WrapperType, ArgumentsType, int]):
         self.id, self.category, self.key, self.title, self.data, self.handled = args
 
 
+@public.fetchImpl
 @SystemEvent.cached
 async def fetch(
     critic: api.critic.Critic,
@@ -53,7 +54,7 @@ async def fetch(
             f"SELECT 1 FROM {SystemEvent.table()} WHERE FALSE"
         ) as result:
             await result.ignore()
-    except base_dbaccess.InvalidQueryError:
+    except ProgrammingError:
         # The |systemevents| table doesn't exist. This happens during upgrade
         # from a pre-2.0 system. Ignore the error here.
         assert event_id is None
@@ -85,16 +86,18 @@ async def fetch(
             raise api.systemevent.NotFound(category, key)
 
 
+@public.fetchManyImpl
 @SystemEvent.cachedMany
 async def fetchMany(
-    critic: api.critic.Critic, event_ids: Iterable[int]
+    critic: api.critic.Critic, event_ids: Sequence[int]
 ) -> Sequence[WrapperType]:
     async with SystemEvent.query(
-        critic, ["id=ANY({event_ids})"], event_ids=list(event_ids)
+        critic, ["id=ANY({event_ids})"], event_ids=event_ids
     ) as result:
         return await SystemEvent.make(critic, result)
 
 
+@public.fetchAllImpl
 async def fetchAll(
     critic: api.critic.Critic,
     category: Optional[str],
@@ -113,7 +116,7 @@ async def fetchAll(
             critic, conditions, order_by="id DESC", category=category, key=key
         ) as result:
             return await SystemEvent.make(critic, result)
-    except base_dbaccess.InvalidQueryError:
+    except ProgrammingError:
         # The |systemevents| doesn't exist. This happens during upgrade from a
         # pre-2.0 system.
         raise api.DatabaseSchemaError("Missing table: systemevents")

@@ -19,6 +19,7 @@
 from types import ModuleType
 from typing import Tuple, Type, Union
 
+
 from .apiobject import APIObject
 from .apierror import (
     APIError,
@@ -52,9 +53,10 @@ from . import filechange
 from . import filecontent
 from . import filediff
 from . import labeledaccesscontrolprofile
-from . import log
 from . import mergeanalysis
+from . import partition
 from . import preference
+from . import rebase
 from . import reply
 from . import repository
 from . import repositoryfilter
@@ -111,9 +113,10 @@ __all__ = [
     "filecontent",
     "filediff",
     "labeledaccesscontrolprofile",
-    "log",
     "mergeanalysis",
+    "partition",
     "preference",
+    "rebase",
     "reply",
     "repository",
     "repositoryfilter",

@@ -18,19 +18,19 @@ import json
 import yaml
 
 
-def load_json(filename):
+def load_json(filename: str) -> object:
     import pkg_resources
 
     return json.load(pkg_resources.resource_stream(__name__, filename))
 
 
-def load_yaml(filename):
+def load_yaml(filename: str) -> object:
     import pkg_resources
 
     return yaml.safe_load(pkg_resources.resource_stream(__name__, filename))
 
 
-def load(filename):
+def load(filename: str) -> str:
     import pkg_resources
 
     return pkg_resources.resource_string(__name__, filename).decode()

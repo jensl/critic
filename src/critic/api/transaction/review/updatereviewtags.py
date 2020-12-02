@@ -24,7 +24,7 @@ from typing import Set, Dict, Tuple
 logger = logging.getLogger(__name__)
 
 from .finalizeassignments import FinalizeAssignments
-from .. import Transaction, Finalizer
+from ..base import TransactionBase, Finalizer
 
 from critic import api
 from critic import dbaccess
@@ -35,8 +35,8 @@ async def update_review_tags(
 ) -> None:
     """Update the review tags relating to review file assignments
 
-       This includes the |assigned_untaken|, |assigned_primary| and
-       |unreviewed_followup| tags."""
+    This includes the |assigned_untaken|, |assigned_primary| and
+    |unreviewed_followup| tags."""
 
     # Set of assigned reviewers.
     #
@@ -257,6 +257,6 @@ class UpdateReviewTags(Finalizer):
         return isinstance(other, FinalizeAssignments)
 
     async def __call__(
-        self, _: Transaction, cursor: dbaccess.TransactionCursor
+        self, _: TransactionBase, cursor: dbaccess.TransactionCursor
     ) -> None:
         await update_review_tags(self.__review, cursor)

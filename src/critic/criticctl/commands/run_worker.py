@@ -16,12 +16,12 @@
 
 from __future__ import annotations
 
+import argparse
 import asyncio
 import functools
 import logging
-import os
 import signal
-from typing import Any, Callable, List, Tuple
+from typing import Any, Callable, List,  Tuple, cast
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +31,7 @@ from critic.background.differenceengine.protocol import (
     AnalyzeChangedLines,
     SyntaxHighlighFile,
 )
+from critic.syntaxhighlight.generate import LanguageNotSupported, generate
 
 name = "run-worker"
 title = "Run worker"
@@ -43,12 +44,12 @@ class Error(Exception):
 async def handle_syntaxhighlightfile(
     loop: asyncio.AbstractEventLoop, request: pubsub.IncomingRequest
 ) -> SyntaxHighlighFile.Response:
-    from critic.syntaxhighlight.generate import LanguageNotSupported, generate
-
     assert isinstance(request.payload, SyntaxHighlighFile.Request)
 
-    source = request.payload.source
-    language = request.payload.language
+    highlight_request = cast(SyntaxHighlighFile.Request, request.payload)
+
+    source = highlight_request.source
+    language = highlight_request.language
 
     logger.info("%s: handle_syntaxhighlight: language=%s", request.request_id, language)
 
@@ -65,10 +66,12 @@ async def handle_analyzechangedlines(
 ) -> AnalyzeChangedLines.Response:
     from critic.diff.analyze import analyzeChunk
 
-    assert isinstance(request.payload, AnalyzeChangedLines.Request)
+    payload = cast(object, request.payload)
 
-    old_lines = request.payload.old_lines
-    new_lines = request.payload.new_lines
+    assert isinstance(payload, AnalyzeChangedLines.Request)
+
+    old_lines = payload.old_lines
+    new_lines = payload.new_lines
 
     logger.info("%s: handle_analyzechangedlines", request.request_id)
 
@@ -106,7 +109,7 @@ class Handler:
             await request.notify_response(response)
 
 
-def setup(parser):
+def setup(parser: argparse.ArgumentParser) -> None:
     pass
 
 
@@ -123,7 +126,8 @@ async def run(stopped: asyncio.Event) -> None:
         async with pubsub.connect(f"worker") as client:
             for channel_name, callback in CALLBACKS:
                 await client.handle_requests(
-                    channel_name, functools.partial(handler, callback),
+                    channel_name,
+                    functools.partial(handler, callback),
                 )
             await stopped.wait()
     except Exception:
@@ -136,11 +140,11 @@ async def main(critic: api.critic.Critic, arguments: Any) -> None:
 
     stopped = asyncio.Event()
 
-    def handle_sigint(*args):
+    def handle_sigint(*args: object) -> None:
         logger.debug("sigint received")
         stopped.set()
 
-    def handle_sigterm(*args):
+    def handle_sigterm(*args: object) -> None:
         logger.debug("sigterm received")
         stopped.set()
 

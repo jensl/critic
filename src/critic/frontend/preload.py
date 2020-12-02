@@ -14,32 +14,57 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
+from dataclasses import dataclass
+from typing import Collection, Dict, List, Mapping, Optional
+import aiohttp.web
 import asyncio
-import json
 import logging
+import urllib.parse
+
+from multidict import MultiDict, MultiDictProxy
 
 logger = logging.getLogger(__name__)
 
 from critic import api
 from critic import jsonapi
-from critic import wsgi
 
 
-async def json_responses(req):
-    critic = req.critic
-    path = req.path
-    preloaded = {}
+@dataclass
+class Request:
+    method: str
+    scheme: str
+    path: str
 
-    def get_repository(repository_arg):
-        try:
-            repository_id = int(repository_arg)
-        except ValueError:
-            return api.repository.fetch(critic, name=repository_arg)
-        return api.repository.fetch(critic, repository_id)
+    query: MultiDictProxy[str]
 
-    async def preload(path, excludeFields=None, include=None, **params):
-        import urllib
+    async def read(self) -> str:
+        raise Exception("not supported")
 
+
+def make_request(path: str, **params: str) -> jsonapi.Request:
+    return Request("GET", "internal", path, MultiDictProxy(MultiDict(params.items())))
+
+
+async def json_responses(
+    critic: api.critic.Critic, request: aiohttp.web.BaseRequest
+) -> Mapping[str, object]:
+    path: str = request.path
+    preloaded: Dict[str, object] = {}
+
+    # def get_repository(repository_arg: str) -> api.repository.Repository:
+    #     try:
+    #         repository_id = int(repository_arg)
+    #     except ValueError:
+    #         return api.repository.fetch(critic, name=repository_arg)
+    #     return api.repository.fetch(critic, repository_id)
+
+    async def preload(
+        path: str,
+        excludeFields: Optional[Mapping[str, Collection[str]]] = None,
+        include: Optional[Collection[str]] = None,
+        /,
+        **params: str,
+    ):
         url = path
         if excludeFields:
             for resource_name, fields in excludeFields.items():
@@ -49,8 +74,8 @@ async def json_responses(req):
         params.setdefault("output_format", "static")
         url += "?" + urllib.parse.urlencode(sorted(item for item in params.items()))
         try:
-            result = await jsonapi.handleRequest(
-                critic, wsgi.request.Request.make(critic, "GET", path, **params)
+            result = await jsonapi.handlePreloadRequest(
+                critic, make_request(path, **params)
             )
         except asyncio.CancelledError:
             raise
@@ -60,7 +85,12 @@ async def json_responses(req):
             logger.debug("  preloaded: %s", url)
             preloaded[url] = result
 
-    async def preload_changeset(path, *, review_id=None, repository=None):
+    async def preload_changeset(
+        path: str,
+        *,
+        review_id: Optional[int] = None,
+        repository: Optional[api.repository.Repository] = None,
+    ):
         assert path.startswith("changeset/")
 
         if review_id is None:
@@ -72,10 +102,10 @@ async def json_responses(req):
 
         path = path[len("changeset/") :]
         changeset_id = None
-        automatic = None
+        excludeFields: Dict[str, List[str]] = {"comments": ["location"]}
 
         url = "api/v1/changesets"
-        params = {}
+        params: Dict[str, str] = {}
 
         component, _, rest = path.partition("/")
         if component == "by-sha1":
@@ -89,6 +119,7 @@ async def json_responses(req):
                 params["to"] = second
         elif component == "automatic":
             automatic, _, rest = rest.partition("/")
+            params["automatic"] = automatic
         else:
             changeset_id = int(component)
             url += f"/{changeset_id}"
@@ -100,17 +131,26 @@ async def json_responses(req):
             params["review"] = str(review.id)
         else:
             params["repository"] = str(repository.id)
-        await preload(url, include=include, **params)
+        await preload(url, excludeFields, include, **params)
 
-    logger.debug("preload for: %r", req.path)
+    logger.debug("preload for: %r", request.path)
 
-    await preload("api/v1/sessions/current", include={"users"})
+    await preload("api/v1/sessions/current", None, ("users",))
     await preload("api/v1/users")
     await preload("api/v1/usersettings", scope="ui")
+    await preload(
+        "api/v1/extensioninstallations", None, ("extensions", "extensionversions")
+    )
 
-    if path.startswith("r/"):
-        review_id, _, rest = path[len("r/") :].partition("/")
-        review_id = int(review_id)
+    if path.startswith("/review/"):
+        components = path.strip("/").split("/")
+        if len(components) < 2:
+            return preloaded
+        try:
+            review_id = int(components[1])
+        except ValueError:
+            return preloaded
+
         include = {
             "batches",
             "branches",
@@ -136,32 +176,38 @@ async def json_responses(req):
         }
         await preload(
             "api/v1/reviews/%d" % review_id,
-            excludeFields=excludeFields,
-            include=include,
+            excludeFields,
+            include,
         )
 
         if critic.actual_user:
             await preload(
                 "api/v1/batches",
-                include={"reviews"},
+                None,
+                ("reviews",),
                 review=str(review_id),
                 unpublished="yes",
             )
 
-        if rest and rest.startswith("changeset"):
-            await preload_changeset(rest, review_id=review_id)
-    elif path.startswith("repository/"):
-        repository_arg, _, rest = path[len("repository/") :].partition("/")
+        if len(components) >= 3:
+            if components[2] == "changes":
+                await preload_changeset(
+                    "changeset/automatic/everything", review_id=review_id
+                )
+            elif components[2] == "changeset":
+                await preload_changeset("/".join(components[2:]), review_id=review_id)
+    elif path.startswith("/repository/"):
+        repository_arg, _, rest = path[len("/repository/") :].partition("/")
         try:
             repository_id = int(repository_arg)
         except ValueError:
             repository = await api.repository.fetch(critic, name=repository_arg)
             await preload(
-                "api/v1/repositories", name=repository_arg, include={"commits"}
+                "api/v1/repositories", None, ("commits",), name=repository_arg
             )
         else:
             repository = await api.repository.fetch(critic, repository_id)
-            await preload("api/v1/repositories/{repository_id}", include={"commits"})
+            await preload("api/v1/repositories/{repository_id}", None, ("commits",))
 
         if rest and rest.startswith("changeset"):
             await preload_changeset(rest, repository=repository)

@@ -17,14 +17,13 @@
 from __future__ import annotations
 
 import logging
-from typing import Tuple
+from typing import Collection, Tuple
 
 logger = logging.getLogger(__name__)
 
-from .. import Transaction, Item
-
 from critic import api
 from critic import dbaccess
+from ..base import TransactionBase
 
 
 async def update_review_files(
@@ -76,17 +75,17 @@ async def update_review_files(
     )
 
 
-class UpdateReviewFiles(Item):
+class UpdateReviewFiles:
     tables = frozenset({"reviewfiles"})
 
     def __init__(self, review: api.review.Review) -> None:
         self.__review = review
 
     @property
-    def key(self) -> tuple:
-        return (UpdateReviewFiles, self.__review)
+    def table_names(self) -> Collection[str]:
+        return ("reviewfiles",)
 
     async def __call__(
-        self, transaction: Transaction, cursor: dbaccess.TransactionCursor
+        self, transaction: TransactionBase, cursor: dbaccess.TransactionCursor
     ) -> None:
         await update_review_files(self.__review, cursor)

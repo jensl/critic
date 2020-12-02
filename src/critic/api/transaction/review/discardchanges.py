@@ -21,13 +21,14 @@ from typing import Container, Set
 
 logger = logging.getLogger(__name__)
 
-from . import ReviewUserTag, has_unpublished_changes
-from .. import Transaction, Query
 from critic import api
+from ..base import TransactionBase
+from ..item import Delete
+from . import ReviewUserTag, has_unpublished_changes
 
 
 async def discard_changes(
-    transaction: Transaction,
+    transaction: TransactionBase,
     review: api.review.Review,
     discard: Container[api.batch.DiscardValue],
 ) -> None:
@@ -39,34 +40,20 @@ async def discard_changes(
     author = await unpublished_changes.author
 
     if "created_comments" in discard:
-        transaction.tables.add("commentchains")
-        transaction.items.append(
-            Query(
-                """DELETE
-                     FROM commentchains
-                    WHERE {id=created_comments:array}""",
-                created_comments=list(await unpublished_changes.created_comments),
+        await transaction.execute(
+            Delete("commentchains").where(
+                id=list(await unpublished_changes.created_comments)
             )
         )
-        transaction.tables.add("comments")
-        transaction.items.append(
-            Query(
-                """DELETE
-                     FROM comments
-                    WHERE {chain=created_comments:array}""",
-                created_comments=list(await unpublished_changes.created_comments),
+        await transaction.execute(
+            Delete("comments").where(
+                id=list(await unpublished_changes.created_comments)
             )
         )
 
     if "written_replies" in discard:
-        transaction.tables.add("comments")
-        transaction.items.append(
-            Query(
-                """DELETE
-                     FROM comments
-                    WHERE {id=written_replies:array}""",
-                written_replies=list(await unpublished_changes.written_replies),
-            )
+        await transaction.execute(
+            Delete("comments").where(id=list(await unpublished_changes.written_replies))
         )
 
     modified_comments = set()
@@ -79,30 +66,18 @@ async def discard_changes(
         modified_comments.update(await unpublished_changes.morphed_comments)
 
     if modified_comments:
-        transaction.tables.add("commentchainchanges")
-        transaction.items.append(
-            Query(
-                """DELETE
-                     FROM commentchainchanges
-                    WHERE uid={author}
-                      AND state='draft'
-                      AND {chain=modified_comments:array}""",
-                author=author,
-                modified_comments=list(modified_comments),
+        await transaction.execute(
+            Delete("commentchainchanges").where(
+                uid=author, state="draft", chain=list(modified_comments)
             )
         )
 
     if "reopened_issues" in discard:
-        transaction.tables.add("commentchainlines")
-        transaction.items.append(
-            Query(
-                """DELETE
-                     FROM commentchainlines
-                    WHERE uid={author}
-                      AND state='draft'
-                      AND {chain=reopened_issues:array}""",
-                author=author,
-                reopened_issues=list(await unpublished_changes.reopened_issues),
+        await transaction.execute(
+            Delete("commentchainlines").where(
+                uid=author,
+                state="draft",
+                chain=list(await unpublished_changes.reopened_issues),
             )
         )
 
@@ -115,15 +90,9 @@ async def discard_changes(
 
     if file_changes:
         transaction.tables.add("reviewfilechanges")
-        transaction.items.append(
-            Query(
-                """DELETE
-                     FROM reviewfilechanges
-                    WHERE uid={author}
-                      AND state='draft'
-                      AND {file=file_changes:array}""",
-                author=author,
-                file_changes=list(file_changes),
+        await transaction.execute(
+            Delete("reviewfilechanges").where(
+                uid=author, state="draft", file=list(file_changes)
             )
         )
 

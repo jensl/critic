@@ -17,15 +17,21 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, Iterable, Optional, Sequence, Union
+from typing import (
+    Any,
+    Collection,
+    Iterable,
+    Optional,
+    Sequence,
+)
 
 logger = logging.getLogger(__name__)
 
 from critic import api
-from critic import dbaccess
 from critic import gitaccess
 from critic import textutils
 from critic.api.reviewintegrationrequest import ReviewIntegrationRequest
+from critic.api.transaction.reviewintegrationrequest import StepsTaken
 from critic.base import asserted
 from critic.gitaccess import SHA1
 
@@ -34,22 +40,16 @@ from ..branchupdater.updatebranch import update_branch
 
 
 class IntegrationRejected(Exception):
-    def __init__(self, message: str, *, propagate: bool = False, **kwargs: Any):
+    def __init__(
+        self,
+        message: str,
+        *,
+        propagate: bool = False,
+        steps_taken: Optional[StepsTaken] = None,
+    ):
         self.message = message
         self.propagate = propagate
-        self.kwargs = kwargs
-
-
-def update_request(
-    transaction: api.transaction.Transaction,
-    request: ReviewIntegrationRequest,
-    **kwargs: Any,
-) -> None:
-    transaction.items.append(
-        api.transaction.Update("reviewintegrationrequests")
-        .set(**kwargs)
-        .where(id=request)
-    )
+        self.steps_taken = steps_taken or StepsTaken()
 
 
 async def perform_rebase(
@@ -57,8 +57,10 @@ async def perform_rebase(
     review: api.review.Review,
     new_head: api.commit.Commit,
     *,
-    new_upstream: api.commit.Commit = None,
-    **kwargs: dbaccess.Parameter,
+    new_upstream: Optional[api.commit.Commit] = None,
+    squashed: bool = False,
+    autosquashed: bool = False,
+    strategy_used: Optional[api.review.IntegrationStrategy] = None,
 ) -> api.commitset.CommitSet:
     critic = review.critic
     repository = await review.repository
@@ -83,15 +85,23 @@ async def perform_rebase(
                 disassociated_commits,
             )
         )
-        transaction.modifyReview(review).recordRebase(
+
+        review_modifier = transaction.modifyReview(review)
+
+        await review_modifier.recordRebase(
             branchupdate,
             old_upstream=None if new_upstream is None else old_upstream,
             new_upstream=new_upstream,
         )
-        update_request(transaction, request, branchupdate=branchupdate, **kwargs)
+
+        request_modifier = await review_modifier.modifyIntegrationRequest(request)
+
+        await request_modifier.recordBranchUpdate(
+            branchupdate, StepsTaken(strategy_used, squashed, autosquashed)
+        )
 
         async def update_ref() -> None:
-            repository.low_level.updateref(
+            await repository.low_level.updateref(
                 f"refs/heads/{branch.name}",
                 old_value=old_head.sha1,
                 new_value=new_head.sha1,
@@ -110,7 +120,7 @@ async def worktree_run(
             yield '"..."' if " " in arg or "\n" in arg else arg
 
     def process_output(output: Optional[bytes]) -> str:
-        return textutils.filtercr(textutils.decode(output)).strip()
+        return textutils.filtercr(textutils.decode(output or "")).strip()
 
     try:
         await worktree.run(*args)
@@ -156,7 +166,7 @@ async def squash(
 
 async def autosquash(
     review: api.review.Review, request: ReviewIntegrationRequest
-) -> bool:
+) -> None:
     repository = await review.repository
     branch = await review.branch
     assert branch
@@ -180,7 +190,7 @@ async def autosquash(
             break
     else:
         logger.debug("no fixup!/squash! commits identified")
-        return False
+        return
     try:
         (upstream,) = await old_commits.filtered_tails
     except ValueError:
@@ -188,14 +198,18 @@ async def autosquash(
     gitrepository = repository.low_level
     gitrepository.set_committer_details("Critic System", api.critic.getSystemEmail())
     async with gitrepository.worktree(old_head) as worktree:
-        worktree.environ["GIT_SEQUENCE_EDITOR"] = "true"
-        sha1 = await worktree_run(
-            worktree, "rebase", "-i", "--autosquash", str(upstream), autosquashed=True
-        )
+        with worktree.with_environ(GIT_SEQUENCE_EDITOR="true"):
+            sha1 = await worktree_run(
+                worktree,
+                "rebase",
+                "-i",
+                "--autosquash",
+                str(upstream),
+                autosquashed=True,
+            )
     await insert_commits(repository, sha1)
     new_head = await api.commit.fetch(repository, sha1=sha1)
     await perform_rebase(request, review, new_head, autosquashed=True)
-    return True
 
 
 async def fast_forward(
@@ -211,7 +225,7 @@ async def fast_forward(
     if not await target_head.isAncestorOf(review_head):
         if unconditional:
             raise IntegrationRejected(
-                "must be fast-forward", strategy_used="fast-forward"
+                "must be fast-forward", steps_taken=StepsTaken("fast-forward")
             )
         return False
 
@@ -227,11 +241,12 @@ async def fast_forward(
             previous_head=target_head,
         )
 
-        update_request(
-            transaction,
-            request,
-            branchupdate=branchupdate,
-            strategy_used="fast-forward",
+        request_modifier = await transaction.modifyReview(
+            review
+        ).modifyIntegrationRequest(request)
+
+        await request_modifier.recordBranchUpdate(
+            branchupdate, StepsTaken("fast-forward")
         )
 
         async def update_target_branch() -> None:
@@ -259,14 +274,15 @@ async def cherry_pick(
         if unconditional:
             raise IntegrationRejected(
                 "review branch must contain a single commit",
-                strategy_used="cherry-pick",
+                steps_taken=StepsTaken("cherry-pick"),
             )
         return False
 
     if review_head.is_merge:
         if unconditional:
             raise IntegrationRejected(
-                "will not cherry-pick a merge commit", strategy_used="cherry-pick"
+                "will not cherry-pick a merge commit",
+                steps_taken=StepsTaken("cherry-pick"),
             )
         return False
 
@@ -295,8 +311,12 @@ async def cherry_pick(
             previous_head=target_head,
         )
 
-        update_request(
-            transaction, request, branchupdate=branchupdate, strategy_used="cherry-pick"
+        request_modifier = await transaction.modifyReview(
+            review
+        ).modifyIntegrationRequest(request)
+
+        await request_modifier.recordBranchUpdate(
+            branchupdate, StepsTaken("cherry-pick")
         )
 
         async def update_target_branch() -> None:
@@ -323,20 +343,31 @@ async def rebase(review: api.review.Review, request: ReviewIntegrationRequest) -
         gitrepository.set_committer_details(
             "Critic System", api.critic.getSystemEmail()
         )
+        flags: Collection[gitaccess.RevlistFlag] = (  # type: ignore
+            "right-only",
+            "cherry-pick",
+            "no-merges",
+            "reverse",
+        )
         async with gitrepository.worktree(target_head) as worktree:
             pick_sha1s = await gitrepository.revlist(
-                symmetric=(target_head.sha1, review_head.sha1),
-                flags={"right-only", "cherry-pick", "no-merges", "reverse"},
+                symmetric=(target_head.sha1, review_head.sha1), flags=flags
             )
             if not pick_sha1s:
                 raise IntegrationRejected(
                     "no commits to cherry-pick onto target branch",
-                    strategy_used="rebase",
+                    steps_taken=StepsTaken("rebase"),
                 )
-            for pick_sha1 in pick_sha1s:
-                sha1 = await worktree_run(
-                    worktree, "cherry-pick", pick_sha1, strategy_used="rebase"
+            for pick_sha1 in pick_sha1s[:-1]:
+                await worktree_run(
+                    worktree, "cherry-pick", pick_sha1, steps_taken=StepsTaken("rebase")
                 )
+            sha1 = await worktree_run(
+                worktree,
+                "cherry-pick",
+                pick_sha1s[-1],
+                steps_taken=StepsTaken("rebase"),
+            )
         await insert_commits(repository, sha1)
         review_head = await api.commit.fetch(repository, sha1=sha1)
         associated_commits = await perform_rebase(
@@ -359,9 +390,11 @@ async def rebase(review: api.review.Review, request: ReviewIntegrationRequest) -
             previous_head=target_head,
         )
 
-        update_request(
-            transaction, request, branchupdate=branchupdate, strategy_used="rebase"
-        )
+        request_modifier = await transaction.modifyReview(
+            review
+        ).modifyIntegrationRequest(request)
+
+        await request_modifier.recordBranchUpdate(branchupdate, StepsTaken("rebase"))
 
         async def update_target_branch() -> None:
             await repository.low_level.updateref(
@@ -406,9 +439,11 @@ async def merge(review: api.review.Review, request: ReviewIntegrationRequest) ->
     )
 
     async with api.transaction.start(review.critic) as transaction:
-        update_request(
-            transaction, request, branchupdate=branchupdate, strategy_used="merge"
-        )
+        request_modifier = await transaction.modifyReview(
+            review
+        ).modifyIntegrationRequest(request)
+
+        await request_modifier.recordBranchUpdate(branchupdate, StepsTaken("merge"))
 
 
 async def process_integration_request(
@@ -418,19 +453,21 @@ async def process_integration_request(
 
     request = await api.reviewintegrationrequest.fetch(critic, request_id)
 
-    async def inner() -> bool:
-        error_kwargs: Dict[str, Union[bool, str]] = {}
+    async def inner() -> None:
+        squashed: Optional[bool] = None
+        autosquashed: Optional[bool] = None
+        strategy_used: Optional[api.review.IntegrationStrategy] = None
+
         try:
             if request.squash_requested:
-                error_kwargs = {"squashed": True}
+                squashed = True
                 await squash(review, request, request.squash_message)
             elif request.autosquash_requested:
-                error_kwargs = {"autosquashed": True}
-                if not await autosquash(review, request):
-                    return False
+                autosquashed = True
+                await autosquash(review, request)
 
             if request.integration_requested:
-                if not await review.isAccepted:
+                if not await review.is_accepted:
                     raise IntegrationRejected("review is not accepted")
 
                 try:
@@ -450,22 +487,22 @@ async def process_integration_request(
                 logger.debug("integration strategy: %r", strategy)
 
                 if "fast-forward" in strategy:
-                    error_kwargs = {"strategy_used": "fast-forward"}
+                    strategy_used = "fast-forward"
                     if await fast_forward(
                         review, request, strategy == ["fast-forward"]
                     ):
-                        return True
+                        return
 
                 if "cherry-pick" in strategy:
-                    error_kwargs = {"strategy_used": "cherry-picked"}
+                    strategy_used = "cherry-pick"
                     if await cherry_pick(review, request, strategy == ["cherry-pick"]):
-                        return True
+                        return
 
                 if "rebase" in strategy:
-                    error_kwargs = {"strategy_used": "rebase"}
+                    strategy_used = "rebase"
                     await rebase(review, request)
                 elif "merge" in strategy:
-                    error_kwargs = {"strategy_used": "merge"}
+                    strategy_used = "merge"
                     await merge(review, request)
                 else:
                     raise IntegrationRejected("no configured strategy supported")
@@ -473,24 +510,28 @@ async def process_integration_request(
             raise
         except Exception:
             raise IntegrationRejected(
-                "an unexpected error occurred", propagate=True, **error_kwargs
+                "an unexpected error occurred",
+                propagate=True,
+                steps_taken=StepsTaken(strategy_used, squashed, autosquashed),
             )
 
-        return True
-
     try:
-        successful = await inner()
+        await inner()
     except IntegrationRejected as rejection:
         async with api.transaction.start(critic) as transaction:
-            update_request(
-                transaction,
-                request,
-                successful=False,
-                error_message=rejection.message,
-                **rejection.kwargs,
+            request_modifier = await transaction.modifyReview(
+                review
+            ).modifyIntegrationRequest(request)
+
+            await request_modifier.recordFailure(
+                rejection.steps_taken, rejection.message
             )
         if rejection.propagate:
             raise
     else:
         async with api.transaction.start(critic) as transaction:
-            update_request(transaction, request, successful=successful)
+            request_modifier = await transaction.modifyReview(
+                review
+            ).modifyIntegrationRequest(request)
+
+            await request_modifier.recordSuccess()

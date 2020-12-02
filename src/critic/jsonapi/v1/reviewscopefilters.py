@@ -16,31 +16,35 @@
 
 from __future__ import annotations
 
-from typing import Sequence, Optional, Union
+from typing import Sequence, Union
 
 from critic import api
-from critic import jsonapi
+from ..check import convert
+from ..exceptions import UsageError
+from ..resourceclass import ResourceClass
+from ..parameters import Parameters
+from ..types import JSONInput, JSONResult
+from ..utils import numeric_id
+from ..values import Values
 
 ReviewScopeFilter = api.reviewscopefilter.ReviewScopeFilter
 
 
 class ReviewScopeFilters(
-    jsonapi.ResourceClass[ReviewScopeFilter], api_module=api.reviewscopefilter
+    ResourceClass[ReviewScopeFilter], api_module=api.reviewscopefilter
 ):
     """Review scope filters."""
 
     contexts = (None, "repositories", "reviewscopes")
 
     @staticmethod
-    async def json(
-        parameters: jsonapi.Parameters, value: ReviewScopeFilter
-    ) -> jsonapi.JSONResult:
+    async def json(parameters: Parameters, value: ReviewScopeFilter) -> JSONResult:
         """ReviewScopeFilter {
-             "id": integer, // the filter's unique id
-             "repository": integer,
-             "scope": integer,
-             "path": string, // the filter's path
-           }"""
+          "id": integer, // the filter's unique id
+          "repository": integer,
+          "scope": integer,
+          "path": string, // the filter's path
+        }"""
 
         return {
             "id": value.id,
@@ -49,29 +53,26 @@ class ReviewScopeFilters(
             "path": value.path,
         }
 
-    @staticmethod
-    async def single(
-        parameters: jsonapi.Parameters, argument: str
-    ) -> ReviewScopeFilter:
+    @classmethod
+    async def single(cls, parameters: Parameters, argument: str) -> ReviewScopeFilter:
         return await api.reviewscopefilter.fetch(
-            parameters.critic, jsonapi.numeric_id(argument)
+            parameters.critic, numeric_id(argument)
         )
 
     @staticmethod
     async def multiple(
-        parameters: jsonapi.Parameters,
+        parameters: Parameters,
     ) -> Union[ReviewScopeFilter, Sequence[ReviewScopeFilter]]:
         return await api.reviewscopefilter.fetchAll(
-            parameters.critic, repository=await Repositories.deduce(parameters)
+            parameters.critic,
+            repository=await parameters.deduce(api.repository.Repository),
         )
 
     @staticmethod
-    async def create(
-        parameters: jsonapi.Parameters, data: jsonapi.JSONInput
-    ) -> ReviewScopeFilter:
+    async def create(parameters: Parameters, data: JSONInput) -> ReviewScopeFilter:
         critic = parameters.critic
 
-        converted = await jsonapi.convert(
+        converted = await convert(
             parameters,
             {
                 "repository?": api.repository.Repository,
@@ -82,41 +83,39 @@ class ReviewScopeFilters(
             data,
         )
 
-        repository = await Repositories.deduce(parameters)
+        repository = await parameters.deduce(api.repository.Repository)
 
         if not repository:
             if "repository" not in converted:
-                raise jsonapi.UsageError.missingInput("repository")
+                raise UsageError.missingInput("repository")
             repository = converted["repository"]
         elif converted.get("repository", repository) != repository:
-            raise jsonapi.UsageError("Conflicting repositories specified")
+            raise UsageError("Conflicting repositories specified")
         assert repository
 
-        scope = await ReviewScopes.deduce(parameters)
+        scope = await parameters.deduce(api.reviewscope.ReviewScope)
 
         if not scope:
             if "scope" not in converted:
-                raise jsonapi.UsageError.missingInput("scope")
+                raise UsageError.missingInput("scope")
             scope = converted["scope"]
         elif converted.get("scope", scope) != scope:
-            raise jsonapi.UsageError("Conflicting review scopes specified")
+            raise UsageError("Conflicting review scopes specified")
         assert scope
 
         async with api.transaction.start(critic) as transaction:
-            modifier = transaction.createReviewScopeFilter(
-                repository, scope, converted["path"], converted["included"]
-            )
+            return (
+                await transaction.createReviewScopeFilter(
+                    repository, scope, converted["path"], converted["included"]
+                )
+            ).subject
 
-        return await modifier
-
-    @staticmethod
+    @classmethod
     async def delete(
-        parameters: jsonapi.Parameters, values: jsonapi.Values[ReviewScopeFilter],
+        cls,
+        parameters: Parameters,
+        values: Values[ReviewScopeFilter],
     ) -> None:
         async with api.transaction.start(parameters.critic) as transaction:
             for scope_filter in values:
-                transaction.modifyReviewScopeFilter(scope_filter).delete()
-
-
-from .repositories import Repositories
-from .reviewscopes import ReviewScopes
+                await transaction.modifyReviewScopeFilter(scope_filter).delete()

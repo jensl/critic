@@ -14,9 +14,11 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
+import argparse
 import json
 import logging
 import sys
+from typing import Dict
 
 logger = logging.getLogger(__name__)
 
@@ -49,11 +51,10 @@ FORMATS = {
         "row": ("%(id)4u | %(name)10s | %(email)30s | %(fullname)-30s |" " %(status)s"),
         "post": "",
     },
-    "json": None,
 }
 
 
-def setup(parser):
+def setup(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--format",
         "-f",
@@ -65,7 +66,7 @@ def setup(parser):
     parser.set_defaults(need_session=True)
 
 
-async def main(critic, arguments):
+async def main(critic: api.critic.Critic, arguments: argparse.Namespace) -> int:
     users = await api.user.fetchAll(critic)
 
     if arguments.format == "json":
@@ -82,13 +83,17 @@ async def main(critic, arguments):
             ],
             sys.stdout,
         )
-        return
+        return 0
 
     output_format = FORMATS[arguments.format]
 
     print(output_format["pre"])
     for user in users:
-        data = {"id": user.id, "status": user.status, "email": user.email}
+        data: Dict[str, object] = {
+            "id": user.id,
+            "status": user.status,
+            "email": user.email,
+        }
         if arguments.format == "table" and user.email is None:
             data["email"] = ""
         if arguments.format != "table" or user.status != "disabled":
@@ -97,3 +102,5 @@ async def main(critic, arguments):
             data.update({"name": "N/A", "fullname": "N/A"})
         print(output_format["row"] % data)
     print(output_format["post"])
+
+    return 0

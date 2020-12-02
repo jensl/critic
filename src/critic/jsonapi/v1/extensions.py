@@ -22,18 +22,23 @@ from typing import Sequence, Union, Protocol, Optional
 logger = logging.getLogger(__name__)
 
 from critic import api
-from critic import jsonapi
+from critic.api.transaction.extension.modify import ModifyExtension
+from ..check import convert
+from ..exceptions import PathError, UsageError
+from ..resourceclass import ResourceClass
+from ..parameters import Parameters
+from ..types import JSONInput, JSONResult
+from ..utils import numeric_id
+from ..values import Values
 
 
 class ExtensionManager(Protocol):
-    async def createExtension(
-        self, name: str, uri: str
-    ) -> api.transaction.extension.ModifyExtension:
+    async def createExtension(self, name: str, url: str) -> ModifyExtension:
         ...
 
     async def modifyExtension(
         self, extension: api.extension.Extension
-    ) -> api.transaction.extension.ModifyExtension:
+    ) -> ModifyExtension:
         ...
 
 
@@ -45,104 +50,94 @@ def extension_manager(
     return transaction
 
 
-class Extensions(
-    jsonapi.ResourceClass[api.extension.Extension], api_module=api.extension
-):
+class Extensions(ResourceClass[api.extension.Extension], api_module=api.extension):
     """Extensions."""
 
     contexts = (None, "users")
 
     @staticmethod
     async def json(
-        parameters: jsonapi.Parameters, value: api.extension.Extension
-    ) -> jsonapi.JSONResult:
+        parameters: Parameters, value: api.extension.Extension
+    ) -> JSONResult:
         """Extension {
-             "id": integer,
-             "name": string,
-             "key": string,
-             "publisher": integer or null,
-             "versions": integer[],
-             "installation": integer or null,
-           }"""
+          "id": integer,
+          "name": string,
+          "key": string,
+          "publisher": integer or null,
+          "versions": integer[],
+          "installation": integer or null,
+        }"""
 
         return {
             "id": value.id,
             "name": value.name,
             "key": value.key,
             "publisher": value.publisher,
-            "uri": value.uri,
+            "url": value.url,
             "versions": value.versions,
             "installation": value.installation,
         }
 
-    @staticmethod
+    @classmethod
     async def single(
-        parameters: jsonapi.Parameters, argument: str
+        cls, parameters: Parameters, argument: str
     ) -> api.extension.Extension:
         """Retrieve one (or more) extensions by id.
 
-           EXTENSION_ID : integer
+        EXTENSION_ID : integer
 
-           Retrieve an extension identified by its unique numeric id."""
+        Retrieve an extension identified by its unique numeric id."""
 
         if not api.critic.settings().extensions.enabled:
-            raise jsonapi.PathError(
-                "Extension support not enabled", code="NO_EXTENSIONS"
-            )
+            raise PathError("Extension support not enabled", code="NO_EXTENSIONS")
 
-        value = await api.extension.fetch(
-            parameters.critic, jsonapi.numeric_id(argument)
-        )
+        value = await api.extension.fetch(parameters.critic, numeric_id(argument))
 
         if "users" in parameters.context:
             if await value.publisher != parameters.context["users"]:
-                raise jsonapi.PathError(
-                    "Extension is not published by the specified user"
-                )
+                raise PathError("Extension is not published by the specified user")
 
         return value
 
     @staticmethod
     async def multiple(
-        parameters: jsonapi.Parameters,
+        parameters: Parameters,
     ) -> Union[api.extension.Extension, Sequence[api.extension.Extension]]:
         """Retrieve a single extension by key or all extensions.
 
-           key : KEY : string
+        key : KEY : string
 
-           Retrieve only the extension with the given key.  This is equivalent
-           to accessing /api/v1/extensions/EXTENSION_ID with that extension's
-           numeric id.  When used, other parameters are ignored.
+        Retrieve only the extension with the given key.  This is equivalent
+        to accessing /api/v1/extensions/EXTENSION_ID with that extension's
+        numeric id.  When used, other parameters are ignored.
 
-           installed_by : INSTALLED_BY : integer or string
+        installed_by : INSTALLED_BY : integer or string
 
-           Retrieve only extensions installed by the specified user.  The user
-           can be identified by numeric id or username."""
+        Retrieve only extensions installed by the specified user.  The user
+        can be identified by numeric id or username."""
 
         if not api.critic.settings().extensions.enabled:
-            raise jsonapi.UsageError(
-                "Extension support not enabled", code="NO_EXTENSIONS"
-            )
+            raise UsageError("Extension support not enabled", code="NO_EXTENSIONS")
 
-        key_parameter = parameters.getQueryParameter("key")
+        key_parameter = parameters.query.get("key")
         if key_parameter:
             return await api.extension.fetch(parameters.critic, key=key_parameter)
 
-        installed_by = await Users.fromParameter(parameters, "installed_by")
+        installed_by = await parameters.fromParameter(api.user.User, "installed_by")
 
         return await api.extension.fetchAll(
             parameters.critic,
-            publisher=await Users.deduce(parameters),
+            publisher=await parameters.deduce(api.user.User),
             installed_by=installed_by,
         )
 
     @staticmethod
     async def create(
-        parameters: jsonapi.Parameters, data: jsonapi.JSONInput
+        parameters: Parameters, data: JSONInput
     ) -> api.extension.Extension:
-        converted = await jsonapi.convert(
+        converted = await convert(
             parameters,
-            {"name": str, "publisher?": api.user.User, "system?": bool, "uri": str},
+            {"name": str, "publisher?": api.user.User, "system?": bool, "url": str},
             data,
         )
 
@@ -151,26 +146,26 @@ class Extensions(
         name: str = converted["name"]
         publisher: Optional[api.user.User] = converted.get("publisher")
         system: bool = converted.get("system", False)
-        uri: str = converted["uri"]
+        url: str = converted["url"]
 
         if system:
             if publisher:
-                raise jsonapi.UsageError.invalidInput(
+                raise UsageError.invalidInput(
                     data, "publisher", details="must be omitted for system extension"
                 )
         elif publisher is None:
             publisher = critic.effective_user
 
         async with api.transaction.start(critic) as transaction:
-            modifier = await extension_manager(transaction, publisher).createExtension(
-                name, uri
-            )
+            return (
+                await extension_manager(transaction, publisher).createExtension(
+                    name, url
+                )
+            ).subject
 
-        return await modifier
-
-    @staticmethod
+    @classmethod
     async def delete(
-        parameters: jsonapi.Parameters, values: jsonapi.Values[api.extension.Extension]
+        cls, parameters: Parameters, values: Values[api.extension.Extension]
     ) -> None:
         async with api.transaction.start(parameters.critic) as transaction:
             for extension in values:
@@ -179,15 +174,16 @@ class Extensions(
                 ).modifyExtension(extension)
                 await modifier.deleteExtension()
 
-    @staticmethod
+    @classmethod
     async def deduce(
-        parameters: jsonapi.Parameters,
+        cls,
+        parameters: Parameters,
     ) -> Optional[api.extension.Extension]:
-        extension = parameters.context.get("extensions")
-        extension_parameter = parameters.getQueryParameter("extension")
+        extension = parameters.in_context(api.extension.Extension)
+        extension_parameter = parameters.query.get("extension")
         if extension_parameter is not None:
             if extension is not None:
-                raise jsonapi.UsageError(
+                raise UsageError(
                     "Redundant query parameter: extension=%s" % extension_parameter
                 )
             extension = await Extensions.fromParameter(parameters, extension_parameter)
@@ -195,15 +191,6 @@ class Extensions(
 
     @staticmethod
     async def fromParameterValue(
-        parameters: jsonapi.Parameters, value: str
+        parameters: Parameters, value: str
     ) -> api.extension.Extension:
         return await api.extension.fetch(parameters.critic, key=value)
-
-    @staticmethod
-    async def setAsContext(
-        parameters: jsonapi.Parameters, extension: api.extension.Extension
-    ) -> None:
-        parameters.setContext(Extensions.name, extension)
-
-
-from .users import Users

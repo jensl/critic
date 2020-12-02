@@ -21,8 +21,9 @@ from typing import Tuple, Optional, Sequence
 
 logger = logging.getLogger(__name__)
 
-from . import apiobject
 from critic import api
+from critic.api import branch as public
+from . import apiobject
 
 
 WrapperType = api.branch.Branch
@@ -49,7 +50,8 @@ class Branch(apiobject.APIObject[WrapperType, ArgumentsType, int]):
     __commits: Optional[api.commitset.CommitSet]
 
     def __init__(
-        self, args: ArgumentsType,
+        self,
+        args: ArgumentsType,
     ):
         (
             self.id,
@@ -93,7 +95,8 @@ class Branch(apiobject.APIObject[WrapperType, ArgumentsType, int]):
                 )
             else:
                 critic = wrapper.critic
-                async with critic.query(
+                async with api.critic.Query[int](
+                    critic,
                     """SELECT commit
                          FROM branchcommits
                         WHERE branch={branch_id}""",
@@ -104,10 +107,11 @@ class Branch(apiobject.APIObject[WrapperType, ArgumentsType, int]):
                     critic,
                     await api.commit.fetchMany(await wrapper.repository, commit_ids),
                 )
-            self.__size = len(self.__commits)
+            assert self.size == len(self.__commits)
         return self.__commits
 
 
+@public.fetchImpl
 @Branch.cached
 async def fetch(
     critic: api.critic.Critic,
@@ -120,7 +124,11 @@ async def fetch(
     else:
         conditions = ["{repository=repository}", "{name=name}"]
     async with Branch.query(
-        critic, conditions, branch_id=branch_id, repository=repository, name=name,
+        critic,
+        conditions,
+        branch_id=branch_id,
+        repository=repository,
+        name=name,
     ) as result:
         try:
             return await Branch.makeOne(critic, result)
@@ -131,6 +139,7 @@ async def fetch(
                 raise api.branch.InvalidName(value=name)
 
 
+@public.fetchAllImpl
 async def fetchAll(
     critic: api.critic.Critic,
     repository: Optional[api.repository.Repository],
@@ -165,6 +174,18 @@ async def fetchAll(
             ]
         )
         conditions.append("(reviews.state IS NULL OR reviews.state='dropped')")
+    import re
+
+    logger.debug(
+        re.sub(
+            r"\s+",
+            " ",
+            f"""SELECT {Branch.columns()}
+              FROM {" ".join(tables)}
+             WHERE {" AND ".join(conditions)}
+          ORDER BY {", ".join(order_by)}""",
+        )
+    )
     async with Branch.query(
         critic,
         f"""SELECT {Branch.columns()}

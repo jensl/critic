@@ -15,6 +15,8 @@
  */
 
 import { combineReducers } from "redux"
+import { immerable } from "immer"
+
 import { primaryMap, lookupMap } from "../reducers/resource"
 
 type ReviewTagData = {
@@ -26,10 +28,12 @@ type ReviewTagData = {
 type ReviewTagProps = ReviewTagData
 
 class ReviewTag {
+  [immerable] = true
+
   constructor(
     readonly id: number,
     readonly name: string,
-    readonly description: string
+    readonly description: string,
   ) {}
 
   static new(props: ReviewTagProps) {
@@ -40,7 +44,7 @@ class ReviewTag {
     byID: primaryMap<ReviewTag, number>("reviewtags"),
     byName: lookupMap<ReviewTag, string, number>(
       "reviewtags",
-      (tag) => tag.name
+      (tag) => tag.name,
     ),
   })
 

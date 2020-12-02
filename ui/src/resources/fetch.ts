@@ -4,21 +4,23 @@ import {
   RequestParams,
   FetchJSONParams,
   HandleError,
-  HTTPMethod,
 } from "../utils/Fetch.types"
-import { mergeExcludeFields, fetchJSON } from "../utils/Fetch"
+import { fetchJSON } from "../utils/Fetch"
 import { dataUpdate } from "../actions/data"
 import { DataUpdateParams } from "../actions"
-import {
-  assertFalse,
-  assertIsObject,
-  assertNotNull,
-  assertNotReached,
-  assertTrue,
-} from "../debug"
-import { ExcludeFields, ResourceTypes, RequestOptions } from "./types"
-import { assert } from "console"
+import { assertIsObject, assertNotReached, assertTrue } from "../debug"
+import { ResourceTypes, RequestOptions } from "./types"
 import resourceDefinitions from "./definitions"
+import {
+  withParameters,
+  include,
+  excludeFields,
+  method,
+  payload,
+} from "./requestoptions"
+import { sorted } from "../utils"
+
+export type ErrorCode = "BAD_BRANCH_NAME" | "MERGE_COMMIT"
 
 type BaseResponseJSON = {
   linked?: { [resourceName: string]: JSONData[] | "limited" }
@@ -48,46 +50,15 @@ export interface FetchResult<T> {
   invalid: Map<string, Set<number | string>> | null
 }
 
-export const withContext = (context: string): RequestOptions => ({ context })
-export const withArgument = (arg: number | string): RequestOptions => ({
-  args: [String(arg)],
-})
-export const withArguments = (args: number[] | string[]): RequestOptions => ({
-  args: (args as (number | string)[]).map((arg) => String(arg)),
-})
-export const withParameters = (params: RequestParams): RequestOptions => ({
-  params,
-})
-export const withData = (data: any): RequestOptions => ({ data })
-export const include = (
-  ...include: (keyof ResourceTypes)[]
-): RequestOptions => ({
-  include,
-})
-export const excludeFields = (
-  resourceName: keyof ResourceTypes,
-  fields: string[],
-): RequestOptions => ({
-  params: { [`fields[${resourceName}]`]: fields.join(",") },
-})
-export const payload = (payload: JSONData): RequestOptions => ({
-  payload,
-})
-export const method = (method: HTTPMethod): RequestOptions => ({
-  method,
-})
-export const expectStatuses = (
-  ...expectedStatus: number[]
-): RequestOptions => ({
-  expectedStatus,
-})
-
 const mergeOptions = (current: RequestOptions, next: RequestOptions) => {
   Object.entries(next).forEach(([keyString, nextValue]) => {
     const key = keyString as keyof RequestOptions
     if (key in current) {
       const currentValue = current[key]
       switch (key) {
+        case "context":
+          current.context = `${currentValue}/${nextValue}`
+          break
         case "params":
           Object.assign(
             currentValue as RequestParams,
@@ -96,6 +67,9 @@ const mergeOptions = (current: RequestOptions, next: RequestOptions) => {
           break
         case "include":
           ;(currentValue as string[]).push(...(nextValue as string[]))
+          break
+        case "handleError":
+          Object.assign(currentValue as HandleError, nextValue as HandleError)
           break
         default:
           assertNotReached(`Duplicate request option: ${key}`)
@@ -133,12 +107,13 @@ const makeRequest = <ResourceName extends keyof ResourceTypes>(
 
   if (completeRequest) completeRequest(options, payload)
 
-  const path = options.context
-    ? `${options.context}/${resourceName}`
-    : resourceName
+  const context = options.context ? `${options.context}/` : ""
+  const args = options.args ? `/${options.args}` : ""
+  const path = `${context}${resourceName}${args}`
 
   const params = { ...options.params }
-  if (options.include) params.include = options.include.join(",")
+  if (options.include)
+    params.include = sorted(new Set(options.include)).join(",")
 
   const { expectedStatus = [200, 202, 204, 404] } = options
 
@@ -148,6 +123,7 @@ const makeRequest = <ResourceName extends keyof ResourceTypes>(
   return {
     path,
     params,
+    options: { method },
     post,
     put,
     expectStatus: expectedStatus,
@@ -181,6 +157,8 @@ export const fetch = <ResourceName extends keyof ResourceTypes>(
 
   //else if (args.length && typeof args[0] === "object")
   //  Object.assign(request, args[0])
+
+  console.warn(resourceName, { request: makeRequest(resourceName, options) })
 
   const { status, json } = await dispatch(
     fetchJSON(makeRequest(resourceName, options)),
@@ -262,24 +240,24 @@ const updatesFromJSON = <ResourceName extends keyof ResourceTypes>(
         // the skipped fields in the existing record.
         const existing = lookup(resource, value)
         if (existing) {
-          return construct({
-            ...existing.props,
-            ...Object.entries(prepared).filter(([key]) => key !== "is_partial"),
-          })
+          console.warn("merging", { existing, prepared })
+          delete prepared.is_partial
+          return construct(Object.assign(existing.props, prepared))
         }
       }
       return construct(prepared)
     })
   }
 
-  const primary = postProcess(mainResourceName, main[mainResourceName])
+  const primary = main[mainResourceName]
+    ? postProcess(mainResourceName, main[mainResourceName])
+    : []
   const updates = new Map<string, Resource[]>(
     [...new Set([mainResourceName as string, ...Object.keys(linked)])].map(
       (resourceName) => {
-        const linkedItems = postProcess(
-          resourceName as ResourceName,
-          linked[resourceName],
-        )
+        const linkedItems = linked[resourceName]
+          ? postProcess(resourceName as ResourceName, linked[resourceName])
+          : []
         if (resourceName === mainResourceName)
           return [resourceName, [...primary, ...linkedItems]]
         return [resourceName, linkedItems]
@@ -311,11 +289,14 @@ const updatesFromJSON = <ResourceName extends keyof ResourceTypes>(
   }
 }
 
-class ResourceError extends Error {
+export class ResourceError extends Error {
   readonly title: string
   readonly code: string
 
-  constructor({ error: { title, message, code } }: ErrorResponseJSON) {
+  constructor(
+    readonly status: number,
+    { error: { title, message, code } }: ErrorResponseJSON,
+  ) {
     super(message)
     this.title = title
     this.message = message
@@ -335,7 +316,7 @@ export const handleJSONResponse = <ResourceName extends keyof ResourceTypes>({
   raiseOnError?: boolean
 }): Thunk<FetchResult<ResourceTypes[ResourceName]>> => (dispatch, getState) => {
   if (status >= 400 && raiseOnError)
-    throw new ResourceError(json as ErrorResponseJSON)
+    throw new ResourceError(status, json as ErrorResponseJSON)
   if (status !== 200) {
     return {
       resourceName,

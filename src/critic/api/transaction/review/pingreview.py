@@ -20,15 +20,15 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-from . import CreatedReviewPing, CreatedReviewEvent
-from .. import Transaction, Insert
+from . import CreatedReviewPing, CreateReviewEvent
+from ..base import TransactionBase
 
 from critic import api
 
 
 async def ping_review(
-    transaction: Transaction, review: api.review.Review, message: str
-) -> CreatedReviewPing:
+    transaction: TransactionBase, review: api.review.Review, message: str
+) -> api.reviewping.ReviewPing:
     has_recipients = False
 
     open_issues = await review.open_issues
@@ -52,13 +52,7 @@ async def ping_review(
     if not has_recipients:
         raise api.review.Error("There are no (relevant) reviewers to ping!")
 
-    event = CreatedReviewEvent.ensure(transaction, review, "pinged")
-    ping = CreatedReviewPing(transaction, review)
-
-    transaction.items.append(
-        Insert("reviewpings", returning="event", collector=ping).values(
-            event=event, message=message,
-        )
+    return await CreatedReviewPing(transaction, review).insert(
+        event=await CreateReviewEvent.ensure(transaction, review, "pinged"),
+        message=message,
     )
-
-    return ping

@@ -1,6 +1,5 @@
 import logging
 import pytest
-from typing import Any
 
 from ..fixtures.api import API
 from ..fixtures.websocket import WebSocket
@@ -121,7 +120,11 @@ async def test_create_review(
                     raise_for_status(
                         await as_alice.post(
                             f"reviews/{review_id}/reviewfilters",
-                            {"subject": bob.id, "type": "reviewer", "path": "",},
+                            {
+                                "subject": bob.id,
+                                "type": "reviewer",
+                                "path": "",
+                            },
                         )
                     ),
                     UserId="$.request.payload.subject",
@@ -165,7 +168,8 @@ async def test_create_review(
             )
             issue_id = issue_result.data["comments"][0]["id"]
             anonymizer.assert_match(
-                issue_result, "raise issue (as bob)",
+                issue_result,
+                "raise issue (as bob)",
             )
 
             anonymizer.assert_match(
@@ -206,7 +210,8 @@ async def test_create_review(
             anonymizer.assert_match(
                 raise_for_status(
                     await as_alice.post(
-                        f"comments/{issue_id}/replies", {"text": "Will do!"},
+                        f"comments/{issue_id}/replies",
+                        {"text": "Will do!"},
                     )
                 ),
                 "reply to issue (as alice)",

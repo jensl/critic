@@ -3,27 +3,32 @@ import asyncio
 import logging
 import os
 import sys
-from typing import Optional
+from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
+from .arguments import Arguments
+from .execute import ExecuteError, execute
+from .outputmanager import activity
+from .system import System
+
 
 class UI:
-    react_ui: Optional[asyncio.Task]
+    react_ui: Optional["asyncio.Task[Any]"]
 
-    def __init__(self, arguments, system):
+    def __init__(self, arguments: Arguments, system: System):
         self.arguments = arguments
         self.system = system
         self.react_ui = None
+        self.open_in_browser = arguments.open_in_browser
+
+    @property
+    def server_address(self) -> str:
+        return f"http://{self.system.server_host}:{self.system.server_port}"
 
     async def prepare(self) -> None:
-        from . import activity, execute
-
-        open_in_browser = self.arguments.open_in_browser
-
         build_py = os.path.join(self.arguments.root_dir, "ui", "build.py")
         start_py = os.path.join(self.arguments.root_dir, "ui", "start.py")
-        react_ui = None
 
         if self.arguments.build_ui:
             with activity("Building UI"):
@@ -43,23 +48,19 @@ class UI:
                     sys.executable,
                     start_py,
                     "--backend",
-                    f"http://{system.server_address}",
+                    self.server_address,
                     env=env,
                 )
             )
             # The development front-end will be opened when started.
-            open_in_browser = False
+            self.open_in_browser = False
         if self.arguments.download_ui:
             await self.system.criticctl("run-task", "download-ui")
 
     async def open(self) -> None:
-        from . import ExecuteError, execute
-
         if self.arguments.open_in_browser is None:
             async with aiohttp.ClientSession() as session:
-                async with session.head(
-                    "http://" + self.system.server_address
-                ) as response:
+                async with session.head(self.server_address) as response:
                     open_in_browser = response.status == 200
         else:
             open_in_browser = self.arguments.open_in_browser
@@ -67,7 +68,7 @@ class UI:
         if open_in_browser:
             logger.debug("Opening UI in default browser.")
             try:
-                await execute("xdg-open", f"http://{server_address}")
+                await execute("xdg-open", self.server_address)
             except ExecuteError:
                 logger.warning("Failed to open in browser.")
 

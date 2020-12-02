@@ -1,13 +1,20 @@
 from __future__ import annotations
 
-from typing import Any, Optional, Union, List, Dict, Mapping, Collection, Awaitable
+from typing import (
+    Any,
+    Optional,
+    Protocol,
+    TypeVar,
+    Union,
+    List,
+    Dict,
+)
 
-from critic import api
+from multidict import MultiDictProxy
 
-from .valuewrapper import ValueWrapper
 
-# FIXME: Proper typing of this.
-Request = Any
+T = TypeVar("T")
+
 
 JSONInputAtom = Optional[Union[bool, float, str]]
 JSONInputItem4 = JSONInputAtom
@@ -52,3 +59,14 @@ JSONInput = Dict[str, JSONInputItem1]
 
 JSONResultItem = Any
 JSONResult = Any
+
+
+class Request(Protocol):
+    method: str
+    scheme: str
+    path: str
+
+    query: MultiDictProxy[str]
+
+    async def read(self) -> str:
+        ...

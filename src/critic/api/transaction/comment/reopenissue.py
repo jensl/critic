@@ -21,14 +21,16 @@ from typing import Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
-from .. import Transaction, Query, Insert, InsertMany, Update
-from ..review import ReviewUserTag, has_unpublished_changes
 from critic import api
+from critic.gitaccess import SHA1
 from critic import reviewing
+from ..base import TransactionBase
+from ..item import Delete, Insert, InsertMany, Update
+from ..review import ReviewUserTag, has_unpublished_changes
 
 
 async def reopen_issue(
-    transaction: Transaction,
+    transaction: TransactionBase,
     issue: api.comment.Comment,
     new_location: Optional[api.comment.Location],
 ) -> None:
@@ -61,15 +63,9 @@ async def reopen_issue(
             raise api.comment.Error("Issue has unpublished conflicting modifications")
 
         if new_state == "resolved":
-            transaction.items.append(
-                Query(
-                    """DELETE
-                         FROM commentchainchanges
-                        WHERE uid={user}
-                          AND chain={issue}
-                          AND to_state='closed'""",
-                    user=user,
-                    issue=issue,
+            await transaction.execute(
+                Delete("commentchainchanges").where(
+                    uid=user, chain=issue, to_state="closed"
                 )
             )
             return
@@ -86,7 +82,7 @@ async def reopen_issue(
 
         new_location = new_location.as_file_version
 
-        async with api.critic.Query[Tuple[str, int, int]](
+        async with api.critic.Query[Tuple[SHA1, int, int]](
             critic,
             """SELECT sha1, first_line, last_line
                  FROM commentchainlines
@@ -114,7 +110,7 @@ async def reopen_issue(
         if to_addressed_by:
             to_state = "addressed"
 
-        transaction.items.append(
+        await transaction.execute(
             InsertMany(
                 "commentchainlines",
                 ["uid", "chain", "sha1", "first_line", "last_line"],
@@ -133,12 +129,12 @@ async def reopen_issue(
         )
 
         if issue.is_draft:
-            transaction.items.append(Update(issue).set(state=to_state))
+            await transaction.execute(Update(issue).set(state=to_state))
             return
     else:
         from_state = "closed"
 
-    transaction.items.append(
+    await transaction.execute(
         Insert("commentchainchanges").values(
             uid=user,
             chain=issue,

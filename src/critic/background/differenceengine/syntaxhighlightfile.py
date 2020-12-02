@@ -18,21 +18,18 @@ from __future__ import annotations
 
 import logging
 import stat
-from typing import Union, TypedDict, Tuple, Sequence, Iterable, TypeVar
+from typing import Sequence, Iterable
 
 logger = logging.getLogger(__name__)
 
 from . import protocol
-from .requestjob import RequestJob
-from .jobgroup import JobGroup
-from .calculatefiledifference import CalculateFileDifference
+from .requestjob import RequestJob, GroupType
 from .changedfile import ChangedFile
-from .changeset import Changeset
-from .customhighlight import CustomHighlight
 
 from ...syntaxhighlight.language import identify_language_from_path
 
 from critic import api
+from critic import dbaccess
 from critic import textutils
 from critic import pubsub
 from critic.dbaccess import Query
@@ -57,13 +54,10 @@ def syntax_highlight_new(changed_file: ChangedFile) -> bool:
     )
 
 
-GroupType = TypeVar("GroupType", bound=Union[Changeset, CustomHighlight])
-
-
-class SyntaxHighlightFile(RequestJob[GroupType, protocol.SyntaxHighlighFile.Response]):
+class SyntaxHighlightFile(RequestJob[protocol.SyntaxHighlighFile.Response]):
     # Syntax highlight files after after calculating file differences in all
     # files.
-    priority = CalculateFileDifference.priority + 1
+    priority = 2  # CalculateFileDifference.priority + 1
 
     result_type = list
 
@@ -72,7 +66,11 @@ class SyntaxHighlightFile(RequestJob[GroupType, protocol.SyntaxHighlighFile.Resp
     is_fatal = False
 
     def __init__(
-        self, group: GroupType, sha1: SHA1, language_label: str, conflicts: bool,
+        self,
+        group: GroupType,
+        sha1: SHA1,
+        language_label: str,
+        conflicts: bool,
     ):
         super().__init__(group, (sha1, language_label, conflicts))
         self.sha1 = sha1
@@ -176,7 +174,7 @@ class SyntaxHighlightFile(RequestJob[GroupType, protocol.SyntaxHighlighFile.Resp
                      {sha1}, {language_id}, {first_line}, {last_line}, {context}
                    )""",
                 (
-                    dict(
+                    dbaccess.parameters(
                         sha1=self.sha1,
                         language_id=self.language_id,
                         first_line=first_line,
@@ -190,12 +188,12 @@ class SyntaxHighlightFile(RequestJob[GroupType, protocol.SyntaxHighlighFile.Resp
     @staticmethod
     def for_files(
         group: GroupType, changed_files: Sequence[ChangedFile]
-    ) -> Iterable[SyntaxHighlightFile[GroupType]]:
+    ) -> Iterable[SyntaxHighlightFile]:
         """Return a set of SyntaxHighlightFile jobs
 
-           The returned tuples indicate file versions that may need to be syntax
-           highlighted, and for which the appropriate language could be deduced
-           from the file's path alone."""
+        The returned tuples indicate file versions that may need to be syntax
+        highlighted, and for which the appropriate language could be deduced
+        from the file's path alone."""
 
         conflicts = group.conflicts
 

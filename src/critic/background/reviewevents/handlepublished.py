@@ -14,6 +14,8 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
+# type: ignore
+
 import logging
 
 logger = logging.getLogger(__name__)

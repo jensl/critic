@@ -16,9 +16,10 @@
 
 from __future__ import annotations
 
-from typing import Any, Sequence, overload
+from typing import Any, Awaitable, Callable, Optional, Sequence, overload
 
 from critic import api
+from critic.api.apiobject import FunctionRef
 
 
 class Error(api.APIError, object_type="branch setting"):
@@ -88,13 +89,15 @@ class BranchSetting(api.APIObject):
     def value(self) -> Any:
         """The setting's value
 
-           The value is stored as JSON but returned in parsed form, and can thus
-           be a dictionary, list, string, number, boolean or None."""
+        The value is stored as JSON but returned in parsed form, and can thus
+        be a dictionary, list, string, number, boolean or None."""
         return self._impl.value
 
 
 @overload
-async def fetch(critic: api.critic.Critic, setting_id: int = None, /) -> BranchSetting:
+async def fetch(
+    critic: api.critic.Critic, setting_id: Optional[int] = None, /
+) -> BranchSetting:
     ...
 
 
@@ -107,12 +110,12 @@ async def fetch(
 
 async def fetch(
     critic: api.critic.Critic,
-    setting_id: int = None,
+    setting_id: Optional[int] = None,
     /,
     *,
-    branch: api.branch.Branch = None,
-    scope: str = None,
-    name: str = None,
+    branch: Optional[api.branch.Branch] = None,
+    scope: Optional[str] = None,
+    name: Optional[str] = None,
 ) -> BranchSetting:
     """Fetch a BranchSetting object with the given its id or scope and name
 
@@ -124,13 +127,15 @@ async def fetch(
         InvalidId: if `setting_id` is used but the id is not valid.
         NotDefined: if `scope` and `name` are used but no such setting is
                     defined."""
-    from .impl import branchsetting as impl
-
-    return await impl.fetch(critic, setting_id, branch, scope, name)
+    return await fetchImpl.get()(critic, setting_id, branch, scope, name)
 
 
 async def fetchAll(
-    critic: api.critic.Critic, /, *, branch: api.branch.Branch = None, scope: str = None
+    critic: api.critic.Critic,
+    /,
+    *,
+    branch: Optional[api.branch.Branch] = None,
+    scope: Optional[str] = None,
 ) -> Sequence[BranchSetting]:
     """Fetch BranchSetting objects for all settings
 
@@ -138,9 +143,27 @@ async def fetchAll(
     branch are fetched.
 
     If 'scope' is not None, only settings with a matching scope are fetched."""
-    from .impl import branchsetting as impl
-
-    return await impl.fetchAll(critic, branch, scope)
+    return await fetchAllImpl.get()(critic, branch, scope)
 
 
 resource_name = table_name = "branchsettings"
+
+
+fetchImpl: FunctionRef[
+    Callable[
+        [
+            api.critic.Critic,
+            Optional[int],
+            Optional[api.branch.Branch],
+            Optional[str],
+            Optional[str],
+        ],
+        Awaitable[BranchSetting],
+    ]
+] = FunctionRef()
+fetchAllImpl: FunctionRef[
+    Callable[
+        [api.critic.Critic, Optional[api.branch.Branch], Optional[str]],
+        Awaitable[Sequence[BranchSetting]],
+    ]
+] = FunctionRef()

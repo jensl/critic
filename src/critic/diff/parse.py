@@ -18,14 +18,15 @@ import asyncio
 import re
 from typing import (
     Dict,
+    Iterator,
     List,
     Literal,
     Mapping,
     NamedTuple,
+    Optional,
     Sequence,
     Tuple,
     Union,
-    overload,
 )
 
 from critic import diff
@@ -34,7 +35,9 @@ from critic import textutils
 from critic.gitaccess import SHA1
 
 
-def splitlines(source, *, limit=None):
+def splitlines(
+    source: Union[bytes, str], *, limit: Optional[int] = None
+) -> Sequence[str]:
     if isinstance(source, bytes):
         source = textutils.decode(source)
 
@@ -59,33 +62,17 @@ def splitlines(source, *, limit=None):
 ExamineResult = Union[None, Literal["binary"], int]
 
 
-async def examine_file(
-    repository: gitaccess.GitRepository, commit: SHA1, path: str
-) -> ExamineResult:
-    return (await examine_files(repository, commit, [path]))[0]
+# async def examine_file(
+#     repository: gitaccess.GitRepository, commit: SHA1, path: str
+# ) -> ExamineResult:
+#     return (await examine_files(repository, commit, [path]))[0]
 
 
-@overload
-async def examine_files(
-    repository: gitaccess.GitRepository, commit: SHA1, paths: Sequence[str]
-) -> Sequence[ExamineResult]:
-    ...
-
-
-@overload
 async def examine_files(
     repository: gitaccess.GitRepository,
     commit: SHA1,
     paths: Mapping[str, ExamineResult],
 ) -> Mapping[str, ExamineResult]:
-    ...
-
-
-async def examine_files(
-    repository: gitaccess.GitRepository,
-    commit: SHA1,
-    paths: Union[Sequence[str], Mapping[str, ExamineResult]],
-) -> Union[Sequence[ExamineResult], Mapping[str, ExamineResult]]:
     """Basic check of file version at |paths| in |commit|
 
     The result per path is either None, if the file doesn't exist, or "binary"
@@ -131,10 +118,7 @@ async def examine_files(
     # should not receive information about any paths we didn't ask for.
     assert not set(per_path) - set(paths), repr((argv, set(per_path) - set(paths)))
 
-    if isinstance(paths, list):
-        return [per_path.get(path) for path in paths]
-
-    return {path: per_path.get(path) for path in paths}
+    return {path: per_path.get(path) for path in paths}  # type: ignore
 
 
 class ParseError(Exception):
@@ -153,20 +137,31 @@ NEW_COUNT = 4
 NEW_LENGTH = 5
 
 
-async def basic_file_difference(repository, from_commit, to_commit, path):
+class BasicDiffBlock(NamedTuple):
+    delete_offset: int
+    delete_count: int
+    delete_length: int
+    insert_offset: int
+    insert_count: int
+    insert_length: int
+
+
+async def basic_file_difference(
+    repository: gitaccess.GitRepository, from_commit: SHA1, to_commit: SHA1, path: str
+) -> Tuple[SHA1, SHA1, Iterator[BasicDiffBlock]]:
     """Run 'git diff-tree' and parse the output
 
-       The return value is a tuple
+    The return value is a tuple
 
-         (old_file_sha1, new_file_sha1, blocks)
+      (old_file_sha1, new_file_sha1, blocks)
 
-       where |blocks| is a generator producing a tuple
+    where |blocks| is a generator producing a tuple
 
-         (delete_offset, delete_count, delete_length,
-          insert_offset, insert_count, insert_length)
+      (delete_offset, delete_count, delete_length,
+       insert_offset, insert_count, insert_length)
 
-       for each individual block of changed lines.  The *_count and *_length
-       items in these tuples are always identical."""
+    for each individual block of changed lines.  The *_count and *_length
+    items in these tuples are always identical."""
 
     argv = [
         "diff-tree",
@@ -184,7 +179,7 @@ async def basic_file_difference(repository, from_commit, to_commit, path):
         path,
     ]
 
-    async def get_file_sha1(commit, path):
+    async def get_file_sha1(commit: SHA1, path: str) -> SHA1:
         return await repository.revparse(f"{commit}:{path}")
 
     old_file_sha1 = await get_file_sha1(from_commit, path)
@@ -197,7 +192,9 @@ async def basic_file_difference(repository, from_commit, to_commit, path):
         return old_file_sha1, new_file_sha1, iter([])
 
     diff_lines = iter(splitlines(diff))
-    first_hunk_header = None
+
+    HunkHeader = Tuple[str, Optional[str], str, Optional[str]]
+    first_hunk_header: HunkHeader
 
     try:
         while True:
@@ -212,7 +209,7 @@ async def basic_file_difference(repository, from_commit, to_commit, path):
                 match = RE_HUNK_HEADER.match(diff_line)
                 if not match:
                     raise ParseError("malformed hunk header: " + diff_line)
-                first_hunk_header = match.groups()
+                first_hunk_header = match.groups()  # type: ignore
                 break
     except StopIteration:
         raise ParseError("EOF while scanning for first hunk header: %r" % diff)
@@ -220,33 +217,37 @@ async def basic_file_difference(repository, from_commit, to_commit, path):
     if old_file_sha1 is None or new_file_sha1 is None:
         raise ParseError("no 'index' line encountered")
 
-    def blocks(hunk_header):
+    def blocks(hunk_header: HunkHeader) -> Iterator[BasicDiffBlock]:
         def check_hunk():
+            if min(delete_offset, delete_count, insert_offset, insert_count) < 0:
+                raise ParseError("initial values")
             if delete_count == insert_count == 0:
                 raise ParseError("empty hunk")
             if delete_count != delete_length or insert_count != insert_length:
                 raise ParseError("hunk header and hunk don't match")
 
+        delete_offset = delete_count = insert_offset = insert_count = -1
+
         try:
             while True:
                 (
-                    delete_offset,
-                    delete_length,
-                    insert_offset,
-                    insert_length,
+                    delete_offset_string,
+                    delete_length_string,
+                    insert_offset_string,
+                    insert_length_string,
                 ) = hunk_header
 
-                delete_offset = int(delete_offset)
-                insert_offset = int(insert_offset)
+                delete_offset = int(delete_offset_string)
+                insert_offset = int(insert_offset_string)
 
-                if delete_length is None:
+                if delete_length_string is None:
                     delete_length = 1
                 else:
-                    delete_length = int(delete_length)
-                if insert_length is None:
+                    delete_length = int(delete_length_string)
+                if insert_length_string is None:
                     insert_length = 1
                 else:
-                    insert_length = int(insert_length)
+                    insert_length = int(insert_length_string)
 
                 # We use zero-based offsets, hunk headers use one-based ones, so
                 # adjust.
@@ -270,7 +271,7 @@ async def basic_file_difference(repository, from_commit, to_commit, path):
                         insert_count += 1
                     elif line[0] == "@":
                         check_hunk()
-                        yield (
+                        yield BasicDiffBlock(
                             delete_offset,
                             delete_count,
                             delete_count,
@@ -281,7 +282,7 @@ async def basic_file_difference(repository, from_commit, to_commit, path):
                         match = RE_HUNK_HEADER.match(line)
                         if not match:
                             raise ParseError("malformed hunk header: " + line)
-                        hunk_header = match.groups()
+                        hunk_header = match.groups()  # type: ignore
                         break
                     elif line[0] == "\\":
                         # Typically "No newline at end of file".
@@ -290,7 +291,7 @@ async def basic_file_difference(repository, from_commit, to_commit, path):
                         raise ParseError("unexpected line: " + line)
         except StopIteration:
             check_hunk()
-            yield (
+            yield BasicDiffBlock(
                 delete_offset,
                 delete_count,
                 delete_count,
@@ -302,17 +303,23 @@ async def basic_file_difference(repository, from_commit, to_commit, path):
     return old_file_sha1, new_file_sha1, blocks(first_hunk_header)
 
 
-def whitespace_difference(old_lines, old_offset, new_lines, new_offset, length):
+def whitespace_difference(
+    old_lines: Sequence[str],
+    old_offset: int,
+    new_lines: Sequence[str],
+    new_offset: int,
+    length: int,
+) -> Iterator[BasicDiffBlock]:
     """Detect white-space differences in context lines
 
-       This function returns a generator of 6-tuples, like the tuples returned
-       by |basic_file_difference()|.
+    This function returns a generator of 6-tuples, like the tuples returned
+    by |basic_file_difference()|.
 
-       Note: This function doesn't really just detect white-space
-       differences; it detects any and all differences in context lines.  It
-       is only used to detect white-space differences, however."""
+    Note: This function doesn't really just detect white-space
+    differences; it detects any and all differences in context lines.  It
+    is only used to detect white-space differences, however."""
 
-    delete_offset = insert_offset = None
+    delete_offset = insert_offset = -1
     count = 0
 
     while length:
@@ -322,7 +329,10 @@ def whitespace_difference(old_lines, old_offset, new_lines, new_offset, length):
                 insert_offset = new_offset
             count += 1
         elif count != 0:
-            yield (delete_offset, count, count, insert_offset, count, count)
+            assert delete_offset != -1 and insert_offset != -1
+            yield BasicDiffBlock(
+                delete_offset, count, count, insert_offset, count, count
+            )
             count = 0
 
         old_offset += 1
@@ -330,28 +340,33 @@ def whitespace_difference(old_lines, old_offset, new_lines, new_offset, length):
         length -= 1
 
     if count != 0:
-        yield (delete_offset, count, count, insert_offset, count, count)
+        assert delete_offset != -1 and insert_offset != -1
+        yield BasicDiffBlock(delete_offset, count, count, insert_offset, count, count)
 
 
-def with_whitespace_difference(old_lines, new_lines, blocks):
+def with_whitespace_difference(
+    old_lines: Sequence[str], new_lines: Sequence[str], blocks: Iterator[BasicDiffBlock]
+) -> Iterator[BasicDiffBlock]:
     """Augment a list of block (6-tuples) with white-space changes between them
 
-       Iterate over the individual blocks in |blocks| and examine the context
-       lines between for white-space only changes, and insert additional blocks
-       into the returned sequence of blocks.
+    Iterate over the individual blocks in |blocks| and examine the context
+    lines between for white-space only changes, and insert additional blocks
+    into the returned sequence of blocks.
 
-       This is only necessary because we call 'git diff-tree' with the
-       '--ignore-space-change' option.  We do that to achieve a better final
-       result when large blocks of code are re-indented, by having the main
-       (clever) diff algorithm (the one in 'git diff-tree') focus on actual
-       changes.  We can deal with the white-space changes ourselves.
+    This is only necessary because we call 'git diff-tree' with the
+    '--ignore-space-change' option.  We do that to achieve a better final
+    result when large blocks of code are re-indented, by having the main
+    (clever) diff algorithm (the one in 'git diff-tree') focus on actual
+    changes.  We can deal with the white-space changes ourselves.
 
-       The return value is a generator of blocks (6-tuples).
+    The return value is a generator of blocks (6-tuples).
 
-       The |old_lines| and |new_lines| arguments should be lists containing all
-       lines in the old and new versions of the file."""
+    The |old_lines| and |new_lines| arguments should be lists containing all
+    lines in the old and new versions of the file."""
 
-    def whitespace_between(prev_block, next_block):
+    def whitespace_between(
+        prev_block: BasicDiffBlock, next_block: BasicDiffBlock
+    ) -> Iterator[BasicDiffBlock]:
         old_offset = prev_block[OLD_OFFSET] + prev_block[OLD_LENGTH]
         new_offset = prev_block[NEW_OFFSET] + prev_block[NEW_LENGTH]
         length = next_block[OLD_OFFSET] - old_offset
@@ -360,8 +375,8 @@ def with_whitespace_difference(old_lines, new_lines, blocks):
             old_lines, old_offset, new_lines, new_offset, length
         )
 
-    head_block = (0, 0, 0, 0, 0, 0)
-    tail_block = (len(old_lines), 0, 0, len(new_lines), 0, 0)
+    head_block = BasicDiffBlock(0, 0, 0, 0, 0, 0)
+    tail_block = BasicDiffBlock(len(old_lines), 0, 0, len(new_lines), 0, 0)
 
     # Note: In case of white-space only changes, blocks will be empty.
     try:
@@ -390,11 +405,13 @@ def with_whitespace_difference(old_lines, new_lines, blocks):
         yield whitespace_block
 
 
-def merged_block(prev_block, next_block, context_between=0):
+def merged_block(
+    prev_block: BasicDiffBlock, next_block: BasicDiffBlock, context_between: int = 0
+) -> BasicDiffBlock:
     assert context_between == next_block[OLD_OFFSET] - (
         prev_block[OLD_OFFSET] + prev_block[OLD_LENGTH]
     )
-    return (
+    return BasicDiffBlock(
         prev_block[OLD_OFFSET],
         prev_block[OLD_COUNT] + next_block[OLD_COUNT],
         prev_block[OLD_LENGTH] + context_between + next_block[OLD_LENGTH],
@@ -404,10 +421,10 @@ def merged_block(prev_block, next_block, context_between=0):
     )
 
 
-def with_merged_adjacent(blocks):
+def with_merged_adjacent(blocks: Iterator[BasicDiffBlock]) -> Iterator[BasicDiffBlock]:
     """Merge adjacent blocks (6-tuples) in |blocks|
 
-       The return value is a generator of blocks (6-tuples)."""
+    The return value is a generator of blocks (6-tuples)."""
 
     # Note: There must necessarily be at least one block.
     prev_block = next(blocks)
@@ -431,22 +448,24 @@ def with_merged_adjacent(blocks):
 FALSE_SPLIT_MAX_CONTEXT = 3
 
 
-def with_false_splits_merged(old_lines, new_lines, blocks):
+def with_false_splits_merged(
+    old_lines: Sequence[str], new_lines: Sequence[str], blocks: Iterator[BasicDiffBlock]
+) -> Iterator[BasicDiffBlock]:
     """Merge blocks in |blocks| separated by insignificant context lines
 
-       A context line is heuristically determined to be insignificant by
-       observing whether at least one identical (modulo white-space) line exists
-       in either the preceding or following block.
+    A context line is heuristically determined to be insignificant by
+    observing whether at least one identical (modulo white-space) line exists
+    in either the preceding or following block.
 
-       This is done to avoid blocks being split into two by "false" matches on
-       common, insignificant lines.  Such splits are detrimental since our
-       intra-block alignment code only looks at one block at a time, and can't
-       align lines from different blocks.
+    This is done to avoid blocks being split into two by "false" matches on
+    common, insignificant lines.  Such splits are detrimental since our
+    intra-block alignment code only looks at one block at a time, and can't
+    align lines from different blocks.
 
-       The return value is a generator of blocks (6-tuples).
+    The return value is a generator of blocks (6-tuples).
 
-       The |old_lines| and |new_lines| arguments should be lists containing all
-       lines in the old and new versions of the file."""
+    The |old_lines| and |new_lines| arguments should be lists containing all
+    lines in the old and new versions of the file."""
 
     # Note: There must necessarily be at least one block.
     prev_block = next(blocks)
@@ -471,8 +490,8 @@ def with_false_splits_merged(old_lines, new_lines, blocks):
 
         for index in range(context_between):
             if not (
-                old_counted.count(old_context_offset + index) > 1
-                or new_counted.count(new_context_offset + index) > 1
+                old_counted.count_duplicates(old_context_offset + index) > 1
+                or new_counted.count_duplicates(new_context_offset + index) > 1
             ):
                 yield prev_block
                 prev_block = next_block
@@ -501,27 +520,30 @@ class FileDifference(NamedTuple):
 
 
 async def file_difference(
-    repository: gitaccess.GitRepository, from_commit: SHA1, to_commit: SHA1, path: str,
+    repository: gitaccess.GitRepository,
+    from_commit: SHA1,
+    to_commit: SHA1,
+    path: str,
 ) -> FileDifference:
     """Parse differences in a file between two commits
 
-       Differences are returned as a list of tuples of six (8) values:
+    Differences are returned as a list of tuples of six (8) values:
 
-         (index, offset,
-          delete_offset, delete_count, delete_length,
-          insert_offset, insert_count, insert_length)
+      (index, offset,
+       delete_count, delete_length,
+       insert_count, insert_length)
 
-       Calling this function is only meaningful when the named file exists in
-       both commits, and when it isn't a binary file in either, and when it has
-       been changed.
+    Calling this function is only meaningful when the named file exists in
+    both commits, and when it isn't a binary file in either, and when it has
+    been changed.
 
-       Added, removed and/or binary files, are handled elsewhere."""
+    Added, removed and/or binary files, are handled elsewhere."""
 
     old_file_sha1, new_file_sha1, blocks = await basic_file_difference(
         repository, from_commit, to_commit, path
     )
 
-    def fetch_lines(blob):
+    def fetch_lines(blob: gitaccess.GitBlob) -> Tuple[Sequence[str], bool]:
         """Fetch file blob from repository and split into lines"""
         linebreak = blob.data.endswith(b"\n")
         return splitlines(blob.data), linebreak
@@ -529,7 +551,9 @@ async def file_difference(
     old_blob, new_blob = await repository.fetchall(
         old_file_sha1, new_file_sha1, wanted_object_type="blob"
     )
+    assert isinstance(old_blob, gitaccess.GitBlob)
     old_lines, old_linebreak = fetch_lines(old_blob)
+    assert isinstance(new_blob, gitaccess.GitBlob)
     new_lines, new_linebreak = fetch_lines(new_blob)
 
     # Complete the list of blocks by inserting additional blocks for white-space

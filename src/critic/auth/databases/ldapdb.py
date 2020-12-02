@@ -14,10 +14,14 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
+# FIXME: typing in ldapdb.py
+# type: ignore
+
 import asyncio
 import hashlib
 import threading
 import time
+from typing import Collection, Mapping, Sequence
 
 from critic import api
 from critic import auth
@@ -63,9 +67,7 @@ class LDAPCache(object):
             self.cache[key] = (value, time.time())
 
 
-class LDAP(auth.Database):
-    name = "ldap"
-
+class LDAP(auth.Database, dbname="ldap"):
     def __init__(self):
         self.cache = LDAPCache(self.configuration["cache_max_age"])
 
@@ -97,10 +99,12 @@ class LDAP(auth.Database):
         member_value = group["member_value"] % escaped(fields, ldap.dn.escape_dn_chars)
         return member_value in members
 
-    def getFields(self):
+    def getFields(self) -> Sequence[auth.database.Field]:
         return self.configuration["fields"]
 
-    async def authenticate(self, critic, fields):
+    async def authenticate(
+        self, critic: api.critic.Critic, fields: Mapping[str, str]
+    ) -> api.user.User:
         import ldap
         import ldap.filter
 
@@ -208,11 +212,13 @@ class LDAP(auth.Database):
 
         self.cache.set(fields, (user.id, authentication_labels))
 
-    def getAuthenticationLabels(self, user):
+        return user
+
+    async def getAuthenticationLabels(self, user: api.user.User) -> Collection[str]:
         connection = self.__startConnection()
 
         fields = self.configuration["fields_from_user"](user)
-        authentication_labels = set()
+        authentication_labels: Set[str] = set()
 
         if "require_groups" in self.configuration:
             for group in self.configuration["require_groups"]:

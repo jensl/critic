@@ -15,6 +15,7 @@
  */
 
 import { combineReducers } from "redux"
+import { immerable } from "immer"
 
 import { primaryMap, lookupMap } from "../reducers/resource"
 import { UserEmailID, UserID } from "./types"
@@ -43,6 +44,8 @@ type UserProps = {
 }
 
 class User {
+  [immerable] = true
+
   constructor(
     readonly id: UserID,
     readonly name: string,
@@ -50,7 +53,7 @@ class User {
     readonly status: UserStatus,
     readonly email: number | null,
     readonly passwordStatus: PasswordStatus,
-    readonly roles: ReadonlySet<string>
+    readonly roles: ReadonlySet<string>,
   ) {}
 
   static new(props: UserProps) {
@@ -61,7 +64,7 @@ class User {
       props.status,
       props.email,
       props.password_status,
-      props.roles
+      props.roles,
     )
   }
 

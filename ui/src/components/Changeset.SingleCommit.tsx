@@ -43,7 +43,7 @@ const ChangesetSingleCommit: FunctionComponent<Props> = ({
   const review = useReview()
   const changesets = useSelector((state) => state.resource.changesets)
   useSubscription(loadChangesetBySHA1, {
-    singleCommitRef: String(commit.id),
+    refs: { singleCommitRef: String(commit.id) },
     repositoryID: id(repository),
     reviewID: id(review),
   })

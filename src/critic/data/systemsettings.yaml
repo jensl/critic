@@ -5,18 +5,6 @@ system:
     description:
       Primary fully qualified domain name of the Critic system. If null, the
       name is determined on start-up by running `hostname --fqdn`.
-  email:
-    value: null
-    description:
-      System email address, which is used as "Sender" of outgoing emails, and
-      also as "From" when it doesn't make sense to use a user's email address.
-      If null, an address is constructed using the `system.hostname` setting.
-  recipients:
-    value: []
-    description:
-      List of recipients of emails about the system, such as error reports or
-      notifications about user registrations. If empty, such emails are not
-      sent.
   is_development:
     value: false
     description:
@@ -476,15 +464,12 @@ services:
         - branchupdater
         - differenceengine
         - extensionhost
-        #- extensionrunner
         - extensiontasks
         - gateway
         - gitaccessor
         - githook
-        #- maildelivery
         - maintenance
         - replayer
-        #- reviewevents
         - reviewupdater
         - workers
       description: Services to run.

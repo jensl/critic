@@ -17,11 +17,21 @@
 from __future__ import annotations
 
 import datetime
-import re
-from typing import Optional, Sequence, Protocol, Iterable, Literal, Tuple, overload
+from typing import (
+    Awaitable,
+    Callable,
+    Optional,
+    Sequence,
+    Protocol,
+    Iterable,
+    Literal,
+    Tuple,
+    overload,
+)
 
 from critic import api
 from critic import gitaccess
+from critic.api.apiobject import FunctionRef
 from critic.gitaccess import SHA1
 
 
@@ -88,11 +98,11 @@ class Commit(api.APIObject):
     def summary(self) -> str:
         """The commit's single-line summary
 
-           This is the first line of the commit message, unless that line starts
-           with 'fixup!' or 'squash!', in which case the returned summary is the
-           first non-empty line after that, with '[fixup] ' or '[squash] '
-           prepended.  If there is no such non-empty line, the returned summary
-           is just '[fixup]' or '[squash]'."""
+        This is the first line of the commit message, unless that line starts
+        with 'fixup!' or 'squash!', in which case the returned summary is the
+        first non-empty line after that, with '[fixup] ' or '[squash] '
+        prepended.  If there is no such non-empty line, the returned summary
+        is just '[fixup]' or '[squash]'."""
         return self._impl.getSummary()
 
     @property
@@ -109,22 +119,22 @@ class Commit(api.APIObject):
     async def parents(self) -> Tuple[Commit]:
         """The commit's parents
 
-           The return value is a list of api.Commit objects."""
+        The return value is a list of api.Commit objects."""
         return await self._impl.getParents()
 
     @property
     def low_level(self) -> gitaccess.GitCommit:
         """Low-level representation of this commit
 
-           The representation is returned as a gitaccess.GitCommit object. This
-           representation should typically not be used directly."""
+        The representation is returned as a gitaccess.GitCommit object. This
+        representation should typically not be used directly."""
         return self._impl.low_level
 
     @property
     async def description(self) -> CommitDescription:
         """A "friendly" description of the commit
 
-           The description is returned as an CommitDescription object."""
+        The description is returned as an CommitDescription object."""
         return await self._impl.getDescription(self)
 
     class UserAndTimestamp(Protocol):
@@ -192,52 +202,48 @@ class Commit(api.APIObject):
     ) -> Optional[FileInformation]:
         """Look up information about a file in the commit
 
-           The entry is returned as an Commit.FileInformation object, or None if
-           the path was not found in the commit's tree. If the path is found but
-           is not a blob (e.g. because it's a directory), NotAFile is raised."""
+        The entry is returned as an Commit.FileInformation object, or None if
+        the path was not found in the commit's tree. If the path is found but
+        is not a blob (e.g. because it's a directory), NotAFile is raised."""
         return await self._impl.getFileInformation(file)
 
     async def getFileContents(self, file: api.file.File) -> Optional[bytes]:
         """Fetch the blob (contents) of a file in the commit
 
-           The return value is a `bytes` value, or None if the path was not
-           found in the commit's tree. If the path is found but is not a blob
-           (e.g. because it is a directory), NotAFile is raised."""
+        The return value is a `bytes` value, or None if the path was not
+        found in the commit's tree. If the path is found but is not a blob
+        (e.g. because it is a directory), NotAFile is raised."""
         return await self._impl.getFileContents(file)
 
     async def getFileLines(self, file: api.file.File) -> Optional[Sequence[str]]:
         """Fetch the lines of a file in the commit
 
-           Much like getFileContents(), but splits the returned string into a
-           list of strings in a consistent way that matches how other parts of
-           Critic treats line breaks, and thus compatible with stored line
-           numbers.
+        Much like getFileContents(), but splits the returned string into a
+        list of strings in a consistent way that matches how other parts of
+        Critic treats line breaks, and thus compatible with stored line
+        numbers.
 
-           Note: commit.getFileContents(...).splitlines() is *not* correct!"""
+        Note: commit.getFileContents(...).splitlines() is *not* correct!"""
         return await self._impl.getFileLines(file)
 
 
-class CommitDescription(api.APIObject):
+class CommitDescription(Protocol):
     """A "friendly" description of a commit"""
-
-    @property
-    def id(self) -> int:
-        return int(self.commit)
 
     @property
     def commit(self) -> Commit:
         """The described commit"""
-        return self._impl.commit
+        ...
 
     @property
-    async def branch(self) -> Optional[api.branch.Branch]:
+    def branch(self) -> Optional[api.branch.Branch]:
         """The most significant branch containing the commit, or None
 
-           The branch is returned as an api.branch.Branch object.
+        The branch is returned as an api.branch.Branch object.
 
-           Typically, a branch is counted as more significant than another if it
-           was created in Critic's repository earlier."""
-        return await self._impl.getBranch(self.critic)
+        Typically, a branch is counted as more significant than another if it
+        was created in Critic's repository earlier."""
+        ...
 
     # @property
     # async def tag(self) -> Optional[api.tag.Tag]:
@@ -264,26 +270,24 @@ async def fetch(repository: api.repository.Repository, /, *, ref: str) -> Commit
 
 async def fetch(
     repository: api.repository.Repository,
-    commit_id: int = None,
+    commit_id: Optional[int] = None,
     /,
     *,
-    sha1: SHA1 = None,
-    ref: str = None,
+    sha1: Optional[SHA1] = None,
+    ref: Optional[str] = None,
 ) -> Commit:
     """Fetch a Git commit from the given repository
 
-       The commit can be identified by its unique (internal) database id, its
-       SHA-1 (full 40 character string) or by an arbitrary ref that resolves to
-       a commit object (possibly via tag objects) when given to the
-       'git rev-parse' command."""
-    from .impl import commit as impl
-
-    return await impl.fetch(repository, commit_id, sha1, ref)
+    The commit can be identified by its unique (internal) database id, its
+    SHA-1 (full 40 character string) or by an arbitrary ref that resolves to
+    a commit object (possibly via tag objects) when given to the
+    'git rev-parse' command."""
+    return await fetchImpl.get()(repository, commit_id, sha1, ref)
 
 
 @overload
 async def fetchMany(
-    repository: api.repository.Repository, commit_ids: Iterable[int] = None, /
+    repository: api.repository.Repository, commit_ids: Optional[Iterable[int]] = None, /
 ) -> Sequence[Commit]:
     ...
 
@@ -307,19 +311,17 @@ async def fetchMany(
 
 async def fetchMany(
     repository: api.repository.Repository,
-    commit_ids: Iterable[int] = None,
+    commit_ids: Optional[Iterable[int]] = None,
     /,
     *,
-    sha1s: Iterable[SHA1] = None,
-    low_levels: Iterable[gitaccess.GitCommit] = None,
+    sha1s: Optional[Iterable[SHA1]] = None,
+    low_levels: Optional[Iterable[gitaccess.GitCommit]] = None,
 ) -> Sequence[Commit]:
     """Fetch multiple Git commits from the given repository
 
-       The commits can be identified by their unique (internal) database ids, or
-       by their SHA-1s (full 40 character strings.)"""
-    from .impl import commit as impl
-
-    return await impl.fetchMany(repository, commit_ids, sha1s, low_levels)
+    The commits can be identified by their unique (internal) database ids, or
+    by their SHA-1s (full 40 character strings.)"""
+    return await fetchManyImpl.get()(repository, commit_ids, sha1s, low_levels)
 
 
 Order = Literal["date", "topo"]
@@ -327,48 +329,83 @@ Order = Literal["date", "topo"]
 
 async def fetchRange(
     *,
-    from_commit: api.commit.Commit = None,
+    from_commit: Optional[api.commit.Commit] = None,
     to_commit: api.commit.Commit,
     order: Order = "date",
-    offset: int = None,
-    count: int = None,
+    offset: Optional[int] = None,
+    count: Optional[int] = None,
 ) -> api.commitset.CommitSet:
     """Fetch a range of Git commits
 
-       If `from_commit` is not None, all ancestors of `to_commit` that are
-       descendants of `from_commit` are returned.
+    If `from_commit` is not None, all ancestors of `to_commit` that are
+    descendants of `from_commit` are returned.
 
-       If `from_commit` is None, all ancestors of `to_commit` are returned.
+    If `from_commit` is None, all ancestors of `to_commit` are returned.
 
-       Note: `to_commit` is always included in the result. `from_commit` is
-             never included in the result.
+    Note: `to_commit` is always included in the result. `from_commit` is
+          never included in the result.
 
-       If `order` is "date", the commits are returned in reverse chronological
-       order (but always children before their parents.) If `order` is "topo",
-       commits are primarily ordered such that children immediately preceed
-       their parents. (See documentation for --date-order/--topo-order in
-       git-rev-list(1).)
+    If `order` is "date", the commits are returned in reverse chronological
+    order (but always children before their parents.) If `order` is "topo",
+    commits are primarily ordered such that children immediately preceed
+    their parents. (See documentation for --date-order/--topo-order in
+    git-rev-list(1).)
 
-       If `offset` is not None, the first `offset` commits are skipped. If
-       `count` is not None, at most `count` commits are returned.
+    If `offset` is not None, the first `offset` commits are skipped. If
+    `count` is not None, at most `count` commits are returned.
 
-       The return value is an api.commitset.CommitSet object."""
-    from .impl import commit as impl
-
+    The return value is an api.commitset.CommitSet object."""
     assert from_commit is None or from_commit.repository == to_commit.repository
     assert offset is None or offset >= 0
     assert count is None or count > 0
 
-    return await impl.fetchRange(from_commit, to_commit, order, offset, count)
+    return await fetchRangeImpl.get()(from_commit, to_commit, order, offset, count)
 
 
 async def prefetch(
     repository: api.repository.Repository, commit_ids: Iterable[int]
 ) -> None:
     """Prefetch Git commits from the given repository"""
-    from .impl import commit as impl
-
-    await impl.prefetch(repository, commit_ids)
+    await prefetchImpl.get()(repository, list(commit_ids))
 
 
 resource_name = table_name = "commits"
+
+
+fetchImpl: FunctionRef[
+    Callable[
+        [
+            api.repository.Repository,
+            Optional[int],
+            Optional[SHA1],
+            Optional[str],
+        ],
+        Awaitable[Commit],
+    ]
+] = FunctionRef()
+fetchManyImpl: FunctionRef[
+    Callable[
+        [
+            api.repository.Repository,
+            Optional[Iterable[int]],
+            Optional[Iterable[SHA1]],
+            Optional[Iterable[gitaccess.GitCommit]],
+        ],
+        Awaitable[Sequence[Commit]],
+    ]
+] = FunctionRef()
+fetchRangeImpl: FunctionRef[
+    Callable[
+        [
+            Optional[api.commit.Commit],
+            api.commit.Commit,
+            Order,
+            Optional[int],
+            Optional[int],
+        ],
+        Awaitable[api.commitset.CommitSet],
+    ]
+] = FunctionRef()
+prefetchImpl: FunctionRef[
+    Callable[[api.repository.Repository, Sequence[int]], Awaitable[None]]
+] = FunctionRef()

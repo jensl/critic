@@ -57,7 +57,7 @@ type ParsedSSHKey = {
 }
 
 const parseKey = (
-  rawKey: string
+  rawKey: string,
 ): { parsedSSHKey?: ParsedSSHKey; errorMessage?: string } => {
   const match = /^\s*(\S+)\s+(\S+)(?:\s+(.+))?\s*$/.exec(rawKey)
   if (match) {
@@ -115,14 +115,19 @@ const AccountSSHKeys: FunctionComponent = () => {
   const addKey = async () => {
     if (parsedSSHKey) {
       await dispatch(
-        addSSHKey(user.id, parsedSSHKey.keyType, parsedSSHKey.keyData, keyTitle)
+        addSSHKey(
+          user.id,
+          parsedSSHKey.keyType,
+          parsedSSHKey.keyData,
+          keyTitle,
+        ),
       )
       setRawKey("")
       setKeyTitle("")
     }
   }
   return (
-    <Section id="sshkeys" title="SSH keys">
+    <Section id="ssh-keys" title="SSH keys">
       <Blurb
         className={classes.blurb}
         text={`

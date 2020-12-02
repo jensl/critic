@@ -16,12 +16,11 @@
 
 from __future__ import annotations
 
-from typing import Tuple, Optional, Sequence, Any, Union
+from typing import Tuple, Optional, Sequence, Union
 
-from critic.api import repository
-
-from . import apiobject
 from critic import api
+from critic.api import reviewscope as public
+from . import apiobject
 
 WrapperType = api.reviewscope.ReviewScope
 ArgumentsType = Tuple[int, str]
@@ -35,6 +34,7 @@ class ReviewScope(apiobject.APIObject[WrapperType, ArgumentsType, int]):
         (self.id, self.name) = args
 
 
+@public.fetchImpl
 @ReviewScope.cached
 async def fetch(
     critic: api.critic.Critic, scope_id: Optional[int], name: Optional[str]
@@ -55,9 +55,12 @@ async def fetch(
             raise
 
 
+@public.fetchAllImpl
 async def fetchAll(
     critic: api.critic.Critic,
-    filter: Union[api.repositoryfilter.RepositoryFilter, api.reviewfilter.ReviewFilter],
+    filter: Optional[
+        Union[api.repositoryfilter.RepositoryFilter, api.reviewfilter.ReviewFilter]
+    ],
 ) -> Sequence[WrapperType]:
     joins = []
     conditions = []

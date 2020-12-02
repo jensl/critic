@@ -18,8 +18,9 @@ from __future__ import annotations
 
 from typing import Optional, Tuple, Sequence, Any
 
-from . import apiobject
 from critic import api
+from critic.api import branchsetting as public
+from . import apiobject
 
 
 WrapperType = api.branchsetting.BranchSetting
@@ -37,6 +38,7 @@ class BranchSetting(apiobject.APIObject[WrapperType, ArgumentsType, int]):
         return await api.branch.fetch(critic, self.__branch_id)
 
 
+@public.fetchImpl
 @BranchSetting.cached
 async def fetch(
     critic: api.critic.Critic,
@@ -68,6 +70,7 @@ async def fetch(
             raise api.branchsetting.NotDefined(scope, name)
 
 
+@public.fetchAllImpl
 async def fetchAll(
     critic: api.critic.Critic, branch: Optional[api.branch.Branch], scope: Optional[str]
 ) -> Sequence[WrapperType]:

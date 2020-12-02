@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import stat
 from dataclasses import dataclass
-from typing import Optional, SupportsInt, Tuple
+from typing import Optional, Tuple
 
 from critic import gitaccess
 from critic.diff.parse import ExamineResult
@@ -59,6 +59,17 @@ class ChangedFile:
                 new_lines = None
             self.status = old_lines, new_lines
         return self
+
+    def with_status(self, status: Status) -> ChangedFile:
+        return ChangedFile(
+            self.file_id,
+            self.path,
+            self.old_sha1,
+            self.old_mode,
+            self.new_sha1,
+            self.new_mode,
+            status,
+        )
 
     def __int__(self) -> int:
         return self.required_file_id

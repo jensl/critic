@@ -16,6 +16,8 @@
  * the License.
  */
 
+import { immerable } from "immer"
+
 import { primaryMap } from "../reducers/resource"
 
 type SessionData = {
@@ -33,11 +35,13 @@ type SessionProps = {
 }
 
 class Session {
+  [immerable] = true
+
   constructor(
     readonly user: null | number,
     readonly type: null | "normal" | "accesstoken",
     readonly fields: Field[],
-    readonly providers: Provider[]
+    readonly providers: Provider[],
   ) {}
 
   static new(props: SessionProps) {
@@ -54,7 +58,7 @@ class Session {
 
   static reducer = primaryMap<Session, string>(
     "sessions",
-    (_session) => "current"
+    (_session) => "current",
   )
 
   get props(): SessionProps {
@@ -72,11 +76,13 @@ type FieldData = {
 type FieldProps = FieldData
 
 export class Field {
+  [immerable] = true
+
   constructor(
     readonly identifier: string,
     readonly label: string,
     readonly hidden: boolean,
-    readonly description: string
+    readonly description: string,
   ) {}
 
   static new(props: FieldProps) {
@@ -84,7 +90,7 @@ export class Field {
       props.identifier,
       props.label,
       props.hidden,
-      props.description
+      props.description,
     )
   }
 }
@@ -98,10 +104,12 @@ type ProviderData = {
 type ProviderProps = ProviderData
 
 export class Provider {
+  [immerable] = true
+
   constructor(
     readonly identifier: string,
     readonly title: string,
-    readonly accountIdLabel: string
+    readonly accountIdLabel: string,
   ) {}
 
   static new(props: ProviderProps) {

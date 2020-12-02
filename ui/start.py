@@ -16,32 +16,32 @@
 
 import argparse
 import asyncio
+from asyncio.streams import StreamReader
 import distutils.spawn
-import json
 import os
+from pathlib import Path
 import signal
-import subprocess
 import sys
-import threading
+from typing import Any, Mapping, Optional, TextIO
 
 
-UI_DIR = os.path.dirname(__file__) or "."
+UI_DIR = Path(__file__).parent
 
 
-def executable_argument(name):
+def executable_argument(name: str) -> Mapping[str, Any]:
     path = distutils.spawn.find_executable(name)
     if path is None:
         return {"required": True}
     return {"default": path}
 
 
-async def check_call(*args, **kwargs):
-    process = await asyncio.create_subprocess_exec(*args, **kwargs)
+async def check_call(*args: str, **kwargs: Any) -> None:
+    process = await asyncio.create_subprocess_exec(*args, **kwargs, cwd=str(UI_DIR))
     if await process.wait() != 0:
         raise Exception()
 
 
-async def main():
+async def main() -> int:
     parser = argparse.ArgumentParser(
         "Critic UI builder", formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
@@ -69,10 +69,12 @@ async def main():
 
     arguments = parser.parse_args()
 
-    if not os.path.isdir(os.path.join(UI_DIR, "node_modules")):
-        await check_call(arguments.npm, "install", cwd=UI_DIR)
+    if not (UI_DIR / "node_modules").is_dir():
+        await check_call(arguments.npm, "install")
     elif arguments.update:
-        await check_call(arguments.npm, "update", cwd=UI_DIR)
+        await check_call(arguments.npm, "update")
+
+    await check_call(sys.executable, "src/extensions/generate.py")
 
     security = "s" if arguments.backend_tls else ""
 
@@ -83,20 +85,24 @@ async def main():
 
     process = await asyncio.create_subprocess_exec(
         arguments.npm,
-        "start",
-        cwd=UI_DIR,
+        "run-script",
+        "serve",
+        cwd=str(UI_DIR),
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
         env=env,
     )
 
-    async def filter_output(source, target, name):
+    async def filter_output(
+        source: Optional[StreamReader], target: TextIO, name: str
+    ) -> None:
+        assert source
         while True:
             raw_line = await source.readline()
             if not raw_line:
                 break
             line = raw_line.decode().rstrip()
-            print("[react-scripts/%s] %s" % (name, line), file=target)
+            print("[webpack/%s] %s" % (name, line), file=target)
             target.flush()
 
     stdout_task = asyncio.ensure_future(
@@ -106,7 +112,7 @@ async def main():
         filter_output(process.stderr, sys.stderr, "stderr")
     )
 
-    def terminate(*args):
+    def terminate(*args: Any):
         process.terminate()
 
     asyncio.get_event_loop().add_signal_handler(signal.SIGTERM, terminate)
@@ -114,10 +120,10 @@ async def main():
 
     wait_task = asyncio.ensure_future(process.wait())
 
-    await asyncio.wait([stdout_task, stderr_task, wait_task])
+    await asyncio.wait((stdout_task, stderr_task, wait_task))
 
     return wait_task.result()
 
 
 if __name__ == "__main__":
-    sys.exit(asyncio.get_event_loop().run_until_complete(main()) or 0)
+    sys.exit(asyncio.run(main()))

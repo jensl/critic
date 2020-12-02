@@ -16,6 +16,8 @@
  * the License.
  */
 
+import { immerable } from "immer"
+
 import { primaryMap } from "../reducers/resource"
 
 type UserSSHKeyData = {
@@ -31,6 +33,8 @@ type UserSSHKeyData = {
 type UserSSHKeyProps = UserSSHKeyData
 
 class UserSSHKey {
+  [immerable] = true
+
   constructor(
     readonly id: number,
     readonly user: number,
@@ -38,7 +42,7 @@ class UserSSHKey {
     readonly key: string,
     readonly comment: string,
     readonly bits: number,
-    readonly fingerprint: string
+    readonly fingerprint: string,
   ) {}
 
   static new(props: UserSSHKeyProps) {
@@ -49,7 +53,7 @@ class UserSSHKey {
       props.key,
       props.comment,
       props.bits,
-      props.fingerprint
+      props.fingerprint,
     )
   }
 

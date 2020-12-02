@@ -38,15 +38,17 @@ from contextlib import asynccontextmanager
 logger = logging.getLogger("critic.background.pubsub")
 
 from critic import api
+from critic import dbaccess
 
 from . import protocol
 from ..binaryprotocol import BinaryProtocolClient, BinaryProtocol
 from ..service import BackgroundService, call
 
 
-class PubSubClient(
-    BinaryProtocolClient[protocol.ClientMessage, protocol.ServerMessage]
-):
+ClientBase = BinaryProtocolClient[protocol.ClientMessage, protocol.ServerMessage]
+
+
+class PubSubClient(ClientBase):
     def __init__(self, *args: Any, **kwargs: Any):
         super().__init__(*args, **kwargs)
         self.name = "(unknown)"
@@ -127,7 +129,7 @@ class Channel:
         return (self.name, self.for_requests)
 
     def __repr__(self) -> str:
-        return f"<Channel name={self.name!r} id={id(self)!r}>"
+        return f"<Channel name={self.name!r}>"
 
     async def subscribe(
         self, client: PubSubClient, reservation_id: Optional[protocol.ReservationId]
@@ -232,7 +234,7 @@ class Request:
 
 class PubSubService(
     BackgroundService,
-    BinaryProtocol[PubSubClient, protocol.ClientMessage, protocol.ServerMessage],
+    BinaryProtocol[protocol.ClientMessage, protocol.ServerMessage],
 ):
     name = "pubsub"
 
@@ -282,7 +284,9 @@ class PubSubService(
 
     async def update_reservations(self) -> None:
         logger.info("Updating channel reservations")
-        per_channel = defaultdict(set)
+        per_channel: Dict[
+            protocol.ChannelName, Set[protocol.ReservationId]
+        ] = defaultdict(set)
         async with self.start_session() as critic:
             async with critic.query(
                 "SELECT reservation_id, channel FROM pubsubreservations"
@@ -309,7 +313,7 @@ class PubSubService(
         channel: Channel,
         message: protocol.ClientRequest,
         *,
-        timeout: int = 60,
+        timeout: int = 300,
     ) -> None:
         assert channel.for_requests
         request_id = message.request_id
@@ -361,8 +365,12 @@ class PubSubService(
             )
 
     async def dispatch_message(
-        self, client: PubSubClient, message: protocol.ClientMessage
+        self,
+        client: ClientBase,
+        message: protocol.ClientMessage,
     ) -> AsyncIterator[protocol.ServerMessage]:
+        assert isinstance(client, PubSubClient)
+
         def get_channels(
             *names: protocol.ChannelName, create: bool, for_requests: bool
         ) -> Set[Channel]:
@@ -372,11 +380,11 @@ class PubSubService(
                 if (channel := self.get_channel(name, create, for_requests))
             }
 
-        logger.debug(f"dispatch: {client=} {message=}")
-
         if isinstance(message, protocol.ClientHello):
             logger.debug(
-                "client says hello: %s [pid=%d]", message.name, message.pid,
+                "client says hello: %s [pid=%d]",
+                message.name,
+                message.pid,
             )
             client.name = message.name
             client.pid = message.pid
@@ -384,7 +392,8 @@ class PubSubService(
             self.check_future(client.deliver_messages())
         elif isinstance(message, protocol.ClientClose):
             logger.debug(
-                "client says good buy: %r", client,
+                "client says good buy: %r",
+                client,
             )
         elif isinstance(message, protocol.ClientPublish):
             channels = set()
@@ -444,9 +453,9 @@ class PubSubService(
             ):
                 logger.debug("unsubscribing client from channel: %s", channel.name)
                 channel.unsubscribe(client, message.reservation_id)
-                if not channel:
+                if channel.empty:
                     del self.channels[channel.key]
-        elif isinstance(message, protocol.ClientHandleRequests):
+        elif isinstance(message, protocol.ClientHandleRequests):  # type: ignore
             for channel in get_channels(
                 message.channel, create=True, for_requests=True
             ):
@@ -463,7 +472,7 @@ class PubSubService(
         self,
         client: PubSubClient,
         channel: Channel,
-        reservation_id: protocol.ReservationId = None,
+        reservation_id: Optional[protocol.ReservationId] = None,
     ) -> None:
         await channel.subscribe(client, reservation_id)
         if reservation_id is not None:
@@ -507,11 +516,14 @@ class PubSubService(
                     "pubsubmessages",
                     {"payload": pickle.dumps(payload)},
                     returning="message_id",
+                    value_type=protocol.MessageId,
                 )
                 await cursor.insertmany(
                     "pubsubreservedmessages",
                     (
-                        dict(reservation_id=reservation_id, message_id=message_id)
+                        dbaccess.parameters(
+                            reservation_id=reservation_id, message_id=message_id
+                        )
                         for reservation_id in reservation_ids
                     ),
                 )
@@ -540,14 +552,20 @@ class PubSubService(
                 ) as result:
                     prune_message = await result.empty()
                 if prune_message:
-                    cursor.delete("pubsubmessages", message_id=message_id)
+                    await cursor.delete("pubsubmessages", message_id=message_id)
                     logger.debug(f"{message_id=}: stored reserved message pruned")
 
-    def client_connected(self, client: PubSubClient) -> None:
-        logger.debug("client connected")
+    def client_connected(
+        self,
+        client: ClientBase,
+    ) -> None:
+        pass
 
-    def client_disconnected(self, client: PubSubClient) -> None:
-        logger.debug("client disconnected: %s", client.name)
+    def client_disconnected(
+        self,
+        client: ClientBase,
+    ) -> None:
+        assert isinstance(client, PubSubClient)
         empty_channels = set()
         for channel in self.channels.values():
             channel.unsubscribe(client)

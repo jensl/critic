@@ -22,8 +22,9 @@ from typing import Tuple, Optional, Sequence, Iterable
 
 logger = logging.getLogger(__name__)
 
-from . import apiobject
 from critic import api
+from critic.api import reviewevent as public
+from . import apiobject
 
 WrapperType = api.reviewevent.ReviewEvent
 ArgumentsType = Tuple[int, int, int, api.reviewevent.EventType, datetime.datetime]
@@ -54,6 +55,7 @@ class ReviewEvent(apiobject.APIObject[WrapperType, ArgumentsType, int]):
         return await api.user.fetch(critic, self.__user_id)
 
 
+@public.fetchImpl
 @ReviewEvent.cached
 async def fetch(critic: api.critic.Critic, event_id: int) -> WrapperType:
     async with ReviewEvent.query(
@@ -62,6 +64,7 @@ async def fetch(critic: api.critic.Critic, event_id: int) -> WrapperType:
         return await ReviewEvent.makeOne(critic, result)
 
 
+@public.fetchManyImpl
 @ReviewEvent.cachedMany
 async def fetchMany(
     critic: api.critic.Critic, event_ids: Iterable[int]
@@ -72,6 +75,7 @@ async def fetchMany(
         return await ReviewEvent.make(critic, result)
 
 
+@public.fetchAllImpl
 async def fetchAll(
     critic: api.critic.Critic,
     review: Optional[api.review.Review],

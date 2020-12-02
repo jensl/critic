@@ -16,10 +16,9 @@
 
 from __future__ import annotations
 
-import binascii
 import io
 import stat
-from typing import Dict, Type, Literal, TypeVar, Iterable, FrozenSet, cast
+from typing import Collection, Dict, Optional, Type, Literal, TypeVar, Iterable, cast
 
 from . import GitError, SHA1, as_sha1
 from .gitusertime import GitUserTime
@@ -27,7 +26,7 @@ from .gitusertime import GitUserTime
 from critic import textutils
 
 ObjectType = Literal["blob", "commit", "tag", "tree"]
-OBJECT_TYPES: FrozenSet[ObjectType] = frozenset({"blob", "commit", "tag", "tree"})
+OBJECT_TYPES: Collection[ObjectType] = frozenset(("blob", "commit", "tag", "tree"))
 
 
 def asObjectType(value: str) -> ObjectType:
@@ -90,13 +89,15 @@ class GitObject:
 
 
 class GitRawObject(GitObject):
+    object_type: ObjectType
+
     def __init__(self, sha1: SHA1, object_type: ObjectType, data: bytes):
         super().__init__(sha1, object_type, data)
         self.object_type = object_type
         self.data = data
 
-    @staticmethod
-    def fromRawObject(raw_object: GitRawObject) -> GitRawObject:
+    @classmethod
+    def fromRawObject(cls, raw_object: GitRawObject) -> GitRawObject:
         return raw_object
 
     @staticmethod
@@ -229,8 +230,8 @@ class GitTreeEntry:
         name: str,
         sha1: SHA1,
         *,
-        object_type: ObjectType = None,
-        size: int = None
+        object_type: Optional[ObjectType] = None,
+        size: Optional[int] = None
     ):
         self.mode = mode
         self.name = name

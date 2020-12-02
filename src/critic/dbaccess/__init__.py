@@ -21,7 +21,6 @@ import contextlib
 import logging
 import re
 import time
-import types
 from collections import defaultdict
 from typing import (
     Any,
@@ -33,8 +32,6 @@ from typing import (
     Collection,
     Coroutine,
     DefaultDict,
-    Dict,
-    FrozenSet,
     Generator,
     Iterable,
     Iterator,
@@ -42,9 +39,7 @@ from typing import (
     Literal,
     Mapping,
     Optional,
-    Protocol,
     Sequence,
-    Sized,
     Tuple,
     Type,
     TypeVar,
@@ -55,20 +50,24 @@ from typing import (
 
 logger = logging.getLogger(__name__)
 
-from .formatter import (
-    SQLValue,
+from critic import base
+from .formatter import StatementFormatter
+from .lowlevel import LowLevelCursor, LowLevelConnection, LowLevelConnectionPool
+from .types import (
     Adaptable,
+    ExecuteArguments,
     Parameter,
     Parameters,
-    StatementFormatter,
-    ExecuteArguments,
+    SQLRow,
+    SQLValue,
     adapt,
+    parameters,
 )
 from .utils import analyze_query
-from critic import base
 
-pool = None
-formatter = None
+
+_pool: Optional[LowLevelConnectionPool] = None
+_formatter: Optional[StatementFormatter] = None
 
 
 def pretty(sql: str) -> str:
@@ -98,9 +97,9 @@ class DetachedResultSet(Error):
 class Deadlock(Error):
     """Attempt to execute a nested command in the same asyncio.Task
 
-       Executing a command in a different task will block until the current
-       command has finished. This can potentially also be a deadlock situation,
-       but that is not detected."""
+    Executing a command in a different task will block until the current
+    command has finished. This can potentially also be a deadlock situation,
+    but that is not detected."""
 
     pass
 
@@ -108,10 +107,10 @@ class Deadlock(Error):
 class TransactionInterference(Error):
     """Attempt to execute a command from a different asyncio.Task
 
-       This is raised when a transaction is active, and a different asyncio.Task
-       than the one that started the transaction tries to execute some command.
-       Typically, an active transaction should mean exclusive access to the
-       database."""
+    This is raised when a transaction is active, and a different asyncio.Task
+    than the one that started the transaction tries to execute some command.
+    Typically, an active transaction should mean exclusive access to the
+    database."""
 
     pass
 
@@ -151,28 +150,10 @@ class Token:
     pass
 
 
-class LowLevelConnection(Protocol):
-    @property
-    def cursor(self) -> LowLevelCursor:
-        ...
-
-    async def begin(self) -> None:
-        ...
-
-    async def commit(self) -> None:
-        ...
-
-    async def rollback(self) -> None:
-        ...
-
-    async def close(self) -> None:
-        ...
-
-
 class Connection:
     __transaction: Optional[Transaction]
     __lock: asyncio.Lock
-    __locked_by: Optional[asyncio.Task]
+    __locked_by: Optional["asyncio.Task[Any]"]
     __locked_token: Optional[Token]
     __accounting: Optional[Accounting]
 
@@ -204,12 +185,15 @@ class Connection:
     @contextlib.contextmanager
     def record_statement(
         self, statement: str
-    ) -> Iterator[Callable[[Union[int, ResultSet]], None]]:
+    ) -> Iterator[Callable[[Union[int, ResultSet[Any]]], None]]:
+        def do_nothing(rows: Union[int, ResultSet[Any]]) -> None:
+            pass
+
         if self.__accounting is None:
-            yield lambda rows: None
+            yield do_nothing
             return
 
-        def set_rows(rows: Union[int, ResultSet]) -> None:
+        def set_rows(rows: Union[int, ResultSet[Any]]) -> None:
             after = time.clock_gettime(time.CLOCK_REALTIME)
             assert self.__accounting
             if isinstance(rows, ResultSet):
@@ -241,8 +225,8 @@ class Connection:
         self,
         cursor: BasicCursor,
         query: str,
-        for_update: bool = None,
-        returning: str = None,
+        for_update: Optional[bool] = None,
+        returning: Optional[str] = None,
     ) -> None:
         try:
             command = analyze_query(query)
@@ -258,13 +242,13 @@ class Connection:
             logger.error("invalid query: %r", query)
             raise
 
-    def cursor(self, token: Token = None) -> BasicCursor:
+    def cursor(self, token: Optional[Token] = None) -> BasicCursor:
         return BasicCursor(self, self.__low_level.cursor, token)
 
     @contextlib.asynccontextmanager
     async def query(
         self, query: str, **parameters: Parameters
-    ) -> AsyncIterator[ResultSet]:
+    ) -> AsyncIterator[ResultSet[SQLRow]]:
         cursor: BasicCursor
 
         # If we have an current transaction, return the cursor that belongs to
@@ -284,6 +268,9 @@ class Connection:
                 yield result
 
     def transaction(self) -> Transaction:
+        if self.__transaction:
+            raise Exception("Already in a transaction!")
+
         async def start() -> None:
             self.__transaction = transaction
 
@@ -299,7 +286,7 @@ class Connection:
 
     @contextlib.asynccontextmanager
     async def lock(
-        self, description: str, token: Token = None
+        self, description: str, token: Optional[Token] = None
     ) -> AsyncIterator[Optional[Token]]:
         current_task = asyncio.current_task()
         if current_task is self.__locked_by:
@@ -355,7 +342,10 @@ class BasicCursor:
     MultipleColumnsInResult = MultipleColumnsInResult
 
     def __init__(
-        self, connection: Connection, low_level: LowLevelCursor, token: Token = None
+        self,
+        connection: Connection,
+        low_level: LowLevelCursor,
+        token: Optional[Token] = None,
     ) -> None:
         self._connection = connection
         self._low_level = low_level
@@ -406,7 +396,7 @@ class TransactionCursor(BasicCursor):
         query: str,
         *,
         for_update: bool = False,
-        returning: str = None,
+        returning: Optional[str] = None,
         **kwargs: Parameter,
     ) -> AsyncIterator[ResultSet[SQLRow]]:
         if self._low_level is None:
@@ -459,8 +449,13 @@ class TransactionCursor(BasicCursor):
 
     @overload
     async def insert(
-        self, table_name: str, columns: Mapping[str, Parameter], *, returning: str
-    ) -> SQLValue:
+        self,
+        table_name: str,
+        columns: Mapping[str, Parameter],
+        *,
+        returning: str,
+        value_type: Type[ValueType],
+    ) -> ValueType:
         ...
 
     @overload
@@ -472,12 +467,13 @@ class TransactionCursor(BasicCursor):
         table_name: str,
         columns: Mapping[str, Parameter],
         *,
-        returning: str = None,
-    ) -> Optional[SQLValue]:
+        returning: Optional[str] = None,
+        value_type: Optional[Type[ValueType]] = None,
+    ) -> Optional[ValueType]:
         statement = self._insert_statement(table_name, list(columns.keys()))
         if returning is not None:
             async with self.query(statement, returning=returning, **columns) as result:
-                return cast(SQLValue, await result.scalar())
+                return cast(ValueType, await result.scalar())
         await self.execute(statement, **columns)
         return None
 
@@ -487,7 +483,6 @@ class TransactionCursor(BasicCursor):
             row = next(rows)
         except StopIteration:
             return
-        assert isinstance(row, dict), repr(row)
         await self.executemany(
             self._insert_statement(table_name, list(row.keys())), [row, *rows]
         )
@@ -500,12 +495,16 @@ class TransactionCursor(BasicCursor):
         )
 
 
+class CommitCallbacksFailed(Exception):
+    pass
+
+
 class Transaction(AsyncContextManager[TransactionCursor]):
     __state: Literal["created", "active", "commit", "rollback"]
     __cursor: Optional[TransactionCursor]
-    __future: asyncio.Future
-    __commit_callbacks: List[Callable[[], None]]
-    __rollback_callbacks: List[Callable[[], None]]
+    __future: "asyncio.Future[bool]"
+    __commit_callbacks: List[Callable[[], Awaitable[None]]]
+    __rollback_callbacks: List[Callable[[], Awaitable[None]]]
 
     def __init__(
         self,
@@ -536,11 +535,11 @@ class Transaction(AsyncContextManager[TransactionCursor]):
         assert self.__cursor
         return self.__cursor
 
-    def add_commit_callback(self, callback: Callable[[], None]) -> None:
+    def add_commit_callback(self, callback: Callable[[], Awaitable[None]]) -> None:
         assert self.__state in ("created", "active")
         self.__commit_callbacks.append(callback)
 
-    def add_rollback_callback(self, callback: Callable[[], None]) -> None:
+    def add_rollback_callback(self, callback: Callable[[], Awaitable[None]]) -> None:
         assert self.__state in ("created", "active")
         self.__rollback_callbacks.append(callback)
 
@@ -556,24 +555,27 @@ class Transaction(AsyncContextManager[TransactionCursor]):
         return self.__cursor
 
     async def __aexit__(self, exc_type: Any, exc: Any, tb: Any) -> None:
-        def signal_callbacks(callbacks: Collection[Callable[[], None]]) -> None:
+        async def signal_callbacks(
+            callbacks: Collection[Callable[[], Awaitable[None]]]
+        ) -> bool:
+            failed = False
             for callback in callbacks:
                 try:
-                    callback()
+                    await callback()
                 except Exception as error:
                     logger.exception(
                         f"transaction post commit callback failed: {error}"
                     )
+                    failed = True
+            return not failed
 
         async def commit() -> None:
             await self.__low_level.commit()
             self.__state = "commit"
-            signal_callbacks(self.__commit_callbacks)
 
         async def rollback() -> None:
             await self.__low_level.rollback()
             self.__state = "rollback"
-            signal_callbacks(self.__rollback_callbacks)
 
         try:
             async with self.__connection.lock("transaction end"):
@@ -585,7 +587,12 @@ class Transaction(AsyncContextManager[TransactionCursor]):
                         raise
                 else:
                     await rollback()
+            if self.__state == "commit":
+                if not await signal_callbacks(self.__commit_callbacks):
+                    raise CommitCallbacksFailed()
         finally:
+            if self.__state == "rollback":
+                await signal_callbacks(self.__rollback_callbacks)
             self.__done()
             self.__future.set_result(True)
 
@@ -603,28 +610,11 @@ class NoDefault:
     pass
 
 
-SQLRow = Tuple[SQLValue, ...]
-
-
-class LowLevelCursor(Protocol):
-    @property
-    def rowcount(self) -> int:
-        ...
-
-    async def execute(self, statement: str, arguments: ExecuteArguments = None) -> None:
-        ...
-
-    async def fetchall(self) -> Sequence[SQLRow]:
-        ...
-
-    async def fetchone(self) -> SQLRow:
-        ...
-
-
 FETCH_EAGERLY = False
 
 
 RowType = TypeVar("RowType")
+ValueType = TypeVar("ValueType")
 
 
 class ResultSet(AsyncIterable[RowType]):
@@ -698,7 +688,7 @@ class ResultSet(AsyncIterable[RowType]):
         return await self.scalar(default=None)
 
     async def scalars(self) -> Sequence[RowType]:
-        rows = cast(Sequence[tuple], await self.all())
+        rows = cast(Sequence[Tuple[RowType]], await self.all())
         if not rows:
             return []
         if len(rows[0]) > 1:
@@ -736,17 +726,6 @@ class ResultSet(AsyncIterable[RowType]):
         return row
 
 
-class LowLevelConnectionPool(Protocol):
-    def acquire(self) -> AsyncContextManager[LowLevelConnection]:
-        ...
-
-    def terminate(self) -> None:
-        ...
-
-    async def wait_closed(self) -> None:
-        ...
-
-
 class Query(AsyncContextManager[ResultSet[RowType]]):
     # inner: AsyncContextManager[ResultSet[RowType]]
 
@@ -762,7 +741,7 @@ class Query(AsyncContextManager[ResultSet[RowType]]):
         self,
         exc_type: Optional[Type[BaseException]],
         exc: Optional[BaseException],
-        tb: Optional[types.TracebackType],
+        tb: Optional[Any],
     ) -> Any:
         return await self.inner.__aexit__(exc_type, exc, tb)
 
@@ -778,8 +757,11 @@ class Insert(Awaitable[ScalarType]):
         columns: Mapping[str, Parameter],
         *,
         returning: str,
+        value_type: Type[ScalarType],
     ):
-        self.inner = cursor.insert(table_name, columns, returning=returning)
+        self.inner = cursor.insert(
+            table_name, columns, returning=returning, value_type=value_type
+        )
 
     def __await__(self) -> Generator[Any, None, ScalarType]:
         return cast(Generator[Any, None, ScalarType], self.inner.__await__())
@@ -796,12 +778,12 @@ from .postgresql import (
 
 
 async def setup() -> Tuple[LowLevelConnectionPool, StatementFormatter]:
-    global pool, formatter
-    if pool is None:
+    global _pool, _formatter
+    if _pool is None or _formatter is None:
         configuration = base.configuration()
-        pool = await create_pool(configuration)
-        formatter = await create_formatter(configuration)
-    return pool, formatter
+        _pool = await create_pool(configuration)
+        _formatter = await create_formatter(configuration)
+    return _pool, _formatter
 
 
 @contextlib.asynccontextmanager
@@ -813,11 +795,19 @@ async def connection() -> AsyncIterator[Connection]:
 
 
 async def shutdown() -> None:
-    global pool
-    if pool is not None:
-        pool.terminate()
-        await pool.wait_closed()
-        pool = None
+    global _pool
+    if _pool is not None:
+        _pool.terminate()
+        await _pool.wait_closed()
+        _pool = None
 
 
-__all__ = ["Adaptable", "adapt"]
+__all__ = [
+    "Adaptable",
+    "adapt",
+    "parameters",
+    "IntegrityError",
+    "OperationalError",
+    "ProgrammingError",
+    "TransactionRollbackError",
+]

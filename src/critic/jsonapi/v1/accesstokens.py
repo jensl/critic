@@ -17,29 +17,28 @@
 from __future__ import annotations
 
 import logging
-from typing import Literal, FrozenSet, Optional, Sequence
+from typing import Optional, Sequence
 
 logger = logging.getLogger(__name__)
 
 from critic import api
-from critic import jsonapi
+from critic.api.transaction.accesstoken.modify import ModifyAccessToken
 
 from critic.api.accesstoken import ACCESS_TYPES
 
-from .accesscontrolprofiles import (
-    RULE_VALUES,
-    CATEGORIES,
-    HTTP_EXCEPTION,
-    REPOSITORIES_EXCEPTION,
-    EXTENSION_EXCEPTION,
-    PROFILE,
-    updateProfile,
-)
+from ..check import convert
+from ..exceptions import PathError, UsageError
+from ..resourceclass import ResourceClass
+from ..parameters import Parameters
+from ..types import JSONInput, JSONResult
+from ..utils import numeric_id
+from ..values import Values
+from .accesscontrolprofiles import PROFILE, updateProfile
 
 
 async def modifyAccessToken(
     transaction: api.transaction.Transaction, access_token: api.accesstoken.AccessToken
-) -> api.transaction.accesstoken.ModifyAccessToken:
+) -> ModifyAccessToken:
     user = await access_token.user
     if user:
         return await transaction.modifyUser(user).modifyAccessToken(access_token)
@@ -47,7 +46,7 @@ async def modifyAccessToken(
 
 
 class AccessTokens(
-    jsonapi.ResourceClass[api.accesstoken.AccessToken], api_module=api.accesstoken
+    ResourceClass[api.accesstoken.AccessToken], api_module=api.accesstoken
 ):
     """Access tokens."""
 
@@ -55,16 +54,16 @@ class AccessTokens(
 
     @staticmethod
     async def json(
-        parameters: jsonapi.Parameters, value: api.accesstoken.AccessToken
-    ) -> jsonapi.JSONResult:
+        parameters: Parameters, value: api.accesstoken.AccessToken
+    ) -> JSONResult:
         """AccessToken {
-             "id": integer,
-             "access_type": "user", "anonymous" or "system",
-             "user": integer or null,
-             "token": string,
-             "title": string or null,
-             "profile": integer or null,
-           }"""
+          "id": integer,
+          "access_type": "user", "anonymous" or "system",
+          "user": integer or null,
+          "token": string,
+          "title": string or null,
+          "profile": integer or null,
+        }"""
 
         # Make sure that only administrator users can access other user's access
         # tokens or access tokens that do not belong to any user.
@@ -74,7 +73,7 @@ class AccessTokens(
         ):
             api.PermissionDenied.raiseUnlessAdministrator(parameters.critic)
 
-        data: jsonapi.JSONResult = {
+        data: JSONResult = {
             "id": value.id,
             "access_type": value.access_type,
             "user": value.user,
@@ -88,41 +87,37 @@ class AccessTokens(
 
         return data
 
-    @staticmethod
+    @classmethod
     async def single(
-        parameters: jsonapi.Parameters, argument: str
+        cls, parameters: Parameters, argument: str
     ) -> api.accesstoken.AccessToken:
         """Retrieve one (or more) access tokens.
 
-           TOKEN_ID : integer
+        TOKEN_ID : integer
 
-           Retrieve an access token identified by its unique numeric id."""
+        Retrieve an access token identified by its unique numeric id."""
 
         if not api.critic.settings().authentication.enable_access_tokens:
-            raise jsonapi.UsageError("Access token support is disabled")
+            raise UsageError("Access token support is disabled")
 
-        value = await api.accesstoken.fetch(
-            parameters.critic, jsonapi.numeric_id(argument)
-        )
+        value = await api.accesstoken.fetch(parameters.critic, numeric_id(argument))
 
         if "users" in parameters.context:
             if await value.user != parameters.context["users"]:
-                raise jsonapi.PathError(
-                    "Access token does not belong to specified user"
-                )
+                raise PathError("Access token does not belong to specified user")
 
         return value
 
     @staticmethod
     async def multiple(
-        parameters: jsonapi.Parameters,
+        parameters: Parameters,
     ) -> Sequence[api.accesstoken.AccessToken]:
         """All access tokens."""
 
         if not api.critic.settings().authentication.enable_access_tokens:
-            raise jsonapi.UsageError("Access token support is disabled")
+            raise UsageError("Access token support is disabled")
 
-        user = await Users.deduce(parameters)
+        user = await parameters.deduce(api.user.User)
 
         # Only administrators are allowed to access all access tokens in the
         # system.
@@ -133,12 +128,14 @@ class AccessTokens(
 
     @staticmethod
     async def create(
-        parameters: jsonapi.Parameters, data: jsonapi.JSONInput
+        parameters: Parameters, data: JSONInput
     ) -> api.accesstoken.AccessToken:
         critic = parameters.critic
-        user = parameters.context.get("users", critic.actual_user)
 
-        converted = await jsonapi.convert(
+        user = parameters.in_context(api.user.User, critic.actual_user)
+        assert user
+
+        converted = await convert(
             parameters,
             {"access_type?": ACCESS_TYPES, "title?": str, "profile?": PROFILE},
             data,
@@ -148,30 +145,33 @@ class AccessTokens(
 
         async with api.transaction.start(critic) as transaction:
             if access_type == "user":
-                modifier = transaction.modifyUser(user).createAccessToken(
-                    converted.get("title")
-                )
+                modifier, token_value = await transaction.modifyUser(
+                    user
+                ).createAccessToken(converted.get("title"))
             else:
-                modifier = transaction.createAccessToken(
+                modifier, token_value = await transaction.createAccessToken(
                     access_type, converted.get("title")
                 )
 
             if "profile" in converted:
-                updateProfile(await modifier.modifyProfile(), converted["profile"])
+                await updateProfile(
+                    await modifier.modifyProfile(), converted["profile"]
+                )
 
-            parameters.context["AccessToken.token"] = modifier.created.token
+            parameters.context["AccessToken.token"] = token_value
 
-        return await modifier
+            return modifier.subject
 
-    @staticmethod
+    @classmethod
     async def update(
-        parameters: jsonapi.Parameters,
-        values: jsonapi.Values[api.accesstoken.AccessToken],
-        data: jsonapi.JSONInput,
+        cls,
+        parameters: Parameters,
+        values: Values[api.accesstoken.AccessToken],
+        data: JSONInput,
     ) -> None:
         critic = parameters.critic
 
-        converted = await jsonapi.check.convert(
+        converted = await convert(
             parameters, {"title?": str, "profile?": PROFILE}, data
         )
 
@@ -180,34 +180,31 @@ class AccessTokens(
                 modifier = await modifyAccessToken(transaction, access_token)
 
                 if "title" in converted:
-                    modifier.setTitle(converted["title"])
+                    await modifier.setTitle(converted["title"])
 
                 if "profile" in converted:
-                    updateProfile(await modifier.modifyProfile(), converted["profile"])
+                    await updateProfile(
+                        await modifier.modifyProfile(), converted["profile"]
+                    )
 
-    @staticmethod
+    @classmethod
     async def delete(
-        parameters: jsonapi.Parameters,
-        values: jsonapi.Values[api.accesstoken.AccessToken],
+        cls,
+        parameters: Parameters,
+        values: Values[api.accesstoken.AccessToken],
     ) -> None:
         critic = parameters.critic
 
-        async with api.transaction.Transaction(critic) as transaction:
+        async with api.transaction.start(critic) as transaction:
             for access_token in values:
                 modifier = await modifyAccessToken(transaction, access_token)
-                modifier.delete()
+                await modifier.delete()
 
-    @staticmethod
-    async def setAsContext(
-        parameters: jsonapi.Parameters, token: api.accesstoken.AccessToken
-    ) -> None:
-        parameters.setContext(AccessTokens.name, token)
-
-    @staticmethod
+    @classmethod
     async def deduce(
-        parameters: jsonapi.Parameters,
+        cls, parameters: Parameters
     ) -> Optional[api.accesstoken.AccessToken]:
-        return parameters.context.get(AccessTokens.name)
+        return parameters.in_context(api.accesstoken.AccessToken)
 
 
 from .users import Users

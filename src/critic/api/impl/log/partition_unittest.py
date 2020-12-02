@@ -14,7 +14,7 @@ def basic():
         return api.review.fetch(critic, branch=branch)
 
     def check_partition(partition):
-        assert isinstance(partition, api.log.partition.Partition)
+        assert isinstance(partition, api.partition.Partition)
 
     def check_commits(commits, summaries):
         assert isinstance(commits, api.commitset.CommitSet)
@@ -24,9 +24,9 @@ def basic():
 
     def check_following(partition, rebase_class):
         edge = partition.following
-        assert isinstance(edge, api.log.partition.Partition.Edge)
+        assert isinstance(edge, api.partition.Partition.Edge)
         assert isinstance(edge.rebase, rebase_class)
-        assert isinstance(edge.partition, api.log.partition.Partition)
+        assert isinstance(edge.partition, api.partition.Partition)
         assert edge.partition is not partition
         mirror = edge.partition.preceding
         assert mirror.partition is partition
@@ -44,7 +44,7 @@ def basic():
         partition.commits,
         ["Test #1, commit 6", "Test #1, commit 5", "Test #1, commit 4"],
     )
-    partition = check_following(partition, api.log.rebase.HistoryRewrite)
+    partition = check_following(partition, api.rebase.HistoryRewrite)
     check_partition(partition)
     check_commits(
         partition.commits,
@@ -61,13 +61,13 @@ def basic():
     assert partition.preceding is None
     check_partition(partition)
     check_commits(partition.commits, [])
-    partition = check_following(partition, api.log.rebase.MoveRebase)
+    partition = check_following(partition, api.rebase.MoveRebase)
     check_partition(partition)
     check_commits(partition.commits, [])
-    partition = check_following(partition, api.log.rebase.HistoryRewrite)
+    partition = check_following(partition, api.rebase.HistoryRewrite)
     check_partition(partition)
     check_commits(partition.commits, [])
-    partition = check_following(partition, api.log.rebase.MoveRebase)
+    partition = check_following(partition, api.rebase.MoveRebase)
     check_partition(partition)
     check_commits(
         partition.commits,
@@ -83,13 +83,13 @@ def basic():
     assert partition.preceding is None
     check_partition(partition)
     check_commits(partition.commits, [])
-    partition = check_following(partition, api.log.rebase.MoveRebase)
+    partition = check_following(partition, api.rebase.MoveRebase)
     check_partition(partition)
     check_commits(partition.commits, [])
-    partition = check_following(partition, api.log.rebase.HistoryRewrite)
+    partition = check_following(partition, api.rebase.HistoryRewrite)
     check_partition(partition)
     check_commits(partition.commits, [])
-    partition = check_following(partition, api.log.rebase.MoveRebase)
+    partition = check_following(partition, api.rebase.MoveRebase)
     check_partition(partition)
     check_commits(
         partition.commits,
@@ -105,7 +105,7 @@ def basic():
     assert partition.preceding is None
     check_partition(partition)
     check_commits(partition.commits, [])
-    partition = check_following(partition, api.log.rebase.MoveRebase)
+    partition = check_following(partition, api.rebase.MoveRebase)
     check_partition(partition)
     check_commits(
         partition.commits,
@@ -126,10 +126,10 @@ def basic():
     assert partition.preceding is None
     check_partition(partition)
     check_commits(partition.commits, [])
-    partition = check_following(partition, api.log.rebase.MoveRebase)
+    partition = check_following(partition, api.rebase.MoveRebase)
     check_partition(partition)
     check_commits(partition.commits, [])
-    partition = check_following(partition, api.log.rebase.HistoryRewrite)
+    partition = check_following(partition, api.rebase.HistoryRewrite)
     check_partition(partition)
     check_commits(
         partition.commits,

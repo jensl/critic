@@ -16,11 +16,11 @@
 
 from __future__ import annotations
 
-import asyncio
 import contextlib
 import functools
 import logging
 from typing import (
+    ClassVar,
     Type,
     TypeVar,
     Iterable,
@@ -44,18 +44,19 @@ from typing import (
 
 logger = logging.getLogger(__name__)
 
-from .critic import NoKey
 from critic import api
-from critic import base
 from critic import dbaccess
+from .critic import Critic
 
 
 WrapperType = TypeVar("WrapperType", bound=api.APIObject)
 ArgumentsType = TypeVar("ArgumentsType")
 CacheKeyType = TypeVar("CacheKeyType")
 T = TypeVar("T")
-Fetch = TypeVar("Fetch", bound=Callable[..., Coroutine])
-FetchMany = TypeVar("FetchMany", bound=Callable[..., Coroutine[Any, Any, Sequence]])
+Fetch = TypeVar("Fetch", bound=Callable[..., Coroutine[Any, Any, Any]])
+FetchMany = TypeVar(
+    "FetchMany", bound=Callable[..., Coroutine[Any, Any, Sequence[Any]]]
+)
 
 
 class InvalidIdError(Protocol):
@@ -68,65 +69,36 @@ class InvalidIdsError(Protocol):
         ...
 
 
-class APIObject(Generic[WrapperType, ArgumentsType, CacheKeyType]):
-    ImplType = TypeVar("ImplType", bound="APIObject")
-
-    wrapper_class: Type[WrapperType]
-    table_name: Optional[str] = None
-    column_names: Optional[List[str]] = None
-    id_column = "id"
-
-    def __init__(self, args: ArgumentsType) -> None:
-        pass
+class APIObjectBase:
+    table_name: ClassVar[Optional[str]] = None
+    column_names: ClassVar[Optional[List[str]]] = None
+    id_column: ClassVar[str] = "id"
 
     @classmethod
-    @contextlib.asynccontextmanager
-    async def query(
-        Implementation: Type[ImplType],
-        critic: api.critic.Critic,
-        query_or_conditions: Union[str, Iterable[str]] = [],
-        /,
-        *,
-        order_by: Optional[str] = "",
-        joins: Sequence[str] = None,
-        **parameters: dbaccess.Parameter,
-    ) -> AsyncIterator[dbaccess.ResultSet[ArgumentsType]]:
-        if isinstance(query_or_conditions, str):
-            query = query_or_conditions
-        else:
-            query = Implementation.default_query(
-                *query_or_conditions, order_by=order_by, joins=joins
-            )
-        async with api.critic.Query[ArgumentsType](
-            critic, query, **parameters
-        ) as result:
-            yield result
+    def table(cls) -> str:
+        if cls.table_name:
+            return cls.table_name
+        return cls.__name__.lower() + "s"
 
     @classmethod
-    def table(Implementation: Type[ImplType]) -> str:
-        if Implementation.table_name:
-            return Implementation.table_name
-        return Implementation.__name__.lower() + "s"
-
-    @classmethod
-    def columns(Implementation: Type[ImplType]) -> str:
-        assert Implementation.column_names
-        table_name = Implementation.table()
+    def columns(cls) -> str:
+        assert cls.column_names
+        table_name = cls.table()
         return ", ".join(
             column_name if "." in column_name else f"{table_name}.{column_name}"
-            for column_name in getattr(Implementation, "column_names")
+            for column_name in getattr(cls, "column_names")
         )
 
     @classmethod
-    def primary_key(Implementation: Type[ImplType]) -> str:
-        return f"{Implementation.table()}.{Implementation.id_column}"
+    def primary_key(cls) -> str:
+        return f"{cls.table()}.{cls.id_column}"
 
     @classmethod
-    def default_order_by(Implementation: Type[ImplType]) -> str:
-        return f"{Implementation.primary_key()} ASC"
+    def default_order_by(cls) -> str:
+        return f"{cls.primary_key()} ASC"
 
     @classmethod
-    def default_joins(Implementation: Type[ImplType]) -> Sequence[str]:
+    def default_joins(cls) -> Sequence[str]:
         return []
 
     @staticmethod
@@ -135,23 +107,59 @@ class APIObject(Generic[WrapperType, ArgumentsType, CacheKeyType]):
 
     @classmethod
     def default_query(
-        Implementation: Type[ImplType],
+        cls,
         *conditions: str,
         order_by: Optional[str] = "",
-        joins: Sequence[str] = None,
+        joins: Optional[Sequence[str]] = None,
     ) -> str:
-        assert Implementation.column_names
+        assert cls.column_names
         if order_by == "":
-            order_by = Implementation.default_order_by()
+            order_by = cls.default_order_by()
         if joins is None:
-            joins = Implementation.default_joins()
+            joins = cls.default_joins()
         if joins:
             joins = ["", *joins]
-        return f"""SELECT {Implementation.columns()}
-                     FROM {Implementation.table()}
+        return f"""SELECT {cls.columns()}
+                     FROM {cls.table()}
                   {' JOIN '.join(joins)}
                     WHERE {' AND '.join(["TRUE", *(f"({condition})" for condition in conditions)])}
-                          {Implementation.order_by_clause(order_by)}"""
+                          {cls.order_by_clause(order_by)}"""
+
+    def __init__(self, args: ArgumentsType) -> None:
+        pass
+
+
+class APIObject(Generic[WrapperType, ArgumentsType, CacheKeyType], APIObjectBase):
+    ImplType = TypeVar("ImplType", bound="APIObjectBase")
+
+    wrapper_class: Type[WrapperType]
+
+    @classmethod
+    def fromWrapper(cls: Type[ImplType], wrapper: WrapperType) -> ImplType:
+        return wrapper._impl  # type: ignore
+
+    @classmethod
+    @contextlib.asynccontextmanager
+    async def query(
+        cls,
+        critic: api.critic.Critic,
+        query_or_conditions: Union[str, Iterable[str]] = [],
+        /,
+        *,
+        order_by: Optional[str] = "",
+        joins: Optional[Sequence[str]] = None,
+        **parameters: dbaccess.Parameter,
+    ) -> AsyncIterator[dbaccess.ResultSet[ArgumentsType]]:
+        if isinstance(query_or_conditions, str):
+            query = query_or_conditions
+        else:
+            query = cls.default_query(
+                *query_or_conditions, order_by=order_by, joins=joins
+            )
+        async with api.critic.Query[ArgumentsType](
+            critic, query, **parameters
+        ) as result:
+            yield result
 
     @staticmethod
     def cacheKey(wrapper: WrapperType) -> CacheKeyType:
@@ -178,108 +186,113 @@ class APIObject(Generic[WrapperType, ArgumentsType, CacheKeyType]):
         return " ".join(clauses)
 
     @classmethod
-    def create(
-        Implementation: Type[ImplType], critic: api.critic.Critic, args: ArgumentsType
-    ) -> WrapperType:
-        return Implementation(args).wrap(critic)
+    def create(cls, critic: api.critic.Critic, args: ArgumentsType) -> WrapperType:
+        return cls(args).wrap(critic)  # type: ignore
 
     @classmethod
     def get_cached(
-        Implementation: Type[ImplType], critic: api.critic.Critic, item_id: CacheKeyType
+        cls, critic: api.critic.Critic, item_id: CacheKeyType
     ) -> WrapperType:
-        return cast(WrapperType, critic._impl.lookupObject(Implementation, item_id))
+        return Critic.fromWrapper(critic).lookupObject(cls, item_id)  # type: ignore
 
     @classmethod
     def get_all_cached(
-        Implementation: Type[ImplType], critic: api.critic.Critic
+        cls, critic: api.critic.Critic
     ) -> Mapping[CacheKeyType, WrapperType]:
         return cast(
             Mapping[CacheKeyType, WrapperType],
-            critic._impl.lookupObjects(Implementation),
+            Critic.fromWrapper(critic).lookupObjects(cls),
         )
 
     @classmethod
     def add_cached(
-        Implementation: Type[ImplType],
+        cls,
         critic: api.critic.Critic,
         item_id: CacheKeyType,
         item: WrapperType,
     ) -> None:
-        critic._impl.assignObjects(Implementation, item_id, item)
+        Critic.fromWrapper(critic).assignObjects(cls, item_id, item)
 
     @classmethod
     def get_cached_custom(
-        Implementation: Type[ImplType],
+        cls,
         critic: api.critic.Critic,
         key: Any,
-        default: Any = None,
+        default: Optional[Any] = None,
     ) -> Any:
-        return critic._impl.lookupCustom(Implementation, key, default=default)
+        return Critic.fromWrapper(critic).lookupCustom(cls, key, default=default)
 
     @classmethod
-    def set_cached_custom(
-        Implementation: Type[ImplType], critic: api.critic.Critic, key: Any, value: Any
-    ) -> None:
-        critic._impl.assignCustom(Implementation, key, value)
+    def set_cached_custom(cls, critic: api.critic.Critic, key: Any, value: Any) -> None:
+        Critic.fromWrapper(critic).assignCustom(cls, key, value)
 
-    @staticmethod
-    def makeCacheKey(args: ArgumentsType) -> CacheKeyType:
+    @classmethod
+    def makeCacheKey(cls, args: ArgumentsType) -> CacheKeyType:
         if isinstance(args, tuple):
             return args[0]
         return cast(CacheKeyType, args)
 
     @classmethod
     async def makeOne(
-        Implementation: Type[ImplType],
+        cls,
         critic: api.critic.Critic,
-        values: Union[dbaccess.ResultSet[ArgumentsType], ArgumentsType],
+        result: Optional[dbaccess.ResultSet[ArgumentsType]] = None,
+        *,
+        values: Optional[ArgumentsType] = None,
     ) -> WrapperType:
-        if isinstance(values, dbaccess.ResultSet):
-            args = await values.one()
+        if result is not None:
+            args = await result.one()
         else:
+            assert values is not None
             args = values
-        item_id = Implementation.makeCacheKey(args)
+        item_id = cls.makeCacheKey(args)
         item: WrapperType
         try:
-            item = Implementation.get_cached(critic, item_id)
+            item = cls.get_cached(critic, item_id)
         except KeyError:
-            item = Implementation.create(critic, args)
-            assert Implementation.cacheKey(item) == item_id
-            Implementation.add_cached(critic, item_id, item)
+            item = cls.create(critic, args)
+            assert cls.cacheKey(item) == item_id
+            cls.add_cached(critic, item_id, item)
         return item
 
     @classmethod
     async def maybeMakeOne(
-        Implementation: Type[ImplType],
+        cls,
         critic: api.critic.Critic,
-        values: Union[dbaccess.ResultSet, ArgumentsType],
-        ignored_errors: Tuple[Type[Exception], ...],
+        result: Optional[dbaccess.ResultSet[ArgumentsType]] = None,
+        *,
+        values: Optional[ArgumentsType] = None,
+        ignored_errors: Tuple[Type[Exception], ...] = (),
     ) -> Optional[WrapperType]:
         try:
-            return await Implementation.makeOne(critic, values)
+            return await cls.makeOne(critic, result, values=values)
         except Exception as error:
-            if isinstance(error, ignored_errors):
+            if isinstance(error, ignored_errors):  # type: ignore
                 return None
             raise
 
     @classmethod
     async def make(
-        Implementation: Type[ImplType],
+        cls,
         critic: api.critic.Critic,
         args_list: Union[Iterable[ArgumentsType], AsyncIterable[ArgumentsType]],
         *,
         ignored_errors: Tuple[Type[Exception], ...] = (),
     ) -> List[WrapperType]:
-        make_one = Implementation.maybeMakeOne
+        make_one = cls.maybeMakeOne
         result = []
         if hasattr(args_list, "__aiter__"):
             async for args in cast(AsyncIterable[ArgumentsType], args_list):
-                item = await make_one(critic, args, ignored_errors)
+                item = await make_one(
+                    critic, values=args, ignored_errors=ignored_errors
+                )
                 if item is not None:
                     result.append(item)
         else:
             for args in cast(Iterable[ArgumentsType], args_list):
-                item = await make_one(critic, args, ignored_errors)
+                item = await make_one(
+                    critic, values=args, ignored_errors=ignored_errors
+                )
                 if item is not None:
                     result.append(item)
         return result
@@ -291,20 +304,20 @@ class APIObject(Generic[WrapperType, ArgumentsType, CacheKeyType]):
         return critic, args[0]
 
     @classmethod
-    def getInvalidIdError(Implementation: Type[ImplType]) -> Type[api.InvalidIdError]:
-        if hasattr(Implementation, "invalid_id_error"):
-            return getattr(Implementation, "invalid_id_error")
-        return Implementation.wrapper_class.getModule().InvalidId
+    def getInvalidIdError(cls) -> Type[api.InvalidIdError]:
+        if hasattr(cls, "invalid_id_error"):
+            return getattr(cls, "invalid_id_error")
+        return cls.wrapper_class.getModule().InvalidId  # type: ignore
 
     @classmethod
-    def cached(Implementation: Type[ImplType], fetch: Fetch) -> Fetch:
+    def cached(cls, fetch: Fetch) -> Fetch:
         @functools.wraps(fetch)
         async def wrapper(*args: Any) -> Any:
-            critic, item_id = Implementation.fetchCacheKey(*args)
+            critic, item_id = cls.fetchCacheKey(*args)
             assert isinstance(critic, api.critic.Critic)
             if item_id is not None:
                 try:
-                    return critic._impl.lookupObject(Implementation, item_id)
+                    return Critic.fromWrapper(critic).lookupObject(cls, item_id)
                 except KeyError:
                     pass
             try:
@@ -313,7 +326,7 @@ class APIObject(Generic[WrapperType, ArgumentsType, CacheKeyType]):
                 if item_id is None:
                     raise
 
-                InvalidId = Implementation.getInvalidIdError()
+                InvalidId = cls.getInvalidIdError()
                 raise InvalidId(invalid_id=item_id) from None
 
         return cast(Fetch, wrapper)
@@ -327,20 +340,20 @@ class APIObject(Generic[WrapperType, ArgumentsType, CacheKeyType]):
         return critic, args[0], None
 
     @classmethod
-    def getInvalidIdsError(Implementation: Type[ImplType]) -> Type[api.InvalidIdsError]:
-        return Implementation.wrapper_class.getModule().InvalidIds
+    def getInvalidIdsError(cls: Type[ImplType]) -> Type[api.InvalidIdsError]:
+        return cls.wrapper_class.getModule().InvalidIds  # type: ignore
 
     @classmethod
-    def cachedMany(Implementation: Type[ImplType], fetchMany: FetchMany) -> FetchMany:
+    def cachedMany(cls, fetchMany: FetchMany) -> FetchMany:
         @functools.wraps(fetchMany)
-        async def wrapper(*args: Any) -> Sequence:
-            (critic, item_ids, item_args) = Implementation.fetchManyCacheKeys(*args)
+        async def wrapper(*args: Any) -> Sequence[Any]:
+            (critic, item_ids, item_args) = cls.fetchManyCacheKeys(*args)
             assert isinstance(critic, api.critic.Critic)
             if item_ids is None:
                 return await fetchMany(*args)
-            cache: Mapping
+            cache: Mapping[Any, Any]
             try:
-                cache = critic._impl.lookupObjects(Implementation)
+                cache = Critic.fromWrapper(critic).lookupObjects(cls)
             except KeyError:
                 cache = {}
             uncached_ids = set(item_ids) - set(cache.keys())
@@ -357,15 +370,15 @@ class APIObject(Generic[WrapperType, ArgumentsType, CacheKeyType]):
                 else:
                     uncached_args = list(uncached_ids)
                 fetched = await fetchMany(critic, uncached_args)
-                items.update((Implementation.cacheKey(item), item) for item in fetched)
+                items.update((cls.cacheKey(item), item) for item in fetched)
             if len(items) < len(set(item_ids)):
-                invalid_ids = sorted(set(item_ids) - set(items.keys()))
+                invalid_ids = sorted(set(item_ids) - set(items.keys()))  # type: ignore
 
                 # This cast is somewhat dubious: the assumption though is
                 # that any sub-class that has an irregular cache key type
                 # will also have an irregular fetch, not using this code
                 # path.
-                InvalidIds = Implementation.getInvalidIdsError()
+                InvalidIds = cls.getInvalidIdsError()
                 raise InvalidIds(invalid_ids=cast(List[int], invalid_ids))
             return [items[item_id] for item_id in item_ids]
 
@@ -373,34 +386,33 @@ class APIObject(Generic[WrapperType, ArgumentsType, CacheKeyType]):
 
     @classmethod
     def allCached(
-        Implementation: Type[ImplType], critic: api.critic.Critic,
+        cls,
+        critic: api.critic.Critic,
     ) -> Mapping[Any, WrapperType]:
         """Return all cached objects of this type
 
-           The cached objects are returned as a dictionary mapping the object id
-           to the object. This dictionary should not be modified."""
+        The cached objects are returned as a dictionary mapping the object id
+        to the object. This dictionary should not be modified."""
         # Don't catch KeyError here. Something is probably wrong if this
         # function is called when no objects of the type are cached.
         return cast(
-            Mapping[Any, WrapperType], critic._impl.lookupObjects(Implementation)
+            Mapping[Any, WrapperType], Critic.fromWrapper(critic).lookupObjects(cls)
         )
 
     @classmethod
     def filteredCached(
-        Implementation: Type[ImplType],
+        cls,
         critic: api.critic.Critic,
         filterfn: Callable[[WrapperType], T],
     ) -> List[T]:
         """Return all cached objects of this type
 
-           The cached objects are returned as a dictionary mapping the object id
-           to the object. This dictionary should not be modified."""
+        The cached objects are returned as a dictionary mapping the object id
+        to the object. This dictionary should not be modified."""
         # Don't catch KeyError here. Something is probably wrong if this
         # function is called when no objects of the type are cached.
         return [
-            value
-            for value in map(filterfn, Implementation.allCached(critic))
-            if value is not None
+            value for value in map(filterfn, cls.allCached(critic)) if value is not None
         ]
 
     @classmethod
@@ -409,27 +421,33 @@ class APIObject(Generic[WrapperType, ArgumentsType, CacheKeyType]):
 
     @classmethod
     async def refresh(
-        Implementation: Type[ImplType],
+        cls,
         critic: api.critic.Critic,
         tables: Set[str],
         cached_objects: Mapping[Any, WrapperType],
     ) -> None:
         """Refresh objects after transaction commit
 
-           The |tables| parameter is a set of database tables that were modified
-           in the transaction. The |cached_objects| parameter is a dictionary
-           mapping object ids to cached objects (wrappers) of this type."""
-        if not tables.intersection(Implementation.refresh_tables()):
+        The |tables| parameter is a set of database tables that were modified
+        in the transaction. The |cached_objects| parameter is a dictionary
+        mapping object ids to cached objects (wrappers) of this type."""
+        if not tables.intersection(cls.refresh_tables()):
             return
-        await Implementation.updateAll(
+        await cls.updateAll(
             critic,
-            [f"{Implementation.primary_key()}=ANY({{object_ids}})"],
+            [f"{cls.primary_key()}=ANY({{object_ids}})"],
             cached_objects,
         )
 
     @classmethod
+    async def reload(cls, wrapper: WrapperType) -> None:
+        await cls.refresh(
+            wrapper.critic, {cls.table()}, {cls.cacheKey(wrapper): wrapper}
+        )
+
+    @classmethod
     async def updateAll(
-        Implementation: Type[ImplType],
+        cls,
         critic: api.critic.Critic,
         query_or_conditions: Union[str, Iterable[str]],
         cached_objects: Mapping[Any, WrapperType],
@@ -437,15 +455,15 @@ class APIObject(Generic[WrapperType, ArgumentsType, CacheKeyType]):
     ) -> None:
         """Execute the query and update all cached objects
 
-           The query must take a single parameter, named `object_ids`, which is
-           a list of object ids. It will be executed with the list of ids of all
-           objects in `cached_objects`. Each returned row must have the id of
-           the object as the first item, and the implementation constructor must
-           take the row as a whole as arguments:
+        The query must take a single parameter, named `object_ids`, which is
+        a list of object ids. It will be executed with the list of ids of all
+        objects in `cached_objects`. Each returned row must have the id of
+        the object as the first item, and the cls constructor must
+        take the row as a whole as arguments:
 
-             new_impl = Implementation(*row)"""
-        async with Implementation.query(
+          new_impl = cls(*row)"""
+        async with cls.query(
             critic, query_or_conditions, object_ids=list(cached_objects), **parameters
         ) as result:
             async for row in result:
-                cached_objects[row[0]]._set_impl(Implementation(row))
+                cached_objects[row[0]]._set_impl(cls(row))  # type: ignore

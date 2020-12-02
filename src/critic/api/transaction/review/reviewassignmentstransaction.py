@@ -17,20 +17,23 @@
 from __future__ import annotations
 
 import logging
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 
-from .. import Transaction, Insert, LazyObject
-
 from critic import api
+from ..base import TransactionBase
+from ..insertandcollect import InsertAndCollect
 
 
-class ReviewAssignmentsTransaction(LazyObject):
-    def __init__(self, transaction: Transaction, review: api.review.Review):
+class ReviewAssignmentsTransaction:
+    __created: Optional[int]
+
+    def __init__(self, transaction: TransactionBase, review: api.review.Review):
         super().__init__()
         self.transaction = transaction
         self.review = review
-        self.__created = False
+        self.__created = None
 
     def __hash__(self) -> int:
         return hash((ReviewAssignmentsTransaction, self.review))
@@ -47,23 +50,31 @@ class ReviewAssignmentsTransaction(LazyObject):
             "old" if self.__created else "new",
         )
 
-    def __create(self) -> ReviewAssignmentsTransaction:
-        if not self.__created:
+    def __adapt__(self) -> int:
+        return self.id
+
+    @property
+    def id(self) -> int:
+        assert self.__created is not None
+        return self.__created
+
+    async def __create(self) -> ReviewAssignmentsTransaction:
+        if self.__created is None:
             logger.debug("creating review assignments transaction in r/%d", self.review)
-            self.transaction.items.append(
-                Insert(
-                    "reviewassignmentstransactions", returning="id", collector=self
+            self.__created = await self.transaction.execute(
+                InsertAndCollect[int, int](
+                    "reviewassignmentstransactions", returning="id"
                 ).values(
-                    review=self.review, assigner=self.transaction.critic.effective_user,
+                    review=self.review,
+                    assigner=self.transaction.critic.effective_user,
                 )
             )
-            self.__created = True
         return self
 
     @staticmethod
-    def make(
-        transaction: Transaction, review: api.review.Review
+    async def make(
+        transaction: TransactionBase, review: api.review.Review
     ) -> ReviewAssignmentsTransaction:
-        return transaction.shared.ensure(
+        return await transaction.shared.ensure(
             ReviewAssignmentsTransaction(transaction, review)
         ).__create()

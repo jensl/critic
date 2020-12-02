@@ -20,6 +20,7 @@ import argparse
 import asyncio
 import glob
 import grp
+import io
 import logging
 import os
 import pickle
@@ -33,7 +34,7 @@ import sys
 import textwrap
 import threading
 import time
-from typing import Any, Awaitable, Dict, List, Optional
+from typing import Any, Awaitable, Dict, List, Optional, cast
 
 logger = logging.getLogger("critic.background.servicemanager")
 
@@ -71,7 +72,7 @@ def write_logs(queue: queue.Queue[object]) -> None:
 
 
 class Service:
-    task: Optional[asyncio.Task]
+    task: Optional["asyncio.Task[object]"]
     process: Optional[asyncio.subprocess.Process]
 
     def __init__(self, name: str):
@@ -164,10 +165,9 @@ class ServiceManager(
                     assert process.stdout
                     await process.stdout.read()
 
-                stderr = b""
+                stderr_buffer = io.BytesIO()
 
                 async def read_stderr(process: asyncio.subprocess.Process) -> None:
-                    nonlocal stderr
                     assert process.stderr
                     buffered = b""
                     while True:
@@ -186,15 +186,15 @@ class ServiceManager(
                                 sys.stderr.write(line.decode())
                                 sys.stderr.flush()
                             else:
-                                stderr += line
+                                stderr_buffer.write(line)
 
                 async def read_logs(process: asyncio.subprocess.Process) -> None:
                     async for msg in binarylog.read(process.stdout):
                         assert isinstance(msg, dict)
                         msg["service"] = service.name
-                        self.queue_put(msg)
+                        self.queue_put(cast(object, msg))
 
-                tasks: List[Awaitable] = [process.wait(), read_stderr(process)]
+                tasks: List[Awaitable[object]] = [process.wait(), read_stderr(process)]
 
                 if self.log_mode == "binary":
                     tasks.append(read_logs(process))
@@ -210,12 +210,11 @@ class ServiceManager(
                         return True
                     return False
 
-                if stderr:
-                    stderr = b"".join(
-                        line
-                        for line in stderr.splitlines(True)
-                        if not ignore_line(line)
-                    )
+                stderr = b"".join(
+                    line
+                    for line in stderr_buffer.getvalue().splitlines(True)
+                    if not ignore_line(line)
+                )
 
                 if stderr:
                     logger.warning(
@@ -236,6 +235,8 @@ class ServiceManager(
                     process.returncode,
                     duration,
                 )
+
+                assert isinstance(process.returncode, int)
 
                 if process.returncode == 0:
                     break
@@ -261,7 +262,6 @@ class ServiceManager(
         logger.info("Starting services")
 
         startup_futures = []
-        start_serialized = False
 
         async def start_service(service: Service) -> None:
             logger.debug("%s: startup...", service.name)
@@ -298,8 +298,10 @@ class ServiceManager(
         if command.get("query") == "status":
 
             def process_data(
-                *, process: asyncio.subprocess.Process = None, pid: int = None
-            ) -> Dict:
+                *,
+                process: Optional[asyncio.subprocess.Process] = None,
+                pid: Optional[int] = None,
+            ) -> Dict[str, Any]:
                 if process is not None:
                     pid = process.pid
                 if pid is not None:
@@ -359,7 +361,7 @@ class ServiceManager(
             if service.task is not None:
                 tasks.append(service.task)
 
-        done, pending = await asyncio.wait(tasks, timeout=30)
+        _, pending = await asyncio.wait(tasks, timeout=30)
 
         logger.debug("pending tasks: %r", pending)
 
@@ -476,14 +478,14 @@ def run_master(arguments: Any) -> None:
     if arguments.log_level:
         argv.append(f"--log-level={arguments.log_level}")
 
-    process: Optional[subprocess.Popen]
+    process: Optional[subprocess.Popen[str]] = None
 
     while not was_terminated:
         process = subprocess.Popen(argv, encoding="utf-8")
 
         while not was_terminated:
             try:
-                pid, status = os.waitpid(process.pid, os.WNOHANG)
+                pid, _ = os.waitpid(process.pid, os.WNOHANG)
                 if pid == process.pid:
                     process = None
                     break

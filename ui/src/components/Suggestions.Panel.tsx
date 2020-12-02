@@ -4,10 +4,11 @@ import clsx from "clsx"
 
 import { makeStyles } from "@material-ui/core/styles"
 import Typography from "@material-ui/core/Typography"
-import ExpansionPanel from "@material-ui/core/ExpansionPanel"
-import ExpansionPanelSummary from "@material-ui/core/ExpansionPanelSummary"
-import ExpansionPanelDetails from "@material-ui/core/ExpansionPanelDetails"
-import ExpansionPanelActions from "@material-ui/core/ExpansionPanelActions"
+import Accordion from "@material-ui/core/Accordion"
+import AccordionSummary from "@material-ui/core/AccordionSummary"
+import AccordionDetails from "@material-ui/core/AccordionDetails"
+import AccordionActions from "@material-ui/core/AccordionActions"
+import Container from "@material-ui/core/Container"
 import ExpandMoreIcon from "@material-ui/icons/ExpandMore"
 import Button from "@material-ui/core/Button"
 import Divider from "@material-ui/core/Divider"
@@ -39,21 +40,27 @@ const useStyles = makeStyles((theme) => ({
 const DismissedPanels = new UserSetting<ReadonlySet<string>>(
   "suggestionPanels.dismissed",
   new Set(),
-  (value: JSONData) => {
-    if (Array.isArray(value) && all(value, (item) => typeof item === "string"))
-      return new Set(value as string[])
-    return new Set()
-  }
+  {
+    fromJSON: (value: JSONData) => {
+      if (
+        Array.isArray(value) &&
+        all(value, (item) => typeof item === "string")
+      )
+        return new Set(value as string[])
+      return new Set()
+    },
+    toJSON: (value: ReadonlySet<string>) => [...value],
+  },
 )
 const ShowDismissed = new Value("suggestionPanels.showDismissed", false)
 
 const FirstPanel = new Value<string | null>(
   "suggestionsPanels.firstPanel",
-  null
+  null,
 )
 const ExpandedPanel = new Value<string | null | undefined>(
   "suggestionPanels.expandedPanel",
-  undefined
+  undefined,
 )
 
 type OwnProps = {
@@ -87,7 +94,7 @@ const SuggestionsPanel: FunctionComponent<OwnProps> = ({
     )
       return
     const firstPanelEl = document.querySelector<HTMLElement>(
-      ".critic-suggestions-panel"
+      ".critic-suggestions-panel",
     )
     if (firstPanelEl && firstPanelEl.dataset.panelId === panelID)
       setFirstPanel(panelID)
@@ -120,11 +127,11 @@ const SuggestionsPanel: FunctionComponent<OwnProps> = ({
     }
   }
   return (
-    <ExpansionPanel
+    <Accordion
       className={clsx(
         className,
         classes.suggestionsPanel,
-        "critic-suggestions-panel"
+        "critic-suggestions-panel",
       )}
       data-panel-id={panelID}
       expanded={expanded}
@@ -132,30 +139,32 @@ const SuggestionsPanel: FunctionComponent<OwnProps> = ({
         setExpandedPanel(isExpanded ? panelID : null)
       }
     >
-      <ExpansionPanelSummary expandIcon={<ExpandMoreIcon />}>
+      <AccordionSummary expandIcon={<ExpandMoreIcon />}>
         <Typography className={classes.heading}>{heading}</Typography>
         <Typography className={classes.secondaryHeading}>
           {subheading}
         </Typography>
-      </ExpansionPanelSummary>
+      </AccordionSummary>
       <Divider variant="middle" />
-      <ExpansionPanelDetails className={classes.details}>
-        {children}
-        {reasons.map((reason, index) => {
-          if (typeof reason === "string")
-            reason = <Typography variant="body1">{reason}</Typography>
-          return <Reason key={index}>{reason}</Reason>
-        })}
-      </ExpansionPanelDetails>
-      <ExpansionPanelActions>
+      <AccordionDetails className={classes.details}>
+        <Container maxWidth="md">
+          {children}
+          {reasons.map((reason, index) => {
+            if (typeof reason === "string")
+              reason = <Typography variant="body1">{reason}</Typography>
+            return <Reason key={index}>{reason}</Reason>
+          })}
+        </Container>
+      </AccordionDetails>
+      <AccordionActions>
         {Object.keys(actions).map((label) => (
           <Button key="label" component={Link} to={actions[label]}>
             {label}
           </Button>
         ))}
         {dismissAction}
-      </ExpansionPanelActions>
-    </ExpansionPanel>
+      </AccordionActions>
+    </Accordion>
   )
 }
 

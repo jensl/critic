@@ -24,6 +24,7 @@ import Commit from "../resources/commit"
 import Changeset, { CompletionLevel } from "../resources/changeset"
 import { Channel } from "./WebSocket"
 import { assertEqual } from "../debug"
+import { AsyncThunk } from "../state"
 
 const SHA1 = "[^.:]+"
 
@@ -37,7 +38,7 @@ const changesetIdentifier = [
 const expandedFiles = String.raw`(?:(\d+_\d+(?:,\d+_\d+)*)|(\d+(?:,\d+)*))`
 
 const pathRegexp = new RegExp(
-  String.raw`/changeset/(?:${changesetIdentifier})(?:/expand:${expandedFiles})?$`
+  String.raw`/changeset/(?:${changesetIdentifier})(?:/expand:${expandedFiles})?$`,
 )
 
 const expandedFilesRegexp = new RegExp(String.raw`/expand:${expandedFiles}$`)
@@ -56,7 +57,7 @@ export const parseExpandedFiles = ({
 
 export const pathWithExpandedFiles = (
   { pathname }: Pathname,
-  expandedFileIDs: Iterable<FileID | string>
+  expandedFileIDs: Iterable<FileID | string>,
 ) => {
   pathname = pathname.replace(expandedFilesRegexp, "")
   const fileIDs = [...expandedFileIDs]
@@ -73,7 +74,7 @@ type ChangesetPathInfo = {
   toCommit: string | null
   singleCommit: string | null
   automatic: string | null
-  expandedFileIDs: Set<FileID | string> | null
+  expandedFileIDs: ReadonlySet<FileID | string>
 }
 
 export const parseChangesetPath = (path: string): ChangesetPathInfo | null => {
@@ -102,21 +103,23 @@ export const parseChangesetPath = (path: string): ChangesetPathInfo | null => {
   }
 }
 
+export type ChangesetRouteParams = {
+  dashboardCategory: string
+  reviewID: string
+  repository: string
+}
+
 type GenerateLinkPathProps = {
-  location: Location
-  match: match<{
-    dashboardCategory: string
-    reviewID: string
-    repository: string
-  }>
-  changesetID: ChangesetID
-  fromCommit: string
-  toCommit: string
-  singleCommit: string
-  automatic: string
-  review: Review | { id: ReviewID }
-  repository: Repository | { name: string }
-  expandedFileIDs: Set<FileID | string>
+  location?: Location
+  match?: match<ChangesetRouteParams>
+  changesetID?: ChangesetID | null
+  fromCommit?: string | null
+  toCommit?: string | null
+  singleCommit?: string | null
+  automatic?: string | null
+  review?: Review | { id: ReviewID } | null
+  repository?: Repository | { name: string } | null
+  expandedFileIDs?: ReadonlySet<FileID | string>
 }
 
 export const generateLinkPath = ({
@@ -141,7 +144,7 @@ export const generateLinkPath = ({
       if (dashboardCategory !== null && review)
         return `/dashboard/${dashboardCategory}/review/${review.id}`
     }
-    if (review) return `/r/${review.id}`
+    if (review) return `/review/${review.id}`
     if (repository) return `/repository/${repository.name}`
     throw Error("fail!")
   }
@@ -150,10 +153,10 @@ export const generateLinkPath = ({
       return changesetID
     } else if (singleCommit) {
       return `by-sha1/${ref(singleCommit)}`
-    } else if (fromCommit) {
+    } else if (fromCommit && toCommit) {
       return `by-sha1/${ref(fromCommit)}..${ref(toCommit)}`
     } else if (singleCommit) {
-      return `by-sha1/..${ref(toCommit)}`
+      return `by-sha1/..${ref(singleCommit)}`
     } else if (automatic) {
       return `automatic/${automatic}`
     } else {
@@ -190,11 +193,13 @@ export const generateLinkPath = ({
       if (params.expandedFileIDs && !expandedFileIDs) {
         expandedFileIDs = params.expandedFileIDs
       }
-      if (match.params.reviewID && !review) {
-        review = { id: parseInt(match.params.reviewID, 10) }
-      }
-      if (match.params.repository && !repository) {
-        repository = { name: match.params.repository }
+      if (match) {
+        if (match.params.reviewID && !review) {
+          review = { id: parseInt(match.params.reviewID, 10) }
+        }
+        if (match.params.repository && !repository) {
+          repository = { name: match.params.repository }
+        }
       }
     }
   }
@@ -219,17 +224,24 @@ export const waitForCompletionLevel = async (
     completionLevel = "full",
     timeout = 10000,
     changeset = null,
-  }: WaitForCompletionLevelOptions
+  }: WaitForCompletionLevelOptions,
 ) => {
   if (changeset && changeset.completionLevel.has(completionLevel)) return true
 
   try {
     await channel.waitFor(
-      (message: any) =>
-        message.action === "updated" &&
-        message.updates.completion_level &&
-        message.updates.completion_level.includes(completionLevel),
-      { timeout }
+      (message: any) => {
+        console.log("waitForCompletionLevel predicate", {
+          message,
+          completionLevel,
+        })
+        return (
+          message.action === "modified" &&
+          message.updates.completion_level &&
+          message.updates.completion_level.includes(completionLevel)
+        )
+      },
+      { timeout },
     )
     return true
   } catch (error) {

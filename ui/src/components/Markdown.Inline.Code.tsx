@@ -9,6 +9,7 @@ import { Code } from "../utils/Markdown"
 
 const useStyles = makeStyles((theme) => ({
   markdownInlineCode: {
+    ...theme.critic.monospaceFont,
     ...theme.critic.standout,
     padding: "1px 6px",
     whiteSpace: "pre",

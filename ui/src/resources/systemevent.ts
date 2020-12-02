@@ -16,6 +16,8 @@
  * the License.
  */
 
+import { immerable } from "immer"
+
 import { primaryMap } from "../reducers/resource"
 
 type SystemEventData = {
@@ -30,13 +32,15 @@ type SystemEventData = {
 type SystemEventProps = SystemEventData
 
 class SystemEvent {
+  [immerable] = true
+
   constructor(
     readonly id: number,
     readonly category: string,
     readonly key: string,
     readonly title: string,
     readonly data: any,
-    readonly handled: boolean
+    readonly handled: boolean,
   ) {}
 
   static new(props: SystemEventProps) {
@@ -46,7 +50,7 @@ class SystemEvent {
       props.key,
       props.title,
       props.data,
-      props.handled
+      props.handled,
     )
   }
 

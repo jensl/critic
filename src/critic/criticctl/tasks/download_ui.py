@@ -14,46 +14,63 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
+import argparse
 import hashlib
 import io
 import logging
 import os
+from typing import TypedDict, cast
 import aiohttp
 import tarfile
 
 logger = logging.getLogger(__name__)
 
+from critic import api
 from critic import base
 from critic import data
+from .utils import fail
 
 name = "download-ui"
 description = "Download pre-built static UI files."
 
 
-async def download_from_amazon_s3(ui_json):
-    from . import fail
+class Bucket(TypedDict):
+    name: str
+    region: str
 
+
+class Archive(TypedDict):
+    name: str
+    size: int
+    sha256: str
+
+
+class UIJSON(TypedDict):
+    cloud: str
+    bucket: Bucket
+    archive: Archive
+
+
+async def download_from_amazon_s3(ui_json: UIJSON) -> bytes:
     bucket_name = ui_json["bucket"]["name"]
     region = ui_json["bucket"]["region"]
     archive_name = ui_json["archive"]["name"]
 
     url = f"https://s3-{region}.amazonaws.com/{bucket_name}/{archive_name}"
 
-    async with aiohttp.session() as session:
+    async with aiohttp.ClientSession() as session:
         async with session.get(url) as response:
             if response.status != 200:
                 fail("Failed to download from cloud storage!")
-            return response.read()
+            return await response.read()
 
 
-def setup(parser):
+def setup(parser: argparse.ArgumentParser) -> None:
     parser.set_defaults(need_session=True)
 
 
-async def main(critic, arguments):
-    from . import fail
-
-    ui_json = data.load_json("ui.json")
+async def main(critic: api.critic.Critic, arguments: argparse.Namespace) -> int:
+    ui_json = cast(UIJSON, data.load_json("ui.json"))
 
     if ui_json.get("cloud") == "Amazon S3":
         archive_bytes = await download_from_amazon_s3(ui_json)
@@ -93,3 +110,5 @@ async def main(critic, arguments):
                 os.makedirs(os.path.dirname(target_path))
             with open(target_path, "wb") as file:
                 file.write(reader.read())
+
+    return 0

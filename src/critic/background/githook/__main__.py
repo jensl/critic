@@ -15,11 +15,9 @@
 # the License.
 
 import asyncio
-import io
 import json
 import logging
 import os
-import sys
 from typing import (
     Any,
     Collection,
@@ -219,9 +217,9 @@ def format_error(
         sections.append("Rejected refs:\n  " + "\n  ".join(name))
 
     if reason is not None:
-        sections.append(reflow(f"Reason: {reason}", hanging_indent="  "))
+        sections.append(reflow(f"Reason: {reason}", hanging_indent=2))
 
-    sections.append(reflow(f"Details: {error}", hanging_indent="  "))
+    sections.append(reflow(f"Details: {error}", hanging_indent=2))
 
     if error.message:
         sections.append(reflow(error.message))
@@ -243,18 +241,21 @@ ClientInput = TypedDict(
 
 class GitHookClient(LineProtocolClient):
     def __init__(
-        self, settings: Any, reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
+        self,
+        settings: Any,
+        reader: asyncio.StreamReader,
+        writer: asyncio.StreamWriter,
     ):
         super().__init__(reader, writer)
         self.settings = settings
 
     async def respond(
         self,
-        output: Sequence[str] = None,
+        output: Optional[Sequence[str]] = None,
         *,
         accept: bool = False,
         reject: bool = False,
-        close: bool = None,
+        close: Optional[bool] = None,
     ) -> None:
         data: Dict[str, Union[str, bool]] = {}
         if output is not None:
@@ -323,7 +324,7 @@ class GitHookClient(LineProtocolClient):
                     await self.respond(reject=True)
         except Exception:
             await self.respond(
-                output="Critic encountered an unexpected error. ¯\_(ツ)_/¯", reject=True
+                output="Critic encountered an unexpected error. ¯\\_(ツ)_/¯", reject=True
             )
             raise
 
@@ -684,7 +685,7 @@ class GitHookClient(LineProtocolClient):
                     branch_modifier = await transaction.modifyRepository(
                         await branch.repository
                     ).modifyBranch(branch)
-                    branch_modifier.revertUpdate(branchupdate)
+                    await branch_modifier.revertUpdate(branchupdate)
 
         # Delete all finished updates.  Skip ones we just marked as abandoned
         # above, since the user will not have seen the result.

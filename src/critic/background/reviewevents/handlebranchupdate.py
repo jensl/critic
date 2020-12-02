@@ -14,6 +14,8 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
+# type: ignore
+
 import logging
 
 logger = logging.getLogger(__name__)
@@ -85,7 +87,7 @@ class ReviewRebasedGenerator:
         review = await mail.group.event.review
         from_user = mail.group.from_user
 
-        if isinstance(self.rebase, api.log.rebase.HistoryRewrite):
+        if isinstance(self.rebase, api.rebase.HistoryRewrite):
             mail.add_section(
                 f"{from_user.fullname} has rewritten the history on the review "
                 "branch."

@@ -20,12 +20,15 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-from .. import Transaction, Delete, Insert
+from ..base import TransactionBase
+from ..item import Delete, Insert
 from ..review import ReviewUserTag, has_unpublished_changes
 from critic import api
 
 
-async def resolve_issue(transaction: Transaction, issue: api.comment.Comment) -> None:
+async def resolve_issue(
+    transaction: TransactionBase, issue: api.comment.Comment
+) -> None:
     critic = transaction.critic
 
     if not isinstance(issue, api.comment.Issue):
@@ -53,7 +56,7 @@ async def resolve_issue(transaction: Transaction, issue: api.comment.Comment) ->
             raise api.comment.Error("Issue has unpublished conflicting modifications")
 
         if new_state == "open":
-            transaction.items.append(
+            await transaction.execute(
                 Delete("commentchainchanges").where(
                     uid=critic.effective_user, chain=issue
                 )
@@ -63,7 +66,7 @@ async def resolve_issue(transaction: Transaction, issue: api.comment.Comment) ->
     if issue.state != "open":
         raise api.comment.Error("Only open issues can be resolved")
 
-    transaction.items.append(
+    await transaction.execute(
         Insert("commentchainchanges").values(
             chain=issue,
             uid=critic.effective_user,

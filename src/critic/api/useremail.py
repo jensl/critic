@@ -16,7 +16,18 @@
 
 from __future__ import annotations
 
-from typing import FrozenSet, Literal, Sequence, Optional, cast, overload
+from typing import (
+    Awaitable,
+    Callable,
+    FrozenSet,
+    Literal,
+    Sequence,
+    Optional,
+    cast,
+    overload,
+)
+
+from critic.api.apiobject import FunctionRef
 
 from .. import api
 
@@ -33,7 +44,7 @@ class InvalidId(api.InvalidIdError, Error):
 
 Status = Literal["trusted", "verified", "unverified"]
 STATUS_VALUES: FrozenSet[Status] = frozenset(
-    {
+    [
         # Email address came from a trusted source (or we trust all users) and
         # does not need to be verified.
         "trusted",
@@ -42,7 +53,7 @@ STATUS_VALUES: FrozenSet[Status] = frozenset(
         # Email address has not been verified. Critic will not send emails to
         # it, except for verification request emails.
         "unverified",
-    }
+    ]
 )
 
 
@@ -77,8 +88,8 @@ class UserEmail(api.APIObject):
     def token(self) -> str:
         """Current verification token
 
-           The most recently sent verification email will contain a link that
-           contains this token."""
+        The most recently sent verification email will contain a link that
+        contains this token."""
         return self._impl.token
 
 
@@ -96,27 +107,46 @@ async def fetch(
 
 async def fetch(
     critic: api.critic.Critic,
-    useremail_id: int = None,
+    useremail_id: Optional[int] = None,
     /,
     *,
-    user: api.user.User = None,
+    user: Optional[api.user.User] = None,
 ) -> Optional[UserEmail]:
-    from .impl import useremail as impl
-
-    return await impl.fetch(critic, useremail_id, user)
+    return await fetchImpl.get()(critic, useremail_id, user)
 
 
 async def fetchAll(
     critic: api.critic.Critic,
     /,
     *,
-    user: api.user.User = None,
-    status: Status = None,
-    selected: bool = None,
+    user: Optional[api.user.User] = None,
+    status: Optional[Status] = None,
+    selected: Optional[bool] = None,
 ) -> Sequence[UserEmail]:
-    from .impl import useremail as impl
-
-    return await impl.fetchAll(critic, user, status, selected)
+    return await fetchAllImpl.get()(critic, user, status, selected)
 
 
 resource_name = table_name = "useremails"
+
+
+fetchImpl: FunctionRef[
+    Callable[
+        [
+            api.critic.Critic,
+            Optional[int],
+            Optional[api.user.User],
+        ],
+        Awaitable[Optional[UserEmail]],
+    ]
+] = FunctionRef()
+fetchAllImpl: FunctionRef[
+    Callable[
+        [
+            api.critic.Critic,
+            Optional[api.user.User],
+            Optional[Status],
+            Optional[bool],
+        ],
+        Awaitable[Sequence[UserEmail]],
+    ]
+] = FunctionRef()

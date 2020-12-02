@@ -14,7 +14,7 @@
  * the License.
  */
 
-import { castImmutable } from "immer"
+import { castImmutable, immerable } from "immer"
 
 import {
   DOCUMENT_CLICKED,
@@ -46,7 +46,9 @@ type SelectionScopeProps = {
   isRangeSelecting: boolean
 }
 
-class SelectionScope {
+class _SelectionScope {
+  [immerable] = true
+
   elementType: SelectionElementType | null = null
   scopeID: ScopeID | null = null
   elements: Map<ElementID, HTMLElement> = new Map()
@@ -78,13 +80,13 @@ class SelectionScope {
   }
 }
 
-export const selectionScope = produce<SelectionScope>((draft, action) => {
+export const selectionScope = produce<_SelectionScope>((draft, action) => {
   switch (action.type) {
     case SET_SELECTION_SCOPE:
       draft.update({
         ...action,
         elements: new Map<ElementID, HTMLElement>(
-          Object.entries(action.elements)
+          Object.entries(action.elements),
         ),
       })
       break
@@ -111,4 +113,6 @@ export const selectionScope = produce<SelectionScope>((draft, action) => {
         draft.selectionAnchorID = action.firstSelectedID
       break
   }
-}, castImmutable(new SelectionScope()))
+}, castImmutable(new _SelectionScope()))
+
+export type SelectionScope = ReturnType<typeof selectionScope>

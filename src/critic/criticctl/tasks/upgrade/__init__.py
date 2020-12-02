@@ -14,6 +14,7 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
+import argparse
 import distutils.spawn
 import json
 import logging
@@ -22,6 +23,22 @@ import signal
 import subprocess
 import sys
 import time
+import types
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    List,
+    Optional,
+    Protocol,
+    Sequence,
+    Tuple,
+    TypedDict,
+    Union,
+    cast,
+)
+
+from critic.criticctl.tasks.upgrade.migrations import MigrationModule
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +49,32 @@ allow_missing_configuration = True
 from critic import api
 from critic import background
 from critic import base
+from critic import dbaccess
+from ...utils import as_user
+from ..utils import (
+    fail,
+    FilesystemLocationsArguments,
+    DatabaseBackupArguments,
+    ensure_system_user_and_group,
+    setup_filesystem_locations,
+    setup_database_backup,
+)
+from ..systemctl import stop_service, restart_service
+
+
+class Arguments(FilesystemLocationsArguments, DatabaseBackupArguments, Protocol):
+    configuration: Optional[base.Configuration]
+
+    etc_dir: str
+    identity: str
+
+    # Database settings
+    database_host: Optional[str]
+    database_port: int
+    database_wait: Optional[int]
+    database_name: str
+    database_username: str
+    database_password: Optional[str]
 
 
 SERIALIZE_LEGACY_CONFIGURATION_SCRIPT = """
@@ -67,9 +110,7 @@ json.dump(data, sys.stdout)
 """
 
 
-def serialize_legacy_configuration(arguments):
-    from .. import fail
-
+def serialize_legacy_configuration(arguments: Arguments) -> Any:
     env = os.environ.copy()
     env["PYTHONPATH"] = os.path.join(arguments.etc_dir, arguments.identity)
     try:
@@ -83,36 +124,40 @@ def serialize_legacy_configuration(arguments):
     return legacy_configuration
 
 
-def import_legacy_configuration(arguments, legacy_configuration):
-    def lazy():
-        return {
-            # Basic system details.
-            "system.identity": legacy_configuration["base.system_identity"],
-            "system.username": legacy_configuration["base.system_user_name"],
-            "system.groupname": legacy_configuration["base.system_group_name"],
-            # Database connection settings.
-            "database.driver": legacy_configuration["database.driver"],
-            "database.parameters": {
-                "args": [],
-                "kwargs": legacy_configuration["database.parameters"],
+def import_legacy_configuration(
+    arguments: Arguments, legacy_configuration: Any
+) -> Callable[[], base.Configuration]:
+    def lazy() -> base.Configuration:
+        return cast(
+            base.Configuration,
+            {
+                # Basic system details.
+                "system.identity": legacy_configuration["base.system_identity"],
+                "system.username": legacy_configuration["base.system_user_name"],
+                "system.groupname": legacy_configuration["base.system_group_name"],
+                # Database connection settings.
+                "database.parameters": {
+                    "args": [],
+                    "kwargs": legacy_configuration["database.parameters"],
+                },
+                # System paths.
+                "paths.home": arguments.home_dir,
+                "paths.executables": os.path.dirname(sys.argv[0]),
+                "paths.runtime": arguments.runtime_dir,
+                "paths.logs": arguments.logs_dir,
+                "paths.repositories": legacy_configuration["paths.git_dir"],
             },
-            # System paths.
-            "paths.home": arguments.home_dir,
-            "paths.executables": os.path.dirname(sys.argv[0]),
-            "paths.runtime": arguments.runtime_dir,
-            "paths.logs": arguments.logs_dir,
-            "paths.repositories": legacy_configuration["paths.git_dir"],
-        }
+        )
 
     return lazy
 
 
-def migration_name(module):
-    _, _, name = module.__name__.rpartition(".")
+def migration_name(module: MigrationModule) -> str:
+    _, _, name = cast(types.ModuleType, module).__name__.rpartition(".")
     return name
 
 
-def list_migrations():
+def list_migrations() -> Sequence[Tuple[str, MigrationModule]]:
     from . import migrations
 
     # Check that there are no duplicated indexes.
@@ -123,9 +168,7 @@ def list_migrations():
     return [(migration_name(module), module) for module in modules]
 
 
-async def stop_services(critic):
-    from .. import fail, install_systemd_service
-
+async def stop_services(critic: api.critic.Critic) -> bool:
     if critic is not None:
         # Check if we have a record of how the services are run:
 
@@ -135,10 +178,8 @@ async def stop_services(critic):
 
         if services_event:
             if services_event.data["flavor"] == "systemd":
-                install_systemd_service.stop_services(
-                    services_event.data["service_name"]
-                )
-                return
+                stop_service(services_event.data["service_name"])
+                return True
 
     # Fall back to attempting to stop the services manually.
 
@@ -159,7 +200,7 @@ async def stop_services(critic):
     try:
         os.kill(servicemanager_pid, signal.SIGTERM)
     except OSError as error:
-        fail("Failed to stop background services: %s", error)
+        fail(f"Failed to stop background services: {error}")
 
     deadline = time.time() + 30
     while os.path.isfile(servicemanager_pidfile):
@@ -170,29 +211,39 @@ async def stop_services(critic):
     return True
 
 
-async def update_review_tags(critic):
+class ReviewTag(TypedDict):
+    name: str
+    description: str
+
+
+async def update_review_tags(critic: api.critic.Critic) -> None:
     from critic import data
     from critic.api.transaction.review.updatereviewtags import UpdateReviewTags
 
-    reviewtags = data.load_yaml("reviewtags.yaml")
+    reviewtags = cast(Sequence[ReviewTag], data.load_yaml("reviewtags.yaml"))
 
-    existing_tags = {}
-    async with critic.query(
+    existing_tags: Dict[str, Tuple[int, str]] = {}
+    async with api.critic.Query[Tuple[int, str, str]](
+        critic,
         """SELECT id, name, description
-                 FROM reviewtags"""
+                 FROM reviewtags""",
     ) as result:
         async for reviewtag_id, name, description in result:
             existing_tags[name] = (reviewtag_id, description)
 
     logger.debug("existing_tags: %r", existing_tags)
 
-    new_tags = []
-    updated_tag_descriptions = []
+    new_tags: List[dbaccess.Parameters] = []
+    updated_tag_descriptions: List[Dict[str, Any]] = []
     for reviewtag in reviewtags:
         try:
             reviewtag_id, description = existing_tags.pop(reviewtag["name"])
         except KeyError:
-            new_tags.append(reviewtag)
+            new_tags.append(
+                dbaccess.parameters(
+                    name=reviewtag["name"], description=reviewtag["description"]
+                )
+            )
         else:
             if description != reviewtag["description"]:
                 updated_tag_descriptions.append(
@@ -201,7 +252,7 @@ async def update_review_tags(critic):
                         "reviewtag_id": reviewtag_id,
                     }
                 )
-    deleted_tag_ids = list(existing_tags.values())
+    deleted_tag_ids = [reviewtag_id for reviewtag_id, _ in existing_tags.values()]
 
     if new_tags or updated_tag_descriptions or deleted_tag_ids:
         async with critic.transaction() as cursor:
@@ -230,19 +281,19 @@ async def update_review_tags(critic):
     if new_tags:
         logger.info(
             "Added review tags: %s",
-            ", ".join(reviewtag["name"] for reviewtag in new_tags),
+            ", ".join(cast(str, reviewtag["name"]) for reviewtag in new_tags),
         )
 
         reviews = await api.review.fetchAll(critic, state="open")
 
         async with api.transaction.start(critic) as transaction:
             for review in reviews:
-                transaction.items.append(UpdateReviewTags(review))
+                transaction.finalizers.add(UpdateReviewTags(review))
 
 
-async def upgrade(critic, configuration, arguments):
-    from .. import as_user, fail
-
+async def upgrade(
+    critic: api.critic.Critic, configuration: base.Configuration, arguments: Arguments
+) -> None:
     try:
         migration_events = await api.systemevent.fetchAll(critic, category="migration")
     except api.DatabaseSchemaError:
@@ -279,7 +330,7 @@ async def upgrade(critic, configuration, arguments):
                 try:
                     os.makedirs(dump_dir)
                 except OSError as error:
-                    fail("%s: failed to create directory: %s", dump_dir, error)
+                    fail(f"{dump_dir}: failed to create directory: {error}")
 
             with open(arguments.dump_database_file, "wb") as output_file:
                 with as_user(name=configuration["system.username"]):
@@ -291,13 +342,16 @@ async def upgrade(critic, configuration, arguments):
                     )
 
         for module in new_migrations:
-            logger.info("Running migration: %s", os.path.basename(module.__file__))
+            logger.info(
+                "Running migration: %s",
+                os.path.basename(cast(types.ModuleType, module).__file__),
+            )
             logger.info(" - %s", module.title)
 
-            await module.perform(critic, arguments)
+            await module.perform(critic, cast(Any, arguments))
 
             async with api.transaction.start(critic) as transaction:
-                transaction.addSystemEvent(
+                await transaction.addSystemEvent(
                     "migration",
                     migration_name(module),
                     module.title,
@@ -307,9 +361,7 @@ async def upgrade(critic, configuration, arguments):
     await update_review_tags(critic)
 
 
-def setup(parser):
-    from .. import setup_filesystem_locations, setup_database_backup
-
+def setup(parser: argparse.ArgumentParser) -> None:
     critic = parser.get_default("critic")
 
     if critic is None:
@@ -357,14 +409,11 @@ def setup(parser):
         "--database-username", help="Name of database user to connect as."
     )
     database_group.add_argument("--database-password", help="Database password.")
-    database_group.set_defaults(database_driver="postgresql")
 
     setup_database_backup(parser)
 
 
-async def main(critic, arguments):
-    from .. import fail, as_user, install_systemd_service, ensure_system_user_and_group
-
+async def main(critic: api.critic.Critic, arguments: Arguments) -> int:
     if not arguments.configuration:
         legacy_configuration = serialize_legacy_configuration(arguments)
 
@@ -382,7 +431,9 @@ async def main(critic, arguments):
     configuration = base.configuration()
 
     # Override database connection parameters from our command line arguments.
-    kwargs = configuration["database.parameters"]["kwargs"]
+    kwargs = cast(
+        Dict[str, Union[int, str]], configuration["database.parameters"]["kwargs"]
+    )
     if arguments.database_host is not None:
         kwargs["host"] = arguments.database_host
         kwargs["port"] = arguments.database_port
@@ -427,12 +478,12 @@ async def main(critic, arguments):
                             sys.argv[0],
                         )
                     elif services_event.data["flavor"] == "systemd":
-                        install_systemd_service.restart_service(
-                            services_event.data["service_name"]
-                        )
+                        restart_service(services_event.data["service_name"])
 
             logger.info("Upgrade finished.")
         except Exception:
             if session_started:
                 raise
             fail("Could not connect to Critic's database!")
+
+    return 0

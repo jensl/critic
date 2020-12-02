@@ -15,6 +15,8 @@
  */
 
 import { combineReducers } from "redux"
+import { immerable } from "immer"
+
 import { primaryMap, lookupMap } from "../reducers/resource"
 import { RepositoryID } from "./types"
 
@@ -39,6 +41,8 @@ type RepositoryProps = {
 }
 
 class Repository {
+  [immerable] = true
+
   constructor(
     readonly id: RepositoryID,
     readonly name: string,
@@ -46,7 +50,7 @@ class Repository {
     readonly documentationPath: string | null,
     readonly urls: readonly string[],
     readonly statistics: Statistics,
-    readonly head: Head
+    readonly head: Head,
   ) {}
 
   static new(props: RepositoryProps) {
@@ -57,7 +61,7 @@ class Repository {
       props.documentation_path,
       props.urls,
       props.statistics,
-      props.head
+      props.head,
     )
   }
 
@@ -73,7 +77,7 @@ class Repository {
     byID: primaryMap<Repository, number>("repositories"),
     byName: lookupMap<Repository, string, number>(
       "repositories",
-      (repository) => repository.name
+      (repository) => repository.name,
     ),
   })
 
@@ -91,10 +95,12 @@ type StatisticsData = {
 type StatisticsProps = StatisticsData
 
 class Statistics {
+  [immerable] = true
+
   constructor(
     readonly commits: number,
     readonly branches: number,
-    readonly reviews: number
+    readonly reviews: number,
   ) {}
 
   static new(props: StatisticsProps) {
@@ -111,10 +117,12 @@ type HeadData = {
 type HeadProps = HeadData
 
 class Head {
+  [immerable] = true
+
   constructor(
     readonly commit: null | number,
     readonly branch: null | number,
-    readonly value: null | number
+    readonly value: null | number,
   ) {}
 
   static new(props: HeadProps) {

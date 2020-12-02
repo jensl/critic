@@ -17,25 +17,24 @@
 from __future__ import annotations
 
 import logging
-from typing import Union
 
 logger = logging.getLogger(__name__)
 
-from . import CreatedUser
-from .. import Transaction, Delete, Query, Update
-
 from critic import api
 
+from ..base import TransactionBase
+from ..item import Delete, Update
 
-def set_status(
-    transaction: Transaction,
-    user: Union[api.user.User, CreatedUser],
+
+async def set_status(
+    transaction: TransactionBase,
+    user: api.user.User,
     new_status: api.user.Status,
 ) -> None:
-    transaction.items.append(Update(user).set(status=new_status))
+    await transaction.execute(Update(user).set(status=new_status))
 
     if new_status == "disabled":
-        transaction.items.append(
+        await transaction.execute(
             Update(user).set(
                 name=f"__disabled_{user.id}__",
                 fullname="(disabled account)",
@@ -43,23 +42,15 @@ def set_status(
             )
         )
 
-        transaction.items.append(Delete("useremails").where(uid=user))
-        transaction.items.append(Delete("usergitemails").where(uid=user))
-        transaction.items.append(Delete("userroles").where(uid=user))
+        await transaction.execute(Delete("useremails").where(uid=user))
+        await transaction.execute(Delete("usergitemails").where(uid=user))
+        await transaction.execute(Delete("userroles").where(uid=user))
 
     if new_status in ("retired", "disabled"):
-        transaction.tables.add("reviewuserfiles")
-
         # Delete all assignments that the user hasn't reviewed yet. Assignments that the
         # user has reviewed are left; otherwise the state of existing (potentially
         # finished) reviews will be odd -- changes marked as reviewed but no record of
         # who reviewed them.
-        transaction.items.append(
-            Query(
-                """DELETE
-                     FROM reviewuserfiles
-                    WHERE uid={user}
-                      AND NOT reviewed""",
-                user=user,
-            )
+        await transaction.execute(
+            Delete("reviewuserfiles").where(uid=user, reviewed=False)
         )

@@ -30,14 +30,14 @@ const WriteNote: React.FunctionComponent<ActionProps> = ({ ...props }) => {
   if (review === null || comment !== null || location === null) return null
   const onClick = async () => {
     const comment = await dispatch(
-      createComment(review.id, "note", "", location)
+      createComment(review.id, "note", "", location),
     )
     if (comment)
       dispatch({ type: "SET_FLAG", flag: `Discussion/editable:${comment.id}` })
     dispatch({ type: "RESET_SELECTION_SCOPE" })
   }
   return (
-    <Action onClick={onClick} {...props}>
+    <Action onClick={onClick} color="secondary" {...props}>
       Write note
     </Action>
   )

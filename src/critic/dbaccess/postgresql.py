@@ -19,11 +19,11 @@ import contextlib
 import logging
 from psycopg2 import IntegrityError, OperationalError, ProgrammingError
 from psycopg2.extensions import TransactionRollbackError
-from typing import Any, Dict, Optional, Tuple, AsyncIterator, Protocol
+from typing import Any, AsyncContextManager, Dict, Optional, Tuple, AsyncIterator
 
 logger = logging.getLogger(__name__)
 
-from . import LowLevelConnection, LowLevelCursor, LowLevelConnectionPool
+from .lowlevel import LowLevelConnection, LowLevelCursor, LowLevelConnectionPool
 from .formatter import Parameters, ExecuteArguments, StatementFormatter
 from critic import base
 
@@ -35,7 +35,10 @@ class Formatter(StatementFormatter):
         self.__cache = {}
 
     def process(
-        self, sql: str, parameters: Parameters, **kwargs: Dict[str, Any],
+        self,
+        sql: str,
+        parameters: Parameters,
+        **kwargs: Dict[str, Any],
     ) -> Tuple[str, ExecuteArguments]:
         returning = kwargs.pop("returning", None)
         if returning is not None:
@@ -96,10 +99,13 @@ class Pool(LowLevelConnectionPool):
         self.__impl = impl
 
     @contextlib.asynccontextmanager
-    async def acquire(self) -> AsyncIterator[LowLevelConnection]:
+    async def _acquire(self) -> AsyncIterator[LowLevelConnection]:
         async with self.__impl.acquire() as connection:
             async with connection.cursor() as cursor:
                 yield Connection(connection, cursor)
+
+    def acquire(self) -> AsyncContextManager[LowLevelConnection]:
+        return self._acquire()
 
     def terminate(self) -> None:
         self.__impl.terminate()
@@ -115,8 +121,16 @@ async def create_pool(configuration: base.Configuration) -> LowLevelConnectionPo
     assert isinstance(args, list)
     kwargs = parameters["kwargs"]
     assert isinstance(kwargs, dict)
-    return Pool(await aiopg.create_pool(*args, **kwargs))
+    return Pool(await aiopg.create_pool(*args, **kwargs))  # type: ignore
 
 
 async def create_formatter(configuration: base.Configuration) -> StatementFormatter:
     return Formatter()
+
+
+__all__ = [
+    "IntegrityError",
+    "OperationalError",
+    "ProgrammingError",
+    "TransactionRollbackError",
+]

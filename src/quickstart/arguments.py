@@ -3,11 +3,60 @@ import grp
 import multiprocessing
 import os
 import pwd
+from typing import Literal, Optional, Protocol, Sequence
+
+
+class Arguments(Protocol):
+    quiet: bool
+    debug: bool
+
+    testing: Literal["manual", "automatic"]
+
+    state_dir: Optional[str]
+    open_in_browser: bool
+    follow_logs: Optional[str]
+
+    database_name: str
+    database_username: str
+    database_password: Optional[str]
+
+    http_host: str
+    http_port: int
+    http_lb_backends: int
+    http_profile: bool
+
+    worker_processes: int
+
+    build_ui: bool
+    download_ui: bool
+    start_ui: bool
+
+    no_admin_user: bool
+    admin_username: str
+    admin_fullname: str
+    admin_email: str
+    admin_password: str
+
+    enable_maildelivery: bool
+    smtp_host: str
+    smtp_port: int
+    smtp_username: str
+    smtp_password: str
+
+    enable_extensions: bool
+    system_extensions_dir: Optional[str]
+
+    mode: Literal["quickstart"]
+    identity: Literal["main"]
+    system_username: str
+    system_groupname: str
+    coverage_dir: None
+    headless: Literal[False]
+    pip_extra_arg: Sequence[str]
+    root_dir: str
 
 
 def parse_arguments(root_dir: str) -> argparse.Namespace:
-    from . import Database
-
     username = pwd.getpwuid(os.geteuid()).pw_name
 
     parser = argparse.ArgumentParser(
@@ -63,15 +112,14 @@ def parse_arguments(root_dir: str) -> argparse.Namespace:
         help="Do the equivalent of 'tail -f' on matching log files.",
     )
 
-    Database.setup(parser)
+    group = parser.add_argument_group("Database settings")
+    group.add_argument("--database-name", default="critic", help="Database name")
+    group.add_argument(
+        "--database-username", default="critic", help="Database username"
+    )
+    group.add_argument("--database-password", help="Database password")
 
     frontend_group = parser.add_argument_group("HTTP front-end settings")
-    frontend_group.add_argument(
-        "--http-flavor",
-        choices=("wsgiref", "aiohttp"),
-        default="aiohttp",
-        help="Type of HTTP server to run [default=wsgiref]",
-    )
     frontend_group.add_argument(
         "--http-host",
         default="localhost",
@@ -83,11 +131,6 @@ def parse_arguments(root_dir: str) -> argparse.Namespace:
         default=8080,
         type=int,
         help="Port the HTTP server listens at [default=8080]",
-    )
-    frontend_group.add_argument(
-        "--http-lb-frontend",
-        choices=("builtin",),
-        help="Type of load balancer front-end to start.",
     )
     frontend_group.add_argument(
         "--http-lb-backends",
@@ -178,10 +221,6 @@ def parse_arguments(root_dir: str) -> argparse.Namespace:
     )
     extensions_group.add_argument(
         "--system-extensions-dir", help="Path of directory containing system extensions"
-    )
-
-    parser.add_argument(
-        "--use-uwsgi", action="store_true", help="Use uWSGI instead of wsgiref"
     )
 
     parser.set_defaults(

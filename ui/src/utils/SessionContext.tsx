@@ -15,44 +15,45 @@
  */
 
 import React, { useContext, FunctionComponent } from "react"
-import Immutable from "immutable"
-import { connect } from "react-redux"
 
 import User from "../resources/user"
-import { State } from "../state"
+import { useResource } from "."
 
 export type SessionID = number
 
-type SessionProps = {
-  sessionID: SessionID
-  signedInUser: User | null
-  isSignedIn: boolean
-}
+const kNotSignedIn = -1
 
-class Value extends Immutable.Record<SessionProps>({
-  sessionID: -1,
-  signedInUser: null,
-  isSignedIn: false,
-}) {}
+class Value {
+  constructor(
+    readonly hasSessionInfo: boolean = false,
+    readonly sessionID: SessionID = kNotSignedIn,
+    readonly isSignedIn: boolean = false,
+    readonly signedInUser: User | null = null,
+  ) {}
+}
 
 const SessionContext = React.createContext(new Value())
 
-const SetSession: FunctionComponent<SessionProps> = ({
-  children,
-  ...props
-}) => (
-  <SessionContext.Provider value={new Value(props)}>
-    {children}
-  </SessionContext.Provider>
-)
+const SetSession: FunctionComponent = ({ children }) => {
+  const session = useResource("sessions", (sessions) => sessions.get("current"))
+  const sessionID = session?.user ?? kNotSignedIn
+  const isSignedIn = sessionID !== kNotSignedIn
+  const signedInUser =
+    useResource("users", (users) => users.byID.get(sessionID)) ?? null
+  const value = new Value(
+    session !== undefined,
+    sessionID,
+    isSignedIn,
+    signedInUser,
+  )
 
+  return (
+    <SessionContext.Provider value={value}>{children}</SessionContext.Provider>
+  )
+}
+
+export const useSessionInfo = () => useContext(SessionContext)
 export const useSessionID = () => useContext(SessionContext).sessionID
 export const useSignedInUser = () => useContext(SessionContext).signedInUser
 
-export default connect((state: State) => {
-  const session = state.resource.sessions.get("current", null)
-  const sessionID = session && session.user !== null ? session.user : -1
-  const isSignedIn = sessionID !== -1
-  const signedInUser = state.resource.users.byID.get(sessionID, null)
-  return { sessionID, signedInUser, isSignedIn }
-})(SetSession)
+export default SetSession

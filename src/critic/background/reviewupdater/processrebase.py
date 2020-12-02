@@ -19,7 +19,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import textwrap
-from typing import Sequence, Tuple
+from typing import Optional, Sequence, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -37,10 +37,10 @@ class RebaseProcessingResult:
     def __init__(
         self,
         *,
-        new_upstream: api.commit.Commit = None,
+        new_upstream: Optional[api.commit.Commit] = None,
         changesets: Sequence[api.changeset.Changeset] = (),
-        equivalent_merge: api.commit.Commit = None,
-        replayed_rebase: api.commit.Commit = None,
+        equivalent_merge: Optional[api.commit.Commit] = None,
+        replayed_rebase: Optional[api.commit.Commit] = None,
     ):
         self.new_upstream = new_upstream
         self.changesets = changesets
@@ -61,7 +61,7 @@ async def process_rebase(
     rebase = await review.pending_rebase
     assert rebase
 
-    if isinstance(rebase, api.log.rebase.HistoryRewrite):
+    if isinstance(rebase, api.rebase.HistoryRewrite):
         return await process_history_rewrite(
             review, rebase.as_history_rewrite, branchupdate, pendingrefupdate_id
         )
@@ -73,7 +73,7 @@ async def process_rebase(
 
 async def process_history_rewrite(
     review: api.review.Review,
-    rebase: api.log.rebase.HistoryRewrite,
+    rebase: api.rebase.HistoryRewrite,
     branchupdate: api.branchupdate.BranchUpdate,
     pendingrefupdate_id: int,
 ) -> RebaseProcessingResult:
@@ -83,7 +83,7 @@ async def process_history_rewrite(
 
 async def process_move_rebase(
     review: api.review.Review,
-    rebase: api.log.rebase.MoveRebase,
+    rebase: api.rebase.MoveRebase,
     branchupdate: api.branchupdate.BranchUpdate,
     pendingrefupdate_id: int,
 ) -> RebaseProcessingResult:
@@ -123,7 +123,7 @@ async def process_move_rebase(
 
 async def process_ff_move_rebase(
     review: api.review.Review,
-    rebase: api.log.rebase.MoveRebase,
+    rebase: api.rebase.MoveRebase,
     branchupdate: api.branchupdate.BranchUpdate,
     new_upstream: api.commit.Commit,
     pendingrefupdate_id: int,
@@ -227,7 +227,7 @@ async def process_ff_move_rebase(
     if unmerged_paths:
         output = "Conflicts detected in the following paths:\n  "
         output += "\n  ".join(unmerged_paths)
-    elif len(await changeset.files) == 0:
+    elif await changeset.is_empty:
         output = "No overlapping changes detected."
         changesets = ()
     else:
@@ -242,7 +242,7 @@ async def process_ff_move_rebase(
 
 async def process_non_ff_move_rebase(
     review: api.review.Review,
-    rebase: api.log.rebase.MoveRebase,
+    rebase: api.rebase.MoveRebase,
     branchupdate: api.branchupdate.BranchUpdate,
     new_upstream: api.commit.Commit,
     pendingrefupdate_id: int,
@@ -322,7 +322,7 @@ async def process_non_ff_move_rebase(
     if unmerged_paths:
         output = "Conflicts detected in the following paths:\n  "
         output += "\n  ".join(unmerged_paths)
-    elif len(await changeset.files) == 0:
+    elif await changeset.is_empty:
         output = "No overlapping changes detected."
         changesets = ()
     else:

@@ -14,21 +14,26 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
+from typing import Mapping, Optional, Sequence
+
 from critic import api
 from critic import auth
 
 
-class Internal(auth.Database):
-    name = "internal"
+class Internal(auth.Database, dbname="internal"):
+    def getFields(self) -> Sequence[auth.database.Field]:
+        return [
+            auth.database.Field(False, "username", "Username"),
+            auth.database.Field(True, "password", "Password"),
+        ]
 
-    def getFields(self):
-        return [(False, "username", "Username"), (True, "password", "Password")]
-
-    async def authenticate(self, critic, values):
-        username = values["username"].strip()
+    async def authenticate(
+        self, critic: api.critic.Critic, fields: Mapping[str, str]
+    ) -> api.user.User:
+        username = fields["username"].strip()
         if not username:
             raise auth.InvalidUsername("Empty username", field_name="username")
-        password = values["password"]
+        password = fields["password"]
         if not password:
             raise auth.WrongPassword("Empty password", field_name="password")
 
@@ -41,31 +46,50 @@ class Internal(auth.Database):
         else:
             await critic.setActualUser(user)
 
-    async def performHTTPAuthentication(self, critic, *, username, password, token):
+        return user
+
+    async def performHTTPAuthentication(
+        self,
+        critic: api.critic.Critic,
+        *,
+        username: Optional[str],
+        password: Optional[str],
+        token: Optional[str]
+    ) -> api.user.User:
         if username is None or password is None:
             raise auth.AuthenticationError("Token authentication not supported")
         return await self.authenticate(
             critic, {"username": username, "password": password}
         )
 
-    def supportsPasswordChange(self):
+    def supportsPasswordChange(self) -> bool:
         return True
 
-    async def changePassword(self, critic, modifier, current_pw, new_pw):
+    async def changePassword(
+        self,
+        critic: api.critic.Critic,
+        user: api.user.User,
+        modifier: auth.database.Modifier,
+        current_pw: str,
+        new_pw: str,
+    ) -> None:
         async with critic.query(
             """SELECT password
                  FROM users
                 WHERE id={user}""",
-            user=modifier.user,
+            user=critic.actual_user,
         ) as result:
             current_hashed_pw = await result.scalar()
 
         if current_hashed_pw is not None:
+            username = user.name
+            assert username
+
             if current_pw is None:
                 api.PermissionDenied.raiseUnlessAdministrator(critic)
             else:
-                await auth.checkPassword(critic, modifier.user.name, current_pw)
+                await auth.checkPassword(critic, username, current_pw)
 
         new_hashed_pw = await auth.hashPassword(critic, new_pw)
 
-        modifier.setPassword(hashed_password=new_hashed_pw)
+        await modifier.setPassword(hashed_password=new_hashed_pw)

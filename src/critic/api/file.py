@@ -16,9 +16,10 @@
 
 from __future__ import annotations
 
-from typing import Iterable, Sequence, overload
+from typing import Awaitable, Callable, Iterable, Optional, Sequence, overload
 
 from critic import api
+from critic.api.apiobject import FunctionRef
 
 
 class Error(api.APIError, object_type="file"):
@@ -48,7 +49,7 @@ class InvalidPath(Error):
 class MissingPaths(Error):
     """Raised when valid but unrecorded paths are used.
 
-       Typically, this means |create_if_missing=True| should have been used."""
+    Typically, this means |create_if_missing=True| should have been used."""
 
     def __init__(self, paths: Iterable[str]) -> None:
         """Constructor"""
@@ -87,19 +88,17 @@ async def fetch(
 
 async def fetch(
     critic: api.critic.Critic,
-    file_id: int = None,
+    file_id: Optional[int] = None,
     /,
     *,
-    path: str = None,
+    path: Optional[str] = None,
     create_if_missing: bool = False,
 ) -> File:
     """Fetch a "file" (file id / path mapping)
 
-       If a path is used, and |create| is True, a mapping is created if one
-       didn't already exist."""
-    from .impl import file as impl
-
-    return await impl.fetch(critic, file_id, path, create_if_missing)
+    If a path is used, and |create| is True, a mapping is created if one didn't
+    already exist."""
+    return await fetchImpl.get()(critic, file_id, path, create_if_missing)
 
 
 @overload
@@ -122,18 +121,40 @@ async def fetchMany(
 
 async def fetchMany(
     critic: api.critic.Critic,
-    file_ids: Iterable[int] = None,
+    file_ids: Optional[Iterable[int]] = None,
     *,
-    paths: Iterable[str] = None,
+    paths: Optional[Iterable[str]] = None,
     create_if_missing: bool = False,
 ) -> Sequence[File]:
     """Fetch multiple "files" (file id / path mappings)
 
-       If paths are used, and |create| is True, a mapping is created if one
-       didn't already exist."""
-    from .impl import file as impl
-
-    return await impl.fetchMany(critic, file_ids, paths, bool(create_if_missing))
+    If paths are used, and |create| is True, a mapping is created if one didn't
+    already exist."""
+    return await fetchManyImpl.get()(critic, file_ids, paths, bool(create_if_missing))
 
 
 resource_name = table_name = "files"
+
+
+fetchImpl: FunctionRef[
+    Callable[
+        [
+            api.critic.Critic,
+            Optional[int],
+            Optional[str],
+            bool,
+        ],
+        Awaitable[File],
+    ]
+] = FunctionRef()
+fetchManyImpl: FunctionRef[
+    Callable[
+        [
+            api.critic.Critic,
+            Optional[Iterable[int]],
+            Optional[Iterable[str]],
+            bool,
+        ],
+        Awaitable[Sequence[File]],
+    ]
+] = FunctionRef()

@@ -15,7 +15,7 @@
 # the License.
 
 import json
-from typing import Tuple, Union
+from typing import Any, List, Tuple, Union
 
 
 class Error(object):
@@ -32,7 +32,7 @@ def serialize_key(key: Key) -> str:
 
 
 def deserialize_key(serialized: str) -> Key:
-    def tuples(value: Union[int, str, list]) -> KeyItem:
+    def tuples(value: Union[int, str, List[Any]]) -> KeyItem:
         if isinstance(value, list):
             return tuple(tuples(item) for item in value)
         return value

@@ -51,18 +51,18 @@ type ObjectWithID = { id: any }
 
 export function getProperty<T, K extends keyof T>(
   object: T | null | undefined,
-  key: K
+  key: K,
 ): T[K] | undefined
 export function getProperty<T, K extends keyof T>(
   object: T | null | undefined,
   key: K,
-  defaultValue: T[K]
+  defaultValue: T[K],
 ): T[K]
 
 export function getProperty<T, K extends keyof T>(
   object: T | null,
   key: K,
-  defaultValue?: T[K]
+  defaultValue?: T[K],
 ) {
   return object ? object[key] : defaultValue
 }
@@ -72,7 +72,7 @@ export const id = <T extends ObjectWithID>(object: T | null) =>
 
 export const compareByProps = <T, K extends keyof T>(...props: K[]) => (
   A: T,
-  B: T
+  B: T,
 ) => {
   for (const prop of props) {
     const a = A[prop]
@@ -90,17 +90,19 @@ export const sleep = (durationMS: number) =>
 
 export const map = <T, U>(
   items: Iterable<T>,
-  callback: (item: T) => U
+  callback: (item: T) => U,
 ): U[] => {
   const result: U[] = []
   for (const item of items) result.push(callback(item))
   return result
 }
 
+export const sorted = <T>(items: Iterable<T>): T[] => [...items].sort()
+
 export const sortedBy = <T, K extends number | string>(
   items: Iterable<T>,
-  key: (item: T) => K
-) =>
+  key: (item: T) => K,
+): T[] =>
   [...items].sort((a, b) => {
     const aKey = key(a)
     const bKey = key(b)
@@ -127,3 +129,11 @@ export const setWithout = <T>(set: ReadonlySet<T>, item: T): ReadonlySet<T> => {
   result.delete(item)
   return result
 }
+
+export const filteredSet = <T>(
+  items: Iterable<T>,
+  predicate: (item: T) => boolean,
+): ReadonlySet<T> => new Set([...items].filter(predicate))
+
+export const mergedSets = <T>(...items: Iterable<T>[]): ReadonlySet<T> =>
+  new Set(items.flatMap((iterable) => [...iterable]))

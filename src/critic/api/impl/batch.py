@@ -24,6 +24,7 @@ from typing import Tuple, Optional, Sequence, Set, FrozenSet, Mapping, List
 logger = logging.getLogger(__name__)
 
 from critic import api
+from critic.api import batch as public
 from . import apiobject
 
 
@@ -60,8 +61,8 @@ class Batch(apiobject.APIObject[WrapperType, ArgumentsType, int]):
         self,
         args: ArgumentsType = (None, None, None),
         *,
-        review: api.review.Review = None,
-        author: api.user.User = None,
+        review: Optional[api.review.Review] = None,
+        author: Optional[api.user.User] = None,
     ) -> None:
         (self.id, self.__event_id, self.__comment_id) = args
         self.__review_id = review.id if review else None
@@ -204,7 +205,7 @@ class Batch(apiobject.APIObject[WrapperType, ArgumentsType, int]):
             if modified_comment.new_type is not None
         }
         comments = await api.comment.fetchMany(critic, new_type_by_comment_id.keys())
-        return {comment: new_type_by_comment_id[comment.id] for comment in comments}
+        return {comment: new_type_by_comment_id[comment.id] for comment in comments}  # type: ignore
 
     async def getReviewedFileChanges(
         self, critic: api.critic.Critic
@@ -253,7 +254,8 @@ class Batch(apiobject.APIObject[WrapperType, ArgumentsType, int]):
         review_id, author_id = await self.__getReviewAndAuthorIds(critic)
         condition = self.__queryCondition()
 
-        async with critic.query(
+        async with api.critic.Query[int](
+            critic,
             f"""SELECT id
                   FROM commentchains
                  WHERE review={{review_id}}
@@ -270,7 +272,8 @@ class Batch(apiobject.APIObject[WrapperType, ArgumentsType, int]):
                 if comment_id != self.__comment_id
             ]
 
-        async with critic.query(
+        async with api.critic.Query[int](
+            critic,
             f"""SELECT comments.id
                   FROM commentchains
                   JOIN comments ON (comments.chain=commentchains.id)
@@ -285,7 +288,10 @@ class Batch(apiobject.APIObject[WrapperType, ArgumentsType, int]):
             self.__written_reply_ids = await result.scalars()
 
         self.__modified_comments = []
-        async with critic.query(
+        async with api.critic.Query[
+            Tuple[int, api.comment.CommentType, api.comment.IssueState]
+        ](
+            critic,
             """SELECT commentchains.id, to_type, to_state
                  FROM commentchains
                  JOIN commentchainchanges
@@ -307,8 +313,8 @@ class Batch(apiobject.APIObject[WrapperType, ArgumentsType, int]):
             review_id=review_id,
             author_id=author_id,
             batch_id=self.id,
-        ) as result:
-            async for comment_id, new_type, new_state in result:
+        ) as modified_comments_result:
+            async for comment_id, new_type, new_state in modified_comments_result:
                 self.__modified_comments.append(
                     ModifiedComment(comment_id, new_type, new_state)
                 )
@@ -348,6 +354,7 @@ class Batch(apiobject.APIObject[WrapperType, ArgumentsType, int]):
         )
 
 
+@public.fetchImpl
 @Batch.cached
 async def fetch(
     critic: api.critic.Critic,
@@ -364,6 +371,7 @@ async def fetch(
         return await Batch.makeOne(critic, result)
 
 
+@public.fetchAllImpl
 async def fetchAll(
     critic: api.critic.Critic,
     review: Optional[api.review.Review],
@@ -388,6 +396,7 @@ async def fetchAll(
         return await Batch.make(critic, result)
 
 
+@public.fetchUnpublishedImpl
 async def fetchUnpublished(
     review: api.review.Review, author: Optional[api.user.User]
 ) -> WrapperType:

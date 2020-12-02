@@ -14,6 +14,8 @@
  * the License.
  */
 
+import { immerable } from "immer"
+
 import { primaryMap } from "../reducers/resource"
 import { RebaseID, ReviewID, UserID, CommitID } from "./types"
 
@@ -32,6 +34,8 @@ type RebaseData = {
 type RebaseProps = RebaseData
 
 class Rebase {
+  [immerable] = true
+
   constructor(
     readonly id: RebaseID,
     readonly review: ReviewID,
@@ -41,7 +45,7 @@ class Rebase {
     readonly oldUpstream: CommitID | null,
     readonly newUpstream: CommitID | null,
     readonly equivalentMerge: CommitID | null,
-    readonly replayedRebase: CommitID | null
+    readonly replayedRebase: CommitID | null,
   ) {}
   static new(props: RebaseProps) {
     return new Rebase(
@@ -53,7 +57,7 @@ class Rebase {
       props.old_upstream,
       props.new_upstream,
       props.equivalent_merge,
-      props.replayed_rebase
+      props.replayed_rebase,
     )
   }
 

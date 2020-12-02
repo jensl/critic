@@ -21,9 +21,17 @@ import { Entry as TreeEntry } from "../resources/tree"
 
 const useStyles = makeStyles((theme) => ({
   entry: {},
+
+  fileLabel: { display: "flex" },
+  name: { flexGrow: 1 },
+  size: { flexGrow: 0, opacity: "80%" },
 }))
 
 const TreeItem = withStyles((theme) => ({
+  root: {
+    paddingTop: "3px",
+    paddingBottom: "3px",
+  },
   label: {
     ...theme.critic.monospaceFont,
   },
@@ -38,10 +46,10 @@ type Props = {
 const useTree = (
   repositoryID: RepositoryID,
   commitID: CommitID,
-  path: string
+  path: string,
 ) => {
   const key = useResourceExtra("trees", (trees) =>
-    trees.byCommitPath.get(`${repositoryID}:${commitID}:${path}`)
+    trees.byCommitPath.get(`${repositoryID}:${commitID}:${path}`),
   )
   return useResource("trees", (trees) => trees.get(key || ""))
 }
@@ -52,7 +60,7 @@ const Fetch: React.FunctionComponent<{
   path: string
 }> = ({ repositoryID, commitID, path }) => {
   const tree = useTree(repositoryID, commitID, path)
-  useSubscriptionIf(tree === null, loadTree, repositoryID, commitID, path)
+  useSubscriptionIf(!tree, loadTree, repositoryID, commitID, path)
   return null
 }
 
@@ -69,9 +77,9 @@ const Entry: React.FunctionComponent<P & { entry: TreeEntry }> = ({
   path,
   ...props
 }) => {
-  const { name } = entry
+  const { name, size } = entry
   path = path ? `${path}/${name}` : name
-  const childProps = { ...props, path, name }
+  const childProps = { ...props, path, name, size }
   return isDir(entry) ? <Directory {...childProps} /> : <File {...childProps} />
 }
 
@@ -96,11 +104,23 @@ const Entries: React.FunctionComponent<P> = (props) => {
   )
 }
 
-const File: React.FunctionComponent<P & { name: string }> = ({
+const File: React.FunctionComponent<P & { name: string; size: number }> = ({
   classes,
   path,
   name,
-}) => <TreeItem className={classes.entry} nodeId={path} label={name} />
+  size,
+}) => (
+  <TreeItem
+    className={classes.entry}
+    nodeId={path}
+    label={
+      <span className={classes.fileLabel}>
+        <span className={classes.name}>{name}</span>
+        <span className={classes.size}>{size} bytes</span>
+      </span>
+    }
+  />
+)
 
 const Directory: React.FunctionComponent<P & { name?: string }> = ({
   name,
@@ -131,7 +151,7 @@ const updateExpanded = (currentExpanded: string[], nextExpanded: string[]) => {
   }
   return newIDs.length
     ? nextExpanded.filter((nodeID) =>
-        any(newIDs, (newID) => newID.startsWith(nodeID))
+        any(newIDs, (newID) => newID.startsWith(nodeID)),
       )
     : nextExpanded
 }
@@ -141,8 +161,8 @@ const Tree: React.FunctionComponent<Props> = ({ className, commit, path }) => {
   const repository = useRepository()
   const [expanded, setExpanded] = useState<string[]>([""])
   if (!repository) return null
-  const commitID = commit ? commit.id : repository.head.commit
-  if (commitID === null) return null
+  const commitID = commit?.id ?? repository.head?.commit
+  if (typeof commitID !== "number") return null
   return (
     <Container maxWidth="md">
       <TreeView

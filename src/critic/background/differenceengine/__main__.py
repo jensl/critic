@@ -41,7 +41,8 @@ class ChangesetsMonitor:
         self.__service = service
         self.__levels = {}  # { changeset_id => set() }
         self.__commands = asyncio.Queue()
-        self.__future = service.check_future(self.__run())
+
+        service.check_future(self.__run())
 
     async def __update(self, critic: api.critic.Critic, changeset_id: int) -> None:
         old_levels = self.__levels.get(changeset_id, set())
@@ -115,7 +116,7 @@ class DifferenceEngine(background.service.BackgroundService):
 
         self.__changesets_monitor = ChangesetsMonitor(self)
 
-    async def pubsub_connected(self, client: pubsub.Client) -> None:
+    async def pubsub_connected(self, client: pubsub.Client, /) -> None:
         async def notify_runner(
             channel_name: pubsub.ChannelName, message: pubsub.Message
         ) -> None:

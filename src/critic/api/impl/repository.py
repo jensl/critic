@@ -23,29 +23,60 @@ from typing import Optional, Iterable, Tuple, List, Sequence, Set, TypeVar, cast
 
 logger = logging.getLogger(__name__)
 
-from . import apiobject
-
 from critic import api
+from critic.api import repository as public
 from critic import auth
 from critic import gitaccess
 from critic.background import gitaccessor
 from critic.background.utils import is_services
 from critic.gitaccess import SHA1, ObjectType
+from . import apiobject
+from .critic import Critic
 
 STATISTICS = "Repository.statistics"
 
 
 @dataclass(frozen=True)
 class Statistics:
-    commits: int
-    branches: int
-    reviews: int
+    __commits: int
+    __branches: int
+    __reviews: int
+
+    @property
+    def commits(self) -> int:
+        return self.__commits
+
+    @property
+    def branches(self) -> int:
+        return self.__branches
+
+    @property
+    def reviews(self) -> int:
+        return self.__reviews
 
 
 WrapperType = api.repository.Repository
 ArgumentsType = Tuple[int, str, str, bool]
 
 T = TypeVar("T")
+
+
+@dataclass
+class Head:
+    __wrapper: api.repository.Repository
+    __impl: Repository
+
+    @property
+    async def value(self) -> Optional[str]:
+        return await self.__impl.getHeadValue(self.__wrapper)
+
+    @property
+    async def commit(self) -> Optional[api.commit.Commit]:
+        return await self.__impl.getHeadCommit(self.__wrapper)
+
+    @property
+    async def branch(self) -> Optional[api.branch.Branch]:
+        return await self.__impl.getHeadBranch(self.__wrapper)
 
 
 class Repository(apiobject.APIObject[WrapperType, ArgumentsType, int]):
@@ -62,8 +93,8 @@ class Repository(apiobject.APIObject[WrapperType, ArgumentsType, int]):
         self.__statistics = None
 
     @staticmethod
-    async def checkAccess(repository: WrapperType) -> None:
-        await auth.AccessControl.accessRepository(repository, "read")
+    async def checkAccess(wrapper: WrapperType) -> None:
+        await auth.AccessControl.accessRepository(wrapper, "read")
 
     @staticmethod
     async def filterInaccessible(
@@ -150,6 +181,9 @@ class Repository(apiobject.APIObject[WrapperType, ArgumentsType, int]):
                 urls.append(f"{url_prefix}/{self.path.lstrip('/')}")
 
         return urls
+
+    def getHead(self, wrapper: WrapperType) -> public.Repository.Head:
+        return Head(wrapper, self)
 
     async def getHeadValue(self, wrapper: WrapperType) -> Optional[str]:
         try:
@@ -275,7 +309,7 @@ class Repository(apiobject.APIObject[WrapperType, ArgumentsType, int]):
 
         need_fetch = []
         for repository in cached_objects.values():
-            if repository._impl.__statistics is None:
+            if Repository.fromWrapper(repository).__statistics is None:
                 need_fetch.append(repository.id)
 
         commits = {}
@@ -320,20 +354,23 @@ class Repository(apiobject.APIObject[WrapperType, ArgumentsType, int]):
                 reviews[repository_id] = count_reviews
 
         for repository_id in need_fetch:
-            cached_objects[repository_id]._impl.__statistics = Statistics(
+            Repository.fromWrapper(
+                cached_objects[repository_id]
+            ).__statistics = Statistics(
                 commits.get(repository_id, 0),
                 branches.get(repository_id, 0),
                 reviews.get(repository_id, 0),
             )
 
     async def getStatistics(self, critic: api.critic.Critic) -> WrapperType.Statistics:
-        async with critic._impl.criticalSection(STATISTICS):
+        async with Critic.fromWrapper(critic).criticalSection(STATISTICS):
             if self.__statistics is None:
                 await self.__loadStatistics(critic)
                 assert self.__statistics is not None
         return self.__statistics
 
 
+@public.fetchImpl
 @Repository.cached
 async def fetch(
     critic: api.critic.Critic,
@@ -363,6 +400,7 @@ async def fetch(
     return repository
 
 
+@public.fetchAllImpl
 async def fetchAll(critic: api.critic.Critic) -> Sequence[WrapperType]:
     async with Repository.query(critic) as result:
         repositories = await Repository.make(
@@ -371,6 +409,7 @@ async def fetchAll(critic: api.critic.Critic) -> Sequence[WrapperType]:
     return await Repository.filterInaccessible(repositories)
 
 
+@public.fetchHighlightedImpl
 async def fetchHighlighted(
     critic: api.critic.Critic, user: api.user.User
 ) -> Sequence[WrapperType]:
@@ -398,7 +437,9 @@ async def fetchHighlighted(
         highlighted_ids.update(await ids_result.scalars())
 
     async with Repository.query(
-        critic, ["id={repository_ids}"], repository_ids=list(highlighted_ids),
+        critic,
+        ["id={repository_ids}"],
+        repository_ids=list(highlighted_ids),
     ) as result:
         repositories = await Repository.make(
             critic, result, ignored_errors=(auth.AccessDenied,)
@@ -407,6 +448,7 @@ async def fetchHighlighted(
     return await Repository.filterInaccessible(repositories)
 
 
+@public.validateNameImpl
 def validateName(name: str) -> str:
     if "/" in name:
         raise api.repository.Error(
@@ -429,6 +471,7 @@ def validateName(name: str) -> str:
     return name
 
 
+@public.validatePathImpl
 def validatePath(path: str) -> str:
     if path.startswith(os.sep):
         raise api.repository.Error("repository path must be relative")

@@ -17,7 +17,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Sequence
+from typing import Optional, Sequence
 
 logger = logging.getLogger(__name__)
 
@@ -25,14 +25,14 @@ from critic import api
 
 
 async def ensure_changesets(
-    review: api.review.Review, commits: api.commitset.CommitSet = None
+    review: api.review.Review, commits: Optional[api.commitset.CommitSet] = None
 ) -> Sequence[api.changeset.Changeset]:
     """Request and wait for necessary changesets when adding commits to review
 
-       This is used both when creating a review and when adding additional
-       commits to it.
+    This is used both when creating a review and when adding additional
+    commits to it.
 
-       If |commits| is None, |review.commits| is used."""
+    If |commits| is None, |review.commits| is used."""
 
     critic = review.critic
 

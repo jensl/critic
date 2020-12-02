@@ -12,7 +12,7 @@ class Compilation:
     def test() -> bool:
         with activity("Compiling all sources"):
             success = True
-            for dirname, _, filenames in os.walk("critic"):
+            for dirname, _, filenames in os.walk("src/critic"):
                 for filename in filenames:
                     if filename[0] == ".":
                         continue

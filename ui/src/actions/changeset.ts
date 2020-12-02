@@ -16,8 +16,8 @@
 
 import { commitRefsUpdate } from "./commit"
 import { loadFileDiffs } from "./filediff"
-import { assertString, assertNotNull } from "../debug"
-import { fetch, withParameters } from "../resources"
+import { assertString, assertNotNull, assertTrue } from "../debug"
+import { fetch, handleError, include, withParameters } from "../resources"
 import Changeset, { CompletionLevel } from "../resources/changeset"
 import { fetchJSON } from "../utils/Fetch"
 import { Channel } from "../utils/WebSocket"
@@ -35,7 +35,7 @@ import { waitForCompletionLevel } from "../utils/Changeset"
 const setAutomaticChangeset = (
   reviewID: ReviewID,
   automatic: AutomaticMode,
-  changesetID: ChangesetID
+  changesetID: ChangesetID,
 ): Action => ({
   type: SET_AUTOMATIC_CHANGESET,
   reviewID,
@@ -51,11 +51,13 @@ type LoadFileDiffsForChangesetOptions = {
 const loadFileDiffsForChangeset = (
   changeset: Changeset,
   channel: Channel | null,
-  { reviewID, repositoryID }: LoadFileDiffsForChangesetOptions
+  { reviewID, repositoryID }: LoadFileDiffsForChangesetOptions,
 ): AsyncThunk<void> => async (dispatch) => {
+  console.log("loadFileDiffsForChangeset", { changeset })
+
   if (!changeset.completionLevel.has("full")) {
-    //assertNotNull(channel)
-    while (!(await waitForCompletionLevel(channel!, { changeset }))) {
+    assertNotNull(channel)
+    while (!(await waitForCompletionLevel(channel, { changeset }))) {
       // Then check what the changeset's current completion level is. This is
       // done to avoid a race where we begin to listen for updates just after an
       // update.
@@ -67,29 +69,34 @@ const loadFileDiffsForChangeset = (
             only_if_complete: "full",
           },
           expectStatus: [200, 202],
-        })
+        }),
       )
 
       if (status === 200) break
     }
   }
 
+  console.log("loadFileDiffsForChangeset", { changeset })
+
   if (channel !== null) channel.close()
 
-  const chunkCount = Math.ceil(changeset.files.length / 10)
-  const chunkSize = Math.ceil(changeset.files.length / chunkCount)
+  const { files } = changeset
+  assertNotNull(files)
+
+  const chunkCount = Math.ceil(files.length / 10)
+  const chunkSize = Math.ceil(files.length / chunkCount)
   const promises = []
 
-  for (let offset = 0; offset < changeset.files.length; offset += chunkSize) {
-    const fileIDs = changeset.files.slice(offset, offset + chunkSize)
+  for (let offset = 0; offset < files.length; offset += chunkSize) {
+    const fileIDs = files.slice(offset, offset + chunkSize)
     promises.push(
       dispatch(
         loadFileDiffs(fileIDs, {
           changeset,
           reviewID,
           repositoryID,
-        })
-      )
+        }),
+      ),
     )
   }
 
@@ -101,7 +108,7 @@ type ReviewIDParam = { reviewID: ReviewID }
 type ContextIDParam = RepositoryIDParam | ReviewIDParam
 
 const isRepositoryID = (
-  context: ContextIDParam
+  context: ContextIDParam,
 ): context is RepositoryIDParam => "repositoryID" in context
 
 const isReviewID = (context: ContextIDParam): context is ReviewIDParam =>
@@ -117,39 +124,37 @@ const getRepositoryID = (getState: GetState, context: ContextIDParam) => {
   }
 }
 
-type LoadChangesetBySHA1Params = ContextIDParam & {
-  fromCommitRef?: string
-  toCommitRef?: string
-  singleCommitRef?: string
+type SingleCommitRef = {
+  singleCommitRef: string
 }
+type CommitRangeRefs = {
+  fromCommitRef?: string
+  toCommitRef: string
+}
+type CommitRefs = { refs: SingleCommitRef | CommitRangeRefs }
+
+type LoadChangesetBySHA1Params = ContextIDParam & CommitRefs
 
 export const loadChangesetBySHA1 = ({
-  fromCommitRef,
-  toCommitRef,
-  singleCommitRef,
+  refs,
   ...context
 }: LoadChangesetBySHA1Params): AsyncThunk<void> => async (
   dispatch,
-  getState
+  getState,
 ) => {
   const repositoryID = getRepositoryID(getState, context)
 
+  const byCommits =
+    "singleCommitRef" in refs
+      ? { singleCommit: refs.singleCommitRef }
+      : { fromCommit: refs.fromCommitRef, toCommit: refs.toCommitRef }
+
   const { primary, status, error } = await dispatch(
-    fetch("changesets", {
-      request: Changeset.createRequest(
-        {
-          byCommits: {
-            fromCommit: fromCommitRef,
-            toCommit: toCommitRef,
-            singleCommit: singleCommitRef,
-          },
-        },
-        context
-      ),
-      handleError: {
-        MERGE_COMMIT: () => console.log("Merge commit!"),
-      },
-    })
+    fetch(
+      "changesets",
+      ...Changeset.requestOptions(byCommits, context),
+      handleError("MERGE_COMMIT", () => (console.log("Merge commit!"), false)),
+    ),
   )
 
   const commitRefKey = (ref: string) => `${repositoryID}:${ref}`
@@ -157,22 +162,23 @@ export const loadChangesetBySHA1 = ({
 
   if (status === "notfound") {
     if (error!.code === "MERGE_COMMIT") {
-      assertString(singleCommitRef)
-      await dispatch(loadMergeAnalysis(singleCommitRef, { repositoryID }))
+      assertTrue("singleCommitRef" in refs)
+      await dispatch(loadMergeAnalysis(refs.singleCommitRef, { repositoryID }))
       return
     }
-    if (singleCommitRef)
+    if ("singleCommitRef" in refs) {
+      const { singleCommitRef } = refs
       commitRefs.set(
         commitRefKey(singleCommitRef),
-        new InvalidItem(singleCommitRef)
+        new InvalidItem(singleCommitRef),
       )
-    else {
+    } else {
+      const { fromCommitRef, toCommitRef } = refs
       if (fromCommitRef)
         commitRefs.set(
           commitRefKey(fromCommitRef),
-          new InvalidItem(fromCommitRef)
+          new InvalidItem(fromCommitRef),
         )
-      assertString(toCommitRef)
       commitRefs.set(commitRefKey(toCommitRef), new InvalidItem(toCommitRef!))
     }
 
@@ -184,12 +190,13 @@ export const loadChangesetBySHA1 = ({
 
   if (!changeset) return
 
-  if (singleCommitRef)
+  if ("singleCommitRef" in refs) {
+    const { singleCommitRef } = refs
     commitRefs.set(commitRefKey(singleCommitRef), changeset.toCommit)
-  else {
+  } else {
+    const { fromCommitRef, toCommitRef } = refs
     if (fromCommitRef)
       commitRefs.set(commitRefKey(fromCommitRef), changeset.fromCommit)
-    assertString(toCommitRef)
     commitRefs.set(commitRefKey(toCommitRef), changeset.toCommit)
   }
 
@@ -200,10 +207,10 @@ export const loadChangesetBySHA1 = ({
 
 const finishChangeset = (
   changeset: Changeset,
-  context: ContextIDParam
+  context: ContextIDParam,
 ): AsyncThunk<void> => async (dispatch) => {
   const channel = !changeset.completionLevel.has("full")
-    ? await Channel.subscribe(dispatch, `changesets/${changeset.id}`)
+    ? await dispatch(Channel.subscribe(`changesets/${changeset.id}`))
     : null
 
   if (!changeset.completionLevel.has("structure")) {
@@ -225,7 +232,7 @@ const finishChangeset = (
         onlyIfComplete: "structure",
         retryCount: 1,
         channel,
-      })
+      }),
     )
   } else {
     dispatch(loadFileDiffsForChangeset(changeset, channel, context))
@@ -248,25 +255,25 @@ export const loadChangesetByID = (
     onlyIfComplete = false,
     retryCount = 0,
     channel = null,
-  }: LoadChangesetByIDOptions = {}
+  }: LoadChangesetByIDOptions = {},
 ): AsyncThunk<Changeset | null> => async (dispatch) => {
   if (channel === null)
-    channel = await Channel.subscribe(dispatch, `changesets/${changesetID}`)
+    channel = await dispatch(Channel.subscribe(`changesets/${changesetID}`))
 
-  const { primary, status } = await dispatch(
-    fetch("changesets", {
-      request: Changeset.createRequest(
-        {
-          byID: changesetID,
-        },
-        {
-          reviewID,
-          repositoryID,
-          onlyIfComplete,
-        }
-      ),
-    })
+  const options = Changeset.requestOptions(
+    {
+      byID: changesetID,
+    },
+    {
+      reviewID,
+      repositoryID,
+      onlyIfComplete,
+    },
   )
+
+  console.log({ options })
+
+  const { primary, status } = await dispatch(fetch("changesets", ...options))
 
   if (status === "delayed") {
     await waitForCompletionLevel(channel, {
@@ -283,7 +290,7 @@ export const loadChangesetByID = (
         onlyIfComplete,
         retryCount,
         channel,
-      })
+      }),
     )
   }
 
@@ -304,7 +311,7 @@ export const loadChangesetByID = (
         onlyIfComplete: "structure",
         retryCount,
         channel,
-      })
+      }),
     )
   }
 
@@ -312,7 +319,7 @@ export const loadChangesetByID = (
     loadFileDiffsForChangeset(changeset, channel, {
       reviewID,
       repositoryID,
-    })
+    }),
   )
 
   return changeset
@@ -320,19 +327,20 @@ export const loadChangesetByID = (
 
 export const loadAutomaticChangeset = (
   automatic: AutomaticMode,
-  reviewID: ReviewID
+  reviewID: ReviewID,
 ) => async (dispatch: Dispatch): Promise<Changeset | null> => {
   console.error({ automatic, reviewID })
 
   const { primary } = await dispatch(
-    fetch("changesets", {
-      request: Changeset.createRequest({ automatic }, { reviewID }),
-    })
+    fetch(
+      "changesets",
+      ...Changeset.requestOptions({ automatic }, { reviewID }),
+    ),
   )
 
   const changeset = primary[0]
   const channel = !changeset.completionLevel.has("full")
-    ? await Channel.subscribe(dispatch, `changesets/${changeset.id}`)
+    ? await dispatch(Channel.subscribe(`changesets/${changeset.id}`))
     : null
 
   dispatch(setAutomaticChangeset(reviewID, automatic, changeset.id))
@@ -356,7 +364,7 @@ export const loadAutomaticChangeset = (
         onlyIfComplete: "structure",
         retryCount: 1,
         channel,
-      })
+      }),
     )
   }
 
@@ -372,7 +380,7 @@ export const loadMergeAnalysis = (
     ...context
   }: ContextIDParam & {
     retryCount?: number
-  }
+  },
 ): AsyncThunk<MergeAnalysis | null> => async (dispatch, getState) => {
   const { status, primary, updates } = await dispatch(
     fetch(
@@ -381,8 +389,8 @@ export const loadMergeAnalysis = (
         commit,
         repository: isRepositoryID(context) ? context.repositoryID : undefined,
         review: isReviewID(context) ? context.reviewID : undefined,
-      })
-    )
+      }),
+    ),
   )
 
   if (status === "delayed")
@@ -393,8 +401,8 @@ export const loadMergeAnalysis = (
             loadMergeAnalysis(commit, {
               ...context,
               retryCount: retryCount + 1,
-            })
-          )
+            }),
+          ),
         )
       }, 1000 + 1000 * retryCount)
     })
@@ -411,8 +419,8 @@ export const loadMergeAnalysis = (
             `${getRepositoryID(getState, context)}:${commit}`,
             mergeAnalysis.merge,
           ],
-        ])
-      )
+        ]),
+      ),
     )
 
   if (mergeAnalysis.conflictResolutions !== null) {

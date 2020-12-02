@@ -14,11 +14,12 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-import functools
+from __future__ import annotations
+
 import logging
 import os
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Type, TypeVar, cast
 import yaml
 from dataclasses import dataclass
 
@@ -26,7 +27,7 @@ logger = logging.getLogger(__name__)
 
 from critic import api
 
-from . import ManifestError, MANIFEST_FILENAMES
+from .error import ManifestError
 from .package import Package
 from .pythonpackage import PythonPackage
 from .role import Role
@@ -37,7 +38,7 @@ from .uiaddonrole import UIAddonRole
 from .subscriptionrole import SubscriptionRole
 
 
-def valid_flavor(flavor_name):
+def valid_flavor(flavor_name: str) -> bool:
     flavor = getattr(api.critic.settings().extensions.flavors, flavor_name, None)
     if not flavor:
         logger.debug(
@@ -49,14 +50,15 @@ def valid_flavor(flavor_name):
     return getattr(flavor, "enabled", False)
 
 
-class Author(object):
-    def __init__(self, value):
-        match = re.match(r"\s*(.*?)\s+<(.+?)>\s*$", value)
-        if match:
-            self.name, self.email = match.groups()
-        else:
-            self.name = value.strip()
-            self.email = None
+class Author:
+    name: str
+    email: Optional[str]
+
+    def __init__(self, value: str):
+        match = re.match(r"\s*(.*?)(?:\s+<([^>]+)>)?\s*$", value)
+        if not match:
+            raise ManifestError(f"Invalid author: {value!r}")
+        self.name, self.email = match.groups()
 
 
 @dataclass
@@ -67,17 +69,67 @@ class Setting:
     privileged: bool
 
 
+T = TypeVar("T")
+
+
+class Accessor:
+    data: Dict[str, object]
+
+    def __init__(self, data: Any, context: str = ""):
+        self.context = f"{context}: " if context else ""
+        if not isinstance(data, dict):
+            raise ManifestError(f"{self.context}not an object")
+        self.data = data
+
+    def get(
+        self, name: str, value_type: Type[T], check_type: Optional[Type[object]] = None
+    ) -> Optional[T]:
+        try:
+            value = self.data[name]
+        except KeyError:
+            return None
+        if not (
+            isinstance(value, value_type)
+            if check_type is None
+            else isinstance(value, check_type)  # type: ignore
+        ):
+            raise ManifestError(
+                f"{self.context}invalid field value: {name}: "
+                f"expected {value_type.__name__}"
+            )
+        return cast(Optional[T], value)
+
+    def required(
+        self, name: str, value_type: Type[T], check_type: Optional[Type[object]] = None
+    ) -> T:
+        value = self.get(name, value_type, check_type)
+        if value is None:
+            raise ManifestError(f"{self.context}missing required field: {name}")
+        return value
+
+
 class Manifest(object):
+    name: str
     authors: List[Author]
+    description: Optional[str]
     flavor: Optional[str]
     package: Optional[Package]
     roles: List[Role]
     settings: List[Setting]
 
-    def __init__(self, *, path: str = None, filename: str = None, source: str = None):
-        self.path = path
+    def __init__(
+        self,
+        *,
+        filename: str,
+        source: str,
+        path: Optional[str] = None,
+    ):
         self.filename = filename
         self.source = source
+        if path:
+            self.context = os.path.join(path, filename)
+        else:
+            self.context = filename
         self.authors = []
         self.description = None
         self.flavor = None
@@ -88,48 +140,26 @@ class Manifest(object):
         self.package = None
         self.settings = []
 
-    def isAuthor(self, db, user):
-        for author in self.authors:
-            if author.name in (user.name, user.fullname) or user.hasGitEmail(
-                db, author.email
-            ):
-                return True
-        return False
-
     def getAuthors(self):
         return self.authors
 
-    def read(self):
+    def read(self) -> None:
+        assert self.source is not None
+
         configuration = yaml.safe_load(self.source)
 
-        def configuration_field(context, configuration, required, name, field_type=str):
-            try:
-                value = configuration[name]
-            except KeyError:
-                if not required:
-                    return None
-                if context:
-                    context += ": "
-                raise ManifestError(f"{context}missing required field: {name}")
-            if not isinstance(value, field_type):
-                raise ManifestError(
-                    f"{context}invalid field value: {name}: "
-                    f"expected {field_type.__name__}"
-                )
-            return value
+        accessor = Accessor(configuration)
 
-        required_field = functools.partial(configuration_field, "", configuration, True)
+        self.name = accessor.required("name", str)
+        self.authors = [
+            Author(author) for author in accessor.required("authors", List[str], list)
+        ]
+        self.description = accessor.required("description", str)
 
-        self.authors = [Author(author) for author in required_field("authors", list)]
-        self.description = required_field("description")
+        if "package" in configuration:
+            package_accessor = Accessor(configuration["package"], "package")
 
-        package_configuration = configuration.get("package")
-        if package_configuration:
-            package_field = functools.partial(
-                configuration_field, "package", package_configuration
-            )
-
-            package_type = package_field(True, "type")
+            package_type = package_accessor.required("type", str)
 
             if package_type not in Package.package_types:
                 raise ManifestError(f"invalid package type: {package_type}")
@@ -137,15 +167,18 @@ class Manifest(object):
             if package_type == "python":
                 self.package = PythonPackage()
 
-                entrypoints = package_field(False, "entrypoints", dict)
+                entrypoints = package_accessor.get(
+                    "entrypoints", Dict[str, object], dict
+                )
                 if entrypoints:
-                    for name in entrypoints:
-                        target = configuration_field(
-                            f"entrypoint `{name}`", entrypoints, True, name
+                    for name, entrypoint in entrypoints.items():
+                        entrypoint_accessor = Accessor(
+                            entrypoint, f"entrypoint `{name}`"
                         )
+                        target = entrypoint_accessor.required("target", str)
                         self.package.add_entrypoint(name, target)
 
-                dependencies = package_field(False, "dependencies", list)
+                dependencies = package_accessor.get("dependencies", List[str], list)
                 if dependencies:
                     for dependency in dependencies:
                         self.package.add_dependency(dependency)
@@ -156,11 +189,10 @@ class Manifest(object):
                     process_settings(f"{prefix}{key}.", value)
             else:
                 key = prefix.rstrip(".")
-                description = configuration_field(
-                    f"settings.{key}", settings, True, "description"
-                )
-                value = settings.get("value", None)
-                privileged = settings.get("privileged", False)
+                settings_accessor = Accessor(settings, f"settings.{key}")
+                description = settings_accessor.required("description", str)
+                value = settings_accessor.get("value", object)
+                privileged = settings_accessor.get("privileged", bool) or False
                 self.settings.append(Setting(key, description, value, privileged))
 
         settings_configuration = configuration.get("settings")
@@ -169,61 +201,56 @@ class Manifest(object):
 
         default_flavor = configuration.get("flavor", "native")
 
-        for index, role_configuration in enumerate(required_field("roles", list)):
-            required_role_field = functools.partial(
-                configuration_field, f"role {index + 1}", role_configuration, True
-            )
+        for index, role_configuration in enumerate(
+            accessor.required("roles", List[object], list)
+        ):
+            role_accessor = Accessor(role_configuration, f"role {index + 1}")
 
-            role_type = required_role_field("type")
+            role_type = role_accessor.required("type", str)
+            role: Role
             if role_type == "endpoint":
-                role = EndpointRole(name=required_role_field("name"))
+                role = EndpointRole(name=role_accessor.required("name", str))
             elif role_type == "processcommits":
                 role = ProcessCommitsRole()
             elif role_type == "filterhook":
                 role = FilterHookRole(
-                    name=required_role_field("name"),
-                    title=required_role_field("title"),
-                    data_description=role_configuration.get("data_description"),
+                    name=role_accessor.required("name", str),
+                    title=role_accessor.required("title", str),
+                    data_description=role_accessor.get("data_description", str),
                 )
             elif role_type == "uiaddon":
                 role = UIAddonRole(
-                    name=required_role_field("name"),
-                    bundle_js=required_role_field("bundle_js"),
-                    bundle_css=role_configuration.get("bundle_css"),
+                    name=role_accessor.required("name", str),
+                    bundle_js=role_accessor.required("bundle_js", str),
+                    bundle_css=role_accessor.get("bundle_css", str),
                 )
             elif role_type == "subscription":
-                role = SubscriptionRole(channel=required_role_field("channel"))
+                role = SubscriptionRole(channel=role_accessor.required("channel", str))
             else:
                 raise ManifestError(
-                    "%s: invalid role type: %s" % (self.path, role_type)
+                    "%s: invalid role type: %s" % (self.context, role_type)
                 )
 
             if role.does_execute:
-                flavor = role_configuration.get("flavor", default_flavor)
+                flavor = role_accessor.get("flavor", str) or default_flavor
                 if not valid_flavor(flavor):
                     raise ManifestError(
-                        "%s: invalid (or disabled) flavor: %s" % (self.path, flavor)
+                        "%s: invalid (or disabled) flavor: %s" % (self.context, flavor)
                     )
                 if flavor == "native":
-                    assert self.package.package_type == "python"
+                    assert self.package and self.package.package_type == "python"
                     role.set_execute(
-                        flavor=flavor, entrypoint=required_role_field("entrypoint")
+                        flavor=flavor,
+                        entrypoint=role_accessor.required("entrypoint", str),
                     )
                 else:
                     raise ManifestError(
-                        "%s: invalid role flavor: %s" % (self.path, flavor)
+                        "%s: invalid role flavor: %s" % (self.context, flavor)
                     )
 
-            role.set_description(required_role_field("description"))
-            role.check(self)
+            role.set_description(role_accessor.required("description", str))
 
             self.roles.append(role)
 
         if not self.roles:
-            raise ManifestError("%s: manifest error: no roles defined" % self.path)
-
-    @staticmethod
-    def load(extension_path):
-        manifest = Manifest(extension_path)
-        manifest.read()
-        return manifest
+            raise ManifestError("%s: manifest error: no roles defined" % self.context)

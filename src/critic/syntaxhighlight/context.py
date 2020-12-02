@@ -14,9 +14,9 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-import os
+# import os
 
-from critic import syntaxhighlight
+# from critic import syntaxhighlight
 
 # This is just for sanity.
 MIN_CONTEXT_LENGTH = 5
@@ -25,30 +25,30 @@ MIN_CONTEXT_LENGTH = 5
 MAX_CONTEXT_LENGTH = 256
 
 
-def importCodeContexts(db, sha1, language):
-    codecontexts_path = syntaxhighlight.generateHighlightPath(sha1, language) + ".ctx"
+# def importCodeContexts(db, sha1, language):
+#     codecontexts_path = syntaxhighlight.generateHighlightPath(sha1, language) + ".ctx"
 
-    if os.path.isfile(codecontexts_path):
-        contexts_values = []
+#     if os.path.isfile(codecontexts_path):
+#         contexts_values = []
 
-        for line in open(codecontexts_path):
-            line = line.strip()
+#         for line in open(codecontexts_path):
+#             line = line.strip()
 
-            first_line, last_line, context = line.split(" ", 2)
-            if len(context) > MAX_CONTEXT_LENGTH:
-                context = context[: MAX_CONTEXT_LENGTH - 3] + "..."
-            contexts_values.append((sha1, context, int(first_line), int(last_line)))
+#             first_line, last_line, context = line.split(" ", 2)
+#             if len(context) > MAX_CONTEXT_LENGTH:
+#                 context = context[: MAX_CONTEXT_LENGTH - 3] + "..."
+#             contexts_values.append((sha1, context, int(first_line), int(last_line)))
 
-        cursor = db.cursor()
-        cursor.execute("DELETE FROM codecontexts WHERE sha1=%s", [sha1])
-        cursor.executemany(
-            "INSERT INTO codecontexts (sha1, context, first_line, last_line) VALUES (%s, %s, %s, %s)",
-            contexts_values,
-        )
-        db.commit()
+#         cursor = db.cursor()
+#         cursor.execute("DELETE FROM codecontexts WHERE sha1=%s", [sha1])
+#         cursor.executemany(
+#             "INSERT INTO codecontexts (sha1, context, first_line, last_line) VALUES (%s, %s, %s, %s)",
+#             contexts_values,
+#         )
+#         db.commit()
 
-        os.unlink(codecontexts_path)
+#         os.unlink(codecontexts_path)
 
-        return len(contexts_values)
-    else:
-        return 0
+#         return len(contexts_values)
+#     else:
+#         return 0

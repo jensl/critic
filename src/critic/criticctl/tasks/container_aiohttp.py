@@ -14,6 +14,7 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
+import argparse
 import json
 import logging
 import multiprocessing
@@ -24,6 +25,8 @@ logger = logging.getLogger(__name__)
 
 from critic import api
 from critic import base
+from .utils import fail
+from .systemctl import check, start_service, restart_service, daemon_reload
 
 TCP_ARGUMENTS = """\
   --host=%(host)s \\
@@ -68,7 +71,7 @@ def sockets_dir():
     return os.path.join(base.configuration()["paths.runtime"], "sockets")
 
 
-def setup(parser):
+def setup(parser: argparse.ArgumentParser) -> None:
     identity = parser.get_default("configuration")["system.identity"]
 
     service_group = parser.add_argument_group("Systemd service options")
@@ -142,10 +145,8 @@ def setup(parser):
     parser.set_defaults(need_session=True, run_as_root=True)
 
 
-async def main(critic, arguments):
-    from . import fail, systemctl
-
-    systemctl.check()
+async def main(critic: api.critic.Critic, arguments: argparse.Namespace) -> int:
+    check()
 
     overwrite = False
 
@@ -183,13 +184,13 @@ async def main(critic, arguments):
 
     logger.info("Created systemd service file: %s", arguments.service_file)
 
-    systemctl.daemon_reload()
+    daemon_reload()
 
-    container = await api.systemsetting.fetch(critic, "frontend.container")
+    container = await api.systemsetting.fetch(critic, key="frontend.container")
 
     async with api.transaction.start(critic) as transaction:
-        transaction.setSystemSetting(container, "aiohttp")
-        transaction.addSystemEvent(
+        await transaction.modifySystemSetting(container).setValue("aiohttp")
+        await transaction.addSystemEvent(
             "install",
             "container",
             "Installed aiohttp service: %s" % arguments.service_file,
@@ -206,9 +207,11 @@ async def main(critic, arguments):
 
     if arguments.start_service:
         if overwrite:
-            systemctl.restart_service(service_name)
+            restart_service(service_name)
         else:
-            systemctl.start_service(service_name)
+            start_service(service_name)
 
     logger.info("Updated Critic's system settings:")
     logger.info("  frontend.container=%s", json.dumps(container.value))
+
+    return 0

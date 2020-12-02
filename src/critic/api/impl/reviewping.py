@@ -21,8 +21,9 @@ from typing import Tuple, Sequence
 
 logger = logging.getLogger(__name__)
 
-from . import apiobject
 from critic import api
+from critic.api import reviewping as public
+from . import apiobject
 
 WrapperType = api.reviewping.ReviewPing
 ArgumentsType = Tuple[int, str]
@@ -35,18 +36,15 @@ class ReviewPing(apiobject.APIObject[WrapperType, ArgumentsType, int]):
     def __init__(self, args: ArgumentsType):
         (self.id, self.message) = args
 
-    @staticmethod
-    def cacheKey(wrapper: WrapperType) -> int:
-        return wrapper._impl.id
-
-    @staticmethod
-    def makeCacheKey(args: ArgumentsType) -> int:
+    @classmethod
+    def makeCacheKey(cls, args: ArgumentsType) -> int:
         return args[0]
 
     async def getEvent(self, critic: api.critic.Critic) -> api.reviewevent.ReviewEvent:
         return await api.reviewevent.fetch(critic, self.id)
 
 
+@public.fetchImpl
 @ReviewPing.cached
 async def fetch(
     critic: api.critic.Critic, event: api.reviewevent.ReviewEvent
@@ -57,6 +55,7 @@ async def fetch(
         return await ReviewPing.makeOne(critic, result)
 
 
+@public.fetchAllImpl
 async def fetchAll(
     critic: api.critic.Critic, review: api.review.Review
 ) -> Sequence[WrapperType]:

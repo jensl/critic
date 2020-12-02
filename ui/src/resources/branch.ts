@@ -14,20 +14,17 @@
  * the License.
  */
 
-import produce from "immer"
 import { combineReducers } from "redux"
+import { immerable } from "immer"
+
 import { primaryMap, lookupMap } from "../reducers/resource"
 import { Action, SET_CREATED_BRANCHES, SET_UPDATED_BRANCHES } from "../actions"
 import { BranchID, CommitID, RepositoryID } from "./types"
 
 const branchList = (
-  actionType: typeof SET_CREATED_BRANCHES | typeof SET_UPDATED_BRANCHES
-) =>
-  produce(
-    (state: BranchID[], action: Action) =>
-      action.type === actionType ? action.branchIDs : state,
-    []
-  )
+  actionType: typeof SET_CREATED_BRANCHES | typeof SET_UPDATED_BRANCHES,
+) => (state: BranchID[] = [], action: Action): BranchID[] =>
+  action.type === actionType ? action.branchIDs : state
 
 const created = branchList(SET_CREATED_BRANCHES)
 const updated = branchList(SET_UPDATED_BRANCHES)
@@ -42,13 +39,15 @@ type BranchProps = {
 }
 
 export class Branch {
+  [immerable] = true
+
   constructor(
     readonly id: BranchID,
     readonly name: string,
     readonly repository: RepositoryID,
     readonly baseBranch: null | number,
     readonly head: CommitID,
-    readonly size: number
+    readonly size: number,
   ) {}
 
   static new(props: BranchProps) {
@@ -58,7 +57,7 @@ export class Branch {
       props.repository,
       props.base_branch,
       props.head,
-      props.size
+      props.size,
     )
   }
 
@@ -66,7 +65,7 @@ export class Branch {
     byID: primaryMap<Branch, number>("branches"),
     byName: lookupMap<Branch, string, number>(
       "branches",
-      (branch) => `${branch.repository}:${branch.name}`
+      (branch) => `${branch.repository}:${branch.name}`,
     ),
     created,
     updated,

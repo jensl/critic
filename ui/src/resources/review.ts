@@ -14,6 +14,8 @@
  * the License.
  */
 
+import { immerable } from "immer"
+
 import { primaryMap } from "../reducers/resource"
 import { CommentID, CommitID, FileID, RebaseID, ReviewTagID } from "./types"
 
@@ -70,6 +72,8 @@ type ReviewProps = {
 }
 
 class Review {
+  [immerable] = true
+
   constructor(
     readonly id: number,
     readonly state: "draft" | "open" | "closed" | "dropped",
@@ -92,7 +96,7 @@ class Review {
     readonly tags: ReadonlySet<ReviewTagID>,
     readonly lastChanged: number,
     readonly integration: Integration | null,
-    readonly isPartial: boolean = false
+    readonly isPartial: boolean = false,
   ) {}
 
   static new(props: ReviewProps) {
@@ -118,7 +122,7 @@ class Review {
       props.tags,
       props.last_changed,
       props.integration,
-      props.is_partial
+      props.is_partial,
     )
   }
 
@@ -134,7 +138,7 @@ class Review {
         (value.progress_per_commit || []).map((data) => [
           data.commit,
           CommitChangeCount.new(data),
-        ])
+        ]),
       ),
       tags: new Set<number>(value.tags || []),
       integration: value.integration && Integration.make(value.integration),
@@ -166,9 +170,11 @@ type PartitionData = {
 type PartitionProps = PartitionData
 
 export class Partition {
+  [immerable] = true
+
   constructor(
     readonly commits: readonly CommitID[],
-    readonly rebase: RebaseID | null
+    readonly rebase: RebaseID | null,
   ) {}
 
   static new(props: PartitionProps) {
@@ -185,17 +191,19 @@ type CommitChangeCountData = {
 type CommitChangeCountProps = CommitChangeCountData
 
 class CommitChangeCount {
+  [immerable] = true
+
   constructor(
     readonly commit: number,
     readonly totalChanges: number,
-    readonly reviewedChanges: number
+    readonly reviewedChanges: number,
   ) {}
 
   static new(props: CommitChangeCountProps) {
     return new CommitChangeCount(
       props.commit,
       props.total_changes,
-      props.reviewed_changes
+      props.reviewed_changes,
     )
   }
 }
@@ -208,6 +216,8 @@ type ProgressData = {
 type ProgressProps = ProgressData
 
 class Progress {
+  [immerable] = true
+
   constructor(readonly reviewing: number, readonly issues: number) {}
 
   static new(props: ProgressProps) {
@@ -238,6 +248,8 @@ type IntegrationProps = {
 }
 
 class Integration {
+  [immerable] = true
+
   constructor(
     readonly targetBranch: number,
     readonly commitsBehind: number,
@@ -246,7 +258,7 @@ class Integration {
     readonly autosquashed: boolean,
     readonly strategyUsed: string | null,
     readonly conflicts: ReadonlySet<FileID>,
-    readonly errorMessage: string | null
+    readonly errorMessage: string | null,
   ) {}
 
   static new(props: IntegrationProps) {
@@ -258,7 +270,7 @@ class Integration {
       props.autosquashed,
       props.strategy_used,
       props.conflicts,
-      props.error_message
+      props.error_message,
     )
   }
 

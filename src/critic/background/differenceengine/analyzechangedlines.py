@@ -23,6 +23,7 @@ from typing import Collection, Iterable, List, Optional, Sequence
 logger = logging.getLogger(__name__)
 
 from critic import api
+from critic import dbaccess
 from critic import diff
 from critic import gitaccess
 from critic import pubsub
@@ -30,17 +31,14 @@ from critic import pubsub
 from . import protocol
 from .changedfile import ChangedFile
 from .changedlines import ChangedLines
-from .changeset import Changeset
-from .jobgroup import JobGroup
-from .requestjob import RequestJob
-from .calculatefiledifference import CalculateFileDifference
+from .requestjob import RequestJob, GroupType
 
 
-class AnalyzeChangedLines(RequestJob[Changeset, protocol.AnalyzeChangedLines.Response]):
+class AnalyzeChangedLines(RequestJob[protocol.AnalyzeChangedLines.Response]):
     # Analyze changed lines after calculating file difference in all files.
     # This improves progress feedback, since we'll know the total number of
     # blocks of changed lines to analyze sooner.
-    priority = CalculateFileDifference.priority + 1
+    priority = 2  # CalculateFileDifference.priority + 1
 
     # Failure to analyze a block of changed lines is non-fatal; we can just
     # display a stupid diff with the block top-aligned on both sides and without
@@ -49,7 +47,7 @@ class AnalyzeChangedLines(RequestJob[Changeset, protocol.AnalyzeChangedLines.Res
 
     def __init__(
         self,
-        changeset: Changeset,
+        group: GroupType,
         changed_file: ChangedFile,
         blocks: Sequence[ChangedLines],
     ):
@@ -58,7 +56,7 @@ class AnalyzeChangedLines(RequestJob[Changeset, protocol.AnalyzeChangedLines.Res
         key = (self.changed_file.file_id,) + tuple(
             (block.delete_offset, block.insert_offset) for block in self.blocks
         )
-        super().__init__(changeset, key)
+        super().__init__(group, key)
 
     def split(self) -> Optional[Collection[AnalyzeChangedLines]]:
         if len(self.blocks) <= 1:
@@ -112,7 +110,7 @@ class AnalyzeChangedLines(RequestJob[Changeset, protocol.AnalyzeChangedLines.Res
                       AND file={file_id}
                       AND "index"={index}""",
                 (
-                    dict(
+                    dbaccess.parameters(
                         changeset_id=self.group.changeset_id,
                         file_id=self.changed_file.file_id,
                         analysis=response.analysis if response is not None else None,
@@ -124,7 +122,7 @@ class AnalyzeChangedLines(RequestJob[Changeset, protocol.AnalyzeChangedLines.Res
 
     @staticmethod
     def for_blocks(
-        group: Changeset, changed_file: ChangedFile, blocks: Iterable[ChangedLines]
+        group: GroupType, changed_file: ChangedFile, blocks: Iterable[ChangedLines]
     ) -> Iterable[AnalyzeChangedLines]:
         # Cost is calculated in terms of pairs of lines to consider.  We spread
         # the work out across multiple jobs to increase parallel processing.

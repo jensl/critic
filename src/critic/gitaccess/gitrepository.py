@@ -20,11 +20,9 @@ import asyncio
 import contextlib
 import logging
 import os
-import re
 import tempfile
 from types import TracebackType
 from typing import (
-    Any,
     AsyncIterator,
     Collection,
     FrozenSet,
@@ -80,7 +78,7 @@ GitObjectType = TypeVar("GitObjectType", bound=GitObject)
 
 
 class GitRepository:
-    OBJECT_TYPES: FrozenSet[ObjectType] = frozenset({"blob", "commit", "tag", "tree"})
+    OBJECT_TYPES: FrozenSet[ObjectType] = frozenset(["blob", "commit", "tag", "tree"])
 
     def __init__(self, impl: GitRepositoryImpl):
         self.__impl = impl
@@ -91,12 +89,11 @@ class GitRepository:
 
     @property
     def environ(self) -> Mapping[str, str]:
-        assert isinstance(self.__impl, GitRepositoryDirect)
         return self.__impl.environ
 
     @contextlib.contextmanager
     def with_environ(
-        self, env: Mapping[str, str] = None, /, **overrides: str
+        self, env: Optional[Mapping[str, str]] = None, /, **overrides: str
     ) -> Iterator[GitRepository]:
         if env is None:
             env = {**self.environ, **overrides}
@@ -125,12 +122,14 @@ class GitRepository:
         ...
 
     async def symbolicref(
-        self, name: str, *, value: str = None, delete: bool = False
+        self, name: str, *, value: Optional[str] = None, delete: bool = False
     ) -> str:
         return await self.__impl.symbolicref(name, value=value, delete=delete)
 
     @overload
-    async def revparse(self, ref: str, *, object_type: ObjectType = None) -> SHA1:
+    async def revparse(
+        self, ref: str, *, object_type: Optional[ObjectType] = None
+    ) -> SHA1:
         ...
 
     @overload
@@ -139,7 +138,7 @@ class GitRepository:
         ref: str,
         *,
         short: Union[Literal[True], int],
-        object_type: ObjectType = None,
+        object_type: Optional[ObjectType] = None,
     ) -> str:
         ...
 
@@ -147,8 +146,8 @@ class GitRepository:
         self,
         ref: str,
         *,
-        short: Union[Literal[True], int] = None,
-        object_type: ObjectType = None,
+        short: Optional[Union[Literal[True], int]] = None,
+        object_type: Optional[ObjectType] = None,
     ) -> Union[SHA1, str]:
         return await self.__impl.revparse(ref, object_type=object_type, short=short)
 
@@ -158,12 +157,12 @@ class GitRepository:
         include: Iterable[str],
         exclude: Iterable[str] = (),
         *,
-        paths: Iterable[str] = None,
-        offset: int = None,
-        limit: int = None,
-        min_parents: int = None,
-        max_parents: int = None,
-        order: RevlistOrder = None,
+        paths: Optional[Iterable[str]] = None,
+        offset: Optional[int] = None,
+        limit: Optional[int] = None,
+        min_parents: Optional[int] = None,
+        max_parents: Optional[int] = None,
+        order: Optional[RevlistOrder] = None,
         flags: Collection[RevlistFlag] = set(),
     ) -> Sequence[SHA1]:
         ...
@@ -175,12 +174,12 @@ class GitRepository:
         exclude: Iterable[str] = (),
         *,
         count: Literal[True],
-        paths: Iterable[str] = None,
-        offset: int = None,
-        limit: int = None,
-        min_parents: int = None,
-        max_parents: int = None,
-        order: RevlistOrder = None,
+        paths: Optional[Iterable[str]] = None,
+        offset: Optional[int] = None,
+        limit: Optional[int] = None,
+        min_parents: Optional[int] = None,
+        max_parents: Optional[int] = None,
+        order: Optional[RevlistOrder] = None,
         flags: Collection[RevlistFlag] = set(),
     ) -> int:
         ...
@@ -190,12 +189,12 @@ class GitRepository:
         self,
         *,
         symmetric: Tuple[str, str],
-        paths: Iterable[str] = None,
-        offset: int = None,
-        limit: int = None,
-        min_parents: int = None,
-        max_parents: int = None,
-        order: RevlistOrder = None,
+        paths: Optional[Iterable[str]] = None,
+        offset: Optional[int] = None,
+        limit: Optional[int] = None,
+        min_parents: Optional[int] = None,
+        max_parents: Optional[int] = None,
+        order: Optional[RevlistOrder] = None,
         flags: Collection[RevlistFlag] = set(),
     ) -> Sequence[SHA1]:
         ...
@@ -206,12 +205,12 @@ class GitRepository:
         *,
         symmetric: Tuple[str, str],
         count: Literal[True],
-        paths: Iterable[str] = None,
-        offset: int = None,
-        limit: int = None,
-        min_parents: int = None,
-        max_parents: int = None,
-        order: RevlistOrder = None,
+        paths: Optional[Iterable[str]] = None,
+        offset: Optional[int] = None,
+        limit: Optional[int] = None,
+        min_parents: Optional[int] = None,
+        max_parents: Optional[int] = None,
+        order: Optional[RevlistOrder] = None,
         flags: Collection[RevlistFlag] = set(),
     ) -> int:
         ...
@@ -221,14 +220,14 @@ class GitRepository:
         include: Iterable[str] = (),
         exclude: Iterable[str] = (),
         *,
-        symmetric: Tuple[str, str] = None,
-        count: Literal[True] = None,
-        paths: Iterable[str] = None,
-        offset: int = None,
-        limit: int = None,
-        min_parents: int = None,
-        max_parents: int = None,
-        order: RevlistOrder = None,
+        symmetric: Optional[Tuple[str, str]] = None,
+        count: Optional[Literal[True]] = None,
+        paths: Optional[Iterable[str]] = None,
+        offset: Optional[int] = None,
+        limit: Optional[int] = None,
+        min_parents: Optional[int] = None,
+        max_parents: Optional[int] = None,
+        order: Optional[RevlistOrder] = None,
         flags: Collection[RevlistFlag] = set(),
     ) -> Union[Sequence[SHA1], int]:
         assert self.path
@@ -257,7 +256,7 @@ class GitRepository:
         ...
 
     async def mergebase(
-        self, *commits: str, is_ancestor: Literal[True] = None
+        self, *commits: str, is_ancestor: Optional[Literal[True]] = None
     ) -> Union[SHA1, bool]:
         assert self.path
         assert is_ancestor is None or isinstance(is_ancestor, bool)
@@ -265,7 +264,7 @@ class GitRepository:
         return await self.__impl.mergebase(*commits, is_ancestor=bool(is_ancestor))
 
     async def lstree(
-        self, ref: str, path: str = None, *, long_format: bool = False
+        self, ref: str, path: Optional[str] = None, *, long_format: bool = False
     ) -> Sequence[GitTreeEntry]:
         assert self.path
         return await self.__impl.lstree(ref, path, long_format=long_format)
@@ -277,8 +276,8 @@ class GitRepository:
     #     self,
     #     *object_ids: str,
     #     order: Literal["date", "topo"] = "date",
-    #     wanted_object_type: ObjectType = None,
-    #     object_factory: Type[GitObject] = None,
+    #     wanted_object_type: Optional[ObjectType] = None,
+    #     object_factory: Optional[Type[GitObject]] = None,
     # ) -> AsyncIterator[Tuple[str, GitObject]]:
     #     ...
 
@@ -287,25 +286,25 @@ class GitRepository:
     #     self,
     #     *,
     #     include: Iterable[str],
-    #     exclude: Iterable[str] = None,
+    #     exclude: Optional[Iterable[str]] = None,
     #     order: Literal["date", "topo"] = "date",
-    #     skip: int = None,
-    #     limit: int = None,
-    #     wanted_object_type: ObjectType = None,
-    #     object_factory: Type[GitObject] = None,
+    #     skip: Optional[int] = None,
+    #     limit: Optional[int] = None,
+    #     wanted_object_type: Optional[ObjectType] = None,
+    #     object_factory: Optional[Type[GitObject]] = None,
     # ) -> AsyncIterator[Tuple[str, GitObject]]:
     #     ...
 
     async def fetch(
         self,
         *object_ids: SHA1,
-        include: Iterable[str] = None,
-        exclude: Iterable[str] = None,
+        include: Optional[Iterable[str]] = None,
+        exclude: Optional[Iterable[str]] = None,
         order: Optional[FetchRangeOrder] = None,
-        skip: int = None,
-        limit: int = None,
-        wanted_object_type: ObjectType = None,
-        object_factory: Type[GitObject] = None,
+        skip: Optional[int] = None,
+        limit: Optional[int] = None,
+        wanted_object_type: Optional[ObjectType] = None,
+        object_factory: Optional[Type[GitObject]] = None,
     ) -> AsyncIterator[Tuple[SHA1, Union[GitObject, GitFetchError]]]:
         assert self.path
         async for item in self.__impl.fetch(
@@ -322,7 +321,10 @@ class GitRepository:
 
     @overload
     async def fetchone(
-        self, object_id: SHA1, *, wanted_object_type: ObjectType = None,
+        self,
+        object_id: SHA1,
+        *,
+        wanted_object_type: Optional[ObjectType] = None,
     ) -> GitObject:
         ...
 
@@ -332,7 +334,7 @@ class GitRepository:
         object_id: SHA1,
         *,
         object_factory: Type[GitObjectType],
-        wanted_object_type: ObjectType = None,
+        wanted_object_type: Optional[ObjectType] = None,
     ) -> GitObjectType:
         ...
 
@@ -340,8 +342,8 @@ class GitRepository:
         self,
         object_id: SHA1,
         *,
-        wanted_object_type: ObjectType = None,
-        object_factory: Type[GitObject] = None,
+        wanted_object_type: Optional[ObjectType] = None,
+        object_factory: Optional[Type[GitObject]] = None,
     ) -> GitObject:
         async for object_id, gitobject in self.fetch(
             object_id,
@@ -357,8 +359,8 @@ class GitRepository:
     async def fetchall(
         self,
         *object_ids: SHA1,
-        wanted_object_type: ObjectType = None,
-        object_factory: Type[GitObject] = None,
+        wanted_object_type: Optional[ObjectType] = None,
+        object_factory: Optional[Type[GitObject]] = None,
     ) -> Sequence[GitObject]:
         result: List[GitObject] = []
         async for object_id, gitobject in self.fetch(
@@ -377,18 +379,17 @@ class GitRepository:
         self, tree: SHA1, parents: Iterable[SHA1], message: str
     ) -> SHA1:
         assert self.path
-        assert isinstance(self, GitRepositoryDirect)
         message = message.strip()
         assert message
         return await self.__impl.committree(tree, parents, message)
 
-    async def foreachref(self, *, pattern: str = None) -> Sequence[str]:
+    async def foreachref(self, *, pattern: Optional[str] = None) -> Sequence[str]:
         assert self.path
         return await self.__impl.foreachref(pattern=pattern)
 
     @overload
     async def updateref(
-        self, name: str, *, old_value: SHA1 = None, new_value: SHA1
+        self, name: str, *, old_value: Optional[SHA1] = None, new_value: SHA1
     ) -> None:
         ...
 
@@ -400,7 +401,7 @@ class GitRepository:
 
     @overload
     async def updateref(
-        self, name: str, *, old_value: SHA1 = None, delete: Literal[True]
+        self, name: str, *, old_value: Optional[SHA1] = None, delete: Literal[True]
     ) -> None:
         ...
 
@@ -408,10 +409,10 @@ class GitRepository:
         self,
         name: str,
         *,
-        old_value: SHA1 = None,
-        new_value: SHA1 = None,
-        create: Literal[True] = None,
-        delete: Literal[True] = None,
+        old_value: Optional[SHA1] = None,
+        new_value: Optional[SHA1] = None,
+        create: Optional[Literal[True]] = None,
+        delete: Optional[Literal[True]] = None,
     ) -> None:
         assert self.path
         assert name == "HEAD" or name.startswith("refs/")
@@ -446,25 +447,25 @@ class GitRepository:
         command: StreamCommand,
         input_queue: "asyncio.Queue[bytes]",
         output_queue: "asyncio.Queue[bytes]",
-        env: Mapping[str, str] = None,
+        env: Optional[Mapping[str, str]] = None,
     ) -> None:
         assert self.path
         await self.__impl.stream(command, input_queue, output_queue, env)
 
     async def clone(self, url: str, *, bare: bool = True, mirror: bool = False) -> None:
         assert self.path
-        assert isinstance(self.__impl, GitRepositoryDirect)
+        assert self.__impl.is_direct
         await self.__impl.clone(url, bare=bare, mirror=mirror)
 
     async def close(self) -> None:
         await self.__impl.close()
 
     def set_author_details(self, name: str, email: str) -> None:
-        assert isinstance(self.__impl, GitRepositoryDirect)
+        assert self.__impl.is_direct
         self.__impl.set_author_details(name, email)
 
     def set_committer_details(self, name: str, email: str) -> None:
-        assert isinstance(self.__impl, GitRepositoryDirect)
+        assert self.__impl.is_direct
         self.__impl.set_committer_details(name, email)
 
     def set_user_details(self, name: str, email: str) -> None:
@@ -472,24 +473,37 @@ class GitRepository:
         self.set_committer_details(name, email)
 
     def clear_user_details(self) -> None:
-        assert isinstance(self.__impl, GitRepositoryDirect)
+        assert self.__impl.is_direct
         self.__impl.clear_user_details()
 
+    def get_worktree_path(self) -> str:
+        assert self.__impl.is_direct
+        return self.__impl.get_worktree_path()
+
     def set_worktree_path(self, path: Optional[str]) -> None:
-        assert isinstance(self.__impl, GitRepositoryDirect)
+        assert self.__impl.is_direct
         self.__impl.set_worktree_path(path)
 
     async def run(
-        self, *argv: str, stdin_data: Union[str, bytes] = None, cwd: str = None
+        self,
+        *argv: str,
+        stdin_data: Optional[Union[str, bytes]] = None,
+        cwd: Optional[str] = None,
     ) -> bytes:
+        from .gitrepositorydirect import GitRepositoryDirect
+
         assert isinstance(self.__impl, GitRepositoryDirect)
         return await self.__impl.run(*argv, stdin_data=stdin_data, cwd=cwd)
 
     @contextlib.asynccontextmanager
     async def worktree(
-        self, commit: str, new_branch: str = None, detach: bool = False
+        self,
+        commit: str,
+        new_branch: Optional[str] = None,
+        detach: bool = False,
+        checkout: bool = True,
     ) -> AsyncIterator[GitRepository]:
-        assert isinstance(self.__impl, GitRepositoryDirect)
+        assert self.__impl.is_direct
 
         worktrees_dir = os.path.join(
             str(base.configuration()["paths.home"]), "worktrees"
@@ -502,20 +516,26 @@ class GitRepository:
             argv.extend(["-b", str(new_branch)])
         elif detach:
             argv.append("--detach")
+        if not checkout:
+            argv.append("--no-checkout")
 
-        try:
-            with tempfile.TemporaryDirectory(dir=worktrees_dir) as worktree_dir:
-                await self.run(*argv, worktree_dir, str(commit))
+        with tempfile.TemporaryDirectory(dir=worktrees_dir) as worktree_dir:
+            try:
+                await self.run(*argv, worktree_dir, commit)
                 self.set_worktree_path(worktree_dir)
                 yield self
-        finally:
-            self.set_worktree_path(None)
-            self.run("worktree", "prune")
+            finally:
+                self.set_worktree_path(None)
+                await self.run("worktree", "remove", "--force", worktree_dir)
 
     @staticmethod
-    def direct(path: str = None, allow_missing: bool = False) -> GitRepository:
+    def direct(
+        path: Optional[str] = None, allow_missing: bool = False
+    ) -> GitRepository:
+        from .gitrepositorydirect import GitRepositoryDirect
+
         direct = GitRepositoryDirect(path)
-        if not allow_missing and path and not os.path.isdir(direct.path):
+        if not allow_missing and direct.path and not os.path.isdir(direct.path):
             raise GitRepositoryError(f"Repository not found: {path}")
         return GitRepository(direct)
 
@@ -532,4 +552,21 @@ class GitRepository:
         return None
 
 
-from .gitrepositorydirect import GitRepositoryDirect
+__all__ = [
+    "SHA1",
+    "GitRemoteRefs",
+    "FetchJob",
+    "FetchRangeOrder",
+    "RevlistFlag",
+    "RevlistOrder",
+    "StreamCommand",
+    "GitError",
+    "GitRepositoryError",
+    "GitProcessError",
+    "GitReferenceError",
+    "GitFetchError",
+    "ObjectType",
+    "GitObject",
+    "GitRawObject",
+    "GitTreeEntry",
+]

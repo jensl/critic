@@ -14,7 +14,15 @@
  * the License.
  */
 
-import { createResource, fetch, updateResources } from "../resources"
+import {
+  createResource,
+  fetch,
+  updateResource,
+  updateResources,
+  withArgument,
+  withParameters,
+} from "../resources"
+import SystemSetting from "../resources/systemsetting"
 import { SystemSettingID } from "../resources/types"
 import { JSONData } from "../types"
 import { map } from "../utils"
@@ -22,20 +30,28 @@ import { map } from "../utils"
 export const loadSystemSettings = () => fetch("systemsettings")
 
 export const loadSystemSetting = (systemSettingID: SystemSettingID) =>
-  fetch("systemsettings", systemSettingID)
+  fetch("systemsettings", withArgument(systemSettingID))
+
+export const loadSystemSettingByKey = (key: string) =>
+  fetch("systemsettings", withParameters({ key }))
+
+export const loadSystemSettingByPrefix = (prefix: string) =>
+  fetch("systemsettings", withParameters({ prefix }))
+
+export const setSystemSetting = (setting: SystemSetting, value: JSONData) =>
+  updateResource("systemsettings", { value }, withArgument(setting.id))
 
 export const setSystemSettings = (
-  systemSettings: Map<SystemSettingID, JSONData>
+  systemSettings: Map<SystemSettingID, JSONData>,
 ) =>
   updateResources(
     "systemsettings",
-    null,
-    map(systemSettings.entries(), ([id, value]) => ({ id, value }))
+    map(systemSettings.entries(), ([id, value]) => ({ id, value })),
   )
 
 export const addSystemEvent = (
   category: string,
   key: string,
   title: string,
-  data: any = null
+  data: any = null,
 ) => createResource("systemevents", { category, key, title, data })

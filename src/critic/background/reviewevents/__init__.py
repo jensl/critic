@@ -14,6 +14,8 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
+# type: ignore
+
 from __future__ import annotations
 
 import logging

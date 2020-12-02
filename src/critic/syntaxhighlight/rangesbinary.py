@@ -16,9 +16,9 @@
 
 import asyncio
 import logging
-import msgpack
+import msgpack  # type: ignore
 from collections import defaultdict
-from typing import Dict, Set, Tuple
+from typing import Dict, List, Optional, Set, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +35,8 @@ class SyntaxHighlightRangesBinary(SyntaxHighlightRanges):
 
         sha1s_per_language: Dict[str, Set[str]] = defaultdict(set)
         for file_version in self.file_versions:
-            sha1s_per_language[file_version.language].add(file_version.sha1)
+            if file_version.language:
+                sha1s_per_language[file_version.language].add(file_version.sha1)
 
         async with api.critic.Query[Tuple[str, int]](
             self.critic,
@@ -46,7 +47,7 @@ class SyntaxHighlightRangesBinary(SyntaxHighlightRanges):
         ) as languages_result:
             language_ids = dict(await languages_result.all())
 
-        highlight_file_ids: Dict[Tuple[str, str], int] = {}
+        highlight_file_ids: Dict[Tuple[str, Optional[str]], int] = {}
         for language, sha1s in sha1s_per_language.items():
             if language is None:
                 continue
@@ -57,7 +58,7 @@ class SyntaxHighlightRangesBinary(SyntaxHighlightRanges):
                     WHERE {sha1=sha1s:array}
                       AND language={language}
                       AND highlighted""",
-                sha1s=list(sha1s_per_language[language]),
+                sha1s=list(sha1s),
                 language=language_ids[language],
             ) as files_result:
                 async for highlight_file_id, sha1 in files_result:
@@ -75,10 +76,11 @@ class SyntaxHighlightRangesBinary(SyntaxHighlightRanges):
                 gitobject = await self.repository.fetchone(
                     file_version.sha1, wanted_object_type="blob"
                 )
-                lines = textutils.decode(gitobject.asBlob().data).split("\n")
+                plain_lines = textutils.decode(gitobject.asBlob().data).split("\n")
                 for line_range in file_version.line_ranges:
                     line_range.lines = [
-                        [[line]] for line in lines[line_range.begin : line_range.end]
+                        [[line]]
+                        for line in plain_lines[line_range.begin : line_range.end]
                     ]
                 continue
 
@@ -102,6 +104,8 @@ class SyntaxHighlightRangesBinary(SyntaxHighlightRanges):
             if not conditions:
                 conditions.append("TRUE")
 
+            lines: List[bytes]
+
             async with self.critic.query(
                 f"""SELECT data
                       FROM highlightlines
@@ -111,7 +115,9 @@ class SyntaxHighlightRangesBinary(SyntaxHighlightRanges):
                 highlight_file_id=highlight_file_id,
                 **kwargs,
             ) as result:
-                lines = await result.scalars()
+                lines = await result.scalars()  # type: ignore
+
+            assert isinstance(lines, list)
 
             for line_range in file_version.line_ranges:
                 if line_range.end is None:
@@ -119,7 +125,7 @@ class SyntaxHighlightRangesBinary(SyntaxHighlightRanges):
                 else:
                     length = line_range.end - line_range.begin
                 line_range.lines = [
-                    msgpack.unpackb(data, use_list=False, raw=False)
+                    msgpack.unpackb(data, use_list=False, raw=False)  # type: ignore
                     for data in lines[:length]
                 ]
                 assert len(line_range.lines) == length

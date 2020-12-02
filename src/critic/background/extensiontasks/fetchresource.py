@@ -1,10 +1,9 @@
 import logging
-import os
 from typing import Optional
 
 logger = logging.getLogger(__name__)
 
-from . import Request
+from .request import Request
 from critic import api
 from critic import gitaccess
 from critic.gitaccess import SHA1

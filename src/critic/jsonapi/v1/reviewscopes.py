@@ -19,38 +19,42 @@ from __future__ import annotations
 from typing import Sequence, Optional, Union
 
 from critic import api
-from critic import jsonapi
+from ..check import convert
+from ..exceptions import UsageError
+from ..resourceclass import ResourceClass
+from ..parameters import Parameters
+from ..types import JSONInput, JSONResult
+from ..utils import id_or_name, numeric_id
+from ..values import Values
 
 
 class ReviewScopes(
-    jsonapi.ResourceClass[api.reviewscope.ReviewScope], api_module=api.reviewscope
+    ResourceClass[api.reviewscope.ReviewScope], api_module=api.reviewscope
 ):
     """Review scopes."""
 
     @staticmethod
     async def json(
-        parameters: jsonapi.Parameters, value: api.reviewscope.ReviewScope
-    ) -> jsonapi.JSONResult:
+        parameters: Parameters, value: api.reviewscope.ReviewScope
+    ) -> JSONResult:
         """ReviewScope {
-             "id": integer, // the scope's unique id
-             "name": string, // the scope's name
-           }"""
+          "id": integer, // the scope's unique id
+          "name": string, // the scope's name
+        }"""
 
         return {"id": value.id, "name": value.name}
 
-    @staticmethod
+    @classmethod
     async def single(
-        parameters: jsonapi.Parameters, argument: str
+        cls, parameters: Parameters, argument: str
     ) -> api.reviewscope.ReviewScope:
-        return await api.reviewscope.fetch(
-            parameters.critic, jsonapi.numeric_id(argument)
-        )
+        return await api.reviewscope.fetch(parameters.critic, numeric_id(argument))
 
     @staticmethod
     async def multiple(
-        parameters: jsonapi.Parameters,
+        parameters: Parameters,
     ) -> Union[api.reviewscope.ReviewScope, Sequence[api.reviewscope.ReviewScope]]:
-        name = parameters.getQueryParameter("name")
+        name = parameters.query.get("name")
 
         if name is not None:
             return await api.reviewscope.fetch(parameters.critic, name=name)
@@ -59,35 +63,39 @@ class ReviewScopes(
 
     @staticmethod
     async def create(
-        parameters: jsonapi.Parameters, data: jsonapi.JSONInput
+        parameters: Parameters, data: JSONInput
     ) -> api.reviewscope.ReviewScope:
         critic = parameters.critic
 
-        converted = await jsonapi.convert(parameters, {"name": str}, data,)
+        converted = await convert(
+            parameters,
+            {"name": str},
+            data,
+        )
 
         async with api.transaction.start(critic) as transaction:
-            modifier = transaction.createReviewScope(converted["name"])
+            return (await transaction.createReviewScope(converted["name"])).subject
 
-        return await modifier
-
-    @staticmethod
+    @classmethod
     async def delete(
-        parameters: jsonapi.Parameters,
-        values: jsonapi.Values[api.reviewscope.ReviewScope],
+        cls,
+        parameters: Parameters,
+        values: Values[api.reviewscope.ReviewScope],
     ) -> None:
         async with api.transaction.start(parameters.critic) as transaction:
             for scope in values:
-                transaction.modifyReviewScope(scope).delete()
+                await transaction.modifyReviewScope(scope).delete()
 
-    @staticmethod
+    @classmethod
     async def deduce(
-        parameters: jsonapi.Parameters,
+        cls,
+        parameters: Parameters,
     ) -> Optional[api.reviewscope.ReviewScope]:
-        scope = parameters.context.get("reviewscopes")
-        scope_parameter = parameters.getQueryParameter("scope")
+        scope = parameters.in_context(api.reviewscope.ReviewScope)
+        scope_parameter = parameters.query.get("scope")
         if scope_parameter is not None:
             if scope is not None:
-                raise jsonapi.UsageError(
+                raise UsageError(
                     "Redundant query parameter: scope=%s" % scope_parameter
                 )
             scope = await ReviewScopes.fromParameterValue(parameters, scope_parameter)
@@ -95,9 +103,9 @@ class ReviewScopes(
 
     @staticmethod
     async def fromParameterValue(
-        parameters: jsonapi.Parameters, value: str
+        parameters: Parameters, value: str
     ) -> api.reviewscope.ReviewScope:
-        scope_id, name = jsonapi.id_or_name(value)
+        scope_id, name = id_or_name(value)
         if scope_id is not None:
             return await api.reviewscope.fetch(parameters.critic, scope_id)
         else:

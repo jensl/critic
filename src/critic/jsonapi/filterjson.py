@@ -3,18 +3,30 @@ from __future__ import annotations
 import asyncio
 import functools
 import logging
-from typing import Protocol, Type, Any, Tuple, Sequence, Any, Optional, Iterable, cast
+from typing import (
+    Collection,
+    Coroutine,
+    Mapping,
+    Protocol,
+    Type,
+    Any,
+    Tuple,
+    Sequence,
+    Optional,
+    Iterable,
+    cast,
+)
 
 logger = logging.getLogger(__name__)
 
 from critic.base.profiling import timed
 
-from . import maybe_await
-from .parameters import Parameters
-from .resourceclass import ResourceClass, VALUE_CLASSES
-from .types import JSONResult
-from .valuewrapper import ValueWrapper, PlainWrapper, BasicListWrapper
 from .linked import Linked
+from .parameters import Parameters
+from .resourceclass import ResourceClass, APIObject, VALUE_CLASSES
+from .types import JSONResult
+from .utils import maybe_await
+from .valuewrapper import ValueWrapper, PlainWrapper, BasicListWrapper
 
 
 class CheckField(Protocol):
@@ -26,8 +38,8 @@ class FilterQuick(Protocol):
     def __call__(
         self,
         json_object: JSONResult,
-        check_field: CheckField = None,
-        root_result: JSONResult = None,
+        check_field: Optional[CheckField] = None,
+        root_result: Optional[JSONResult] = None,
     ) -> Any:
         ...
 
@@ -36,8 +48,8 @@ class FilterAsync(Protocol):
     async def __call__(
         self,
         json_object: JSONResult,
-        check_field: CheckField = None,
-        root_result: JSONResult = None,
+        check_field: Optional[CheckField] = None,
+        root_result: Optional[JSONResult] = None,
     ) -> Any:
         ...
 
@@ -45,10 +57,9 @@ class FilterAsync(Protocol):
 async def filter_json(
     parameters: Parameters,
     linked: Linked,
-    resource_class: Type[ResourceClass],
+    resource_class: Type[ResourceClass[APIObject]],
     json_objects: Sequence[JSONResult],
 ) -> Any:
-    critic = parameters.critic
     resource_type = resource_class.name
 
     api_object_cache = parameters.api_object_cache
@@ -68,61 +79,75 @@ async def filter_json(
 
     def filter_quick(
         json_object: JSONResult,
-        check_field: CheckField = None,
-        root_result: JSONResult = None,
+        check_field: Optional[CheckField] = None,
+        root_result: Optional[JSONResult] = None,
     ) -> Any:
-        filter_next: FilterQuick = cast(FilterQuick, filter_quick)
-        if isinstance(json_object, PlainWrapper):
-            if not check_field:
-                return json_object.value
+        filter_next: FilterQuick
 
-            def filter_next(
+        if isinstance(json_object, PlainWrapper):
+            value = cast(PlainWrapper[object], json_object).value
+
+            if not check_field:
+                return value
+
+            def filter_next_plain(
                 json_object: JSONResult,
-                check_field: CheckField = None,
-                root_result: JSONResult = None,
+                check_field: Optional[CheckField] = None,
+                root_result: Optional[JSONResult] = None,
             ) -> Any:
                 return json_object
 
-            json_object = json_object.value
+            json_object = value
+            filter_next = filter_next_plain
+        else:
+            filter_next = cast(FilterQuick, filter_quick)
+
         if isinstance(json_object, BasicListWrapper):
-            return [filter_basic(value) for value in json_object.value]
+            value = cast(BasicListWrapper[Collection[object]], json_object).value
+            return [filter_basic(item) for item in value]
         if isinstance(json_object, dict):
             if check_field is not None:
                 result: JSONResult = {}
                 if root_result is None:
                     root_result = result
-                for key, value in json_object.items():
+                assert root_result is not None
+                for key, value in cast(Mapping[str, object], json_object).items():
                     include, child_check = check_field(key, value=value)
                     if include:
                         result[key] = filter_next(value, child_check, root_result)
                     else:
                         root_result["is_partial"] = True
                 return result
-            return {key: filter_next(value) for key, value in json_object.items()}
+            return {
+                key: filter_next(value)
+                for key, value in cast(Mapping[str, object], json_object).items()
+            }
         if isinstance(json_object, list):
-            return [filter_next(value) for value in json_object]
+            return [filter_next(value) for value in cast(Sequence[object], json_object)]
         if isinstance(json_object, (set, frozenset)):
-            return sorted(filter_next(value) for value in json_object)
+            return sorted(
+                filter_next(value) for value in cast(Collection[object], json_object)
+            )
 
         return filter_basic(json_object)
 
     async def filter_async(
         json_object: JSONResult,
-        check_field: CheckField = None,
-        root_result: JSONResult = None,
+        check_field: Optional[CheckField] = None,
+        root_result: Optional[JSONResult] = None,
     ) -> Any:
         filter_next: FilterAsync = cast(FilterAsync, filter_async)
         json_object = await maybe_await(json_object)
         if isinstance(json_object, ValueWrapper):
-            return filter_quick(
-                cast(JSONResult, json_object.value), check_field, root_result
-            )
+            value = cast(ValueWrapper[object], json_object).value
+            return filter_quick(cast(JSONResult, value), check_field, root_result)
         if isinstance(json_object, dict):
             if check_field:
                 result: JSONResult = {}
                 if root_result is None:
                     root_result = result
-                for key, value in json_object.items():
+                assert root_result is not None
+                for key, value in cast(Mapping[str, object], json_object).items():
                     include, child_check = check_field(key, value=value)
                     if include:
                         result[key] = await filter_next(value, child_check, root_result)
@@ -131,13 +156,28 @@ async def filter_json(
                 return cast(Any, result)
             return cast(
                 Any,
-                {key: await filter_next(value) for key, value in json_object.items()},
+                {
+                    key: await filter_next(value)
+                    for key, value in cast(Mapping[str, object], json_object).items()
+                },
             )
         if isinstance(json_object, list):
-            return cast(Any, [await filter_next(value) for value in json_object])
+            return cast(
+                Any,
+                [
+                    await filter_next(value)
+                    for value in cast(Sequence[object], json_object)
+                ],
+            )
         if isinstance(json_object, (set, frozenset)):
             return cast(
-                Any, sorted([await filter_next(value) for value in json_object])
+                Any,
+                sorted(
+                    [
+                        await filter_next(value)
+                        for value in cast(Collection[object], json_object)
+                    ]
+                ),
             )
         return filter_basic(json_object)
 
@@ -159,7 +199,7 @@ async def filter_json(
 
         child_check: Optional[CheckField]
         if include and not exact_match:
-            child_check = functools.partial(check_field, key)
+            child_check = functools.partial(check_field, key)  # type: ignore
         else:
             child_check = None
 
@@ -189,14 +229,14 @@ async def filter_json(
         ]
 
 
-def _close(value: Any) -> None:
-    def close_all(values: Iterable[Any]) -> None:
+def _close(value: object) -> None:
+    def close_all(values: Iterable[object]) -> None:
         for value in values:
             _close(value)
 
     if asyncio.iscoroutine(value):
-        value.close()
+        cast(Coroutine[Any, Any, Any], value).close()
     elif isinstance(value, (set, tuple, list)):
-        close_all(value)
+        close_all(cast(Iterable[object], value))
     elif isinstance(value, dict):
-        close_all(value.values())
+        close_all(cast(Mapping[object, object], value).values())

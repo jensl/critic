@@ -14,23 +14,28 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
+import argparse
 import logging
 
 logger = logging.getLogger(__name__)
+
+from critic import api
 
 name = "restart-services"
 title = "Restart Critic background services"
 
 
-def setup(parser):
+def setup(parser: argparse.ArgumentParser) -> None:
     parser.set_defaults(need_session=True)
 
 
-async def main(critic, arguments):
-    from critic import background
+async def main(critic: api.critic.Critic, arguments: argparse.Namespace) -> int:
+    # from critic import background
 
-    await background.utils.issue_command(
-        critic,
-        "servicemanager",
-        {"command": "restart", "service": "servicemanager", "timeout": 10},
-    )
+    # await background.utils.issue_command(
+    #     critic,
+    #     "servicemanager",
+    #     {"command": "restart", "service": "servicemanager", "timeout": 10},
+    # )
+
+    return 0

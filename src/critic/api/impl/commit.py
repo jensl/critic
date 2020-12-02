@@ -20,32 +20,62 @@ import datetime
 import re
 import logging
 from dataclasses import dataclass
-from typing import Iterable, Sequence, Tuple, Optional, Union, cast
+from typing import Iterable, Mapping, Sequence, Tuple, Optional, Union, cast
 
 logger = logging.getLogger(__name__)
 
-from . import apiobject
 from critic import api
+from critic.api import commit as public
 from critic import diff
 from critic import gitaccess
 from critic.gitaccess import SHA1
+from . import apiobject
+from .critic import Critic
 
 RE_FOLLOWUP = re.compile("(fixup|squash)!.*(?:\n[ \t]*)+(.*)")
 
 
 @dataclass(frozen=True)
 class UserAndTimestamp:
-    name: str
-    email: str
-    timestamp: datetime.datetime
+    __name: str
+    __email: str
+    __timestamp: datetime.datetime
+
+    @property
+    def name(self) -> str:
+        return self.__name
+
+    @property
+    def email(self) -> str:
+        return self.__email
+
+    @property
+    def timestamp(self) -> datetime.datetime:
+        return self.__timestamp
 
 
 @dataclass(frozen=True)
 class FileInformation:
-    file: api.file.File
-    mode: int
-    sha1: SHA1
-    size: int
+    __file: api.file.File
+    __mode: int
+    __sha1: SHA1
+    __size: int
+
+    @property
+    def file(self) -> api.file.File:
+        return self.__file
+
+    @property
+    def mode(self) -> int:
+        return self.__mode
+
+    @property
+    def sha1(self) -> SHA1:
+        return self.__sha1
+
+    @property
+    def size(self) -> int:
+        return self.__size
 
 
 WrapperType = api.commit.Commit
@@ -55,6 +85,8 @@ CacheKeyType = Tuple[int, Union[int, SHA1]]
 
 class Commit(apiobject.APIObject[WrapperType, ArgumentsType, CacheKeyType]):
     wrapper_class = WrapperType
+
+    __description: Optional[CommitDescription]
 
     def __init__(self, args: ArgumentsType):
         (self.repository, self.id, low_level) = args
@@ -82,7 +114,10 @@ class Commit(apiobject.APIObject[WrapperType, ArgumentsType, CacheKeyType]):
     async def getDescription(
         self, wrapper: WrapperType
     ) -> api.commit.CommitDescription:
-        return await CommitDescription.makeOne(wrapper.critic, wrapper)
+        if self.__description is None:
+            self.__description = CommitDescription(wrapper)
+            await self.__description.calculateBranch()
+        return self.__description
 
     def getAuthor(self, critic: api.critic.Critic) -> WrapperType.UserAndTimestamp:
         return UserAndTimestamp(
@@ -137,8 +172,8 @@ class Commit(apiobject.APIObject[WrapperType, ArgumentsType, CacheKeyType]):
             return None
         return diff.parse.splitlines(contents)
 
-    @staticmethod
-    def create(critic: api.critic.Critic, args: ArgumentsType) -> WrapperType:
+    @classmethod
+    def create(cls, critic: api.critic.Critic, args: ArgumentsType) -> WrapperType:
         repository_id = int(args[0])
         wrapper = Commit(args).wrap(critic)
         Commit.add_cached(critic, (repository_id, wrapper.id), wrapper)
@@ -146,24 +181,23 @@ class Commit(apiobject.APIObject[WrapperType, ArgumentsType, CacheKeyType]):
         return wrapper
 
 
-class CommitDescription(
-    apiobject.APIObject[
-        api.commit.CommitDescription, api.commit.Commit, api.commit.Commit
-    ]
-):
-    wrapper_class = api.commit.CommitDescription
-
+class CommitDescription:
     __branch: Optional[api.branch.Branch]
-    __branch_calculated: bool
 
     def __init__(self, commit: api.commit.Commit) -> None:
-        self.commit = commit
+        self.__commit = commit
         self.__branch = None
-        self.__branch_calculated = False
 
-    async def __calculateBranch(
-        self, critic: api.critic.Critic
-    ) -> Optional[api.branch.Branch]:
+    @property
+    def commit(self) -> api.commit.Commit:
+        return self.__commit
+
+    @property
+    def branch(self) -> Optional[api.branch.Branch]:
+        return self.__branch
+
+    async def calculateBranch(self) -> None:
+        critic = self.__commit.critic
         async with api.critic.Query[int](
             critic,
             """SELECT branchcommits.branch
@@ -180,27 +214,16 @@ class CommitDescription(
             commit=self.commit,
         ) as result:
             try:
-                branch_id = await result.scalar()
+                self.__branch = await api.branch.fetch(critic, await result.scalar())
             except result.ZeroRowsInResult:
-                return None
-
-        return await api.branch.fetch(critic, branch_id)
-
-    async def getBranch(self, critic: api.critic.Critic) -> Optional[api.branch.Branch]:
-        if not self.__branch_calculated:
-            self.__branch = await self.__calculateBranch(critic)
-            self.__branch_calculated = True
-        return self.__branch
+                pass
 
     # async def getTag(self, critic: api.critic.Critic):
     #     # FIXME: Support tags.
     #     return None
 
-    @staticmethod
-    def cacheKey(wrapper: api.commit.CommitDescription) -> api.commit.Commit:
-        return wrapper.commit
 
-
+@public.fetchImpl
 async def fetch(
     repository: api.repository.Repository,
     commit_id: Optional[int],
@@ -269,6 +292,7 @@ async def fetch(
     )
 
 
+@public.fetchManyImpl
 async def fetchMany(
     repository: api.repository.Repository,
     commit_ids: Optional[Iterable[int]],
@@ -277,7 +301,7 @@ async def fetchMany(
 ) -> Sequence[WrapperType]:
     critic = repository.critic
 
-    critic._impl.initializeObjects(Commit)
+    Critic.fromWrapper(critic).initializeObjects(Commit)
     all_cached_commits = Commit.get_all_cached(critic)
 
     repository_id = int(repository)
@@ -323,6 +347,8 @@ async def fetchMany(
 
         return [commits[commit_id] for commit_id in commit_ids]
 
+    low_level_from_sha1: Optional[Mapping[SHA1, gitaccess.GitCommit]] = None
+
     if low_levels is not None:
         sha1s = [low_level.sha1 for low_level in low_levels]
         low_level_from_sha1 = {low_level.sha1: low_level for low_level in low_levels}
@@ -355,6 +381,7 @@ async def fetchMany(
 
     if missing_sha1s:
         if low_levels:
+            assert low_level_from_sha1 is not None
             for sha1 in missing_sha1s:
                 commit_id = commit_id_from_sha1[sha1]
                 Commit.create(
@@ -374,6 +401,7 @@ async def fetchMany(
     ]
 
 
+@public.fetchRangeImpl
 async def fetchRange(
     from_commit: Optional[api.commit.Commit],
     to_commit: api.commit.Commit,
@@ -425,6 +453,7 @@ async def fetchRange(
     return await api.commitset.create(critic, commits)
 
 
+@public.prefetchImpl
 async def prefetch(
     repository: api.repository.Repository, commit_ids: Iterable[int]
 ) -> None:

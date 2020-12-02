@@ -16,14 +16,24 @@
 
 from __future__ import annotations
 
-from typing import Optional, Literal, Protocol, FrozenSet, Sequence, TypeVar
+from typing import (
+    Awaitable,
+    Callable,
+    Optional,
+    Literal,
+    Protocol,
+    FrozenSet,
+    Sequence,
+    TypeVar,
+)
 
 from critic import api
+from critic.api.apiobject import FunctionRef
 
 
 class Error(api.APIError, object_type="access control profile"):
     """Base exception for all errors related to the AccessControlProfile
-       class"""
+    class"""
 
     pass
 
@@ -37,7 +47,7 @@ class InvalidId(api.InvalidIdError, Error):
 CategoryType = Literal["http", "repositories", "extensions"]
 
 RuleValue = Literal["allow", "deny"]
-RULE_VALUES: FrozenSet[RuleValue] = frozenset({"allow", "deny"})
+RULE_VALUES: FrozenSet[RuleValue] = frozenset(["allow", "deny"])
 
 ExceptionType = TypeVar("ExceptionType", covariant=True)
 
@@ -115,8 +125,8 @@ EXTENSION_ACCESS_TYPES: FrozenSet[ExtensionAccessType] = frozenset(
 class ExtensionException(Protocol):
     """Representation of an exception for the "extensions" category
 
-        The exception consists of the access type ("install" or "execute")
-        and the extension."""
+    The exception consists of the access type ("install" or "execute")
+    and the extension."""
 
     @property
     def id(self) -> int:
@@ -142,10 +152,10 @@ class AccessControlProfile(api.APIObject):
     def id(self) -> Optional[int]:
         """The profile's unique id, or None
 
-           None is returned for ephemeral profiles used when no actual profile
-           is found to match the situation; e.g. the "allow everything" profile
-           that is return by |fetch()| for the current session if no restricting
-           profile is configured."""
+        None is returned for ephemeral profiles used when no actual profile
+        is found to match the situation; e.g. the "allow everything" profile
+        that is return by |fetch()| for the current session if no restricting
+        profile is configured."""
         return self._impl.id
 
     @property
@@ -162,58 +172,64 @@ class AccessControlProfile(api.APIObject):
     async def http(self) -> Category[HTTPException]:
         """Access control category "http"
 
-           This category controls web frontend requests.
+        This category controls web frontend requests.
 
-           Exceptions are of the type HTTPException."""
+        Exceptions are of the type HTTPException."""
         return await self._impl.getHTTP(self.critic)
 
     @property
     async def repositories(self) -> Category[RepositoryException]:
         """Access control category "repositories"
 
-           This category controls access to Git repositories, both via the web
-           frontend and the Git hook.  Note that read-only Git access over SSH
-           is not controlled by access control.
+        This category controls access to Git repositories, both via the web
+        frontend and the Git hook.  Note that read-only Git access over SSH
+        is not controlled by access control.
 
-           Exceptions are of the type RepositoryException."""
+        Exceptions are of the type RepositoryException."""
         return await self._impl.getRepositories(self.critic)
 
     @property
     async def extensions(self) -> Category[ExtensionException]:
         """Access control category "extensions"
 
-           This category controls access to any functionality provided by an
-           extension.
+        This category controls access to any functionality provided by an
+        extension.
 
-           Exceptions are of the type ExtensionException."""
+        Exceptions are of the type ExtensionException."""
         return await self._impl.getExtensions(self.critic)
 
 
 async def fetch(
-    critic: api.critic.Critic, profile_id: int = None, /
+    critic: api.critic.Critic, profile_id: Optional[int] = None, /
 ) -> AccessControlProfile:
     """Fetch an AccessControlProfile object with the given profile id
 
-       If no profile id is given, then fetch the base access control profile for
-       the current session (i.e. for the currently signed in user, or for the
-       anonymous user.)"""
-    from .impl import accesscontrolprofile as impl
-
-    return await impl.fetch(critic, profile_id)
+    If no profile id is given, then fetch the base access control profile for
+    the current session (i.e. for the currently signed in user, or for the
+    anonymous user.)"""
+    return await fetchImpl.get()(critic, profile_id)
 
 
 async def fetchAll(
-    critic: api.critic.Critic, /, *, title: str = None
+    critic: api.critic.Critic, /, *, title: Optional[str] = None
 ) -> Sequence[AccessControlProfile]:
     """Fetch AccessControlProfile objects for all primary profiles in the system
 
-       A profile is primary if it is not the additional restrictions imposed for
-       accesses authenticated with an access token.
+    A profile is primary if it is not the additional restrictions imposed for
+    accesses authenticated with an access token.
 
-       If |title| is not None, fetch only profiles with a matching title."""
-    from .impl import accesscontrolprofile as impl
-
-    return await impl.fetchAll(critic, title)
+    If |title| is not None, fetch only profiles with a matching title."""
+    return await fetchAllImpl.get()(critic, title)
 
 
 resource_name = table_name = "accesscontrolprofiles"
+
+
+fetchImpl: FunctionRef[
+    Callable[[api.critic.Critic, Optional[int]], Awaitable[AccessControlProfile]]
+] = FunctionRef()
+fetchAllImpl: FunctionRef[
+    Callable[
+        [api.critic.Critic, Optional[str]], Awaitable[Sequence[AccessControlProfile]]
+    ]
+] = FunctionRef()

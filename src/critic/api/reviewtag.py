@@ -16,9 +16,10 @@
 
 from __future__ import annotations
 
-from typing import Iterable, Sequence, overload
+from typing import Awaitable, Callable, Iterable, Optional, Sequence, overload
 
 from critic import api
+from critic.api.apiobject import FunctionRef
 
 
 class Error(api.APIError, object_type="review tag"):
@@ -74,11 +75,13 @@ async def fetch(critic: api.critic.Critic, /, *, name: str) -> ReviewTag:
 
 
 async def fetch(
-    critic: api.critic.Critic, reviewtag_id: int = None, /, *, name: str = None
+    critic: api.critic.Critic,
+    reviewtag_id: Optional[int] = None,
+    /,
+    *,
+    name: Optional[str] = None,
 ) -> ReviewTag:
-    from .impl import reviewtag as impl
-
-    return await impl.fetch(critic, reviewtag_id, name)
+    return await fetchImpl.get()(critic, reviewtag_id, name)
 
 
 @overload
@@ -97,20 +100,30 @@ async def fetchMany(
 
 async def fetchMany(
     critic: api.critic.Critic,
-    reviewtag_ids: Iterable[int] = None,
+    reviewtag_ids: Optional[Iterable[int]] = None,
     /,
     *,
-    names: Iterable[str] = None,
+    names: Optional[Iterable[str]] = None,
 ) -> Sequence[ReviewTag]:
-    from .impl import reviewtag as impl
-
-    return await impl.fetchMany(critic, reviewtag_ids, names)
+    return await fetchManyImpl.get()(critic, reviewtag_ids, names)
 
 
 async def fetchAll(critic: api.critic.Critic) -> Sequence[ReviewTag]:
-    from .impl import reviewtag as impl
-
-    return await impl.fetchAll(critic)
+    return await fetchAllImpl.get()(critic)
 
 
 resource_name = table_name = "reviewtags"
+
+
+fetchImpl: FunctionRef[
+    Callable[[api.critic.Critic, Optional[int], Optional[str]], Awaitable[ReviewTag]]
+] = FunctionRef()
+fetchManyImpl: FunctionRef[
+    Callable[
+        [api.critic.Critic, Optional[Iterable[int]], Optional[Iterable[str]]],
+        Awaitable[Sequence[ReviewTag]],
+    ]
+] = FunctionRef()
+fetchAllImpl: FunctionRef[
+    Callable[[api.critic.Critic], Awaitable[Sequence[ReviewTag]]]
+] = FunctionRef()

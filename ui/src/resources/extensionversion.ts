@@ -14,6 +14,8 @@
  * the License.
  */
 
+import { immerable } from "immer"
+
 import { primaryMap } from "../reducers/resource"
 import { ExtensionVersionID } from "./types"
 
@@ -27,11 +29,13 @@ type ExtensionVersionData = {
 type ExtensionVersionProps = ExtensionVersionData
 
 class ExtensionVersion {
+  [immerable] = true
+
   constructor(
     readonly id: ExtensionVersionID,
     readonly extension: number,
     readonly name: string,
-    readonly sha1: null | string
+    readonly sha1: null | string,
   ) {}
 
   static new(props: ExtensionVersionProps) {
@@ -39,12 +43,12 @@ class ExtensionVersion {
       props.id,
       props.extension,
       props.name,
-      props.sha1
+      props.sha1,
     )
   }
 
   static reducer = primaryMap<ExtensionVersion, ExtensionVersionID>(
-    "extensionversions"
+    "extensionversions",
   )
 
   get props() {

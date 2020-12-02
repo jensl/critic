@@ -15,7 +15,6 @@
  */
 
 import produce from "./immer"
-import { Reducer } from "redux"
 
 import { DATA_UPDATE, Action } from "../actions"
 
@@ -32,7 +31,7 @@ function defaultGetID<ID, T extends ResourceWithID<ID>>(resource: T): ID {
 /* Reducer for the primary mapping of resoucre ID to resource object. */
 export const primaryMap = <T, ID extends number | string>(
   resourceName: string,
-  getID: (resource: T) => ID | null = defaultGetID as (resource: T) => ID
+  getID: (resource: T) => ID | null = defaultGetID as (resource: T) => ID,
 ) =>
   produce<Map<ID, T>>((draft: Map<ID, T>, action: Action) => {
     if (action.type === DATA_UPDATE) {
@@ -60,7 +59,7 @@ const lookupDelete = <Key, ID>(draft: Map<Key, ID>, deleted?: Set<ID>) => {
 export const lookupMap = <T, Key, ID extends number | string>(
   resourceName: string,
   getKey: (resource: T) => null | Key,
-  getID: (resource: T) => ID = defaultGetID as (resource: T) => ID
+  getID: (resource: T) => ID = defaultGetID as (resource: T) => ID,
 ) =>
   produce<Map<Key, ID>>((draft: Map<Key, ID>, action: Action) => {
     if (action.type === DATA_UPDATE) {
@@ -72,7 +71,7 @@ export const lookupMap = <T, Key, ID extends number | string>(
         }
       lookupDelete(
         draft,
-        action.deleted?.get(resourceName) as Set<ID> | undefined
+        action.deleted?.get(resourceName) as Set<ID> | undefined,
       )
     }
   }, new Map())
@@ -81,7 +80,7 @@ export const lookupMap = <T, Key, ID extends number | string>(
 export const lookupManyMap = <T, Key, ID extends number | string>(
   resourceName: string,
   getKeys: (resource: T) => Key[],
-  getID: (resource: T) => ID = defaultGetID as (resource: T) => ID
+  getID: (resource: T) => ID = defaultGetID as (resource: T) => ID,
 ) =>
   produce<Map<Key, ID>>((draft: Map<Key, ID>, action: Action) => {
     if (action.type === DATA_UPDATE) {
@@ -93,7 +92,7 @@ export const lookupManyMap = <T, Key, ID extends number | string>(
         }
       lookupDelete(
         draft,
-        action.deleted?.get(resourceName) as Set<ID> | undefined
+        action.deleted?.get(resourceName) as Set<ID> | undefined,
       )
     }
   }, new Map())
@@ -101,7 +100,7 @@ export const lookupManyMap = <T, Key, ID extends number | string>(
 /* Reducer for mappings of resource ID (or other key) to auxilliary data. */
 export const auxilliaryMap = <T, ID, Auxilliary>(
   resourceName: string,
-  mapper: (resource: T) => [ID, Auxilliary | null]
+  mapper: (resource: T) => [ID, Auxilliary | null],
 ) =>
   produce<Map<ID, Auxilliary>>((draft: Map<ID, Auxilliary>, action: Action) => {
     if (action.type === DATA_UPDATE) {

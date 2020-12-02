@@ -14,7 +14,9 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
+import argparse
 import logging
+from typing import Optional, Protocol
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +26,7 @@ name = "connect"
 title = "Connect external account"
 
 
-def setup(parser):
+def setup(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--username", required=True, help="Name of Critic user to connect."
     )
@@ -38,7 +40,13 @@ def setup(parser):
     parser.set_defaults(need_session=True)
 
 
-async def main(critic, arguments):
+class Arguments(Protocol):
+    username: str
+    provider: str
+    account: str
+
+
+async def main(critic: api.critic.Critic, arguments: Arguments) -> int:
     from critic import auth
 
     try:
@@ -58,9 +66,11 @@ async def main(critic, arguments):
             )
         else:
             logger.info("No providers are enabled.")
+        return 1
 
     # If the external account is already registered, make sure it's not already
     # connected to a Critic user.
+    external_account: Optional[api.externalaccount.ExternalAccount]
     try:
         external_account = await api.externalaccount.fetch(
             critic, provider_name=arguments.provider, account_id=arguments.account
@@ -70,6 +80,7 @@ async def main(critic, arguments):
     else:
         if external_account.is_connected:
             other_user = await external_account.user
+            assert other_user
             logger.error(
                 "%s %r: already connected to Critic user %s",
                 provider.getTitle(),
@@ -97,12 +108,14 @@ async def main(critic, arguments):
 
     async with api.transaction.start(critic) as transaction:
         if external_account is None:
-            external_account = transaction.createExternalAccount(
+            external_account = await transaction.createExternalAccount(
                 arguments.provider, arguments.account
             )
 
-        transaction.modifyUser(user).connectTo(external_account)
+        await transaction.modifyUser(user).connectTo(external_account)
 
     logger.info(
         "%s: connected to %s %r", user.name, provider.getTitle(), arguments.account
     )
+
+    return 0

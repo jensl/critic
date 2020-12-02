@@ -18,44 +18,39 @@ from __future__ import annotations
 
 import itertools
 import logging
-import re
-from typing import Sequence, Optional, TypedDict, Any, Iterable
+from typing import Optional, Iterable
 
 logger = logging.getLogger(__name__)
 
-from . import (
-    validate_branch_name,
-    CreatedBranch,
-    CreatedBranchUpdate,
-)
-from .. import (
-    Query,
+from critic import api
+from critic import background
+from critic import dbaccess
+from critic.gitaccess import GitError
+from ..base import TransactionBase
+from ..branchsetting.mixin import ModifyBranch as BranchSettingMixin
+from ..item import (
     Insert,
     InsertMany,
     Delete,
     Update,
     Verify,
-    Union,
-    Modifier,
-    Transaction,
-    requireAdministrator,
 )
-from ..branchsetting import CreatedBranchSetting
-from critic import api
-from critic import background
-from critic.gitaccess import GitError
+from ..modifier import Modifier
+from . import validate_branch_name, CreateBranchUpdate
+from .create import CreateBranch
 
 
-class ModifyBranch(Modifier[api.branch.Branch, CreatedBranch]):
+class ModifyBranch(BranchSettingMixin, Modifier[api.branch.Branch]):
     def __init__(
-        self, transaction: Transaction, branch: Union[api.branch.Branch, CreatedBranch]
+        self,
+        transaction: TransactionBase,
+        branch: api.branch.Branch,
     ):
         super().__init__(transaction, branch)
-        if isinstance(branch, api.branch.Branch):
-            transaction.lock("branches", id=branch.id)
+        # transaction.lock("branches", id=branch.id)
 
     async def setName(self, new_name: str) -> None:
-        branch = self.real
+        branch = self.subject
 
         old_name = branch.name
         repository = await branch.repository
@@ -64,7 +59,7 @@ class ModifyBranch(Modifier[api.branch.Branch, CreatedBranch]):
         # the old ref, since that ref will be deleted.
         await validate_branch_name(repository, new_name, ignore_conflict=old_name)
 
-        self.transaction.items.append(Update(branch).set(name=new_name))
+        await self.transaction.execute(Update(branch).set(name=new_name))
 
         async def renameGitBranch() -> None:
             head = await branch.head
@@ -90,11 +85,11 @@ class ModifyBranch(Modifier[api.branch.Branch, CreatedBranch]):
         associated_commits: api.commitset.CommitSet,
         disassociated_commits: api.commitset.CommitSet,
         *,
-        output: str = None,
-        pendingrefupdate_id: int = None,
-        previous_head: api.commit.Commit = None,
-    ) -> CreatedBranchUpdate:
-        branch = self.real
+        output: Optional[str] = None,
+        pendingrefupdate_id: Optional[int] = None,
+        previous_head: Optional[api.commit.Commit] = None,
+    ) -> api.branchupdate.BranchUpdate:
+        branch = self.subject
         transaction = self.transaction
         critic = transaction.critic
 
@@ -150,11 +145,11 @@ class ModifyBranch(Modifier[api.branch.Branch, CreatedBranch]):
             # could be said to be merged, but we ignore that.
             is_merged = False
 
-        transaction.items.append(
+        await transaction.execute(
             Verify("branches").that(head=current_head).where(id=branch.id)
         )
 
-        transaction.items.append(
+        await transaction.execute(
             Update(branch).set(
                 head=head,
                 base=base_branch,
@@ -163,48 +158,35 @@ class ModifyBranch(Modifier[api.branch.Branch, CreatedBranch]):
             )
         )
 
-        branchupdate = CreatedBranchUpdate(transaction, branch)
-
-        transaction.items.append(
-            Insert("branchupdates", returning="id", collector=branchupdate).values(
-                branch=branch,
-                updater=critic.effective_user,
-                from_head=await branch.head,
-                to_head=head,
-                from_base=await branch.base_branch,
-                to_base=base_branch,
-                output=output,
-            )
+        branchupdate = await CreateBranchUpdate(transaction, branch).insert(
+            branch=branch,
+            updater=critic.effective_user,
+            from_head=await branch.head,
+            to_head=head,
+            from_base=await branch.base_branch,
+            to_base=base_branch,
+            output=output,
         )
 
         if associated_commits:
-            transaction.items.append(
+            await transaction.execute(
                 InsertMany(
                     "branchcommits",
                     ["branch", "commit"],
                     (
-                        dict(branch=branch, commit=commit)
+                        dbaccess.parameters(branch=branch, commit=commit)
                         for commit in associated_commits
                     ),
                 )
             )
         if disassociated_commits:
-            transaction.items.append(
+            await transaction.execute(
                 Delete("branchcommits").where(
                     branch=branch, commit=disassociated_commits
                 )
             )
 
-        BranchUpdateCommit = TypedDict(
-            "BranchUpdateCommit",
-            {
-                "branchupdate": CreatedBranchUpdate,
-                "commit": api.commit.Commit,
-                "associated": bool,
-            },
-        )
-
-        transaction.items.append(
+        await transaction.execute(
             InsertMany(
                 "branchupdatecommits",
                 ["branchupdate", "commit", "associated"],
@@ -232,7 +214,7 @@ class ModifyBranch(Modifier[api.branch.Branch, CreatedBranch]):
             else:
                 next_state = "finished"
 
-            transaction.items.append(
+            await transaction.execute(
                 Update("pendingrefupdates")
                 .set(branchupdate=branchupdate, state=next_state)
                 .where(id=pendingrefupdate_id)
@@ -240,44 +222,50 @@ class ModifyBranch(Modifier[api.branch.Branch, CreatedBranch]):
 
             if next_state == "finished" and output:
                 transaction.tables.add("pendingrefupdateoutputs")
-                transaction.items.append(
-                    Query(
-                        """INSERT
-                             INTO pendingrefupdateoutputs (pendingrefupdate, output)
-                           SELECT id, {output}
-                             FROM pendingrefupdates
-                            WHERE id={pendingrefupdate_id}""",
+                await transaction.execute(
+                    Insert("pendingrefupdateoutputs")
+                    .columns("pendingrefupdate", "output")
+                    .query(
+                        """
+                        SELECT id, {output}
+                          FROM pendingrefupdates
+                         WHERE id={pendingrefupdate_id}
+                        """,
                         output=output,
                         pendingrefupdate_id=pendingrefupdate_id,
                     )
                 )
 
         transaction.tables.add("branchmerges")
-        transaction.items.append(
-            Query(
-                """INSERT
-                     INTO branchmerges (branch, branchupdate)
-                   SELECT id, {branchupdate}
-                     FROM branches
-                    WHERE id!={branch}
-                      AND repository={repository}
-                      AND base IS NOT NULL
-                      AND {head=associated_commits:array}""",
+        await transaction.execute(
+            Insert("branchmerges")
+            .columns("branch", "branchupdate")
+            .query(
+                """
+                SELECT id, {branchupdate}
+                  FROM branches
+                 WHERE id!={branch}
+                   AND repository={repository}
+                   AND base IS NOT NULL
+                   AND {head=associated_commits:array}
+                """,
                 branchupdate=branchupdate,
                 branch=branch,
                 repository=repository,
                 associated_commits=associated_commits,
             )
         )
-        transaction.items.append(
-            Query(
-                """UPDATE branches
-                      SET merged=TRUE
-                    WHERE id IN (
-                      SELECT branch
-                        FROM branchmerges
-                       WHERE branchupdate={branchupdate}
-                    )""",
+        await transaction.execute(
+            Update("branches")
+            .set(merged=True)
+            .where(
+                """
+                id IN (
+                    SELECT branch
+                      FROM branchmerges
+                     WHERE branchupdate={branchupdate}
+                )
+                """,
                 branchupdate=branchupdate,
             )
         )
@@ -290,10 +278,10 @@ class ModifyBranch(Modifier[api.branch.Branch, CreatedBranch]):
     async def archive(self) -> None:
         raise Exception("NOT IMPLEMENTED")
 
-    async def deleteBranch(self, *, pendingrefupdate_id: int = None) -> None:
-        super().delete()
+    async def deleteBranch(self, *, pendingrefupdate_id: Optional[int] = None) -> None:
+        await super().delete()
 
-        branch = self.real
+        branch = self.subject
 
         repository = await branch.repository
         head = await branch.head
@@ -302,14 +290,10 @@ class ModifyBranch(Modifier[api.branch.Branch, CreatedBranch]):
             next_state = "finished"
 
             self.transaction.tables.add("pendingrefupdates")
-            self.transaction.items.append(
-                Query(
-                    """UPDATE pendingrefupdates
-                          SET state={next_state}
-                        WHERE id={pendingrefupdate_id}""",
-                    next_state=next_state,
-                    pendingrefupdate_id=pendingrefupdate_id,
-                )
+            await self.transaction.execute(
+                Update("pendingrefupdates")
+                .set(state=next_state)
+                .where(id=pendingrefupdate_id)
             )
 
         async def deleteGitBranch() -> None:
@@ -327,60 +311,9 @@ class ModifyBranch(Modifier[api.branch.Branch, CreatedBranch]):
     # Branch settings
     # ===============
 
-    @requireAdministrator
-    async def defineSetting(
-        self, scope: str, name: str, value: Any
-    ) -> CreatedBranchSetting:
-        token = "[A-Za-z0-9_]+"
-
-        if not (1 <= len(scope) <= 64):
-            raise api.branchsetting.InvalidScope(
-                "Scope must be between 1 and 64 characters long"
-            )
-        if not re.match(f"^{token}$", scope):
-            raise api.branchsetting.InvalidScope(
-                "Scope must contain only characters from the set [A-Za-z0-9_]"
-            )
-
-        if not (1 <= len(name) <= 256):
-            raise api.branchsetting.InvalidName(
-                "Name must be between 1 and 256 characters long"
-            )
-        if not re.match(f"^{token}(?:\\.{token})*$", name):
-            raise api.branchsetting.InvalidName(
-                "Name must consist of '.'-separated tokens containing only "
-                "characters from the set [A-Za-z0-9_]"
-            )
-
-        critic = self.transaction.critic
-
-        try:
-            await api.branchsetting.fetch(
-                critic, branch=self.real, scope=scope, name=name
-            )
-        except api.branchsetting.NotDefined:
-            pass
-        else:
-            raise api.branchsetting.Error(
-                f"Branch setting already defined: {scope}:{name}"
-            )
-
-        return CreatedBranchSetting(self.transaction, self.subject).insert(
-            branch=self.subject,
-            scope=scope,
-            name=name,
-            value=ModifyBranchSetting.valueAsJSON(value),
-        )
-
-    @requireAdministrator
-    def modifySetting(
-        self, setting: api.branchsetting.BranchSetting
-    ) -> ModifyBranchSetting:
-        return ModifyBranchSetting(self.transaction, setting)
-
     @staticmethod
     async def create(
-        transaction: Transaction,
+        transaction: TransactionBase,
         repository: api.repository.Repository,
         branch_type: api.branch.BranchType,
         name: str,
@@ -393,7 +326,7 @@ class ModifyBranch(Modifier[api.branch.Branch, CreatedBranch]):
     ) -> ModifyBranch:
         return ModifyBranch(
             transaction,
-            await create_branch(
+            await CreateBranch.make(
                 transaction,
                 repository,
                 branch_type,
@@ -406,7 +339,3 @@ class ModifyBranch(Modifier[api.branch.Branch, CreatedBranch]):
                 pendingrefupdate_id,
             ),
         )
-
-
-from .create import create_branch
-from ..branchsetting import ModifyBranchSetting

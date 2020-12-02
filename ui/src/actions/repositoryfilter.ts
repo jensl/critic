@@ -14,7 +14,7 @@
  * the License.
  */
 
-import Resource from "../resources"
+import Resource, { withArgument } from "../resources"
 import { UserID, RepositoryID, RepositoryFilterID } from "../resources/types"
 import { AsyncThunk } from "../state"
 import { RequestParams } from "../utils/Fetch.types"
@@ -31,7 +31,7 @@ export const loadRepositoryFilters = ({
   if (userID !== null) parameters.user = userID
   if (repositoryID !== null) parameters.repository = repositoryID
   const { primary } = await dispatch(
-    Resource.fetch("repositoryfilters", parameters)
+    Resource.fetch("repositoryfilters", parameters),
   )
   return primary
 }
@@ -40,13 +40,13 @@ export const createRepositoryFilter = (
   repositoryID: RepositoryID,
   type: "reviewer" | "watcher" | "ignored",
   path: string,
-  delegateIDs: Iterable<number>
+  delegateIDs: Iterable<number>,
 ) =>
   Resource.create(
     "repositoryfilters",
     { type, path, delegates: [...delegateIDs] },
-    { params: { repository: repositoryID } }
+    { params: { repository: repositoryID } },
   )
 
 export const deleteRepositoryFilter = (filterID: RepositoryFilterID) =>
-  Resource.delete("repositoryfilters", filterID)
+  Resource.delete("repositoryfilters", withArgument(filterID))

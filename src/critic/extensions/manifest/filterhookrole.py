@@ -1,4 +1,6 @@
-from . import ManifestError
+from typing import Optional
+
+from critic import dbaccess
 from .role import Role
 
 
@@ -6,7 +8,7 @@ class FilterHookRole(Role, role_type="filterhook"):
     name = "FilterHook"
     table_names = {"extensionfilterhookroles"}
 
-    def __init__(self, *, name, title, data_description):
+    def __init__(self, *, name: str, title: str, data_description: Optional[str]):
         self.name = name
         self.title = title
         self.data_description = data_description
@@ -22,17 +24,18 @@ class FilterHookRole(Role, role_type="filterhook"):
             return True
         return False
 
-    def check(self):
-        Role.check(self)
-        if not re.match("^[a-z0-9_]+$", self.name, re.IGNORECASE):
-            raise ManifestError(
-                "%s: manifest error: invalid filter hook name: "
-                "should contain only ASCII letters and numbers "
-                "and underscores" % self.location
-            )
+    # def check_specific(self, manifest: Manifest) -> None:
+    #     Role.check(self)
+    #     if not re.match("^[a-z0-9_]+$", self.name, re.IGNORECASE):
+    #         raise ManifestError(
+    #             f"{self.location}: manifest error: invalid filter hook name: "
+    #             "should contain only ASCII letters and numbers "
+    #             "and underscores"
+    #         )
 
-    async def install(self, cursor, version_id):
-        role_id = await Role.install(self, cursor, version_id)
+    async def install_specific(
+        self, cursor: dbaccess.TransactionCursor, role_id: int
+    ) -> None:
         await cursor.execute(
             """INSERT INTO extensionfilterhookroles (
                         role, name, title, role_description,

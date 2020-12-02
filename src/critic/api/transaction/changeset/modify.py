@@ -17,48 +17,53 @@
 from __future__ import annotations
 
 import logging
-from typing import Optional, Tuple
+from typing import Collection, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
-from .. import Item, Modifier, Transaction
-from . import CreatedChangeset
+from ..base import TransactionBase
+from ..modifier import Modifier
+from .create import CreateChangeset
 
 from critic import api
 from critic import dbaccess
 
 
-class ModifyChangeset(Modifier[api.changeset.Changeset, CreatedChangeset]):
-    def requestContent(self) -> ModifyChangeset:
-        self.transaction.items.append(RequestContent(self))
-        return self
+class ModifyChangeset(Modifier[api.changeset.Changeset]):
+    async def requestContent(self) -> None:
+        await self.transaction.execute(RequestContent(self))
 
-    def requestHighlight(self) -> ModifyChangeset:
-        self.transaction.items.append(RequestHighlight(self))
-        return self
+    async def requestHighlight(self) -> None:
+        await self.transaction.execute(RequestHighlight(self))
 
     @staticmethod
     async def ensure(
-        transaction: Transaction,
+        transaction: TransactionBase,
         from_commit: Optional[api.commit.Commit],
         to_commit: api.commit.Commit,
         conflicts: bool,
     ) -> ModifyChangeset:
-        from .ensure import ensure_changeset
+        if from_commit is not None:
+            assert from_commit.repository == to_commit.repository
 
-        return await ensure_changeset(transaction, from_commit, to_commit, conflicts)
+        return ModifyChangeset(
+            transaction,
+            await CreateChangeset.ensure(
+                transaction, from_commit, to_commit, conflicts
+            ),
+        )
 
 
-class RequestContent(Item):
+class RequestContent:
     def __init__(self, modifier: ModifyChangeset):
         self.modifier = modifier
 
     @property
-    def key(self) -> tuple:
-        return (RequestContent, self.modifier)
+    def table_names(self) -> Collection[str]:
+        return ("changesetcontentdifferences",)
 
     async def __call__(
-        self, transaction: Transaction, cursor: dbaccess.TransactionCursor
+        self, transaction: TransactionBase, cursor: dbaccess.TransactionCursor
     ) -> None:
         complete: Optional[bool]
 
@@ -93,20 +98,19 @@ class RequestContent(Item):
                    VALUES ({changeset})""",
                 changeset=self.modifier.subject,
             )
-            if not self.modifier.is_created:
-                self.modifier.updates["content_requested"] = True
+            self.modifier.updates["content_requested"] = True
 
 
-class RequestHighlight(Item):
+class RequestHighlight:
     def __init__(self, modifier: ModifyChangeset):
         self.modifier = modifier
 
     @property
-    def key(self) -> tuple:
-        return (RequestHighlight, self.modifier)
+    def table_names(self) -> Collection[str]:
+        return ("changesethighlightrequests",)
 
     async def __call__(
-        self, transaction: Transaction, cursor: dbaccess.TransactionCursor
+        self, transaction: TransactionBase, cursor: dbaccess.TransactionCursor
     ) -> None:
         requested: Optional[bool]
         evaluated: Optional[bool]
@@ -169,5 +173,5 @@ class RequestHighlight(Item):
             )
             updated = True
 
-        if updated and not self.modifier.is_created:
+        if updated:
             self.modifier.updates["highlight_requested"] = True

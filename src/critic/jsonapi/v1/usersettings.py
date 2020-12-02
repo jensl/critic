@@ -16,34 +16,41 @@
 
 from __future__ import annotations
 
-from typing import Sequence, Optional, Union
+from typing import Sequence, Union
 
 from critic import api
-from critic import jsonapi
+from critic.api.transaction.usersetting.modify import ModifyUserSetting
+from ..check import convert
+from ..exceptions import UsageError
+from ..resourceclass import ResourceClass
+from ..parameters import Parameters
+from ..types import JSONInput, JSONResult
+from ..utils import numeric_id
+from ..values import Values
 
 
 async def modify(
     transaction: api.transaction.Transaction, setting: api.usersetting.UserSetting
-) -> api.transaction.usersetting.ModifyUserSetting:
+) -> ModifyUserSetting:
     return await transaction.modifyUser(await setting.user).modifyUserSetting(setting)
 
 
 class UserSettings(
-    jsonapi.ResourceClass[api.usersetting.UserSetting], api_module=api.usersetting
+    ResourceClass[api.usersetting.UserSetting], api_module=api.usersetting
 ):
     """The (current user's) user settings."""
 
     @staticmethod
     async def json(
-        parameters: jsonapi.Parameters, value: api.usersetting.UserSetting
-    ) -> jsonapi.JSONResult:
+        parameters: Parameters, value: api.usersetting.UserSetting
+    ) -> JSONResult:
         """UserSetting {
-             "id": integer, // the setting's unique id
-             "user": integer, // the setting's owner
-             "scope": string, // the setting's scope
-             "name": string, // the setting's name
-             "value": any
-           }"""
+          "id": integer, // the setting's unique id
+          "user": integer, // the setting's owner
+          "scope": string, // the setting's scope
+          "name": string, // the setting's name
+          "value": any
+        }"""
 
         return {
             "id": value.id,
@@ -53,41 +60,39 @@ class UserSettings(
             "value": value.value,
         }
 
-    @staticmethod
+    @classmethod
     async def single(
-        parameters: jsonapi.Parameters, argument: str
+        cls, parameters: Parameters, argument: str
     ) -> api.usersetting.UserSetting:
         """Retrieve one (or more) user settings of this system.
 
-           USERSETTING_ID : integer
+        USERSETTING_ID : integer
 
-           Retrieve a user setting identified by its unique numeric id"""
+        Retrieve a user setting identified by its unique numeric id"""
 
-        return await api.usersetting.fetch(
-            parameters.critic, jsonapi.numeric_id(argument)
-        )
+        return await api.usersetting.fetch(parameters.critic, numeric_id(argument))
 
     @staticmethod
     async def multiple(
-        parameters: jsonapi.Parameters,
+        parameters: Parameters,
     ) -> Union[api.usersetting.UserSetting, Sequence[api.usersetting.UserSetting]]:
         """Retrieve a single named user setting or multiple user settings.
 
-           scope : SCOPE : string
+        scope : SCOPE : string
 
-           Retrieve only user settings with the given scope.
+        Retrieve only user settings with the given scope.
 
-           name : NAME : string
+        name : NAME : string
 
-           Retrieve only the user setting with the given name. Must be combined
-           with the |scope| parameter."""
+        Retrieve only the user setting with the given name. Must be combined
+        with the |scope| parameter."""
 
-        scope = parameters.getQueryParameter("scope")
-        name = parameters.getQueryParameter("name")
+        scope = parameters.query.get("scope")
+        name = parameters.query.get("name")
 
         if name is not None:
             if scope is None:
-                raise jsonapi.UsageError.missingParameter("scope")
+                raise UsageError.missingParameter("scope")
             return await api.usersetting.fetch(
                 parameters.critic, scope=scope, name=name
             )
@@ -96,41 +101,44 @@ class UserSettings(
 
     @staticmethod
     async def create(
-        parameters: jsonapi.Parameters, data: jsonapi.JSONInput
+        parameters: Parameters, data: JSONInput
     ) -> api.usersetting.UserSetting:
         critic = parameters.critic
 
-        converted = await jsonapi.convert(
+        converted = await convert(
             parameters,
             {"user?": api.user.User, "scope": str, "name": str, "value": None},
             data,
         )
         user = converted.get("user", critic.effective_user)
 
-        async with api.transaction.Transaction(critic) as transaction:
+        async with api.transaction.start(critic) as transaction:
             modifier = await transaction.modifyUser(user).defineSetting(
-                converted["scope"], converted["name"], converted["value"],
+                converted["scope"],
+                converted["name"],
+                converted["value"],
             )
+            return modifier.subject
 
-        return await modifier
-
-    @staticmethod
+    @classmethod
     async def update(
-        parameters: jsonapi.Parameters,
-        values: jsonapi.Values[api.usersetting.UserSetting],
-        data: jsonapi.JSONInput,
+        cls,
+        parameters: Parameters,
+        values: Values[api.usersetting.UserSetting],
+        data: JSONInput,
     ) -> None:
-        converted = await jsonapi.convert(parameters, {"value": None}, data)
+        converted = await convert(parameters, {"value": None}, data)
 
-        async with api.transaction.Transaction(parameters.critic) as transaction:
+        async with api.transaction.start(parameters.critic) as transaction:
             for setting in values:
-                (await modify(transaction, setting)).setValue(converted["value"])
+                await (await modify(transaction, setting)).setValue(converted["value"])
 
-    @staticmethod
+    @classmethod
     async def delete(
-        parameters: jsonapi.Parameters,
-        values: jsonapi.Values[api.usersetting.UserSetting],
+        cls,
+        parameters: Parameters,
+        values: Values[api.usersetting.UserSetting],
     ) -> None:
-        async with api.transaction.Transaction(parameters.critic) as transaction:
+        async with api.transaction.start(parameters.critic) as transaction:
             for setting in values:
-                (await modify(transaction, setting)).delete()
+                await (await modify(transaction, setting)).delete()

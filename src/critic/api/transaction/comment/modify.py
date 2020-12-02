@@ -18,14 +18,18 @@ from __future__ import annotations
 
 import difflib
 import logging
-from typing import Optional, Union
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 
-from . import CreatedComment
-from ..review import ReviewUserTag, has_unpublished_changes
-from .. import Transaction, Insert, Update, Delete, Modifier
 from critic import api
+from critic.reviewing.comment.propagate import PropagationResult
+from ..review import ReviewUserTag, has_unpublished_changes
+from ..base import TransactionBase
+from ..item import Update
+from ..modifier import Modifier
+from ..reply.mixin import ModifyComment as ReplyMixin
+from .create import CreateComment
 
 
 def is_simple_edit(old_string: str, new_string: str) -> bool:
@@ -34,15 +38,14 @@ def is_simple_edit(old_string: str, new_string: str) -> bool:
     return matched == len(old_string)
 
 
-class ModifyComment(Modifier[api.comment.Comment, CreatedComment]):
+class ModifyComment(ReplyMixin, Modifier[api.comment.Comment]):
     def __init__(
         self,
-        transaction: Transaction,
-        comment: Union[api.comment.Comment, CreatedComment],
+        transaction: TransactionBase,
+        comment: api.comment.Comment,
     ):
         super().__init__(transaction, comment)
-        if self.is_real:
-            transaction.lock("commentchains", id=self.real.id)
+        # transaction.lock("commentchains", id=self.subject.id)
 
     def __raiseUnlessDraft(self, action: str) -> None:
         if not self.subject.is_draft:
@@ -74,7 +77,7 @@ class ModifyComment(Modifier[api.comment.Comment, CreatedComment]):
         #         if not is_simple_edit(self.subject.text, latest_backup.value):
         #             save_backup = True
 
-        self.transaction.items.append(Update(self.subject).set(text=new_text))
+        await self.transaction.execute(Update(self.subject).set(text=new_text))
 
         # if save_backup:
         #     self.transaction.items.append(
@@ -85,61 +88,27 @@ class ModifyComment(Modifier[api.comment.Comment, CreatedComment]):
         #         )
         #     )
 
-    async def addReply(self, author: api.user.User, text: str) -> CreatedReply:
-        if self.subject.is_draft:
-            raise api.comment.Error("Draft comments cannot be replied to")
-
-        draft_changes = await self.real.draft_changes
-
-        if draft_changes and draft_changes.reply:
-            raise api.comment.Error("Comment already has a draft reply")
-
-        critic = self.transaction.critic
-
-        # Users are not (generally) allowed to create comments as other users.
-        api.PermissionDenied.raiseUnlessUser(critic, author)
-
-        review = await self.real.review
-        reply = CreatedReply(self.transaction, review, self.real)
-
-        self.transaction.tables.add("comments")
-        self.transaction.items.append(
-            Insert("comments", returning="id", collector=reply).values(
-                chain=self.subject, uid=author, text=text,
-            )
-        )
-
-        ReviewUserTag.ensure(self.transaction, review, author, "unpublished")
-
-        return reply
-
-    async def modifyReply(self, reply: api.reply.Reply) -> ModifyReply:
-        if await reply.comment != self.subject:
-            raise api.comment.Error("Cannot modify reply belonging to another comment")
-        api.PermissionDenied.raiseUnlessUser(
-            self.transaction.critic, await reply.author
-        )
-        return ModifyReply(self.transaction, reply)
-
     async def resolveIssue(self) -> None:
-        await resolve_issue(self.transaction, self.real)
+        await resolve_issue(self.transaction, self.subject)
 
-    async def reopenIssue(self, new_location: api.comment.Location = None) -> None:
-        await reopen_issue(self.transaction, self.real, new_location)
+    async def reopenIssue(
+        self, new_location: Optional[api.comment.Location] = None
+    ) -> None:
+        await reopen_issue(self.transaction, self.subject, new_location)
 
     async def deleteComment(self) -> None:
         self.__raiseUnlessDraft("deleted")
 
         critic = self.transaction.critic
-        author = await self.real.author
+        author = await self.subject.author
 
         api.PermissionDenied.raiseUnlessUser(critic, author)
 
-        super().delete()
+        await super().delete()
 
         ReviewUserTag.ensure(
             self.transaction,
-            await self.real.review,
+            await self.subject.review,
             author,
             "unpublished",
             has_unpublished_changes,
@@ -147,22 +116,27 @@ class ModifyComment(Modifier[api.comment.Comment, CreatedComment]):
 
     @staticmethod
     async def create(
-        transaction: Transaction,
+        transaction: TransactionBase,
         review: api.review.Review,
         comment_type: api.comment.CommentType,
         author: api.user.User,
         text: str,
         location: Optional[api.comment.Location],
+        propagation_result: Optional[PropagationResult],
     ) -> ModifyComment:
         return ModifyComment(
             transaction,
-            await create_comment(
-                transaction, review, comment_type, author, text, location
+            await CreateComment.make(
+                transaction,
+                review,
+                comment_type,
+                author,
+                text,
+                location,
+                propagation_result,
             ),
         )
 
 
-from .create import create_comment
 from .resolveissue import resolve_issue
 from .reopenissue import reopen_issue
-from ..reply import CreatedReply, ModifyReply

@@ -19,22 +19,25 @@ import itertools
 import logging
 import os
 import re
+from typing import Dict, List, Mapping, Optional, Sequence, Tuple
 
 logger = logging.getLogger(__name__)
 
 from critic import api
 from critic import diff
+from critic import gitaccess
+from critic.gitaccess import SHA1
 
-PER_FILENAME = None
-PER_GLOB = None
-PER_INTERPRETER = None
-PER_EMACS_MODE = None
-PER_VIM_FILETYPE = None
+PER_FILENAME: Dict[str, str] = {}
+PER_GLOB: List[Tuple[str, str]] = []
+PER_INTERPRETER: List[Tuple[str, str]] = []
+PER_EMACS_MODE: Dict[str, str] = {}
+PER_VIM_FILETYPE: Dict[str, str] = {}
 
 RE_INTERPRETER = re.compile(r"#!(?:/[^/]+)+/([^/]+?)(?:\s+(\S+))?(?:\s|$)")
 
 
-def find_interpreter(lines):
+def find_interpreter(lines: Sequence[str]):
     match = RE_INTERPRETER.match(lines[0])
     if match:
         interpreter, argument = match.groups()
@@ -48,7 +51,7 @@ RE_EMACS_MODELINE = re.compile(
 )
 
 
-def parse_emacs_modeline(lines):
+def parse_emacs_modeline(lines: Sequence[str]) -> Mapping[str, str]:
     for line in lines[:2]:
         if line.startswith("#!"):
             continue
@@ -65,7 +68,7 @@ def parse_emacs_modeline(lines):
     return {}
 
 
-def find_emacs_mode(lines):
+def find_emacs_mode(lines: Sequence[str]) -> Optional[str]:
     return parse_emacs_modeline(lines).get("mode")
 
 
@@ -75,7 +78,7 @@ RE_VIM_MODELINE_SET = re.compile(
 RE_VIM_MODELINE_NOSET = re.compile(r"\W*vim:((?:\s*[^=]+=\S+)+)\s*:")
 
 
-def parse_vim_modeline(lines):
+def parse_vim_modeline(lines: Sequence[str]) -> Mapping[str, str]:
     for line in itertools.chain(lines[:5], reversed(lines[-5:])):
         match = RE_VIM_MODELINE_SET.match(line)
         if match:
@@ -95,7 +98,7 @@ def parse_vim_modeline(lines):
     return {}
 
 
-def find_vim_filetype(lines):
+def find_vim_filetype(lines: Sequence[str]) -> Optional[str]:
     vim_modeline = parse_vim_modeline(lines)
     if "ft" in vim_modeline:
         return vim_modeline["ft"]
@@ -105,16 +108,7 @@ def find_vim_filetype(lines):
 def setup():
     """Set up global data from configuration
 
-       This must be called before identify_language() is called."""
-
-    global PER_FILENAME, PER_GLOB, PER_INTERPRETER, PER_EMACS_MODE
-    global PER_VIM_FILETYPE
-
-    PER_FILENAME = {}
-    PER_GLOB = []
-    PER_INTERPRETER = []
-    PER_EMACS_MODE = {}
-    PER_VIM_FILETYPE = {}
+    This must be called before identify_language() is called."""
 
     languages = api.critic.settings().syntax.languages
 
@@ -136,7 +130,7 @@ def setup():
                 PER_VIM_FILETYPE[vim_filetype] = label
 
 
-def identify_language_from_path(path):
+def identify_language_from_path(path: str) -> Optional[str]:
     filename = os.path.basename(path)
 
     if filename in PER_FILENAME:
@@ -146,8 +140,12 @@ def identify_language_from_path(path):
         if fnmatch.fnmatch(filename, glob):
             return label
 
+    return None
 
-async def identify_language_from_source(repository, sha1):
+
+async def identify_language_from_source(
+    repository: gitaccess.GitRepository, sha1: SHA1
+) -> Optional[str]:
     if PER_INTERPRETER or PER_EMACS_MODE or PER_VIM_FILETYPE:
         gitobject = await repository.fetchone(sha1, wanted_object_type="blob")
         lines = diff.parse.splitlines(gitobject.asBlob().data, limit=2)
@@ -161,10 +159,12 @@ async def identify_language_from_source(repository, sha1):
 
         if PER_EMACS_MODE:
             emacs_mode = find_emacs_mode(lines)
-            if emacs_mode in PER_EMACS_MODE:
+            if emacs_mode and emacs_mode in PER_EMACS_MODE:
                 return PER_EMACS_MODE[emacs_mode]
 
         if PER_VIM_FILETYPE:
             vim_filetype = find_vim_filetype(lines)
-            if vim_filetype in PER_VIM_FILETYPE:
+            if vim_filetype and vim_filetype in PER_VIM_FILETYPE:
                 return PER_VIM_FILETYPE[vim_filetype]
+
+    return None

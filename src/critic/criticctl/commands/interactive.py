@@ -14,10 +14,12 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
+import argparse
 import logging
 import os
 import subprocess
 import sys
+from typing import Protocol
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +29,7 @@ name = "interactive"
 title = "Interactive session"
 
 
-def setup(parser):
+def setup(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--user", "-u", help="Impersonate this user")
     parser.add_argument(
         "--install-ipython",
@@ -36,7 +38,14 @@ def setup(parser):
     )
 
 
-async def main(critic, arguments, *, recursive=False):
+class Arguments(Protocol):
+    user: str
+    install_ipython: bool
+
+
+async def main(
+    critic: api.critic.Critic, arguments: Arguments, *, recursive: bool = False
+) -> int:
     try:
         import IPython
     except ImportError:
@@ -44,7 +53,7 @@ async def main(critic, arguments, *, recursive=False):
             subprocess.check_call(
                 [os.path.join(sys.prefix, "bin", "pip"), "install", "IPython"]
             )
-            return main(critic, arguments, recursive=True)
+            return await main(critic, arguments, recursive=True)
 
         logger.error("Failed to import IPython!")
         logger.info(
@@ -55,8 +64,12 @@ async def main(critic, arguments, *, recursive=False):
 
     if arguments.user:
         async with api.critic.startSession(for_user=True) as critic:
-            await critic.setActualUser(await api.user.fetch(critic, arguments.user))
+            await critic.setActualUser(
+                await api.user.fetch(critic, name=arguments.user)
+            )
 
             IPython.embed()
     else:
         IPython.start_ipython(argv=[], user_ns={"api": api, "critic": critic})
+
+    return 0

@@ -15,25 +15,20 @@
 # the License.
 
 import logging
-import time
-from abc import ABC, abstractmethod
-from typing import Collection, Generic, Optional, Sequence, TypeVar
+from abc import abstractmethod
+from typing import Generic, Optional, Sequence, TypeVar
 
 logger = logging.getLogger(__name__)
 
-from critic import api
 from critic import pubsub
 
-from . import serialize_key, Key
-from .job import Job
-from .jobgroup import JobGroup
-from .changeset import Changeset
+from . import Key
+from .job import Job, GroupType
 
-GroupType = TypeVar("GroupType", bound=JobGroup)
 ResponseType = TypeVar("ResponseType", covariant=True)
 
 
-class RequestJob(Generic[GroupType, ResponseType], Job[GroupType]):
+class RequestJob(Generic[ResponseType], Job):
     __requests: Optional[Sequence[pubsub.OutgoingRequest]]
     __responses: Optional[Sequence[ResponseType]]
 

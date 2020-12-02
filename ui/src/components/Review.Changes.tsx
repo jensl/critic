@@ -1,5 +1,7 @@
 import React, { FunctionComponent } from "react"
 
+import { makeStyles } from "@material-ui/core/styles"
+
 import Registry from "."
 import ChangesetContext from "./Changeset.Context"
 import { loadAutomaticChangeset } from "../actions/changeset"
@@ -16,7 +18,7 @@ const ReviewChanges: FunctionComponent = () => {
   if (!changeset) return null
   return (
     <ChangesetContext changeset={changeset}>
-      <Changeset variant="unified" />
+      <Changeset variant="unified" integrated />
     </ChangesetContext>
   )
 }

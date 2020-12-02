@@ -16,9 +16,20 @@
 
 from __future__ import annotations
 
-from typing import Any, Mapping, Sequence, Iterable, Union, overload
+from typing import (
+    Any,
+    Awaitable,
+    Callable,
+    Mapping,
+    Optional,
+    Sequence,
+    Iterable,
+    Union,
+    overload,
+)
 
 from critic import api
+from critic.api.apiobject import FunctionRef
 
 
 class Error(api.APIError, object_type="system setting"):
@@ -69,7 +80,7 @@ class SystemSetting(api.APIObject):
     @property
     def description(self) -> str:
         """The setting's description"""
-        return self._impl.key
+        return self._impl.description
 
     @property
     def is_privileged(self) -> bool:
@@ -92,12 +103,14 @@ async def fetch(critic: api.critic.Critic, /, *, key: str) -> SystemSetting:
 
 
 async def fetch(
-    critic: api.critic.Critic, setting_id: int = None, /, *, key: str = None
+    critic: api.critic.Critic,
+    setting_id: Optional[int] = None,
+    /,
+    *,
+    key: Optional[str] = None,
 ) -> SystemSetting:
     """Fetch a SystemSetting object with the given id"""
-    from .impl import systemsetting as impl
-
-    return await impl.fetch(critic, setting_id, key)
+    return await fetchImpl.get()(critic, setting_id, key)
 
 
 @overload
@@ -116,52 +129,57 @@ async def fetchMany(
 
 async def fetchMany(
     critic: api.critic.Critic,
-    setting_ids: Iterable[int] = None,
+    setting_ids: Optional[Iterable[int]] = None,
     /,
     *,
-    keys: Iterable[str] = None,
+    keys: Optional[Iterable[str]] = None,
 ) -> Sequence[SystemSetting]:
     """Fetch many SystemSetting object with the given ids"""
-    from .impl import systemsetting as impl
-
-    return await impl.fetchMany(critic, setting_ids, keys)
+    if setting_ids is not None:
+        setting_ids = list(setting_ids)
+    if keys is not None:
+        keys = list(keys)
+    return await fetchManyImpl.get()(critic, setting_ids, keys)
 
 
 async def fetchAll(
-    critic: api.critic.Critic, *, prefix: str = None
+    critic: api.critic.Critic, *, prefix: Optional[str] = None
 ) -> Sequence[SystemSetting]:
     """Fetch SystemSetting objects for all system settings
 
-       If |prefix| is not None, fetch only settings whose id has the specified
-       prefix."""
-    from .impl import systemsetting as impl
-
-    assert isinstance(critic, api.critic.Critic)
-    if prefix is not None:
-        prefix = str(prefix)
-    return await impl.fetchAll(critic, prefix)
+    If |prefix| is not None, fetch only settings whose id has the specified
+    prefix."""
+    return await fetchAllImpl.get()(critic, prefix)
 
 
-@overload
 async def get(critic: api.critic.Critic, key: str, /) -> object:
-    ...
-
-
-@overload
-async def get(critic: api.critic.Critic, /, *, prefix: str) -> Mapping[str, object]:
-    ...
-
-
-async def get(
-    critic: api.critic.Critic, key: str = None, *, prefix: str = None
-) -> Union[object, Mapping[str, object]]:
     """Fetch a system setting's value"""
-    if key is None:
-        return {
-            setting.key: setting.value
-            for setting in await fetchAll(critic, prefix=prefix)
-        }
     return (await fetch(critic, key=key)).value
 
 
+async def getPrefixed(
+    critic: api.critic.Critic, prefix: str, /
+) -> Mapping[str, object]:
+    """Fetch a system setting's value"""
+    return {
+        setting.key: setting.value for setting in await fetchAll(critic, prefix=prefix)
+    }
+
+
 resource_name = table_name = "systemsettings"
+
+
+fetchImpl: FunctionRef[
+    Callable[
+        [api.critic.Critic, Optional[int], Optional[str]], Awaitable[SystemSetting]
+    ]
+] = FunctionRef()
+fetchManyImpl: FunctionRef[
+    Callable[
+        [api.critic.Critic, Optional[Sequence[int]], Optional[Sequence[str]]],
+        Awaitable[Sequence[SystemSetting]],
+    ]
+] = FunctionRef()
+fetchAllImpl: FunctionRef[
+    Callable[[api.critic.Critic, Optional[str]], Awaitable[Sequence[SystemSetting]]]
+] = FunctionRef()

@@ -14,20 +14,24 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
+import argparse
 import json
-import sys
+
+from critic import api
 
 name = "configuration"
 title = "Access Critic's basic configuration."
 
 
-def setup(parser):
+def setup(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--indent", type=int, help="Amount of indentation in JSON output."
     )
 
 
-def main(critic, arguments):
+async def main(critic: api.critic.Critic, arguments: argparse.Namespace) -> int:
     from critic import base
 
     arguments.stdout.print(json.dumps(base.configuration(), indent=arguments.indent))
+
+    return 0

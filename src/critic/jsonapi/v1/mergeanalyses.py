@@ -22,10 +22,8 @@ from typing import (
     Collection,
     Mapping,
     List,
-    Optional,
     Sequence,
     TypedDict,
-    Union,
 )
 
 logger = logging.getLogger(__name__)
@@ -33,28 +31,35 @@ logger = logging.getLogger(__name__)
 from .filediffs import Chunk, select_reduce_chunk
 
 from critic import api
-from critic import jsonapi
+from ..exceptions import UsageError
+from ..parameters import Parameters
+from ..exceptions import UsageError
+from ..resourceclass import ResourceClass
+from ..parameters import Parameters
+from ..types import JSONResult
+from ..utils import sorted_by_id
+from ..valuewrapper import ValueWrapper
 
 MacroChunks = Mapping[str, Sequence[Chunk]]
 ChangesRelativeParent = TypedDict(
     "ChangesRelativeParent",
     {
         "parent": api.commit.Commit,
-        "files": Awaitable[jsonapi.ValueWrapper[Collection[api.file.File]]],
+        "files": Awaitable[ValueWrapper[Collection[api.file.File]]],
         "macro_chunks": Awaitable[MacroChunks],
     },
 )
 
 
 class MergeAnalyses(
-    jsonapi.ResourceClass[api.mergeanalysis.MergeAnalysis], api_module=api.mergeanalysis
+    ResourceClass[api.mergeanalysis.MergeAnalysis], api_module=api.mergeanalysis
 ):
     contexts = (None, "repositories", "commits")
 
     @staticmethod
     async def json(
-        parameters: jsonapi.Parameters, value: api.mergeanalysis.MergeAnalysis
-    ) -> jsonapi.JSONResult:
+        parameters: Parameters, value: api.mergeanalysis.MergeAnalysis
+    ) -> JSONResult:
         await value.ensure(block=False)
 
         reduce_chunk = select_reduce_chunk(parameters)
@@ -71,7 +76,7 @@ class MergeAnalyses(
             return [
                 {
                     "parent": changeset.parent,
-                    "files": jsonapi.sorted_by_id(changeset.files),
+                    "files": sorted_by_id(changeset.files),
                     "macro_chunks": macro_chunks(changeset),
                 }
                 for changeset in await value.changes_relative_parents
@@ -85,12 +90,9 @@ class MergeAnalyses(
 
     @staticmethod
     async def multiple(
-        parameters: jsonapi.Parameters,
+        parameters: Parameters,
     ) -> api.mergeanalysis.MergeAnalysis:
-        merge = await Commits.deduce(parameters)
+        merge = await parameters.deduce(api.commit.Commit)
         if not merge:
-            raise jsonapi.UsageError.missingParameter("commit")
+            raise UsageError.missingParameter("commit")
         return await api.mergeanalysis.fetch(merge)
-
-
-from .commits import Commits

@@ -1,36 +1,13 @@
 from __future__ import annotations
 
-import datetime
 import logging
 import re
 from abc import ABC, abstractmethod
-from typing import Any, List, Mapping, Optional, Protocol, Sequence, Tuple, Union
+from typing import Any, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
-
-class Adaptable(Protocol):
-    def __adapt__(self) -> SQLValue:
-        ...
-
-
-SQLAtom = Union[bool, int, float, str, bytes, datetime.datetime, Adaptable]
-SQLValue = Optional[Union[SQLAtom, Sequence[SQLAtom]]]
-
-Parameter = Union[SQLValue, Adaptable]
-Parameters = Mapping[str, Parameter]
-ExecuteArguments = Optional[Union[List[SQLValue], Parameters]]
-
-
-def adapt(value: Any) -> Any:
-    if value is None:
-        return None
-    __adapt__ = getattr(value, "__adapt__", None)
-    if __adapt__:
-        return __adapt__()
-    if isinstance(value, (tuple, list, set)):
-        return [adapt(item) for item in value]
-    return value
+from .types import Parameters, ExecuteArguments, adapt
 
 
 class StatementFormatter(ABC):
@@ -45,9 +22,9 @@ class StatementFormatter(ABC):
     def process(
         self, sql: str, parameters: Parameters, **kwargs: Any
     ) -> Tuple[str, ExecuteArguments]:
-        execute_args: ExecuteArguments = None
+        execute_args: Optional[ExecuteArguments] = None
 
-        def repl(match: re.Match) -> str:
+        def repl(match: re.Match[str]) -> str:
             nonlocal execute_args
             expr, parameter_name, mode = match.groups()
             replacement, execute_args = self.replace(

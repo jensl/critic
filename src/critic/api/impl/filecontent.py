@@ -22,19 +22,28 @@ from typing import Sequence, Union, Optional, Tuple, Any
 
 logger = logging.getLogger(__name__)
 
-from . import apiobject
 from critic import api
+from critic.api import filecontent as public
 from critic import diff
 from critic import textutils
 from critic.gitaccess import SHA1
 from critic.syntaxhighlight import requestHighlight, language
 from critic.syntaxhighlight.ranges import SyntaxHighlightRanges
+from . import apiobject
 
 
 @dataclass(frozen=True)
 class Line:
-    offset: int
-    content: Sequence[api.filediff.Part]
+    __offset: int
+    __content: Sequence[api.filediff.Part]
+
+    @property
+    def offset(self) -> int:
+        return self.__offset
+
+    @property
+    def content(self) -> Sequence[api.filediff.Part]:
+        return self.__content
 
 
 WrapperType = api.filecontent.FileContent
@@ -92,6 +101,7 @@ class FileContent(apiobject.APIObject[WrapperType, ArgumentsType, Any]):
                 raise api.filecontent.FileContentDelayed()
 
         lines = file_version.line_ranges[0].lines
+        assert lines is not None
 
         return [
             Line(1 + first_line + index, list(filediff.PartHelper.make(content)))
@@ -99,6 +109,7 @@ class FileContent(apiobject.APIObject[WrapperType, ArgumentsType, Any]):
         ]
 
 
+@public.fetchImpl
 async def fetch(
     repository: api.repository.Repository,
     sha1: Optional[SHA1],
@@ -115,4 +126,4 @@ async def fetch(
             raise api.filecontent.NoSuchFile(file.path)
         sha1 = file_information.sha1
     assert sha1
-    return await FileContent.makeOne(repository.critic, (repository, sha1, file))
+    return await FileContent.makeOne(repository.critic, values=(repository, sha1, file))

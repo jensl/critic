@@ -19,12 +19,12 @@ from __future__ import annotations
 import asyncio
 import logging
 import threading
-import uuid
 from collections import defaultdict
 from types import TracebackType
 from typing import (
     Any,
     AsyncIterator,
+    Collection,
     Dict,
     Iterable,
     List,
@@ -34,13 +34,11 @@ from typing import (
     Tuple,
     Type,
     Union,
-    FrozenSet,
     cast,
 )
 
 logger = logging.getLogger(__name__)
 
-from critic import background
 from critic.background.utils import is_services
 from critic.gitaccess import (
     FetchJob,
@@ -62,9 +60,8 @@ from .protocol import (
     CallError,
     CallRequest,
     CallResult,
-    FetchError,
     FetchObject,
-    FetchRangeError,
+    FetchRangeEnd,
     FetchRangeObject,
     FetchRangeRequest,
     FetchRequest,
@@ -72,7 +69,6 @@ from .protocol import (
     OutputMessage,
     RequestId,
     StreamEnd,
-    StreamError,
     StreamInput,
     StreamOutput,
     StreamRequest,
@@ -126,10 +122,10 @@ class GitObjectCache:
 class GitProxyError(GitError):
     def __init__(
         self,
-        message: str = None,
-        exception: BaseException = None,
-        stacktrace: TracebackType = None,
-        stderr: bytes = None,
+        message: Optional[str] = None,
+        exception: Optional[BaseException] = None,
+        stacktrace: Optional[TracebackType] = None,
+        stderr: Optional[bytes] = None,
     ):
         super().__init__(message or (str(exception) if exception else "unknown error"))
         self.exception = exception
@@ -150,8 +146,8 @@ GenericCommand = Literal[
     "lsremote",
 ]
 
-GENERIC_COMMANDS: FrozenSet[GenericCommand] = frozenset(
-    {
+GENERIC_COMMANDS: Collection[GenericCommand] = frozenset(
+    [
         "version",
         "repositories_dir",
         "symbolicref",
@@ -162,14 +158,14 @@ GENERIC_COMMANDS: FrozenSet[GenericCommand] = frozenset(
         "foreachref",
         "updateref",
         "lsremote",
-    }
+    ]
 )
 
 
 class GitRepositoryProxy(GitRepositoryImpl):
     fetch_requests: Dict[SHA1, List[FetchJob]]
     fetchrange_requests: Dict[RequestId, "asyncio.Queue[Optional[GitRawObject]]"]
-    generic_requests: Dict[RequestId, asyncio.Future]
+    generic_requests: Dict[RequestId, "asyncio.Future[Any]"]
     streams: Dict[RequestId, Tuple["asyncio.Queue[bytes]", "asyncio.Future[None]"]]
 
     def __init__(self, path: Optional[str]) -> None:
@@ -185,6 +181,10 @@ class GitRepositoryProxy(GitRepositoryImpl):
 
         # Uncomment this line to debug proxy issues.
         # asyncio.ensure_future(self.debug(), loop=self.loop)
+
+    @property
+    def is_direct(self) -> bool:
+        return False
 
     @property
     def path(self) -> Optional[str]:
@@ -207,9 +207,22 @@ class GitRepositoryProxy(GitRepositoryImpl):
         self.request_id_counter += 1
         return RequestId(self.request_id_counter)
 
-    async def __generic(self, call: Call, args: tuple = (), kwargs: dict = {}) -> Any:
-        assert self.path
-        request = CallRequest(self.__request_id(), self.path, call, args, kwargs)
+    async def __generic(
+        self,
+        call: Call,
+        args: Tuple[Any, ...] = (),
+        kwargs: Dict[str, Any] = {},
+        /,
+        *,
+        needs_path: bool = True,
+    ) -> Any:
+        path: Optional[str]
+        if needs_path:
+            assert self.path
+            path = self.path
+        else:
+            path = None
+        request = CallRequest(self.__request_id(), path, call, args, kwargs)
         self.generic_requests[
             request.request_id
         ] = future = asyncio.get_running_loop().create_future()
@@ -297,29 +310,29 @@ class GitRepositoryProxy(GitRepositoryImpl):
         with GitObjectCache.instance() as cache:
             cache.update(cache_updates)
 
-    async def symbolicref(self, *args: Any, **kwargs: Any) -> Any:
+    async def symbolicref(self, *args: Any, **kwargs: Any) -> Any:  # type: ignore
         return await self.__generic("symbolicref", args, kwargs)
 
-    async def revparse(self, *args: Any, **kwargs: Any) -> Any:
+    async def revparse(self, *args: Any, **kwargs: Any) -> Any:  # type: ignore
         return await self.__generic("revparse", args, kwargs)
 
-    async def revlist(self, *args: Any, **kwargs: Any) -> Any:
+    async def revlist(self, *args: Any, **kwargs: Any) -> Any:  # type: ignore
         return await self.__generic("revlist", args, kwargs)
 
-    async def mergebase(self, *args: Any, **kwargs: Any) -> Any:
+    async def mergebase(self, *args: Any, **kwargs: Any) -> Any:  # type: ignore
         return await self.__generic("mergebase", args, kwargs)
 
-    async def lstree(self, *args: Any, **kwargs: Any) -> Any:
+    async def lstree(self, *args: Any, **kwargs: Any) -> Any:  # type: ignore
         return await self.__generic("lstree", args, kwargs)
 
-    async def foreachref(self, *args: Any, **kwargs: Any) -> Any:
+    async def foreachref(self, *args: Any, **kwargs: Any) -> Any:  # type: ignore
         return await self.__generic("foreachref", args, kwargs)
 
-    async def updateref(self, *args: Any, **kwargs: Any) -> Any:
+    async def updateref(self, *args: Any, **kwargs: Any) -> Any:  # type: ignore
         await self.__generic("updateref", args, kwargs)
 
-    async def lsremote(self, *args: Any, **kwargs: Any) -> Any:
-        return await self.__generic("lsremote", args, kwargs)
+    async def lsremote(self, *args: Any, **kwargs: Any) -> Any:  # type: ignore
+        return await self.__generic("lsremote", args, kwargs, needs_path=False)
 
     async def stream(
         self,
@@ -361,12 +374,6 @@ class GitRepositoryProxy(GitRepositoryImpl):
                 sha1=message.sha1, object_type=message.object_type, data=message.data
             )
 
-        def handle_error(future: asyncio.Future) -> None:
-            assert isinstance(
-                message, (FetchError, FetchRangeError, CallError, StreamError)
-            )
-            future.set_exception(message.exception)
-
         if isinstance(message, FetchObject):
             jobs = self.fetch_requests.pop(message.object_id, None)
             if jobs is None:
@@ -382,6 +389,9 @@ class GitRepositoryProxy(GitRepositoryImpl):
         elif isinstance(message, FetchRangeObject):
             queue = self.fetchrange_requests[message.request_id]
             await queue.put(make_raw_object())
+        elif isinstance(message, FetchRangeEnd):
+            queue = self.fetchrange_requests[message.request_id]
+            await queue.put(None)
         elif isinstance(message, CallResult):
             future = self.generic_requests.pop(message.request_id, None)
             if future is None:
@@ -417,7 +427,7 @@ class GitRepositoryProxy(GitRepositoryImpl):
         await self.channel.close()
 
     @staticmethod
-    def make(path: str = None) -> GitRepository:
+    def make(path: Optional[str] = None) -> GitRepository:
         if is_services():
             return GitRepository.direct(path)
-        return GitRepository(GitRepositoryProxy(path))
+        return GitRepository(GitRepositoryProxy(path))  # type: ignore

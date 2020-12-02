@@ -36,8 +36,8 @@ const CreateReview: FunctionComponent<ActionProps & Props> = ({
     dispatch(
       createReview(
         repository.id,
-        selectedCommits.map((commit) => commit.id).toArray()
-      )
+        selectedCommits.map((commit) => commit.id),
+      ),
     ).then((review) => {
       dispatch(resetSelectionScope())
       if (review) history.push(`/review/${review.id}`)

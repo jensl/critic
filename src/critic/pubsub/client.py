@@ -43,7 +43,7 @@ class Client(Protocol):
         callback: MessageCallback,
         /,
         *,
-        reservation_id: ReservationId = None,
+        reservation_id: Optional[ReservationId] = None,
     ) -> Subscription:
         ...
 
@@ -59,7 +59,7 @@ class Client(Protocol):
         ...
 
     async def unsubscribe(
-        self, *, channel_name: ChannelName = None, subscription: Subscription = None
+        self, *, channel_name: Optional[ChannelName] = None, subscription: Optional[Subscription] = None
     ) -> None:
         ...
 

@@ -31,6 +31,7 @@ from typing import (
 logger = logging.getLogger(__name__)
 
 from critic import api
+from critic import dbaccess
 from critic import diff
 from critic import gitaccess
 from critic.diff.parse import ExamineResult
@@ -39,8 +40,7 @@ from critic.syntaxhighlight.language import identify_language_from_path
 
 from .changedfile import ChangedFile
 from .changedlines import ChangedLines
-from .changeset import Changeset
-from .job import Job
+from .job import Job, GroupType
 
 
 class FileStatus(NamedTuple):
@@ -48,23 +48,23 @@ class FileStatus(NamedTuple):
     new: ExamineResult
 
 
-class ExamineFiles(Job[Changeset]):
+class ExamineFiles(Job):
     """Examine files to categorize them as text or binary
 
-       Followed up by CalculateFileDifference for calculating the content
-       difference for each modified text file."""
+    Followed up by CalculateFileDifference for calculating the content
+    difference for each modified text file."""
 
     file_status: Dict[ChangedFile, FileStatus]
 
     def __init__(
         self,
-        changeset: Changeset,
+        group: GroupType,
         from_commit_sha1: SHA1,
         to_commit_sha1: SHA1,
         changed_files: Sequence[ChangedFile],
     ):
         super().__init__(
-            changeset,
+            group,
             tuple(changed_file.required_file_id for changed_file in changed_files),
         )
         self.from_commit_sha1 = from_commit_sha1
@@ -77,7 +77,10 @@ class ExamineFiles(Job[Changeset]):
             return None
         return [
             ExamineFiles(
-                self.group, self.from_commit_sha1, self.to_commit_sha1, [changed_file],
+                self.group,
+                self.from_commit_sha1,
+                self.to_commit_sha1,
+                [changed_file],
             )
             for changed_file in self.changed_files
         ]
@@ -120,13 +123,13 @@ class ExamineFiles(Job[Changeset]):
     async def update_database(self, critic: api.critic.Critic) -> None:
         """Insert rows into the database table
 
-           One row is inserted into the table 'changesetfiledifferences' for
-           each changed file, unconditionally.
+        One row is inserted into the table 'changesetfiledifferences' for
+        each changed file, unconditionally.
 
-           In addition, for files that we won't calculate content differences
-           for (added, removed or files changed from binary to text), a single
-           row adding or removing all lines is inserted into the table
-           'changesetchangedlines'."""
+        In addition, for files that we won't calculate content differences
+        for (added, removed or files changed from binary to text), a single
+        row adding or removing all lines is inserted into the table
+        'changesetchangedlines'."""
 
         from .syntaxhighlightfile import syntax_highlight_old, syntax_highlight_new
 
@@ -198,7 +201,9 @@ class ExamineFiles(Job[Changeset]):
             language_label = identify_language_from_path(changed_file.path)
             if language_label is not None:
                 language_id = language_ids.get_id(language_label)
-                if syntax_highlight_old(changed_file):
+                if syntax_highlight_old(
+                    changed_file.with_status((old_status, new_status))
+                ):
                     highlightfiles_values.append(
                         dict(
                             repository_id=repository_id,
@@ -217,7 +222,9 @@ class ExamineFiles(Job[Changeset]):
                             conflicts=conflicts,
                         )
                     )
-                if syntax_highlight_new(changed_file):
+                if syntax_highlight_new(
+                    changed_file.with_status((old_status, new_status))
+                ):
                     highlightfiles_values.append(
                         dict(
                             repository_id=repository_id,
@@ -249,7 +256,7 @@ class ExamineFiles(Job[Changeset]):
                             {old_is_binary}, {old_length}, {new_is_binary}, {new_length}
                           )""",
                 (
-                    dict(
+                    dbaccess.parameters(
                         changeset_id=changeset_id,
                         file_id=changed_file.file_id,
                         comparison_pending=changed_file.file_id in comparison_pending,
@@ -273,7 +280,7 @@ class ExamineFiles(Job[Changeset]):
                             {delete_length}, {insert_count}, {insert_length}, {analysis}
                           )""",
                 (
-                    dict(
+                    dbaccess.parameters(
                         changeset_id=changeset_id,
                         file_id=file_id,
                         delete_count=old_lines,
@@ -322,7 +329,7 @@ class ExamineFiles(Job[Changeset]):
                     updates,
                 )
 
-    def follow_ups(self) -> Iterable[Job[Changeset]]:
+    def follow_ups(self) -> Iterable[Job]:
         from .analyzechangedlines import AnalyzeChangedLines
         from .calculatefiledifference import CalculateFileDifference
         from .detectfilelanguages import DetectFileLanguages
@@ -363,7 +370,7 @@ class ExamineFiles(Job[Changeset]):
 
     @staticmethod
     def for_files(
-        changeset: Changeset,
+        group: GroupType,
         from_commit_sha1: SHA1,
         to_commit_sha1: SHA1,
         changed_files: Sequence[ChangedFile],
@@ -372,7 +379,7 @@ class ExamineFiles(Job[Changeset]):
 
         for offset in range(0, len(changed_files), CHUNK_SIZE):
             yield ExamineFiles(
-                changeset,
+                group,
                 from_commit_sha1,
                 to_commit_sha1,
                 changed_files[offset : offset + CHUNK_SIZE],

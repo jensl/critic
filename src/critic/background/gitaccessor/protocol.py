@@ -19,7 +19,7 @@ RequestId = NewType("RequestId", int)
 @dataclass
 class RequestBase:
     request_id: RequestId
-    repository_path: str
+    repository_path: Optional[str]
 
 
 @dataclass
@@ -36,7 +36,10 @@ class FetchRequest(RequestBase):
         )
 
     def error(
-        self, exception: GitError, stacktrace: str = "", object_id: SHA1 = None
+        self,
+        exception: GitError,
+        stacktrace: str = "",
+        object_id: Optional[SHA1] = None,
     ) -> FetchError:
         return FetchError(self.request_id, exception, stacktrace, object_id)
 

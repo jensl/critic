@@ -16,14 +16,15 @@
 
 from __future__ import annotations
 
-from typing import Sequence, Tuple, Iterable
+from typing import Awaitable, Callable, Optional, Sequence, Tuple, Iterable
 
 from critic import api
+from critic.api.apiobject import FunctionRef
 
 
 class Error(api.APIError, object_type="labeled access control profile"):
     """Base exception for all errors related to the LabeledAccessControlProfile
-       class"""
+    class"""
 
     pass
 
@@ -68,20 +69,29 @@ async def fetch(
     critic: api.critic.Critic, labels: Iterable[str]
 ) -> LabeledAccessControlProfile:
     """Fetch an LabeledAccessControlProfile object for the given labels"""
-    from .impl import labeledaccesscontrolprofile as impl
-
-    return await impl.fetch(critic, labels)
+    return await fetchImpl.get()(critic, list(labels))
 
 
 async def fetchAll(
     critic: api.critic.Critic,
-    profile: api.accesscontrolprofile.AccessControlProfile = None,
+    profile: Optional[api.accesscontrolprofile.AccessControlProfile] = None,
 ) -> Sequence[LabeledAccessControlProfile]:
     """Fetch LabeledAccessControlProfile objects for all labeled profiles
-       selectors in the system"""
-    from .impl import labeledaccesscontrolprofile as impl
-
-    return await impl.fetchAll(critic, profile)
+    selectors in the system"""
+    return await fetchAllImpl.get()(critic, profile)
 
 
 resource_name = table_name = "labeledaccesscontrolprofiles"
+
+fetchImpl: FunctionRef[
+    Callable[
+        [api.critic.Critic, Sequence[str]],
+        Awaitable[LabeledAccessControlProfile],
+    ]
+] = FunctionRef()
+fetchAllImpl: FunctionRef[
+    Callable[
+        [api.critic.Critic, Optional[api.accesscontrolprofile.AccessControlProfile]],
+        Awaitable[Sequence[LabeledAccessControlProfile]],
+    ]
+] = FunctionRef()

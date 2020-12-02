@@ -18,15 +18,15 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import contextvars
 import inspect
 import logging
-import threading
 from collections import defaultdict
 from typing import (
     AsyncContextManager,
     AsyncIterator,
+    ClassVar,
     Optional,
-    Union,
     Mapping,
     Any,
     List,
@@ -38,7 +38,6 @@ from typing import (
     Tuple,
     FrozenSet,
     Iterator,
-    Type,
     TypeVar,
     Awaitable,
     Sequence,
@@ -48,7 +47,7 @@ from typing import (
 logger = logging.getLogger(__name__)
 
 from critic import api
-from critic import base
+from critic.api import critic as public
 from critic import dbaccess
 
 
@@ -115,14 +114,33 @@ class SettingsGroup:
 
 
 class Settings(SettingsGroup):
+    __value: ClassVar[Optional[Settings]] = None
+
     def __init__(self, settings: Iterable[api.systemsetting.SystemSetting]) -> None:
         super().__init__()
         for setting in settings:
             self._add(setting)
 
+    @staticmethod
+    def is_loaded() -> bool:
+        return Settings.__value is not None
 
-settings = None
-settings_lock = threading.Lock()
+    @staticmethod
+    def get() -> Settings:
+        if Settings.__value is None:
+            raise public.SessionNotInitialized()
+        return Settings.__value
+
+    @staticmethod
+    async def load(critic: api.critic.Critic) -> Settings:
+        Settings.__value = Settings(await api.systemsetting.fetchAll(critic))
+        return Settings.get()
+
+
+@public.settingsImpl
+def settings() -> Settings:
+    return Settings.get()
+
 
 T = TypeVar("T")
 
@@ -144,9 +162,7 @@ class Critic(object):
     __slice: Optional[Tuple[int, Optional[int]]]
     __critical_sections: DefaultDict[str, asyncio.Lock]
 
-    def __init__(
-        self, session_type: api.critic.SessionType, loop: asyncio.AbstractEventLoop
-    ) -> None:
+    def __init__(self, session_type: api.critic.SessionType) -> None:
         self.is_closing = self.is_closed = False
         self.session_type = session_type
         self.session_profiles = []
@@ -157,7 +173,6 @@ class Critic(object):
         self.authentication_labels = None
         self.access_control_profiles = set()
         self.external_account = None
-        self.loop = loop
         self.close_tasks = []
         self.__objects_cache = {}
         self.__custom_cache = {}
@@ -190,7 +205,7 @@ class Critic(object):
         return frozenset(self.session_profiles)
 
     @contextlib.contextmanager
-    def setEffectiveUser(self, user: api.user.User) -> Iterator:
+    def setEffectiveUser(self, user: api.user.User) -> Iterator[None]:
         api.PermissionDenied.raiseIfRegularUser(user.critic)
         previous = self.__effective_user
         self.__effective_user = user
@@ -221,7 +236,7 @@ class Critic(object):
         self.actual_user = user
         if user.status == "retired":
             async with api.transaction.start(user.critic) as transaction:
-                transaction.modifyUser(user).setStatus("current")
+                await transaction.modifyUser(user).setStatus("current")
 
     async def setAccessToken(self, access_token: api.accesstoken.AccessToken) -> None:
         assert self.actual_user == await access_token.user
@@ -232,12 +247,7 @@ class Critic(object):
             self.session_profiles.append(profile)
 
     async def loadSettings(self, critic: api.critic.Critic) -> Settings:
-        global settings, settings_lock
-        if not settings:
-            with settings_lock:
-                if not settings:
-                    settings = Settings(await api.systemsetting.fetchAll(critic))
-        return settings
+        return await Settings.load(critic)
 
     def lookupObject(self, cls: type, key: Any) -> api.APIObject:
         return self.__objects_cache[cls][key]
@@ -252,7 +262,7 @@ class Critic(object):
         assert isinstance(value, getattr(cls, "wrapper_class"))
         self.initializeObjects(cls)[key] = value
 
-    def lookupCustom(self, cls: type, key: Any, default: Any = None) -> Any:
+    def lookupCustom(self, cls: type, key: Any, default: Optional[Any] = None) -> Any:
         cache = self.__custom_cache.get(cls, None)
         return cache.get(key, default) if cache else default
 
@@ -262,15 +272,14 @@ class Critic(object):
     def criticalSection(self, key: str) -> asyncio.Lock:
         return self.__critical_sections[key]
 
-    def getEventLoop(self) -> asyncio.AbstractEventLoop:
-        return self.loop
-
     def ensure_future(self, coroutine: Coroutine[Any, Any, T]) -> "asyncio.Future[T]":
-        return asyncio.ensure_future(coroutine, loop=self.getEventLoop())
+        return asyncio.ensure_future(coroutine)
 
     def check_future(
-        self, coroutine: Coroutine[Any, Any, T], callback: Callable[[T], None] = None
-    ) -> asyncio.Future:
+        self,
+        coroutine: Coroutine[Any, Any, T],
+        callback: Optional[Callable[[T], None]] = None,
+    ) -> "asyncio.Future[T]":
         def check(future: "asyncio.Future[T]") -> None:
             try:
                 result = future.result()
@@ -285,13 +294,11 @@ class Critic(object):
         return future
 
     async def gather(
-        self, coroutines_or_futures: Tuple[Awaitable, ...], return_exceptions: bool
+        self, coroutines_or_futures: Tuple[Awaitable[Any], ...], return_exceptions: bool
     ) -> Sequence[Any]:
         """Call asyncio.gather() with the correct `loop` argument"""
         return await asyncio.gather(
-            *coroutines_or_futures,
-            loop=self.getEventLoop(),
-            return_exceptions=return_exceptions,
+            *coroutines_or_futures, return_exceptions=return_exceptions
         )
 
     async def maybe_await(self, coroutine_or_future: Any) -> Any:
@@ -308,7 +315,6 @@ class Critic(object):
         raise Exception("NOT IMPLEMENTED")
 
     def addCloseTask(self, fn: CloseTask) -> None:
-        assert self.loop is not None
         self.close_tasks.append(fn)
 
     async def close(self) -> None:
@@ -317,7 +323,7 @@ class Critic(object):
         self.is_closing = True
         if self.close_tasks:
             tasks = [self.ensure_future(fn()) for fn in self.close_tasks]
-            done, _ = await asyncio.wait(tasks, loop=self.loop)
+            done, _ = await asyncio.wait(tasks)
             for future in done:
                 try:
                     future.result()
@@ -335,13 +341,13 @@ class Critic(object):
 
     @staticmethod
     async def transactionEnded(critic: api.critic.Critic, tables: Set[str]) -> None:
-        objects_cache = critic._impl.__objects_cache
+        objects_cache = Critic.fromWrapper(critic).__objects_cache
         for Implementation, cached_objects in objects_cache.items():
             if hasattr(Implementation, "refresh"):
                 await getattr(Implementation, "refresh")(critic, tables, cached_objects)
 
     @contextlib.contextmanager
-    def pushSlice(self, offset: int, count: Optional[int]) -> Iterator:
+    def pushSlice(self, offset: int, count: Optional[int]) -> Iterator[None]:
         assert self.__slice is None, "slice already set"
         self.__slice = (offset, count)
         yield
@@ -355,25 +361,35 @@ class Critic(object):
         finally:
             self.__slice = None
 
+    @staticmethod
+    def fromWrapper(critic: api.critic.Critic) -> Critic:
+        return critic._impl  # type: ignore
+
+
+_session: contextvars.ContextVar[api.critic.Critic] = contextvars.ContextVar("session")
+
 
 @contextlib.asynccontextmanager
 async def _startSession(critic: api.critic.Critic) -> AsyncIterator[api.critic.Critic]:
     async with dbaccess.connection() as connection:
-        critic._impl.setDatabase(connection)
-        await critic._impl.loadSettings(critic)
+        impl = Critic.fromWrapper(critic)
+        impl.setDatabase(connection)
+        await impl.loadSettings(critic)
         if critic.session_type in ("system", "testing"):
-            critic._impl.actual_user = api.user.system(critic)
+            impl.actual_user = api.user.system(critic)
+        token = _session.set(critic)
         try:
             yield critic
         finally:
-            await critic._impl.close()
+            _session.reset(token)
+            await impl.close()
 
 
+@public.startSessionImpl
 def startSession(
     for_user: bool,
     for_system: bool,
     for_testing: bool,
-    loop: Optional[asyncio.AbstractEventLoop],
 ) -> AsyncContextManager[api.critic.Critic]:
     session_type: api.critic.SessionType
 
@@ -384,7 +400,9 @@ def startSession(
     else:
         session_type = "testing"
 
-    if loop is None:
-        loop = asyncio.get_event_loop()
+    return _startSession(api.critic.Critic(Critic(session_type)))
 
-    return _startSession(api.critic.Critic(Critic(session_type, loop)))
+
+@public.getSessionImpl
+def getSession() -> api.critic.Critic:
+    return _session.get()

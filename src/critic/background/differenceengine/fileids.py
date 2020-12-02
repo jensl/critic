@@ -15,7 +15,7 @@
 # the License.
 
 import logging
-from typing import Dict, Iterable, Set, Tuple
+from typing import Dict, Iterable, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -24,16 +24,12 @@ from critic import api
 
 class FileIds:
     __file_ids: Dict[str, int]
-    __update_needed: Set[str]
 
     def __init__(self) -> None:
         # Cached path=>id mappings.  Since files are only ever insert into the
         # database and never removed, this cache is automatically correct for
         # all files that it has ever found in the database.
         self.__file_ids = {}
-        # Contains paths that probably exist, but that we don't have in
-        # |__file_ids| yet.
-        self.__update_needed = set()
 
     def __getitem__(self, path: str) -> int:
         return self.__file_ids[path]

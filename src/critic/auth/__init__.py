@@ -19,6 +19,7 @@ import os
 import re
 import logging
 import time
+from typing import Any, Callable, Optional, Protocol, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -29,12 +30,12 @@ from critic import dbaccess
 class AuthenticationError(Exception):
     """Raised by Database.authenticate() on error
 
-       "Error" here means something the system administrator should be informed
-       about, rather than the user.
+    "Error" here means something the system administrator should be informed
+    about, rather than the user.
 
-       The user trying to sign in will not see this exception's message, but
-       will instead be shown a generic error message saying that something went
-       wrong."""
+    The user trying to sign in will not see this exception's message, but
+    will instead be shown a generic error message saying that something went
+    wrong."""
 
     pass
 
@@ -42,15 +43,15 @@ class AuthenticationError(Exception):
 class AuthenticationFailed(Exception):
     """Raised by Database.authenticate() on failure
 
-       "Failure" here means the identification and/or password provided by the
-       user was incorrect.
+    "Failure" here means the identification and/or password provided by the
+    user was incorrect.
 
-       The user trying to sign in will be presented with this exception's
-       message as the reason for the failure.  Note: this value is taken as HTML
-       source text, meaning it can contain tags, but also that '<' and '&'
-       characters must be replaced with &lt; and &amp; entity references."""
+    The user trying to sign in will be presented with this exception's
+    message as the reason for the failure.  Note: this value is taken as HTML
+    source text, meaning it can contain tags, but also that '<' and '&'
+    characters must be replaced with &lt; and &amp; entity references."""
 
-    def __init__(self, *args, field_name=None):
+    def __init__(self, *args: Any, field_name: Optional[str] = None):
         super().__init__(*args)
         self.field_name = field_name
 
@@ -73,46 +74,60 @@ class InvalidToken(AuthenticationFailed):
     pass
 
 
-def createCryptContext():
+class CryptContext(Protocol):
+    def hash(self, password: str) -> str:
+        ...
+
+    def verify_and_update(
+        self, password: str, hashed: str
+    ) -> Tuple[bool, Optional[str]]:
+        ...
+
+
+def createCryptContext() -> CryptContext:
     settings = api.critic.settings().authentication.databases.internal
 
     try:
-        from passlib.context import CryptContext
+        from passlib.context import CryptContext as PasslibCryptContext
+
+        kwargs = {f"{settings.used_scheme}__min_rounds": settings.minimum_rounds}
+
+        return PasslibCryptContext(
+            schemes=settings.accepted_schemes,
+            default=settings.used_scheme,
+            deprecated=[
+                scheme
+                for scheme in settings.accepted_schemes
+                if scheme != settings.used_scheme
+            ],
+            **kwargs,
+        )
     except ImportError:
         if not settings.system.is_quickstart:
             raise
 
-        # Support quick-starting without 'passlib' installed by falling back to
-        # completely bogus unsalted SHA-256-based hashing.
+    # Support quick-starting without 'passlib' installed by falling back to
+    # completely bogus unsalted SHA-256-based hashing.
 
-        import hashlib
+    import hashlib
 
-        class CryptContext:
-            def __init__(self, **kwargs):
-                pass
+    class FallbackCryptContext:
+        def hash(self, password: str) -> str:
+            return hashlib.sha256(password.encode()).hexdigest()
 
-            def encrypt(self, password):
-                return hashlib.sha256(password).hexdigest()
+        def verify_and_update(
+            self, password: str, hashed: str
+        ) -> Tuple[bool, Optional[str]]:
+            return self.hash(password) == hashed, None
 
-            def verify_and_update(self, password, hashed):
-                return self.encrypt(password) == hashed, None
-
-    kwargs = {f"{settings.used_scheme}__min_rounds": settings.minimum_rounds}
-
-    return CryptContext(
-        schemes=settings.accepted_schemes,
-        default=settings.used_scheme,
-        deprecated=[
-            scheme
-            for scheme in settings.accepted_schemes
-            if scheme != settings.used_scheme
-        ],
-        **kwargs,
-    )
+    return FallbackCryptContext()
 
 
-async def checkPassword(critic, username, password):
-    async with critic.query(
+async def checkPassword(
+    critic: api.critic.Critic, username: str, password: str
+) -> api.user.User:
+    async with api.critic.Query[Tuple[int, str]](
+        critic,
         """SELECT id, password
              FROM users
             WHERE name={name}""",
@@ -125,23 +140,16 @@ async def checkPassword(critic, username, password):
 
     if hashed is None:
         # No password set => there is no "right" password.
+        logger.debug("no password set!")
         raise WrongPassword("Wrong password")
 
     context = createCryptContext()
-
-    def verify_and_update(password, hashed):
-        before = time.time()
-        ok, new_hashed = context.verify_and_update(password, hashed)
-        after = time.time()
-        logger.debug("verify_and_update (inside): %.3f", after - before)
-        return ok, new_hashed
-
     before = time.process_time()
 
     # ok, new_hashed = await critic.loop.run_in_executor(
     #    None, verify_and_update, password.encode(), hashed
     # )
-    ok, new_hashed = context.verify_and_update(password.encode(), hashed)
+    ok, new_hashed = context.verify_and_update(password, hashed)
 
     after = time.process_time()
     logger.debug("verify_and_update (outside): %.3f", after - before)
@@ -150,7 +158,7 @@ async def checkPassword(critic, username, password):
         raise WrongPassword("Wrong password")
 
     if new_hashed:
-        async with critic.database.transaction("users") as cursor:
+        async with critic.database.transaction() as cursor:
             await cursor.execute(
                 """UPDATE users
                       SET password={hashed_password}
@@ -162,13 +170,11 @@ async def checkPassword(critic, username, password):
     return await api.user.fetch(critic, user_id)
 
 
-async def hashPassword(critic, password):
-    context = createCryptContext()
-    # return await critic.loop.run_in_executor(None, context.encrypt, password.encode())
-    return context.encrypt(password.encode())
+async def hashPassword(critic: api.critic.Critic, password: str) -> str:
+    return createCryptContext().hash(password)
 
 
-def getToken(encode=base64.b64encode, length=20):
+def getToken(encode: Callable[[bytes], bytes] = base64.b64encode, length: int = 20):
     return encode(os.urandom(length)).decode("ascii")
 
 
@@ -176,7 +182,7 @@ class InvalidUserName(Exception):
     pass
 
 
-def validateUserName(name):
+def validateUserName(name: str) -> None:
     if not name:
         raise InvalidUserName("Empty user name is not allowed.")
     elif not re.sub(r"\s", "", name, re.UNICODE):
@@ -189,7 +195,7 @@ def validateUserName(name):
             raise InvalidUserName(description)
 
 
-def isValidUserName(name):
+def isValidUserName(name: str) -> bool:
     try:
         validateUserName(name)
     except InvalidUserName:

@@ -89,7 +89,7 @@ class Extension(ExtensionFrontend):
         admin: User,
         anonymizer: Anonymizer,
         name: str,
-        uri: str,
+        url: str,
         snapshot: bool,
     ):
         self.api = api
@@ -97,7 +97,7 @@ class Extension(ExtensionFrontend):
         self.admin = admin
         self.anonymizer = anonymizer
         self.name = name
-        self.uri = uri
+        self.url = url
         self.snapshot = snapshot
 
         super().__init__(frontend, generate_name(name))
@@ -115,7 +115,7 @@ class Extension(ExtensionFrontend):
                 await as_publisher.create(
                     self.name,
                     "extensions",
-                    {"name": self.full_name, "system": True, "uri": self.uri},
+                    {"name": self.full_name, "system": True, "url": self.url},
                     query={"fields": "-versions"},
                 ),
             )
@@ -187,7 +187,7 @@ class Extension(ExtensionFrontend):
 
 class CreateExtension(Protocol):
     @asynccontextmanager
-    def __call__(self, name: str, uri: str) -> AsyncIterator[Extension]:
+    def __call__(self, name: str, url: str) -> AsyncIterator[Extension]:
         ...
 
 
@@ -205,12 +205,12 @@ def create_extension(
 
     @asynccontextmanager
     async def create_extension(
-        name: str, uri: str, *, publisher: User = None, install_for: User = None
+        name: str, url: str, *, publisher: User = None, install_for: User = None
     ) -> AsyncIterator[Extension]:
         extension = Extension(
-            frontend, api, websocket, admin, anonymizer, name, uri, snapshot
+            frontend, api, websocket, admin, anonymizer, name, url, snapshot
         )
-        anonymizer.replace_string(uri, f"git://extensions/{name}.git")
+        anonymizer.replace_string(url, f"git://extensions/{name}.git")
         if publisher is None:
             publisher = admin
         await extension.install(publisher, install_for)

@@ -18,12 +18,11 @@ from __future__ import annotations
 
 import logging
 import textwrap
-from typing import Iterable
+from typing import Iterable, Optional
 
 logger = logging.getLogger(__name__)
 
 from .findbasebranch import find_base_branch
-from .. import githook
 from critic import api
 from critic import gitaccess
 
@@ -33,11 +32,11 @@ async def create_branch(
     branch_name: str,
     head: api.commit.Commit,
     *,
-    commits: Iterable[gitaccess.GitCommit] = None,
-    transaction: api.transaction.Transaction = None,
-    pendingrefupdate_id: int = None,
+    commits: Optional[Iterable[gitaccess.GitCommit]] = None,
+    transaction: Optional[api.transaction.Transaction] = None,
+    pendingrefupdate_id: Optional[int] = None,
     is_creating_review: bool = False
-) -> api.transaction.branch.CreatedBranch:
+) -> api.branch.Branch:
     base_branch, branch_commits = await find_base_branch(head, commits=commits)
 
     ncommits = len(branch_commits)
@@ -74,7 +73,7 @@ async def create_branch(
 
     async def create(
         transaction: api.transaction.Transaction,
-    ) -> api.transaction.branch.CreatedBranch:
+    ) -> api.branch.Branch:
         return (
             await transaction.modifyRepository(head.repository).createBranch(
                 "normal",
@@ -86,12 +85,10 @@ async def create_branch(
                 is_creating_review=is_creating_review,
                 pendingrefupdate_id=pendingrefupdate_id,
             )
-        ).created
+        ).subject
 
     if transaction:
-        created_branch = await create(transaction)
+        return await create(transaction)
     else:
         async with api.transaction.start(critic) as transaction:
-            created_branch = await create(transaction)
-
-    return created_branch
+            return await create(transaction)

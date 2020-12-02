@@ -21,9 +21,9 @@ import contextlib
 import logging
 import types
 from typing import (
+    Collection,
     Literal,
     FrozenSet,
-    Set,
     Iterator,
     Optional,
     AsyncContextManager,
@@ -33,16 +33,15 @@ from typing import (
     TypeVar,
     Awaitable,
     Callable,
-    List,
     ContextManager,
     Sequence,
     Tuple,
     Type,
 )
 
-logger = logging.getLogger(__name__)
+from critic.api.apiobject import FunctionRef
 
-from .impl import critic as _impl
+logger = logging.getLogger(__name__)
 
 from critic import api
 from critic import base
@@ -64,14 +63,18 @@ SessionType = Literal["user", "system", "testing"]
 T = TypeVar("T")
 
 
-class Critic(object):
-    SESSION_TYPES: FrozenSet[SessionType] = frozenset({"user", "system", "testing"})
+class Critic:
+    SESSION_TYPES: FrozenSet[SessionType] = frozenset(["user", "system", "testing"])
 
-    def __init__(self, impl: _impl.Critic) -> None:
+    def __init__(self, impl: Any) -> None:
         self._impl = impl
 
     async def close(self) -> None:
         await self._impl.close()
+
+    @property
+    def loop(self) -> asyncio.AbstractEventLoop:
+        return asyncio.get_running_loop()
 
     @property
     def is_closed(self) -> bool:
@@ -91,8 +94,8 @@ class Critic(object):
     ) -> FrozenSet[api.accesscontrolprofile.AccessControlProfile]:
         """The access control profiles in effect for this session
 
-           The profiles are returned as a set of `api.accesscontrolprofile.
-           AccessControlProfile` objects."""
+        The profiles are returned as a set of `api.accesscontrolprofile.
+        AccessControlProfile` objects."""
         return await self._impl.getSessionProfiles(self)
 
     @property
@@ -137,9 +140,9 @@ class Critic(object):
 
     def query(
         self, query: str, **parameters: dbaccess.Parameter
-    ) -> AsyncContextManager[dbaccess.ResultSet]:
+    ) -> AsyncContextManager[dbaccess.ResultSet[Any]]:
         assert self.database is not None
-        return self.database.query(query, **parameters)
+        return self.database.query(query, **parameters)  # type: ignore
 
     def transaction(self) -> dbaccess.Transaction:
         assert self.database is not None
@@ -149,20 +152,18 @@ class Critic(object):
     def tracer(self) -> Any:
         return self._impl.tracer
 
-    @property
-    def loop(self) -> asyncio.AbstractEventLoop:
-        return self._impl.getEventLoop()
-
     def ensure_future(self, coroutine: Coroutine[Any, Any, T]) -> "asyncio.Future[T]":
         return self._impl.ensure_future(coroutine)
 
     def check_future(
-        self, coroutine: Coroutine[Any, Any, T], callback: Callable[[T], None] = None
+        self,
+        coroutine: Coroutine[Any, Any, T],
+        callback: Optional[Callable[[T], None]] = None,
     ) -> "asyncio.Future[T]":
         return self._impl.check_future(coroutine, callback)
 
     async def gather(
-        self, *coroutines_or_futures: Awaitable, return_exceptions: bool = False
+        self, *coroutines_or_futures: Awaitable[Any], return_exceptions: bool = False
     ) -> Sequence[Any]:
         return await self._impl.gather(coroutines_or_futures, return_exceptions)
 
@@ -191,7 +192,7 @@ class Critic(object):
         assert self._impl.access_token is None
         await self._impl.setAccessToken(access_token)
 
-    def setAuthenticationLabels(self, labels: Set[str]) -> None:
+    def setAuthenticationLabels(self, labels: Collection[str]) -> None:
         assert self._impl.authentication_labels is None
         self._impl.authentication_labels = frozenset(labels)
 
@@ -214,14 +215,21 @@ class Critic(object):
         """Enable tracing of (some) function calls"""
         self._impl.enableTracing()
 
-    def addCloseTask(self, fn: Callable[[], Coroutine]) -> None:
+    def addCloseTask(self, fn: Callable[[], Awaitable[None]]) -> None:
         self._impl.addCloseTask(fn)
 
-    def pushSlice(self, *, offset: int = 0, count: int = None) -> ContextManager:
+    def pushSlice(
+        self, *, offset: int = 0, count: Optional[int] = None
+    ) -> ContextManager[None]:
         return self._impl.pushSlice(offset, count)
 
     def popSlice(self) -> Tuple[int, Optional[int]]:
         return self._impl.popSlice()
+
+
+startSessionImpl: FunctionRef[
+    Callable[[bool, bool, bool], AsyncContextManager[Critic]]
+] = FunctionRef()
 
 
 def startSession(
@@ -229,16 +237,23 @@ def startSession(
     for_user: bool = False,
     for_system: bool = False,
     for_testing: bool = False,
-    loop: asyncio.AbstractEventLoop = None,
 ) -> AsyncContextManager[Critic]:
     assert sum((for_user, for_system, for_testing)) == 1
-    return _impl.startSession(for_user, for_system, for_testing, loop)
+    return startSessionImpl.get()(for_user, for_system, for_testing)
 
 
-def settings() -> _impl.Settings:
-    if _impl.settings is None:
-        raise SessionNotInitialized()
-    return _impl.settings
+getSessionImpl: FunctionRef[Callable[[], Critic]] = FunctionRef()
+
+
+def getSession() -> Critic:
+    return getSessionImpl.get()()
+
+
+settingsImpl: FunctionRef[Callable[[], Any]] = FunctionRef()
+
+
+def settings() -> Any:
+    return settingsImpl.get()()
 
 
 def getSystemEmail() -> str:
@@ -259,7 +274,9 @@ class Query(AsyncContextManager[dbaccess.ResultSet[RowType]]):
     def __init__(
         self, critic: Critic, query: str, **parameters: dbaccess.Parameter
     ) -> None:
-        self.inner = critic.database.query(query, **parameters)
+        self.inner = dbaccess.Query[RowType](
+            critic.database.cursor(), query, **parameters
+        )
 
     async def __aenter__(self) -> dbaccess.ResultSet[RowType]:
         return await self.inner.__aenter__()

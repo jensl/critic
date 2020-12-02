@@ -15,6 +15,8 @@
  */
 
 import { combineReducers } from "redux"
+import { immerable } from "immer"
+
 import { lookupMap, primaryMap } from "../reducers/resource"
 import {
   ExtensionID,
@@ -28,22 +30,32 @@ type ExtensionData = {
   name: string
   key: string
   publisher: UserID
-  uri: string
+  url: string
   versions: ExtensionVersionID[]
   installation: ExtensionInstallationID | null
 }
 
-type ExtensionProps = ExtensionData
+type ExtensionProps = {
+  id: ExtensionID
+  name: string
+  key: string
+  publisher: UserID
+  url: string
+  versions: readonly ExtensionVersionID[]
+  installation: ExtensionInstallationID | null
+}
 
 class Extension {
+  [immerable] = true
+
   constructor(
     readonly id: ExtensionID,
     readonly name: string,
     readonly key: string,
     readonly publisher: UserID,
-    readonly uri: string,
-    readonly versions: ExtensionVersionID[],
-    readonly installation: ExtensionInstallationID | null
+    readonly url: string,
+    readonly versions: readonly ExtensionVersionID[],
+    readonly installation: ExtensionInstallationID | null,
   ) {}
 
   static new(props: ExtensionProps) {
@@ -52,9 +64,9 @@ class Extension {
       props.name,
       props.key,
       props.publisher,
-      props.uri,
+      props.url,
       props.versions,
-      props.installation
+      props.installation,
     )
   }
 
@@ -62,7 +74,7 @@ class Extension {
     byID: primaryMap<Extension, ExtensionID>("extensions"),
     byKey: lookupMap<Extension, string, ExtensionID>(
       "extensions",
-      (extension) => extension.key
+      (extension) => extension.key,
     ),
   })
 

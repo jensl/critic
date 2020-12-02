@@ -17,22 +17,25 @@
 from __future__ import annotations
 
 import logging
-from typing import Optional
+from typing import Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
-from . import CreatedAccessToken
-from .. import Update, Delete, Modifier, Transaction
+from ..item import Update, Delete
+from ..base import TransactionBase
+from ..modifier import Modifier
+from ..accesscontrolprofile.modify import ModifyAccessControlProfile
+from .create import CreateAccessToken
 
 from critic import api
 
 
-class ModifyAccessToken(Modifier[api.accesstoken.AccessToken, CreatedAccessToken]):
-    def setTitle(self, value: str) -> None:
-        self.transaction.items.append(Update(self.real).set(title=value))
+class ModifyAccessToken(Modifier[api.accesstoken.AccessToken]):
+    async def setTitle(self, value: str) -> None:
+        await self.transaction.execute(Update(self.subject).set(title=value))
 
-    def delete(self) -> None:
-        self.transaction.items.append(Delete(self.real))
+    async def delete(self) -> None:
+        await self.transaction.execute(Delete(self.subject))
 
     async def modifyProfile(self) -> ModifyAccessControlProfile:
         profile = await self.subject.profile
@@ -41,17 +44,20 @@ class ModifyAccessToken(Modifier[api.accesstoken.AccessToken, CreatedAccessToken
         return ModifyAccessControlProfile(self.transaction, profile)
 
     @staticmethod
-    def create(
-        transaction: Transaction,
+    async def create(
+        transaction: TransactionBase,
         access_type: api.accesstoken.AccessType,
         title: Optional[str],
         *,
-        user: api.user.User = None
-    ) -> ModifyAccessToken:
-        return ModifyAccessToken(
-            transaction, create_accesstoken(transaction, access_type, title, user)
+        user: Optional[api.user.User] = None
+    ) -> Tuple[ModifyAccessToken, str]:
+        token, token_value = await CreateAccessToken.make(
+            transaction, access_type, title, user
         )
-
-
-from .create import create_accesstoken
-from ..accesscontrolprofile import ModifyAccessControlProfile
+        return (
+            ModifyAccessToken(
+                transaction,
+                token,
+            ),
+            token_value,
+        )

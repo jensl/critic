@@ -4,7 +4,6 @@ from abc import ABC, abstractmethod
 from types import ModuleType
 from typing import (
     Any,
-    Callable,
     Dict,
     Generic,
     List,
@@ -14,6 +13,7 @@ from typing import (
     Type,
     TypeVar,
     Union,
+    cast,
 )
 
 from critic import api
@@ -25,12 +25,12 @@ class NotSupported(Exception):
     pass
 
 
-T = TypeVar("T")
+APIObject = TypeVar("APIObject", bound="api.APIObject")
 
 
-class ResourceClass(Generic[T], ABC):
+class ResourceClass(Generic[APIObject], ABC):
     name: str
-    value_class: Union[Type[T], Tuple[Type[T]]]
+    value_class: Union[Type[APIObject], Tuple[Type[APIObject]]]
     contexts: Tuple[Optional[str], ...] = (None,)
     exceptions: Tuple[Type[BaseException], ...]
     anonymous_create: bool = False
@@ -39,10 +39,10 @@ class ResourceClass(Generic[T], ABC):
 
     def __init_subclass__(
         cls,
-        resource_name: str = None,
-        value_class: Union[Type[T], Tuple[Type[T]]] = None,
-        api_module: ModuleType = None,
-        exceptions: Tuple[Type[BaseException], ...] = None,
+        resource_name: Optional[str] = None,
+        value_class: Optional[Union[Type[APIObject], Tuple[Type[APIObject]]]] = None,
+        api_module: Optional[ModuleType] = None,
+        exceptions: Optional[Tuple[Type[BaseException], ...]] = None,
     ) -> None:
         if api_module:
             cls.name = getattr(api_module, "resource_name")
@@ -66,62 +66,68 @@ class ResourceClass(Generic[T], ABC):
             registerHandler(".../%s/%s" % (context, nested_name), cls)
 
     @staticmethod
-    def resource_id(value: T) -> Any:
+    def resource_id(value: APIObject) -> Any:
         return getattr(value, "id")
 
     @staticmethod
     @abstractmethod
-    async def json(parameters: Parameters, value: T) -> JSONResult:
+    async def json(parameters: Parameters, value: APIObject) -> JSONResult:
         ...
 
     @classmethod
-    async def single(cls, parameters: Parameters, argument: str) -> T:
+    async def single(cls, parameters: Parameters, argument: str) -> APIObject:
         return (await cls.many(parameters, [argument]))[0]
 
     @classmethod
     async def many(
         cls, parameters: Parameters, arguments: Sequence[str]
-    ) -> Sequence[T]:
+    ) -> Sequence[APIObject]:
         return [await cls.single(parameters, argument) for argument in arguments]
 
     @staticmethod
-    async def multiple(parameters: Parameters) -> Union[T, Sequence[T]]:
+    async def multiple(parameters: Parameters) -> Union[APIObject, Sequence[APIObject]]:
         raise NotSupported()
 
     @staticmethod
-    async def create(parameters: Parameters, data: JSONInput) -> Union[T, Sequence[T]]:
+    async def create(
+        parameters: Parameters, data: JSONInput
+    ) -> Union[APIObject, Sequence[APIObject]]:
         raise NotSupported()
 
-    @staticmethod
+    @classmethod
     async def update(
-        parameters: Parameters, values: Values[T], data: JSONInput
+        cls, parameters: Parameters, values: Values[APIObject], data: JSONInput
     ) -> None:
         raise NotSupported()
 
     @staticmethod
-    async def update_many(parameters: Parameters, data: Sequence[JSONInput]) -> None:
+    async def update_many(
+        parameters: Parameters, data: Sequence[JSONInput]
+    ) -> Sequence[APIObject]:
         raise NotSupported()
 
-    @staticmethod
+    @classmethod
     async def delete(
-        parameters: Parameters, values: Values[T]
-    ) -> Optional[Union[T, Sequence[T]]]:
+        cls, parameters: Parameters, values: Values[APIObject]
+    ) -> Optional[Union[APIObject, Sequence[APIObject]]]:
         raise NotSupported()
 
-    @staticmethod
-    async def setAsContext(parameters: Parameters, value: T) -> None:
+    @classmethod
+    async def setAsContext(cls, parameters: Parameters, value: APIObject, /) -> None:
+        parameters.setContext(cls.name, value)
+
+    @classmethod
+    async def deduce(cls, parameters: Parameters) -> Optional[APIObject]:
         pass
 
     @staticmethod
-    async def deduce(parameters: Parameters) -> Optional[T]:
-        pass
-
-    @staticmethod
-    def find(value: object) -> Type[ResourceClass]:
+    def find(value: object) -> Type[ResourceClass[api.APIObject]]:
         return HANDLERS[VALUE_CLASSES[type(value)]]
 
     @staticmethod
-    def lookup(resource_path: Union[str, List[str]]) -> Type[ResourceClass]:
+    def lookup(
+        resource_path: Union[str, List[str]]
+    ) -> Type[ResourceClass[api.APIObject]]:
         if not isinstance(resource_path, list):
             resource_path = resource_path.split("/")
         for offset in range(len(resource_path) - 1):
@@ -136,27 +142,37 @@ class ResourceClass(Generic[T], ABC):
         raise PathError("Invalid resource: %r" % "/".join(resource_path))
 
     @classmethod
-    async def fromParameter(cls, parameters: Parameters, name: str) -> Optional[T]:
-        value = parameters.getQueryParameter(name)
+    async def fromParameter(
+        cls, parameters: Parameters, name: str
+    ) -> Optional[APIObject]:
+        value = parameters.query.get(name)
         if value is None:
             return None
         return await cls.fromParameterValue(parameters, value)
 
     @staticmethod
-    async def fromParameterValue(parameters: Parameters, value: str) -> T:
+    async def fromParameterValue(parameters: Parameters, value: str) -> APIObject:
         raise NotSupported()
 
     @staticmethod
     def sort_key(item: Dict[str, Any]) -> Any:
         return item["id"]
 
+    @classmethod
+    def valueId(cls, value: APIObject) -> object:
+        return getattr(value, "id")
 
-HANDLERS: Dict[str, Type[ResourceClass]] = {}
+    @classmethod
+    def isInstance(cls, value: object) -> bool:
+        return isinstance(value, cls.value_class)  # type: ignore
+
+
+HANDLERS: Dict[str, Type[ResourceClass[api.APIObject]]] = {}
 VALUE_CLASSES: Dict[type, str] = {}
 
 
-def registerHandler(path: str, resource_class: Type[ResourceClass]) -> None:
-    HANDLERS[path] = resource_class
+def registerHandler(path: str, resource_class: Type[ResourceClass[APIObject]]) -> None:
+    HANDLERS[path] = cast(Type[ResourceClass[api.APIObject]], resource_class)
     if not path.startswith("..."):
         if isinstance(resource_class.value_class, tuple):
             for value_class in resource_class.value_class:

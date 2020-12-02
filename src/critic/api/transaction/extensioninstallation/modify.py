@@ -15,46 +15,50 @@
 # the License.
 
 from __future__ import annotations
-
-from . import CreatedExtensionInstallation
-from .. import Transaction, Delete, Update, Modifier
+from typing import Optional
 
 from critic import api
 from critic import auth
+from ..base import TransactionBase
+from ..item import Update
+from ..modifier import Modifier
+from .create import CreateExtensionInstallation
 
 
 class ModifyExtensionInstallation(
-    Modifier[
-        api.extensioninstallation.ExtensionInstallation, CreatedExtensionInstallation
-    ]
+    Modifier[api.extensioninstallation.ExtensionInstallation]
 ):
     async def upgradeTo(self, version: api.extensionversion.ExtensionVersion) -> None:
-        await auth.AccessControl.accessExtension(await self.real.extension, "install")
+        await auth.AccessControl.accessExtension(
+            await self.subject.extension, "install"
+        )
 
-        if self.real.is_universal:
+        if self.subject.is_universal:
             api.PermissionDenied.raiseUnlessAdministrator(self.transaction.critic)
 
-        self.transaction.items.append(Update(self.real).set(version=version))
+        async with self.update(version=version.id) as update:
+            update.set(version=version)
 
     async def deleteInstallation(self) -> None:
-        await auth.AccessControl.accessExtension(await self.real.extension, "install")
+        await auth.AccessControl.accessExtension(
+            await self.subject.extension, "install"
+        )
 
-        if self.real.is_universal:
+        if self.subject.is_universal:
             api.PermissionDenied.raiseUnlessAdministrator(self.transaction.critic)
 
-        super().delete()
+        await super().delete()
 
     @staticmethod
     async def create(
-        transaction: Transaction,
+        transaction: TransactionBase,
         extension: api.extension.Extension,
         version: api.extensionversion.ExtensionVersion,
-        user: api.user.User = None,
+        user: Optional[api.user.User] = None,
     ) -> ModifyExtensionInstallation:
         return ModifyExtensionInstallation(
             transaction,
-            await create_extensioninstallation(transaction, extension, version, user),
+            await CreateExtensionInstallation.make(
+                transaction, extension, version, user
+            ),
         )
-
-
-from .create import create_extensioninstallation

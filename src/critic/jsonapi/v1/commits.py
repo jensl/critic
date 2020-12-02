@@ -23,9 +23,14 @@ from typing import Awaitable, Collection, Optional, Sequence, TypedDict, Union
 logger = logging.getLogger(__name__)
 
 from critic import api
-from critic import jsonapi
 from critic import gitaccess
 from critic.gitaccess import SHA1
+from ..exceptions import UsageError
+from ..resourceclass import ResourceClass
+from ..parameters import Parameters
+from ..types import JSONResult
+from ..utils import id_or_name, numeric_id
+from .timestamp import timestamp
 
 
 UserAndTimestamp = TypedDict(
@@ -36,16 +41,15 @@ UserAndTimestamp = TypedDict(
 def user_and_timestamp(
     user_and_timestamp: api.commit.Commit.UserAndTimestamp,
 ) -> UserAndTimestamp:
-    timestamp = jsonapi.v1.timestamp(user_and_timestamp.timestamp)
     return {
         "name": user_and_timestamp.name,
         "email": user_and_timestamp.email,
-        "timestamp": timestamp,
+        "timestamp": timestamp(user_and_timestamp.timestamp),
     }
 
 
 class Commits(
-    jsonapi.ResourceClass[api.commit.Commit],
+    ResourceClass[api.commit.Commit],
     api_module=api.commit,
     exceptions=(api.commit.Error, api.repository.InvalidRef),
 ):
@@ -54,9 +58,7 @@ class Commits(
     contexts = (None, "repositories", "changesets", "branches", "reviews")
 
     @staticmethod
-    async def json(
-        parameters: jsonapi.Parameters, value: api.commit.Commit
-    ) -> jsonapi.JSONResult:
+    async def json(parameters: Parameters, value: api.commit.Commit) -> JSONResult:
         """Commit {
           "id": integer, // the commit's id
           "sha1": string, // the commit's SHA-1 sum
@@ -89,7 +91,7 @@ class Commits(
         async def parent_ids() -> Collection[int]:
             return [parent.id for parent in await value.parents]
 
-        result: jsonapi.JSONResult = {
+        result: JSONResult = {
             "id": value.id,
             "sha1": value.sha1,
             "summary": value.summary,
@@ -100,7 +102,7 @@ class Commits(
             "committer": user_and_timestamp(value.committer),
         }
 
-        description_parameter = parameters.getQueryParameter("description")
+        description_parameter = parameters.query.get("description")
         if description_parameter:
             description = await value.description
             if description_parameter == "default":
@@ -108,14 +110,12 @@ class Commits(
                     "branch": description.branch,
                 }
             else:
-                raise jsonapi.UsageError("Invalid 'description' parameter")
+                raise UsageError("Invalid 'description' parameter")
 
         return result
 
-    @staticmethod
-    async def single(
-        parameters: jsonapi.Parameters, argument: str
-    ) -> api.commit.Commit:
+    @classmethod
+    async def single(cls, parameters: Parameters, argument: str) -> api.commit.Commit:
         """Retrieve one (or more) commits from a Git repository.
 
         COMMIT_ID : integer
@@ -128,14 +128,14 @@ class Commits(
         short-name.  Required unless a repository is specified in the
         resource path."""
 
-        repository = await Repositories.deduce(parameters)
+        repository = await parameters.deduce(api.repository.Repository)
         if repository is None:
-            raise jsonapi.UsageError("Commit reference must have repository specified.")
-        return await api.commit.fetch(repository, jsonapi.numeric_id(argument))
+            raise UsageError("Commit reference must have repository specified.")
+        return await api.commit.fetch(repository, numeric_id(argument))
 
     @staticmethod
     async def multiple(
-        parameters: jsonapi.Parameters,
+        parameters: Parameters,
     ) -> Union[api.commit.Commit, Sequence[api.commit.Commit]]:
         """Retrieve a single commit identified by its SHA-1 sum.
 
@@ -151,26 +151,26 @@ class Commits(
         short-name.  Required unless a repository is specified in the
         resource path."""
 
-        branch = await Branches.deduce(parameters)
+        branch = await parameters.deduce(api.branch.Branch)
         if branch:
             return await Commits.fromBranch(parameters, branch)
 
-        sha1_parameter = parameters.getQueryParameter("sha1")
-        ref_parameter = parameters.getQueryParameter("ref")
+        sha1_parameter = parameters.query.get("sha1")
+        ref_parameter = parameters.query.get("ref")
         if sha1_parameter is None and ref_parameter is None:
-            raise jsonapi.UsageError(
+            raise UsageError(
                 "Missing parameter: one of 'sha1' and 'ref' must be specified."
             )
         sha1: Optional[SHA1]
         if sha1_parameter is not None:
             if not re.match("[0-9A-Fa-f]{4,40}$", sha1_parameter):
-                raise jsonapi.UsageError("Invalid SHA-1 parameter: %r" % sha1_parameter)
+                raise UsageError("Invalid SHA-1 parameter: %r" % sha1_parameter)
             sha1 = gitaccess.as_sha1(sha1_parameter)
         else:
             sha1 = None
-        repository = await Repositories.deduce(parameters)
+        repository = await parameters.deduce(api.repository.Repository)
         if repository is None:
-            raise jsonapi.UsageError("Commit reference must have repository specified.")
+            raise UsageError("Commit reference must have repository specified.")
         if sha1:
             return await api.commit.fetch(repository, sha1=sha1)
         else:
@@ -179,38 +179,38 @@ class Commits(
 
     @staticmethod
     async def fromBranch(
-        parameters: jsonapi.Parameters, branch: api.branch.Branch
+        parameters: Parameters, branch: api.branch.Branch
     ) -> Sequence[api.commit.Commit]:
-        after_update = await BranchUpdates.fromParameter(parameters, "after_update")
-        after_rebase = await Rebases.fromParameter(parameters, "after_rebase")
+        after_update = await parameters.fromParameter(
+            api.branchupdate.BranchUpdate, "after_update"
+        )
+        after_rebase = await parameters.fromParameter(api.rebase.Rebase, "after_rebase")
 
         if after_update and after_rebase:
-            raise jsonapi.UsageError(
+            raise UsageError(
                 "Conflicting parameters used: " "'after_update' and 'after_rebase'"
             )
         if after_rebase:
             after_update = await after_rebase.branchupdate
             if not after_update:
-                raise jsonapi.UsageError(
+                raise UsageError(
                     "Invalid parameter: |after_rebase| " " (rebase is still pending)"
                 )
         if after_update and branch != await after_update.branch:
             if after_rebase:
-                raise jsonapi.UsageError(
+                raise UsageError(
                     "Invalid parameter: |after_rebase| "
                     "(rebase is not of this branch)"
                 )
-            raise jsonapi.UsageError(
+            raise UsageError(
                 "Invalid parameter: |after_update| " "(update is not of this branch)"
             )
 
-        sort_parameter = parameters.getQueryParameter("sort")
+        sort_parameter = parameters.query.get("sort")
         if sort_parameter not in (None, "topological", "date"):
-            raise jsonapi.UsageError(
-                "Invalid commits sort parameter: %r" % sort_parameter
-            )
+            raise UsageError("Invalid commits sort parameter: %r" % sort_parameter)
 
-        scope = parameters.getQueryParameter("scope")
+        scope = parameters.query.get("scope")
 
         if after_update:
             commits = await after_update.commits
@@ -235,37 +235,25 @@ class Commits(
 
         return list(commits.date_ordered)
 
-    @staticmethod
-    async def deduce(parameters: jsonapi.Parameters) -> Optional[api.commit.Commit]:
-        commit = parameters.context.get(Commits.name)
-        commit_parameter = parameters.getQueryParameter("commit")
+    @classmethod
+    async def deduce(cls, parameters: Parameters) -> Optional[api.commit.Commit]:
+        commit = parameters.in_context(api.commit.Commit)
+        commit_parameter = parameters.query.get("commit")
         if commit_parameter is not None:
             if commit is not None:
-                raise jsonapi.UsageError.redundantParameter("commit")
+                raise UsageError.redundantParameter("commit")
             commit = await Commits.fromParameterValue(parameters, commit_parameter)
         return commit
 
     @staticmethod
     async def fromParameterValue(
-        parameters: jsonapi.Parameters, value: str
+        parameters: Parameters, value: str
     ) -> api.commit.Commit:
-        repository = await Repositories.deduce(parameters)
+        repository = await parameters.deduce(api.repository.Repository)
         if not repository:
-            raise jsonapi.UsageError("Commit reference must have repository specified.")
-        commit_id, ref = jsonapi.id_or_name(value)
+            raise UsageError("Commit reference must have repository specified.")
+        commit_id, ref = id_or_name(value)
         if commit_id is not None:
             return await api.commit.fetch(repository, commit_id)
         assert ref is not None
         return await api.commit.fetch(repository, ref=ref)
-
-    @staticmethod
-    async def setAsContext(
-        parameters: jsonapi.Parameters, commit: api.commit.Commit
-    ) -> None:
-        parameters.setContext(Commits.name, commit)
-
-
-from .branches import Branches
-from .branchupdates import BranchUpdates
-from .rebases import Rebases
-from .repositories import Repositories

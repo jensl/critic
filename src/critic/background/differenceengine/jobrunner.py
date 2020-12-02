@@ -11,10 +11,12 @@ from typing import (
     AsyncContextManager,
     Awaitable,
     Dict,
+    Optional,
     Protocol,
     Sequence,
     Set,
     TypeVar,
+    cast,
 )
 
 logger = logging.getLogger(__name__)
@@ -23,25 +25,27 @@ from critic import api
 from critic import syntaxhighlight
 from critic import pubsub
 
-from . import Key, job, jobgroup
+from . import Key
 from .languageids import LanguageIds
 from .fileids import FileIds
 from .changeset import Changeset
 from .customhighlight import CustomHighlight
 from .requestjob import RequestJob
+from .job import Job, GroupType, RunnerType
+from .jobgroup import JobGroup
 
 
 class Pool:
-    running: Dict[Key, asyncio.Future]
+    running: Dict[Key, "asyncio.Future[None]"]
 
-    def __init__(self, runner: JobRunner, parallel_jobs: int = None):
+    def __init__(self, runner: JobRunner, parallel_jobs: Optional[int] = None):
         self.runner = runner
         if parallel_jobs is None:
             parallel_jobs = multiprocessing.cpu_count()
         self.parallel_jobs = parallel_jobs
         self.running = {}
 
-    def start_job(self, job_to_start: job.Job[jobgroup.JobGroup]) -> None:
+    def start_job(self, job_to_start: Job) -> None:
         async def run_job() -> None:
             job_to_start.signal_started()
             try:
@@ -51,12 +55,14 @@ class Pool:
                 await self.runner.job_failed(job_to_start)
             else:
                 if isinstance(job_to_start, RequestJob) and job_to_start.requests:
-                    self.runner.register_requests(job_to_start, job_to_start.requests)
+                    self.runner.register_requests(
+                        cast(RequestJob[Any], job_to_start), job_to_start.requests
+                    )
                 else:
                     job_to_start.signal_success()
-                    await self.runner.job_finished(job_to_start)
+                    await self.runner.job_finished(cast(RequestJob[Any], job_to_start))
 
-        def finished(future: asyncio.Future) -> None:
+        def finished(future: "asyncio.Future[None]") -> None:
             del self.running[job_to_start.key]
 
         future = self.running[job_to_start.key] = asyncio.ensure_future(run_job())
@@ -99,14 +105,14 @@ class Service(Protocol):
         ...
 
 
-class JobRunner:
-    all_groups: Set[jobgroup.JobGroup]
-    finished_jobs: Set[job.Job[jobgroup.JobGroup]]
-    failed_jobs: Set[job.Job[jobgroup.JobGroup]]
+class JobRunner(RunnerType):
+    all_groups: Set[JobGroup]
+    finished_jobs: Set[Job]
+    failed_jobs: Set[Job]
     requests: Set[pubsub.OutgoingRequest]
 
     def __init__(self, service: Service):
-        self.service = service
+        self.__service = service
 
         # Set to true by the main thread to stop us.
         self.terminated = False
@@ -126,13 +132,28 @@ class JobRunner:
         self.signalled = True
         # Set to true when something changes so that a find_incomplete() might
         # find new things.
-        self.find_new_incomplete = False
+        self.__find_new_incomplete = False
 
         # Function to call when we reach an idle state.
-        self.idle_callback = None
+        # self.idle_callback = None
         self.requests = set()
 
         syntaxhighlight.language.setup()
+
+    @property
+    def service(self) -> Service:
+        return self.__service
+
+    @property
+    def language_ids(self) -> LanguageIds:
+        return self.__language_ids
+
+    @property
+    def file_ids(self) -> FileIds:
+        return self.__file_ids
+
+    def find_new_incomplete(self) -> None:
+        self.__find_new_incomplete = True
 
     async def run_jobs(self) -> None:
         while True:
@@ -141,6 +162,8 @@ class JobRunner:
                 break
 
             self.signalled = False
+
+            group: GroupType
 
             # Start new jobs, if possible.
             while self.pool.has_available_slot:
@@ -171,7 +194,7 @@ class JobRunner:
                 async with self.service.start_session() as critic:
                     await self.file_ids.ensure_paths(critic, referenced_paths)
 
-                    per_group = defaultdict(set)
+                    per_group: Dict[GroupType, Set[Job]] = defaultdict(set)
 
                     for job in finished_jobs:
                         logger.debug(
@@ -196,7 +219,8 @@ class JobRunner:
                             job.signal_failure(error, traceback.format_exc())
 
                     for group, jobs in per_group.items():
-                        group.running -= jobs
+                        for job in jobs:
+                            group.running.remove(job)
                         group.processed.update(jobs)
                         group.jobs_finished(jobs)
 
@@ -247,10 +271,10 @@ class JobRunner:
                 # New jobs found.  Jump to the top to start them ASAP.
                 continue
 
-            if self.find_new_incomplete:
-                self.find_new_incomplete = False
+            if self.__find_new_incomplete:
+                self.__find_new_incomplete = False
 
-                incomplete_groups: Set[jobgroup.JobGroup] = set()
+                incomplete_groups: Set[JobGroup] = set()
                 async with self.service.start_session() as critic:
                     incomplete_groups.update(
                         await Changeset.find_incomplete(critic, self)
@@ -278,14 +302,14 @@ class JobRunner:
                     "find_new_incomplete=%r, finished_jobs=%d, failed_jobs=%d",
                     self.terminated,
                     self.signalled,
-                    self.find_new_incomplete,
+                    self.__find_new_incomplete,
                     len(self.finished_jobs),
                     len(self.failed_jobs),
                 )
                 return bool(
                     self.terminated
                     or self.signalled
-                    or self.find_new_incomplete
+                    or self.__find_new_incomplete
                     or self.finished_jobs
                     or self.failed_jobs
                 )
@@ -295,9 +319,9 @@ class JobRunner:
 
             if not self.all_groups:
                 logger.debug("job runner: idle")
-                if self.idle_callback:
-                    self.idle_callback()
-                    self.idle_callback = None
+                # if self.idle_callback:
+                #     self.idle_callback()
+                #     self.idle_callback = None
             else:
                 logger.debug(
                     "job runner: waiting"
@@ -314,8 +338,8 @@ class JobRunner:
                 logger.debug("job runner: notified")
 
     async def run(self) -> None:
-        self.language_ids = LanguageIds()
-        self.file_ids = FileIds()
+        self.__language_ids = LanguageIds()
+        self.__file_ids = FileIds()
 
         async with self.service.start_session() as critic:
             await self.language_ids.update(
@@ -329,7 +353,7 @@ class JobRunner:
             logger.exception("job runner: crashed!")
 
     def register_requests(
-        self, job: RequestJob, requests: Sequence[pubsub.OutgoingRequest]
+        self, job: RequestJob[Any], requests: Sequence[pubsub.OutgoingRequest]
     ) -> None:
         logger.debug("register_requests: job=%r, requests=%r", job, requests)
 
@@ -352,12 +376,12 @@ class JobRunner:
 
         self.service.check_future(wait())
 
-    async def job_finished(self, job: job.Job[jobgroup.JobGroup]) -> None:
+    async def job_finished(self, job: Job) -> None:
         async with self.condition:
             self.finished_jobs.add(job)
             self.condition.notify()
 
-    async def job_failed(self, job: job.Job[jobgroup.JobGroup]) -> None:
+    async def job_failed(self, job: Job) -> None:
         async with self.condition:
             self.failed_jobs.add(job)
             self.condition.notify()
@@ -365,7 +389,7 @@ class JobRunner:
     async def new_changesets(self) -> None:
         logger.debug("new_changesets()")
         async with self.condition:
-            self.find_new_incomplete = True
+            self.__find_new_incomplete = True
             self.condition.notify()
 
     async def signal(self) -> None:

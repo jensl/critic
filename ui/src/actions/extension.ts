@@ -23,6 +23,7 @@ import {
   withArgument,
   withParameters,
   include,
+  fetch,
 } from "../resources"
 
 import Extension from "../resources/extension"
@@ -118,6 +119,8 @@ export const fetchUIAddon = (extension, name, bundleType) => async (
 }
 */
 
+export const loadExtensionInstallations = () => fetch("extensioninstallations")
+
 export const installExtension = (
   extension: Extension,
   version: ExtensionVersion | null,
@@ -154,8 +157,8 @@ export const uninstallExtension = (installation: ExtensionInstallation) =>
     include("extensions"),
   )
 
-export const createExtension = (name: string, uri: string) =>
-  createResource("extensions", { name, uri })
+export const createExtension = (name: string, url: string) =>
+  createResource("extensions", { name, url })
 
 export const deleteExtension = (extension: Extension) =>
   deleteResource("extensions", withArgument(extension.id))

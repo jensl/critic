@@ -16,9 +16,10 @@
 
 from __future__ import annotations
 
-from typing import Literal, Optional, Sequence, FrozenSet
+from typing import Awaitable, Callable, Literal, Optional, Sequence, FrozenSet
 
 from critic import api
+from .apiobject import FunctionRef
 
 
 class Error(api.APIError, object_type="access token"):
@@ -34,7 +35,7 @@ class InvalidId(api.InvalidIdError, Error):
 
 
 AccessType = Literal["user", "system", "anonymous"]
-ACCESS_TYPES: FrozenSet[AccessType] = frozenset({"user", "system", "anonymous"})
+ACCESS_TYPES: FrozenSet[AccessType] = frozenset(["user", "system", "anonymous"])
 
 
 class AccessToken(api.APIObject):
@@ -73,24 +74,30 @@ class AccessToken(api.APIObject):
 
 async def fetch(critic: api.critic.Critic, token_id: int, /) -> AccessToken:
     """Fetch an AccessToken object with the given token id"""
-    from .impl import accesstoken as impl
-
-    return await impl.fetch(critic, token_id)
+    return await fetchImpl.get()(critic, token_id)
 
 
 async def fetchAll(
-    critic: api.critic.Critic, /, *, user: api.user.User = None
+    critic: api.critic.Critic, /, *, user: Optional[api.user.User] = None
 ) -> Sequence[AccessToken]:
     """Fetch AccessToken objects for all primary profiles in the system
 
-       A profile is primary if it is not the additional restrictions imposed for
-       accesses authenticated with an access token.
+    A profile is primary if it is not the additional restrictions imposed for
+    accesses authenticated with an access token.
 
-       If |user| is not None, return only access tokens belonging to the
-       specified user."""
-    from .impl import accesstoken as impl
-
-    return await impl.fetchAll(critic, user)
+    If |user| is not None, return only access tokens belonging to the
+    specified user."""
+    return await fetchAllImpl.get()(critic, user)
 
 
 resource_name = table_name = "accesstokens"
+
+
+fetchImpl: FunctionRef[
+    Callable[[api.critic.Critic, int], Awaitable[AccessToken]]
+] = FunctionRef()
+fetchAllImpl: FunctionRef[
+    Callable[
+        [api.critic.Critic, Optional[api.user.User]], Awaitable[Sequence[AccessToken]]
+    ]
+] = FunctionRef()

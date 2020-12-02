@@ -22,16 +22,15 @@ from typing import Optional, Sequence, Tuple
 
 logger = logging.getLogger(__name__)
 
-from . import apiobject
 from critic import api
+from critic.api import branchupdate as public
+from . import apiobject
 
 
 WrapperType = api.branchupdate.BranchUpdate
 ArgumentsType = Tuple[
     int,
     int,
-    Optional[int],
-    Optional[int],
     Optional[int],
     Optional[int],
     int,
@@ -46,8 +45,6 @@ class BranchUpdate(apiobject.APIObject[WrapperType, ArgumentsType, int]):
         "id",
         "branch",
         "updater",
-        "from_base",
-        "to_base",
         "from_head",
         "to_head",
         "updated_at",
@@ -63,8 +60,6 @@ class BranchUpdate(apiobject.APIObject[WrapperType, ArgumentsType, int]):
             self.id,
             self.__branch_id,
             self.__updater_id,
-            self.__from_base_id,
-            self.__to_base_id,
             self.__from_head_id,
             self.__to_head_id,
             self.timestamp,
@@ -168,6 +163,7 @@ class BranchUpdate(apiobject.APIObject[WrapperType, ArgumentsType, int]):
         return self.__commits
 
 
+@public.fetchImpl
 @BranchUpdate.cached
 async def fetch(
     critic: api.critic.Critic,
@@ -190,6 +186,7 @@ async def fetch(
         return await BranchUpdate.makeOne(critic, result)
 
 
+@public.fetchManyImpl
 @BranchUpdate.cachedMany
 async def fetchMany(
     critic: api.critic.Critic, branchupdate_ids: Sequence[int]
@@ -202,6 +199,7 @@ async def fetchMany(
         return await BranchUpdate.make(critic, result)
 
 
+@public.fetchAllImpl
 async def fetchAll(
     critic: api.critic.Critic,
     branch: Optional[api.branch.Branch],

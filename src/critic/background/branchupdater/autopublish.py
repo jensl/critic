@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import logging
 import re
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +27,7 @@ from critic import api
 
 
 async def should_auto_publish(
-    review: api.review.Review, *, pendingrefupdate_id: int = None
+    review: api.review.Review, *, pendingrefupdate_id: Optional[int] = None
 ) -> bool:
     critic = review.critic
     repository = await review.repository

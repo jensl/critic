@@ -14,9 +14,9 @@
  * the License.
  */
 
-import { fetch, fetchOne } from "../resources"
+import { fetch, fetchOne, withParameters } from "../resources"
 
 export const loadRepositoryByName = (name: string) =>
-  fetchOne("repositories", { name })
+  fetchOne("repositories", withParameters({ name }))
 
 export const loadRepositories = () => fetch("repositories")

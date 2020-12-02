@@ -17,17 +17,18 @@
 from __future__ import annotations
 
 import logging
-from typing import Optional, Sequence, Union, Literal, overload
+from typing import Any, Awaitable, Callable, Optional, Sequence, overload
+
+from critic.api.apiobject import FunctionRef
 
 logger = logging.getLogger(__name__)
 
 from critic import api
-from critic import extensions
 
 
 class Error(api.APIError, object_type="extension installation"):
     """Base exception for all errors related to the ExtensionInstallation
-       class"""
+    class"""
 
     pass
 
@@ -58,9 +59,9 @@ class ExtensionInstallation(api.APIObject):
     async def version(self) -> api.extensionversion.ExtensionVersion:
         """The installed extension version, or None
 
-           None is returned if this is a "live" installation, i.e. one that
-           runs directly in the extension's source repository, or follows its
-           master branch if it is a bare/remote repository."""
+        None is returned if this is a "live" installation, i.e. one that
+        runs directly in the extension's source repository, or follows its
+        master branch if it is a bare/remote repository."""
         return await self._impl.getVersion(self.critic)
 
     @property
@@ -76,8 +77,8 @@ class ExtensionInstallation(api.APIObject):
     async def user(self) -> Optional[api.user.User]:
         """The installing user, or None
 
-           None is returned if this is a "universal" installation, i.e. one that
-           applies to all users."""
+        None is returned if this is a "universal" installation, i.e. one that
+        applies to all users."""
         return await self._impl.getUser(self.critic)
 
     @property
@@ -86,7 +87,7 @@ class ExtensionInstallation(api.APIObject):
         return self._impl.is_universal
 
     @property
-    async def manifest(self) -> extensions.manifest.Manifest:
+    async def manifest(self) -> Any:
         version = await self.version
         return (await version.manifest).low_level
 
@@ -104,31 +105,35 @@ async def fetch(
     /,
     *,
     extension: api.extension.Extension,
-    user: api.user.User = None,
+    user: Optional[api.user.User] = None,
 ) -> Optional[ExtensionInstallation]:
     ...
 
 
 @overload
 async def fetch(
-    critic: api.critic.Critic, /, *, extension_name: str, user: api.user.User = None
+    critic: api.critic.Critic,
+    /,
+    *,
+    extension_name: str,
+    user: Optional[api.user.User] = None,
 ) -> Optional[ExtensionInstallation]:
     ...
 
 
 async def fetch(
     critic: api.critic.Critic,
-    installation_id: int = None,
+    installation_id: Optional[int] = None,
     /,
     *,
-    extension: api.extension.Extension = None,
-    extension_name: str = None,
-    user: api.user.User = None,
+    extension: Optional[api.extension.Extension] = None,
+    extension_name: Optional[str] = None,
+    user: Optional[api.user.User] = None,
 ) -> Optional[ExtensionInstallation]:
     """Fetch an ExtensionInstallation object by its unique id"""
-    from .impl import extensioninstallation as impl
-
-    return await impl.fetch(critic, installation_id, extension, extension_name, user)
+    return await fetchImpl.get()(
+        critic, installation_id, extension, extension_name, user
+    )
 
 
 @overload
@@ -137,7 +142,7 @@ async def fetchAll(
     /,
     *,
     extension: api.extension.Extension,
-    user: api.user.User = None,
+    user: Optional[api.user.User] = None,
 ) -> Sequence[ExtensionInstallation]:
     ...
 
@@ -148,14 +153,17 @@ async def fetchAll(
     /,
     *,
     version: api.extensionversion.ExtensionVersion,
-    user: api.user.User = None,
+    user: Optional[api.user.User] = None,
 ) -> Sequence[ExtensionInstallation]:
     ...
 
 
 @overload
 async def fetchAll(
-    critic: api.critic.Critic, /, *, user: api.user.User = None,
+    critic: api.critic.Critic,
+    /,
+    *,
+    user: Optional[api.user.User] = None,
 ) -> Sequence[ExtensionInstallation]:
     ...
 
@@ -164,27 +172,51 @@ async def fetchAll(
     critic: api.critic.Critic,
     /,
     *,
-    extension: api.extension.Extension = None,
-    version: api.extensionversion.ExtensionVersion = None,
-    user: api.user.User = None,
+    extension: Optional[api.extension.Extension] = None,
+    version: Optional[api.extensionversion.ExtensionVersion] = None,
+    user: Optional[api.user.User] = None,
 ) -> Sequence[ExtensionInstallation]:
     """Fetch ExtensionInstallation objects for all installed extensions
 
-       If |extensions| is not None, include only installations of the given
-       extension.
+    If |extensions| is not None, include only installations of the given
+    extension.
 
-       If |version| is not None, include only installations of the given
-       extension version. Note: this implies including only installations of
-       the extension |version.extension|, and because of that, |extension|
-       must be None if |version| is not None.
+    If |version| is not None, include only installations of the given
+    extension version. Note: this implies including only installations of
+    the extension |version.extension|, and because of that, |extension|
+    must be None if |version| is not None.
 
-       If |user| is not None, include only installations affecting the given
-       user. Note: this will include both installations the user has created
-       themselves and any universal installations that affect them. If |user|
-       the anonymous user, only universal installations are included."""
-    from .impl import extensioninstallation as impl
-
-    return await impl.fetchAll(critic, extension, version, user)
+    If |user| is not None, include only installations affecting the given
+    user. Note: this will include both installations the user has created
+    themselves and any universal installations that affect them. If |user|
+    the anonymous user, only universal installations are included."""
+    return await fetchAllImpl.get()(critic, extension, version, user)
 
 
-resource_name = table_name = "extensioninstallations"
+resource_name = "extensioninstallations"
+table_name = "extensioninstalls"
+
+
+fetchImpl: FunctionRef[
+    Callable[
+        [
+            api.critic.Critic,
+            Optional[int],
+            Optional[api.extension.Extension],
+            Optional[str],
+            Optional[api.user.User],
+        ],
+        Awaitable[Optional[ExtensionInstallation]],
+    ]
+] = FunctionRef()
+fetchAllImpl: FunctionRef[
+    Callable[
+        [
+            api.critic.Critic,
+            Optional[api.extension.Extension],
+            Optional[api.extensionversion.ExtensionVersion],
+            Optional[api.user.User],
+        ],
+        Awaitable[Sequence[ExtensionInstallation]],
+    ]
+] = FunctionRef()

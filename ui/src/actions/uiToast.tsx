@@ -30,7 +30,7 @@ export const addToast = (toast: Toast): Action => ({
   toast,
 })
 
-const setToastState = (token: Token, state: ToastState | null): Action => ({
+const setToastState = (token: Token, state: ToastState): Action => ({
   type: SET_TOAST_STATE,
   token,
   state,
@@ -71,6 +71,6 @@ export const showToast = ({
   timeoutMS = 3000,
 }: ShowToastParams) => (dispatch: Dispatch) => {
   const token = Token.create()
-  dispatch(addToast(new Toast({ token, type, title, content, timeoutMS })))
+  dispatch(addToast(Toast.new({ token, type, title, content, timeoutMS })))
   return token
 }

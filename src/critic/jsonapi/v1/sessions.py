@@ -16,18 +16,23 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Optional, Literal
 
+logger = logging.getLogger(__name__)
+
 from critic import api
-from critic import jsonapi
 from critic import auth
-
 from ..exceptions import Error
+from ..check import convert
+from ..exceptions import UsageError
+from ..resourceclass import ResourceClass
+from ..parameters import Parameters
+from ..types import JSONInput, JSONResult
+from ..values import Values
 
 
-class Session:
-    id = "current"
-
+class Session(api.APIObject):
     session_type: Optional[Literal["accesstoken", "normal"]]
 
     def __init__(self, critic: api.critic.Critic):
@@ -40,51 +45,51 @@ class Session:
             self.session_type = None
         self.external_account = critic.external_account
 
+    @property
+    def id(self) -> Literal["current"]:
+        return "current"
+
 
 class SessionError(Error):
     http_status = 403
     title = "Session error"
 
-    def __init__(self, message: str, *, code: str = None):
+    def __init__(self, message: str, *, code: Optional[str] = None):
         super().__init__(message)
         self.code = code
 
 
-class Sessions(
-    jsonapi.ResourceClass[Session], resource_name="sessions", value_class=Session
-):
+class Sessions(ResourceClass[Session], resource_name="sessions", value_class=Session):
     """The session of the accessing client."""
 
     anonymous_create = True
 
     @staticmethod
-    async def json(
-        parameters: jsonapi.Parameters, value: Session
-    ) -> jsonapi.JSONResult:
+    async def json(parameters: Parameters, value: Session) -> JSONResult:
         """Session {
-             "user": integer, // the signed in user's id, or null
-             "type": "normal" or "accesstoken", or null,
-             "fields": [
-                 {
-                     "identifier": string, // unique field identifier
-                     "label": string,      // UI label
-                     "hidden": boolean,    // true for passwords
-                     "description": string or null
-                 },
-                 ...
-             ],
-             "providers": [
-                {
-                    "identifier": string,
-                    // Title, suitable as X in "Sign in using your X".
-                    "title": string,
-                    // Account identifier label, i.e. a suitable label for
-                    // a hypothetical input field for it.
-                    "account_id_label": string
-                },
-                ...
-             ],
-           }"""
+          "user": integer, // the signed in user's id, or null
+          "session_type": "normal" or "accesstoken", or null,
+          "fields": [
+              {
+                  "identifier": string, // unique field identifier
+                  "label": string,      // UI label
+                  "hidden": boolean,    // true for passwords
+                  "description": string or null
+              },
+              ...
+          ],
+          "providers": [
+             {
+                 "identifier": string,
+                 // Title, suitable as X in "Sign in using your X".
+                 "title": string,
+                 // Account identifier label, i.e. a suitable label for
+                 // a hypothetical input field for it.
+                 "account_id_label": string
+             },
+             ...
+          ],
+        }"""
 
         fields = []
         for db_field in auth.Database.get().getFields():
@@ -121,27 +126,29 @@ class Sessions(
             "providers": providers,
         }
 
-    @staticmethod
-    async def single(parameters: jsonapi.Parameters, argument: str) -> Session:
+    @classmethod
+    async def single(cls, parameters: Parameters, argument: str) -> Session:
         """Retrieve the current session.
 
-           CURRENT : "current"
+        CURRENT : "current"
 
-           Retrieve the current session."""
+        Retrieve the current session."""
 
         if argument != "current":
-            raise jsonapi.UsageError('Resource argument must be "current"')
+            raise UsageError('Resource argument must be "current"')
 
         return Session(parameters.critic)
 
     @staticmethod
-    async def create(
-        parameters: jsonapi.Parameters, data: jsonapi.JSONInput
-    ) -> Session:
+    async def create(parameters: Parameters, data: JSONInput) -> Session:
         fields = auth.Database.get().getFields()
 
-        converted = await jsonapi.convert(
-            parameters, {fieldname: str for hidden, fieldname, label in fields}, data
+        logger.debug(f"{fields=} {data=}")
+
+        converted = await convert(
+            parameters,
+            {field.identifier: str for field in fields},
+            data,
         )
 
         critic = parameters.critic
@@ -150,16 +157,14 @@ class Sessions(
             raise SessionError("session already created")
 
         try:
-            await auth.Database.get().authenticate(critic, converted)
+            user = await auth.Database.get().authenticate(critic, converted)
         except auth.AuthenticationFailed as error:
             raise SessionError(str(error), code=f"invalid:{error.field_name}")
 
-        await auth.createSessionId(parameters.req, critic.actual_user)
+        await auth.createSessionId(parameters.cookies, user)
 
         return Session(critic)
 
-    @staticmethod
-    async def delete(
-        parameters: jsonapi.Parameters, values: jsonapi.Values[Session]
-    ) -> None:
-        await auth.deleteSessionId(parameters.req)
+    @classmethod
+    async def delete(cls, parameters: Parameters, values: Values[Session]) -> None:
+        await auth.deleteSessionId(parameters.request, parameters.cookies)

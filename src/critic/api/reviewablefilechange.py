@@ -16,9 +16,18 @@
 
 from __future__ import annotations
 
-from typing import Sequence, Iterable, Optional, FrozenSet, Protocol
+from typing import (
+    Awaitable,
+    Callable,
+    Sequence,
+    Iterable,
+    Optional,
+    FrozenSet,
+    Protocol,
+)
 
 from critic import api
+from critic.api.apiobject import FunctionRef
 
 
 class Error(api.APIError, object_type="reviewable file change"):
@@ -62,17 +71,17 @@ class ReviewableFileChange(api.APIObject):
     async def changeset(self) -> api.changeset.Changeset:
         """The changeset that the change is part of
 
-           The changeset is returned as an api.changeset.Changeset object. Note
-           that this changeset is always of a single commit, and that this
-           commit will be included in a partition in the review (meaning it will
-           not be part of a rebased version of the review branch.)"""
+        The changeset is returned as an api.changeset.Changeset object. Note
+        that this changeset is always of a single commit, and that this
+        commit will be included in a partition in the review (meaning it will
+        not be part of a rebased version of the review branch.)"""
         return await self._impl.getChangeset(self.critic)
 
     @property
     async def file(self) -> api.file.File:
         """The file that was changed
 
-           The file is returned as an api.file.File object."""
+        The file is returned as an api.file.File object."""
         return await self._impl.getFile(self.critic)
 
     @property
@@ -83,16 +92,16 @@ class ReviewableFileChange(api.APIObject):
     def deleted_lines(self) -> int:
         """Number of deleted or modified lines
 
-           In other words, number of lines in the old version of the file that
-           are not present in the new version of the file."""
+        In other words, number of lines in the old version of the file that
+        are not present in the new version of the file."""
         return self._impl.deleted_lines
 
     @property
     def inserted_lines(self) -> int:
         """Number of modified or inserted lines
 
-           In other words, number of lines in the new version of the file that
-           were not present in the old version of the file."""
+        In other words, number of lines in the new version of the file that
+        were not present in the old version of the file."""
         return self._impl.inserted_lines
 
     @property
@@ -138,9 +147,9 @@ class ReviewableFileChange(api.APIObject):
     async def draft_changes(self) -> Optional[ReviewableFileChange.DraftChanges]:
         """The file change's current draft changes
 
-           The draft changes are returned as a ReviewableFileChange.DraftChanges
-           object, or None if the current user has no unpublished changes to
-           this file change."""
+        The draft changes are returned as a ReviewableFileChange.DraftChanges
+        object, or None if the current user has no unpublished changes to
+        this file change."""
         return await self._impl.getDraftChanges(self.critic)
 
 
@@ -148,43 +157,59 @@ async def fetch(
     critic: api.critic.Critic, filechange_id: int, /
 ) -> ReviewableFileChange:
     """Fetch a single reviewable file change by its unique id"""
-    from .impl import reviewablefilechange as impl
-
-    return await impl.fetch(critic, filechange_id)
+    return await fetchImpl.get()(critic, filechange_id)
 
 
 async def fetchMany(
     critic: api.critic.Critic, filechange_ids: Iterable[int], /
 ) -> Sequence[ReviewableFileChange]:
     """Fetch multiple reviewable file change by their unique ids"""
-    from .impl import reviewablefilechange as impl
-
-    return await impl.fetchMany(critic, filechange_ids)
+    return await fetchManyImpl.get()(critic, list(filechange_ids))
 
 
 async def fetchAll(
     review: api.review.Review,
     *,
-    changeset: api.changeset.Changeset = None,
-    file: api.file.File = None,
-    assignee: api.user.User = None,
-    is_reviewed: bool = None,
+    changeset: Optional[api.changeset.Changeset] = None,
+    file: Optional[api.file.File] = None,
+    assignee: Optional[api.user.User] = None,
+    is_reviewed: Optional[bool] = None,
 ) -> Sequence[ReviewableFileChange]:
     """Fetch all reviewable file changes in a review
 
-       If a |changeset| is specified, fetch only file changes that are part of
-       that changeset.
+    If a |changeset| is specified, fetch only file changes that are part of
+    that changeset.
 
-       If a |file| is specified, fetch only file changes in that file.
+    If a |file| is specified, fetch only file changes in that file.
 
-       If a |assignee| is specified, fetch only file changes that the specified
-       user is assigned to review.
+    If a |assignee| is specified, fetch only file changes that the specified
+    user is assigned to review.
 
-       If |is_reviewed| is specified (not |None|), fetch only file changes that
-       are marked as reviewed (when |is_reviewed==True|) or not."""
-    from .impl import reviewablefilechange as impl
-
-    return await impl.fetchAll(review, changeset, file, assignee, is_reviewed)
+    If |is_reviewed| is specified (not |None|), fetch only file changes that
+    are marked as reviewed (when |is_reviewed==True|) or not."""
+    return await fetchAllImpl.get()(review, changeset, file, assignee, is_reviewed)
 
 
 resource_name = "reviewablefilechanges"
+
+
+fetchImpl: FunctionRef[
+    Callable[[api.critic.Critic, int], Awaitable[ReviewableFileChange]]
+] = FunctionRef()
+fetchManyImpl: FunctionRef[
+    Callable[
+        [api.critic.Critic, Sequence[int]], Awaitable[Sequence[ReviewableFileChange]]
+    ]
+] = FunctionRef()
+fetchAllImpl: FunctionRef[
+    Callable[
+        [
+            api.review.Review,
+            Optional[api.changeset.Changeset],
+            Optional[api.file.File],
+            Optional[api.user.User],
+            Optional[bool],
+        ],
+        Awaitable[Sequence[ReviewableFileChange]],
+    ]
+] = FunctionRef()

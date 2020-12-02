@@ -18,8 +18,9 @@ from __future__ import annotations
 
 from typing import Tuple, Optional, Iterable, Sequence
 
-from . import apiobject
 from critic import api
+from critic.api import reviewtag as public
+from . import apiobject
 
 WrapperType = api.reviewtag.ReviewTag
 ArgumentsType = Tuple[int, str, str]
@@ -33,20 +34,26 @@ class ReviewTag(apiobject.APIObject[WrapperType, ArgumentsType, int]):
         (self.id, self.name, self.description) = args
 
 
+@public.fetchImpl
 @ReviewTag.cached
 async def fetch(
     critic: api.critic.Critic, reviewtag_id: Optional[int], name: Optional[str]
 ) -> WrapperType:
     if reviewtag_id is not None:
         condition = "id={reviewtag_id}"
-    if name is not None:
+    else:
+        assert name is not None
         condition = "name={name}"
     async with ReviewTag.query(
-        critic, [condition], reviewtag_id=reviewtag_id, name=name,
+        critic,
+        [condition],
+        reviewtag_id=reviewtag_id,
+        name=name,
     ) as result:
         return await ReviewTag.makeOne(critic, result)
 
 
+@public.fetchManyImpl
 @ReviewTag.cachedMany
 async def fetchMany(
     critic: api.critic.Critic,
@@ -56,19 +63,20 @@ async def fetchMany(
     if reviewtag_ids is not None:
         condition = "{id=reviewtag_ids:array}"
         reviewtag_ids = list(reviewtag_ids)
-    if names is not None:
+    else:
+        assert names is not None
         condition = "{name=names:array}"
         names = list(names)
-    async with critic.query(
-        f"""SELECT {ReviewTag.columns()}
-              FROM {ReviewTag.table()}
-             WHERE {condition}""",
+    async with ReviewTag.query(
+        critic,
+        [condition],
         reviewtag_ids=reviewtag_ids,
         names=names,
     ) as result:
         return await ReviewTag.make(critic, result)
 
 
+@public.fetchAllImpl
 async def fetchAll(critic: api.critic.Critic) -> Sequence[WrapperType]:
     async with ReviewTag.query(critic) as result:
         return await ReviewTag.make(critic, result)

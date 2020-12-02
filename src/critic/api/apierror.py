@@ -21,6 +21,8 @@ import logging
 from types import ModuleType
 from typing import Any, Iterable, Optional
 
+from critic.base.types import BooleanWithReason
+
 logger = logging.getLogger(__name__)
 
 from critic import api
@@ -28,15 +30,15 @@ from critic import api
 
 class APIError(Exception):
     """Base exception for all errors caused by incorrect API usage (including
-       invalid input.)"""
+    invalid input.)"""
 
     object_type: Optional[str] = None
 
-    def __init_subclass__(cls, object_type: str = None) -> None:
+    def __init_subclass__(cls, object_type: Optional[str] = None) -> None:
         if object_type is not None:
             cls.object_type = object_type
 
-    def __init__(self, message: str, *, code: str = None) -> None:
+    def __init__(self, message: str, *, code: Optional[str] = None) -> None:
         super().__init__(message)
         if code is not None:
             self.code = code
@@ -50,11 +52,21 @@ class APIError(Exception):
         generic fashion."""
         return importlib.import_module(cls.__module__)
 
+    @classmethod
+    def raiseIf(cls, condition: BooleanWithReason) -> None:
+        if condition:
+            raise cls(condition.reason)
+
+    @classmethod
+    def raiseUnless(cls, condition: BooleanWithReason) -> None:
+        if not condition:
+            raise cls(condition.reason)
+
 
 class InvalidItemError(APIError):
     item_type: Optional[str] = None
 
-    def __init_subclass__(cls, *, item_type: str = None) -> None:
+    def __init_subclass__(cls, *, item_type: Optional[str] = None) -> None:
         if item_type is not None:
             cls.item_type = item_type
 
@@ -68,7 +80,7 @@ class InvalidItemError(APIError):
 class InvalidItemsError(APIError):
     items_type: Optional[str] = None
 
-    def __init_subclass__(cls, *, items_type: str = None):
+    def __init_subclass__(cls, *, items_type: Optional[str] = None):
         if items_type is not None:
             cls.items_type = items_type
 
@@ -97,7 +109,7 @@ class InvalidIdsError(InvalidItemsError, items_type="ids"):
 
 class PermissionDenied(Exception):
     """Exception raised on correct API usage that the current user is not
-       allowed."""
+    allowed."""
 
     @staticmethod
     def raiseUnlessAdministrator(critic: api.critic.Critic) -> None:
@@ -145,13 +157,13 @@ class TransactionError(APIError):
 
 class ResultDelayedError(Exception):
     """Base exception for all errors caused by the result being temporarily
-       unavailable"""
+    unavailable"""
 
     pass
 
 
 class DatabaseSchemaError(Exception):
     """Exception raised when some part of the API is non-functional due to
-       database schema problems"""
+    database schema problems"""
 
     pass

@@ -16,9 +16,17 @@
 
 from __future__ import annotations
 
-from typing import Optional, Sequence, TypeVar, Tuple, Any, Union, overload
+from typing import (
+    Awaitable,
+    Callable,
+    Optional,
+    Sequence,
+    Union,
+    overload,
+)
 
 from critic import api
+from critic.api.apiobject import FunctionRef
 
 
 class Error(api.APIError, object_type="review scope"):
@@ -58,24 +66,41 @@ async def fetch(critic: api.critic.Critic, /, *, name: str) -> ReviewScope:
 
 
 async def fetch(
-    critic: api.critic.Critic, scope_id: int = None, /, *, name: str = None,
+    critic: api.critic.Critic,
+    scope_id: Optional[int] = None,
+    /,
+    *,
+    name: Optional[str] = None,
 ) -> ReviewScope:
-    from .impl import reviewscope as impl
-
-    return await impl.fetch(critic, scope_id, name)
+    return await fetchImpl.get()(critic, scope_id, name)
 
 
 async def fetchAll(
     critic: api.critic.Critic,
     /,
     *,
-    filter: Union[
-        api.repositoryfilter.RepositoryFilter, api.reviewfilter.ReviewFilter
+    filter: Optional[
+        Union[api.repositoryfilter.RepositoryFilter, api.reviewfilter.ReviewFilter]
     ] = None,
 ) -> Sequence[ReviewScope]:
-    from .impl import reviewscope as impl
-
-    return await impl.fetchAll(critic, filter)
+    return await fetchAllImpl.get()(critic, filter)
 
 
 resource_name = table_name = "reviewscopes"
+
+fetchImpl: FunctionRef[
+    Callable[[api.critic.Critic, Optional[int], Optional[str]], Awaitable[ReviewScope]]
+] = FunctionRef()
+fetchAllImpl: FunctionRef[
+    Callable[
+        [
+            api.critic.Critic,
+            Optional[
+                Union[
+                    api.repositoryfilter.RepositoryFilter, api.reviewfilter.ReviewFilter
+                ]
+            ],
+        ],
+        Awaitable[Sequence[ReviewScope]],
+    ]
+] = FunctionRef()

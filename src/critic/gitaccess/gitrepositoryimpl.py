@@ -1,5 +1,4 @@
 import asyncio
-import os
 from typing import (
     AsyncIterator,
     Collection,
@@ -29,6 +28,10 @@ from . import (
 
 class GitRepositoryImpl(Protocol):
     @property
+    def is_direct(self) -> bool:
+        ...
+
+    @property
     def path(self) -> Optional[str]:
         ...
 
@@ -54,11 +57,14 @@ class GitRepositoryImpl(Protocol):
     def clear_user_details(self) -> None:
         ...
 
+    def get_worktree_path(self) -> str:
+        ...
+
     def set_worktree_path(self, path: Optional[str]) -> None:
         ...
 
     async def symbolicref(
-        self, name: str, *, value: str = None, delete: bool = False
+        self, name: str, *, value: Optional[str] = None, delete: bool = False
     ) -> str:
         ...
 
@@ -92,7 +98,7 @@ class GitRepositoryImpl(Protocol):
         ...
 
     async def lstree(
-        self, ref: str, path: str = None, *, long_format: bool = False
+        self, ref: str, path: Optional[str] = None, *, long_format: bool = False
     ) -> Sequence[GitTreeEntry]:
         ...
 
@@ -109,18 +115,20 @@ class GitRepositoryImpl(Protocol):
     ) -> AsyncIterator[Tuple[SHA1, Union[GitObject, GitFetchError]]]:
         ...
 
-    async def committree(self, tree: str, parents: Iterable[str], message: str) -> str:
+    async def committree(
+        self, tree: str, parents: Iterable[SHA1], message: str
+    ) -> SHA1:
         ...
 
-    async def foreachref(self, *, pattern: str = None) -> Sequence[str]:
+    async def foreachref(self, *, pattern: Optional[str] = None) -> Sequence[str]:
         ...
 
     async def updateref(
         self,
         name: str,
         *,
-        old_value: SHA1 = None,
-        new_value: SHA1 = None,
+        old_value: Optional[SHA1] = None,
+        new_value: Optional[SHA1] = None,
         create: bool = False,
         delete: bool = False,
     ) -> None:

@@ -28,6 +28,7 @@ import blueGrey from "@material-ui/core/colors/blueGrey"
 import yellow from "@material-ui/core/colors/yellow"
 import deepOrange from "@material-ui/core/colors/deepOrange"
 import { Color } from "@material-ui/core"
+import { TypographyOptions } from "@material-ui/core/styles/createTypography"
 
 declare module "@material-ui/core/styles/createMuiTheme" {
   interface Theme {
@@ -49,7 +50,15 @@ declare module "@material-ui/core/styles/createPalette" {
   }
 }
 
+const typography: TypographyOptions = {
+  fontFamily: "Lato, sans-serif",
+  caption: { fontSize: "0.8rem" },
+  button: { fontWeight: 700 },
+}
+
 export const lightTheme = createMuiTheme({
+  typography,
+
   palette: {
     type: "light",
     primary: { main: red["A700"] },
@@ -61,7 +70,7 @@ export const lightTheme = createMuiTheme({
 
   critic: {
     monospaceFont: {
-      fontFamily: "Source Code Pro, monospace",
+      fontFamily: "Fira Code, monospace",
       fontSize: "10pt",
     },
     syntax: {
@@ -85,7 +94,8 @@ export const lightTheme = createMuiTheme({
       insertedLine: { backgroundColor: lightGreen[200] },
       insertedCode: { backgroundColor: lightGreen[200] },
       insertedCodeDark: { backgroundColor: lightGreen[300] },
-      modifiedLine: { backgroundColor: amber[100] },
+      modifiedLineOld: { backgroundColor: amber[100] },
+      modifiedLineNew: { backgroundColor: amber[100] },
     },
     selectionRectangle: {
       borderWidth: 2,
@@ -105,43 +115,47 @@ export const lightTheme = createMuiTheme({
 })
 
 export const darkTheme = createMuiTheme({
+  typography,
+
   palette: {
     type: "dark",
-    primary: { main: red[900] },
-    secondary: { main: teal[800], light: teal[700], contrastText: grey[200] },
+    primary: { main: red[300], dark: red[500] },
+    secondary: { main: teal[400], light: teal[700], contrastText: grey[200] },
     success: { main: green[500] },
-    text: { primary: grey[300] },
+    text: { primary: amber[50] },
     issue: { open: red[900], closed: green[500] },
     note: yellow[700],
   },
 
   critic: {
     monospaceFont: {
-      fontFamily: "Source Code Pro, monospace",
+      fontFamily: "Fira Code, monospace",
       fontSize: "10pt",
     },
     syntax: {
-      base: { color: grey[300] },
-      operator: { fontWeight: 700, color: blueGrey[100] },
-      identifier: { fontWeight: 400, color: blueGrey[100] },
-      keyword: { fontWeight: 700, color: blueGrey[100] },
+      base: { color: "#72696a" },
+      operator: { fontWeight: 500 },
+      identifier: { fontWeight: 400, color: "#fff1f3" },
+      keyword: { fontWeight: 700, color: "#f66883" },
       character: {},
-      string: { color: orange[500] },
-      comment: { color: blueGrey[400] },
+      string: { color: "#f9cc6c" },
+      comment: {},
       integer: {},
       number: {},
       ppDirective: {},
     },
     diff: {
-      background: { backgroundColor: "#484848" },
-      context: { backgroundColor: "#383838" },
-      deletedLine: { backgroundColor: "hsla(0, 66%, 36%, 35%)" },
-      deletedCode: { backgroundColor: "hsla(0, 66%, 36%, 35%)" },
-      deletedCodeDark: { backgroundColor: "hsla(0, 66%, 40%, 35%)" },
-      insertedLine: { backgroundColor: "hsla(95, 40%, 36%, 35%)" },
-      insertedCode: { backgroundColor: "hsla(95, 40%, 36%, 35%)" },
-      insertedCodeDark: { backgroundColor: "hsla(95, 40%, 40%, 35%)" },
-      modifiedLine: { backgroundColor: "hsla(45, 100%, 60%, 35%)" },
+      background: { backgroundColor: "#2c2525" }, //"#484848" },
+      border: { border: "1px solid #594b4b" },
+      context: { backgroundColor: "#2c2525" }, //"#383838" },
+      deletedLine: { backgroundColor: "#422b2e" }, // "hsla(0, 66%, 36%, 35%)" },
+      deletedCode: { backgroundColor: "#422b2e" }, // "hsla(0, 66%, 36%, 35%)" },
+      deletedCodeDark: { backgroundColor: "#553136" }, // "hsla(0, 66%, 40%, 35%)" },
+      insertedLine: { backgroundColor: "#373a2c" }, //"hsla(95, 40%, 36%, 35%)" },
+      insertedCode: { backgroundColor: "#373a2c" }, //"hsla(95, 40%, 36%, 35%)" },
+      insertedCodeDark: { backgroundColor: "#464734" }, //"hsla(95, 40%, 40%, 35%)" },
+      modifiedLineOld: { backgroundColor: "#353021" }, //"hsla(45, 100%, 60%, 35%)" },
+      modifiedLineNew: { backgroundColor: "#353021" }, // "hsla(45, 100%, 60%, 35%)" },
     },
     selectionRectangle: {
       borderWidth: 2,
@@ -155,24 +169,25 @@ export const darkTheme = createMuiTheme({
       borderWidth: 1,
       borderStyle: "solid",
       borderRadius: 4,
+      padding: "1px 6px",
     },
   },
 
   overrides: {
-    MuiInputLabel: {
-      root: {
-        "&$focused": {
-          color: red[500],
-        },
-      },
-    },
-    MuiOutlinedInput: {
-      root: {
-        "&$focused $notchedOutline": {
-          borderColor: red[500],
-          borderWidth: "1px",
-        },
-      },
-    },
+    // MuiInputLabel: {
+    //   root: {
+    //     "&$focused": {
+    //       color: red[500],
+    //     },
+    //   },
+    // },
+    // MuiOutlinedInput: {
+    //   root: {
+    //     "&$focused $notchedOutline": {
+    //       borderColor: red[500],
+    //       borderWidth: "1px",
+    //     },
+    //   },
+    // },
   },
 })

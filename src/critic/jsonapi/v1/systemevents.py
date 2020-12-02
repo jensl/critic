@@ -16,29 +16,34 @@
 
 from __future__ import annotations
 
-from typing import Sequence, Optional, Union
+from typing import Sequence, Union
 
 from critic import api
-from critic import jsonapi
+from ..check import convert, input_spec, optional, anything
+from ..exceptions import UsageError
+from ..resourceclass import ResourceClass
+from ..parameters import Parameters
+from ..types import JSONInput, JSONResult
+from ..utils import numeric_id
 
 
 class SystemEvents(
-    jsonapi.ResourceClass[api.systemevent.SystemEvent], api_module=api.systemevent
+    ResourceClass[api.systemevent.SystemEvent], api_module=api.systemevent
 ):
     """The system settings."""
 
     @staticmethod
     async def json(
-        parameters: jsonapi.Parameters, value: api.systemevent.SystemEvent
-    ) -> jsonapi.JSONResult:
+        parameters: Parameters, value: api.systemevent.SystemEvent
+    ) -> JSONResult:
         """SystemEvent {
-             "id": string, // the event's id
-             "category": string, // the event's category
-             "key": string, // the event's key
-             "title": string, // the event's title
-             "data": any, // the event's data
-             "handled": boolean, // true if the event has been handled
-           }"""
+          "id": string, // the event's id
+          "category": string, // the event's category
+          "key": string, // the event's key
+          "title": string, // the event's title
+          "data": any, // the event's data
+          "handled": boolean, // true if the event has been handled
+        }"""
 
         return {
             "id": value.id,
@@ -49,49 +54,47 @@ class SystemEvents(
             "handled": value.handled,
         }
 
-    @staticmethod
+    @classmethod
     async def single(
-        parameters: jsonapi.Parameters, argument: str
+        cls, parameters: Parameters, argument: str
     ) -> api.systemevent.SystemEvent:
         """Retrieve one (or more) system events.
 
-           EVENT_ID : string
+        EVENT_ID : string
 
-           Retrieve a system event identified by its unique id."""
+        Retrieve a system event identified by its unique id."""
 
-        return await api.systemevent.fetch(
-            parameters.critic, jsonapi.numeric_id(argument)
-        )
+        return await api.systemevent.fetch(parameters.critic, numeric_id(argument))
 
     @staticmethod
     async def multiple(
-        parameters: jsonapi.Parameters,
+        parameters: Parameters,
     ) -> Union[api.systemevent.SystemEvent, Sequence[api.systemevent.SystemEvent]]:
         """Retrieve all system events.
 
-           catogory : CATEGORY : string
+        catogory : CATEGORY : string
 
-           Return only events in the specified category.
+        Return only events in the specified category.
 
-           key : KEY : string
+        key : KEY : string
 
-           Return only events with the specified key.
+        Return only events with the specified key.
 
-           latest : LATEST : "yes" or "no"
+        latest : LATEST : "yes" or "no"
 
-           Return only the latest matching event."""
+        Return only the latest matching event."""
 
         critic = parameters.critic
-        category_parameter = parameters.getQueryParameter("category")
-        key_parameter = parameters.getQueryParameter("key")
+        category_parameter = parameters.query.get("category")
+        key_parameter = parameters.query.get("key")
 
         if category_parameter is None:
-            raise jsonapi.UsageError.missingParameter("category")
+            raise UsageError.missingParameter("category")
 
-        latest_parameter = parameters.getQueryParameter("latest", choices=("yes", "no"))
+        latest_parameter = parameters.query.get("latest", choices=("yes", "no"))
         if latest_parameter == "yes":
             if key_parameter is None:
-                raise jsonapi.UsageError.missingParameter("key")
+                raise UsageError.missingParameter("key")
             return await api.systemevent.fetch(
                 critic, category=category_parameter, key=key_parameter
             )
@@ -102,27 +105,22 @@ class SystemEvents(
 
     @staticmethod
     async def create(
-        parameters: jsonapi.Parameters, data: jsonapi.JSONInput
+        parameters: Parameters, data: JSONInput
     ) -> api.systemevent.SystemEvent:
         critic = parameters.critic
 
-        converted = await jsonapi.convert(
+        converted = await convert(
             parameters,
-            {
-                "category": str,
-                "key": str,
-                "title": str,
-                "data?": jsonapi.check.TypeChecker(),
-            },
+            input_spec(category=str, key=str, title=str, data=optional(anything())),
             data,
         )
 
         async with api.transaction.start(critic) as transaction:
-            modifier = transaction.addSystemEvent(
-                converted["category"],
-                converted["key"],
-                converted["title"],
-                converted.get("data"),
-            )
-
-        return await modifier
+            return (
+                await transaction.addSystemEvent(
+                    converted["category"],
+                    converted["key"],
+                    converted["title"],
+                    converted.get("data"),
+                )
+            ).subject

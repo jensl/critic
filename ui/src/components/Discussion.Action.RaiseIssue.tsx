@@ -22,24 +22,36 @@ import { createComment } from "../actions/comment"
 import { useDispatch } from "../store"
 import { useDiscussionContext } from "../utils/DiscussionContext"
 import { useReview } from "../utils"
+import { useRequireSession } from "./Dialog.SignIn"
 
 const RaiseIssue: React.FunctionComponent<ActionProps> = ({ ...props }) => {
   const dispatch = useDispatch()
   const review = useReview()
   const { comment, location } = useDiscussionContext()
+  const [requireSession, signInDialog] = useRequireSession(
+    "You need to sign in before you can raise an issue.",
+  )
   if (review === null || comment !== null || location === null) return null
   const onClick = async () => {
-    const comment = await dispatch(
-      createComment(review.id, "issue", "", location)
-    )
-    if (comment)
-      dispatch({ type: "SET_FLAG", flag: `Discussion/editable:${comment.id}` })
-    dispatch({ type: "RESET_SELECTION_SCOPE" })
+    if (await requireSession()) {
+      const comment = await dispatch(
+        createComment(review.id, "issue", "", location),
+      )
+      if (comment)
+        dispatch({
+          type: "SET_FLAG",
+          flag: `Discussion/editable:${comment.id}`,
+        })
+      dispatch({ type: "RESET_SELECTION_SCOPE" })
+    }
   }
   return (
-    <Action onClick={onClick} {...props}>
-      Raise issue
-    </Action>
+    <>
+      <Action onClick={onClick} color="primary" {...props}>
+        Raise issue
+      </Action>
+      {signInDialog}
+    </>
   )
 }
 

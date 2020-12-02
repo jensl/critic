@@ -15,7 +15,7 @@
 # the License.
 
 
-def load(filename):
+def load(filename: str) -> str:
     import pkg_resources
 
     return pkg_resources.resource_string(__name__, filename).decode()

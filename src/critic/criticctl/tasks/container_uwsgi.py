@@ -14,6 +14,7 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
+import argparse
 import distutils.spawn
 import grp
 import json
@@ -26,7 +27,10 @@ import tempfile
 
 logger = logging.getLogger(__name__)
 
+from critic import api
 from critic import base
+from ..utils import as_root
+from .utils import fail, install, service
 
 TEMPLATE = """
 
@@ -56,7 +60,7 @@ name = "container:uwsgi"
 description = "Configure uWSGI as WSGI container."
 
 
-def setup(parser):
+def setup(parser: argparse.ArgumentParser) -> None:
     identity = parser.get_default("configuration")["system.identity"]
 
     deps_group = parser.add_argument_group("Dependencies")
@@ -106,7 +110,7 @@ def setup(parser):
     parser.set_defaults(need_session=True)
 
 
-def check_uwsgi_python36(uwsgi_executable):
+def check_uwsgi_python36(uwsgi_executable: str) -> bool:
     try:
         process = subprocess.Popen(
             [
@@ -125,11 +129,7 @@ def check_uwsgi_python36(uwsgi_executable):
         return False
 
 
-async def main(critic, arguments):
-    from critic import api
-
-    from . import fail, as_root, install, service
-
+async def main(critic: api.critic.Critic, arguments: argparse.Namespace) -> int:
     uwsgi_executable = distutils.spawn.find_executable("uwsgi")
     if not uwsgi_executable:
         if not arguments.install_uwsgi:
@@ -222,11 +222,11 @@ async def main(critic, arguments):
     if arguments.enable_app:
         service("restart", "uwsgi")
 
-    container = await api.systemsetting.fetch(critic, "frontend.container")
+    container = await api.systemsetting.fetch(critic, key="frontend.container")
 
     async with api.transaction.start(critic) as transaction:
-        transaction.setSystemSetting(container, "uwsgi")
-        transaction.addSystemEvent(
+        await transaction.modifySystemSetting(container).setValue("uwsgi")
+        await transaction.addSystemEvent(
             "install",
             "container",
             "Installed uWSGI backend app: %s" % arguments.app_file,
@@ -244,3 +244,5 @@ async def main(critic, arguments):
 
     logger.info("Updated Critic's system settings:")
     logger.info("  frontend.container=%s", json.dumps(container.value))
+
+    return 0

@@ -16,7 +16,6 @@
 
 import logging
 import re
-from typing import Tuple, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -34,8 +33,8 @@ RE_COMMAND = re.compile(
 def analyze_query(query: str) -> str:
     """Extract the SQL command and affected table (if any) from a query
 
-       Supported commands are SELECT, UPDATE, INSERT and DELETE.  Any other
-       kind of query will raise a ValueError."""
+    Supported commands are SELECT, UPDATE, INSERT and DELETE.  Any other
+    kind of query will raise a ValueError."""
 
     level = 0
     top_level = ""
@@ -48,10 +47,10 @@ def analyze_query(query: str) -> str:
         if part == "(":
             level += 1
 
-    match = RE_COMMAND.match(top_level)
+    match = RE_COMMAND.match(top_level.strip())
 
     if not match:
-        raise ValueError("unrecognized query: %s" % query.split()[0])
+        raise ValueError("unrecognized query: %s" % query)
 
     command, table, select = match.groups()
     if command is not None:

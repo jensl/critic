@@ -14,45 +14,50 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
+from typing import Tuple, Literal
+import aiohttp.web
 import logging
 
 logger = logging.getLogger(__name__)
 
+from critic import api
 from critic import auth
-from critic import base
 from critic import frontend
-from critic.wsgi import request
 
 
-def check_path(req):
+def check_path(
+    req: aiohttp.web.BaseRequest,
+) -> Tuple[auth.Provider, Literal["start", "finish"]]:
     components = req.path.strip("/").split("/")
     if len(components) != 4 or components[:2] != ["api", "externalauth"]:
         raise frontend.NotHandled
     command = components[3]
     if command not in ("start", "finish"):
-        raise request.BadRequest()
+        raise aiohttp.web.HTTPBadRequest()
     provider_name = components[2]
     enabled_providers = auth.Provider.enabled()
     if not enabled_providers or not provider_name in enabled_providers:
-        raise request.NotFound("Invalid authentication provider")
+        raise aiohttp.web.HTTPNotFound(text="Invalid authentication provider")
     return enabled_providers[provider_name], command
 
 
-async def handle(req):
+async def handle(critic: api.critic.Critic, req: aiohttp.web.BaseRequest):
     provider, command = check_path(req)
 
     if command == "start":
         # This raises a redirect to the provider's authorization URL.
-        await provider.start(req)
+        await provider.start(critic, req)
     else:
         try:
             # This raises a redirect to the target URL.
-            await provider.finish(req)
+            await provider.finish(critic, req)
         except (auth.InvalidRequest, auth.Failure) as error:
             # This is not really very helpful error handling. But it's not
             # expected that an actual failure to sign in will end up here;
             # presumably that error handling is taken care of at the
             # authentication provider's site.
-            raise request.BadRequest(str(error))
+            raise aiohttp.web.HTTPBadRequest(text=str(error))
 
-    raise base.Error("Misbehaving authentication provider: " + provider.name)
+    raise aiohttp.web.HTTPInternalServerError(
+        text=f"Misbehaving authentication provider: {provider.name}"
+    )

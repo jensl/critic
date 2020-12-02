@@ -20,27 +20,19 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-from . import CreatedRepository
-from .. import Insert, Transaction
 from critic import api
+from ..base import TransactionBase
+from ..createapiobject import CreateAPIObject
 
 
-def create_repository(
-    transaction: Transaction, name: str, path: str
-) -> CreatedRepository:
-    if not path.endswith(".git"):
-        raise api.repository.Error("Invalid repository path")
+class CreateRepository(
+    CreateAPIObject[api.repository.Repository], api_module=api.repository
+):
+    @staticmethod
+    async def make(
+        transaction: TransactionBase, name: str, path: str
+    ) -> api.repository.Repository:
+        if not path.endswith(".git"):
+            raise api.repository.Error("Invalid repository path")
 
-    repository = CreatedRepository(transaction)
-
-    transaction.tables.add("repositories")
-    transaction.items.append(
-        Insert("repositories", returning="id", collector=repository).values(
-            name=name, path=path
-        )
-    )
-
-    # The maintenance service creates the repository on disk.
-    # transaction.wakeup_service("maintenance")
-
-    return repository
+        return await CreateRepository(transaction).insert(name=name, path=path)

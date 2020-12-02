@@ -17,34 +17,46 @@
 from __future__ import annotations
 
 import logging
-from typing import Sequence, Union, Optional
+from typing import List, Sequence, TypedDict, Union, Optional
 
 logger = logging.getLogger(__name__)
 
 from critic import api
 from critic import gitaccess
-from critic import jsonapi
 from critic.background import gitaccessor
+from ..check import convert
+from ..exceptions import UsageError
+from ..resourceclass import ResourceClass
+from ..parameters import Parameters
+from ..types import JSONInput, JSONResult
+from ..utils import id_or_name, numeric_id
+from ..values import Values
+
+
+class MirrorBranch(TypedDict):
+    remote_name: str
+    local_name: Optional[str]
 
 
 class Repositories(
-    jsonapi.ResourceClass[api.repository.Repository], api_module=api.repository,
+    ResourceClass[api.repository.Repository],
+    api_module=api.repository,
 ):
     """The Git repositories on this system."""
 
     @staticmethod
     async def json(
-        parameters: jsonapi.Parameters, value: api.repository.Repository
-    ) -> jsonapi.JSONResult:
+        parameters: Parameters, value: api.repository.Repository
+    ) -> JSONResult:
         """Repository {
-             "id": integer, // the repository's id
-             "name": string, // the repository's (unique) short name
-             "path": string, // relative file-system path
-             "url": string, // the repository's URL
-             "documentation_path": string or null,
-           }"""
+          "id": integer, // the repository's id
+          "name": string, // the repository's (unique) short name
+          "path": string, // relative file-system path
+          "url": string, // the repository's URL
+          "documentation_path": string or null,
+        }"""
 
-        result: jsonapi.JSONResult = {
+        result: JSONResult = {
             "id": value.id,
             "name": value.name,
             "path": value.path,
@@ -52,7 +64,7 @@ class Repositories(
             "documentation_path": value.documentation_path,
         }
 
-        statistics_parameter = parameters.getQueryParameter("statistics")
+        statistics_parameter = parameters.query.get("statistics")
         if statistics_parameter:
             statistics = await value.statistics
             if statistics_parameter == "default":
@@ -62,14 +74,14 @@ class Repositories(
                     "reviews": statistics.reviews,
                 }
             else:
-                raise jsonapi.UsageError("Invalid 'statistics' parameter")
+                raise UsageError("Invalid 'statistics' parameter")
 
-        head_parameter = parameters.getQueryParameter("head")
+        head_parameter = parameters.query.get("head")
         if head_parameter:
             include = set(head_parameter.split(","))
             if not include.issubset({"all", "value", "commit", "branch"}):
-                raise jsonapi.UsageError("Invalid 'head' parameter")
-            head: jsonapi.JSONResult = {}
+                raise UsageError("Invalid 'head' parameter")
+            head: JSONResult = {}
             if include.intersection({"all", "value"}):
                 head["value"] = await value.head.value
             if include.intersection({"all", "commit"}):
@@ -80,52 +92,50 @@ class Repositories(
 
         return result
 
-    @staticmethod
+    @classmethod
     async def single(
-        parameters: jsonapi.Parameters, argument: str
+        cls, parameters: Parameters, argument: str
     ) -> api.repository.Repository:
         """Retrieve one (or more) repositories on this system.
 
-           REPOSITORY_ID : integer
+        REPOSITORY_ID : integer
 
-           Retrieve a repository identified by its unique numeric id."""
+        Retrieve a repository identified by its unique numeric id."""
 
-        return await api.repository.fetch(
-            parameters.critic, jsonapi.numeric_id(argument)
-        )
+        return await api.repository.fetch(parameters.critic, numeric_id(argument))
 
     @staticmethod
     async def multiple(
-        parameters: jsonapi.Parameters,
+        parameters: Parameters,
     ) -> Union[api.repository.Repository, Sequence[api.repository.Repository]]:
         """Retrieve a single named repository or all repositories on this
-           system.
+        system.
 
-           name : SHORT_NAME : string
+        name : SHORT_NAME : string
 
-           Retrieve a repository identified by its unique short-name.  This is
-           equivalent to accessing /api/v1/repositories/REPOSITORY_ID with that
-           repository's numeric id.  When used, any other parameters are
-           ignored.
+        Retrieve a repository identified by its unique short-name.  This is
+        equivalent to accessing /api/v1/repositories/REPOSITORY_ID with that
+        repository's numeric id.  When used, any other parameters are
+        ignored.
 
-           filter : highlighted : -
+        filter : highlighted : -
 
-           If specified, retrieve only "highlighted" repositories.  These are
-           repositories that are deemed of particular interest for the signed-in
-           user.  (If no user is signed in, no repositories are highlighted.)"""
+        If specified, retrieve only "highlighted" repositories.  These are
+        repositories that are deemed of particular interest for the signed-in
+        user.  (If no user is signed in, no repositories are highlighted.)"""
 
         critic = parameters.critic
 
-        name_parameter = parameters.getQueryParameter("name")
+        name_parameter = parameters.query.get("name")
         if name_parameter:
             return await api.repository.fetch(critic, name=name_parameter)
-        filter_parameter = parameters.getQueryParameter("filter")
+        filter_parameter = parameters.query.get("filter")
         if filter_parameter is not None:
             if filter_parameter == "highlighted":
                 return await api.repository.fetchHighlighted(
                     critic, critic.effective_user
                 )
-            raise jsonapi.UsageError(
+            raise UsageError(
                 "Invalid repository filter parameter: %r" % filter_parameter
             )
         repositories = await api.repository.fetchAll(critic)
@@ -133,11 +143,11 @@ class Repositories(
 
     @staticmethod
     async def create(
-        parameters: jsonapi.Parameters, data: jsonapi.JSONInput
+        parameters: Parameters, data: JSONInput
     ) -> api.repository.Repository:
         critic = parameters.critic
 
-        converted = await jsonapi.convert(
+        converted = await convert(
             parameters,
             {
                 "name": str,
@@ -159,19 +169,26 @@ class Repositories(
         except api.repository.InvalidName:
             pass
         else:
-            raise jsonapi.UsageError(f"{name}: repository name already in use")
+            raise UsageError(f"{name}: repository name already in use")
 
         try:
             await api.repository.fetch(critic, path=path)
         except api.repository.InvalidRepositoryPath:
             pass
         else:
-            raise jsonapi.UsageError(f"{path}: repository path already in use")
+            raise UsageError(f"{path}: repository path already in use")
+
+        mirror_url: Optional[str]
+        mirror_branches: Optional[List[MirrorBranch]]
+        mirror_tags: Optional[bool]
 
         if converted.get("mirror"):
             mirror_url = converted["mirror"]["url"]
             mirror_branches = converted["mirror"].get("branches", [])
             mirror_tags = converted["mirror"].get("tags", False)
+
+            assert mirror_url is not None
+            assert mirror_branches is not None
 
             gitrepository = gitaccessor.GitRepositoryProxy.make()
             refs = ["HEAD"]
@@ -185,7 +202,7 @@ class Repositories(
                     mirror_url, *refs, include_symbolic_refs=True
                 )
             except gitaccess.GitProcessError:
-                raise jsonapi.UsageError(
+                raise UsageError(
                     f"{mirror_url}: repository URL invalid or not accessible"
                 )
 
@@ -193,17 +210,20 @@ class Repositories(
                 for mirror_branch in mirror_branches:
                     ref_name = "refs/heads/" + mirror_branch["remote_name"]
                     if ref_name not in remote_refs.refs:
-                        raise jsonapi.UsageError(
-                            f"refs/heads/{mirror_branch}: no such branch in "
-                            "remote repository"
+                        raise UsageError(
+                            f"{ref_name}: no such branch in remote repository"
                         )
             elif "HEAD" in remote_refs.symbolic_refs:
                 head_ref = remote_refs.symbolic_refs["HEAD"]
                 if head_ref.startswith("refs/heads/"):
-                    mirror_branches = [{"remote_name": head_ref[len("refs/heads/") :]}]
+                    mirror_branches.append(
+                        MirrorBranch(
+                            remote_name=head_ref[len("refs/heads/") :], local_name=None
+                        )
+                    )
 
             if not mirror_branches and not mirror_tags:
-                raise jsonapi.UsageError(
+                raise UsageError(
                     f"{mirror_url}: could not determine default branch to "
                     "mirror (empty repository?)"
                 )
@@ -211,41 +231,44 @@ class Repositories(
             mirror_url = mirror_branches = mirror_tags = None
 
         async with api.transaction.start(critic) as transaction:
-            modifier = transaction.createRepository(name, path)
+            modifier = await transaction.createRepository(name, path)
 
-            if mirror_branches:
-                for mirror_branch in mirror_branches:
-                    remote_name = mirror_branch["remote_name"]
-                    await modifier.trackBranch(
-                        mirror_url,
-                        remote_name,
-                        mirror_branch.get("local_name", remote_name),
-                    )
-            if mirror_tags:
-                modifier.trackTags(mirror_url)
+            if mirror_url:
+                if mirror_branches:
+                    for mirror_branch in mirror_branches:
+                        remote_name = mirror_branch["remote_name"]
+                        await modifier.trackBranch(
+                            mirror_url,
+                            remote_name,
+                            mirror_branch.get("local_name") or remote_name,
+                        )
+                if mirror_tags:
+                    await modifier.trackTags(mirror_url)
 
-        return await modifier
+            return modifier.subject
 
-    @staticmethod
+    @classmethod
     async def delete(
-        parameters: jsonapi.Parameters,
-        values: jsonapi.Values[api.repository.Repository],
+        cls,
+        parameters: Parameters,
+        values: Values[api.repository.Repository],
     ) -> None:
         critic = parameters.critic
 
         async with api.transaction.start(critic) as transaction:
             for repository in values:
-                await transaction.modifyRepository(repository).deleteRepository()
+                await transaction.modifyRepository(repository).delete()
 
-    @staticmethod
+    @classmethod
     async def deduce(
-        parameters: jsonapi.Parameters,
+        cls,
+        parameters: Parameters,
     ) -> Optional[api.repository.Repository]:
-        repository = parameters.context.get("repositories")
-        repository_parameter = parameters.getQueryParameter("repository")
+        repository = parameters.in_context(api.repository.Repository)
+        repository_parameter = parameters.query.get("repository")
         if repository_parameter is not None:
             if repository is not None:
-                raise jsonapi.UsageError(
+                raise UsageError(
                     "Redundant query parameter: repository=%s" % repository_parameter
                 )
             repository = await Repositories.fromParameterValue(
@@ -254,7 +277,7 @@ class Repositories(
         if repository is not None:
             return repository
 
-        review = await Reviews.deduce(parameters)
+        review = await parameters.deduce(api.review.Review)
         if review is not None:
             return await review.repository
 
@@ -262,20 +285,11 @@ class Repositories(
 
     @staticmethod
     async def fromParameterValue(
-        parameters: jsonapi.Parameters, value: str
+        parameters: Parameters, value: str
     ) -> api.repository.Repository:
-        repository_id, name = jsonapi.id_or_name(value)
+        repository_id, name = id_or_name(value)
         if repository_id is not None:
             return await api.repository.fetch(parameters.critic, repository_id)
         else:
             assert name is not None
             return await api.repository.fetch(parameters.critic, name=name)
-
-    @staticmethod
-    async def setAsContext(
-        parameters: jsonapi.Parameters, repository: api.repository.Repository
-    ) -> None:
-        parameters.setContext(Repositories.name, repository)
-
-
-from .reviews import Reviews

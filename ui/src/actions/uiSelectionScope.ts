@@ -15,7 +15,7 @@
  */
 
 import { onMouseDown } from "./uiMouse"
-import { Dispatch, GetState } from "../state"
+import { Dispatch, GetState, Thunk } from "../state"
 import {
   BoundingRect,
   SET_SELECTION_SCOPE,
@@ -34,7 +34,7 @@ const setSelectionScope = (
   elementType: SelectionElementType,
   elements: { [id: string]: HTMLElement },
   elementIDs: string[],
-  boundingRect: BoundingRect
+  boundingRect: BoundingRect,
 ): SetSelectionScopeAction => ({
   type: SET_SELECTION_SCOPE,
   scopeID,
@@ -45,7 +45,7 @@ const setSelectionScope = (
 })
 
 export const setSelectionRect = (
-  boundingRect: BoundingRect
+  boundingRect: BoundingRect,
 ): SetSelectionRectAction => ({
   type: SET_SELECTION_RECT,
   boundingRect,
@@ -57,7 +57,7 @@ export const setSelectedElements = (
   firstSelectedID: string | null,
   lastSelectedID: string | null,
   isPending: boolean = false,
-  isRangeSelecting: boolean = false
+  isRangeSelecting: boolean = false,
 ): SetSelectedElementsAction => ({
   type: SET_SELECTED_ELEMENTS,
   scopeID,
@@ -96,7 +96,7 @@ export const defineSelectionScope = ({
 
   if (elements.length && typeof elements[0] === "string")
     elements = (elements as string[]).map(
-      (id) => document.getElementById(id) as HTMLElement
+      (id) => document.getElementById(id) as HTMLElement,
     )
 
   if (!elements.length) return
@@ -137,8 +137,8 @@ export const defineSelectionScope = ({
         elementType,
         elementsByID,
         elementIDs,
-        boundingRect
-      )
+        boundingRect,
+      ),
     )
   }
 
@@ -149,7 +149,7 @@ export const defineSelectionScope = ({
 
 export const updateSelection = (x: number, y: number, isDown: boolean) => (
   dispatch: Dispatch,
-  getState: GetState
+  getState: GetState,
 ) => {
   const state = getState()
   const { downAbsoluteX, downAbsoluteY } = state.ui.mouse
@@ -220,8 +220,8 @@ export const updateSelection = (x: number, y: number, isDown: boolean) => (
         firstSelectedID,
         lastSelectedID,
         newIsPending,
-        newIsRangeSelecting
-      )
+        newIsRangeSelecting,
+      ),
     )
   }
 }
@@ -229,3 +229,11 @@ export const updateSelection = (x: number, y: number, isDown: boolean) => (
 export const resetSelectionScope = (): ResetSelectionScopeAction => ({
   type: RESET_SELECTION_SCOPE,
 })
+
+export const resetSelectionScopeIf = (scopeID: string): Thunk<void> => (
+  dispatch,
+  getState,
+) => () => {
+  if (getState().ui.selectionScope.scopeID === scopeID)
+    dispatch(resetSelectionScope())
+}

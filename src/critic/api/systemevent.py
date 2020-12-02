@@ -16,9 +16,10 @@
 
 from __future__ import annotations
 
-from typing import Any, Sequence, Iterable, Optional, overload
+from typing import Any, Awaitable, Callable, Sequence, Iterable, Optional, overload
 
 from critic import api
+from critic.api.apiobject import FunctionRef
 
 resource_name = "systemevents"
 
@@ -76,8 +77,8 @@ class SystemEvent(api.APIObject):
     def handled(self) -> bool:
         """True if the event has been handled
 
-           Note: Not all events are actually handled in any way. For those that
-           are not, this attribute is always False."""
+        Note: Not all events are actually handled in any way. For those that
+        are not, this attribute is always False."""
         return self._impl.handled
 
 
@@ -95,29 +96,25 @@ async def fetch(
 
 async def fetch(
     critic: api.critic.Critic,
-    event_id: int = None,
+    event_id: Optional[int] = None,
     *,
-    category: str = None,
-    key: str = None,
+    category: Optional[str] = None,
+    key: Optional[str] = None,
 ) -> SystemEvent:
     """Fetch a SystemEvent object with the given id
 
-       Alternatively, fetch the most recent event with the given category and
-       key."""
-    from .impl import systemevent as impl
-
+    Alternatively, fetch the most recent event with the given category and
+    key."""
     api.PermissionDenied.raiseUnlessSystem(critic)
-    return await impl.fetch(critic, event_id, category, key)
+    return await fetchImpl.get()(critic, event_id, category, key)
 
 
 async def fetchMany(
     critic: api.critic.Critic, event_ids: Iterable[int]
 ) -> Sequence[SystemEvent]:
     """Fetch many SystemEvent objects"""
-    from .impl import systemevent as impl
-
     api.PermissionDenied.raiseUnlessSystem(critic)
-    return await impl.fetchMany(critic, event_ids)
+    return await fetchManyImpl.get()(critic, list(event_ids))
 
 
 @overload
@@ -126,7 +123,7 @@ async def fetchAll(
     /,
     *,
     category: str,
-    key: str = None,
+    key: Optional[str] = None,
     pending: bool = False,
 ) -> Sequence[SystemEvent]:
     ...
@@ -134,7 +131,10 @@ async def fetchAll(
 
 @overload
 async def fetchAll(
-    critic: api.critic.Critic, /, *, pending: bool = False,
+    critic: api.critic.Critic,
+    /,
+    *,
+    pending: bool = False,
 ) -> Sequence[SystemEvent]:
     ...
 
@@ -142,20 +142,38 @@ async def fetchAll(
 async def fetchAll(
     critic: api.critic.Critic,
     *,
-    category: str = None,
-    key: str = None,
+    category: Optional[str] = None,
+    key: Optional[str] = None,
     pending: bool = False,
 ) -> Sequence[SystemEvent]:
     """Fetch SystemEvent objects for all system events
 
-       If |category| is not None, fetch only events whose category has the
-       specified value. If |key| is not None, fetch only events whose key has
-       the specified value. (Use of |key| is only valid together with
-       |category|.)"""
-    from .impl import systemevent as impl
-
+    If |category| is not None, fetch only events whose category has the
+    specified value. If |key| is not None, fetch only events whose key has
+    the specified value. (Use of |key| is only valid together with
+    |category|.)"""
     api.PermissionDenied.raiseUnlessSystem(critic)
-    return await impl.fetchAll(critic, category, key, pending)
+    return await fetchAllImpl.get()(critic, category, key, pending)
 
 
 resource_name = table_name = "systemevents"
+
+
+fetchImpl: FunctionRef[
+    Callable[
+        [api.critic.Critic, Optional[int], Optional[str], Optional[str]],
+        Awaitable[SystemEvent],
+    ]
+] = FunctionRef()
+fetchManyImpl: FunctionRef[
+    Callable[
+        [api.critic.Critic, Sequence[int]],
+        Awaitable[Sequence[SystemEvent]],
+    ]
+] = FunctionRef()
+fetchAllImpl: FunctionRef[
+    Callable[
+        [api.critic.Critic, Optional[str], Optional[str], bool],
+        Awaitable[Sequence[SystemEvent]],
+    ]
+] = FunctionRef()

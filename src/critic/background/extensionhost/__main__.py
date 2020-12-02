@@ -20,8 +20,7 @@ import multiprocessing
 import os
 import secrets
 import sys
-from collections import defaultdict
-from typing import Any, Awaitable, Callable, Dict, List, Optional, Set, Tuple
+from typing import Any, Awaitable, Dict, List, Literal, Tuple, cast
 
 logger = logging.getLogger("critic.background.extensionhost")
 
@@ -52,14 +51,15 @@ class ExtensionHostService(BackgroundService):
 
     __subscriptions: Dict[pubsub.ReservationId, pubsub.Subscription]
     __subscribers: Dict[pubsub.ChannelName, Dict[Tuple[int, int], pubsub.ReservationId]]
-    __processes: Dict[int, Tuple[asyncio.subprocess.Process, asyncio.Future]]
+    __processes: Dict[
+        int, Tuple[asyncio.subprocess.Process, "asyncio.Future[Literal[True]]"]
+    ]
 
     def __init__(self) -> None:
         super().__init__()
         self.__subscriptions = {}
         self.__subscribers = {}
         self.__processes = {}
-        self.__lock = asyncio.Lock()
 
     def will_start(self) -> bool:
         if not self.settings.extensions.enabled:
@@ -92,7 +92,7 @@ class ExtensionHostService(BackgroundService):
             pubsub.Payload(
                 CallRequest(
                     version_id,
-                    None,
+                    "system",
                     None,
                     SubscriptionRole(
                         SubscriptionMessage(request_id, channel_name, message.payload)
@@ -126,7 +126,7 @@ class ExtensionHostService(BackgroundService):
             )
             self.check_future(self.call_extension(version_id, channel_name, message))
 
-    async def pubsub_connected(self, client: pubsub.Client) -> None:
+    async def pubsub_connected(self, client: pubsub.Client, /) -> None:
         async def handle_message(
             channel_name: pubsub.ChannelName, message: pubsub.Message
         ) -> None:
@@ -192,6 +192,8 @@ class ExtensionHostService(BackgroundService):
                     )
             self.__subscribers[channel_name] = per_channel
 
+        logger.debug(f"{self.__subscribers=}")
+
         for channel_name in list(self.__subscribers.keys()):
             if channel_name not in subscriptions:
                 logger.debug("%s: unsubscribing from channel", channel_name)
@@ -220,7 +222,10 @@ class ExtensionHostService(BackgroundService):
             assert process.stdout
             async for msg in binarylog.read(process.stdout):
                 if isinstance(msg, dict) and "log" in msg:
-                    binarylog.emit(msg["log"], suffix=str(process.pid))
+                    binarylog.emit(
+                        cast(binarylog.BinaryLogRecord, msg["log"]),
+                        suffix=str(process.pid),
+                    )
 
         async def handle_stderr() -> None:
             assert process.stderr

@@ -14,6 +14,7 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
+import argparse
 import logging
 import os
 import signal
@@ -36,7 +37,7 @@ issues.
 """
 
 
-def setup(parser):
+def setup(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--timeout",
         type=int,
@@ -53,7 +54,7 @@ def setup(parser):
     )
 
 
-def main(critic, arguments):
+async def main(critic: api.critic.Critic, arguments: argparse.Namespace) -> int:
     from critic import background
 
     available_services = api.critic.settings().services.manager.services
@@ -72,7 +73,7 @@ def main(critic, arguments):
 
         pidfile_path = background.utils.service_pidfile(service_name)
 
-        def get_pid(has_signalled):
+        def get_pid(has_signalled: bool) -> int:
             if not os.path.isfile(pidfile_path):
                 if has_signalled:
                     logger.error("%s: service no longer running", service_name)
@@ -85,7 +86,7 @@ def main(critic, arguments):
 
             try:
                 os.kill(pid, 0)
-            except OSError as error:
+            except OSError:
                 if has_signalled:
                     logger.error("%s: process died: %d", service_name, pid)
                 else:
@@ -128,3 +129,5 @@ def main(critic, arguments):
             service_name,
             time.time() - signalled_at,
         )
+
+    return 0

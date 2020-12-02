@@ -17,17 +17,17 @@
 from __future__ import annotations
 
 import aiohttp
+import aiohttp.web
 import asyncio
 import json
 import logging
-from typing import Any, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union, cast
 
 logger = logging.getLogger(__name__)
 
 from critic import api
 from critic import pubsub
 from critic.base import asyncutils
-from critic.wsgi.request import AIOHTTPRequest
 
 CODE_PROTOCOL_ERROR = 1002
 CODE_INTERNAL_ERROR = 1012
@@ -37,23 +37,23 @@ class ProtocolError(Exception):
     pass
 
 
-def serialize(payload: object, promiscuous: bool) -> Optional[dict]:
+def serialize(payload: object, promiscuous: bool) -> Optional[Dict[str, Any]]:
     if isinstance(
         payload,
         (
-            api.transaction.CreatedAPIObject,
-            api.transaction.ModifiedAPIObject,
-            api.transaction.DeletedAPIObject,
+            api.transaction.protocol.CreatedAPIObject,
+            api.transaction.protocol.ModifiedAPIObject,
+            api.transaction.protocol.DeletedAPIObject,
         ),
     ):
         return payload.serialize()
     if promiscuous and isinstance(payload, dict):
-        return payload
+        return cast(Dict[str, Any], payload)
     return None
 
 
 async def handle_published(
-    req: AIOHTTPRequest,
+    ws: aiohttp.web.WebSocketResponse,
     channel_name: Union[pubsub.ChannelName, Tuple[pubsub.ChannelName, ...]],
     message: pubsub.Message,
     promiscuous: bool = False,
@@ -62,7 +62,7 @@ async def handle_published(
     payload = serialize(message.payload, promiscuous)
     if payload is None:
         logger.debug(" - not serialized; skipping")
-    await req.sendWebSocketMessage(
+    await ws.send_str(
         json.dumps(
             {"publish": {"channel": channel_name, "message": payload}}, skipkeys=True
         )
@@ -70,19 +70,21 @@ async def handle_published(
 
 
 async def handle_incoming(
-    req: AIOHTTPRequest, pubsub_client: pubsub.Client, message: aiohttp.WSMessage,
+    ws: aiohttp.web.WebSocketResponse,
+    pubsub_client: pubsub.Client,
+    message: aiohttp.WSMessage,
 ):
-    if message.type == aiohttp.WSMsgType.CLOSE:
+    if message.type == aiohttp.WSMsgType.CLOSE:  # type: ignore
         return
-    if message.type != aiohttp.WSMsgType.TEXT:
+    if message.type != aiohttp.WSMsgType.TEXT:  # type: ignore
         raise ProtocolError("Invalid message type")
 
     try:
-        parsed = json.loads(message.data)
+        parsed: Dict[str, Any] = json.loads(message.data)  # type: ignore
     except json.JSONDecodeError:
         raise ProtocolError("JSON parse error")
 
-    if not isinstance(parsed, dict):
+    if not isinstance(parsed, dict):  # type: ignore
         raise ProtocolError("Invalid input")
 
     def parse_channels(key: str) -> List[pubsub.ChannelName]:
@@ -90,9 +92,9 @@ async def handle_incoming(
         if isinstance(value, str):
             channels = [pubsub.ChannelName(value)]
         elif isinstance(value, list):
-            if not all(isinstance(item, str) for item in value):
+            if not all(isinstance(item, str) for item in cast(List[object], value)):
                 raise ProtocolError(f"Invalid input: {key}")
-            channels = [pubsub.ChannelName(name) for name in value]
+            channels = [pubsub.ChannelName(name) for name in cast(List[str], value)]
         else:
             raise ProtocolError(f"Invalid input: {key}")
         if not channels:
@@ -107,13 +109,13 @@ async def handle_incoming(
         async def handle(
             channel_name: pubsub.ChannelName, message: pubsub.Message
         ) -> None:
-            await handle_published(req, channel_name, message)
+            await handle_published(ws, channel_name, message)
 
         await asyncutils.gather(
             *(pubsub_client.subscribe(channel, handle) for channel in channels)
         )
 
-        await req.sendWebSocketMessage(json.dumps({"subscribed": channels}))
+        await ws.send_str(json.dumps({"subscribed": channels}))
 
     if "unsubscribe" in parsed:
         channels = parse_channels("unsubscribe")
@@ -122,38 +124,44 @@ async def handle_incoming(
             *(pubsub_client.unsubscribe(channel_name=channel) for channel in channels)
         )
 
-        await req.sendWebSocketMessage(json.dumps({"unsubscribed": channels}))
+        await ws.send_str(json.dumps({"unsubscribed": channels}))
 
     if parsed:
-        req.sendWebSocketMessage(
+        await ws.send_str(
             json.dumps(
                 {"warning": "Unsupported keys: " + ", ".join(sorted(parsed.keys()))}
             )
         )
 
 
-async def serve(req: AIOHTTPRequest) -> aiohttp.web.StreamResponse:
-    logger.debug("handling websocket connection: %s", req.method)
+async def serve(request: aiohttp.web.BaseRequest) -> aiohttp.web.StreamResponse:
+    logger.debug("handling websocket connection: %s", request.method)
 
-    if req.method != "GET":
+    if request.method != "GET":
         return aiohttp.web.Response(text="Invalid request method", status=400)
 
-    protocol = await req.startWebSocketResponse(protocols=("pubsub_1", "testing_1"))
+    ws = aiohttp.web.WebSocketResponse(protocols=("pubsub_1", "testing_1"))
+
+    ws_ready = ws.can_prepare(request)
+    if not ws_ready:
+        raise aiohttp.web.HTTPBadRequest()
+
+    protocol: Optional[str] = ws_ready.protocol  # type: ignore
 
     if protocol is None:
         return aiohttp.web.Response(text="Unsupported WebSocket protocol", status=400)
 
+    await ws.prepare(request)
+
     def handle_disconnect():
         asyncio.ensure_future(
-            req.closeWebSocketResponse(
-                code=CODE_INTERNAL_ERROR, message="PubSub service disconnected"
-            )
+            ws.close(code=CODE_INTERNAL_ERROR, message=b"PubSub service disconnected")
         )
 
     async def handle_promiscuous(
         channel_names: Tuple[pubsub.ChannelName, ...], message: pubsub.Message
     ) -> None:
-        await handle_published(req, channel_names, message, promiscuous=True)
+        await handle_published(ws, channel_names, message, promiscuous=True)
 
     async with pubsub.connect(
         "websocket", disconnected=handle_disconnect
@@ -184,19 +192,17 @@ async def serve(req: AIOHTTPRequest) -> aiohttp.web.StreamResponse:
         #     [receieve_messages(), heartbeat()], return_when=asyncio.FIRST_COMPLETED
         # )
 
-        while not req.response.closed:
-            message = await req.response.receive()
+        while not ws.closed:
+            message = await ws.receive()
 
             logger.debug("incoming: %r", message)
 
             try:
-                await handle_incoming(req, pubsub_client, message)
+                await handle_incoming(ws, pubsub_client, message)
             except ProtocolError as error:
-                await req.closeWebSocketResponse(
-                    code=CODE_PROTOCOL_ERROR, message=str(error)
-                )
+                await ws.close(code=CODE_PROTOCOL_ERROR, message=str(error).encode())
                 break
 
     logger.debug("WebSocket connection finished")
 
-    return req.response
+    return ws

@@ -15,25 +15,38 @@
  */
 
 import {
+  ResourceError,
   fetch,
   fetchOne,
+  createResources,
   createResource,
+  updateResources,
   updateResource,
   deleteResource,
+} from "./fetch"
+import {
   withArgument,
   withArguments,
   withParameters,
   withContext,
   include,
+  includeFields,
   excludeFields,
   expectStatuses,
-} from "./fetch"
+  handleError,
+} from "./requestoptions"
+import { RequestOptions as _RequestOptions } from "./types"
 import definitions from "./definitions"
 
+export type RequestOptions = _RequestOptions
+
 export {
+  ResourceError,
   fetch,
   fetchOne,
+  createResources,
   createResource,
+  updateResources,
   updateResource,
   deleteResource,
   withArgument,
@@ -41,8 +54,10 @@ export {
   withParameters,
   withContext,
   include,
+  includeFields,
   excludeFields,
   expectStatuses,
+  handleError,
 }
 
 const resource = {

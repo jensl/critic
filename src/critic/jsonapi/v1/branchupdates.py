@@ -19,11 +19,16 @@ from __future__ import annotations
 from typing import Sequence, Awaitable, Collection
 
 from critic import api
-from critic import jsonapi
+from ..exceptions import PathError
+from ..resourceclass import ResourceClass
+from ..parameters import Parameters
+from ..types import JSONResult
+from ..utils import numeric_id
+from .timestamp import timestamp
 
 
 class BranchUpdates(
-    jsonapi.ResourceClass[api.branchupdate.BranchUpdate], api_module=api.branchupdate
+    ResourceClass[api.branchupdate.BranchUpdate], api_module=api.branchupdate
 ):
     """Branch updates in the Git repositories."""
 
@@ -31,21 +36,21 @@ class BranchUpdates(
 
     @staticmethod
     async def json(
-        parameters: jsonapi.Parameters, value: api.branchupdate.BranchUpdate
-    ) -> jsonapi.JSONResult:
+        parameters: Parameters, value: api.branchupdate.BranchUpdate
+    ) -> JSONResult:
         """BranchUpdate {
-             "id": integer, // the branch update's id
-             "branch": integer, // the updated branch's id
-             "updater": integer, // the id of the user that caused the update
-             "from_head": integer, // the id of the branch's head before the
-                                   // update
-             "to_head": integer, // the id of the branch's head after the update
-             "associated": [integer], // the id of each newly associated commit
-             "disassociated": [integer], // the id of each newly disassociated
-                                         // commit
-             "timestamp": float,
-             "output": string, // Git hook output
-           }"""
+          "id": integer, // the branch update's id
+          "branch": integer, // the updated branch's id
+          "updater": integer, // the id of the user that caused the update
+          "from_head": integer, // the id of the branch's head before the
+                                // update
+          "to_head": integer, // the id of the branch's head after the update
+          "associated": [integer], // the id of each newly associated commit
+          "disassociated": [integer], // the id of each newly disassociated
+                                      // commit
+          "timestamp": float,
+          "output": string, // Git hook output
+        }"""
 
         async def topo_ordered(
             commitset: Awaitable[api.commitset.CommitSet],
@@ -60,43 +65,43 @@ class BranchUpdates(
             "to_head": await value.to_head,
             "associated": topo_ordered(value.associated_commits),
             "disassociated": topo_ordered(value.disassociated_commits),
-            "timestamp": jsonapi.v1.timestamp(value.timestamp),
+            "timestamp": timestamp(value.timestamp),
             "output": value.output,
         }
 
-    @staticmethod
+    @classmethod
     async def single(
-        parameters: jsonapi.Parameters, argument: str
+        cls, parameters: Parameters, argument: str
     ) -> api.branchupdate.BranchUpdate:
         """Retrieve one (or more) branch updates.
 
-           BRANCHUPDATE_ID : integer
+        BRANCHUPDATE_ID : integer
 
-           Retrieve a branch update identified by its unique numeric id."""
+        Retrieve a branch update identified by its unique numeric id."""
 
         branchupdate = await api.branchupdate.fetch(
-            parameters.critic, jsonapi.numeric_id(argument)
+            parameters.critic, numeric_id(argument)
         )
-        branch = await Branches.deduce(parameters)
+        branch = await parameters.deduce(api.branch.Branch)
 
         if branch and branch != branchupdate.branch:
-            raise jsonapi.PathError("Branch update is not of the specified branch")
+            raise PathError("Branch update is not of the specified branch")
 
         return branchupdate
 
     @staticmethod
     async def multiple(
-        parameters: jsonapi.Parameters,
+        parameters: Parameters,
     ) -> Sequence[api.branchupdate.BranchUpdate]:
         """Retrieve all updates of a particular branch.
 
-           branch : BRANCH_ID : integer
+        branch : BRANCH_ID : integer
 
-           The branch whose updates to retrieve, identified by the branch's
-           unique numeric id."""
+        The branch whose updates to retrieve, identified by the branch's
+        unique numeric id."""
 
-        branch = await Branches.deduce(parameters)
-        updater = await Users.deduce(parameters)
+        branch = await parameters.deduce(api.branch.Branch)
+        updater = await parameters.deduce(api.user.User)
 
         return await api.branchupdate.fetchAll(
             parameters.critic, branch=branch, updater=updater
@@ -104,11 +109,9 @@ class BranchUpdates(
 
     @staticmethod
     async def fromParameterValue(
-        parameters: jsonapi.Parameters, value: str
+        parameters: Parameters, value: str
     ) -> api.branchupdate.BranchUpdate:
-        return await api.branchupdate.fetch(
-            parameters.critic, jsonapi.numeric_id(value)
-        )
+        return await api.branchupdate.fetch(parameters.critic, numeric_id(value))
 
 
 from .branches import Branches

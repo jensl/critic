@@ -15,6 +15,8 @@
  */
 
 import { combineReducers } from "redux"
+import { immerable } from "immer"
+
 import { primaryMap, lookupMap } from "../reducers/resource"
 
 type TrackedBranchData = {
@@ -36,13 +38,15 @@ type TrackedBranchProps = {
 }
 
 class TrackedBranch {
+  [immerable] = true
+
   constructor(
     readonly id: number,
     readonly isDisabled: boolean,
     readonly repository: number,
     readonly name: string,
     readonly branch: number | null,
-    readonly source: Source
+    readonly source: Source,
   ) {}
 
   static new(props: TrackedBranchProps) {
@@ -52,7 +56,7 @@ class TrackedBranch {
       props.repository,
       props.name,
       props.branch,
-      props.source
+      props.source,
     )
   }
 
@@ -67,11 +71,11 @@ class TrackedBranch {
     byID: primaryMap<TrackedBranch, number>("trackedbranches"),
     byName: lookupMap<TrackedBranch, string, number>(
       "trackedbranches",
-      (branch) => `${branch.repository}:${branch.name}`
+      (branch) => `${branch.repository}:${branch.name}`,
     ),
     byBranch: lookupMap<TrackedBranch, number, number>(
       "trackedbranches",
-      (branch) => branch.branch
+      (branch) => branch.branch,
     ),
   })
 
@@ -88,6 +92,8 @@ type SourceData = {
 type SourceProps = SourceData
 
 class Source {
+  [immerable] = true
+
   constructor(readonly url: string, readonly name: string) {}
 
   static new(props: SourceProps) {

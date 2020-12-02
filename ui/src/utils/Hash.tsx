@@ -33,7 +33,7 @@ export const parseHash = (hash: string) => {
         const [, name, value = true] = match
         result.set(
           name,
-          typeof value === "string" ? maybeParseInt(value) : value
+          typeof value === "string" ? maybeParseInt(value) : value,
         )
       }
     }
@@ -43,7 +43,7 @@ export const parseHash = (hash: string) => {
 export const updateHash = (
   hash: ParsedHash,
   history: History,
-  updates: HashUpdates
+  updates: HashUpdates,
 ) => {
   const components = hash
     .toKeyedSeq()
@@ -67,11 +67,13 @@ export const updateHash = (
   history.replace(history.location.pathname + (newHash ? "#" + newHash : ""))
 }
 
+export type UpdateHash = (updates: HashUpdates) => void
+
 type Props = {
   location: ReturnType<typeof useLocation> | null
   history: ReturnType<typeof useHistory> | null
   hash: ParsedHash
-  updateHash: (updates: HashUpdates) => void
+  updateHash: UpdateHash
 }
 
 class HashContextValue extends Immutable.Record<Props>(
@@ -81,7 +83,7 @@ class HashContextValue extends Immutable.Record<Props>(
     hash: Immutable.Map(),
     updateHash: () => null,
   },
-  "HashContextValue"
+  "HashContextValue",
 ) {}
 
 const HashContext = React.createContext(new HashContextValue())
@@ -94,7 +96,6 @@ export const ProvideHashContext: React.FunctionComponent = ({ children }) => {
   const makeHashContextValue = () => {
     if (currentValue.location === location) return currentValue
     const hash = parseHash(location.hash)
-    console.log({ hash, location })
     return new HashContextValue({
       location,
       history,
@@ -112,8 +113,9 @@ export const ProvideHashContext: React.FunctionComponent = ({ children }) => {
 
 export const useHash = () => {
   const value = useContext(HashContext)
-  console.log({ value })
   return { hash: value.hash, updateHash: value.updateHash }
 }
 
-export default { parse: parseHash, update: updateHash }
+const hash = { parse: parseHash, update: updateHash }
+
+export default hash

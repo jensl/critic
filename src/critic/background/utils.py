@@ -17,12 +17,13 @@
 from __future__ import annotations
 
 import asyncio
+import contextvars
 import json
 import logging
 import os
 import signal
 import stat
-from typing import Any, Callable, Coroutine, Optional
+from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -38,13 +39,16 @@ class TimeoutError(Exception):
     pass
 
 
-_running_service_name: Optional[str] = None
+running_service_name = contextvars.ContextVar[Optional[str]]("running_service_name")
 
 
-def is_background_service(service_name: str = None) -> bool:
-    if service_name is None:
-        return _running_service_name is not None
-    return service_name == _running_service_name
+def is_background_service(service_name: Optional[str] = None) -> bool:
+    try:
+        if service_name is None:
+            return running_service_name.get() is not None
+        return service_name == running_service_name.get()
+    except LookupError:
+        return False
 
 
 def is_services() -> bool:
@@ -78,7 +82,10 @@ def ensure_service(service_name: str) -> str:
 
 
 async def issue_command(
-    critic: api.critic.Critic, service_name: str, command: Any, timeout: float = None
+    critic: api.critic.Critic,
+    service_name: str,
+    command: Any,
+    timeout: Optional[float] = None,
 ) -> Any:
     async def communicate() -> Any:
         reader, writer = await asyncio.open_unix_connection(
@@ -117,7 +124,7 @@ async def wakeup(service_name: str, timeout: float = 3) -> bool:
 
         async def read_response() -> bool:
             async for response in channel:
-                if not isinstance(response, Response):
+                if not isinstance(response, Response):  # type: ignore
                     logger.warning(
                         "Unexpected response from gateway service: %r", response
                     )

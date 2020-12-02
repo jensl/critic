@@ -17,7 +17,8 @@
 from __future__ import annotations
 
 import asyncio
-import concurrent
+import concurrent.futures
+import contextlib
 import datetime
 import functools
 import logging
@@ -36,6 +37,7 @@ from typing import (
     BinaryIO,
     ClassVar,
     List,
+    Literal,
     Optional,
     Protocol,
     Set,
@@ -48,39 +50,38 @@ from typing import (
 logger = logging.getLogger(__name__)
 
 from critic import api
-from critic.base import asyncutils
 from critic import background
 from critic import base
 from critic import dbaccess
 from critic import pubsub
 
 
-class AdministratorMailHandler(logging.Handler):
-    def __init__(self, logfile_path: str):
-        super(AdministratorMailHandler, self).__init__()
-        self.logfile_name = os.path.basename(logfile_path)
-        self.is_sending_mail = False
+# class AdministratorMailHandler(logging.Handler):
+#     def __init__(self, logfile_path: str):
+#         super(AdministratorMailHandler, self).__init__()
+#         self.logfile_name = os.path.basename(logfile_path)
+#         self.is_sending_mail = False
 
-    def emit(self, record: Any) -> None:
-        from critic import mailutils
+#     def emit(self, record: Any) -> None:
+#         from critic import mailutils
 
-        if self.is_sending_mail:
-            return
-        self.is_sending_mail = True
-        try:
-            assert self.formatter
-            message = self.formatter.format(record)
-            mailutils.sendAdministratorErrorReport(
-                None, self.logfile_name, message.splitlines()[0], message
-            )
-        finally:
-            self.is_sending_mail = False
+#         if self.is_sending_mail:
+#             return
+#         self.is_sending_mail = True
+#         try:
+#             assert self.formatter
+#             message = self.formatter.format(record)
+#             mailutils.sendAdministratorErrorReport(
+#                 None, self.logfile_name, message.splitlines()[0], message
+#             )
+#         finally:
+#             self.is_sending_mail = False
 
 
 class LogToStream(logging.handlers.QueueHandler):
     def __init__(self, stream: BinaryIO):
-        queue: Queue[logging.LogRecord]
-        super().__init__(queue := Queue())
+        queue: Queue[logging.LogRecord] = Queue()
+        super().__init__(queue)
         threading.Thread(target=self.write, args=(stream, queue), daemon=True).start()
 
     def write(self, stream: BinaryIO, queue: Queue[logging.LogRecord]) -> None:
@@ -135,8 +136,8 @@ class MaintenanceWork:
             return False
         return True
 
-    async def run(self) -> asyncio.Future:
-        def on_done(task: asyncio.Future) -> None:
+    async def run(self) -> "asyncio.Future[None]":
+        def on_done(task: "asyncio.Future[None]") -> None:
             try:
                 task.result()
             except Exception:
@@ -203,18 +204,23 @@ class BackgroundServiceCallbacks:
 class BackgroundService(BackgroundServiceCallbacks):
     name: ClassVar[str]
 
+    settings: Any
+    service_settings: Any
+
     send_administrator_mails = True
     manage_pidfile = True
     default_max_workers = 1
-    log_mode = None
-    log_level = None
+    log_mode: Optional[Literal["stderr", "binary"]] = None
+    log_level: Optional[
+        Literal["debug", "info", "warn", "error", "critical", "fatal"]
+    ] = None
     want_pubsub = False
 
     inet_server: Optional[asyncio.AbstractServer]
     unix_server: Optional[asyncio.AbstractServer]
 
-    running_workers: Set[asyncio.Future]
-    pending_workers: Set[asyncio.Future]
+    running_workers: Set["asyncio.Future[Any]"]
+    pending_workers: Set["asyncio.Future[Any]"]
     maintenance_tasks: List[MaintenanceWork]
 
     __wake_up_task: Optional["asyncio.Future[Optional[float]]"]
@@ -254,8 +260,8 @@ class BackgroundService(BackgroundServiceCallbacks):
     def socket_path(cls) -> Optional[str]:
         return background.utils.service_address(cls.name)
 
-    @staticmethod
-    def socket_address() -> Optional[Tuple[str, int]]:
+    @classmethod
+    def socket_address(cls) -> Optional[Tuple[str, int]]:
         return None
 
     @classmethod
@@ -271,9 +277,20 @@ class BackgroundService(BackgroundServiceCallbacks):
     def configure_logging(cls) -> None:
         for arg in sys.argv[1:]:
             if arg.startswith("--log-mode="):
-                cls.log_mode = arg[len("--log-mode=") :]
+                log_mode_arg = arg[len("--log-mode=") :]
+                assert log_mode_arg in ("stderr", "binary")
+                cls.log_mode = log_mode_arg  # type: ignore
             if arg.startswith("--log-level="):
-                cls.log_level = arg[len("--log-level=") :]
+                log_level_arg = arg[len("--log-level=") :]
+                assert log_level_arg in (
+                    "debug",
+                    "info",
+                    "warn",
+                    "error",
+                    "critical",
+                    "fatal",
+                )
+                cls.log_level = arg[len("--log-level=") :]  # type: ignore
 
         if cls.log_mode == "stderr":
             formatter = logging.Formatter(
@@ -298,20 +315,20 @@ class BackgroundService(BackgroundServiceCallbacks):
         root_logger.setLevel(cls.loglevel())
         root_logger.addHandler(handler)
 
-        if cls.send_administrator_mails:
-            mail_handler = AdministratorMailHandler(cls.logfile_path())
-            mail_handler.setFormatter(formatter)
-            mail_handler.setLevel(logging.WARNING)
-            root_logger.addHandler(mail_handler)
+        # if cls.send_administrator_mails:
+        #     mail_handler = AdministratorMailHandler(cls.logfile_path())
+        #     mail_handler.setFormatter(formatter)
+        #     mail_handler.setLevel(logging.WARNING)
+        #     root_logger.addHandler(mail_handler)
 
         if cls.log_mode == "binary":
             root_logger.addHandler(LogToStream(sys.stdout.buffer))
 
         logging.getLogger("asyncio").setLevel(logging.ERROR)
 
-    @asyncutils.contextmanager
+    @contextlib.asynccontextmanager
     async def start_session(self) -> AsyncIterator[api.critic.Critic]:
-        async with api.critic.startSession(for_system=True, loop=self.loop) as critic:
+        async with api.critic.startSession(for_system=True) as critic:
             self.settings = api.critic.settings()
             self.service_settings = getattr(self.settings.services, self.name, None)
             yield critic
@@ -346,7 +363,7 @@ class BackgroundService(BackgroundServiceCallbacks):
         pass
 
     async def __wait_for_idle(
-        self, run_maintenance: bool, *, timeout: float = None
+        self, run_maintenance: bool, *, timeout: Optional[float] = None
     ) -> bool:
         busy_filename = self.pidfile_path() + ".busy"
         assert os.path.isfile(busy_filename)
@@ -564,7 +581,7 @@ class BackgroundService(BackgroundServiceCallbacks):
                 await asyncio.sleep(1)
 
     @property
-    async def pubsub_client(self) -> background.pubsub.Client:
+    async def pubsub_client(self) -> pubsub.Client:
         if not self.want_pubsub:
             raise Exception("Pub/Sub connection not requested!")
         if await self.__pubsub_connected.wait():
@@ -601,7 +618,9 @@ class BackgroundService(BackgroundServiceCallbacks):
 def call(service_class: Type[BackgroundService]) -> None:
     from . import utils
 
-    utils._running_service_name = service_class.name
+    from critic import bootstrap as _
+
+    utils.running_service_name.set(service_class.name)
 
     async def run() -> None:
         async with api.critic.startSession(for_system=True):

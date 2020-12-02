@@ -17,15 +17,16 @@
 import collections
 import difflib
 import re
+from typing import List, Optional, Sequence
 
 from critic import textutils
 
 
-def normalize_line(line):
+def normalize_line(line: str) -> str:
     """Normalize leading and trailing white-space in line
 
-       Leading white-space is normalized to a single space (if there was
-       any) and trailing white-space is stripped."""
+    Leading white-space is normalized to a single space (if there was
+    any) and trailing white-space is stripped."""
 
     rstripped = line.rstrip()
     stripped = rstripped.lstrip()
@@ -34,13 +35,13 @@ def normalize_line(line):
     return rstripped
 
 
-class Lines(list):
-    def __init__(self, lines):
+class Lines(List[str]):
+    def __init__(self, lines: Sequence[str]):
         super(Lines, self).__init__(lines)
         self.normalized = [normalize_line(line) for line in lines]
         self.counted = collections.Counter(self.normalized)
 
-    def count(self, index):
+    def count_duplicates(self, index: int) -> int:
         line = self.normalized[index]
         return self.counted[line]
 
@@ -51,7 +52,9 @@ re_ws = re.compile("\\s+")
 re_conflict = re.compile("^<<<<<<< .*$|^=======$|^>>>>>>> .*$")
 
 
-def analyzeChunk(deletedLines, insertedLines, moved=False):
+def analyzeChunk(
+    deletedLines: Sequence[str], insertedLines: Sequence[str], moved: bool = False
+) -> Optional[str]:
     # Pure delete or pure insert, nothing to analyze.
     if not deletedLines or not insertedLines:
         return None
@@ -69,7 +72,7 @@ def analyzeChunk(deletedLines, insertedLines, moved=False):
         sm = difflib.SequenceMatcher(None, deletedLinesNoWS, insertedLinesNoWS)
         blocks = sm.get_matching_blocks()
 
-        analysis = []
+        edits: List[str] = []
 
         pi = 0
         pj = 0
@@ -79,13 +82,13 @@ def analyzeChunk(deletedLines, insertedLines, moved=False):
                 continue
 
             if i > pi and j > pj:
-                analysis.append(
+                edits.append(
                     analyzeChunk1(
                         deletedLines[pi:i], insertedLines[pj:j], offsetA=pi, offsetB=pj
                     )
                 )
 
-            analysis.append(
+            edits.append(
                 analyzeWhiteSpaceChanges(
                     deletedLines[i : i + n],
                     insertedLines[j : j + n],
@@ -99,13 +102,13 @@ def analyzeChunk(deletedLines, insertedLines, moved=False):
             pj = j + n
 
         if pi < len(deletedLines) and pj < len(insertedLines):
-            analysis.append(
+            edits.append(
                 analyzeChunk1(
                     deletedLines[pi:], insertedLines[pj:], offsetA=pi, offsetB=pj
                 )
             )
 
-        analysis = ";".join(filter(None, analysis))
+        analysis = ";".join(filter(None, edits))
 
     if analysis:
         return analysis
@@ -113,16 +116,27 @@ def analyzeChunk(deletedLines, insertedLines, moved=False):
         return ""
 
 
-def analyzeChunk1(deletedLines, insertedLines, offsetA=0, offsetB=0):
+def analyzeChunk1(
+    deletedLines: Sequence[str],
+    insertedLines: Sequence[str],
+    offsetA: int = 0,
+    offsetB: int = 0,
+) -> str:
     matches = []
     equals = []
 
     if len(deletedLines) * len(insertedLines) > 10000:
         return ""
 
-    def ratio(sm, a, b, aLength, bLength):
+    def ratio(
+        sm: difflib.SequenceMatcher[str],
+        a: Sequence[str],
+        b: Sequence[str],
+        aLength: int,
+        bLength: int,
+    ) -> float:
         matching = 0
-        for i, j, n in sm.get_matching_blocks():
+        for i, _, n in sm.get_matching_blocks():
             matching += sum(map(len, map(str.strip, a[i : i + n])))
         if aLength > 5 and len(sm.get_matching_blocks()) == 2:
             return float(matching) / aLength
@@ -138,14 +152,14 @@ def analyzeChunk1(deletedLines, insertedLines, offsetA=0, offsetB=0):
             continue
 
         if not re_ignore.match(deleted):
-            deletedWords = re_words.findall(deleted)
+            deletedWords: Sequence[str] = re_words.findall(deleted)
 
             for insertedIndex, inserted in enumerate(insertedLines):
                 insertedStripped = inserted.strip()
                 insertedNoWS = re_ws.sub("", insertedStripped)
 
                 if not re_ignore.match(inserted):
-                    insertedWords = re_words.findall(inserted)
+                    insertedWords: Sequence[str] = re_words.findall(inserted)
                     sm = difflib.SequenceMatcher(None, deletedWords, insertedWords)
                     r = ratio(
                         sm,
@@ -313,14 +327,14 @@ def analyzeChunk1(deletedLines, insertedLines, offsetA=0, offsetB=0):
         return ""
 
 
-def offsetInLine(words, offset):
-    return sum([len(word.encode()) for word in words[0:offset]])
+def offsetInLine(words: Sequence[str], offset: int) -> int:
+    return sum([len(word) for word in words[0:offset]])
 
 
 re_ws_words = re.compile("( |\t|\\s+|\\S+)")
 
 
-def analyzeWhiteSpaceLine(deletedLine, insertedLine):
+def analyzeWhiteSpaceLine(deletedLine: str, insertedLine: str) -> str:
     deletedLine = textutils.decode(deletedLine)
     insertedLine = textutils.decode(insertedLine)
 
@@ -356,8 +370,13 @@ def analyzeWhiteSpaceLine(deletedLine, insertedLine):
 
 
 def analyzeWhiteSpaceChanges(
-    deletedLines, insertedLines, at_eof=False, offsetA=0, offsetB=0, full=False
-):
+    deletedLines: Sequence[str],
+    insertedLines: Sequence[str],
+    at_eof: bool = False,
+    offsetA: int = 0,
+    offsetB: int = 0,
+    full: bool = False,
+) -> str:
     result = []
 
     for index, (deletedLine, insertedLine) in enumerate(

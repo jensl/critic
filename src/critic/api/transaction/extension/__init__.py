@@ -13,22 +13,3 @@
 # WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.  See the
 # License for the specific language governing permissions and limitations under
 # the License.
-
-from __future__ import annotations
-
-import logging
-
-logger = logging.getLogger(__name__)
-
-from .. import LazyAPIObject
-from critic import api
-
-
-class CreatedExtension(LazyAPIObject, api_module=api.extension):
-    pass
-
-
-from .create import create_extension
-from .modify import ModifyExtension
-
-__all__ = ["create_extension", "ModifyExtension"]

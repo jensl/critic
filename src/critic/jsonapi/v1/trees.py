@@ -18,24 +18,25 @@ from __future__ import annotations
 
 import logging
 import re
-from typing import Sequence, Optional, Union
+from typing import Sequence, Union
 
 logger = logging.getLogger(__name__)
 
 from critic import api
 from critic import gitaccess
-from critic import jsonapi
+from ..exceptions import UsageError
+from ..resourceclass import ResourceClass
+from ..parameters import Parameters
+from ..types import JSONResult
 
 
-class Trees(jsonapi.ResourceClass[api.tree.Tree], api_module=api.tree):
+class Trees(ResourceClass[api.tree.Tree], api_module=api.tree):
     """Tree objects in Git repositories"""
 
     contexts = (None, "repositories", "commits")
 
     @staticmethod
-    async def json(
-        parameters: jsonapi.Parameters, value: api.tree.Tree
-    ) -> jsonapi.JSONResult:
+    async def json(parameters: Parameters, value: api.tree.Tree) -> JSONResult:
         json_entries = [
             {
                 "mode": entry.mode,
@@ -56,20 +57,18 @@ class Trees(jsonapi.ResourceClass[api.tree.Tree], api_module=api.tree):
 
     @staticmethod
     async def multiple(
-        parameters: jsonapi.Parameters,
+        parameters: Parameters,
     ) -> Union[api.tree.Tree, Sequence[api.tree.Tree]]:
-        sha1_parameter = parameters.getQueryParameter(
-            "sha1", converter=gitaccess.as_sha1
-        )
-        path_parameter = parameters.getQueryParameter("path")
+        sha1_parameter = parameters.query.get("sha1", converter=gitaccess.as_sha1)
+        path_parameter = parameters.query.get("path")
 
         if sha1_parameter is not None and path_parameter is not None:
-            raise jsonapi.UsageError("Conflicting parameters: 'sha1' and 'path'")
+            raise UsageError("Conflicting parameters: 'sha1' and 'path'")
 
         if sha1_parameter is not None:
-            repository = await Repositories.deduce(parameters)
+            repository = await parameters.deduce(api.repository.Repository)
             if not repository:
-                raise jsonapi.UsageError("Missing parameter: 'repository'")
+                raise UsageError("Missing parameter: 'repository'")
             if re.match("[0-9A-Fa-f]{40}$", sha1_parameter):
                 sha1 = sha1_parameter
             else:
@@ -77,15 +76,9 @@ class Trees(jsonapi.ResourceClass[api.tree.Tree], api_module=api.tree):
             return await api.tree.fetch(repository=repository, sha1=sha1)
 
         if path_parameter is not None:
-            commit = await Commits.deduce(parameters)
+            commit = await parameters.deduce(api.commit.Commit)
             if not commit:
-                raise jsonapi.UsageError("Missing parameter: 'commit'")
+                raise UsageError("Missing parameter: 'commit'")
             return await api.tree.fetch(commit=commit, path=path_parameter)
 
-        raise jsonapi.UsageError(
-            "Missing parameter: one of 'sha1' or 'path' must be specified"
-        )
-
-
-from .commits import Commits
-from .repositories import Repositories
+        raise UsageError("Missing parameter: one of 'sha1' or 'path' must be specified")

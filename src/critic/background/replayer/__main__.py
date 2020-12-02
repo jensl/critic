@@ -90,8 +90,7 @@ class Replayer(background.service.BackgroundService):
             ]
 
             if finished_merge_replays or finished_rebase_replays:
-                async with critic.transaction(
-                ) as cursor:
+                async with critic.transaction() as cursor:
                     if finished_merge_replays:
                         await cursor.executemany(
                             """UPDATE mergereplayrequests
@@ -173,7 +172,7 @@ class Replayer(background.service.BackgroundService):
 
         try:
             async with self.start_session() as critic:
-                rebase = await api.log.rebase.fetch(critic, rebase_id)
+                rebase = await api.rebase.fetch(critic, rebase_id)
                 review = await rebase.review
                 branchupdate = await api.branchupdate.fetch(critic, branchupdate_id)
                 new_upstream = await api.commit.fetch(

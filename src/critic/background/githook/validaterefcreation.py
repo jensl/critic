@@ -30,7 +30,7 @@ async def validate_ref_creation(
     repository: api.repository.Repository,
     ref_name: str,
     *,
-    ignore_conflict: str = None,
+    ignore_conflict: Optional[str] = None,
 ) -> Optional[ValidateError]:
     critic = repository.critic
 

@@ -1,19 +1,22 @@
 from __future__ import annotations
 
+import aiohttp.web
+import json
 import logging
-from typing import Optional, Any
+from typing import Optional, Any, Dict, Type
 
 logger = logging.getLogger(__name__)
 
 from critic import api
+from .types import JSONInput
 
 
 class Error(Exception):
-    http_status: int
+    http_exception_type: Type[aiohttp.web.HTTPException]
     title: str
     code: Optional[str] = None
 
-    def as_json(self) -> dict:
+    def as_json(self) -> Dict[str, Any]:
         return {
             "error": {
                 "title": self.title,
@@ -22,24 +25,36 @@ class Error(Exception):
             }
         }
 
+    @property
+    def http_exception(self) -> Exception:
+        raise self.http_exception_type(
+            content_type="application/json", text=json.dumps(self.as_json())
+        )
+
 
 class PathError(Error):
     """Raised for valid paths that don't match a resource
 
-       Results in a 404 "Not Found" response.
+    Results in a 404 "Not Found" response.
 
-       Note: A "valid" path is one that could have returned a resource, had the
-             system's dynamic state (database + repositories) been different."""
+    Note: A "valid" path is one that could have returned a resource, had the
+          system's dynamic state (database + repositories) been different."""
 
-    http_status = 404
+    http_exception_type = aiohttp.web.HTTPNotFound
     title = "No such resource"
 
-    def __init__(self, message: str, *, code: str = None, error: BaseException = None):
+    def __init__(
+        self,
+        message: str,
+        *,
+        code: Optional[str] = None,
+        error: Optional[BaseException] = None,
+    ):
         super().__init__(message)
         self.code = code
         self.error = error
 
-    def as_json(self) -> dict:
+    def as_json(self) -> Dict[str, Any]:
         result = super().as_json()
         if isinstance(self.error, api.InvalidIdError):
             result["invalid"] = {
@@ -51,16 +66,22 @@ class PathError(Error):
 class UsageError(Error):
     """Raised for invalid paths and/or query parameters
 
-       Results in a 400 "Bad Request" response.
+    Results in a 400 "Bad Request" response.
 
-       Note: An "invalid" path is one that could never (in this version of
-             Critic) return any other response, regardless of the system's
-             dynamic state (database + repositories.)"""
+    Note: An "invalid" path is one that could never (in this version of
+          Critic) return any other response, regardless of the system's
+          dynamic state (database + repositories.)"""
 
-    http_status = 400
+    http_exception_type = aiohttp.web.HTTPBadRequest
     title = "Invalid API request"
 
-    def __init__(self, message: str, *, code: str = None, error: BaseException = None):
+    def __init__(
+        self,
+        message: str,
+        *,
+        code: Optional[str] = None,
+        error: Optional[BaseException] = None,
+    ):
         if code is not None:
             self.code = code
         elif isinstance(error, api.APIError) and hasattr(error, "code"):
@@ -72,7 +93,11 @@ class UsageError(Error):
 
     @staticmethod
     def invalidParameter(
-        name: str, value: Any = None, *, expected: str = None, message: str = None
+        name: str,
+        value: Optional[Any] = None,
+        *,
+        expected: Optional[str] = None,
+        message: Optional[str] = None,
     ) -> UsageError:
         text = f"Invalid {name} parameter"
         if value is not None:
@@ -88,7 +113,7 @@ class UsageError(Error):
         return UsageError(f"Missing parameter: '{name}'")
 
     @staticmethod
-    def redundantParameter(name: str, *, reason: str = None) -> UsageError:
+    def redundantParameter(name: str, *, reason: Optional[str] = None) -> UsageError:
         text = f"Redundant parameter: '{name}'"
         if reason:
             text += f" ({reason})"
@@ -96,7 +121,11 @@ class UsageError(Error):
 
     @staticmethod
     def invalidInput(
-        data: dict, name: str, *, expected: str = None, details: str = None
+        data: JSONInput,
+        name: str,
+        *,
+        expected: Optional[str] = None,
+        details: Optional[str] = None,
     ) -> UsageError:
         message = f"Invalid {name} input: {data[name]!r}"
         if expected is not None:
@@ -111,24 +140,24 @@ class UsageError(Error):
 
 
 class InputError(Error):
-    http_status = 400
+    http_exception_type = aiohttp.web.HTTPBadRequest
     title = "Invalid API input"
 
 
 class PermissionDenied(Error):
-    http_status = 403
+    http_exception_type = aiohttp.web.HTTPForbidden
     title = "Permission denied"
 
 
 class ResultDelayed(Error):
-    http_status = 202
+    http_exception_type = aiohttp.web.HTTPAccepted
     title = "Resource temporarily unavailable"
 
 
 class ResourceSkipped(Exception):
     """Raised by a resource class's json() to skip the resource
 
-       The message should explain why it was skipped, which may be
-       sent to the client in a "404 Not Found" response."""
+    The message should explain why it was skipped, which may be
+    sent to the client in a "404 Not Found" response."""
 
     pass

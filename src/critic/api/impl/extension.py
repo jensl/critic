@@ -22,23 +22,24 @@ from typing import Tuple, Optional, Sequence
 
 logger = logging.getLogger(__name__)
 
-from . import apiobject
 from critic import api
+from critic.api import extension as public
 from critic import base
 from critic.background import utils
 from critic import extensions
+from . import apiobject
 
 
 WrapperType = api.extension.Extension
 ArgumentsType = Tuple[int, str, Optional[int], str]
 
 
-class Extension(apiobject.APIObject):
+class Extension(apiobject.APIObject[WrapperType, ArgumentsType, int]):
     wrapper_class = WrapperType
     column_names = ["id", "name", "publisher", "uri"]
 
     def __init__(self, args: ArgumentsType):
-        (self.id, self.name, self.__publisher_id, self.uri) = args
+        (self.id, self.name, self.__publisher_id, self.url) = args
 
     async def getKey(self, critic: api.critic.Critic) -> str:
         publisher = await self.getPublisher(critic)
@@ -89,14 +90,17 @@ class Extension(apiobject.APIObject):
             publisher_name = None
         else:
             publisher_name = (await api.user.fetch(critic, self.__publisher_id)).name
+        path = await self.getPath(critic)
+        assert path is not None
         try:
             return extensions.extension.Extension(
-                self.id, await self.getPath(critic), publisher_name, self.name
+                self.id, path, publisher_name, self.name
             )
         except extensions.extension.ExtensionError:
             return None
 
 
+@public.fetchImpl
 @Extension.cached
 async def fetch(
     critic: api.critic.Critic, extension_id: Optional[int], key: Optional[str]
@@ -132,6 +136,7 @@ async def fetch(
             raise
 
 
+@public.fetchAllImpl
 async def fetchAll(
     critic: api.critic.Critic,
     publisher: Optional[api.user.User],

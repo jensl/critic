@@ -17,33 +17,38 @@
 from __future__ import annotations
 
 import logging
-from typing import Optional, Sequence, Set, Union, Any
+from typing import Optional, Sequence, Union
 
 logger = logging.getLogger(__name__)
 
 from critic import api
-from critic import jsonapi
+from critic import auth
+from ..check import convert
+from ..exceptions import InputError, UsageError
+from ..resourceclass import ResourceClass
+from ..parameters import Parameters
+from ..types import JSONInput, JSONResult
+from ..utils import id_or_name, many, numeric_id
+from ..values import Values
 
 
-class Users(jsonapi.ResourceClass[api.user.User], api_module=api.user):
+class Users(ResourceClass[api.user.User], api_module=api.user):
     """The users of this system."""
 
     anonymous_create = True
 
     @staticmethod
-    async def json(
-        parameters: jsonapi.Parameters, value: api.user.User
-    ) -> jsonapi.JSONResult:
+    async def json(parameters: Parameters, value: api.user.User) -> JSONResult:
         """User {
-             "id": integer, // the user's id
-             "name": string, // the user's unique user name
-             "fullname": string, // the user's full name
-             "status": string, // the user's status: "current", "absent",
-                                  "retired" or "disabled"
-             "email": string, // the user's primary email address
-           }"""
+          "id": integer, // the user's id
+          "name": string, // the user's unique user name
+          "fullname": string, // the user's full name
+          "status": string, // the user's status: "current", "absent",
+                               "retired" or "disabled"
+          "email": string, // the user's primary email address
+        }"""
 
-        result: jsonapi.JSONResult = {
+        result: JSONResult = {
             "id": value.id,
             "name": value.name,
             "fullname": value.fullname,
@@ -57,54 +62,52 @@ class Users(jsonapi.ResourceClass[api.user.User], api_module=api.user):
             result["password_status"] = value.password_status
         return result
 
-    @staticmethod
-    async def single(parameters: jsonapi.Parameters, argument: str) -> api.user.User:
+    @classmethod
+    async def single(cls, parameters: Parameters, argument: str) -> api.user.User:
         """Retrieve one (or more) users of this system.
 
-           USER_ID : integer or "me"
+        USER_ID : integer or "me"
 
-           Retrieve a user identified by the user's unique numeric id, or the
-           identifier "me" to retrieve the current user."""
+        Retrieve a user identified by the user's unique numeric id, or the
+        identifier "me" to retrieve the current user."""
 
         if argument == "me":
             user = parameters.critic.effective_user
             if user.is_anonymous:
                 raise api.user.Error("'users/me' (not signed in)")
         else:
-            user = await api.user.fetch(parameters.critic, jsonapi.numeric_id(argument))
+            user = await api.user.fetch(parameters.critic, numeric_id(argument))
         return user
 
     @staticmethod
     async def multiple(
-        parameters: jsonapi.Parameters,
+        parameters: Parameters,
     ) -> Union[api.user.User, Sequence[api.user.User]]:
         """Retrieve a single named user or all users of this system.
 
-           name : NAME : string
+        name : NAME : string
 
-           Retrieve only the user with the given name.  This is equivalent to
-           accessing /api/v1/users/USER_ID with that user's numeric id.  When
-           used, any other parameters are ignored.
+        Retrieve only the user with the given name.  This is equivalent to
+        accessing /api/v1/users/USER_ID with that user's numeric id.  When
+        used, any other parameters are ignored.
 
-           status : USER_STATUS[,USER_STATUS,...] : string
+        status : USER_STATUS[,USER_STATUS,...] : string
 
-           Include only users whose status is one of the specified.  Valid
-           values are: <code>current</code>, <code>absent</code>,
-           <code>retired</code> and <code>disabled</code>.
+        Include only users whose status is one of the specified.  Valid
+        values are: <code>current</code>, <code>absent</code>,
+        <code>retired</code> and <code>disabled</code>.
 
-           sort : SORT_KEY : string
+        sort : SORT_KEY : string
 
-           Sort the returned users by the specified key.  Valid values are:
-           <code>id</code>, <code>name</code>, <code>fullname</code>,
-           <code>email</code>."""
+        Sort the returned users by the specified key.  Valid values are:
+        <code>id</code>, <code>name</code>, <code>fullname</code>,
+        <code>email</code>."""
 
-        name_parameter = parameters.getQueryParameter("name")
+        name_parameter = parameters.query.get("name")
         if name_parameter:
             return await api.user.fetch(parameters.critic, name=name_parameter)
-        status = parameters.getQueryParameter(
-            "status", converter=jsonapi.many(api.user.as_status)
-        )
-        sort_parameter = parameters.getQueryParameter(
+        status = parameters.query.get("status", converter=many(api.user.as_status))
+        sort_parameter = parameters.query.get(
             "sort", "id", choices={"id", "name", "fullname", "email"}
         )
         return sorted(
@@ -112,19 +115,20 @@ class Users(jsonapi.ResourceClass[api.user.User], api_module=api.user):
             key=lambda user: getattr(user, sort_parameter),
         )
 
-    @staticmethod
+    @classmethod
     async def update(
-        parameters: jsonapi.Parameters,
-        values: jsonapi.Values[api.user.User],
-        data: jsonapi.JSONInput,
+        cls,
+        parameters: Parameters,
+        values: Values[api.user.User],
+        data: JSONInput,
     ) -> None:
-        if not isinstance(values, jsonapi.SingleValue):
-            raise jsonapi.UsageError("Updating multiple users not supported")
+        if not values.is_single:
+            raise UsageError("Updating multiple users not supported")
 
         critic = parameters.critic
         user = values.get()
 
-        converted = await jsonapi.convert(
+        converted = await convert(
             parameters,
             {"fullname?": str, "password?": {"current?": str, "new": str}},
             data,
@@ -136,32 +140,32 @@ class Users(jsonapi.ResourceClass[api.user.User], api_module=api.user):
             if "fullname" in converted:
                 new_fullname = converted["fullname"].strip()
                 if not new_fullname:
-                    raise jsonapi.InputError("Empty new fullname")
-                modifier.setFullname(new_fullname)
+                    raise InputError("Empty new fullname")
+                await modifier.setFullname(new_fullname)
 
             if "password" in converted:
                 from critic import auth
 
                 authdb = auth.Database.get()
                 if not authdb.supportsPasswordChange():
-                    raise jsonapi.UsageError("Password changes are not supported")
+                    raise UsageError("Password changes are not supported")
                 password = converted["password"]
                 current_pw = password.get("current")
                 new_pw = password["new"]
                 if not new_pw.strip():
-                    raise jsonapi.InputError("Empty password not allowed")
+                    raise InputError("Empty password not allowed")
                 try:
-                    await authdb.changePassword(critic, modifier, current_pw, new_pw)
+                    await authdb.changePassword(
+                        critic, user, modifier, current_pw, new_pw
+                    )
                 except auth.WrongPassword:
-                    raise jsonapi.InputError("Wrong current password")
+                    raise InputError("Wrong current password")
 
     @staticmethod
-    async def create(
-        parameters: jsonapi.Parameters, data: jsonapi.JSONInput
-    ) -> api.user.User:
+    async def create(parameters: Parameters, data: JSONInput) -> api.user.User:
         critic = parameters.critic
 
-        converted = await jsonapi.convert(
+        converted = await convert(
             parameters,
             {
                 "name": str,
@@ -180,9 +184,8 @@ class Users(jsonapi.ResourceClass[api.user.User], api_module=api.user):
         roles = converted.get("roles", [])
         external_account = critic.external_account
 
+        hashed_password: Optional[str]
         if password is not None:
-            from critic import auth
-
             hashed_password = await auth.hashPassword(critic, password)
         else:
             hashed_password = None
@@ -197,27 +200,25 @@ class Users(jsonapi.ResourceClass[api.user.User], api_module=api.user):
             )
 
             for role in roles:
-                modifier.addRole(role)
+                await modifier.addRole(role)
 
-        return await modifier
+            user = modifier.subject
 
-    @staticmethod
-    async def deduce(parameters: jsonapi.Parameters) -> Optional[api.user.User]:
-        user = parameters.context.get("users")
-        user_parameter = parameters.getQueryParameter("user")
+        return user
+
+    @classmethod
+    async def deduce(cls, parameters: Parameters) -> Optional[api.user.User]:
+        user = parameters.in_context(api.user.User)
+        user_parameter = parameters.query.get("user")
         if user_parameter is not None:
             if user is not None:
-                raise jsonapi.UsageError(
-                    "Redundant query parameter: user=%s" % user_parameter
-                )
-            user = await Users.fromParameter(parameters, user_parameter)
+                raise UsageError("Redundant query parameter: user=%s" % user_parameter)
+            user = await parameters.fromParameter(api.user.User, user_parameter)
         return user
 
     @staticmethod
-    async def fromParameterValue(
-        parameters: jsonapi.Parameters, value: str
-    ) -> api.user.User:
-        user_id, name = jsonapi.id_or_name(value)
+    async def fromParameterValue(parameters: Parameters, value: str) -> api.user.User:
+        user_id, name = id_or_name(value)
         if user_id is not None:
             return await api.user.fetch(parameters.critic, user_id)
         assert name is not None
@@ -226,7 +227,3 @@ class Users(jsonapi.ResourceClass[api.user.User], api_module=api.user):
         if name == "(anonymous)":
             return api.user.anonymous(parameters.critic)
         return await api.user.fetch(parameters.critic, name=name)
-
-    @staticmethod
-    async def setAsContext(parameters: jsonapi.Parameters, user: api.user.User) -> None:
-        parameters.setContext(Users.name, user)

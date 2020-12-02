@@ -49,7 +49,7 @@ export const removeListener = (listener: WebSocketListener): Action => ({
 
 export const connectWebSocket = () => (
   dispatch: Dispatch,
-  getState: GetState
+  getState: GetState,
 ) => {
   const prefix = window.location.origin.replace(/^http(s?):/, "ws$1:")
   const connection = new WebSocket(`${prefix}/ws`, ["pubsub_1"])
@@ -63,7 +63,7 @@ export const connectWebSocket = () => (
       connection.send(
         JSON.stringify({
           subscribe: channels,
-        })
+        }),
       )
   }
 
@@ -78,7 +78,7 @@ export const connectWebSocket = () => (
             showToast({
               type: "error",
               title: "WebSocket failed!",
-            })
+            }),
           )
         }
         setTimeout(() => dispatch(connectWebSocket()), 10000)
@@ -108,9 +108,9 @@ export const connectWebSocket = () => (
 
 export const subscribeToChannel = (
   channel: string,
-  callback: ChannelCallback
+  callback: ChannelCallback,
 ) => (dispatch: Dispatch, getState: GetState) =>
-  new Promise((resolve) => {
+  new Promise<boolean>((resolve) => {
     const { webSocket } = getState().ui
     const alreadySubscribed = webSocket.channels.has(channel)
 
@@ -129,7 +129,7 @@ export const subscribeToChannel = (
             resolve(true)
             return "remove"
           }
-        })
+        }),
       )
 
       if (webSocket.connection)
@@ -139,7 +139,7 @@ export const subscribeToChannel = (
 
 export const unsubscribeFromChannel = (
   channel: string,
-  callback: ChannelCallback
+  callback: ChannelCallback,
 ) => (dispatch: Dispatch, getState: GetState) =>
   new Promise((resolve) => {
     dispatch({
@@ -156,7 +156,7 @@ export const unsubscribeFromChannel = (
             resolve(true)
             return "remove"
           }
-        })
+        }),
       )
 
       webSocket.connection.send(JSON.stringify({ unsubscribe: channel }))

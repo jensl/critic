@@ -18,9 +18,10 @@ from __future__ import annotations
 
 from typing import Tuple, Optional, Any, Sequence, List, Iterable
 
-from . import apiobject
 from critic import api
+from critic.api import filechange as public
 from critic.gitaccess import SHA1
+from . import apiobject
 
 
 WrapperType = api.filechange.FileChange
@@ -55,9 +56,9 @@ class FileChange(apiobject.APIObject[WrapperType, ArgumentsType, CacheKeyType]):
     def cacheKey(wrapper: WrapperType) -> CacheKeyType:
         return (wrapper.changeset.id, wrapper.file.id)
 
-    @staticmethod
-    def makeCacheKey(args: ArgumentsType) -> CacheKeyType:
-        changeset, file, *rest = args
+    @classmethod
+    def makeCacheKey(cls, args: ArgumentsType) -> CacheKeyType:
+        changeset, file, *_ = args
         return (changeset.id, file.id)
 
     @staticmethod
@@ -79,6 +80,7 @@ class FileChange(apiobject.APIObject[WrapperType, ArgumentsType, CacheKeyType]):
         return (changeset.critic, [(changeset.id, file.id) for file in files], files)
 
 
+@public.fetchImpl
 @FileChange.cached
 async def fetch(
     critic: api.critic.Critic, changeset: api.changeset.Changeset, file: api.file.File
@@ -95,6 +97,7 @@ async def fetch(
         return await FileChange.makeOne(critic, (changeset, file) + await result.one())
 
 
+@public.fetchManyImpl
 async def fetchMany(
     critic: api.critic.Critic,
     changeset: api.changeset.Changeset,
@@ -113,15 +116,16 @@ async def fetchMany(
     ) as result:
         rows = {row[0]: row[1:] async for row in result}
     if len(rows) < len(files):
-        invalid_files = set(files) - set(rows.keys())
+        invalid_files = set(file for file in files if file not in rows)
         raise api.filechange.InvalidIds(
             invalid_ids=[(changeset.id, file.id) for file in invalid_files]
         )
     return await FileChange.make(
-        critic, ((changeset, file) + rows[file.id] for file in files)
+        critic, ((changeset, file) + rows[file.id] for file in files)  # type: ignore
     )
 
 
+@public.fetchAllImpl
 async def fetchAll(changeset: api.changeset.Changeset) -> Sequence[WrapperType]:
     critic = changeset.critic
 

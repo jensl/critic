@@ -14,8 +14,10 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
+import argparse
 import logging
 import sys
+from typing import Dict, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +36,7 @@ recipients" that will receive system maintenance messages such as error reports.
 """
 
 
-def setup(parser):
+def setup(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--to", action="append", metavar="ADDRESS", help="Add email recipient."
     )
@@ -54,9 +56,7 @@ def setup(parser):
     parser.set_defaults(need_session=True)
 
 
-def main(critic, arguments):
-    from critic import mailutils
-
+async def main(critic: api.critic.Critic, arguments: argparse.Namespace) -> int:
     if arguments.to:
         recipients = arguments.to
     else:
@@ -66,6 +66,7 @@ def main(critic, arguments):
         logger.error("No recipients specified!")
         return 1
 
+    headers: Optional[Dict[str, str]]
     if arguments.header:
         headers = {}
         for header in arguments.header:
@@ -81,4 +82,11 @@ def main(critic, arguments):
     else:
         body = sys.stdin.read()
 
-    mailutils.sendMessage(recipients, arguments.subject, body, headers=headers)
+    # FIXME: Send message using the new protocol!
+    # mailutils.sendMessage(recipients, arguments.subject, body, headers=headers)
+    #
+    # return 0
+
+    logger.debug(f"{body=} {headers=}")
+
+    raise Exception("NOT IMPLEMENTED")

@@ -36,8 +36,9 @@ from typing import (
 
 logger = logging.getLogger(__name__)
 
-from . import apiobject
 from critic import api
+from critic.api import user as public
+from . import apiobject
 
 
 async def _loadRoles(critic: api.critic.Critic, users: Iterable[api.user.User]) -> None:
@@ -53,7 +54,7 @@ async def _loadRoles(critic: api.critic.Critic, users: Iterable[api.user.User]) 
         async for user_id, role in result:
             roles[user_id].add(role)
     for user in users:
-        user._impl.setRoles(roles[int(user)])
+        User.fromWrapper(user).setRoles(roles[int(user)])
 
 
 WrapperType = api.user.User
@@ -78,7 +79,13 @@ class User(apiobject.APIObject[WrapperType, ArgumentsType, int]):
         *,
         user_type: api.user.Type = "regular",
     ) -> None:
-        (self.id, self.name, self.fullname, self.status, hashed_password,) = args
+        (
+            self.id,
+            self.name,
+            self.fullname,
+            self.status,
+            hashed_password,
+        ) = args
 
         self.type = user_type
         self.roles = frozenset() if self.id is None else None
@@ -230,8 +237,8 @@ class User(apiobject.APIObject[WrapperType, ArgumentsType, int]):
 
         return url_prefixes
 
-    @staticmethod
-    def refresh_tables() -> Set[str]:
+    @classmethod
+    def refresh_tables(cls) -> Set[str]:
         return {"users", "userroles"}
 
     @classmethod
@@ -239,12 +246,13 @@ class User(apiobject.APIObject[WrapperType, ArgumentsType, int]):
         cls: Type[User],
         critic: api.critic.Critic,
         tables: Set[str],
-        cached_users: Mapping[Any, WrapperType],
+        cached_objects: Mapping[Any, WrapperType],
     ) -> None:
-        await super().refresh(critic, tables, cached_users)
-        await _loadRoles(critic, cached_users.values())
+        await super().refresh(critic, tables, cached_objects)
+        await _loadRoles(critic, cached_objects.values())
 
 
+@public.fetchImpl
 @User.cached
 async def fetch(
     critic: api.critic.Critic, user_id: Optional[int], name: Optional[str]
@@ -260,6 +268,7 @@ async def fetch(
     return users[0]
 
 
+@public.fetchManyImpl
 @User.cachedMany
 async def fetchMany(
     critic: api.critic.Critic,
@@ -306,6 +315,7 @@ async def fetchMany(
     return users
 
 
+@public.fetchAllImpl
 async def fetchAll(
     critic: api.critic.Critic, statuses: Optional[Iterable[api.user.Status]]
 ) -> Sequence[WrapperType]:
@@ -319,9 +329,11 @@ async def fetchAll(
     return users
 
 
+@public.anonymousImpl
 def anonymous(critic: api.critic.Critic) -> WrapperType:
     return User(user_type="anonymous").wrap(critic)
 
 
+@public.systemImpl
 def system(critic: api.critic.Critic) -> WrapperType:
     return User(user_type="system").wrap(critic)

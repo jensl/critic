@@ -1,10 +1,8 @@
 from dataclasses import dataclass
-from typing import Dict, List, Literal, Optional, Sequence, Tuple, Union
+from typing import List, Literal, Optional, Sequence, Tuple, Union
 
 
-from critic import api
 from critic import pubsub
-from critic import data
 
 
 @dataclass
@@ -74,7 +72,14 @@ class CallRequest:
     role: Role
 
 
-CallResponseItem = Union[EndpointResponseItem, SubscriptionResponseItem]
+@dataclass
+class CallError:
+    message: str
+    details: Optional[str] = None
+    traceback: Optional[str] = None
+
+
+CallResponseItem = Union[EndpointResponseItem, SubscriptionResponseItem, CallError]
 
 
 @dataclass
@@ -84,15 +89,8 @@ class CallResponse:
 
 
 @dataclass
-class CallError:
-    message: str
-    details: Optional[str] = None
-    traceback: Optional[str] = None
-
-
-@dataclass
 class CommandPackage:
-    token: bytes
+    token: str
     user_id: Union[Literal["anonymous", "system"], int]
     accesstoken_id: Optional[int]
     command: Union[EndpointRequest, SubscriptionMessage]
@@ -100,7 +98,7 @@ class CommandPackage:
 
 @dataclass
 class ResponsePackage:
-    token: bytes
+    token: str
 
 
 @dataclass

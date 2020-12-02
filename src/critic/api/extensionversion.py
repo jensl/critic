@@ -16,10 +16,22 @@
 
 from __future__ import annotations
 
-from typing import Literal, Optional, Protocol, Collection, Sequence, Union, overload
+from typing import (
+    Any,
+    Awaitable,
+    Callable,
+    Literal,
+    Optional,
+    Protocol,
+    Collection,
+    Sequence,
+    Union,
+    overload,
+)
 
 from critic import api
-from critic import extensions
+from critic.gitaccess import SHA1
+from critic.api.apiobject import FunctionRef
 
 
 class Error(api.APIError, object_type="extension version"):
@@ -34,6 +46,12 @@ class InvalidId(api.InvalidIdError, Error):
 
 class InvalidName(api.InvalidItemError, Error, item_type="name"):
     """Raised when an invalid extension version name is used."""
+
+    pass
+
+
+class InvalidSHA1(api.InvalidItemError, Error, item_type="sha1"):
+    """Raised when an invalid extension version SHA-1 is used."""
 
     pass
 
@@ -59,29 +77,29 @@ class ExtensionVersion(api.APIObject):
         return self._impl.name
 
     @property
-    def sha1(self) -> str:
+    def sha1(self) -> SHA1:
         return self._impl.sha1
 
     @property
     def snapshot_path(self) -> str:
         return self._impl.snapshot_path
 
+    class Entrypoint(Protocol):
+        @property
+        def name(self) -> str:
+            ...
+
+        @property
+        def target(self) -> str:
+            ...
+
     class PythonPackage(Protocol):
         @property
         def package_type(self) -> Literal["python"]:
             ...
 
-        class Entrypoint(Protocol):
-            @property
-            def name(self) -> str:
-                ...
-
-            @property
-            def target(self) -> str:
-                ...
-
         @property
-        def entrypoints(self) -> Collection[Entrypoint]:
+        def entrypoints(self) -> Collection[ExtensionVersion.Entrypoint]:
             ...
 
         @property
@@ -143,7 +161,7 @@ class ExtensionVersion(api.APIObject):
             ...
 
         @property
-        def low_level(self) -> extensions.manifest.Manifest:
+        def low_level(self) -> Any:
             ...
 
     @property
@@ -167,24 +185,52 @@ async def fetch(
     ...
 
 
+@overload
 async def fetch(
     critic: api.critic.Critic,
-    version_id: int = None,
+    /,
     *,
-    extension: api.extension.Extension = None,
-    name: str = None,
+    extension: api.extension.Extension,
+    sha1: SHA1,
 ) -> ExtensionVersion:
-    from .impl import extensionversion as impl
+    ...
 
-    return await impl.fetch(critic, version_id, extension, name)
+
+async def fetch(
+    critic: api.critic.Critic,
+    version_id: Optional[int] = None,
+    *,
+    extension: Optional[api.extension.Extension] = None,
+    name: Optional[str] = None,
+    sha1: Optional[SHA1] = None,
+) -> ExtensionVersion:
+    return await fetchImpl.get()(critic, version_id, extension, name, sha1)
 
 
 async def fetchAll(
-    critic: api.critic.Critic, /, *, extension: api.extension.Extension = None
+    critic: api.critic.Critic, /, *, extension: Optional[api.extension.Extension] = None
 ) -> Sequence[ExtensionVersion]:
-    from .impl import extensionversion as impl
-
-    return await impl.fetchAll(critic, extension)
+    return await fetchAllImpl.get()(critic, extension)
 
 
 resource_name = table_name = "extensionversions"
+
+
+fetchImpl: FunctionRef[
+    Callable[
+        [
+            api.critic.Critic,
+            Optional[int],
+            Optional[api.extension.Extension],
+            Optional[str],
+            Optional[SHA1],
+        ],
+        Awaitable[ExtensionVersion],
+    ]
+] = FunctionRef()
+fetchAllImpl: FunctionRef[
+    Callable[
+        [api.critic.Critic, Optional[api.extension.Extension]],
+        Awaitable[Sequence[ExtensionVersion]],
+    ]
+] = FunctionRef()

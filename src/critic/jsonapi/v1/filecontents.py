@@ -16,21 +16,23 @@
 
 from __future__ import annotations
 
-from typing import Sequence, Optional, TypedDict, Union
+from typing import Sequence, TypedDict, Union
 
 from critic import api
-from critic import jsonapi
-from . import filediffs
+from ..exceptions import UsageError
+from ..resourceclass import ResourceClass
+from ..parameters import Parameters
+from .filediffs import Parts, reduce_parts
 
 
-Line = TypedDict("Line", {"type": str, "offset": int, "content": filediffs.Parts})
+Line = TypedDict("Line", {"type": str, "offset": int, "content": Parts})
 
 
 def reduce_line(line: api.filecontent.Line) -> Line:
     return {
         "type": api.filediff.LINE_TYPE_STRINGS[api.filediff.LINE_TYPE_CONTEXT],
         "offset": line.offset,
-        "content": filediffs.reduce_parts(line.content),
+        "content": reduce_parts(line.content),
     }
 
 
@@ -46,7 +48,7 @@ JSONResult = TypedDict(
 
 
 class FileContents(
-    jsonapi.ResourceClass[api.filecontent.FileContent], api_module=api.filecontent
+    ResourceClass[api.filecontent.FileContent], api_module=api.filecontent
 ):
     """Context lines for a file in a commit"""
 
@@ -54,18 +56,18 @@ class FileContents(
 
     @staticmethod
     async def json(
-        parameters: jsonapi.Parameters, value: api.filecontent.FileContent
+        parameters: Parameters, value: api.filecontent.FileContent
     ) -> JSONResult:
         """TODO: add documentation"""
 
-        first = parameters.getQueryParameter("first", converter=int)
-        last = parameters.getQueryParameter("last", converter=int)
+        first = parameters.query.get("first", converter=int)
+        last = parameters.query.get("last", converter=int)
 
         lines: Union[Sequence[str], Sequence[Line]]
-        if parameters.getQueryParameter("plain") == "yes":
+        if parameters.query.get("plain") == "yes":
             lines = await value.getLines(first, last, plain=True)
         else:
-            lines = list(map(reduce_line, await value.getLines(first, last)))
+            lines = [reduce_line(line) for line in await value.getLines(first, last)]
 
         return {
             "repository": value.repository,
@@ -75,19 +77,17 @@ class FileContents(
         }
 
     @staticmethod
-    async def multiple(parameters: jsonapi.Parameters,) -> api.filecontent.FileContent:
+    async def multiple(
+        parameters: Parameters,
+    ) -> api.filecontent.FileContent:
         """TODO: add documentation"""
 
-        commit = await Commits.deduce(parameters)
+        commit = await parameters.deduce(api.commit.Commit)
         if commit is None:
-            raise jsonapi.UsageError.missingParameter("commit")
+            raise UsageError.missingParameter("commit")
 
-        file = await Files.deduce(parameters)
+        file = await parameters.deduce(api.file.File)
         if file is None:
-            raise jsonapi.UsageError.missingParameter("file")
+            raise UsageError.missingParameter("file")
 
         return await api.filecontent.fetch(commit.repository, commit=commit, file=file)
-
-
-from .commits import Commits
-from .files import Files

@@ -16,10 +16,11 @@
 
 from __future__ import annotations
 
-from typing import Collection, Tuple, Optional, Sequence, FrozenSet
+from typing import Collection, Tuple, Optional, Sequence
 
-from . import apiobject
 from critic import api
+from critic.api import repositoryfilter as public
+from . import apiobject
 
 WrapperType = api.repositoryfilter.RepositoryFilter
 ArgumentsType = Tuple[int, int, int, str, api.repositoryfilter.FilterType, bool]
@@ -78,6 +79,7 @@ class RepositoryFilter(apiobject.APIObject[WrapperType, ArgumentsType, int]):
         return self.__delegates
 
 
+@public.fetchImpl
 @RepositoryFilter.cached
 async def fetch(critic: api.critic.Critic, filter_id: int) -> WrapperType:
     async with RepositoryFilter.query(
@@ -86,6 +88,7 @@ async def fetch(critic: api.critic.Critic, filter_id: int) -> WrapperType:
         return await RepositoryFilter.makeOne(critic, result)
 
 
+@public.fetchAllImpl
 async def fetchAll(
     critic: api.critic.Critic,
     repository: Optional[api.repository.Repository],

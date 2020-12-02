@@ -17,9 +17,10 @@
 from __future__ import annotations
 
 import datetime
-from typing import Sequence, Optional, Iterable, overload
+from typing import Awaitable, Callable, Sequence, Optional, Iterable
 
 from critic import api
+from critic.api.apiobject import FunctionRef
 
 
 class Error(api.APIError, object_type="reply"):
@@ -48,28 +49,28 @@ class Reply(api.APIObject):
     def is_draft(self) -> bool:
         """True if the reply is not yet published
 
-           Unpublished replies are not displayed to other users."""
+        Unpublished replies are not displayed to other users."""
         return self._impl.is_draft
 
     @property
     async def comment(self) -> api.comment.Comment:
         """The comment this reply is a reply to
 
-           The comment is returned as an api.comment.Comment object."""
+        The comment is returned as an api.comment.Comment object."""
         return await self._impl.getComment(self.critic)
 
     @property
     async def author(self) -> api.user.User:
         """The reply's author
 
-           The author is returned as an api.user.User object."""
+        The author is returned as an api.user.User object."""
         return await self._impl.getAuthor(self.critic)
 
     @property
     def timestamp(self) -> datetime.datetime:
         """The reply's timestamp
 
-           The return value is a datetime.datetime object."""
+        The return value is a datetime.datetime object."""
         return self._impl.timestamp
 
     @property
@@ -80,37 +81,45 @@ class Reply(api.APIObject):
 
 async def fetch(critic: api.critic.Critic, reply_id: int) -> Reply:
     """Fetch the Reply object with the given id"""
-    from .impl import reply as impl
-
-    return await impl.fetch(critic, reply_id)
+    return await fetchImpl.get()(critic, reply_id)
 
 
 async def fetchMany(
     critic: api.critic.Critic, reply_ids: Iterable[int]
 ) -> Sequence[Reply]:
     """Fetch multiple Reply objects with the given ids"""
-    from .impl import reply as impl
-
-    return await impl.fetchMany(critic, reply_ids)
+    return await fetchManyImpl.get()(critic, list(reply_ids))
 
 
 async def fetchAll(
     critic: api.critic.Critic,
     *,
-    comment: api.comment.Comment = None,
-    author: api.user.User = None
+    comment: Optional[api.comment.Comment] = None,
+    author: Optional[api.user.User] = None
 ) -> Sequence[Reply]:
     """Fetch all Reply objects
 
-       If |comment| is not None, only replies to the specified comment are
-       included.
+    If |comment| is not None, only replies to the specified comment are
+    included.
 
-       If |author| is not None, only replies authored by the specified user are
-       included."""
-    from .impl import reply as impl
-
-    return await impl.fetchAll(critic, comment, author)
+    If |author| is not None, only replies authored by the specified user are
+    included."""
+    return await fetchAllImpl.get()(critic, comment, author)
 
 
 resource_name = "replies"
 table_name = "comments"
+
+
+fetchImpl: FunctionRef[
+    Callable[[api.critic.Critic, int], Awaitable[Reply]]
+] = FunctionRef()
+fetchManyImpl: FunctionRef[
+    Callable[[api.critic.Critic, Sequence[int]], Awaitable[Sequence[Reply]]]
+] = FunctionRef()
+fetchAllImpl: FunctionRef[
+    Callable[
+        [api.critic.Critic, Optional[api.comment.Comment], Optional[api.user.User]],
+        Awaitable[Sequence[Reply]],
+    ]
+] = FunctionRef()

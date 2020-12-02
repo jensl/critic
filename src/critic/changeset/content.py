@@ -16,15 +16,17 @@
 
 import json
 import logging
+from typing import Any, Dict, Optional, Sequence, Tuple, cast
 
 logger = logging.getLogger(__name__)
 
+from critic import api
 from critic import dbaccess
-from critic import syntaxhighlight
+from critic.gitaccess import SHA1
 
 
 class FatalErrors(Exception):
-    def __init__(self, changeset_id, errors):
+    def __init__(self, changeset_id: int, errors: Sequence[Any]):
         super(FatalErrors, self).__init__(
             "%d errors encountered while processing changeset %d."
             % (len(errors), changeset_id)
@@ -33,74 +35,82 @@ class FatalErrors(Exception):
         self.errors = errors
 
 
-async def check_syntax_highlighting(critic, changeset_id):
+async def check_syntax_highlighting(
+    critic: api.critic.Critic, changeset_id: int
+) -> bool:
     # Check if all syntax highlight files actually exist.  We should never
     # delete them without updating the database to match, but since they are
     # typically stored under /var/cache, it's possible the system administrator
     # did to free up space, or that they were skipped during a system migration.
     # This should be safe per LSB, so make it so.
 
-    async with critic.query(
-        """SELECT is_replay
-             FROM changesets
-            WHERE id={changeset_id}""",
-        changeset_id=changeset_id,
-    ) as result:
-        conflicts = await result.scalar()
+    # async with api.critic.Query[bool](
+    #     critic,
+    #     """SELECT is_replay
+    #          FROM changesets
+    #         WHERE id={changeset_id}""",
+    #     changeset_id=changeset_id,
+    # ) as conflicts_result:
+    #     conflicts = await conflicts_result.scalar()
 
-    async with critic.query(
-        """SELECT sha1, language, label
+    async with api.critic.Query[Tuple[SHA1, int]](
+        critic,
+        """SELECT sha1, language
              FROM highlightfiles
              JOIN highlightlanguages ON (id=language)
-            WHERE changeset={changeset}""",
+            WHERE changeset={changeset}
+              AND NOT highlighted""",
         changeset=changeset_id,
-    ) as result:
+    ) as highlight_files_result:
         # FIXME: Somewhat unfortunate to be reproducing difference engine job
         # keys here, given how internal to its implementation they really are.
-        highlight_files = await result.all()
+        highlight_files = await highlight_files_result.all()
 
     missing_job_keys = [
         json.dumps(["SyntaxHighlightFile", changeset_id, sha1, language_id])
-        async for sha1, language_id, language_label in highlight_files
-        if not syntaxhighlight.isHighlighted(sha1, language_label, conflicts)
+        for sha1, language_id in highlight_files
     ]
 
     if not missing_job_keys:
         # All files are there.
         return True
 
-    async with critic.query(
+    async with api.critic.Query[int](
+        critic,
         """SELECT COUNT(*)
              FROM changeseterrors
             WHERE changeset={changeset}
               AND {job_key=missing_job_keys:array}""",
         changeset=changeset_id,
         missing_job_keys=missing_job_keys,
-    ) as result:
-        had_errors = await result.scalar()
+    ) as errors_result:
+        had_errors = await errors_result.scalar()
 
     # Return true ("all okay") if all missing files had errors.
     return len(missing_job_keys) == had_errors
 
 
-async def request(critic, changeset_id, *, request_highlight=True, in_transaction=None):
-    assert in_transaction is None or isinstance(
-        in_transaction, dbaccess.TransactionCursor
-    )
-
-    content_difference_complete = False
-    syntax_highlight_complete = False
-    wakeup_difference_engine = False
-
-    async def update_database(cursor):
-        nonlocal content_difference_complete
-        nonlocal syntax_highlight_complete
-        nonlocal wakeup_difference_engine
+async def request(
+    critic: api.critic.Critic,
+    changeset_id: int,
+    *,
+    request_highlight: bool = True,
+    in_transaction: Optional[dbaccess.TransactionCursor] = None
+):
+    async def update_database(
+        cursor: dbaccess.TransactionCursor,
+    ) -> Tuple[bool, bool, bool]:
+        content_difference_complete: Optional[bool] = False
+        syntax_highlight_requested: Optional[bool] = False
+        syntax_highlight_evaluated: Optional[bool] = False
+        syntax_highlight_complete: Optional[bool] = False
+        wakeup_difference_engine: bool = False
 
         # Check if the content difference has been requested already, and if so
         # whether it is complete.  Also update the |requested| timestamp, if
         # it's been completed.
-        async with cursor.query(
+        async with dbaccess.Query[Tuple[bool, bool, bool]](
+            cursor,
             """SELECT cscd.complete, cshlr.requested, cshlr.evaluated
                  FROM changesetcontentdifferences AS cscd
                  JOIN changesethighlightrequests AS cshlr ON (
@@ -149,7 +159,8 @@ async def request(critic, changeset_id, *, request_highlight=True, in_transactio
 
         if request_highlight:
             if syntax_highlight_evaluated:
-                async with cursor.query(
+                async with dbaccess.Query[int](
+                    cursor,
                     """SELECT hlf.id
                          FROM changesetfiledifferences AS csfd
                          JOIN highlightfiles AS hlf ON (
@@ -160,8 +171,8 @@ async def request(critic, changeset_id, *, request_highlight=True, in_transactio
                           AND NOT hlf.highlighted
                           AND NOT hlf.requested""",
                     changeset=changeset_id,
-                ) as result:
-                    non_highlighted_ids = await result.scalars()
+                ) as non_highlighted_ids_result:
+                    non_highlighted_ids = await non_highlighted_ids_result.scalars()
 
                 if non_highlighted_ids:
                     await cursor.execute(
@@ -185,11 +196,25 @@ async def request(critic, changeset_id, *, request_highlight=True, in_transactio
             # Pretend it's complete, so that it doesn't affect the return value.
             syntax_highlight_complete = True
 
+        return (
+            bool(content_difference_complete),
+            bool(syntax_highlight_complete),
+            wakeup_difference_engine,
+        )
+
     if in_transaction:
-        await update_database(in_transaction)
+        (
+            content_difference_complete,
+            syntax_highlight_complete,
+            wakeup_difference_engine,
+        ) = await update_database(in_transaction)
     else:
         async with critic.transaction() as cursor:
-            await update_database(cursor)
+            (
+                content_difference_complete,
+                syntax_highlight_complete,
+                wakeup_difference_engine,
+            ) = await update_database(cursor)
 
     if wakeup_difference_engine:
         await critic.wakeup_service("differenceengine")
@@ -197,16 +222,18 @@ async def request(critic, changeset_id, *, request_highlight=True, in_transactio
     return content_difference_complete and syntax_highlight_complete
 
 
-async def progress_single(critic, changeset_id):
-    async with critic.query(
-        """SELECT is_replay, complete
+async def progress_single(critic: api.critic.Critic, changeset_id: int) -> Any:
+    async with api.critic.Query[bool](
+        critic,
+        """SELECT complete
              FROM changesets
             WHERE id={changeset_id}""",
         changeset_id=changeset_id,
     ) as result:
-        conflicts, structure_difference_complete = await result.one()
+        structure_difference_complete = await result.scalar()
 
-    async with critic.query(
+    async with api.critic.Query[bool](
+        critic,
         """SELECT complete
              FROM changesetcontentdifferences
             WHERE changeset={changeset_id}""",
@@ -219,7 +246,8 @@ async def progress_single(critic, changeset_id):
             content_difference_complete = False
             content_difference_requested = False
 
-    async with critic.query(
+    async with api.critic.Query[bool](
+        critic,
         """SELECT complete
              FROM changesethighlightrequests
             WHERE changeset={changeset_id}""",
@@ -233,25 +261,27 @@ async def progress_single(critic, changeset_id):
             syntax_highlight_requested = False
 
     # Count total and examined files.
-    async with critic.query(
+    async with api.critic.Query[Tuple[int, int]](
+        critic,
         """SELECT COUNT(changesetfiles.changeset),
                   COUNT(changesetfiledifferences.changeset)
              FROM changesetfiles
   LEFT OUTER JOIN changesetfiledifferences USING (changeset, file)
             WHERE changesetfiles.changeset={changeset_id}""",
         changeset_id=changeset_id,
-    ) as result:
-        total_files, examined_files = await result.one()
+    ) as files_result:
+        total_files, examined_files = await files_result.one()
 
     # Count examined but not compared files.
-    async with critic.query(
+    async with api.critic.Query[int](
+        critic,
         """SELECT COUNT(changesetmodifiedregularfiles.changeset)
              FROM changesetfiledifferences
             WHERE changesetfiledifferences.changeset={changeset_id}
               AND changesetfiledifferences.comparison_pending""",
         changeset_id=changeset_id,
-    ) as result:
-        uncompared_files = await result.scalar()
+    ) as uncompared_files_result:
+        uncompared_files = await uncompared_files_result.scalar()
 
     # Content difference is usable if structure difference is complete and all
     # files are examined and compared.
@@ -262,7 +292,8 @@ async def progress_single(critic, changeset_id):
     )
 
     # Count total and analyzed blocks of changed lines.
-    async with critic.query(
+    async with api.critic.Query[Tuple[int, int]](
+        critic,
         """SELECT COUNT(changesetchangedlines.changeset),
                   COUNT(changesetchangedlines.analysis)
              FROM changesetchangedlines
@@ -270,8 +301,8 @@ async def progress_single(critic, changeset_id):
               AND changesetchangedlines.delete_length>0
               AND changesetchangedlines.insert_length>0""",
         changeset_id=changeset_id,
-    ) as result:
-        total_blocks, analyzed_blocks = await result.one()
+    ) as blocks_result:
+        total_blocks, analyzed_blocks = await blocks_result.one()
 
     content_difference = {
         "complete": content_difference_complete,
@@ -286,7 +317,8 @@ async def progress_single(critic, changeset_id):
 
     total_versions = unfinished_versions = 0
 
-    async with critic.query(
+    async with api.critic.Query[Tuple[bool, int]](
+        critic,
         """SELECT highlighted, COUNT(*)
              FROM highlightfiles
              JOIN changesetfiledifferences ON (
@@ -298,8 +330,8 @@ async def progress_single(critic, changeset_id):
             WHERE changeset={changeset_id}
          GROUP BY highlighted""",
         changeset_id=changeset_id,
-    ) as result:
-        async for is_highlighted, count in result:
+    ) as highlighted_result:
+        async for is_highlighted, count in highlighted_result:
             total_versions += count
             if not is_highlighted:
                 unfinished_versions += count
@@ -318,13 +350,13 @@ async def progress_single(critic, changeset_id):
     }
 
 
-async def progress(critic, changeset_ids):
+async def progress(critic: api.critic.Critic, changeset_ids: Sequence[int]) -> Any:
     total_progress = {"changeset_ids": sorted(changeset_ids)}
 
-    def merge(total_values, values):
+    def merge(total_values: Any, values: Dict[Any, Any]) -> None:
         for key, value in values.items():
             if isinstance(value, dict):
-                merge(total_values.get(key, {}), value)
+                merge(total_values.get(key, {}), cast(Dict[Any, Any], value))
             elif isinstance(value, bool):
                 total_values[key] = total_values.get(key, True) and value
             else:

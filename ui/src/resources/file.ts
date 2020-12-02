@@ -17,6 +17,8 @@
  */
 
 import { combineReducers } from "redux"
+import { immerable } from "immer"
+
 import { primaryMap, lookupMap } from "../reducers/resource"
 import { FileID } from "./types"
 
@@ -28,6 +30,8 @@ type FileData = {
 type FileProps = FileData
 
 class File {
+  [immerable] = true
+
   constructor(readonly id: FileID, readonly path: string) {}
 
   static new(props: FileProps) {

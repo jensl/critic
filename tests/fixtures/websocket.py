@@ -14,6 +14,7 @@ from typing import (
     Optional,
     Tuple,
     TypeVar,
+    cast,
     overload,
 )
 
@@ -28,7 +29,9 @@ T = TypeVar("T")
 class DictMatches:
     def __init__(self, checks: Dict[str, Any]):
         self.checks = {
-            key: DictMatches(value) if isinstance(value, dict) else value
+            key: DictMatches(cast(Dict[str, Any], value))
+            if isinstance(value, dict)
+            else value
             for key, value in checks.items()
         }
 
@@ -96,9 +99,8 @@ class WebSocket:
             yield websocket
         finally:
             logger.debug("closing websocket")
-            snapshot.assert_match(
-                anonymizer({"publish": await websocket.close()}), "websocket messages",
-            )
+            messages = await websocket.close()
+        snapshot.assert_match(anonymizer({"publish": messages}), "websocket messages")
 
     @overload
     async def __find(
@@ -108,12 +110,20 @@ class WebSocket:
 
     @overload
     async def __find(
-        self, channel: Optional[str], match: DictMatches, *, block: Literal[False],
+        self,
+        channel: Optional[str],
+        match: DictMatches,
+        *,
+        block: Literal[False],
     ) -> Optional[Tuple[int, Dict[str, Any]]]:
         ...
 
     async def __find(
-        self, channel: Optional[str], match: DictMatches, *, block: bool = True,
+        self,
+        channel: Optional[str],
+        match: DictMatches,
+        *,
+        block: bool = True,
     ) -> Optional[Tuple[int, Dict[str, Any]]]:
         logger.debug("looking for: %r", match)
 
@@ -143,25 +153,27 @@ class WebSocket:
 
         return find()
 
-    async def expect(self, channel: str = None, /, **checks: Any) -> Any:
+    async def expect(self, channel: Optional[str] = None, /, **checks: Any) -> Any:
         logger.debug("looking for: %r", checks)
-        index, message = await self.__find(channel, DictMatches(checks))
+        _, message = await self.__find(channel, DictMatches(checks))
         return message
 
-    async def expect_noblock(self, channel: str = None, /, **checks: Any) -> Any:
+    async def expect_noblock(
+        self, channel: Optional[str] = None, /, **checks: Any
+    ) -> Any:
         logger.debug("looking for: %r", checks)
         if found := await self.__find(channel, DictMatches(checks), block=False):
-            index, message = found
+            _, message = found
             return message
         return None
 
-    async def pop(self, channel: str = None, /, **checks: Any) -> Any:
+    async def pop(self, channel: Optional[str] = None, /, **checks: Any) -> Any:
         logger.debug("looking for: %r", checks)
         index, message = await self.__find(channel, DictMatches(checks))
         del self.__messages[index]
         return message
 
-    async def pop_noblock(self, channel: str = None, /, **checks: Any) -> Any:
+    async def pop_noblock(self, channel: Optional[str] = None, /, **checks: Any) -> Any:
         logger.debug("looking for: %r", checks)
         if found := await self.__find(channel, DictMatches(checks), block=False):
             index, message = found

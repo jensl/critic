@@ -14,7 +14,10 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
+import aiohttp
 import hashlib
+import urllib.parse
+from typing import Mapping, Optional
 
 from critic import auth
 
@@ -22,33 +25,39 @@ from critic import auth
 class DummyOAuthProvider(auth.OAuthProvider):
     """Dummy OAuth authentication provider used by automatic tests"""
 
-    def __init__(self, name):
-        self.name = name
+    access_token: Optional[str]
+
+    def __init__(self, name: str):
+        self.__name = name
         self.access_token = None
 
-    def getTitle(self):
+    @property
+    def name(self) -> str:
+        return self.__name
+
+    def getTitle(self) -> str:
         """Title, suitable as X in 'Sign in using your X'"""
         return self.name.capitalize() + " account"
 
-    def getAccountIdDescription(self):
+    def getAccountIdDescription(self) -> str:
         return self.name.capitalize() + " username"
 
-    def getAccountURL(self, account_id):
+    def getAccountURL(self, account_id: str) -> str:
         return "https://example.com/user/%s" % account_id
 
-    def getAuthorizeURL(self, state):
-        import urllib
-
+    def getAuthorizeURL(self, state: str) -> str:
         query = urllib.parse.urlencode({"state": state})
         return "https://example.com/authorize?%s" % query
 
-    async def getAccessToken(self, _, code):
+    async def getAccessToken(self, session: aiohttp.ClientSession, code: str) -> str:
         if code == "incorrect":
             raise auth.Failure("Incorrect code")
         self.access_token = hashlib.sha1(code.encode()).hexdigest()
         return self.access_token
 
-    async def getUserData(self, _, access_token):
+    async def getUserData(
+        self, session: aiohttp.ClientSession, access_token: str
+    ) -> Mapping[str, str]:
         if access_token != self.access_token:
             raise auth.Failure("Invalid access token")
         return {

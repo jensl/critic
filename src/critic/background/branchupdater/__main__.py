@@ -17,11 +17,10 @@
 from __future__ import annotations
 
 import datetime
-import json
 import logging
 import math
 import traceback
-from typing import Optional, Set
+from typing import Optional
 
 logger = logging.getLogger("critic.background.branchupdater")
 
@@ -210,6 +209,8 @@ class BranchUpdater(background.service.BackgroundService):
         try:
             if action != "deleting":
                 commits = await insert_commits(repository, new_sha1)
+            else:
+                commits = []
 
             if ref_name.startswith("refs/heads/"):
                 branch_name = ref_name[len("refs/heads/") :]
@@ -302,11 +303,6 @@ class BranchUpdater(background.service.BackgroundService):
                       AND state='preliminary'""",
                 pendingrefupdate_id=pendingrefupdate_id,
             )
-
-
-def start_service() -> None:
-    service = BranchUpdater()
-    service.run()
 
 
 if __name__ == "__main__":

@@ -1,4 +1,4 @@
-import React, { FunctionComponent } from "react"
+import React, { FunctionComponent, useRef } from "react"
 
 import Button from "@material-ui/core/Button"
 import Dialog from "@material-ui/core/Dialog"
@@ -14,6 +14,7 @@ import Registry from "."
 import { setBranch } from "../actions/review"
 import { useDialog, useReview, Value, useValue } from "../utils"
 import { useDispatch } from "../store"
+import { handleError } from "../resources"
 
 export const kDialogID = "createBranch"
 
@@ -29,17 +30,22 @@ const CreateBranch: FunctionComponent = () => {
   const review = useReview()
   const { isOpen, closeDialog } = useDialog(kDialogID)
   const [errorMessage, setErrorMessage] = useValue(ErrorMessage)
+  const branchName = useRef<HTMLInputElement>(null)
   if (!review) return null
-  const createBranch = () => {
-    const nameInput = document.getElementById(
-      "CreateBranch_name"
-    ) as HTMLInputElement
-    const branch = nameInput.value.trim()
-    dispatch(
-      setBranch(review.id, branch, {
-        BAD_BRANCH_NAME: (error) => setErrorMessage(error.message),
-      })
-    ).then(closeDialog)
+  const createBranch = async () => {
+    if (!branchName.current) return
+    console.error(branchName.current)
+    await dispatch(
+      setBranch(
+        review.id,
+        branchName.current.value.trim(),
+        handleError(
+          "BAD_BRANCH_NAME",
+          (error) => void setErrorMessage(error.message),
+        ),
+      ),
+    )
+    closeDialog()
   }
   return (
     <Dialog open={isOpen}>
@@ -51,7 +57,7 @@ const CreateBranch: FunctionComponent = () => {
           or pushed to any new location.
         </Typography>
         <TextField
-          id="CreateBranch_name"
+          inputRef={branchName}
           className={classes.branchName}
           label="Branch name"
           margin="normal"

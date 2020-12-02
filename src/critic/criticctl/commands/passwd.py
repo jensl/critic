@@ -14,7 +14,9 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
+import argparse
 import logging
+from typing import Optional, Protocol
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +26,7 @@ name = "passwd"
 title = "Set user's password"
 
 
-def setup(parser):
+def setup(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--username", required=True, help="Name of user whose password to set."
     )
@@ -43,16 +45,23 @@ def setup(parser):
     parser.set_defaults(need_session=True)
 
 
-async def main(critic, arguments):
+class Arguments(Protocol):
+    username: str
+    password: str
+    no_password: bool
+    generate: bool
+
+
+async def main(critic: api.critic.Critic, arguments: Arguments) -> int:
     try:
         user = await api.user.fetch(critic, name=arguments.username)
     except api.user.InvalidName:
         logger.error("%s: no such user", arguments.username)
         return 1
 
-    password = None
-    password_generated = False
+    generated_password: Optional[str] = None
 
+    hashed_password: Optional[str]
     if not arguments.no_password:
         from critic import auth
 
@@ -61,19 +70,24 @@ async def main(critic, arguments):
         else:
             import passlib.pwd
 
-            password = passlib.pwd.genword()
-            password_generated = True
+            generated_password = password = passlib.pwd.genword()
         hashed_password = await auth.hashPassword(critic, password)
     else:
         hashed_password = None
 
     async with api.transaction.start(critic) as transaction:
-        transaction.modifyUser(user).setPassword(hashed_password=hashed_password)
+        modifier = transaction.modifyUser(user)
+        if hashed_password:
+            await modifier.setPassword(hashed_password=hashed_password)
+        else:
+            await modifier.resetPassword()
 
     if arguments.no_password:
         logger.info("%s: password cleared", arguments.username)
     else:
         logger.info("%s: password set", arguments.username)
 
-    if password_generated:
-        logger.info("Generated password: %s", password)
+    if generated_password:
+        logger.info("Generated password: %s", generated_password)
+
+    return 0

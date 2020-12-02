@@ -29,27 +29,25 @@ const RepositoryDocumentation: React.FunctionComponent = () => {
   const dispatch = useDispatch()
   const repository = useRepository()
   const commit = useResource("commits", (commits) =>
-    commits.byID.get((repository && repository.head.commit) || -1)
+    commits.byID.get(repository?.head?.commit ?? -1),
   )
   const contents = useSelector((state) =>
-    repository && commit && repository.documentation_path
+    repository && commit && repository.documentationPath
       ? state.download.get(
-          `${repository.id}:${commit.id}:${repository.documentation_path}`
+          `${repository.id}:${commit.id}:${repository.documentationPath}`,
         )
-      : null
+      : null,
   )
   useEffect(() => {
-    if (repository && commit && repository.documentation_path && !contents) {
-      dispatch(
-        download(repository.id, commit.id, repository.documentation_path)
-      )
+    if (commit && repository?.documentationPath && !contents) {
+      dispatch(download(repository.id, commit.id, repository.documentationPath))
     }
   }, [dispatch, repository, commit, contents])
   if (!repository || !contents) return null
   return (
     <Container maxWidth="md" className={classes.container}>
       <Typography variant="h1" className={classes.path}>
-        {repository.documentation_path}
+        {repository.documentationPath}
       </Typography>
       <MarkdownDocument source={contents} />
     </Container>

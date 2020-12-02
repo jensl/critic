@@ -20,6 +20,7 @@ import datetime
 from typing import Tuple, Optional, Iterable, Sequence
 
 from critic import api
+from critic.api import reply as public
 from . import apiobject
 
 
@@ -59,12 +60,14 @@ class Reply(apiobject.APIObject[WrapperType, ArgumentsType, int]):
         return await api.user.fetch(critic, self.__author_id)
 
 
+@public.fetchImpl
 @Reply.cached
 async def fetch(critic: api.critic.Critic, reply_id: int) -> WrapperType:
     async with Reply.query(critic, ["id={reply_id}"], reply_id=reply_id) as result:
         return await Reply.makeOne(critic, result)
 
 
+@public.fetchManyImpl
 @Reply.cachedMany
 async def fetchMany(
     critic: api.critic.Critic, reply_ids: Iterable[int]
@@ -75,6 +78,7 @@ async def fetchMany(
         return await Reply.make(critic, result)
 
 
+@public.fetchAllImpl
 async def fetchAll(
     critic: api.critic.Critic,
     comment: Optional[api.comment.Comment],

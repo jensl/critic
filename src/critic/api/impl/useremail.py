@@ -18,6 +18,7 @@ from __future__ import annotations
 
 from typing import Tuple, Optional, Set, Sequence
 
+from critic.api import useremail as public
 from . import apiobject
 from ... import api
 
@@ -52,11 +53,12 @@ class UserEmail(apiobject.APIObject[WrapperType, ArgumentsType, int]):
                 self.__is_selected = await result.scalar(default=False)
         return self.__is_selected
 
-    @staticmethod
-    def refresh_tables() -> Set[str]:
+    @classmethod
+    def refresh_tables(cls) -> Set[str]:
         return {UserEmail.table(), "selecteduseremails"}
 
 
+@public.fetchImpl
 @UserEmail.cached
 async def fetch(
     critic: api.critic.Critic,
@@ -83,6 +85,7 @@ async def fetch(
     return useremail
 
 
+@public.fetchAllImpl
 async def fetchAll(
     critic: api.critic.Critic,
     user: Optional[api.user.User],

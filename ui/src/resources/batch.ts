@@ -15,6 +15,8 @@
  */
 
 import { combineReducers } from "redux"
+import { immerable } from "immer"
+
 import {
   CommentType,
   CommentID,
@@ -42,6 +44,8 @@ interface BatchProps {
 }
 
 export class Batch {
+  [immerable] = true
+
   constructor(
     readonly id: null | number,
     readonly isEmpty: boolean,
@@ -55,7 +59,7 @@ export class Batch {
     readonly resolvedIssues: CommentID[],
     readonly morphedComments: CommentID[],
     readonly reviewedChanges: ReviewableFileChangeID[],
-    readonly unreviewedChanges: ReviewableFileChangeID[]
+    readonly unreviewedChanges: ReviewableFileChangeID[],
   ) {}
 
   static new(props: BatchProps) {
@@ -72,7 +76,7 @@ export class Batch {
       props.resolved_issues,
       props.morphed_comments,
       props.reviewed_changes,
-      props.unreviewed_changes
+      props.unreviewed_changes,
     )
   }
 
@@ -88,7 +92,7 @@ export class Batch {
 
     // FIXME: Should clear this map when signing out.
     unpublished: primaryMap<Batch, ReviewID>("batches", (batch) =>
-      batch.id === null ? batch.review : null
+      batch.id === null ? batch.review : null,
     ),
   })
 
@@ -113,6 +117,8 @@ interface MorphedCommentProps {
 }
 
 class MorphedComment {
+  [immerable] = true
+
   constructor(readonly comment: number, readonly newType: CommentType) {}
 
   static new(props: MorphedCommentProps) {

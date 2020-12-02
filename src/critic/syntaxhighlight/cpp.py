@@ -14,12 +14,23 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-from . import clexer, context
-from . import TokenTypes, LANGUAGES
+# FIXME: Discontinue this highlighter.
+# type: ignore
+
+from __future__ import annotations
+from typing import Any, Optional
+
+from .tokentypes import TokenTypes
+from .languages import LANGUAGES
+
+from .clexer import CLexerGroupingException, group1, flatten, split, tokenize, Token
+from .context import MIN_CONTEXT_LENGTH
+from .outputter import Outputter
+from .tokentypes import TokenTypes
 
 
 class HighlightCPP:
-    def highlightToken(self, token):
+    def highlightToken(self, token: Token) -> None:
         if token.iskeyword():
             self.outputter.writeSingleline(TokenTypes.Keyword, str(token))
         elif token.isidentifier():
@@ -76,7 +87,7 @@ class HighlightCPP:
         first_line = tokens[-1].line() + 1
         last_line = terminator.line()
 
-        if last_line - first_line >= context.MIN_CONTEXT_LENGTH:
+        if last_line - first_line >= MIN_CONTEXT_LENGTH:
             previous = tokens[0]
             value = str(previous)
 
@@ -151,12 +162,12 @@ class HighlightCPP:
                     if not nextContextClosed:
                         nextContext.append(token)
                         try:
-                            group, token = clexer.group1(tokens, ")")
-                            group = list(clexer.flatten(group)) + [token]
+                            group, token = group1(tokens, ")")
+                            group = list(flatten(group)) + [token]
                             nextContext.extend(group)
                             for token in group:
                                 self.highlightToken(token)
-                        except clexer.CLexerGroupingException as error:
+                        except CLexerGroupingException as error:
                             for token in error.tokens():
                                 self.highlightToken(token)
                             nextContext = []
@@ -164,14 +175,16 @@ class HighlightCPP:
                 elif not nextContextClosed:
                     nextContext.append(token)
 
-    def __call__(self, source, outputter):
+    outputter: Outputter
+
+    def __call__(self, source: str, outputter: Outputter) -> Any:
         self.outputter = outputter
         self.contexts = []
-        self.processTokens(clexer.tokenize(clexer.split(source)))
+        self.processTokens(tokenize(split(source)))
         return self.contexts
 
     @staticmethod
-    def create(language):
+    def create(language: str) -> Optional[HighlightCPP]:
         if language == "c/c++":
             return HighlightCPP()
         else:

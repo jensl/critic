@@ -14,7 +14,9 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
+import argparse
 import logging
+from typing import Literal, Protocol, Sequence
 
 logger = logging.getLogger(__name__)
 
@@ -24,13 +26,14 @@ name = "delrole"
 title = "Unassign role(s) from user"
 
 
-def setup(parser):
+def setup(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--username", required=True, help="Name of user to unassign roles from"
     )
     parser.add_argument(
         "--role",
         action="append",
+        dest="roles",
         default=[],
         choices=("administrator", "repositories", "developer", "newswriter"),
         help=(
@@ -41,7 +44,12 @@ def setup(parser):
     parser.set_defaults(need_session=True)
 
 
-async def main(critic, arguments):
+class Arguments(Protocol):
+    username: str
+    roles: Sequence[Literal["administrator", "repositories", "developer", "newswriter"]]
+
+
+async def main(critic: api.critic.Critic, arguments: Arguments) -> int:
     try:
         user = await api.user.fetch(critic, name=arguments.username)
     except api.user.InvalidName:
@@ -49,7 +57,7 @@ async def main(critic, arguments):
         return 1
 
     assigned_roles = []
-    for role in arguments.role:
+    for role in arguments.roles:
         if user.hasRole(role):
             assigned_roles.append(role)
         else:
@@ -59,7 +67,9 @@ async def main(critic, arguments):
         modifier = transaction.modifyUser(user)
 
         for role in assigned_roles:
-            modifier.deleteRole(role)
+            await modifier.deleteRole(role)
 
     for role in assigned_roles:
         logger.info("Assigned role '%s' to user %s [id=%d]", role, user.name, user.id)
+
+    return 0

@@ -18,48 +18,50 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import Any, Optional, Tuple, Sequence, Dict, Union
+from typing import Any, Tuple
 
 logger = logging.getLogger(__name__)
 
-from . import Insert, Update, LazyAPIObject, Transaction, Modifier, protocol
+from .createapiobject import CreateAPIObject
+from .item import Update
+from .base import TransactionBase
+from .modifier import Modifier
+from .protocol import CreatedSystemEvent
 from critic import api
-from critic import base
 
 PayloadArgs = Tuple[str, str, str, Any]
 
 
-class CreatedSystemEvent(
-    LazyAPIObject[api.systemevent.SystemEvent], api_module=api.systemevent
+class CreateSystemEvent(
+    CreateAPIObject[api.systemevent.SystemEvent], api_module=api.systemevent
 ):
-    def __init__(self, transaction: Transaction, payload_args: PayloadArgs):
+    def __init__(self, transaction: TransactionBase, payload_args: PayloadArgs):
         super().__init__(transaction)
         self.payload_args = payload_args
 
     async def create_payload(
         self, resource_name: str, subject: api.systemevent.SystemEvent, /
-    ) -> protocol.CreatedSystemEvent:
-        return protocol.CreatedSystemEvent(
-            resource_name, subject.id, *self.payload_args
-        )
-
-
-def create_system_event(
-    transaction: Transaction, category: str, key: str, title: str, data: Any
-) -> CreatedSystemEvent:
-    return CreatedSystemEvent(transaction, (category, key, title, data)).insert(
-        category=category, key=key, title=title, data=json.dumps(data)
-    )
-
-
-class ModifySystemEvent(Modifier[api.systemevent.SystemEvent, CreatedSystemEvent]):
-    def markAsHandled(self) -> None:
-        self.transaction.items.append(Update(self.real).set(handled=True))
+    ) -> CreatedSystemEvent:
+        return CreatedSystemEvent(resource_name, subject.id, *self.payload_args)
 
     @staticmethod
-    def create(
-        transaction: Transaction, category: str, key: str, title: str, data: Any
+    async def make(
+        transaction: TransactionBase, category: str, key: str, title: str, data: Any
+    ) -> api.systemevent.SystemEvent:
+        return await CreateSystemEvent(
+            transaction, (category, key, title, data)
+        ).insert(category=category, key=key, title=title, data=json.dumps(data))
+
+
+class ModifySystemEvent(Modifier[api.systemevent.SystemEvent]):
+    async def markAsHandled(self) -> None:
+        await self.transaction.execute(Update(self.subject).set(handled=True))
+
+    @staticmethod
+    async def create(
+        transaction: TransactionBase, category: str, key: str, title: str, data: Any
     ) -> ModifySystemEvent:
         return ModifySystemEvent(
-            transaction, create_system_event(transaction, category, key, title, data)
+            transaction,
+            await CreateSystemEvent.make(transaction, category, key, title, data),
         )

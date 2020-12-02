@@ -16,9 +16,10 @@
 
 from __future__ import annotations
 
-from typing import Literal, Sequence, Iterable, Callable, Protocol, Optional
+from typing import Awaitable, Literal, Sequence, Iterable, Callable, Protocol, Optional
 
 from critic import api
+from critic.api.apiobject import FunctionRef
 
 
 class Error(api.APIError, object_type="file diff"):
@@ -32,8 +33,8 @@ class Delayed(api.ResultDelayedError):
 class Filediff(api.APIObject):
     """Representation of the source code for a file in a changeset
 
-       A filediff has a list of macro chunks, where each macro chunk represents
-       a partition of a file."""
+    A filediff has a list of macro chunks, where each macro chunk represents
+    a partition of a file."""
 
     def __hash__(self) -> int:
         return hash(("filediff", self.filechange))
@@ -57,9 +58,9 @@ class Filediff(api.APIObject):
     def old_syntax(self) -> str:
         """The syntax of the old version of the file
 
-           The syntax is returned as a string label, or None if the file version
-           is binary or if no supported syntax could be determined from the
-           filename or content."""
+        The syntax is returned as a string label, or None if the file version
+        is binary or if no supported syntax could be determined from the
+        filename or content."""
         return self._impl.old_syntax
 
     @property
@@ -70,7 +71,7 @@ class Filediff(api.APIObject):
     @property
     def old_linebreak(self) -> bool:
         """True if the old version of the file is non-binary and ends with
-           linebreak"""
+        linebreak"""
         return self._impl.old_linebreak
 
     @property
@@ -87,9 +88,9 @@ class Filediff(api.APIObject):
     def new_syntax(self) -> str:
         """The syntax of the new version of the file
 
-           The syntax is returned as a string label, or None if the file version
-           is binary or if no supported syntax could be determined from the
-           filename or content."""
+        The syntax is returned as a string label, or None if the file version
+        is binary or if no supported syntax could be determined from the
+        filename or content."""
         return self._impl.new_syntax
 
     @property
@@ -100,7 +101,7 @@ class Filediff(api.APIObject):
     @property
     def new_linebreak(self) -> bool:
         """True if the new version of the file is non-binary and ends with
-           linebreak"""
+        linebreak"""
         return self._impl.new_linebreak
 
     @property
@@ -117,19 +118,17 @@ class Filediff(api.APIObject):
         context_lines: int,
         *,
         minimum_gap: int = 3,
-        comments: Iterable[api.comment.Comment] = None,
-        block_filter: Callable[[ChangedLines], bool] = None,
-    ) -> Sequence[MacroChunk]:
+        comments: Optional[Iterable[api.comment.Comment]] = None,
+        block_filter: Optional[Callable[[ChangedLines], bool]] = None,
+    ) -> Optional[Sequence[MacroChunk]]:
         """Return padded/merged diff hunks suitable for human consumption
 
-           Pad low-level blocks of changed lines with the specified number of
-           context lines, and then merge blocks that overlap, are adjacent, or
-           have less than |minimum_gap| number of lines between them. ()
-           """
+        Pad low-level blocks of changed lines with the specified number of
+        context lines, and then merge blocks that overlap, are adjacent, or
+        have less than |minimum_gap| number of lines between them. ()
+        """
         if comments is not None:
             comments = list(comments)
-            assert all(isinstance(comment, api.comment.Comment) for comment in comments)
-        assert block_filter is None or callable(block_filter)
         return await self._impl.getMacroChunks(
             self.critic, int(context_lines), int(minimum_gap), comments, block_filter
         )
@@ -146,46 +145,46 @@ class ChangedLines(Protocol):
     def offset(self) -> int:
         """Offset from beginning of file or end of preceding block
 
-           In other words, the number of unchanged/context lines before this
-           block."""
+        In other words, the number of unchanged/context lines before this
+        block."""
         ...
 
     @property
     def delete_count(self) -> int:
         """Number of deleted lines
 
-           Deleted lines can also be thought of as modified lines, in the old
-           version of the file, or simply lines that no longer exist (exactly
-           the same) in the new version of the file.
+        Deleted lines can also be thought of as modified lines, in the old
+        version of the file, or simply lines that no longer exist (exactly
+        the same) in the new version of the file.
 
-           For most purposes, |delete_length| should be used instead."""
+        For most purposes, |delete_length| should be used instead."""
         ...
 
     @property
     def delete_length(self) -> int:
         """Length of the block in the old version of the file
 
-           This always at least |delete_count|, but can be more if adjacent
-           blocks only separated by trivial non-modified lines were merged."""
+        This always at least |delete_count|, but can be more if adjacent
+        blocks only separated by trivial non-modified lines were merged."""
         ...
 
     @property
     def insert_count(self) -> int:
         """Number of inserted lines
 
-           Inserted lines can also be thought of as modified lines, in the new
-           version of the file, or simply lines that did not exist (exactly
-           the same) in the old version of the file.
+        Inserted lines can also be thought of as modified lines, in the new
+        version of the file, or simply lines that did not exist (exactly
+        the same) in the old version of the file.
 
-           For most purposes, |insert_length| should be used instead."""
+        For most purposes, |insert_length| should be used instead."""
         ...
 
     @property
     def insert_length(self) -> int:
         """Length of the block in the new version of the file
 
-           This always at least |insert_count|, but can be more if adjacent
-           blocks only separated by trivial non-modified lines were merged."""
+        This always at least |insert_count|, but can be more if adjacent
+        blocks only separated by trivial non-modified lines were merged."""
         ...
 
     @property
@@ -197,16 +196,16 @@ class ChangedLines(Protocol):
 class MacroChunk(Protocol):
     """Representation of a partition of the diff in a file
 
-       A macro chunk contains all lines in the range from the first to the last.
-       In other words, if a line is between the first and last line of this
-       macro chunk, it will be included in this macro chunk.
+    A macro chunk contains all lines in the range from the first to the last.
+    In other words, if a line is between the first and last line of this
+    macro chunk, it will be included in this macro chunk.
 
-       A macro chunk also contains old and new offsets and counts, which
-       describe where in the file the lines are from, as well as how many are on
-       each side. The two sides represents the old and new version of the file,
-       where the old version is what the file looked like just before the first
-       (earliest) commit of the changeset, and the new version is what the file
-       looked like just after the last (latest) commit of the changeset."""
+    A macro chunk also contains old and new offsets and counts, which
+    describe where in the file the lines are from, as well as how many are on
+    each side. The two sides represents the old and new version of the file,
+    where the old version is what the file looked like just before the first
+    (earliest) commit of the changeset, and the new version is what the file
+    looked like just after the last (latest) commit of the changeset."""
 
     @property
     def old_offset(self) -> int:
@@ -253,20 +252,20 @@ LINE_TYPE_STRINGS = {
 class Line(Protocol):
     """Representation of a line of a file
 
-       A line represents a change from the old version of a file, to the new
-       version of a file.
+    A line represents a change from the old version of a file, to the new
+    version of a file.
 
-       A line has a type, which is one of the following:
-         CONTEXT
-         DELETED
-         MODIFIED
-         REPLACED
-         INSERTED
-         WHITESPACE
-         CONFLICT
+    A line has a type, which is one of the following:
+      CONTEXT
+      DELETED
+      MODIFIED
+      REPLACED
+      INSERTED
+      WHITESPACE
+      CONFLICT
 
-       The type of the line describes how the line changed.
-       """
+    The type of the line describes how the line changed.
+    """
 
     @property
     def type(self) -> LineType:
@@ -315,13 +314,13 @@ PART_STATE_INSERTED: PartState = 2  # Part does not appear in old version.
 class Part(Protocol):
     """Representation of a part of a line of code
 
-       A part has a type, which describes what kind of content it contains.
-       It can also have a state, meaning the part is either something that was
-       removed (in the old version of a file), or added (in the new version of
-       a file).
+    A part has a type, which describes what kind of content it contains.
+    It can also have a state, meaning the part is either something that was
+    removed (in the old version of a file), or added (in the new version of
+    a file).
 
-       A part also has some content, which is typically a word (ex. for, in, if)
-       or an operator (ex. =, !=, [, ])."""
+    A part also has some content, which is typically a word (ex. for, in, if)
+    or an operator (ex. =, !=, [, ])."""
 
     @property
     def content(self) -> str:
@@ -337,28 +336,41 @@ class Part(Protocol):
 
 
 async def fetch(filechange: api.filechange.FileChange) -> Filediff:
-    from .impl import filediff as impl
-
-    assert isinstance(filechange, api.filechange.FileChange), filechange
-    return await impl.fetch(filechange.critic, filechange)
+    return await fetchImpl.get()(filechange.critic, filechange)
 
 
 async def fetchMany(
     critic: api.critic.Critic, filechanges: Iterable[api.filechange.FileChange]
 ) -> Sequence[Filediff]:
-    from .impl import filediff as impl
-
     filechanges = list(filechanges)
     # All FileChange objects must be from the same changeset.
     assert len(set(filechange.changeset.id for filechange in filechanges)) < 2
-    return await impl.fetchMany(critic, filechanges)
+    return await fetchManyImpl.get()(critic, filechanges)
 
 
 async def fetchAll(changeset: api.changeset.Changeset) -> Sequence[Filediff]:
-    from .impl import filediff as impl
-
     assert isinstance(changeset, api.changeset.Changeset)
-    return await impl.fetchAll(changeset)
+    return await fetchAllImpl.get()(changeset)
 
 
 resource_name = "filediffs"
+
+
+fetchImpl: FunctionRef[
+    Callable[
+        [api.critic.Critic, api.filechange.FileChange],
+        Awaitable[Filediff],
+    ]
+] = FunctionRef()
+fetchManyImpl: FunctionRef[
+    Callable[
+        [
+            api.critic.Critic,
+            Sequence[api.filechange.FileChange],
+        ],
+        Awaitable[Sequence[Filediff]],
+    ]
+] = FunctionRef()
+fetchAllImpl: FunctionRef[
+    Callable[[api.changeset.Changeset], Awaitable[Sequence[Filediff]]]
+] = FunctionRef()

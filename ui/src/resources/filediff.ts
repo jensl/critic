@@ -14,6 +14,9 @@
  * the License.
  */
 
+import { immerable } from "immer"
+import { toPlainObject } from "lodash"
+
 import { primaryMap } from "../reducers/resource"
 
 export const kContextLine = 1
@@ -75,6 +78,8 @@ type FileDiffProps = {
 }
 
 class FileDiff {
+  [immerable] = true
+
   constructor(
     readonly file: number,
     readonly changeset: number,
@@ -86,7 +91,7 @@ class FileDiff {
     readonly newSyntax: string,
     readonly newLength: number,
     readonly newLinebreak: boolean,
-    readonly macroChunks: readonly MacroChunk[]
+    readonly macroChunks: readonly MacroChunk[],
   ) {}
 
   static new(props: FileDiffProps) {
@@ -101,7 +106,7 @@ class FileDiff {
       props.new_syntax,
       props.new_length,
       props.new_linebreak,
-      props.macro_chunks
+      props.macro_chunks,
     )
   }
 
@@ -114,7 +119,7 @@ class FileDiff {
 
   static reducer = primaryMap<FileDiff, string>(
     "filediffs",
-    (filediff) => `${filediff.changeset}:${filediff.file}`
+    (filediff) => `${filediff.changeset}:${filediff.file}`,
   )
 
   get props(): FileDiffProps {
@@ -138,7 +143,7 @@ export type MacroChunkData = [
   old_offset: number,
   old_count: number,
   new_offset: number,
-  new_count: number
+  new_count: number,
 ]
 
 type MacroChunkProps = {
@@ -152,12 +157,14 @@ type MacroChunkProps = {
 export type MacroChunkInput = [DiffLineData[], number, number, number, number]
 
 export class MacroChunk {
+  [immerable] = true
+
   constructor(
     readonly content: readonly DiffLine[],
     readonly oldOffset: number,
     readonly oldCount: number,
     readonly newOffset: number,
-    readonly newCount: number
+    readonly newCount: number,
   ) {}
 
   static new(props: MacroChunkProps) {
@@ -166,7 +173,7 @@ export class MacroChunk {
       props.old_offset,
       props.old_count,
       props.new_offset,
-      props.new_count
+      props.new_count,
     )
   }
 
@@ -174,7 +181,7 @@ export class MacroChunk {
     function* generate() {
       if (macroChunks !== null)
         for (const value of macroChunks) {
-          const [content, old_offset, old_count, new_offset, new_count] = value
+          const [content, old_offset, new_offset, old_count, new_count] = value
           yield MacroChunk.new({
             content: DiffLine.make(content, old_offset, new_offset),
             old_offset,
@@ -229,25 +236,46 @@ type DiffLineData = [DiffLineType, PartData[]]
 
 type DiffLineProps = {
   type: DiffLineType
-  old_offset: number
-  new_offset: number
+  oldOffset: number
+  newOffset: number
   content: readonly Part[]
+  oldPlain: string
+  newPlain: string
 }
 
+const toOldPlain = (content: PartData[]) =>
+  content
+    .map((part) =>
+      typeof part === "string" ? part : part[2] <= 0 ? part[0] : "",
+    )
+    .join("")
+const toNewPlain = (content: PartData[]) =>
+  content
+    .map((part) =>
+      typeof part === "string" ? part : part[2] >= 0 ? part[0] : "",
+    )
+    .join("")
+
 export class DiffLine {
+  [immerable] = true
+
   constructor(
     readonly type: DiffLineType,
-    readonly old_offset: number,
-    readonly new_offset: number,
-    readonly content: readonly Part[]
+    readonly oldOffset: number,
+    readonly newOffset: number,
+    readonly content: readonly Part[],
+    readonly oldPlain: string,
+    readonly newPlain: string,
   ) {}
 
   static new(props: DiffLineProps) {
     return new DiffLine(
       props.type,
-      props.old_offset,
-      props.new_offset,
-      props.content
+      props.oldOffset,
+      props.newOffset,
+      props.content,
+      props.oldPlain,
+      props.newPlain,
     )
   }
 
@@ -255,11 +283,15 @@ export class DiffLine {
     function* generate() {
       for (const value of diffLines) {
         const [type, content] = value
+        const oldPlain = toOldPlain(content)
+        const newPlain = type === kContextLine ? oldPlain : toNewPlain(content)
         yield DiffLine.new({
           type,
-          old_offset: oldOffset,
-          new_offset: newOffset,
+          oldOffset,
+          newOffset,
           content: Part.make(content),
+          oldPlain,
+          newPlain,
         })
         if (type !== kDeletedLine) ++newOffset
         if (type !== kInsertedLine) ++oldOffset
@@ -280,30 +312,32 @@ export class DiffLine {
   }
 
   get oldID() {
-    return this.type !== kInsertedLine ? `o${this.old_offset}` : ""
+    return this.type !== kInsertedLine ? `o${this.oldOffset}` : ""
   }
   get newID() {
-    return this.type !== kDeletedLine ? `n${this.new_offset}` : ""
+    return this.type !== kDeletedLine ? `n${this.newOffset}` : ""
   }
 
   get oldLineNumber() {
-    return this.type !== kInsertedLine ? this.old_offset : null
+    return this.type !== kInsertedLine ? this.oldOffset : null
   }
   get newLineNumber() {
-    return this.type !== kDeletedLine ? this.new_offset : null
+    return this.type !== kDeletedLine ? this.newOffset : null
   }
 }
 
 export class Part {
+  [immerable] = true
+
   constructor(
     readonly content: string,
     readonly type: PartType = kNeutralPartType,
-    readonly state: PartState = kNeutralPartState
+    readonly state: PartState = kNeutralPartState,
   ) {}
 
   static make(parts: PartData[]) {
     return parts.map((part) =>
-      Array.isArray(part) ? new Part(...part) : new Part(part)
+      Array.isArray(part) ? new Part(...part) : new Part(part),
     )
   }
 }

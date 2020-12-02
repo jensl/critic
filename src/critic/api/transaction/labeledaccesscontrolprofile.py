@@ -18,52 +18,44 @@ from __future__ import annotations
 
 from typing import Set
 
-from . import Transaction, Query, Insert, LazyAPIObject, Modifier
 from critic import api
+from .base import TransactionBase
+from .createapiobject import CreateAPIObject
+from .item import Delete
+from .modifier import Modifier
 
 
-class CreatedLabeledAccessControlProfile(
-    LazyAPIObject, api_module=api.labeledaccesscontrolprofile
+class CreateLabeledAccessControlProfile(
+    CreateAPIObject[api.labeledaccesscontrolprofile.LabeledAccessControlProfile],
+    api_module=api.labeledaccesscontrolprofile,
 ):
-    @staticmethod
     async def fetch(
-        critic: api.critic.Critic, labels: str
+        self, labels: str, /
     ) -> api.labeledaccesscontrolprofile.LabeledAccessControlProfile:
-        return await api.labeledaccesscontrolprofile.fetch(critic, labels.split("|"))
+        return await api.labeledaccesscontrolprofile.fetch(
+            self.critic, labels.split("|")
+        )
 
 
 class ModifyLabeledAccessControlProfile(
     Modifier[
         api.labeledaccesscontrolprofile.LabeledAccessControlProfile,
-        CreatedLabeledAccessControlProfile,
     ]
 ):
-    def delete(self) -> None:
-        self.transaction.tables.add("labeledaccesscontrolprofiles")
-        self.transaction.items.append(
-            Query(
-                """DELETE
-                     FROM labeledaccesscontrolprofiles
-                    WHERE labels={labels}""",
-                labels=str(self.subject),
-            )
+    async def delete(self) -> None:
+        await self.transaction.execute(
+            Delete("labeledaccesscontrolprofiles").where(labels=str(self.subject))
         )
 
     @staticmethod
-    def create(
-        transaction: Transaction,
+    async def create(
+        transaction: TransactionBase,
         labels: Set[str],
         profile: api.accesscontrolprofile.AccessControlProfile,
     ) -> ModifyLabeledAccessControlProfile:
-        labeled_profile = CreatedLabeledAccessControlProfile(transaction)
-
-        transaction.tables.add("labeledaccesscontrolprofiles")
-        transaction.items.append(
-            Insert(
-                "labeledaccesscontrolprofiles",
-                returning="labels",
-                collector=labeled_profile,
-            ).values(labels="|".join(sorted(labels)), profile=profile)
+        return ModifyLabeledAccessControlProfile(
+            transaction,
+            await CreateLabeledAccessControlProfile(transaction).insert(
+                labels="|".join(sorted(labels)), profile=profile
+            ),
         )
-
-        return ModifyLabeledAccessControlProfile(transaction, labeled_profile)

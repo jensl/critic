@@ -14,11 +14,13 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
+import aiohttp.web
 import logging
 import re
 
 logger = logging.getLogger(__name__)
 
+from critic import api
 from critic import auth
 
 
@@ -36,8 +38,10 @@ class AccessControlError(Exception):
 
 class AccessControlProfile:
     @staticmethod
-    async def isAllowedHTTP(req):
-        def exception_applies(exception):
+    async def isAllowedHTTP(req: aiohttp.web.BaseRequest) -> bool:
+        def exception_applies(
+            exception: api.accesscontrolprofile.HTTPException,
+        ) -> bool:
             if (
                 exception.request_method is not None
                 and exception.request_method != req.method
@@ -49,7 +53,7 @@ class AccessControlProfile:
                 return False
             return True
 
-        for profile in await req.critic.session_profiles:
+        for profile in await api.critic.getSession().session_profiles:
             category = await profile.http
             if any(exception_applies(exception) for exception in category.exceptions):
                 if category.rule == "allow":
@@ -61,8 +65,13 @@ class AccessControlProfile:
         return True
 
     @staticmethod
-    async def isAllowedRepository(repository, access_type):
-        def exception_applies(exception):
+    async def isAllowedRepository(
+        repository: api.repository.Repository,
+        access_type: api.accesscontrolprofile.RepositoryAccessType,
+    ) -> bool:
+        def exception_applies(
+            exception: api.accesscontrolprofile.RepositoryException,
+        ) -> bool:
             if exception.repository not in (None, repository):
                 return False
             if exception.access_type not in (None, access_type):
@@ -81,8 +90,13 @@ class AccessControlProfile:
         return True
 
     @staticmethod
-    async def isAllowedExtension(extension, access_type):
-        def exception_applies(exception):
+    async def isAllowedExtension(
+        extension: api.extension.Extension,
+        access_type: api.accesscontrolprofile.ExtensionAccessType,
+    ) -> bool:
+        def exception_applies(
+            exception: api.accesscontrolprofile.ExtensionException,
+        ) -> bool:
             if exception.extension not in (None, extension):
                 return False
             if exception.access_type not in (None, access_type):
@@ -103,32 +117,38 @@ class AccessControlProfile:
 
 class AccessControl(object):
     @staticmethod
-    async def forRequest(req):
+    async def forRequest(req: aiohttp.web.BaseRequest) -> None:
         # Check the session status of the request.  This raises exceptions in
         # various situations.  If no exception is raised, req.user will have
         # been set, possibly to the anonymous user (or the system user.)
         await auth.checkSession(req)
 
     @staticmethod
-    async def accessHTTP(req):
+    async def accessHTTP(req: aiohttp.web.BaseRequest) -> None:
         if not await AccessControlProfile.isAllowedHTTP(req):
             raise AccessDenied("Access denied: %s /%s" % (req.method, req.path))
 
     class Repository(object):
-        def __init__(self, repository_id, path):
+        def __init__(self, repository_id: int, path: str):
             self.id = repository_id
             self.path = path
 
     @staticmethod
-    async def accessRepository(repository, access_type):
+    async def accessRepository(
+        repository: api.repository.Repository,
+        access_type: api.accesscontrolprofile.RepositoryAccessType,
+    ) -> None:
         if not await AccessControlProfile.isAllowedRepository(repository, access_type):
             raise AccessDenied(
-                "Repository access denied: %s %s" % (access_type, repository.path)
+                f"Repository access denied: {access_type} {repository.path}"
             )
 
     @staticmethod
-    async def accessExtension(extension, access_type):
+    async def accessExtension(
+        extension: api.extension.Extension,
+        access_type: api.accesscontrolprofile.ExtensionAccessType,
+    ) -> None:
         if not await AccessControlProfile.isAllowedExtension(extension, access_type):
             raise AccessDenied(
-                "Access denied to extension: %s %s" % (access_type, extension.getKey())
+                f"Access denied to extension: {access_type} {await extension.key}"
             )

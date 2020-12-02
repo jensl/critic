@@ -15,7 +15,6 @@
  */
 
 import { assertNotReached } from "../debug"
-import { RequestParams, ExcludeFields, HandleError } from "../utils/Fetch.types"
 import {
   RequestOptions,
   fetch,
@@ -23,6 +22,11 @@ import {
   deleteResource,
   updateResource,
   createResource,
+  withArgument,
+  include,
+  includeFields,
+  excludeFields,
+  withParameters,
 } from "../resources"
 import { showToast } from "./uiToast"
 import { AsyncThunk, Dispatch } from "../state"
@@ -38,24 +42,26 @@ import { ResourceData } from "../types"
 
 export const updateReviewCategory = (
   category: ReviewCategory,
-  reviewIDs: Iterable<ReviewID>
+  reviewIDs: Iterable<ReviewID>,
 ): UpdateReviewCategoryAction => ({
   type: UPDATE_REVIEW_CATEGORY,
   category,
   reviewIDs: [...reviewIDs],
 })
 
-export const createReview = (repository: RepositoryID, commits: CommitID[]) =>
-  createResource("reviews", { repository, commits })
+export const createReview = (
+  repository: RepositoryID,
+  commits: readonly CommitID[],
+) => createResource("reviews", { repository, commits })
 
 export const deleteReview = (reviewID: ReviewID) =>
-  deleteResource("reviews", reviewID)
+  deleteResource("reviews", withArgument(reviewID))
 
 const updateReview = (
   reviewID: ReviewID,
   updates: ResourceData,
-  options?: RequestOptions
-) => updateResource("reviews", reviewID, updates, options)
+  ...options: RequestOptions[]
+) => updateResource("reviews", updates, withArgument(reviewID), ...options)
 
 const setReviewState = (state: ReviewState) => (reviewID: ReviewID) =>
   updateReview(reviewID, { state })
@@ -65,9 +71,9 @@ export const dropReview = setReviewState("dropped")
 export const reopenReview = setReviewState("open")
 
 export const publishReview = (reviewID: ReviewID) => async (
-  dispatch: Dispatch
+  dispatch: Dispatch,
 ) => {
-  await setReviewState("open")
+  await dispatch(setReviewState("open")(reviewID))
   dispatch(showToast({ type: "success", title: "Review published!" }))
 }
 
@@ -81,45 +87,55 @@ export const setOwners = (reviewID: ReviewID, owners: UserID[]) =>
 export const setBranch = (
   reviewID: ReviewID,
   branch: string,
-  handleError?: HandleError
-) => updateReview(reviewID, { branch }, { include: ["branches"], handleError })
+  ...options: RequestOptions[]
+) => updateReview(reviewID, { branch }, include("branches"), ...options)
 
-export const loadReview = (reviewID: ReviewID) => async (
-  dispatch: Dispatch
+export const loadReview = (reviewID: ReviewID): AsyncThunk<Review> => async (
+  dispatch,
 ) => {
-  const { limited } = await dispatch(fetch("reviews", reviewID))
-  if (!limited) return
-  if (limited.has("changesets") || limited.has("reviewablefilechanges")) {
-    const params: RequestParams = { fields: "changesets" }
-    const excludeFields: ExcludeFields = {}
+  const { primary, limited } = await dispatch(
+    fetch("reviews", withArgument(reviewID)),
+  )
+  if (
+    limited &&
+    (limited.has("changesets") || limited.has("reviewablefilechanges"))
+  ) {
+    const options: RequestOptions[] = [withParameters({ fields: "changesets" })]
     if (!limited.has("changesets")) {
       // If we've got all changesets already, we just want the reviewable file
       // changes for each changeset.
-      params["fields[changesets]"] = "review_state.reviewablefilechanges"
+      options.push(
+        includeFields("changesets", ["review_state.reviewablefilechanges"]),
+      )
     } else {
-      excludeFields.changesets = [
-        "completion_level",
-        "contributing_commits",
-        "review_state.comments",
-      ]
+      options.push(
+        excludeFields("changesets", [
+          "completion_level",
+          "contributing_commits",
+          "review_state.comments",
+        ]),
+      )
     }
-    await dispatch(
-      fetchOne("reviews", reviewID, {
-        params,
-        excludeFields,
-        include: ["changesets", "reviewablefilechanges", "files"],
-      })
+    return await dispatch(
+      fetchOne(
+        "reviews",
+        withArgument(reviewID),
+        include("changesets", "reviewablefilechanges", "files"),
+        ...options,
+      ),
     )
   }
+  return primary[0]
 }
 
 export const loadReviewCategory = (
   category: ReviewCategory,
   // This fetch implicitly depends on the signed in user.
-  _: SessionID
+  _: SessionID,
 ): AsyncThunk<void> => async (dispatch) => {
-  const params: RequestParams = {
-    fields: [
+  const options: RequestOptions[] = [
+    include("reviewtags", "users"),
+    includeFields("reviews", [
       "id",
       "state",
       "last_changed",
@@ -129,33 +145,30 @@ export const loadReviewCategory = (
       "summary",
       "tags",
       "branch",
-    ].join(","),
-    output_format: "static",
-  }
+    ]),
+  ]
   switch (category) {
     case "incoming":
     case "outgoing":
     case "other":
-      params.category = category
+      options.push(withParameters({ category }))
       break
 
     case "open":
     case "closed":
-      params.state = category
+      options.push(withParameters({ state: category }))
       break
 
     default:
       assertNotReached()
   }
-  const { primary } = await dispatch(
-    fetch("reviews", { params, include: ["reviewtags", "users"] })
-  )
+  const { primary } = await dispatch(fetch("reviews", ...options))
   if (!primary) return
   dispatch(
     updateReviewCategory(
       category,
-      primary.map((review: Review) => review.id)
-    )
+      primary.map((review: Review) => review.id),
+    ),
   )
 }
 

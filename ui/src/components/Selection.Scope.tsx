@@ -3,7 +3,7 @@ import React, { useEffect, MouseEvent } from "react"
 import {
   ElementToIDFunc,
   defineSelectionScope,
-  resetSelectionScope,
+  resetSelectionScopeIf,
 } from "../actions/uiSelectionScope"
 import { useDispatch } from "../store"
 import Registry from "."
@@ -27,9 +27,9 @@ const SelectionScope: React.FunctionComponent<Props> = ({
   const dispatch = useDispatch()
   useEffect(
     () => () => {
-      dispatch(resetSelectionScope())
+      dispatch(resetSelectionScopeIf(scopeID))
     },
-    [dispatch, scopeID]
+    [dispatch, scopeID],
   )
   const onMouseDown = (event: MouseEvent) => {
     if (event.ctrlKey) return
@@ -50,7 +50,7 @@ const SelectionScope: React.FunctionComponent<Props> = ({
         elementType: "commit",
         elements,
         elementToID,
-      })
+      }),
     )
   }
   return (

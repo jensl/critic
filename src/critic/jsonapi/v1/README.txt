@@ -180,15 +180,15 @@ A primary resource is implemented by decorating a class with the decorator
     value_class = User
 
     @staticmethod
-    async def json(parameters: jsonapi.Parameters, value: X) -> jsonapi.JSONResult:
+    async def json(parameters: Parameters, value: X) -> JSONResult:
       return { "name": value.name }
 
-    @staticmethod
-    async def single(parameters: jsonapi.Parameters, argument: str) -> X:
+    @classmethod
+    async def single(cls, parameters: Parameters, argument: str) -> X:
       return User(argument)
 
     @staticmethod
-    async def multiple(parameters: jsonapi.Parameters) -> Sequence[X]:
+    async def multiple(parameters: Parameters) -> Sequence[X]:
       return [User("alice"), User("bob")]
 
 A resource class is never instantiated; it is only expected to have class

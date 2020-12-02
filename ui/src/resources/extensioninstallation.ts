@@ -14,6 +14,8 @@
  * the License.
  */
 
+import { immerable } from "immer"
+
 import { primaryMap } from "../reducers/resource"
 import {
   ExtensionInstallationID,
@@ -39,12 +41,14 @@ type ExtensionInstallationProps = {
 }
 
 class ExtensionInstallation {
+  [immerable] = true
+
   constructor(
     readonly id: ExtensionInstallationID,
     readonly extension: ExtensionID,
     readonly version: null | ExtensionVersionID,
     readonly user: null | UserID,
-    readonly manifest: Manifest
+    readonly manifest: Manifest,
   ) {}
 
   static new(props: ExtensionInstallationProps) {
@@ -53,7 +57,7 @@ class ExtensionInstallation {
       props.extension,
       props.version,
       props.user,
-      props.manifest
+      props.manifest,
     )
   }
 
@@ -65,7 +69,7 @@ class ExtensionInstallation {
   }
 
   static reducer = primaryMap<ExtensionInstallation, ExtensionInstallationID>(
-    "extensioninstallations"
+    "extensioninstallations",
   )
 
   get props(): ExtensionInstallationProps {
@@ -82,6 +86,8 @@ type ManifestProps = {
 }
 
 class Manifest {
+  [immerable] = true
+
   constructor(readonly ui_addons: UIAddon[]) {}
 
   static new(props: ManifestProps) {
@@ -105,10 +111,12 @@ type UIAddonData = {
 type UIAddonProps = UIAddonData
 
 class UIAddon {
+  [immerable] = true
+
   constructor(
     readonly name: string,
     readonly hasJS: boolean,
-    readonly hasCSS: boolean
+    readonly hasCSS: boolean,
   ) {}
 
   static new(props: UIAddonProps) {

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, List, Mapping, NewType, Optional, Tuple, Union
+from typing import Any, List, NewType, Optional, Tuple, Union
 
 from critic.pubsub import ChannelName, Payload, RequestId, ReservationId
 

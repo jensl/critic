@@ -36,8 +36,7 @@ class Role(ABC):
     async def install(
         self, cursor: dbaccess.TransactionCursor, version_id: int
     ) -> None:
-        role_id = await dbaccess.Insert[int](
-            cursor,
+        role_id = await cursor.insert(
             "extensionroles",
             {
                 "version": version_id,
@@ -46,6 +45,7 @@ class Role(ABC):
                 "entrypoint": self.entrypoint,
             },
             returning="id",
+            value_type=int,
         )
         await self.install_specific(cursor, role_id)
 
@@ -55,8 +55,8 @@ class Role(ABC):
     ) -> None:
         ...
 
-    def check(self, manifest: manifest.Manifest) -> None:
-        self.check_specific(manifest)
+    # def check(self, manifest: manifest.Manifest) -> None:
+    #     self.check_specific(manifest)
 
-    def check_specific(self, manifest: manifest.Manifest) -> None:
-        pass
+    # def check_specific(self, manifest: manifest.Manifest) -> None:
+    #     pass

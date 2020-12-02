@@ -18,10 +18,11 @@ from __future__ import annotations
 
 from typing import Tuple
 
-from . import apiobject
 from critic import api
+from critic.api import tutorial as public
 from critic import dbaccess
 from critic import tutorials
+from . import apiobject
 
 
 WrapperType = api.tutorial.Tutorial
@@ -35,10 +36,11 @@ class Tutorial(apiobject.APIObject[WrapperType, ArgumentsType, str]):
         self.id, self.source = args
 
 
+@public.fetchImpl
 @Tutorial.cached
 async def fetch(critic: api.critic.Critic, tutorial_id: str) -> WrapperType:
     try:
         source = tutorials.load(tutorial_id)
     except ValueError:
         raise dbaccess.ZeroRowsInResult
-    return await Tutorial.makeOne(critic, (tutorial_id, source))
+    return await Tutorial.makeOne(critic, values=(tutorial_id, source))

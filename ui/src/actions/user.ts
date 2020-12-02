@@ -14,20 +14,29 @@
  * the License.
  */
 
-import Resource from "../resources"
+import {
+  fetch,
+  createResource,
+  deleteResource,
+  updateResource,
+  withArgument,
+  withContext,
+  withParameters,
+} from "../resources"
 import { UserID, UserEmailID, UserSSHKeyID } from "../resources/types"
-import { Dispatch } from "../state"
+import User from "../resources/user"
+import { AsyncThunk } from "../state"
 
-export const loadUsers = () => Resource.fetch("users")
+export const loadUsers = () => fetch("users")
 
 export const loadUserEmails = (userID: UserID) =>
-  Resource.fetch("useremails", { user: userID })
+  fetch("useremails", withContext("users", userID))
 
 export const loadUserSSHKeys = (userID: UserID) =>
-  Resource.fetch("usersshkeys", { user: userID })
+  fetch("usersshkeys", withContext("users", userID))
 
 export const setFullname = (userID: UserID, fullname: string) =>
-  Resource.update("users", userID, { fullname })
+  updateResource("users", { fullname }, withArgument(userID))
 
 type SetPasswordPayload = {
   current?: string
@@ -36,26 +45,33 @@ type SetPasswordPayload = {
 
 export const setPassword = (
   userID: UserID,
-  currentPassword: string,
-  newPassword: string
-) => (dispatch: Dispatch) => {
+  currentPassword: string | null,
+  newPassword: string,
+): AsyncThunk<User> => async (dispatch) => {
   const password: SetPasswordPayload = { new: newPassword }
   if (currentPassword !== null) password.current = currentPassword
-  return dispatch(Resource.update("users", userID, { password }))
+  return await dispatch(
+    updateResource("users", { password }, withArgument(userID)),
+  )
 }
 
 export const addEmailAddress = (userID: UserID, address: string) =>
-  Resource.create("useremails", { user: userID, address })
+  createResource("useremails", { address }, withContext("users", userID))
 
 export const deleteEmailAddress = (userEmailID: UserEmailID) =>
-  Resource.delete("useremails", userEmailID)
+  deleteResource("useremails", withArgument(userEmailID))
 
 export const addSSHKey = (
   userID: UserID,
   type: string,
   key: string,
-  comment: string
-) => Resource.create("usersshkeys", { user: userID, type, key, comment })
+  comment: string,
+) =>
+  createResource(
+    "usersshkeys",
+    { type, key, comment },
+    withContext("users", userID),
+  )
 
 export const deleteSSHKey = (keyID: UserSSHKeyID) =>
-  Resource.delete("usersshkeys", keyID)
+  deleteResource("usersshkeys", withArgument(keyID))

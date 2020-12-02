@@ -40,7 +40,17 @@ const ApplicationStructure: FunctionComponent = () => {
   return (
     <div
       className={classes.application}
-      onMouseDown={() => dispatch(documentClicked())}
+      onMouseDown={(ev) => {
+        let target: Node | null = ev.target as Node
+        while (target) {
+          if (target.nodeType === Node.ELEMENT_NODE) {
+            if ((target as HTMLElement).classList.contains("MuiDialog-root"))
+              return
+          }
+          target = target.parentNode
+        }
+        dispatch(documentClicked())
+      }}
     >
       <TopBar />
       <Sidebar />

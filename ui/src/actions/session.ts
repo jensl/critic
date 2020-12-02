@@ -17,11 +17,11 @@
 import { fetchJSON } from "../utils/Fetch"
 import {
   createResource,
-  ErrorResponseJSON,
   expectStatuses,
   fetch,
-  handleJSONResponse,
   include,
+  ResourceError,
+  withArgument,
 } from "../resources"
 import { dataUpdate } from "./data"
 import {
@@ -31,7 +31,10 @@ import {
   LOGIN_FAILURE,
   LoginError,
 } from "."
-import { Dispatch } from "../state"
+import { AsyncThunk, Dispatch } from "../state"
+import User from "../resources/user"
+import { UpdateHash } from "../utils/Hash"
+import { assertNotNull } from "../debug"
 
 export const loginRequest = (): Action => ({
   type: LOGIN_REQUEST,
@@ -64,39 +67,34 @@ export const logoutFailure = (error: LoginError) => ({
 
 export type FieldValues = { [key: string]: string }
 
-export const login = (data: FieldValues) => async (dispatch: Dispatch) => {
+export const login = (data: FieldValues): AsyncThunk<User | null> => async (
+  dispatch,
+  getState,
+) => {
   dispatch(loginRequest())
 
-  const { status, json } = await dispatch(
-    createResource(
-      "sessions",
-      data,
-      include("users"),
-      expectStatuses(200, 403),
-    ),
-  )
-
-  const { status, json } = dispatch(
-    handleJSONResponse({
-      ...(await dispatch(
-        fetchJSON({
-          path: "sessions",
-          include: ["users"],
-          post: data,
-          expectStatus: [200, 403],
-        }),
-      )),
-      resourceName: "sessions",
-    }),
-  )
-
-  if (status !== 200) {
-    dispatch(loginFailure((json as ErrorResponseJSON).error))
-    return false
+  try {
+    const { user: userID } = await dispatch(
+      createResource(
+        "sessions",
+        data,
+        include("users"),
+        expectStatuses(200, 403),
+      ),
+    )
+    assertNotNull(userID)
+    const user = getState().resource.users.byID.get(userID)
+    assertNotNull(user)
+    dispatch(loginSuccess())
+    return user
+  } catch (error) {
+    if (error instanceof ResourceError) {
+      const { title, message, code } = error
+      dispatch(loginFailure({ title, message, code }))
+      return null
+    }
+    throw error
   }
-
-  dispatch(loginSuccess())
-  return true
 }
 
 export const logout = () => async (dispatch: Dispatch) => {
@@ -116,4 +114,4 @@ export const resetSession = () =>
     invalid: null,
   })
 
-export const loadSession = () => fetch("sessions", "current")
+export const loadSession = () => fetch("sessions", withArgument("current"))

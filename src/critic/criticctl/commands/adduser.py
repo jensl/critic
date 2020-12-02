@@ -14,7 +14,10 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
+import argparse
 import logging
+import passlib.pwd
+from typing import Optional, Protocol, Sequence
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +27,7 @@ name = "adduser"
 title = "Add user"
 
 
-def setup(parser):
+def setup(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--username", required=True, help="User name. Must be unique on the system."
     )
@@ -59,9 +62,19 @@ def setup(parser):
     parser.set_defaults(need_session=True)
 
 
-async def main(critic, arguments):
-    password = None
+class Arguments(Protocol):
+    username: str
+    fullname: Optional[str]
+    email: Optional[str]
+    password: Optional[str]
+    no_password: bool
+    role: Sequence[str]
+
+
+async def main(critic: api.critic.Critic, arguments: Arguments):
+    password: Optional[str] = None
     password_generated = False
+    hashed_password: Optional[str]
 
     if not arguments.no_password:
         from critic import auth
@@ -69,10 +82,10 @@ async def main(critic, arguments):
         if arguments.password:
             password = arguments.password
         else:
-            import passlib.pwd
-
             password = passlib.pwd.genword()
             password_generated = True
+
+        assert password is not None
         hashed_password = await auth.hashPassword(critic, password)
     else:
         hashed_password = None
@@ -99,15 +112,15 @@ async def main(critic, arguments):
         logger.error("%s: user already exists", name)
         return 1
 
-    async with api.transaction.start(critic) as transaction:
+    async with api.transaction.start(critic, accept_no_pubsub=True) as transaction:
         modifier = await transaction.createUser(
             name, fullname, email, hashed_password=hashed_password
         )
 
         for role in arguments.role:
-            modifier.addRole(role)
+            await modifier.addRole(role)
 
-    user = await modifier
+        user = modifier.subject
 
     logger.info("Created user %s [id=%d]", user.name, user.id)
 

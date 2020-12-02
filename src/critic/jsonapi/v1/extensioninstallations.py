@@ -19,14 +19,23 @@ from __future__ import annotations
 from typing import Sequence
 
 from critic import api
-from critic import jsonapi
+from critic.api.transaction.extensioninstallation.modify import (
+    ModifyExtensionInstallation,
+)
+from ..check import convert
+from ..exceptions import InputError, PathError, UsageError
+from ..resourceclass import ResourceClass
+from ..parameters import Parameters
+from ..types import JSONInput, JSONResult
+from ..utils import numeric_id
+from ..values import Values
 
 ExtensionInstallation = api.extensioninstallation.ExtensionInstallation
 
 
 async def modify(
     transaction: api.transaction.Transaction, installation: ExtensionInstallation
-) -> api.transaction.extensioninstallation.ModifyExtensionInstallation:
+) -> ModifyExtensionInstallation:
     user = await installation.user
     if user is None:
         return await transaction.modifyExtensionInstallation(installation)
@@ -34,24 +43,22 @@ async def modify(
 
 
 class ExtensionInstallations(
-    jsonapi.ResourceClass[ExtensionInstallation], api_module=api.extensioninstallation
+    ResourceClass[ExtensionInstallation], api_module=api.extensioninstallation
 ):
     """Extensions installations."""
 
     contexts = (None, "users", "extensions")
 
     @staticmethod
-    async def json(
-        parameters: jsonapi.Parameters, value: ExtensionInstallation
-    ) -> jsonapi.JSONResult:
+    async def json(parameters: Parameters, value: ExtensionInstallation) -> JSONResult:
         """ExtensionInstallation {
-             "id": integer,
-             "extension": integer,
-             "version": integer or null,
-             "user": integer or null,
-           }"""
+          "id": integer,
+          "extension": integer,
+          "version": integer or null,
+          "user": integer or null,
+        }"""
 
-        async def manifest() -> jsonapi.JSONResult:
+        async def manifest() -> JSONResult:
             version = await value.version
             manifest = await version.manifest
             if manifest is None:
@@ -75,29 +82,27 @@ class ExtensionInstallations(
             "manifest": manifest(),
         }
 
-    @staticmethod
+    @classmethod
     async def single(
-        parameters: jsonapi.Parameters, argument: str
+        cls, parameters: Parameters, argument: str
     ) -> ExtensionInstallation:
         """Retrieve one (or more) extension installations by id.
 
-           INSTALLATION_ID : integer
+        INSTALLATION_ID : integer
 
-           Retrieve an extension installation identified by its unique numeric
-           id."""
+        Retrieve an extension installation identified by its unique numeric
+        id."""
 
         if not api.critic.settings().extensions.enabled:
-            raise jsonapi.PathError(
-                "Extension support not enabled", code="NO_EXTENSIONS"
-            )
+            raise PathError("Extension support not enabled", code="NO_EXTENSIONS")
 
         value = await api.extensioninstallation.fetch(
-            parameters.critic, jsonapi.numeric_id(argument)
+            parameters.critic, numeric_id(argument)
         )
 
         if "users" in parameters.context:
             if await value.user != parameters.context["users"]:
-                raise jsonapi.PathError(
+                raise PathError(
                     "Extension installation does not " "belong to the specified user"
                 )
 
@@ -105,32 +110,30 @@ class ExtensionInstallations(
 
     @staticmethod
     async def multiple(
-        parameters: jsonapi.Parameters,
+        parameters: Parameters,
     ) -> Sequence[ExtensionInstallation]:
         """Retrieve all extensions installations."""
 
         if not api.critic.settings().extensions.enabled:
-            raise jsonapi.UsageError(
-                "Extension support not enabled", code="NO_EXTENSIONS"
-            )
+            raise UsageError("Extension support not enabled", code="NO_EXTENSIONS")
 
-        extension = await Extensions.deduce(parameters)
+        extension = await parameters.deduce(api.extension.Extension)
         version = None
-        user = await Users.deduce(parameters)
+        user = await parameters.deduce(api.user.User)
 
-        universal_parameter = parameters.getQueryParameter("universal")
+        universal_parameter = parameters.query.get("universal")
         if universal_parameter is not None:
             if user is not None:
-                raise jsonapi.UsageError(
+                raise UsageError(
                     "Conflicting query parameter: universal=%s when user is "
                     "also specified" % universal_parameter
                 )
             user = api.user.anonymous(parameters.critic)
 
-        version_parameter = parameters.getQueryParameter("version")
+        version_parameter = parameters.query.get("version")
         if version_parameter is not None:
             if extension is None:
-                raise jsonapi.UsageError(
+                raise UsageError(
                     "Invalid query parameter: version=%s when no extension has "
                     "been specified" % version_parameter
                 )
@@ -156,10 +159,8 @@ class ExtensionInstallations(
             )
 
     @staticmethod
-    async def create(
-        parameters: jsonapi.Parameters, data: jsonapi.JSONInput
-    ) -> ExtensionInstallation:
-        converted = await jsonapi.convert(
+    async def create(parameters: Parameters, data: JSONInput) -> ExtensionInstallation:
+        converted = await convert(
             parameters,
             {
                 "user?": api.user.User,
@@ -175,19 +176,23 @@ class ExtensionInstallations(
         user = converted.get(
             "user", parameters.context.get("users", critic.actual_user)
         )
-        extension = converted.get("extension", parameters.context.get("extensions"))
-        version = converted.get("version", parameters.context.get("extensionversions"))
+        extension = converted.get(
+            "extension", parameters.in_context(api.extension.Extension)
+        )
+        version = converted.get(
+            "version", parameters.in_context(api.extensionversion.ExtensionVersion)
+        )
         universal = converted.get("universal", False)
 
         if "user" in converted and universal:
-            raise jsonapi.InputError("Only one of user and universal allowed")
+            raise InputError("Only one of user and universal allowed")
 
         if universal:
             user = None
 
         if version:
             if extension and (await version.extension) != extension:
-                raise jsonapi.InputError("Mismatch between extension and version")
+                raise InputError("Mismatch between extension and version")
             extension = await version.extension
         else:
             version = await api.extensionversion.fetch(
@@ -201,42 +206,38 @@ class ExtensionInstallations(
                 )
             else:
                 modifier = await transaction.installExtension(extension, version)
+            return modifier.subject
 
-        return await modifier
-
-    @staticmethod
+    @classmethod
     async def update(
-        parameters: jsonapi.Parameters,
-        values: jsonapi.Values[ExtensionInstallation],
-        data: jsonapi.JSONInput,
+        cls,
+        parameters: Parameters,
+        values: Values[ExtensionInstallation],
+        data: JSONInput,
     ) -> None:
-        converted = await jsonapi.convert(
-            parameters, {"version": api.extensionversion.ExtensionVersion}, data,
+        converted = await convert(
+            parameters,
+            {"version": api.extensionversion.ExtensionVersion},
+            data,
         )
 
-        version = converted.get("version")
+        version: api.extensionversion.ExtensionVersion = converted["version"]
 
-        if version is not None:
-            for installation in values:
-                if (await version.extension) != (await installation.extension):
-                    raise jsonapi.UsageError(
-                        "Cannot upgrade installation to version of a different "
-                        "extension"
-                    )
+        for installation in values:
+            if (await version.extension) != (await installation.extension):
+                raise UsageError(
+                    "Cannot upgrade installation to version of a different " "extension"
+                )
 
         async with api.transaction.start(parameters.critic) as transaction:
             for installation in values:
                 await (await modify(transaction, installation)).upgradeTo(version)
 
-    @staticmethod
+    @classmethod
     async def delete(
-        parameters: jsonapi.Parameters, values: jsonapi.Values[ExtensionInstallation]
+        cls, parameters: Parameters, values: Values[ExtensionInstallation]
     ) -> None:
         async with api.transaction.start(parameters.critic) as transaction:
             for installation in values:
                 parameters.addLinked(await installation.extension)
                 await (await modify(transaction, installation)).deleteInstallation()
-
-
-from .extensions import Extensions
-from .users import Users

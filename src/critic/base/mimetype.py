@@ -19,7 +19,7 @@ import mimetypes
 from critic import api
 
 
-def guess_from_filename(filename):
+def guess_from_filename(filename: str) -> str:
     for extension, mimetype in api.critic.settings().content.mimetypes.items():
         if filename.endswith(extension):
             return mimetype

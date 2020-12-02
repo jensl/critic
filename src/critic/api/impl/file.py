@@ -18,13 +18,15 @@ from __future__ import annotations
 
 import hashlib
 import logging
-from typing import Iterable, Dict, Tuple, Sequence, List, Set, Optional
+from typing import Iterable, Dict, Tuple, Sequence, List, Optional
 
 logger = logging.getLogger(__name__)
 
 from . import apiobject
 from critic import api
+from critic.api import file as public
 from critic import base
+from critic import dbaccess
 
 
 WrapperType = api.file.File
@@ -101,7 +103,7 @@ async def _ensure_paths(
                     "INSERT INTO files (path) VALUES ({path})",
                     ({"path": path} for path in missing_paths),
                 )
-        except base.dbaccess.IntegrityError:
+        except dbaccess.IntegrityError:
             logger.debug("IntegrityError while inserting paths!")
         translated_paths.update(await _translate_paths(critic, missing_paths))
         missing_paths.difference_update(translated_paths)
@@ -123,6 +125,7 @@ async def _resolve_paths(
     return list(translated_paths.values())
 
 
+@public.fetchImpl
 @File.cached
 async def fetch(
     critic: api.critic.Critic,
@@ -136,9 +139,10 @@ async def fetch(
     items = await _fetch_by_ids(critic, [file_id])
     if not items:
         raise api.file.InvalidId(invalid_id=file_id)
-    return await File.makeOne(critic, items[0])
+    return await File.makeOne(critic, values=items[0])
 
 
+@public.fetchManyImpl
 @File.cachedMany
 async def fetchMany(
     critic: api.critic.Critic,

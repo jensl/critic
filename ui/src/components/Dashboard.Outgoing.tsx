@@ -21,11 +21,10 @@ type Props = {
 const DashboardOutgoing: FunctionComponent<Props> = ({ className }) => {
   const classes = useStyles()
   const reviewIDs = useSelector((state) =>
-    state.ui.rest.reviewCategories.get("outgoing", null)
+    state.ui.rest.reviewCategories.get("outgoing", null),
   )
   useSubscription(loadReviewCategory, "outgoing", useSessionID())
   if (!reviewIDs) return null
-  console.error({ reviewIDs })
   return (
     <div className={clsx(className, classes.dashboardOutgoing)}>
       <ReviewList reviewIDs={reviewIDs} />

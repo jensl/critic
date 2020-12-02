@@ -14,19 +14,42 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
+import aiohttp
+import aiohttp.web
+import logging
+from abc import abstractmethod
+from typing import Mapping, Optional
+
+logger = logging.getLogger(__name__)
+
 from critic import api
 from critic import auth
 from critic import dbaccess
-from ..wsgi import request
 
 
 class OAuthProvider(auth.Provider):
-    async def start(self, req):
+    @abstractmethod
+    def getAuthorizeURL(self, state: str) -> str:
+        ...
+
+    @abstractmethod
+    async def getAccessToken(
+        self, session: aiohttp.ClientSession, code: str
+    ) -> Optional[str]:
+        ...
+
+    @abstractmethod
+    async def getUserData(
+        self, session: aiohttp.ClientSession, access_token: str
+    ) -> Optional[Mapping[str, str]]:
+        ...
+
+    async def start(
+        self, critic: api.critic.Critic, req: aiohttp.web.BaseRequest
+    ) -> None:
         state = auth.getToken()
         authorize_url = self.getAuthorizeURL(state)
-        target_url = req.getParameter("target", None)
-
-        critic = req.critic
+        target_url = req.query.get("target", None)
 
         async with critic.transaction() as cursor:
             await cursor.execute(
@@ -37,21 +60,19 @@ class OAuthProvider(auth.Provider):
                 target_url=target_url,
             )
 
-        raise request.Found(authorize_url)
+        raise aiohttp.web.HTTPFound(authorize_url)
 
-    async def finish(self, req):
-        import aiohttp
-
+    async def finish(
+        self, critic: api.critic.Critic, req: aiohttp.web.BaseRequest
+    ) -> None:
         if req.method != "GET":
             raise auth.InvalidRequest
 
-        code = req.getParameter("code", default=None)
-        state = req.getParameter("state", default=None)
+        code = req.query.get("code", None)
+        state = req.query.get("state", None)
 
         if code is None or state is None:
             raise auth.InvalidRequest("Missing parameter(s)")
-
-        critic = req.critic
 
         async with critic.query(
             """SELECT url
@@ -83,21 +104,15 @@ class OAuthProvider(auth.Provider):
                 critic, provider_name=self.name, account_id=account_id
             )
         except api.externalaccount.NotFound:
-            created_external_account = api.transaction.CollectCreatedObject(
-                api.externalaccount.ExternalAccount
-            )
-
             async with api.transaction.start(critic) as transaction:
-                transaction.createExternalAccount(
+                external_account = await transaction.createExternalAccount(
                     self.name,
                     account_id,
                     username=username,
                     fullname=fullname,
                     email=email,
-                    callback=created_external_account,
                 )
 
-            external_account = await created_external_account
             user = None
         else:
             user = await external_account.user
@@ -121,10 +136,10 @@ class OAuthProvider(auth.Provider):
                 modifier = await transaction.createUser(
                     username, fullname, email, external_account=external_account
                 )
-                modifier.connectTo(external_account)
+                await modifier.connectTo(external_account)
+                user = modifier.subject
 
-            user = await modifier.user
+        logger.error("FIXME: Must implement this!")
+        # await auth.createSessionId(req, user, external_account=external_account)
 
-        await auth.createSessionId(req, user, external_account=external_account)
-
-        raise request.Found(target_url or "/")
+        raise aiohttp.web.HTTPFound(target_url or "/")

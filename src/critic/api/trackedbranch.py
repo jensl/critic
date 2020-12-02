@@ -16,9 +16,10 @@
 
 from __future__ import annotations
 
-from typing import Optional, Protocol, Sequence, overload
+from typing import Awaitable, Callable, Optional, Protocol, Sequence, overload
 
 from critic import api
+from critic.api.apiobject import FunctionRef
 
 
 class Error(api.APIError, object_type="tracked branch"):
@@ -55,11 +56,11 @@ class TrackedBranch(api.APIObject):
     async def branch(self) -> Optional[api.branch.Branch]:
         """The local branch that tracks a remote branch, or None
 
-           The branch is returned as an api.branch.Branch object.
+        The branch is returned as an api.branch.Branch object.
 
-           None may be returned if the tracking has just been created, and has
-           not been updated yet, or if the tracking is disabled and the local
-           branch has been deleted."""
+        None may be returned if the tracking has just been created, and has
+        not been updated yet, or if the tracking is disabled and the local
+        branch has been deleted."""
         try:
             return await api.branch.fetch(
                 self.critic, repository=await self.repository, name=self.name
@@ -109,28 +110,51 @@ async def fetch(
 
 async def fetch(
     critic: api.critic.Critic,
-    trackedbranch_id: int = None,
+    trackedbranch_id: Optional[int] = None,
     /,
     *,
-    repository: api.repository.Repository = None,
-    name: str = None,
-    branch: api.branch.Branch = None,
-    review: api.review.Review = None,
+    repository: Optional[api.repository.Repository] = None,
+    name: Optional[str] = None,
+    branch: Optional[api.branch.Branch] = None,
+    review: Optional[api.review.Review] = None,
 ) -> TrackedBranch:
-    from .impl import trackedbranch as impl
-
-    return await impl.fetch(critic, trackedbranch_id, repository, name, branch, review)
+    return await fetchImpl.get()(
+        critic, trackedbranch_id, repository, name, branch, review
+    )
 
 
 async def fetchAll(
     critic: api.critic.Critic,
     *,
-    repository: api.repository.Repository = None,
+    repository: Optional[api.repository.Repository] = None,
     include_review_branches: bool = False,
 ) -> Sequence[TrackedBranch]:
-    from .impl import trackedbranch as impl
-
-    return await impl.fetchAll(critic, repository, include_review_branches)
+    return await fetchAllImpl.get()(critic, repository, include_review_branches)
 
 
 resource_name = table_name = "trackedbranches"
+
+
+fetchImpl: FunctionRef[
+    Callable[
+        [
+            api.critic.Critic,
+            Optional[int],
+            Optional[api.repository.Repository],
+            Optional[str],
+            Optional[api.branch.Branch],
+            Optional[api.review.Review],
+        ],
+        Awaitable[TrackedBranch],
+    ]
+] = FunctionRef()
+fetchAllImpl: FunctionRef[
+    Callable[
+        [
+            api.critic.Critic,
+            Optional[api.repository.Repository],
+            bool,
+        ],
+        Awaitable[Sequence[TrackedBranch]],
+    ]
+] = FunctionRef()

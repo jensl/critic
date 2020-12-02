@@ -22,7 +22,7 @@ import FileDiff from "../resources/filediff"
 import { assertNotNull } from "../debug"
 import { ChangesetID, FileID, RepositoryID, ReviewID } from "../resources/types"
 import { waitForCompletionLevel } from "../utils/Changeset"
-import { withData } from "../resources/fetch"
+import { withData } from "../resources/requestoptions"
 
 export const loadFileDiff = (
   changesetID: ChangesetID,
@@ -54,7 +54,7 @@ export const loadFileDiffs = (
   }
 
   const channel = !isComplete
-    ? await Channel.subscribe(dispatch, `changesets/${changesetID}`)
+    ? await dispatch(Channel.subscribe(`changesets/${changesetID}`))
     : null
 
   const { status, primary } = await dispatch(

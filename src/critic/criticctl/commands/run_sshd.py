@@ -14,20 +14,26 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
+import argparse
 import asyncio
 import distutils.spawn
 import grp
 import logging
 import os
 import pwd
+from pwd import struct_passwd
 import signal
 import subprocess
 import sys
 import tempfile
+from typing import Optional, Protocol
 
 logger = logging.getLogger(__name__)
 
+from critic import api
 from critic import base
+from ..utils import as_root
+from ..tasks.utils import fail, ensure_dir, ensure_system_user_and_group, identify_os
 
 name = "run-sshd"
 title = "Start Critic SSH access"
@@ -41,9 +47,23 @@ SSH public keys they have registered with Critic via the web front-end.
 """
 
 
-def generate_host_key(arguments, key_type, key_file):
-    from ..tasks import fail
+class Arguments(Protocol):
+    loglevel: int
+    configuration: base.Configuration
 
+    account_name: str
+    listen_host: Optional[str]
+    listen_port: int
+
+    host_key_types: str
+    host_key_dir: Optional[str]
+    host_key_aws_parameter_path: Optional[str]
+
+    sshd: str
+    ssh_keygen: str
+
+
+def generate_host_key(arguments: Arguments, key_type: str, key_file: str) -> None:
     if arguments.ssh_keygen is None:
         fail(
             "No 'ssh-keygen' executable found!",
@@ -57,96 +77,92 @@ def generate_host_key(arguments, key_type, key_file):
     )
 
 
-def key_filename(key_type):
+def key_filename(key_type: str) -> str:
     return f"ssh_host_{key_type}_key"
 
 
-_aws_ssm = None
+# _aws_ssm = None
 
 
-def aws_ssm(arguments):
-    from ..tasks import fail
+# def aws_ssm(arguments: Arguments) -> int:
+#     global _aws_ssm
 
-    global _aws_ssm
+#     try:
+#         import boto3
+#     except ImportError:
+#         if sys.prefix == sys.base_prefix:
+#             pip = "pip3"
+#         else:
+#             pip = os.path.join(os.path.dirname(sys.argv[0]), "pip")
+#         fail(
+#             "Failed to import 'boto3' package!",
+#             "It can be installed by running this command:",
+#             f"  {pip} install boto3",
+#         )
 
-    try:
-        import boto3
-    except ImportError:
-        if sys.prefix == sys.base_prefix:
-            pip = "pip3"
-        else:
-            pip = os.path.join(os.path.dirname(sys.argv[0]), "pip")
-        fail(
-            "Failed to import 'boto3' package!",
-            "It can be installed by running this command:",
-            f"  {pip} install boto3",
-        )
+#     if arguments.loglevel > logging.DEBUG:
+#         botocore_level = logging.WARNING
+#     else:
+#         botocore_level = logging.INFO
+#     logging.getLogger("botocore").setLevel(botocore_level)
 
-    if arguments.loglevel > logging.DEBUG:
-        botocore_level = logging.WARNING
-    else:
-        botocore_level = logging.INFO
-    logging.getLogger("botocore").setLevel(botocore_level)
-
-    if _aws_ssm is None:
-        _aws_ssm = boto3.client("ssm")
-    return _aws_ssm
+#     if _aws_ssm is None:
+#         _aws_ssm = boto3.client("ssm")
+#     return _aws_ssm
 
 
-def aws_parameter_name(arguments, key_type):
-    parameter_name = f"{arguments.host_key_aws_parameter_path}/{key_type}"
-    if not parameter_name.startswith("/"):
-        parameter_name = f"/{parameter_name}"
-    return parameter_name
+# def aws_parameter_name(arguments: Arguments, key_type: str) -> str:
+#     parameter_name = f"{arguments.host_key_aws_parameter_path}/{key_type}"
+#     if not parameter_name.startswith("/"):
+#         parameter_name = f"/{parameter_name}"
+#     return parameter_name
 
 
-class NoSuchKey(Exception):
-    pass
+# class NoSuchKey(Exception):
+#     pass
 
 
-def aws_fetch_host_key(arguments, key_type):
-    ssm = aws_ssm(arguments)
+# def aws_fetch_host_key(arguments: Arguments, key_type: str) -> str:
+#     ssm = aws_ssm(arguments)
 
-    import botocore.exceptions
+#     import botocore.exceptions
 
-    try:
-        response = ssm.get_parameter(
-            Name=aws_parameter_name(arguments, key_type), WithDecryption=True
-        )
-    except botocore.exceptions.ClientError as error:
-        if error.response["Error"]["Code"] == "ParameterNotFound":
-            raise NoSuchKey()
-        raise
+#     try:
+#         response = ssm.get_parameter(
+#             Name=aws_parameter_name(arguments, key_type), WithDecryption=True
+#         )
+#     except botocore.exceptions.ClientError as error:
+#         if error.response["Error"]["Code"] == "ParameterNotFound":
+#             raise NoSuchKey()
+#         raise
 
-    logger.debug("response: %r", response)
+#     logger.debug("response: %r", response)
 
-    fd, key_file = tempfile.mkstemp(prefix=f"{key_filename(key_type)}.")
-    with open(fd, "w") as file:
-        file.write(response["Parameter"]["Value"])
+#     fd, key_file = tempfile.mkstemp(prefix=f"{key_filename(key_type)}.")
+#     with open(fd, "w") as file:
+#         file.write(response["Parameter"]["Value"])
 
-    return key_file
-
-
-def aws_store_host_key(arguments, key_type):
-    ssm = aws_ssm(arguments)
-
-    key_file = os.path.join(tempfile.mkdtemp(), key_filename(key_type))
-    generate_host_key(arguments, key_type, key_file)
-
-    with open(key_file, "r") as file:
-        ssm.put_parameter(
-            Name=aws_parameter_name(arguments, key_type),
-            Value=file.read(),
-            Type="SecureString",
-        )
-
-    return key_file
+#     return key_file
 
 
-def ensure_host_key(arguments, key_type):
+# def aws_store_host_key(arguments: Arguments, key_type):
+#     ssm = aws_ssm(arguments)
+
+#     key_file = os.path.join(tempfile.mkdtemp(), key_filename(key_type))
+#     generate_host_key(arguments, key_type, key_file)
+
+#     with open(key_file, "r") as file:
+#         ssm.put_parameter(
+#             Name=aws_parameter_name(arguments, key_type),
+#             Value=file.read(),
+#             Type="SecureString",
+#         )
+
+#     return key_file
+
+
+def ensure_host_key(arguments: Arguments, key_type: str) -> str:
     if arguments.host_key_dir:
-        from ..tasks import ensure_dir
-
         configuration = base.configuration()
 
         system_uid = pwd.getpwnam(configuration["system.username"]).pw_uid
@@ -167,11 +183,11 @@ def ensure_host_key(arguments, key_type):
             return key_file
 
         generate_host_key(arguments, key_type, key_file)
-    elif arguments.host_key_aws_parameter_path:
-        try:
-            key_file = aws_fetch_host_key(arguments, key_type)
-        except NoSuchKey:
-            key_file = aws_store_host_key(arguments, key_type)
+    # elif arguments.host_key_aws_parameter_path:
+    #     try:
+    #         key_file = aws_fetch_host_key(arguments, key_type)
+    #     except NoSuchKey:
+    #         key_file = aws_store_host_key(arguments, key_type)
     else:
         # Fall back to the host key that was created in the image, when the
         # openssh-server package was installed. This is not ideal, obviously.
@@ -180,7 +196,7 @@ def ensure_host_key(arguments, key_type):
     return key_file
 
 
-def setup(parser):
+def setup(parser: argparse.ArgumentParser) -> None:
     configuration = parser.get_default("configuration")
 
     parser.add_argument(
@@ -236,10 +252,10 @@ def setup(parser):
 
     parser.set_defaults(run_as_root=True)
 
+    # enablding password authentication.
 
-def ensure_account(arguments, account_pwd):
-    from .. import as_root
 
+def ensure_account(arguments: Arguments, account_pwd: struct_passwd) -> None:
     def account_status():
         logger.debug("running 'passwd -S %s'", arguments.account_name)
         output = subprocess.check_output(
@@ -263,8 +279,7 @@ def ensure_account(arguments, account_pwd):
         return account_status() == "P"
 
     def reset_account_password():
-        # Set an (invalid) encrypted password to unlock the account without
-        # enablding password authentication.
+        # Set an (invalid) encrypted password to unlock:str the account:str withou->Nonet
         logger.debug("running 'usermod -p * %s'", arguments.account_name)
         subprocess.check_output(["usermod", "-p", "*", arguments.account_name])
 
@@ -286,10 +301,7 @@ def ensure_account(arguments, account_pwd):
             reset_account_shell()
 
 
-async def main(critic, arguments):
-    from .. import as_root
-    from ..tasks import ensure_system_user_and_group, identify_os
-
+async def main(critic: api.critic.Critic, arguments: Arguments) -> int:
     ensure_system_user_and_group(
         arguments,
         username=arguments.account_name,

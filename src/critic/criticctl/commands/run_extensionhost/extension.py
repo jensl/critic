@@ -5,6 +5,7 @@ from contextlib import asynccontextmanager
 import io
 import logging
 import os
+from pathlib import Path
 import pickle
 import secrets
 import struct
@@ -13,21 +14,23 @@ from typing import (
     AsyncIterator,
     Awaitable,
     Callable,
-    ClassVar,
     Dict,
     Iterable,
     Literal,
     Optional,
     Tuple,
     Union,
+    cast,
 )
 
+from critic.criticctl.utils import is_quickstarted
 
 logger = logging.getLogger(__name__)
 
 from critic import api
 from critic.background.extensionhost import (
     CallError,
+    CallResponseItem,
     EndpointRequest,
     ResponseErrorPackage,
     ResponseFinalPackage,
@@ -36,24 +39,17 @@ from critic.background.extensionhost import (
     SubscriptionMessage,
     CommandPackage,
 )
+from critic import base
 from critic.base import asyncutils, binarylog
 
 from .prepareextension import prepare_extension
+from .state import STATE
 
 HEADER_FMT = "!I"
-
-
-def version_dir(version: api.extensionversion.ExtensionVersion) -> str:
-    from . import STATE
-
-    assert STATE.base_dir is not None
-    return
-
-
 MAXIMUM_IDLE_TIME = 30
 
 RoleType = Literal["endpoint", "subscription"]
-Entrypoint = api.extensionversion.ExtensionVersion.PythonPackage.Entrypoint
+Entrypoint = api.extensionversion.ExtensionVersion.Entrypoint
 
 
 class Stopped(Exception):
@@ -90,23 +86,15 @@ class Process:
         self.__stdout_data = io.BytesIO()
         self.__stderr_data = io.BytesIO()
 
-        self.__read_logging_task = (
-            asyncio.create_task(self.__read_logging(), name="read logging"),
+        asyncio.create_task(self.__read_logging(), name="read logging")
+        asyncio.create_task(self.__read_responses(), name="read responses")
+        asyncio.create_task(
+            self.__read_output(process.stdout, self.__stdout_data),
+            name="read stdout",
         )
-        self.__read_responses_task = (
-            asyncio.create_task(self.__read_responses(), name="read responses"),
-        )
-        self.__read_stdout_task = (
-            asyncio.create_task(
-                self.__read_output(process.stdout, self.__stdout_data),
-                name="read stdout",
-            ),
-        )
-        self.__read_stderr_task = (
-            asyncio.create_task(
-                self.__read_output(process.stderr, self.__stderr_data),
-                name="read stderr",
-            ),
+        asyncio.create_task(
+            self.__read_output(process.stderr, self.__stderr_data),
+            name="read stderr",
         )
 
         self.__stopped = asyncio.Event()
@@ -128,7 +116,10 @@ class Process:
     async def __read_logging(self) -> None:
         async for msg in binarylog.read(self.__log_reader):
             if isinstance(msg, dict) and "log" in msg:
-                binarylog.emit(msg["log"], suffix=str(self.__process.pid))
+                binarylog.emit(
+                    cast(binarylog.BinaryLogRecord, msg["log"]),
+                    suffix=str(self.__process.pid),
+                )
 
     async def __read_responses(self) -> None:
         header_size = struct.calcsize(HEADER_FMT)
@@ -167,17 +158,20 @@ class Process:
 
     @asynccontextmanager
     async def lock(self) -> AsyncIterator[Process]:
+        logger.debug("locking process: pid=%d", self.__process.pid)
         async with self.__lock:
             if self.__stopped.is_set():
                 raise Stopped()
+            logger.debug("process locked: pid=%d", self.__process.pid)
             yield self
+        logger.debug("process unlocked: pid=%d", self.__process.pid)
 
     async def handle(
         self,
         user_id: Union[Literal["anonymous", "system"], int],
         accesstoken_id: Optional[int],
         command: Union[EndpointRequest, SubscriptionMessage],
-    ) -> AsyncIterator[object]:
+    ) -> AsyncIterator[CallResponseItem]:
         token = secrets.token_hex(4)
 
         logger.debug(
@@ -198,6 +192,16 @@ class Process:
             package = await self.__response_queue.get()
 
             if not package:
+                stderr_output = self.__stderr_data.getvalue()
+                if stderr_output:
+                    logger.warn(
+                        "%s:%s:%s[pid=%d]: stderr:\n%s",
+                        self.__extension.extension_name,
+                        self.__role_type,
+                        self.__entrypoint.name,
+                        self.__process.pid,
+                        stderr_output.decode(),
+                    )
                 raise Exception("Unexpected EOF from extension process")
 
             assert package.token == token
@@ -257,7 +261,7 @@ class SubscriptionProcess:
     entrypoint: str
 
 
-EXTENSIONS: ClassVar[Dict[int, Extension]] = {}
+EXTENSIONS: Dict[int, Extension] = {}
 
 
 class Extension:
@@ -267,8 +271,8 @@ class Extension:
     def __init__(
         self,
         extension_name: str,
-        version_id: str,
-        venv_path: str,
+        version_id: int,
+        venv_path: Path,
         manifest: api.extensionversion.ExtensionVersion.Manifest,
     ):
         self.extension_name = extension_name
@@ -379,8 +383,6 @@ class Extension:
 
     @staticmethod
     async def ensure(version_id: int) -> Extension:
-        from . import STATE
-
         async def inner() -> Extension:
             try:
                 return EXTENSIONS[version_id]
@@ -394,12 +396,24 @@ class Extension:
                 extension = Extension(
                     (await version.extension).name,
                     version.id,
-                    os.path.join(STATE.base_dir, version.sha1),
+                    STATE.base_dir / version.sha1,
                     manifest,
                 )
+
+                critic_wheel: Optional[Path] = None
+                source_dir: Optional[Path] = None
+
+                if is_quickstarted():
+                    paths_source = base.configuration()["paths.source"]
+                    assert paths_source is not None
+                    source_dir = Path(paths_source)
+                else:
+                    critic_wheel = STATE.critic_wheel
+
                 extension.__prepare_task = asyncio.create_task(
                     prepare_extension(
-                        STATE.critic_wheel,
+                        critic_wheel,
+                        source_dir,
                         extension.venv_path,
                         extension.extension_name,
                         extension.version_id,

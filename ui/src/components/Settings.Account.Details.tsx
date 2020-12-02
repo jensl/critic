@@ -13,7 +13,7 @@ const AccountDetails: FunctionComponent = () => {
   const user = useSignedInUser()
   if (user === null) return null
   return (
-    <Section id="details" title="Account details">
+    <Section id="personal-details" title="Account details">
       <TextField
         label="Display name"
         defaultValue={user.fullname === user.name ? null : user.fullname}
@@ -22,6 +22,7 @@ const AccountDetails: FunctionComponent = () => {
         onChange={(ev) => dispatch(setFullname(user.id, ev.target.value))}
         variant="outlined"
         helperText={`You full name, or whatever you wish to be display in place of your username ("${user.name}").`}
+        inputProps={{ spellCheck: false }}
       />
     </Section>
   )

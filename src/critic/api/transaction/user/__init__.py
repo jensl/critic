@@ -17,34 +17,21 @@
 from __future__ import annotations
 
 import logging
-from typing import Tuple, Union
+from typing import Collection
 
 logger = logging.getLogger(__name__)
 
-from .. import LazyAPIObject, Transaction
 from critic import api
 
+from ..base import TransactionBase
+from ..createapiobject import CreateAPIObject, APIObjectType
 
-class CreatedUser(LazyAPIObject, api_module=api.user):
-    pass
 
-
-class CreatedUserObject(LazyAPIObject):
-    def __init__(
-        self, transaction: Transaction, user: Union[api.user.User, CreatedUser]
-    ) -> None:
-        if isinstance(user, api.user.User):
-            api.PermissionDenied.raiseUnlessUser(transaction.critic, user)
-        else:
-            api.PermissionDenied.raiseUnlessAdministrator(transaction.critic)
+class CreatedUserObject(CreateAPIObject[APIObjectType]):
+    def __init__(self, transaction: TransactionBase, user: api.user.User) -> None:
+        api.PermissionDenied.raiseUnlessUser(transaction.critic, user)
         super().__init__(transaction)
         self.user = user
 
-    def scopes(self) -> LazyAPIObject.Scopes:
+    def scopes(self) -> Collection[str]:
         return (f"users/{int(self.user)}",)
-
-
-from .create import create_user
-from .modify import ModifyUser
-
-__all__ = ["create_user", "ModifyUser"]

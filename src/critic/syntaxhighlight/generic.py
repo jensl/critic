@@ -14,7 +14,12 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
+from __future__ import annotations
+
 import re
+from typing import Any, Optional
+
+from .outputter import Outputter
 
 try:
     import pygments.lexers
@@ -41,15 +46,22 @@ else:
         "scss": "scss",
     }
 
-from . import TokenTypes
+from .tokentypes import TokenTypes
 
 
 class HighlightGeneric:
-    def __init__(self, lexer):
+    outputter: Outputter
+
+    def __init__(self, lexer: Any):
         self.lexer = lexer
 
-    def highlightToken(self, token, value):
+    def highlightToken(self, token: Any, value: str) -> None:
         if (
+            token in pygments.token.Token.Keyword
+            or token in pygments.token.Token.Operator.Word
+        ):
+            self.outputter.writeSingleline(TokenTypes.Keyword, value)
+        elif (
             token in pygments.token.Token.Punctuation
             or token in pygments.token.Token.Operator
         ):
@@ -59,8 +71,6 @@ class HighlightGeneric:
             or token in pygments.token.Token.String.Symbol
         ):
             self.outputter.writeSingleline(TokenTypes.Identifier, value)
-        elif token in pygments.token.Token.Keyword:
-            self.outputter.writeSingleline(TokenTypes.Keyword, value)
         elif token in pygments.token.Token.String:
             self.outputter.writeMultiline(TokenTypes.String, value)
         elif token in pygments.token.Token.Comment:
@@ -72,7 +82,7 @@ class HighlightGeneric:
         else:
             self.outputter.writePlain(value)
 
-    def __call__(self, source, outputter):
+    def __call__(self, source: str, outputter: Outputter) -> Any:
         self.outputter = outputter
 
         blocks = re.split("^((?:<<<<<<<|>>>>>>>)[^\n]*\n)", source, flags=re.MULTILINE)
@@ -102,18 +112,18 @@ class HighlightGeneric:
         return []
 
     @staticmethod
-    def create(language):
+    def create(language: str) -> Optional[HighlightGeneric]:
         lexer_name = SUPPORTED_LANGUAGES.get(language)
         if not lexer_name:
             return None
         lexer = None
-        if lexer_name == "javascript":
-            try:
-                from pygmentslexerbabylon import BabylonLexer
-            except ImportError:
-                pass
-            else:
-                lexer = BabylonLexer(stripnl=False)
+        # if lexer_name == "javascript":
+        #     try:
+        #         from pygmentslexerbabylon import BabylonLexer
+        #     except ImportError:
+        #         pass
+        #     else:
+        #         lexer = BabylonLexer(stripnl=False)
         if lexer is None:
             try:
                 lexer = pygments.lexers.get_lexer_by_name(lexer_name, stripnl=False)
@@ -122,6 +132,6 @@ class HighlightGeneric:
         return HighlightGeneric(lexer)
 
 
-from . import LANGUAGES
+from .languages import LANGUAGES
 
 LANGUAGES.update(SUPPORTED_LANGUAGES.keys())

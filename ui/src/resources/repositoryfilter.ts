@@ -14,6 +14,8 @@
  * the License.
  */
 
+import { immerable } from "immer"
+
 import { primaryMap } from "../reducers/resource"
 import { UserID } from "./types"
 
@@ -36,13 +38,15 @@ type RepositoryFilterProps = {
 }
 
 class RepositoryFilter {
+  [immerable] = true
+
   constructor(
     readonly id: number,
     readonly subject: number,
     readonly repository: number,
     readonly type: "reviewer" | "watcher" | "ignored",
     readonly path: string,
-    readonly delegates: Set<UserID>
+    readonly delegates: Set<UserID>,
   ) {}
 
   static new(props: RepositoryFilterProps) {
@@ -52,7 +56,7 @@ class RepositoryFilter {
       props.repository,
       props.type,
       props.path,
-      props.delegates
+      props.delegates,
     )
   }
 

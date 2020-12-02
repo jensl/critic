@@ -1,42 +1,27 @@
 import React, { FunctionComponent, MouseEvent } from "react"
 import clsx from "clsx"
 
-import { makeStyles } from "@material-ui/core/styles"
-
 import Registry from "."
-import { ChunkComments } from "./Changeset.Diff.Chunk"
+import { ChunkProps } from "./Changeset.Diff.Chunk"
 import Line from "./Changeset.Diff.Unified.Line"
 import SelectionScope from "./Selection.Scope"
 import {
   kContextLine,
   kDeletedLine,
   kInsertedLine,
-  MacroChunk,
 } from "../resources/filediff"
-import { FileID, ChangesetID } from "../resources/types"
+import { pure } from "recompose"
 
-const useStyles = makeStyles((theme) => ({
-  changesetDiffUnifiedChunk: {},
-}))
-
-interface OwnProps {
-  className?: string
-  changesetID: ChangesetID
-  fileID: FileID
-  index: number
-  chunk: MacroChunk
-  comments: ChunkComments
-}
-
-const UnifiedChunk: FunctionComponent<OwnProps> = ({
+const UnifiedChunk: FunctionComponent<ChunkProps> = ({
   className,
   changesetID,
   fileID,
-  index,
+  scopeID,
   chunk,
   comments,
+  selectionScope,
+  inView,
 }) => {
-  const classes = useStyles()
   const lines = []
   var deleted: null | JSX.Element[] = null
   var inserted: null | JSX.Element[] = null
@@ -54,7 +39,9 @@ const UnifiedChunk: FunctionComponent<OwnProps> = ({
       changesetID,
       fileID,
       line,
-      comments: comments.get(line.id)!,
+      comments: comments?.get(line.id) ?? null,
+      selectionScope,
+      inView,
     }
     if (type === kContextLine) {
       flush()
@@ -62,11 +49,11 @@ const UnifiedChunk: FunctionComponent<OwnProps> = ({
     } else {
       if (type !== kInsertedLine)
         (deleted || (deleted = [])).push(
-          <Line key={keyCounter++} {...commonProps} side="old" />
+          <Line key={keyCounter++} {...commonProps} side="old" />,
         )
       if (type !== kDeletedLine)
         (inserted || (inserted = [])).push(
-          <Line key={keyCounter++} {...commonProps} side="new" />
+          <Line key={keyCounter++} {...commonProps} side="new" />,
         )
     }
   }
@@ -76,9 +63,12 @@ const UnifiedChunk: FunctionComponent<OwnProps> = ({
   const selector = (event: MouseEvent) => {
     let target: HTMLElement | null = event.target as HTMLElement
     while (target) {
-      if (target.classList.contains("code")) return ".code"
-      else if (target.classList.contains(classes.changesetDiffUnifiedChunk))
-        break
+      const { classList } = target
+      if (classList.contains("code")) {
+        if (classList.contains("old")) return ".code:not(.new)"
+        else if (classList.contains("new")) return ".code:not(.old)"
+        else return ".code"
+      } else if (classList.contains("unified")) break
       target = target.parentElement
     }
     return null
@@ -86,8 +76,8 @@ const UnifiedChunk: FunctionComponent<OwnProps> = ({
 
   return (
     <SelectionScope
-      scopeID={`chunk_${fileID}_${index}`}
-      className={clsx(className, classes.changesetDiffUnifiedChunk)}
+      scopeID={scopeID}
+      className={clsx(className, "unified")}
       selector={selector}
       elementToID={(element: HTMLElement) => element.dataset.lineId!}
     >
@@ -96,4 +86,4 @@ const UnifiedChunk: FunctionComponent<OwnProps> = ({
   )
 }
 
-export default Registry.add("Changeset.Diff.Unified.Chunk", UnifiedChunk)
+export default Registry.add("Changeset.Diff.Unified.Chunk", pure(UnifiedChunk))

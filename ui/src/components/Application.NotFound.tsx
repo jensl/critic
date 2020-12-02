@@ -21,9 +21,34 @@ import { makeStyles } from "@material-ui/core/styles"
 import Typography from "@material-ui/core/Typography"
 
 import Registry from "."
+import { useLocation } from "react-router"
 
 const useStyles = makeStyles((theme) => ({
-  applicationNotFound: {},
+  applicationNotFound: {
+    display: "flex",
+    alignItems: "flex-start",
+    lineHeight: "160px",
+  },
+  statusCode: {
+    ...theme.critic.monospaceFont,
+    fontSize: "200px",
+    lineHeight: "inherit",
+    textAlign: "right",
+
+    marginLeft: "20%",
+    paddingRight: "40px",
+    borderRight: "1px solid rgba(128, 128, 128, 0.5)",
+    marginRight: "40px",
+
+    paddingBottom: "15px",
+  },
+  message: {
+    lineHeight: "inherit",
+  },
+  path: {
+    ...theme.critic.monospaceFont,
+    ...theme.critic.standout,
+  },
 }))
 
 type OwnProps = {
@@ -32,15 +57,19 @@ type OwnProps = {
 
 type ConnectedProps = {}
 
-const ApplicationNotFound: FunctionComponent<OwnProps & ConnectedProps> = ({
+const NotFound: FunctionComponent<OwnProps & ConnectedProps> = ({
   className,
 }) => {
   const classes = useStyles()
+  const { pathname } = useLocation()
   return (
     <div className={clsx(className, classes.applicationNotFound)}>
-      <Typography variant="h1">404</Typography>
+      <div className={classes.statusCode}>404</div>
+      <Typography variant="body1" className={classes.message}>
+        Not a valid path: <span className={classes.path}>{pathname}</span>
+      </Typography>
     </div>
   )
 }
 
-export default Registry.add("Application.NotFound", ApplicationNotFound)
+export default Registry.add("Application.NotFound", NotFound)

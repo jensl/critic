@@ -21,9 +21,9 @@ from typing import Tuple, Optional, Sequence
 
 logger = logging.getLogger(__name__)
 
-from . import apiobject
-
 from critic import api
+from critic.api import reviewintegrationrequest as public
+from . import apiobject
 
 WrapperType = api.reviewintegrationrequest.ReviewIntegrationRequest
 ArgumentsType = Tuple[
@@ -92,6 +92,7 @@ class ReviewIntegrationRequest(apiobject.APIObject[WrapperType, ArgumentsType, i
         return await api.branchupdate.fetch(critic, self.__branchupdate_id)
 
 
+@public.fetchImpl
 @ReviewIntegrationRequest.cached
 async def fetch(critic: api.critic.Critic, request_id: int) -> WrapperType:
     async with critic.query(
@@ -103,6 +104,7 @@ async def fetch(critic: api.critic.Critic, request_id: int) -> WrapperType:
         return await ReviewIntegrationRequest.makeOne(critic, result)
 
 
+@public.fetchAllImpl
 async def fetchAll(
     critic: api.critic.Critic,
     review: Optional[api.review.Review],

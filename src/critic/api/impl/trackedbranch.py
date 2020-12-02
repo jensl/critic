@@ -19,8 +19,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Tuple, Optional, Sequence
 
-from . import apiobject
 from critic import api
+from critic.api import trackedbranch as public
+from . import apiobject
 
 
 @dataclass(frozen=True)
@@ -33,7 +34,7 @@ WrapperType = api.trackedbranch.TrackedBranch
 ArgumentsType = Tuple[int, int, str, str, str, bool, bool]
 
 
-class TrackedBranch(apiobject.APIObject):
+class TrackedBranch(apiobject.APIObject[WrapperType, ArgumentsType, int]):
     table_name = "trackedbranches"
     wrapper_class = api.trackedbranch.TrackedBranch
     column_names = [
@@ -65,6 +66,7 @@ class TrackedBranch(apiobject.APIObject):
         return await api.repository.fetch(critic, self.__repository_id)
 
 
+@public.fetchImpl
 @TrackedBranch.cached
 async def fetch(
     critic: api.critic.Critic,
@@ -100,6 +102,7 @@ async def fetch(
             raise
 
 
+@public.fetchAllImpl
 async def fetchAll(
     critic: api.critic.Critic,
     repository: Optional[api.repository.Repository],

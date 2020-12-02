@@ -20,7 +20,7 @@ import itertools
 import logging
 import time
 from abc import ABC, abstractmethod
-from typing import Collection, Generic, Iterable, List, Optional, Set, TypeVar
+from typing import Collection, Iterable, List, Optional, Set
 
 logger = logging.getLogger(__name__)
 
@@ -28,32 +28,32 @@ from critic import api
 from critic import gitaccess
 
 from . import Key
+from .job import Job, RunnerType, ServiceType
+from .languageids import LanguageIds
 
-GroupType = TypeVar("GroupType", bound="JobGroup")
 
-
-class JobGroup(Generic[GroupType], ABC):
-    not_started: Set[job.Job[GroupType]]
-    not_started_queue: List[job.Job[GroupType]]
-    running: Set[job.Job[GroupType]]
-    has_result: Set[job.Job[GroupType]]
-    has_traceback: Set[job.Job[GroupType]]
-    has_queries: Set[job.Job[GroupType]]
-    processed: Set[job.Job[GroupType]]
+class JobGroup(ABC):
+    not_started: Set[Job]
+    not_started_queue: List[Job]
+    __running: Set[Job]
+    has_result: Set[Job]
+    has_traceback: Set[Job]
+    has_queries: Set[Job]
+    __processed: Set[Job]
     failed: Set[Key]
     repository_path: Optional[str]
 
-    def __init__(self, runner: jobrunner.JobRunner, key: Key):
-        self.runner = runner
-        self.service = runner.service
-        self.key = (type(self).__name__,) + key
+    def __init__(self, runner: RunnerType, key: Key, repository_id: int):
+        self.__runner = runner
+        self.__key = (type(self).__name__,) + key
+        self.__repository_id = repository_id
         self.not_started = set()
         self.not_started_queue = []
-        self.running = set()
+        self.__running = set()
         self.has_result = set()
         self.has_traceback = set()
         self.has_queries = set()
-        self.processed = set()
+        self.__processed = set()
         self.failed = set()
         self.started = time.time()
         self.timestamp = time.time()
@@ -69,13 +69,37 @@ class JobGroup(Generic[GroupType], ABC):
         return repr(self.key)
 
     @property
-    def in_progress(self) -> Collection[job.Job[GroupType]]:
+    def runner(self) -> RunnerType:
+        return self.__runner
+
+    @property
+    def service(self) -> ServiceType:
+        return self.__runner.service
+
+    @property
+    def language_ids(self) -> LanguageIds:
+        return self.__runner.language_ids
+
+    @property
+    def key(self) -> Key:
+        return self.__key
+
+    @property
+    def running(self) -> Set[Job]:
+        return self.__running
+
+    @property
+    def processed(self) -> Set[Job]:
+        return self.__processed
+
+    @property
+    def in_progress(self) -> Collection[Job]:
         return self.running | self.has_result | self.has_traceback | self.has_queries
 
-    def add_job(self, job: job.Job[GroupType]) -> bool:
+    def add_job(self, job: Job) -> bool:
         return self.add_jobs(set([job]))
 
-    def add_jobs(self, jobs_iter: Iterable[job.Job[GroupType]], /) -> bool:
+    def add_jobs(self, jobs_iter: Iterable[Job], /) -> bool:
         # logger.debug("add_jobs: jobs=%r, failed=%r", jobs, self.failed)
         jobs = set(jobs_iter)
         jobs.difference_update(
@@ -92,7 +116,7 @@ class JobGroup(Generic[GroupType], ABC):
         self.not_started_queue = sorted(self.not_started, key=lambda job: job.priority)
         return True
 
-    def get_job_to_start(self) -> Optional[job.Job[GroupType]]:
+    def get_job_to_start(self) -> Optional[Job]:
         if not self.not_started:
             return None
         self.timestamp = time.time()
@@ -112,16 +136,29 @@ class JobGroup(Generic[GroupType], ABC):
         ...
 
     @abstractmethod
-    def jobs_finished(self, jobs: Collection[job.Job[GroupType]]) -> None:
+    def jobs_finished(self, jobs: Collection[Job]) -> None:
+        ...
+
+    @abstractmethod
+    async def process_traceback(self, critic: api.critic.Critic, job: Job) -> None:
         ...
 
     @abstractmethod
     def group_finished(self) -> None:
         ...
 
+    @property
+    def repository_id(self) -> int:
+        return self.__repository_id
+
+    @property
+    def changeset_id(self) -> int:
+        raise Exception("not a changeset")
+
+    @property
+    def conflicts(self) -> bool:
+        raise Exception("not a changeset")
+
     def repository(self) -> gitaccess.GitRepository:
         assert self.repository_path is not None
         return gitaccess.GitRepository.direct(self.repository_path)
-
-
-from . import job, jobrunner

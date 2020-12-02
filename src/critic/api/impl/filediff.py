@@ -18,10 +18,11 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from collections import defaultdict, namedtuple
+from collections import defaultdict
 from dataclasses import dataclass
 from typing import (
     Any,
+    NamedTuple,
     Optional,
     Sequence,
     Dict,
@@ -39,9 +40,11 @@ from typing import (
 
 logger = logging.getLogger(__name__)
 
-from . import apiobject
 from critic import api
-from ...syntaxhighlight.ranges import SyntaxHighlightRanges
+from critic.api import filediff as public
+from critic.syntaxhighlight.ranges import SyntaxHighlightRanges
+from . import apiobject
+from .critic import Critic
 
 COUNTS = "FileDiff.counts"
 CHANGED_LINES = "FileDiff.changed_lines"
@@ -49,44 +52,128 @@ CHANGED_LINES = "FileDiff.changed_lines"
 
 @dataclass(frozen=True)
 class ChangedLines:
-    index: int
-    offset: int
-    delete_count: int
-    delete_length: int
-    insert_count: int
-    insert_length: int
-    analysis: Optional[str]
+    __index: int
+    __offset: int
+    __delete_count: int
+    __delete_length: int
+    __insert_count: int
+    __insert_length: int
+    __analysis: Optional[str]
+
+    @property
+    def index(self) -> int:
+        return self.__index
+
+    @property
+    def offset(self) -> int:
+        return self.__offset
+
+    @property
+    def delete_count(self) -> int:
+        return self.__delete_count
+
+    @property
+    def delete_length(self) -> int:
+        return self.__delete_length
+
+    @property
+    def insert_count(self) -> int:
+        return self.__insert_count
+
+    @property
+    def insert_length(self) -> int:
+        return self.__insert_length
+
+    @property
+    def analysis(self) -> Optional[str]:
+        return self.__analysis
 
 
 @dataclass(frozen=True)
 class MacroChunk:
-    old_offset: int
-    new_offset: int
-    old_count: int
-    new_count: int
-    lines: Sequence[api.filediff.Line]
+    __old_offset: int
+    __new_offset: int
+    __old_count: int
+    __new_count: int
+    __lines: Sequence[api.filediff.Line]
+
+    @property
+    def old_offset(self) -> int:
+        return self.__old_offset
+
+    @property
+    def new_offset(self) -> int:
+        return self.__new_offset
+
+    @property
+    def old_count(self) -> int:
+        return self.__old_count
+
+    @property
+    def new_count(self) -> int:
+        return self.__new_count
+
+    @property
+    def lines(self) -> Sequence[api.filediff.Line]:
+        return self.__lines
 
 
 @dataclass(frozen=True)
 class Line:
-    type: api.filediff.LineType
-    type_string: str
-    old_offset: int
-    new_offset: int
-    content: Sequence[Part]
+    __type: api.filediff.LineType
+    __type_string: str
+    __old_offset: int
+    __new_offset: int
+    __content: Sequence[Part]
+
+    @property
+    def type(self) -> api.filediff.LineType:
+        return self.__type
+
+    @property
+    def type_string(self) -> str:
+        return self.__type_string
+
+    @property
+    def old_offset(self) -> int:
+        return self.__old_offset
+
+    @property
+    def new_offset(self) -> int:
+        return self.__new_offset
+
+    @property
+    def content(self) -> Sequence[Part]:
+        return self.__content
 
 
 @dataclass
 class Part:
-    content: str
-    type: api.filediff.PartType = api.filediff.PART_TYPE_NEUTRAL
-    state: api.filediff.PartState = api.filediff.PART_STATE_NEUTRAL
+    __content: str
+    __type: api.filediff.PartType = api.filediff.PART_TYPE_NEUTRAL
+    __state: api.filediff.PartState = api.filediff.PART_STATE_NEUTRAL
 
     def __len__(self) -> int:
         return len(self.content)
 
+    @property
+    def content(self) -> str:
+        return self.__content
 
-Block = namedtuple("Block", ["old_offset", "old_count", "new_offset", "new_count"])
+    @property
+    def type(self) -> api.filediff.PartType:
+        return self.__type
+
+    @property
+    def state(self) -> api.filediff.PartState:
+        return self.__state
+
+
+class Block(NamedTuple):
+    old_offset: int
+    old_count: int
+    new_offset: int
+    new_count: int
 
 
 class Blocks:
@@ -215,7 +302,9 @@ class MappedLines:
     def is_context(self, *, new_offset: int) -> bool:
         ...
 
-    def is_context(self, *, old_offset: int = None, new_offset: int = None) -> bool:
+    def is_context(
+        self, *, old_offset: Optional[int] = None, new_offset: Optional[int] = None
+    ) -> bool:
         assert (old_offset is None) != (new_offset is None)
         if old_offset is not None:
             block = self.__changed_blocks.find_old(old_offset)
@@ -270,16 +359,19 @@ class MappedLines:
 
 class PartHelper:
     @staticmethod
+    def with_content(part: Part, content: str) -> Part:
+        return Part(content, part.type, part.state)
+
+    @staticmethod
     def with_state(part: Part, state: api.filediff.PartState) -> Part:
-        part.state = state
-        return part
+        return Part(part.content, part.type, state)
 
     @staticmethod
     def copy(part: Part) -> Part:
         return Part(part.content, part.type, part.state)
 
     @staticmethod
-    def make(content: Optional[Iterable[tuple]]) -> Generator[Part, Any, Any]:
+    def make(content: Optional[Iterable[Tuple[Any, ...]]]) -> Generator[Part, Any, Any]:
         return (Part(*values) for values in (content or []))
 
 
@@ -322,8 +414,8 @@ class PartHelper:
 
 def getLineContent(
     line_type: api.filediff.LineType,
-    old_content: Optional[Sequence[tuple]],
-    new_content: Optional[Sequence[tuple]],
+    old_content: Optional[Sequence[Tuple[Any, ...]]],
+    new_content: Optional[Sequence[Tuple[Any, ...]]],
     edits: Optional[str],
 ) -> Sequence[Part]:
     if line_type == api.filediff.LINE_TYPE_CONTEXT:
@@ -359,8 +451,8 @@ class MacroChunkCreator:
         self.mapped_lines = mapped_lines
 
         # FIXME: Typing here.
-        self.old_range: Any = None
-        self.new_range: Any = None
+        self.old_range: Optional[Any] = None
+        self.new_range: Optional[Any] = None
 
     # def __eq__(self, other):
     #     return (
@@ -389,18 +481,23 @@ class MacroChunkCreator:
         new_count = self.new_count
 
         def make_line(
-            line_type: api.filediff.LineType = None, /, *, edits: str = None
+            line_type: Optional[api.filediff.LineType] = None,
+            /,
+            *,
+            edits: Optional[str] = None,
         ) -> api.filediff.Line:
             nonlocal old_offset, old_count, new_offset, new_count
             line_old_offset = old_offset
             line_new_offset = new_offset
             if line_type != api.filediff.LINE_TYPE_INSERTED:
+                assert self.old_range
                 old_content = self.old_range.lines[old_offset - self.old_offset]
                 old_offset += 1
                 old_count -= 1
             else:
                 old_content = None
             if line_type != api.filediff.LINE_TYPE_DELETED:
+                assert self.new_range
                 new_content = self.new_range.lines[new_offset - self.new_offset]
                 new_offset += 1
                 new_count -= 1
@@ -647,17 +744,15 @@ class MacroChunkGenerator:
             return
 
         def is_adjacent(pair_a: Pair, pair_b: Pair, minimum_gap: int = 1) -> bool:
+            start_a, end_a = pair_a
+            start_b, end_b = pair_b
             if (
-                pair_a[0] is not None
-                and pair_b[0] is not None
-                and pair_a[0] + minimum_gap >= pair_b[0]
+                start_a is not None
+                and start_b is not None
+                and start_a + minimum_gap >= start_b
             ):
                 return True
-            if (
-                pair_a[1] is not None
-                and pair_b[1] is not None
-                and pair_a[1] + minimum_gap >= pair_b[1]
-            ):
+            if end_a is not None and end_b is not None and end_a + minimum_gap >= end_b:
                 return True
             return False
 
@@ -777,8 +872,8 @@ class Filediff(apiobject.APIObject[WrapperType, ArgumentsType, CacheKeyType]):
     def cacheKey(wrapper: WrapperType) -> CacheKeyType:
         return (wrapper.filechange.changeset.id, wrapper.filechange.file.id)
 
-    @staticmethod
-    def makeCacheKey(args: ArgumentsType) -> CacheKeyType:
+    @classmethod
+    def makeCacheKey(cls, args: ArgumentsType) -> CacheKeyType:
         filechange = args[0]
         return (filechange.changeset.id, filechange.file.id)
 
@@ -809,7 +904,7 @@ class Filediff(apiobject.APIObject[WrapperType, ArgumentsType, CacheKeyType]):
 
         cached_by_changeset: Dict[int, List[int]] = {}
         for (changeset_id, file_id), filediff in cached_objects.items():
-            if filediff._impl.__counts is None:
+            if Filediff.fromWrapper(filediff).__counts is None:
                 cached_by_changeset.setdefault(changeset_id, []).append(file_id)
 
         for changeset_id, file_ids in cached_by_changeset.items():
@@ -826,24 +921,28 @@ class Filediff(apiobject.APIObject[WrapperType, ArgumentsType, CacheKeyType]):
                 file_ids=file_ids,
             ) as result:
                 async for file_id, delete_count, insert_count in result:
-                    cached_objects[(changeset_id, file_id)]._impl.__counts = (
+                    Filediff.fromWrapper(
+                        cached_objects[(changeset_id, file_id)]
+                    ).__counts = (
                         delete_count,
                         insert_count,
                     )
                     remaining_file_ids.remove(file_id)
 
             for file_id in remaining_file_ids:
-                cached_objects[(changeset_id, file_id)]._impl.__counts = (None, None)
+                Filediff.fromWrapper(
+                    cached_objects[(changeset_id, file_id)]
+                ).__counts = (0, 0)
 
     async def getOldCount(self, critic: api.critic.Critic) -> int:
-        async with critic._impl.criticalSection(COUNTS):
+        async with Critic.fromWrapper(critic).criticalSection(COUNTS):
             if self.__counts is None:
                 await self.__populateCounts(critic)
                 assert self.__counts is not None
         return self.__counts[0]
 
     async def getNewCount(self, critic: api.critic.Critic) -> int:
-        async with critic._impl.criticalSection(COUNTS):
+        async with Critic.fromWrapper(critic).criticalSection(COUNTS):
             if self.__counts is None:
                 await self.__populateCounts(critic)
                 assert self.__counts is not None
@@ -856,7 +955,7 @@ class Filediff(apiobject.APIObject[WrapperType, ArgumentsType, CacheKeyType]):
         cached_by_changeset: Dict[int, List[int]] = defaultdict(list)
         need_fetch = []
         for (changeset_id, file_id), filediff in cached_objects.items():
-            if filediff._impl.__changed_lines is None:
+            if Filediff.fromWrapper(filediff).__changed_lines is None:
                 cached_by_changeset[changeset_id].append(file_id)
                 need_fetch.append((changeset_id, file_id))
 
@@ -900,10 +999,12 @@ class Filediff(apiobject.APIObject[WrapperType, ArgumentsType, CacheKeyType]):
                     )
 
         for key in need_fetch:
-            cached_objects[key]._impl.__changed_lines = changed_lines[key]
+            Filediff.fromWrapper(cached_objects[key]).__changed_lines = changed_lines[
+                key
+            ]
 
     async def getChangedLines(self, critic: api.critic.Critic) -> List[ChangedLines]:
-        async with critic._impl.criticalSection(CHANGED_LINES):
+        async with Critic.fromWrapper(critic).criticalSection(CHANGED_LINES):
             if self.__changed_lines is None:
                 await self.__populateChangedLines(critic)
                 assert self.__changed_lines is not None
@@ -916,12 +1017,12 @@ class Filediff(apiobject.APIObject[WrapperType, ArgumentsType, CacheKeyType]):
         minimum_gap: int,
         comments: Optional[Iterable[api.comment.Comment]],
         block_filter: Optional[Callable[[api.filediff.ChangedLines], bool]],
-    ) -> Sequence[api.filediff.MacroChunk]:
+    ) -> Optional[Sequence[api.filediff.MacroChunk]]:
         logger.error("getMacroChunks: path=%s", self.filechange.file.path)
         if not self.__macro_chunks:
             changeset = self.filechange.changeset
 
-            async with critic._impl.criticalSection(CHANGED_LINES):
+            async with Critic.fromWrapper(critic).criticalSection(CHANGED_LINES):
                 if self.__changed_lines is None:
                     await self.__populateChangedLines(critic)
                     assert self.__changed_lines is not None
@@ -1028,6 +1129,7 @@ class IncompleteChangeset(api.filediff.Delayed):
         super().__init__("incomplete changeset")
 
 
+@public.fetchImpl
 @Filediff.cached
 async def fetch(
     critic: api.critic.Critic, filechange: api.filechange.FileChange
@@ -1064,11 +1166,14 @@ async def fetch(
         file=filechange.file,
     ) as result:
         try:
-            return await Filediff.makeOne(critic, (filechange,) + await result.one())
+            return await Filediff.makeOne(
+                critic, values=(filechange, *await result.one())
+            )
         except result.ZeroRowsInResult:
             raise IncompleteChangeset()
 
 
+@public.fetchManyImpl
 @Filediff.cachedMany
 async def fetchMany(
     critic: api.critic.Critic, filechanges: Sequence[api.filechange.FileChange]
@@ -1151,6 +1256,7 @@ async def fetchMany(
             raise IncompleteChangeset()
 
 
+@public.fetchAllImpl
 async def fetchAll(changeset: api.changeset.Changeset) -> Sequence[WrapperType]:
     files = await changeset.files
     if files is None:
@@ -1180,10 +1286,9 @@ class Parts:
             length -= len(part.content)
             yield part
         if length:
-            tail_part = self.parts[0]
-            head_part = PartHelper.copy(tail_part)
-            head_part.content = head_part.content[:length]
-            tail_part.content = tail_part.content[length:]
+            part = self.parts[0]
+            head_part = PartHelper.with_content(part, part.content[:length])
+            self.parts[0] = PartHelper.with_content(part, part.content[length:])
             yield head_part
 
     def skip(self, length: int) -> None:
@@ -1191,8 +1296,8 @@ class Parts:
         while self.parts and len(self.parts[0].content) <= length:
             length -= len(self.parts.pop(0).content)
         if length:
-            tail_part = self.parts[0]
-            tail_part.content = tail_part.content[length:]
+            part = self.parts[0]
+            self.parts[0] = PartHelper.with_content(part, part.content[length:])
 
 
 def extract_context(
@@ -1266,6 +1371,9 @@ def perform_detailed_operations(
 ) -> Sequence[Part]:
     processed_content: List[Part] = []
 
+    old_content = list(old_content)
+    new_content = list(new_content)
+
     old_parts = Parts(old_content)
     new_parts = Parts(new_content)
 
@@ -1313,7 +1421,9 @@ def perform_detailed_operations(
                 for part in new_parts.extract(inserted_length)
             )
 
-    assert len(old_parts) == len(new_parts), repr((len(old_parts), len(new_parts)))
+    assert len(old_parts) == len(new_parts), repr(
+        (operations, old_content, new_content)
+    )
     processed_content.extend(extract_context(old_parts, new_parts, len(old_parts)))
 
     return processed_content
@@ -1333,6 +1443,6 @@ def perform_basic_operations(
             for part in new_content
         ]
     elif old_content is not None:
-        return old_content
+        return list(old_content)
     assert new_content
-    return new_content
+    return list(new_content)

@@ -6,9 +6,8 @@ import { makeStyles, Theme } from "@material-ui/core/styles"
 import Registry from "."
 import SelectionScope from "./Selection.Scope"
 import Line from "./Changeset.Diff.SideBySide.Line"
-import { MacroChunk } from "../resources/filediff"
-import { ChunkComments } from "./Changeset.Diff.Chunk"
-import { ChangesetID, FileID } from "../resources/types"
+import { ChunkProps } from "./Changeset.Diff.Chunk"
+import { pure } from "recompose"
 
 const useStyles = makeStyles((theme: Theme) => ({
   changesetDiffSideBySideChunk: {
@@ -16,23 +15,17 @@ const useStyles = makeStyles((theme: Theme) => ({
   },
 }))
 
-type Props = {
-  className?: string
-  changesetID: ChangesetID
-  fileID: FileID
-  index: number
-  chunk: MacroChunk
-  comments: ChunkComments
-}
-
-const SideBySideChunk: FunctionComponent<Props> = ({
+const SideBySideChunk: FunctionComponent<ChunkProps> = ({
   className,
   changesetID,
   fileID,
-  index,
+  scopeID,
   chunk,
   comments,
-}: Props) => {
+  selectionScope,
+  inView,
+}) => {
+  console.log("SideBySideChunk", { scopeID })
   const classes = useStyles()
   const lines = chunk.content.map((line, index) => (
     <Line
@@ -40,7 +33,9 @@ const SideBySideChunk: FunctionComponent<Props> = ({
       changesetID={changesetID}
       fileID={fileID}
       line={line}
-      comments={comments.get(line.id)!}
+      comments={comments?.get(line.id) ?? null}
+      selectionScope={selectionScope}
+      inView={inView}
     />
   ))
   const calculateSelector = (element: HTMLElement): string | null => {
@@ -54,8 +49,12 @@ const SideBySideChunk: FunctionComponent<Props> = ({
   }
   return (
     <SelectionScope
-      scopeID={`chunk_${fileID}_${index}`}
-      className={clsx(className, classes.changesetDiffSideBySideChunk)}
+      scopeID={scopeID}
+      className={clsx(
+        className,
+        classes.changesetDiffSideBySideChunk,
+        "side-by-side",
+      )}
       selector={(ev: MouseEvent) => calculateSelector(ev.target as HTMLElement)}
       elementToID={(element: HTMLElement) => element.dataset.lineId!}
     >
@@ -64,4 +63,7 @@ const SideBySideChunk: FunctionComponent<Props> = ({
   )
 }
 
-export default Registry.add("Changeset.Diff.SideBySide.Chunk", SideBySideChunk)
+export default Registry.add(
+  "Changeset.Diff.SideBySide.Chunk",
+  pure(SideBySideChunk),
+)

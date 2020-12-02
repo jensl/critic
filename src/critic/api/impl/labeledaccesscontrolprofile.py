@@ -19,9 +19,8 @@ from __future__ import annotations
 from typing import Tuple, Optional, Sequence, Iterable, List
 
 from critic import api
+from critic.api import labeledaccesscontrolprofile as public
 from . import apiobject
-
-public = api.labeledaccesscontrolprofile
 
 WrapperType = public.LabeledAccessControlProfile
 ArgumentsType = Tuple[str, int]
@@ -41,6 +40,7 @@ class LabeledAccessControlProfile(apiobject.APIObject[WrapperType, ArgumentsType
         return await api.accesscontrolprofile.fetch(critic, self.__profile_id)
 
 
+@public.fetchImpl
 async def fetch(critic: api.critic.Critic, labels: Iterable[str]) -> WrapperType:
     async with LabeledAccessControlProfile.query(
         critic,
@@ -50,6 +50,7 @@ async def fetch(critic: api.critic.Critic, labels: Iterable[str]) -> WrapperType
         return await LabeledAccessControlProfile.makeOne(critic, result)
 
 
+@public.fetchAllImpl
 async def fetchAll(
     critic: api.critic.Critic,
     profile: Optional[api.accesscontrolprofile.AccessControlProfile],

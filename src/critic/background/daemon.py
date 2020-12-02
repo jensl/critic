@@ -16,9 +16,10 @@
 
 import os
 import sys
+from typing import Callable
 
 
-def detach(parent_exit_hook=lambda: 0):
+def detach(parent_exit_hook: Callable[[], int] = lambda: 0) -> None:
     try:
         if os.fork() != 0:
             # Exit from parent process.

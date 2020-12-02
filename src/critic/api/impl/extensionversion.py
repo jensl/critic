@@ -16,68 +16,142 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Tuple, Optional, Sequence
+from dataclasses import dataclass
+from typing import Literal, Tuple, Optional, Sequence
 
-from . import apiobject
-from ... import api
-
+from critic import api
+from critic.api import extensionversion as public
 from critic import extensions
 from critic.extensions import getExtensionSnapshotPath
 from critic.extensions.manifest.pythonpackage import PythonPackage
+from critic.gitaccess import SHA1
 from critic.background import extensiontasks
+from . import apiobject
 
 
-@dataclass(frozen=True)
+@dataclass
 class EntrypointImpl:
-    name: str
-    target: str
+    __name: str
+    __target: str
+
+    @property
+    def name(self) -> str:
+        return self.__name
+
+    @property
+    def target(self) -> str:
+        return self.__target
 
 
-@dataclass(frozen=True)
+@dataclass
 class PythonPackageImpl:
-    package_type: str = field(default="python", init=False)
-    entrypoints: Sequence[
-        api.extensionversion.ExtensionVersion.PythonPackage.Entrypoint
-    ]
-    dependencies: Sequence[str]
+    __entrypoints: Sequence[api.extensionversion.ExtensionVersion.Entrypoint]
+    __dependencies: Sequence[str]
+
+    @property
+    def package_type(self) -> Literal["python"]:
+        return "python"
+
+    @property
+    def entrypoints(
+        self,
+    ) -> Sequence[api.extensionversion.ExtensionVersion.Entrypoint]:
+        return self.__entrypoints
+
+    @property
+    def dependencies(self) -> Sequence[str]:
+        return self.__dependencies
 
 
-@dataclass(frozen=True)
+@dataclass
 class RoleImpl:
-    description: str
+    __description: str
+
+    @property
+    def description(self) -> str:
+        return self.__description
 
 
-@dataclass(frozen=True)
+@dataclass
 class ExecutesServerSide(RoleImpl):
-    entrypoint: Optional[str]
+    __entrypoint: Optional[str]
+
+    @property
+    def entrypoint(self) -> Optional[str]:
+        return self.__entrypoint
 
 
-@dataclass(frozen=True)
+@dataclass
 class EndpointImpl(ExecutesServerSide):
-    name: str
+    __name: str
+
+    @property
+    def name(self) -> str:
+        return self.__name
 
 
-@dataclass(frozen=True)
+@dataclass
 class UIAddonImpl(RoleImpl):
-    name: str
-    bundle_js: Optional[str]
-    bundle_css: Optional[str]
+    __name: str
+    __bundle_js: Optional[str]
+    __bundle_css: Optional[str]
+
+    @property
+    def name(self) -> str:
+        return self.__name
+
+    @property
+    def bundle_js(self) -> Optional[str]:
+        return self.__bundle_js
+
+    @property
+    def bundle_css(self) -> Optional[str]:
+        return self.__bundle_css
 
 
-@dataclass(frozen=True)
+@dataclass
 class SubscriptionImpl(ExecutesServerSide):
-    channel: str
-    reserved: bool
+    __channel: str
+    __reserved: bool
+
+    @property
+    def channel(self) -> str:
+        return self.__channel
+
+    @property
+    def reserved(self) -> bool:
+        return self.__reserved
 
 
-@dataclass(frozen=True)
+@dataclass
 class ManifestImpl:
-    package: api.extensionversion.ExtensionVersion.PythonPackage
-    endpoints: Sequence[api.extensionversion.ExtensionVersion.Endpoint]
-    ui_addons: Sequence[api.extensionversion.ExtensionVersion.UIAddon]
-    subscriptions: Sequence[api.extensionversion.ExtensionVersion.Subscription]
-    low_level: extensions.extension.Manifest
+    __package: api.extensionversion.ExtensionVersion.PythonPackage
+    __endpoints: Sequence[api.extensionversion.ExtensionVersion.Endpoint]
+    __ui_addons: Sequence[api.extensionversion.ExtensionVersion.UIAddon]
+    __subscriptions: Sequence[api.extensionversion.ExtensionVersion.Subscription]
+    __low_level: extensions.extension.Manifest
+
+    @property
+    def package(self) -> api.extensionversion.ExtensionVersion.PythonPackage:
+        return self.__package
+
+    @property
+    def endpoints(self) -> Sequence[api.extensionversion.ExtensionVersion.Endpoint]:
+        return self.__endpoints
+
+    @property
+    def ui_addons(self) -> Sequence[api.extensionversion.ExtensionVersion.UIAddon]:
+        return self.__ui_addons
+
+    @property
+    def subscriptions(
+        self,
+    ) -> Sequence[api.extensionversion.ExtensionVersion.Subscription]:
+        return self.__subscriptions
+
+    @property
+    def low_level(self) -> extensions.extension.Manifest:
+        return self.__low_level
 
 
 WrapperType = api.extensionversion.ExtensionVersion
@@ -128,16 +202,18 @@ class ExtensionVersion(apiobject.APIObject[WrapperType, ArgumentsType, int]):
             ) as endpoints_result:
                 async for name, description, entrypoint in endpoints_result:
                     pages.append(EndpointImpl(description, entrypoint, name))
-            async with api.critic.Query[Tuple[str, Optional[str], Optional[str]]](
+            async with api.critic.Query[Tuple[str, str, Optional[str], Optional[str]]](
                 critic,
-                """SELECT name, bundle_js, bundle_css
+                """SELECT name, description, bundle_js, bundle_css
                      FROM extensionuiaddonroles
                      JOIN extensionroles ON (role=id)
                     WHERE version={version_id}""",
                 version_id=self.id,
             ) as uiaddons_result:
-                async for name, bundle_js, bundle_css in uiaddons_result:
-                    ui_addons.append(UIAddonImpl(name, bundle_js, bundle_css))
+                async for name, description, bundle_js, bundle_css in uiaddons_result:
+                    ui_addons.append(
+                        UIAddonImpl(name, description, bundle_js, bundle_css)
+                    )
             async with api.critic.Query[Tuple[str, bool, str, str]](
                 critic,
                 """SELECT channel, TRUE, description, entrypoint
@@ -156,30 +232,42 @@ class ExtensionVersion(apiobject.APIObject[WrapperType, ArgumentsType, int]):
         return self.__manifest
 
 
+@public.fetchImpl
 @ExtensionVersion.cached
 async def fetch(
     critic: api.critic.Critic,
     version_id: Optional[int],
     extension: Optional[api.extension.Extension],
     name: Optional[str],
+    sha1: Optional[SHA1],
 ) -> WrapperType:
     if version_id is not None:
         condition = "id={version_id}"
     elif name is not None:
         condition = "extension={extension} AND name={name}"
+    elif sha1 is not None:
+        condition = "extension={extension} AND sha1={sha1}"
     else:
         condition = "extension={extension} AND name IS NULL"
     async with ExtensionVersion.query(
-        critic, [condition], version_id=version_id, extension=extension, name=name,
+        critic,
+        [condition],
+        version_id=version_id,
+        extension=extension,
+        name=name,
+        sha1=sha1,
     ) as result:
         try:
             return await ExtensionVersion.makeOne(critic, result)
         except result.ZeroRowsInResult:
             if name is not None:
                 raise api.extensionversion.InvalidName(value=name)
+            if sha1 is not None:
+                raise api.extensionversion.InvalidSHA1(value=name)
             raise
 
 
+@public.fetchAllImpl
 async def fetchAll(
     critic: api.critic.Critic, extension: Optional[api.extension.Extension]
 ) -> Sequence[WrapperType]:

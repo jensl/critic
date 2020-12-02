@@ -16,14 +16,30 @@
 
 from __future__ import annotations
 
-from typing import Sequence, Optional, Union
+from typing import Sequence, Union
 
 from critic import api
-from critic import jsonapi
+from critic.api.transaction.branchsetting.modify import ModifyBranchSetting
+from ..check import convert
+from ..exceptions import UsageError
+from ..resourceclass import ResourceClass
+from ..parameters import Parameters
+from ..types import JSONInput, JSONResult
+from ..utils import numeric_id
+from ..values import Values
+
+
+async def modify(
+    transaction: api.transaction.Transaction, setting: api.branchsetting.BranchSetting
+) -> ModifyBranchSetting:
+    branch = await setting.branch
+    return (
+        await transaction.modifyRepository(await branch.repository).modifyBranch(branch)
+    ).modifySetting(setting)
 
 
 class BranchSettings(
-    jsonapi.ResourceClass[api.branchsetting.BranchSetting], api_module=api.branchsetting
+    ResourceClass[api.branchsetting.BranchSetting], api_module=api.branchsetting
 ):
     """Branch settings."""
 
@@ -33,15 +49,15 @@ class BranchSettings(
 
     @staticmethod
     async def json(
-        parameters: jsonapi.Parameters, value: api.branchsetting.BranchSetting
-    ) -> jsonapi.JSONResult:
+        parameters: Parameters, value: api.branchsetting.BranchSetting
+    ) -> JSONResult:
         """BranchSetting {
-             "id": integer, // the setting's unique id
-             "branch": integer, // the affected branch
-             "scope": string, // the setting's scope
-             "name": string, // the setting's name
-             "value": any
-           }"""
+          "id": integer, // the setting's unique id
+          "branch": integer, // the affected branch
+          "scope": string, // the setting's scope
+          "name": string, // the setting's name
+          "value": any
+        }"""
 
         return {
             "id": value.id,
@@ -51,46 +67,44 @@ class BranchSettings(
             "value": value.value,
         }
 
-    @staticmethod
+    @classmethod
     async def single(
-        parameters: jsonapi.Parameters, argument: str
+        cls, parameters: Parameters, argument: str
     ) -> api.branchsetting.BranchSetting:
         """Retrieve one (or more) branch settings of this system.
 
-           SETTING_ID : integer
+        SETTING_ID : integer
 
-           Retrieve a branch setting identified by its unique numeric id"""
+        Retrieve a branch setting identified by its unique numeric id"""
 
-        return await api.branchsetting.fetch(
-            parameters.critic, jsonapi.numeric_id(argument)
-        )
+        return await api.branchsetting.fetch(parameters.critic, numeric_id(argument))
 
     @staticmethod
     async def multiple(
-        parameters: jsonapi.Parameters,
+        parameters: Parameters,
     ) -> Union[
         api.branchsetting.BranchSetting, Sequence[api.branchsetting.BranchSetting]
     ]:
         """Retrieve a single named branch setting or multiple branch settings.
 
-           scope : SCOPE : string
+        scope : SCOPE : string
 
-           Retrieve only branch settings with the given scope.
+        Retrieve only branch settings with the given scope.
 
-           name : NAME : string
+        name : NAME : string
 
-           Retrieve only the branch setting with the given name. Must be combined
-           with the |scope| parameter."""
+        Retrieve only the branch setting with the given name. Must be combined
+        with the |scope| parameter."""
 
-        branch = await Branches.deduce(parameters)
-        scope = parameters.getQueryParameter("scope")
-        name = parameters.getQueryParameter("name")
+        branch = await parameters.deduce(api.branch.Branch)
+        scope = parameters.query.get("scope")
+        name = parameters.query.get("name")
 
         if name is not None:
             if not branch:
-                raise jsonapi.UsageError.missingParameter("branch")
+                raise UsageError.missingParameter("branch")
             if scope is None:
-                raise jsonapi.UsageError(
+                raise UsageError(
                     "The 'name' parameter must be used together with the 'scope' "
                     "parameter"
                 )
@@ -104,70 +118,61 @@ class BranchSettings(
 
     @staticmethod
     async def create(
-        parameters: jsonapi.Parameters, data: jsonapi.JSONInput
+        parameters: Parameters, data: JSONInput
     ) -> api.branchsetting.BranchSetting:
         critic = parameters.critic
 
-        converted = await jsonapi.convert(
+        converted = await convert(
             parameters,
             {"branch?": api.branch.Branch, "scope": str, "name": str, "value": None},
             data,
         )
 
-        branch = await Branches.deduce(parameters)
+        branch = await parameters.deduce(api.branch.Branch)
 
         if not branch:
             if "branch" not in converted:
-                raise jsonapi.UsageError.missingInput("branch")
+                raise UsageError.missingInput("branch")
             branch = converted["branch"]
         elif converted.get("branch", branch) != branch:
-            raise jsonapi.UsageError("Conflicting branches specified")
+            raise UsageError("Conflicting branches specified")
 
         assert branch
 
         async with api.transaction.start(critic) as transaction:
-            setting = await (
-                await transaction.modifyRepository(
-                    await branch.repository
-                ).modifyBranch(branch)
-            ).defineSetting(converted["scope"], converted["name"], converted["value"])
+            return (
+                await (
+                    await transaction.modifyRepository(
+                        await branch.repository
+                    ).modifyBranch(branch)
+                ).defineSetting(
+                    converted["scope"], converted["name"], converted["value"]
+                )
+            ).subject
 
-        return await setting
-
-    @staticmethod
+    @classmethod
     async def update(
-        parameters: jsonapi.Parameters,
-        values: jsonapi.Values[api.branchsetting.BranchSetting],
-        data: jsonapi.JSONInput,
+        cls,
+        parameters: Parameters,
+        values: Values[api.branchsetting.BranchSetting],
+        data: JSONInput,
     ) -> None:
         critic = parameters.critic
 
-        converted = await jsonapi.convert(parameters, {"value": None}, data)
+        converted = await convert(parameters, {"value": None}, data)
 
         async with api.transaction.start(critic) as transaction:
             for setting in values:
-                branch = await setting.branch
-                (
-                    await transaction.modifyRepository(
-                        await branch.repository
-                    ).modifyBranch(branch)
-                ).modifySetting(setting).setValue(converted["value"])
+                await (await modify(transaction, setting)).setValue(converted["value"])
 
-    @staticmethod
+    @classmethod
     async def delete(
-        parameters: jsonapi.Parameters,
-        values: jsonapi.Values[api.branchsetting.BranchSetting],
+        cls,
+        parameters: Parameters,
+        values: Values[api.branchsetting.BranchSetting],
     ) -> None:
         critic = parameters.critic
 
         async with api.transaction.start(critic) as transaction:
             for setting in values:
-                branch = await setting.branch
-                (
-                    await transaction.modifyRepository(
-                        await branch.repository
-                    ).modifyBranch(branch)
-                ).modifySetting(setting).delete()
-
-
-from .branches import Branches
+                await (await modify(transaction, setting)).delete()

@@ -17,16 +17,21 @@
 from __future__ import annotations
 
 import logging
-from typing import Sequence, Optional, Union
+from typing import Sequence
 
 logger = logging.getLogger(__name__)
 
 from critic import api
-from critic import jsonapi
+from ..exceptions import UsageError
+from ..resourceclass import ResourceClass
+from ..parameters import Parameters
+from ..types import JSONResult
+from ..utils import numeric_id
+from .timestamp import timestamp
 
 
 class ReviewEvents(
-    jsonapi.ResourceClass[api.reviewevent.ReviewEvent], api_module=api.reviewevent
+    ResourceClass[api.reviewevent.ReviewEvent], api_module=api.reviewevent
 ):
     """Events of reviews."""
 
@@ -34,39 +39,35 @@ class ReviewEvents(
 
     @staticmethod
     async def json(
-        parameters: jsonapi.Parameters, value: api.reviewevent.ReviewEvent
-    ) -> jsonapi.JSONResult:
+        parameters: Parameters, value: api.reviewevent.ReviewEvent
+    ) -> JSONResult:
         return {
             "id": value.id,
             "review": value.review,
             "user": value.user,
             "type": value.type,
-            "timestamp": jsonapi.v1.timestamp(value.timestamp),
+            "timestamp": timestamp(value.timestamp),
             "branchupdate": value.branchupdate,
             "batch": value.batch,
         }
 
-    @staticmethod
+    @classmethod
     async def single(
-        parameters: jsonapi.Parameters, value: str
+        cls, parameters: Parameters, argument: str
     ) -> api.reviewevent.ReviewEvent:
-        return await api.reviewevent.fetch(parameters.critic, jsonapi.numeric_id(value))
+        return await api.reviewevent.fetch(parameters.critic, numeric_id(argument))
 
     @staticmethod
     async def multiple(
-        parameters: jsonapi.Parameters,
+        parameters: Parameters,
     ) -> Sequence[api.reviewevent.ReviewEvent]:
-        review = await Reviews.deduce(parameters)
+        review = await parameters.deduce(api.review.Review)
         if review is None:
-            raise jsonapi.UsageError("Missing required parameter 'review'")
-        user = await Users.deduce(parameters)
-        event_type = parameters.getQueryParameter(
+            raise UsageError("Missing required parameter 'review'")
+        user = await parameters.deduce(api.user.User)
+        event_type = parameters.query.get(
             "event_type", converter=api.reviewevent.as_event_type
         )
         return await api.reviewevent.fetchAll(
             parameters.critic, review=review, user=user, event_type=event_type
         )
-
-
-from .reviews import Reviews
-from .users import Users

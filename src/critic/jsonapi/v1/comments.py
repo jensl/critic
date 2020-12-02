@@ -18,7 +18,6 @@ from __future__ import annotations
 
 from typing import (
     Awaitable,
-    FrozenSet,
     Literal,
     Mapping,
     Optional,
@@ -26,19 +25,23 @@ from typing import (
     TypedDict,
     Union,
     cast,
-    overload,
 )
 
 from critic import api
+from critic.reviewing.comment.propagate import propagate_new_comment
 
 from ..check import TypeCheckerInputAtom, TypeCheckerInputItem2, convert
 from ..exceptions import UsageError, PathError, InputError, ResourceSkipped
 from ..parameters import Parameters
+from ..check import convert
+from ..exceptions import UsageError
 from ..resourceclass import ResourceClass
+from ..parameters import Parameters
+from ..types import JSONInput, JSONResult
 from ..types import JSONInput, JSONResult
 from ..utils import numeric_id
 from ..values import Values
-from ..v1 import timestamp
+from .timestamp import timestamp
 
 LOCATION: Mapping[str, TypeCheckerInputAtom] = {
     # Note: "general" not included here; |location| should be
@@ -157,51 +160,53 @@ class Comments(
     @staticmethod
     async def json(parameters: Parameters, value: api.comment.Comment) -> JSONResult:
         """{
-             "id": integer,
-             "type": "issue" or "note",
-             "is_draft": boolean,
-             "state": "open", "addressed" or "resolved" (null for notes),
-             "review": integer,
-             "author": integer,
-             "location": Location or null,
-             "resolved_by": integer, // user that resolved the issue
-             "addressed_by": integer, // commit that addressed the issue
-             "timestamp": float,
-             "text": string,
-             "replies": integer[],
-             "draft_changes": DraftChanges or null,
-           }
+          "id": integer,
+          "type": "issue" or "note",
+          "is_draft": boolean,
+          "state": "open", "addressed" or "resolved" (null for notes),
+          "review": integer,
+          "author": integer,
+          "location": Location or null,
+          "resolved_by": integer, // user that resolved the issue
+          "addressed_by": integer, // commit that addressed the issue
+          "timestamp": float,
+          "text": string,
+          "replies": integer[],
+          "draft_changes": DraftChanges or null,
+        }
 
-           Location {
-             "type": "commit-message" or "file-version",
-             "first_line": integer, // first commented line (one-based,
-                                    // inclusive)
-             "last_line": integer, // last commented line (one-based, inclusive)
-           }
+        Location {
+          "type": "commit-message" or "file-version",
+          "first_line": integer, // first commented line (one-based,
+                                 // inclusive)
+          "last_line": integer, // last commented line (one-based, inclusive)
+        }
 
-           CommitMessageLocation : Location {
-             "commit": integer // commented commit
-           }
+        CommitMessageLocation : Location {
+          "commit": integer // commented commit
+        }
 
-           FileVersionLocation : Location {
-             "file": integer, // commented file
-             "changeset": integer or null, // commented changeset
-             "commit": integer, // commented commit
-           }
+        FileVersionLocation : Location {
+          "file": integer, // commented file
+          "changeset": integer or null, // commented changeset
+          "commit": integer, // commented commit
+        }
 
-           DraftChanges {
-             "author": integer, // author of these draft changes
-             "is_draft": boolean, // true if comment itself is unpublished
-             "reply": integer or null, // unpublished reply
-             "new_type": "issue" or "note", // unpublished comment type change
-             "new_state": "open", "addressed" or "resolved" (null for notes)
-             "new_location": FileVersionLocation or null,
-           }"""
+        DraftChanges {
+          "author": integer, // author of these draft changes
+          "is_draft": boolean, // true if comment itself is unpublished
+          "reply": integer or null, // unpublished reply
+          "new_type": "issue" or "note", // unpublished comment type change
+          "new_state": "open", "addressed" or "resolved" (null for notes)
+          "new_location": FileVersionLocation or null,
+        }"""
 
-        changeset = await Changesets.deduce(parameters)
+        changeset = await parameters.deduce(api.changeset.Changeset)
         # FileVersionLocation.translateTo() only allows one, so let
         # a deduced changeset win over a deduced commit.
-        commit = await Commits.deduce(parameters) if changeset is None else None
+        commit = (
+            await parameters.deduce(api.commit.Commit) if changeset is None else None
+        )
 
         # If the comment's location needs to be translated, we need to do it
         # immediately, since doing so may raise ResourceSkipped as
@@ -252,30 +257,28 @@ class Comments(
 
             if isinstance(value, api.comment.Issue):
                 draft_changes = cast(api.comment.Issue.DraftChanges, draft_changes)
-                draft_changes_json.update(
-                    {
-                        "new_state": draft_changes.new_state,
-                        "new_location": reduce_location(draft_changes.new_location),
-                    }
+                draft_changes_json["new_state"] = draft_changes.new_state
+                draft_changes_json["new_location"] = reduce_location(
+                    draft_changes.new_location
                 )
 
             result["draft_changes"] = draft_changes_json
 
         return result
 
-    @staticmethod
-    async def single(parameters: Parameters, argument: str) -> api.comment.Comment:
+    @classmethod
+    async def single(cls, parameters: Parameters, argument: str) -> api.comment.Comment:
         """Retrieve one (or more) comments in reviews.
 
-           COMMENT_ID : integer
+        COMMENT_ID : integer
 
-           Retrieve a comment identified by its unique numeric id."""
+        Retrieve a comment identified by its unique numeric id."""
 
         comment = await api.comment.fetch(
             parameters.critic, comment_id=numeric_id(argument)
         )
 
-        review = await Reviews.deduce(parameters)
+        review = await parameters.deduce(api.review.Review)
         if review and review != comment.review:
             raise PathError("Comment does not belong to specified review")
 
@@ -287,72 +290,71 @@ class Comments(
     ) -> Union[api.comment.Comment, Sequence[api.comment.Comment]]:
         """Retrieve all comments in the system (or review.)
 
-           with_reply : REPLY_ID : integer
+        with_reply : REPLY_ID : integer
 
-           Retrieve only the comment to which the specified reply is a reply.
-           This is equivalent to accessing /api/v1/comments/COMMENT_ID with that
-           comment's numeric id.  When used, any other parameters are ignored.
+        Retrieve only the comment to which the specified reply is a reply.
+        This is equivalent to accessing /api/v1/comments/COMMENT_ID with that
+        comment's numeric id.  When used, any other parameters are ignored.
 
-           review : REVIEW_ID : integer
+        review : REVIEW_ID : integer
 
-           Retrieve only comments in the specified review.  Can only be used if
-           a review is not specified in the resource path.
+        Retrieve only comments in the specified review.  Can only be used if
+        a review is not specified in the resource path.
 
-           author : AUTHOR : integer or string
+        author : AUTHOR : integer or string
 
-           Retrieve only comments authored by the specified user, identified by
-           the user's unique numeric id or user name.
+        Retrieve only comments authored by the specified user, identified by
+        the user's unique numeric id or user name.
 
-           comment_type : TYPE : -
+        comment_type : TYPE : -
 
-           Retrieve only comments of the specified type.  Valid values are:
-           <code>issue</code> and <code>note</code>.
+        Retrieve only comments of the specified type.  Valid values are:
+        <code>issue</code> and <code>note</code>.
 
-           state : STATE : -
+        state : STATE : -
 
-           Retrieve only issues in the specified state.  Valid values are:
-           <code>open</code>, <code>addressed</code> and <code>resolved</code>.
+        Retrieve only issues in the specified state.  Valid values are:
+        <code>open</code>, <code>addressed</code> and <code>resolved</code>.
 
-           location_type : LOCATION : -
+        location_type : LOCATION : -
 
-           Retrieve only comments in the specified type of location.  Valid
-           values are: <code>general</code>, <code>commit-message</code> and
-           <code>file-version</code>.
+        Retrieve only comments in the specified type of location.  Valid
+        values are: <code>general</code>, <code>commit-message</code> and
+        <code>file-version</code>.
 
-           changeset : CHANGESET_ID : integer
+        changeset : CHANGESET_ID : integer
 
-           Retrieve only comments visible in the specified changeset. Can not be
-           combined with the <code>commit</code> parameter.
+        Retrieve only comments visible in the specified changeset. Can not be
+        combined with the <code>commit</code> parameter.
 
-           commit : COMMIT : integer or string
+        commit : COMMIT : integer or string
 
-           Retrieve only comments visible in the specified commit, either in its
-           commit message or in the commit's version of a file. Combine with the
-           <code>location_type</code> parameter to select only one of those
-           possibilities. Can not be combined with the <code>changeset</code>
-           parameter."""
+        Retrieve only comments visible in the specified commit, either in its
+        commit message or in the commit's version of a file. Combine with the
+        <code>location_type</code> parameter to select only one of those
+        possibilities. Can not be combined with the <code>changeset</code>
+        parameter."""
 
         critic = parameters.critic
 
-        reply = await Replies.fromParameter(parameters, "with_reply")
+        reply = await parameters.fromParameter(api.reply.Reply, "with_reply")
         if reply:
             return await reply.comment
 
-        review = await Reviews.deduce(parameters)
-        author = await Users.fromParameter(parameters, "author")
+        review = await parameters.deduce(api.review.Review)
+        author = await parameters.fromParameter(api.user.User, "author")
 
-        comment_type = parameters.getQueryParameter(
+        comment_type = parameters.query.get(
             "comment_type", converter=api.comment.as_comment_type
         )
-        state = parameters.getQueryParameter(
-            "state", converter=api.comment.as_issue_state
-        )
-        location_type = parameters.getQueryParameter(
-            "location_type", converter=api.comment.as_location_type,
+        state = parameters.query.get("state", converter=api.comment.as_issue_state)
+        location_type = parameters.query.get(
+            "location_type",
+            converter=api.comment.as_location_type,
         )
 
-        changeset = await Changesets.deduce(parameters)
-        commit = await Commits.deduce(parameters)
+        changeset = await parameters.deduce(api.changeset.Changeset)
+        commit = await parameters.deduce(api.commit.Commit)
 
         if changeset and commit:
             raise UsageError("Incompatible parameters: changeset and commit")
@@ -384,7 +386,7 @@ class Comments(
             data,
         )
 
-        review = await Reviews.deduce(parameters)
+        review = await parameters.deduce(api.review.Review)
 
         if not review:
             if "review" not in converted:
@@ -394,35 +396,50 @@ class Comments(
             raise UsageError("Conflicting reviews specified")
         assert review is not None
 
+        author: api.user.User
+
         if "author" in converted:
             author = converted["author"]
         else:
+            assert critic.actual_user
             author = critic.actual_user
 
         location = await Comments.locationFromInput(
             parameters, converted.get("location"), "location"
         )
 
-        async with api.transaction.start(critic) as transaction:
-            created_comment = await transaction.modifyReview(review).createComment(
-                comment_type=converted["type"],
-                author=author,
-                text=converted["text"],
-                location=location,
-            )
+        if isinstance(location, api.comment.FileVersionLocation):
+            propagation_result = await propagate_new_comment(review, location)
+        else:
+            propagation_result = None
 
-        await includeUnpublished(parameters, review)
+        try:
+            async with api.transaction.start(critic) as transaction:
+                return (
+                    await transaction.modifyReview(review).createComment(
+                        comment_type=converted["type"],
+                        author=author,
+                        text=converted["text"],
+                        location=location,
+                        propagation_result=propagation_result,
+                    )
+                ).subject
+        finally:
+            await includeUnpublished(parameters, review)
 
-        return await created_comment
-
-    @staticmethod
+    @classmethod
     async def update(
-        parameters: Parameters, values: Values[api.comment.Comment], data: JSONInput,
+        cls,
+        parameters: Parameters,
+        values: Values[api.comment.Comment],
+        data: JSONInput,
     ) -> None:
         critic = parameters.critic
 
         converted = await convert(
-            parameters, {"text?": str, "draft_changes?": DRAFT_CHANGES}, data,
+            parameters,
+            {"text?": str, "draft_changes?": DRAFT_CHANGES},
+            data,
         )
 
         if "draft_changes" in converted:
@@ -455,9 +472,9 @@ class Comments(
                             )
                         await modifier.reopenIssue(new_location)
 
-    @staticmethod
+    @classmethod
     async def delete(
-        parameters: Parameters, values: Values[api.comment.Comment]
+        cls, parameters: Parameters, values: Values[api.comment.Comment]
     ) -> None:
         critic = parameters.critic
         reviews = set()
@@ -472,24 +489,10 @@ class Comments(
         if len(reviews) == 1:
             await includeUnpublished(parameters, reviews.pop())
 
-    @overload
-    @staticmethod
-    async def deduce(parameters: Parameters,) -> Optional[api.comment.Comment]:
-        ...
-
-    @overload
-    @staticmethod
-    async def deduce(
-        parameters: Parameters, *, required: Literal[True]
-    ) -> api.comment.Comment:
-        ...
-
-    @staticmethod
-    async def deduce(
-        parameters: Parameters, *, required: bool = False
-    ) -> Optional[api.comment.Comment]:
-        comment = parameters.context.get("comments")
-        comment_parameter = parameters.getQueryParameter("comment")
+    @classmethod
+    async def deduce(cls, parameters: Parameters) -> Optional[api.comment.Comment]:
+        comment = parameters.in_context(api.comment.Comment)  # type: ignore
+        comment_parameter = parameters.query.get("comment")
         if comment_parameter is not None:
             if comment is not None:
                 raise UsageError(
@@ -498,15 +501,13 @@ class Comments(
             comment = await api.comment.fetch(
                 parameters.critic, comment_id=numeric_id(comment_parameter)
             )
-        if required and not comment:
-            raise UsageError.missingParameter("comment")
         return comment
 
-    @staticmethod
+    @classmethod
     async def setAsContext(
-        parameters: Parameters, comment: api.comment.Comment
+        cls, parameters: Parameters, comment: api.comment.Comment, /
     ) -> None:
-        parameters.setContext(Comments.name, comment)
+        await super().setAsContext(parameters, comment)
         # Also set the comment's review as context.
         await Reviews.setAsContext(parameters, await comment.review)
 
@@ -564,7 +565,7 @@ class Comments(
                         f"data.{key}.side: invalid attribute value (must be either 'old' "
                         "or 'new')"
                     )
-                side = location_input["side"]
+                side = location_input["side"]  # type: ignore
                 commit = None
 
         first_line = location_input["first_line"]
@@ -591,8 +592,4 @@ class Comments(
 
 
 from .batches import includeUnpublished
-from .changesets import Changesets
-from .commits import Commits
-from .replies import Replies
 from .reviews import Reviews
-from .users import Users

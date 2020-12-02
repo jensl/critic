@@ -22,29 +22,28 @@ from typing import Collection, Iterable, Optional
 logger = logging.getLogger(__name__)
 
 from critic import api
+from critic import dbaccess
 from critic import changeset
 from critic.gitaccess import SHA1, GitTreeEntry
-from critic.changeset.structure import ChangedEntry
 
-from .changeset import Changeset
 from .changedfile import ChangedFile
 from .examinefiles import ExamineFiles
-from .job import Job
+from .job import Job, GroupType
 
 
-class CalculateStructureDifference(Job[Changeset]):
+class CalculateStructureDifference(Job):
     """Calculate the structure difference"""
 
     def __init__(
         self,
-        changeset: Changeset,
+        group: GroupType,
         changeset_id: int,
         from_commit_sha1: SHA1,
         to_commit_sha1: SHA1,
         content_difference_requested: bool,
         for_merge: bool,
     ):
-        super().__init__(changeset, ())
+        super().__init__(group, ())
         self.changeset_id = changeset_id
         self.from_commit_sha1 = from_commit_sha1
         self.to_commit_sha1 = to_commit_sha1
@@ -95,7 +94,7 @@ class CalculateStructureDifference(Job[Changeset]):
                             {new_sha1}, {new_mode}
                           )""",
                 (
-                    dict(
+                    dbaccess.parameters(
                         changeset_id=self.changeset_id,
                         file_id=changed_file.file_id,
                         old_sha1=changed_file.old_sha1,

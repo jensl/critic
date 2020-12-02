@@ -14,17 +14,20 @@
  * the License.
  */
 
-import Resource from "../resources"
+import Resource, { include, withArgument, withParameters } from "../resources"
 import { CommentID, ReplyID } from "../resources/types"
 
-const kIncludeResources = ["batches", "comments"]
-const kOptions = { include: kIncludeResources }
+const kIncludeResources = include("batches", "comments")
 
 export const createReply = (commentID: CommentID) =>
-  Resource.create("replies", { comment: commentID }, kOptions)
+  Resource.create(
+    "replies",
+    withParameters({ comment: commentID }),
+    kIncludeResources,
+  )
 
 export const setReplyText = (replyID: ReplyID, text: string) =>
-  Resource.update("replies", replyID, { text }, kOptions)
+  Resource.update("replies", { text }, withArgument(replyID), kIncludeResources)
 
 export const deleteReply = (replyID: ReplyID, callback = null) =>
-  Resource.delete("replies", replyID, kOptions)
+  Resource.delete("replies", withArgument(replyID), kIncludeResources)

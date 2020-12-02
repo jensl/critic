@@ -21,6 +21,7 @@ import logging
 import os
 import re
 from typing import (
+    Any,
     AsyncIterator,
     Collection,
     Dict,
@@ -32,12 +33,22 @@ from typing import (
     Tuple,
     Type,
     Union,
-    cast,
 )
 
 logger = logging.getLogger(__name__)
 
-from . import GitError, SHA1, as_sha1, git, FetchRangeOrder
+from . import (
+    GitError,
+    SHA1,
+    as_sha1,
+    git,
+    FetchRangeOrder,
+    GitRemoteRefs,
+    FetchJob,
+    RevlistOrder,
+    RevlistFlag,
+    StreamCommand,
+)
 from .gitobject import (
     ObjectType,
     asObjectType,
@@ -47,14 +58,18 @@ from .gitobject import (
     GitTreeEntry,
 )
 from .gitrepositoryimpl import GitRepositoryImpl
-from .gitrepository import (
+from .giterror import (
+    GitError,
     GitProcessError,
     GitReferenceError,
     GitFetchError,
+)
+from . import (
     GitRemoteRefs,
     FetchJob,
-    RevlistOrder,
+    FetchRangeOrder,
     RevlistFlag,
+    RevlistOrder,
     StreamCommand,
 )
 
@@ -65,20 +80,26 @@ RE_FULL_SHA1 = re.compile("^[0-9A-Fa-f]{40}$")
 CATFILE_KEEPALIVE_SECONDS = 30
 
 
+class _CatFileStopped(Exception):
+    pass
+
+
 class GitRepositoryDirect(GitRepositoryImpl):
     worktree_path: Optional[str]
-    fetch_queue: Optional[asyncio.Queue]
+    fetch_queue: Optional[asyncio.Queue[FetchJob]]
 
-    def __init__(
-        self, path: Optional[str], *, loop: asyncio.AbstractEventLoop = None
-    ) -> None:
+    def __init__(self, path: Optional[str]) -> None:
         self.__path = path
         self.worktree_path = None
-        self.loop = asyncio.get_event_loop() if loop is None else loop
+        self.loop = asyncio.get_running_loop()
         self.fetch_queue = None
         self.fetch_failed = False
         self.fetch_cache: Dict[str, GitObject] = {}
         self.__environ = os.environ.copy()
+
+    @property
+    def is_direct(self) -> bool:
+        return True
 
     @property
     def path(self) -> Optional[str]:
@@ -110,6 +131,10 @@ class GitRepositoryDirect(GitRepositoryImpl):
         self.__environ.pop("GIT_AUTHOR_EMAIL", None)
         self.__environ.pop("GIT_COMMITTER_NAME", None)
         self.__environ.pop("GIT_COMMITTER_EMAIL", None)
+
+    def get_worktree_path(self) -> str:
+        assert self.worktree_path
+        return self.worktree_path
 
     def set_worktree_path(self, path: Optional[str]) -> None:
         self.worktree_path = path
@@ -173,24 +198,23 @@ class GitRepositoryDirect(GitRepositoryImpl):
             logger.debug("started `git cat-file` process: pid=%d", process.pid)
 
             while True:
+                job: Optional[FetchJob]
+
                 try:
                     job = await asyncio.wait_for(
                         self.fetch_queue.get(), CATFILE_KEEPALIVE_SECONDS
                     )
                 except asyncio.TimeoutError:
                     job = None
-                    stop = True
-                else:
-                    stop = job.object_id is None
 
-                if stop:
+                if job is None or job.object_id is None:
                     self.fetch_queue = None
                     logger.debug("stopping `git cat-file` process")
                     process.terminate()
                     await process.wait()
                     logger.debug("stopped `git cat-file` process")
                     if job:
-                        job.future.set_result(None)
+                        job.future.set_exception(_CatFileStopped())
                     return
 
                 try:
@@ -204,7 +228,7 @@ class GitRepositoryDirect(GitRepositoryImpl):
                 assert stdout
                 await stdout.read(1)
 
-        def run_done(future: asyncio.Future) -> None:
+        def run_done(future: "asyncio.Future[Any]") -> None:
             try:
                 future.result()
             except Exception as error:
@@ -235,14 +259,17 @@ class GitRepositoryDirect(GitRepositoryImpl):
         if self.fetch_queue:
             job = FetchJob(None)
             await self.fetch_queue.put(job)
-            await job.future
+            try:
+                await job.future
+            except _CatFileStopped:
+                pass
             await self.catfile_run
 
     async def execute(
         self,
         *argv: str,
         stdin_mode: int = asyncio.subprocess.DEVNULL,
-        cwd: str = None,
+        cwd: Optional[str] = None,
         # env: Dict[str, str] = None,
     ) -> asyncio.subprocess.Process:
         if cwd is None:
@@ -265,7 +292,10 @@ class GitRepositoryDirect(GitRepositoryImpl):
         )
 
     async def run(
-        self, *argv: str, stdin_data: Union[str, bytes] = None, cwd: str = None
+        self,
+        *argv: str,
+        stdin_data: Optional[Union[str, bytes]] = None,
+        cwd: Optional[str] = None,
     ) -> bytes:
         if stdin_data is not None:
             stdin_mode = asyncio.subprocess.PIPE
@@ -307,7 +337,7 @@ class GitRepositoryDirect(GitRepositoryImpl):
         return str(base.configuration()["paths.repositories"])
 
     async def symbolicref(
-        self, name: str, *, value: str = None, delete: bool = False
+        self, name: str, *, value: Optional[str] = None, delete: bool = False
     ) -> str:
         argv = ["symbolic-ref"]
         if delete:
@@ -327,17 +357,19 @@ class GitRepositoryDirect(GitRepositoryImpl):
         assert self.path
         argv = ["rev-parse", "--quiet", "--verify"]
         if short:
-            if isinstance(short, int):
-                argv.append("--short=%d" % short)
-            else:
+            if short is True:
                 argv.append("--short")
+            else:
+                argv.append("--short=%d" % short)
         if object_type is not None:
             ref += "^{%s}" % object_type
         argv.append(ref)
         try:
             output = await self.run(*argv)
         except GitProcessError as error:
-            raise GitReferenceError.make(ref, self.path, error.stderr.decode())
+            raise GitReferenceError.make(
+                ref, self.path, error.stderr.decode() if error.stderr else ""
+            )
         sha1 = output.decode().strip()
         if not RE_FULL_SHA1.match(sha1):
             raise GitError("Unexpected output from `git rev-parse`: %r" % output)
@@ -408,18 +440,18 @@ class GitRepositoryDirect(GitRepositoryImpl):
             raise GitError("Unexpected output from `git merge-base`: %r" % output)
 
     async def lstree(
-        self, ref: str, path: str = None, *, long_format: bool = False
+        self, ref: str, path: Optional[str] = None, *, long_format: bool = False
     ) -> Sequence[GitTreeEntry]:
         argv = ["ls-tree", "-z"]
         if long_format:
             argv.append("--long")
         argv.append(ref)
-        if path is not None:
+        if path:
             argv.append(path)
         output = await self.run(*argv)
         entries = []
         for entry in filter(None, output.rstrip(b"\0").split(b"\0")):
-            information, tab, name = entry.partition(b"\t")
+            information, _, name = entry.partition(b"\t")
             size: Optional[int]
             if long_format:
                 mode, object_type, sha1, size_bytes = information.split()
@@ -553,15 +585,17 @@ class GitRepositoryDirect(GitRepositoryImpl):
                     logger.exception("fetch failed")
                     yield object_id, GitFetchError(object_id, self.path, str(error))
 
-    async def committree(self, tree: str, parents: Iterable[str], message: str) -> str:
+    async def committree(
+        self, tree: str, parents: Iterable[SHA1], message: str
+    ) -> SHA1:
         assert "GIT_AUTHOR_NAME" in self.__environ
         argv = ["commit-tree", tree]
         for parent in parents:
             argv.extend(["-p", parent])
         output = await self.run(*argv, stdin_data=message)
-        return output.decode().strip()
+        return as_sha1(output.decode().strip())
 
-    async def foreachref(self, *, pattern: str = None) -> Sequence[str]:
+    async def foreachref(self, *, pattern: Optional[str] = None) -> Sequence[str]:
         argv = ["for-each-ref", "--format=%(refname)"]
         if pattern is not None:
             argv.append(pattern)
@@ -572,8 +606,8 @@ class GitRepositoryDirect(GitRepositoryImpl):
         self,
         name: str,
         *,
-        old_value: SHA1 = None,
-        new_value: SHA1 = None,
+        old_value: Optional[SHA1] = None,
+        new_value: Optional[SHA1] = None,
         create: bool = False,
         delete: bool = False,
     ) -> None:
@@ -704,6 +738,8 @@ class GitRepositoryDirect(GitRepositoryImpl):
         )
 
         # logger.debug("returncode: %r", process.returncode)
+
+        assert process.returncode is not None
 
         if process.returncode != 0:
             raise GitProcessError.make(

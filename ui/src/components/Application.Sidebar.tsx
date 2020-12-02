@@ -73,7 +73,7 @@ export const Sidebar: FunctionComponent = () => {
   const [isVisible, setIsVisible] = useUserSetting(IsVisible)
   const sessionID = useSessionID()
   const reviewCategories = useSelector(
-    (state) => state.ui.rest.reviewCategories
+    (state) => state.ui.rest.reviewCategories,
   )
   useSubscription(loadReviewCategory, "incoming", sessionID)
   useSubscription(loadReviewCategory, "outgoing", sessionID)
@@ -128,6 +128,7 @@ export const Sidebar: FunctionComponent = () => {
         <div className={classes.bottom}>
           <List dense subheader={<ListSubheader>Settings</ListSubheader>}>
             <Link href="/settings/account" text="Account" />
+            <Link href="/settings/system" text="System" />
           </List>
           <Divider />
           <List dense>

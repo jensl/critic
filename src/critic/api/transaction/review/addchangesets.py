@@ -20,18 +20,20 @@ import logging
 import collections
 from typing import Any, Collection, Optional, Set, List, Dict, Tuple
 
-
 logger = logging.getLogger(__name__)
 
-from .updatereviewtags import UpdateReviewTags
-from .. import Transaction, Query, InsertMany
 from critic import api
 from critic import dbaccess
+from critic.gitaccess import SHA1
 from critic import reviewing
+from ..base import TransactionBase
+from ..item import InsertMany, Insert, UpdateMany
+from .updatereviewtags import UpdateReviewTags
+from . import CreateReviewEvent
 
 
 async def add_changesets(
-    transaction: Transaction,
+    transaction: TransactionBase,
     review: api.review.Review,
     changesets: Collection[api.changeset.Changeset],
     branchupdate: Optional[api.branchupdate.BranchUpdate],
@@ -97,14 +99,14 @@ async def add_changesets(
 
     logger.debug(f"{reviewfiles_values=}")
 
-    transaction.items.append(
+    await transaction.execute(
         InsertMany(
             "reviewchangesets",
             ["review", "branchupdate", "changeset"],
             reviewchangesets_values,
         )
     )
-    transaction.items.append(
+    await transaction.execute(
         InsertMany(
             "reviewfiles",
             ["review", "changeset", "file", "scope", "deleted", "inserted"],
@@ -128,7 +130,7 @@ async def add_changesets(
 
         if new_users:
             transaction.tables.add("reviewusers")
-            transaction.items.append(
+            await transaction.execute(
                 InsertMany(
                     "reviewusers",
                     ["review", "uid"],
@@ -137,7 +139,7 @@ async def add_changesets(
             )
 
         default_reviewuserfiles_values = [
-            dict(
+            dbaccess.parameters(
                 review=review,
                 user=assignment.user,
                 changeset=assignment.changeset,
@@ -147,7 +149,7 @@ async def add_changesets(
             if assignment.scope is None
         ]
         scoped_reviewuserfiles_values = [
-            dict(
+            dbaccess.parameters(
                 review=review,
                 user=assignment.user,
                 changeset=assignment.changeset,
@@ -159,39 +161,39 @@ async def add_changesets(
         ]
 
         transaction.tables.add("reviewuserfiles")
-        transaction.items.append(
-            Query(
-                """INSERT
-                     INTO reviewuserfiles (file, uid)
-                   SELECT id, {user}
-                     FROM reviewfiles
-                    WHERE review={review}
-                      AND changeset={changeset}
-                      AND file={file}
-                      AND scope IS NULL""",
+        await transaction.execute(
+            Insert("reviewuserfiles")
+            .columns("file", "uid")
+            .query(
+                """
+                SELECT id, {user}
+                  FROM reviewfiles
+                 WHERE review={review}
+                   AND changeset={changeset}
+                   AND file={file}
+                   AND scope IS NULL
+                """,
                 *default_reviewuserfiles_values,
             )
         )
-        transaction.items.append(
-            Query(
-                """INSERT
-                     INTO reviewuserfiles (file, uid)
-                   SELECT id, {user}
-                     FROM reviewfiles
-                    WHERE review={review}
-                      AND changeset={changeset}
-                      AND file={file}
-                      AND scope={scope}""",
+        await transaction.execute(
+            Insert("reviewuserfiles")
+            .columns("file", "uid")
+            .query(
+                """
+                SELECT id, {user}
+                  FROM reviewfiles
+                 WHERE review={review}
+                   AND changeset={changeset}
+                   AND file={file}
+                   AND scope={scope}
+                """,
                 *scoped_reviewuserfiles_values,
             )
         )
 
-    if branchupdate:
+    if branchupdate and (from_head := await branchupdate.from_head):
         critic = transaction.critic
-        from_head = await branchupdate.from_head
-        # We expect to be called for branch updates, not the initial branch
-        # creation.
-        assert from_head is not None
         comments = await api.comment.fetchAll(
             critic, review=review, commit=from_head, files=changed_files
         )
@@ -202,10 +204,11 @@ async def add_changesets(
         logger.debug("comments: %r", comments)
 
         existing_locations: Dict[
-            int, Dict[str, Tuple[int, int]]
+            int, Dict[SHA1, Tuple[int, int]]
         ] = collections.defaultdict(dict)
 
-        async with critic.query(
+        async with api.critic.Query[Tuple[int, SHA1, int, int]](
+            critic,
             """SELECT chain, sha1, first_line, last_line
                  FROM commentchainlines
                 WHERE {chain=comment_ids:array}""",
@@ -218,16 +221,19 @@ async def add_changesets(
             original_location = await comment.location
             # We fetched comments in the changed files, so all files will have
             # file-version locations.
-            assert original_location and original_location.type == "file-version"
+            assert isinstance(original_location, api.comment.FileVersionLocation)
             location = await original_location.as_file_version.translateTo(
                 commit=from_head
             )
-            propagation_result = await reviewing.comment.propagate.propagate_in_new_commits(
-                critic, location, existing_locations[comment.id], commits
+            assert location
+            propagation_result = (
+                await reviewing.comment.propagate.propagate_in_new_commits(
+                    critic, location, existing_locations[comment.id], commits
+                )
             )
 
             commentchainlines_values.extend(
-                dict(
+                dbaccess.parameters(
                     chain=comment,
                     state="draft" if comment.is_draft else "current",
                     sha1=location.sha1,
@@ -240,8 +246,9 @@ async def add_changesets(
 
             if propagation_result.addressed_by:
                 commentchains_values.append(
-                    dict(
+                    dbaccess.parameters(
                         comment=comment,
+                        state="addressed",
                         addressed_by=propagation_result.addressed_by,
                         branchupdate=branchupdate,
                     )
@@ -250,26 +257,24 @@ async def add_changesets(
         if commentchains_values:
             logger.debug("address comments: %r", commentchains_values)
 
-            transaction.tables.add("commentchains")
-            transaction.items.append(
-                Query(
-                    """UPDATE commentchains
-                          SET state='addressed',
-                              addressed_by={addressed_by},
-                              addressed_by_update={branchupdate}
-                        WHERE id={comment}""",
-                    *commentchains_values,
-                )
+            await transaction.execute(
+                UpdateMany(
+                    "commentchains",
+                    ["state", "addressed_by", "addressed_by_update"],
+                    commentchains_values,
+                ).where("id={comment}")
             )
 
         if commentchainlines_values:
             transaction.tables.add("commentchainlines")
-            transaction.items.append(
+            await transaction.execute(
                 InsertMany(
                     "commentchainlines",
                     ["chain", "state", "sha1", "first_line", "last_line"],
                     commentchainlines_values,
                 )
             )
+    else:
+        await CreateReviewEvent.ensure(transaction, review, "ready")
 
     transaction.finalizers.add(UpdateReviewTags(review))

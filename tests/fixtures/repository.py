@@ -130,7 +130,7 @@ class Worktree(GitBase):
     async def delete(self, filename: str) -> None:
         raise_for_status(await self.execute("git", "rm", filename))
 
-    async def commit(self, message, *, amend: bool = False) -> ExecuteResult:
+    async def commit(self, message: str, *, amend: bool = False) -> ExecuteResult:
         args = ["-m", message]
         if amend:
             args.append("--amend")
@@ -381,7 +381,10 @@ class CriticRepository:
             sha1 = await clone.create_empty_commit()
             raise_for_status(
                 await clone.execute(
-                    "git", "push", "origin", f"{sha1}:refs/heads/master",
+                    "git",
+                    "push",
+                    "origin",
+                    f"{sha1}:refs/heads/master",
                 )
             )
 

@@ -17,12 +17,14 @@
 from __future__ import annotations
 
 import contextlib
+from dataclasses import dataclass
 import logging
 import re
-from abc import ABC, abstractmethod
 from types import ModuleType
 from typing import (
     Any,
+    Collection,
+    Dict,
     Optional,
     Union,
     Iterator,
@@ -33,8 +35,6 @@ from typing import (
     List,
     Iterable,
     Protocol,
-    Set,
-    FrozenSet,
     Sequence,
     Mapping,
     Container,
@@ -42,14 +42,13 @@ from typing import (
     overload,
 )
 
-from critic.api import reviewscope
-
 logger = logging.getLogger(__name__)
 
 from critic import api
-from critic import jsonapi
 
-from .types import JSONInputItem
+from .exceptions import InputError
+from .parameters import Parameters
+from .types import JSONInput, JSONInputItem
 
 
 def ishashable(value: Any) -> bool:
@@ -65,10 +64,10 @@ class TypeCheckerContext(object):
     __repository: Optional[api.repository.Repository]
     __review: Optional[api.review.Review]
 
-    def __init__(self, parameters: jsonapi.Parameters):
+    def __init__(self, parameters: Parameters):
         self.critic = parameters.critic
-        self.__repository = parameters.context.get("repositories")
-        self.__review = parameters.context.get("reviews")
+        self.__repository = parameters.in_context(api.repository.Repository)
+        self.__review = parameters.in_context(api.review.Review)
         self.__path = ["data"]
 
     @contextlib.contextmanager
@@ -119,15 +118,15 @@ class TypeCheckerBase(Generic[Intermediate, Final]):
         self, context: TypeCheckerContext, value: JSONInputItem
     ) -> Final:
         if not self.check_compatibility(context, value):
-            raise jsonapi.InputError("%s: expected %s" % (context, self))
+            raise InputError("%s: expected %s, got %r" % (context, self, value))
         try:
             intermediate = await self.check(context, value)
         except Error as error:
-            raise jsonapi.InputError("%s: %s" % (context, str(error)))
+            raise InputError("%s: %s" % (context, str(error)))
         try:
             converted = await self.convert(context, intermediate)
         except self.convert_exception as error:
-            raise jsonapi.InputError("%s: %s" % (context, error))
+            raise InputError("%s: %s" % (context, error))
         await self.process(context, converted)
         return converted
 
@@ -152,13 +151,16 @@ Result = TypeVar("Result", covariant=True)
 
 
 class TypeCheckerCallable(Protocol[Result]):
-    @property
-    def expected_type(self) -> str:
-        ...
+    expected_type: str
+    convert_exception: Tuple[Type[BaseException], ...]
 
-    @property
-    def convert_exception(self) -> Tuple[Type[BaseException], ...]:
-        ...
+    # @property
+    # def expected_type(self) -> str:
+    #     ...
+
+    # @property
+    # def convert_exception(self) -> Tuple[Type[BaseException], ...]:
+    #     ...
 
     async def __call__(self, context: TypeCheckerContext, value: JSONInputItem) -> T:
         ...
@@ -223,23 +225,26 @@ TypeCheckerInputItem = Union[
 TypeCheckerInput = Mapping[str, TypeCheckerInputItem1]
 
 
-def makeTypeChecker(value: Optional[TypeCheckerInputItem]) -> TypeCheckerBase:
+def makeTypeChecker(
+    value: Optional[TypeCheckerInputItem],
+) -> TypeCheckerBase[Any, Any]:
     if value is None:
         return TypeChecker()
     if isinstance(value, type):
         value = CHECKER_MAP.get(value, value)
-    if isinstance(value, TypeCheckerBase):
+    if isinstance(value, TypeCheckerBase):  # type: ignore
         return value
     if isinstance(value, type) and issubclass(value, TypeCheckerBase):
-        return value()
+        return value()  # type: ignore
     if isinstance(value, list):
-        assert len(value) == 1
-        return ListChecker(value[0])
+        (item_checker,) = cast(List[TypeCheckerInputItem], value)
+        return ListChecker(item_checker)
     if isinstance(value, (set, frozenset)):
-        if all(isinstance(item, str) for item in value):
-            return EnumerationChecker(*value)
-        return VariantChecker(
-            makeTypeChecker(cast(TypeCheckerInputItem, item)) for item in value
+        value_set = cast(Collection[object], value)
+        if all(isinstance(item, str) for item in value_set):
+            return EnumerationChecker(*cast(Collection[str], value_set))
+        return VariantChecker[object](
+            makeTypeChecker(cast(TypeCheckerInputItem, item)) for item in value_set
         )
     if isinstance(value, dict):
         return ObjectChecker(cast(TypeCheckerInput, value))
@@ -248,7 +253,7 @@ def makeTypeChecker(value: Optional[TypeCheckerInputItem]) -> TypeCheckerBase:
     raise Exception("invalid checked type: %r" % value)
 
 
-class ListChecker(TypeCheckerBase[list, List[T]]):
+class ListChecker(TypeCheckerBase[List[JSONInputItem], List[T]]):
     required_isinstance = list
     checker: TypeCheckerCallable[T]
 
@@ -256,7 +261,9 @@ class ListChecker(TypeCheckerBase[list, List[T]]):
         self.checker = makeTypeChecker(checker)
         self.expected_type = "list of %s" % self.checker.expected_type
 
-    async def convert(self, context: TypeCheckerContext, value: list) -> List[T]:
+    async def convert(
+        self, context: TypeCheckerContext, value: List[JSONInputItem]
+    ) -> List[T]:
         result: List[T] = []
         for index, element in enumerate(value):
             with context.push(index):
@@ -268,10 +275,12 @@ class VariantChecker(TypeCheckerBase[JSONInputItem, T]):
     types: Optional[Iterable[TypeCheckerCallable[T]]]
     matched: Optional[TypeCheckerCallable[T]]
 
-    def __init_subclass__(cls, types: Iterable[TypeCheckerCallable[T]] = None):
+    def __init_subclass__(
+        cls, types: Optional[Iterable[TypeCheckerCallable[T]]] = None
+    ):
         cls.types = types
 
-    def __init__(self, types: Iterable[TypeCheckerCallable[T]] = None):
+    def __init__(self, types: Optional[Iterable[TypeCheckerCallable[T]]] = None):
         if types is None:
             types = self.types
             assert types
@@ -329,6 +338,9 @@ class ObjectChecker(TypeCheckerBase[Mapping[str, JSONInputItem], Mapping[str, An
                 makeTypeChecker(attribute_type),
             )
 
+    def __repr__(self) -> str:
+        return repr(self.attributes)
+
     async def convert(
         self, context: TypeCheckerContext, value: Mapping[str, JSONInputItem]
     ) -> Mapping[str, Any]:
@@ -340,7 +352,7 @@ class ObjectChecker(TypeCheckerBase[Mapping[str, JSONInputItem], Mapping[str, An
             for attribute_name, attribute_value in attributes:
                 with context.push(attribute_name):
                     if attribute_name not in self.attributes:
-                        raise jsonapi.InputError("%s: unexpected attribute" % context)
+                        raise InputError("%s: unexpected attribute" % context)
                     checker = self.attributes[attribute_name][2]
                     result[attribute_name] = await checker(context, attribute_value)
 
@@ -358,7 +370,7 @@ class ObjectChecker(TypeCheckerBase[Mapping[str, JSONInputItem], Mapping[str, An
             if attribute_name not in result:
                 if required:
                     with context.push(attribute_name):
-                        raise jsonapi.InputError("%s: missing attribute" % context)
+                        raise InputError("%s: missing attribute" % context)
                 elif default:
                     result[attribute_name] = None
         return result
@@ -373,7 +385,7 @@ class RestrictedInteger(IntegerChecker):
     minvalue: Optional[int] = None
     maxvalue: Optional[int] = None
 
-    def __init__(self, minvalue: int = None, maxvalue: int = None):
+    def __init__(self, minvalue: Optional[int] = None, maxvalue: Optional[int] = None):
         if minvalue is not None:
             self.minvalue = minvalue
         if maxvalue is not None:
@@ -403,7 +415,10 @@ class StringChecker(TypeChecker[str]):
 
 class RestrictedString(StringChecker):
     def __init__(
-        self, minlength: int = None, maxlength: int = None, regexp: str = None
+        self,
+        minlength: Optional[int] = None,
+        maxlength: Optional[int] = None,
+        regexp: Optional[str] = None,
     ):
         self.minlength = minlength
         self.maxlength = maxlength
@@ -444,7 +459,7 @@ class EnumerationChecker(StringChecker):
         return value
 
 
-class BooleanChecker(TypeChecker):
+class BooleanChecker(TypeChecker[bool]):
     required_isinstance = bool
     expected_type = "boolean"
 
@@ -455,21 +470,19 @@ APIObjectClass = TypeVar("APIObjectClass", bound=api.APIObject)
 class APIObject(TypeCheckerBase[Intermediate, APIObjectClass]):
     api_module: Optional[ModuleType]
 
-    def __init_subclass__(cls, api_module: ModuleType = None):
+    def __init_subclass__(cls, api_module: Optional[ModuleType] = None):
         super().__init_subclass__()
         cls.api_module = api_module
 
-    def __init__(self, api_class: Type[APIObjectClass] = None):
+    def __init__(self, api_class: Optional[Type[APIObjectClass]] = None):
         if api_class is not None:
             self.api_module = api_class.getModule()
         assert self.api_module
         self.convert_exception = getattr(self.api_module, "Error")
 
-    async def process(
-        self, context: TypeCheckerContext, api_object: APIObjectClass
-    ) -> None:
+    async def process(self, context: TypeCheckerContext, value: APIObjectClass) -> None:
         async def maybe_get(name: str) -> Any:
-            return await context.critic.maybe_await(getattr(api_object, name, None))
+            return await context.critic.maybe_await(getattr(value, name, None))
 
         if not context.review:
             context.review = await maybe_get("review")
@@ -483,7 +496,7 @@ class APIObjectById(APIObject[int, APIObjectClass]):
     def __init_subclass__(cls, api_module: ModuleType):
         super().__init_subclass__(api_module=api_module)
 
-    def __init__(self, api_class: Type[APIObjectClass] = None):
+    def __init__(self, api_class: Optional[Type[APIObjectClass]] = None):
         super().__init__(api_class)
         if api_class is not None:
             self.api_module = api_class.getModule()
@@ -566,16 +579,16 @@ class Repository(
     },
 ):
     async def process(
-        self, context: TypeCheckerContext, repository: api.repository.Repository
+        self, context: TypeCheckerContext, value: api.repository.Repository
     ) -> None:
-        context.repository = repository
+        context.repository = value
 
 
 class Review(APIObjectById[api.review.Review], api_module=api.review):
     async def process(
-        self, context: TypeCheckerContext, review: api.review.Review
+        self, context: TypeCheckerContext, value: api.review.Review
     ) -> None:
-        context.review = review
+        context.review = value
 
 
 class CommitId(APIObjectById[api.commit.Commit], api_module=api.commit):
@@ -690,7 +703,7 @@ class Null(TypeChecker[Optional[T]]):
         return value is None
 
 
-CHECKER_MAP: Mapping[type, TypeCheckerBase] = {
+CHECKER_MAP: Mapping[Any, Any] = {
     int: IntegerChecker(),
     str: StringChecker(),
     bool: BooleanChecker(),
@@ -709,28 +722,28 @@ Converted = Mapping[str, Any]
 
 @overload
 async def convert(
-    parameters: jsonapi.Parameters,
+    parameters: Parameters,
     structure: TypeCheckerInput,
-    value: jsonapi.JSONInput,
+    value: JSONInput,
 ) -> Converted:
     ...
 
 
 @overload
 async def convert(
-    parameters: jsonapi.Parameters,
+    parameters: Parameters,
     structure: TypeCheckerInput,
-    value: jsonapi.JSONInput,
+    value: JSONInput,
     resource_type: str,
 ) -> Tuple[Optional[Converted], Optional[Sequence[Converted]]]:
     ...
 
 
 async def convert(
-    parameters: jsonapi.Parameters,
+    parameters: Parameters,
     structure: TypeCheckerInput,
-    value: jsonapi.JSONInput,
-    resource_type: str = None,
+    value: JSONInput,
+    resource_type: Optional[str] = None,
 ) -> Union[Converted, Tuple[Optional[Converted], Optional[Sequence[Converted]]]]:
     context = TypeCheckerContext(parameters)
     single_checker = makeTypeChecker(structure)
@@ -746,23 +759,46 @@ async def convert(
         return await single_checker(context, value)
 
 
-def ensure(data: jsonapi.JSONInput, path: str, ensured_value: Any) -> None:
-    if isinstance(path, (tuple, list)):
-        for key in path[:-1]:
-            data = data[key]
-        key = path[-1]
-    else:
-        key = path
+# def ensure(
+#     data: JSONInput, path: Union[str, Sequence[str]], ensured_value: Any
+# ) -> None:
+#     if isinstance(path, str):
+#         key = path
+#     else:
+#         for key in path[:-1]:
+#             data = cast(Mapping[str, JSONInput], data)[key]
+#         key = path[-1]
 
-    if key not in data:
-        data[key] = ensured_value
-    elif data[key] != ensured_value:
-        path_string = "data"
-        for key in path:
-            if isinstance(key, str):
-                path_string += "." + key
-            else:
-                path_string += "[%d]" % key
-        raise jsonapi.InputError(
-            "%s: must be %r or omitted" % (path_string, ensured_value)
-        )
+#     if key not in data:
+#         data[key] = ensured_value
+#     elif data[key] != ensured_value:
+#         path_string = "data"
+#         for key in path:
+#             if isinstance(key, str):
+#                 path_string += "." + key
+#             else:
+#                 path_string += "[%d]" % key
+#         raise InputError("%s: must be %r or omitted" % (path_string, ensured_value))
+
+
+@dataclass
+class _Optional:
+    spec: TypeCheckerInputItem1
+
+
+def optional(spec: TypeCheckerInputItem1) -> _Optional:
+    return _Optional(spec)
+
+
+def anything() -> TypeCheckerInputAtom:
+    return TypeChecker[Any]()
+
+
+def input_spec(**items: Union[TypeCheckerInputItem1, _Optional]) -> TypeCheckerInput:
+    result: Dict[str, TypeCheckerInputItem1] = {}
+    for name, spec in items.items():
+        if isinstance(spec, _Optional):
+            name += "?"
+            spec = spec.spec
+        result[name] = spec
+    return result

@@ -14,6 +14,10 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
+import argparse
+from typing import Protocol, Sequence, cast
+
+from critic import api
 from . import addextension
 from . import addrepository
 from . import addrole
@@ -27,11 +31,8 @@ from . import interactive
 from . import listusers
 from . import lookup_ssh_key
 from . import passwd
-from . import run_extension
 from . import run_extensionhost
 from . import run_frontend
-from . import run_httpd
-from . import run_loadbalancer
 from . import run_services
 from . import run_sshd
 from . import run_task
@@ -41,31 +42,45 @@ from . import settings
 from . import sshd_client
 from . import synchronize_service
 
-modules = [
-    addextension,
-    addrepository,
-    addrole,
-    adduser,
-    configuration,
-    connect,
-    delrole,
-    deluser,
-    disconnect,
-    interactive,
-    listusers,
-    lookup_ssh_key,
-    passwd,
-    run_extension,
-    run_extensionhost,
-    run_frontend,
-    run_httpd,
-    run_loadbalancer,
-    run_services,
-    run_sshd,
-    run_task,
-    run_worker,
-    send_email,
-    settings,
-    sshd_client,
-    synchronize_service,
-]
+
+class CommandModule(Protocol):
+    name: str
+    title: str
+
+    def setup(self, parser: argparse.ArgumentParser) -> None:
+        ...
+
+    async def main(
+        self, critic: api.critic.Critic, arguments: argparse.Namespace
+    ) -> int:
+        ...
+
+
+modules = cast(
+    Sequence[CommandModule],
+    [
+        addextension,
+        addrepository,
+        addrole,
+        adduser,
+        configuration,
+        connect,
+        delrole,
+        deluser,
+        disconnect,
+        interactive,
+        listusers,
+        lookup_ssh_key,
+        passwd,
+        run_extensionhost,
+        run_frontend,
+        run_services,
+        run_sshd,
+        run_task,
+        run_worker,
+        send_email,
+        settings,
+        sshd_client,
+        synchronize_service,
+    ],
+)

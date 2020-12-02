@@ -17,26 +17,31 @@
 from __future__ import annotations
 
 import logging
-from typing import Sequence, Optional, Union
+from typing import Sequence
 
 logger = logging.getLogger(__name__)
 
 from critic import api
-from critic import jsonapi
+from ..check import convert
+from ..exceptions import UsageError
+from ..resourceclass import ResourceClass
+from ..parameters import Parameters
+from ..types import JSONInput, JSONResult
+from ..utils import numeric_id
 
 ReviewIntegrationRequest = api.reviewintegrationrequest.ReviewIntegrationRequest
 
 
 class ReviewIntegrationRequests(
-    jsonapi.ResourceClass[ReviewIntegrationRequest],
+    ResourceClass[ReviewIntegrationRequest],
     api_module=api.reviewintegrationrequest,
 ):
     contexts = (None, "reviews", "branches")
 
     @staticmethod
     async def json(
-        parameters: jsonapi.Parameters, value: ReviewIntegrationRequest
-    ) -> jsonapi.JSONResult:
+        parameters: Parameters, value: ReviewIntegrationRequest
+    ) -> JSONResult:
         return {
             "id": value.id,
             "review": value.review,
@@ -60,20 +65,20 @@ class ReviewIntegrationRequests(
             "error_message": value.error_message,
         }
 
-    @staticmethod
+    @classmethod
     async def single(
-        parameters: jsonapi.Parameters, argument: str
+        cls, parameters: Parameters, argument: str
     ) -> ReviewIntegrationRequest:
         return await api.reviewintegrationrequest.fetch(
-            parameters.critic, jsonapi.numeric_id(argument)
+            parameters.critic, numeric_id(argument)
         )
 
     @staticmethod
     async def multiple(
-        parameters: jsonapi.Parameters,
+        parameters: Parameters,
     ) -> Sequence[ReviewIntegrationRequest]:
-        review = await Reviews.deduce(parameters)
-        target_branch = await Branches.deduce(parameters)
+        review = await parameters.deduce(api.review.Review)
+        target_branch = await parameters.deduce(api.branch.Branch)
 
         return await api.reviewintegrationrequest.fetchAll(
             parameters.critic, review=review, target_branch=target_branch
@@ -81,11 +86,11 @@ class ReviewIntegrationRequests(
 
     @staticmethod
     async def create(
-        parameters: jsonapi.Parameters, data: jsonapi.JSONInput
+        parameters: Parameters, data: JSONInput
     ) -> ReviewIntegrationRequest:
         critic = parameters.critic
 
-        converted = await jsonapi.convert(
+        converted = await convert(
             parameters,
             {
                 "review?": api.review.Review,
@@ -96,14 +101,14 @@ class ReviewIntegrationRequests(
             data,
         )
 
-        review = await Reviews.deduce(parameters)
+        review = await parameters.deduce(api.review.Review)
 
         if not review:
             if "review" not in converted:
-                raise jsonapi.UsageError.missingParameter("review")
+                raise UsageError.missingParameter("review")
             review = converted["review"]
         elif "review" in converted and review != converted["review"]:
-            raise jsonapi.UsageError("Conflicting reviews specified")
+            raise UsageError("Conflicting reviews specified")
 
         assert review
 
@@ -113,14 +118,8 @@ class ReviewIntegrationRequests(
         do_integrate = converted.get("integration", {}).get("requested", True)
 
         async with api.transaction.start(critic) as transaction:
-            created_request = await (
+            return await (
                 transaction.modifyReview(review).requestIntegration(
                     do_squash, squash_message, do_autosquash, do_integrate
                 )
             )
-
-        return await created_request.future
-
-
-from .branches import Branches
-from .reviews import Reviews

@@ -16,14 +16,33 @@
 
 from __future__ import annotations
 
-from typing import Sequence, Optional, Union, Set
+from typing import Sequence, Set, Tuple
 
 from critic import api
-from critic import jsonapi
+from critic.api.transaction.reply.modify import ModifyReply
+from ..check import convert
+from ..exceptions import PathError, UsageError
+from ..resourceclass import ResourceClass
+from ..parameters import Parameters
+from ..types import JSONInput, JSONResult
+from ..utils import numeric_id
+from ..values import Values
+from .timestamp import timestamp
+
+
+async def modify(
+    transaction: api.transaction.Transaction, reply: api.reply.Reply
+) -> Tuple[api.review.Review, api.comment.Comment, ModifyReply]:
+    comment = await reply.comment
+    review = await comment.review
+
+    review_modifier = transaction.modifyReview(review)
+    comment_modifier = await review_modifier.modifyComment(comment)
+    return review, comment, await comment_modifier.modifyReply(reply)
 
 
 class Replies(
-    jsonapi.ResourceClass[api.reply.Reply],
+    ResourceClass[api.reply.Reply],
     api_module=api.reply,
     exceptions=(api.comment.Error, api.reply.Error),
 ):
@@ -32,79 +51,77 @@ class Replies(
     contexts = (None, "comments")
 
     @staticmethod
-    async def json(
-        parameters: jsonapi.Parameters, value: api.reply.Reply
-    ) -> jsonapi.JSONResult:
+    async def json(parameters: Parameters, value: api.reply.Reply) -> JSONResult:
         """{
-             "id": integer,
-             "is_draft": boolean,
-             "author": integer,
-             "timestamp": float,
-             "text": string,
-           }"""
+          "id": integer,
+          "is_draft": boolean,
+          "author": integer,
+          "timestamp": float,
+          "text": string,
+        }"""
 
         return {
             "id": value.id,
             "is_draft": value.is_draft,
             "comment": value.comment,
             "author": value.author,
-            "timestamp": jsonapi.v1.timestamp(value.timestamp),
+            "timestamp": timestamp(value.timestamp),
             "text": value.text,
         }
 
-    @staticmethod
-    async def single(parameters: jsonapi.Parameters, argument: str) -> api.reply.Reply:
+    @classmethod
+    async def single(cls, parameters: Parameters, argument: str) -> api.reply.Reply:
         """Retrieve one (or more) replies to comments.
 
-           REPLY_ID : integer
+        REPLY_ID : integer
 
-           Retrieve a reply identified by its unique numeric id."""
+        Retrieve a reply identified by its unique numeric id."""
 
-        reply = await api.reply.fetch(
-            parameters.critic, reply_id=jsonapi.numeric_id(argument)
-        )
+        reply = await api.reply.fetch(parameters.critic, reply_id=numeric_id(argument))
 
-        comment = await Comments.deduce(parameters)
+        comment = await parameters.deduce(api.comment.Comment)
         if comment and comment != reply.comment:
-            raise jsonapi.PathError("Reply does not belong to specified comment")
+            raise PathError("Reply does not belong to specified comment")
 
         return reply
 
     @staticmethod
-    async def multiple(parameters: jsonapi.Parameters) -> Sequence[api.reply.Reply]:
+    async def multiple(parameters: Parameters) -> Sequence[api.reply.Reply]:
         """Retrieve replies to a comment.
 
-           comment : COMMENT_ID : integer
+        comment : COMMENT_ID : integer
 
-           Retrieve all replies to the specified comment."""
+        Retrieve all replies to the specified comment."""
 
-        comment = await Comments.deduce(parameters)
+        comment = await parameters.deduce(api.comment.Comment)
 
         if not comment:
-            raise jsonapi.UsageError("A comment must be identified.")
+            raise UsageError("A comment must be identified.")
 
         return await comment.replies
 
     @staticmethod
-    async def create(
-        parameters: jsonapi.Parameters, data: jsonapi.JSONInput
-    ) -> api.reply.Reply:
+    async def create(parameters: Parameters, data: JSONInput) -> api.reply.Reply:
         critic = parameters.critic
 
-        converted = await jsonapi.convert(
+        converted = await convert(
             parameters,
-            {"comment?": api.comment.Comment, "author?": api.user.User, "text?": str},
+            {
+                "comment?": api.comment.Comment,
+                "author?": api.user.User,  # type: ignore
+                "text?": str,
+            },
             data,
         )
 
-        comment = await Comments.deduce(parameters)
+        comment = await parameters.deduce(api.comment.Comment)
 
         if not comment:
             if "comment" not in converted:
-                raise jsonapi.UsageError("No comment specified")
+                raise UsageError("No comment specified")
             comment = converted["comment"]
         elif "comment" in converted and comment != converted["comment"]:
-            raise jsonapi.UsageError("Conflicting comments specified")
+            raise UsageError("Conflicting comments specified")
         assert comment
 
         if "author" in converted:
@@ -115,38 +132,36 @@ class Replies(
 
         review = await comment.review
 
-        async with api.transaction.start(critic) as transaction:
-            modifier = await transaction.modifyReview(review).modifyComment(comment)
-            reply = await modifier.addReply(
-                author=author, text=converted.get("text", "")
-            )
+        try:
+            async with api.transaction.start(critic) as transaction:
+                modifier = await transaction.modifyReview(review).modifyComment(comment)
+                return (
+                    await modifier.addReply(
+                        author=author, text=converted.get("text", "")
+                    )
+                ).subject
+        finally:
+            await includeUnpublished(parameters, review)
 
-        await jsonapi.v1.batches.includeUnpublished(parameters, review)
-
-        return await reply
-
-    @staticmethod
+    @classmethod
     async def update(
-        parameters: jsonapi.Parameters,
-        values: jsonapi.Values[api.reply.Reply],
-        data: jsonapi.JSONInput,
+        cls,
+        parameters: Parameters,
+        values: Values[api.reply.Reply],
+        data: JSONInput,
     ) -> None:
         critic = parameters.critic
 
-        converted = await jsonapi.convert(parameters, {"text": str}, data)
+        converted = await convert(parameters, {"text": str}, data)
 
         async with api.transaction.start(critic) as transaction:
             for reply in values:
-                comment = await reply.comment
-                comment_modifier = await transaction.modifyReview(
-                    await comment.review
-                ).modifyComment(comment)
-                modifier = await comment_modifier.modifyReply(reply)
+                _, _, modifier = await modify(transaction, reply)
                 await modifier.setText(converted["text"])
 
-    @staticmethod
+    @classmethod
     async def delete(
-        parameters: jsonapi.Parameters, values: jsonapi.Values[api.reply.Reply]
+        cls, parameters: Parameters, values: Values[api.reply.Reply]
     ) -> None:
         critic = parameters.critic
 
@@ -155,28 +170,23 @@ class Replies(
 
         async with api.transaction.start(critic) as transaction:
             for reply in values:
-                comment = await reply.comment
+                review, comment, modifier = await modify(transaction, reply)
+
                 comments.add(comment)
-                review = await comment.review
                 reviews.add(review)
 
-                review_modifier = transaction.modifyReview(review)
-                comment_modifier = await review_modifier.modifyComment(comment)
-                reply_modifier = await comment_modifier.modifyReply(reply)
-                reply_modifier.delete()
+                await modifier.delete()
 
         if len(reviews) == 1:
-            await jsonapi.v1.batches.includeUnpublished(parameters, reviews.pop())
+            await includeUnpublished(parameters, reviews.pop())
 
         if "comments" in parameters.include:
             for comment in comments:
                 parameters.addLinked(comment)
 
     @staticmethod
-    async def fromParameterValue(
-        parameters: jsonapi.Parameters, value: str
-    ) -> api.reply.Reply:
-        return await api.reply.fetch(parameters.critic, jsonapi.numeric_id(value))
+    async def fromParameterValue(parameters: Parameters, value: str) -> api.reply.Reply:
+        return await api.reply.fetch(parameters.critic, numeric_id(value))
 
 
-from .comments import Comments
+from .batches import includeUnpublished

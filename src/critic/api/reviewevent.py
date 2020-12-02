@@ -17,9 +17,20 @@
 from __future__ import annotations
 
 import datetime
-from typing import Optional, Iterable, Sequence, FrozenSet, Literal, cast
+from typing import (
+    Awaitable,
+    Callable,
+    Optional,
+    Iterable,
+    Sequence,
+    FrozenSet,
+    Literal,
+    cast,
+    overload,
+)
 
 from critic import api
+from critic.api.apiobject import FunctionRef
 
 
 class Error(api.APIError, object_type="review event"):
@@ -52,7 +63,7 @@ EventType = Literal[
     "batch",
 ]
 EVENT_TYPES: FrozenSet[EventType] = frozenset(
-    {
+    [
         "created",
         "ready",
         "published",
@@ -62,7 +73,7 @@ EVENT_TYPES: FrozenSet[EventType] = frozenset(
         "pinged",
         "branchupdate",
         "batch",
-    }
+    ]
 )
 """Review event types.
 
@@ -166,11 +177,7 @@ async def fetch(critic: api.critic.Critic, event_id: int) -> ReviewEvent:
 
     Raises:
         InvalidId: The `event_id` is not a valid event id."""
-    assert isinstance(critic, api.critic.Critic)
-
-    from .impl import reviewevent as impl
-
-    return await impl.fetch(critic, int(event_id))
+    return await fetchImpl.get()(critic, event_id)
 
 
 async def fetchMany(
@@ -187,20 +194,36 @@ async def fetchMany(
 
     Raises:
         InvalidIds: One or more ids in `event_ids` is not a valid event id."""
-    from .impl import reviewevent as impl
+    return await fetchManyImpl.get()(critic, list(event_ids))
 
-    assert isinstance(critic, api.critic.Critic)
-    event_ids = [int(event_id) for event_id in event_ids]
 
-    return await impl.fetchMany(critic, event_ids)
+@overload
+async def fetchAll(
+    critic: api.critic.Critic,
+    *,
+    review: api.review.Review,
+    user: Optional[api.user.User] = None,
+    event_type: Optional[EventType] = None,
+) -> Sequence[ReviewEvent]:
+    ...
+
+
+@overload
+async def fetchAll(
+    critic: api.critic.Critic,
+    *,
+    user: api.user.User,
+    event_type: Optional[EventType] = None,
+) -> Sequence[ReviewEvent]:
+    ...
 
 
 async def fetchAll(
     critic: api.critic.Critic,
     *,
-    review: api.review.Review = None,
-    user: api.user.User = None,
-    event_type: EventType = None,
+    review: Optional[api.review.Review] = None,
+    user: Optional[api.user.User] = None,
+    event_type: Optional[EventType] = None,
 ) -> Sequence[ReviewEvent]:
     """Fetch all `ReviewEvent` objects matching the search parameters.
 
@@ -215,18 +238,26 @@ async def fetchAll(
 
     Returns:
         A list of `ReviewEvent` objects."""
-
-    assert isinstance(critic, api.critic.Critic)
-    assert review is None or isinstance(critic, api.review.Review)
-    assert user is None or isinstance(critic, api.user.User)
-    assert not (review is None and user is None)
-    if event_type is not None:
-        event_type = str(event_type)
-        assert event_type in ReviewEvent.EVENT_TYPES
-
-    from .impl import reviewevent as impl
-
-    return await impl.fetchAll(critic, review, user, event_type)
+    return await fetchAllImpl.get()(critic, review, user, event_type)
 
 
 resource_name = table_name = "reviewevents"
+
+
+fetchImpl: FunctionRef[
+    Callable[[api.critic.Critic, int], Awaitable[ReviewEvent]]
+] = FunctionRef()
+fetchManyImpl: FunctionRef[
+    Callable[[api.critic.Critic, Sequence[int]], Awaitable[Sequence[ReviewEvent]]]
+] = FunctionRef()
+fetchAllImpl: FunctionRef[
+    Callable[
+        [
+            api.critic.Critic,
+            Optional[api.review.Review],
+            Optional[api.user.User],
+            Optional[EventType],
+        ],
+        Awaitable[Sequence[ReviewEvent]],
+    ]
+] = FunctionRef()

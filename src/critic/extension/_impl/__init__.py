@@ -5,8 +5,13 @@ import os
 import pickle
 import struct
 import sys
-import traceback
-from typing import AsyncIterator, Optional, Protocol, Tuple, Union
+from typing import (
+    AsyncIterator,
+    Optional,
+    Protocol,
+    Tuple,
+    Union,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -59,7 +64,7 @@ async def write_message(
 
 
 class Runner:
-    __token: Optional[bytes]
+    __token: Optional[str]
 
     def __init__(
         self,
@@ -67,14 +72,18 @@ class Runner:
         stdin: asyncio.StreamReader,
         stdout: asyncio.StreamWriter,
     ):
-        self.critic = critic
+        self.__critic = critic
         self.stdin = stdin
         self.stdout = stdout
 
         self.__token = None
 
+    @property
+    def critic(self) -> api.critic.Critic:
+        return self.__critic
+
     async def commands(self) -> AsyncIterator[Tuple[object, WriteResponse]]:
-        async def write_response(token: bytes, response_item: CallResponseItem) -> None:
+        async def write_response(token: str, response_item: CallResponseItem) -> None:
             await write_message(self.stdout, ResponseItemPackage(token, response_item))
 
         while True:
@@ -91,6 +100,7 @@ class Runner:
 
             logger.debug("incoming command package: %r", package)
 
+            user: Optional[api.user.User]
             if isinstance(package.user_id, int):
                 user = await api.user.fetch(self.critic, package.user_id)
             elif package.user_id == "anonymous":

@@ -15,7 +15,7 @@
  */
 
 import React, { FunctionComponent } from "react"
-import { Route, Switch } from "react-router"
+import { Redirect, Route, Switch } from "react-router"
 import clsx from "clsx"
 
 import { makeStyles, useTheme } from "@material-ui/core/styles"
@@ -24,8 +24,10 @@ import useMediaQuery from "@material-ui/core/useMediaQuery"
 import constants from "../constants"
 import { IsVisible as SidebarIsVisible } from "./Application.Sidebar"
 import Breadcrumbs from "./Application.Breadcrumbs"
+import NotFound from "./Application.NotFound"
 import Suggestions from "./Suggestions"
 import AccountSettings from "./Settings.Account"
+import SystemSettings from "./Settings.System"
 import ReviewContext from "./Review.Context"
 import Dashboard from "./Dashboard"
 import SelectionRectangle from "./Selection.Rectangle"
@@ -33,7 +35,7 @@ import Help from "./Help"
 import Tutorial from "./Tutorial"
 import RepositoryRouter from "./Repository.Router"
 import BrowseRepositories from "./Browse.Repositories"
-import { useUserSetting } from "../utils"
+import { useSignedInUser, useUserSetting } from "../utils"
 
 const useStyles = makeStyles((theme) => ({
   applicationContent: {
@@ -75,8 +77,10 @@ const useStyles = makeStyles((theme) => ({
   },
 }))
 
-const RedirectToDefaultView = () => null
-const NotFound = () => <div>Not found!</div>
+const RedirectToDefaultView = () => {
+  const signedInUser = useSignedInUser()
+  return signedInUser ? <Redirect to="/suggestions" /> : null
+}
 
 const Content: FunctionComponent = () => {
   const classes = useStyles()
@@ -105,6 +109,7 @@ const Content: FunctionComponent = () => {
             path="/settings/account/:section?"
             component={AccountSettings}
           />
+          <Route path="/settings/system/:section?" component={SystemSettings} />
           <Route path="/suggestions" component={Suggestions} />
           <Route path="/help" component={Help} />
           <Route path="/tutorial/:tutorialID" component={Tutorial} />

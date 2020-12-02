@@ -14,11 +14,16 @@
  * the License.
  */
 
-import { updateResources, RequestOptions } from "../resources"
+import {
+  updateResources,
+  RequestOptions,
+  include,
+  withArguments,
+  withParameters,
+} from "../resources"
 import ReviewableFileChange from "../resources/reviewablefilechange"
 import { ReviewID, ChangesetID, FileID } from "../resources/types"
 import { AsyncThunk } from "../state"
-import { RequestParams } from "../utils/Fetch.types"
 
 export const toggleReviewableFileChange = (
   newReviewed: boolean,
@@ -32,15 +37,14 @@ export const toggleReviewableFileChange = (
     reviewID?: ReviewID | null
     changesetID?: ChangesetID | null
     fileID?: FileID | null
-  }
+  },
 ): AsyncThunk<boolean> => async (dispatch, getState) => {
   const state = getState()
   const userID = state.resource.sessions.get("current")?.user || null
 
   if (!userID) return false
 
-  const params: RequestParams = {}
-  const options: RequestOptions = { include: ["batches"] }
+  const options: RequestOptions[] = [include("batches")]
 
   if (reviewableFileChanges) {
     const isAssigned = (rfc: ReviewableFileChange) =>
@@ -53,29 +57,30 @@ export const toggleReviewableFileChange = (
       .filter(isAssigned)
       .filter(shouldToggle)
     if (!rfcsToToggle.length) return false
-    options.args = rfcsToToggle.map((rfc) => rfc.id)
+    options.push(withArguments(rfcsToToggle.map((rfc) => rfc.id)))
   } else {
-    Object.assign(params, {
-      review: reviewID,
-      changeset: changesetID,
-      assignee: "(me)",
-      state: newReviewed ? "pending" : "reviewed",
-    })
+    options.push(
+      withParameters({
+        review: reviewID ?? undefined,
+        changeset: changesetID ?? undefined,
+        assignee: "(me)",
+        state: newReviewed ? "pending" : "reviewed",
+      }),
+    )
 
-    if (fileID !== null) params.file = fileID
+    if (fileID !== null) options.push(withParameters({ file: fileID }))
   }
 
   const updated = await dispatch(
     updateResources(
       "reviewablefilechanges",
-      params,
       {
         draft_changes: {
           new_is_reviewed: newReviewed,
         },
       },
-      options
-    )
+      ...options,
+    ),
   )
 
   return !!updated.length

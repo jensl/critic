@@ -17,6 +17,7 @@
 import { combineReducers } from "redux"
 import Immutable from "immutable"
 
+import { Breadcrumb } from "../actions"
 import { extension } from "./uiExtension"
 //import { createExpandable } from "./uiExpandable"
 import { codeLines } from "./uiCodeLines"
@@ -33,13 +34,13 @@ import { createTextField } from "./uiTextField"
 import webSocket from "./uiWebSocket"
 import { registry } from "./uiRegistry"
 import session from "./uiSession"
+import itemLists from "./uiItemList"
 
 import {
   START,
   ADD_LINKIFIER,
   REMOVE_LINKIFIER,
-  PUSH_BREADCRUMB,
-  POP_BREADCRUMB,
+  SET_BREADCRUMBS,
   KeyboardShortcutHandlerFunc,
   KeyboardShortcutScopeType,
   PUSH_KEYBOARD_SHORTCUT_SCOPE,
@@ -137,15 +138,8 @@ class Linkifier extends Immutable.Record<{
     regexp: new RegExp(""),
     generateURL: (_match: string[]) => "",
   },
-  "Linkifier"
+  "Linkifier",
 ) {}
-
-export class Breadcrumb extends Immutable.Record<{
-  category: string
-  label: string
-  path: string | null
-  token: Token | null
-}>({ category: "", label: "", path: null, token: null }, "Breadcrumb") {}
 
 export type ReviewCategories = Immutable.Map<
   ReviewCategory,
@@ -355,15 +349,15 @@ const rest = (state = new State(), action: Action) => {
     case PUSH_KEYBOARD_SHORTCUT_SCOPE:
       return state.set(
         "keyboardShortcutScopes",
-        state.keyboardShortcutScopes.push(new KeyboardShortcutScope(action))
+        state.keyboardShortcutScopes.push(new KeyboardShortcutScope(action)),
       )
 
     case POP_KEYBOARD_SHORTCUT_SCOPE:
       return state.set(
         "keyboardShortcutScopes",
         state.keyboardShortcutScopes.filterNot(
-          (scope) => scope.token === action.token
-        )
+          (scope) => scope.token === action.token,
+        ),
       )
 
     case SET_SINGLE_SPACE_WIDTH:
@@ -521,7 +515,7 @@ const rest = (state = new State(), action: Action) => {
     case SET_RECENT_BRANCHES:
       return state.setIn(
         ["recentBranches", action.repositoryID],
-        Immutable.List<number>(action.branchIDs)
+        Immutable.List<number>(action.branchIDs),
       )
 
     /* case SHOW_ASSIGN_CHANGES_POP_UP:
@@ -557,7 +551,7 @@ const rest = (state = new State(), action: Action) => {
     case UPDATE_REVIEW_CATEGORY:
       return state.setIn(
         ["reviewCategories", action.category],
-        action.reviewIDs
+        action.reviewIDs,
       )
 
     case ADD_TOAST:
@@ -567,16 +561,14 @@ const rest = (state = new State(), action: Action) => {
       return state.set(
         "toasts",
         state.toasts.map((toast) =>
-          toast.token === action.token
-            ? toast.set("state", action.state)
-            : toast
-        )
+          toast.token === action.token ? toast.withState(action.state) : toast,
+        ),
       )
 
     case TOAST_REMOVED:
       return state.set(
         "toasts",
-        state.toasts.filterNot((toast) => toast.token === action.token)
+        state.toasts.filterNot((toast) => toast.token === action.token),
       )
 
     case ADD_LINKIFIER:
@@ -588,8 +580,8 @@ const rest = (state = new State(), action: Action) => {
             pattern: action.pattern,
             regexp: new RegExp("^" + action.pattern),
             generateURL: action.generateURL,
-          })
-        )
+          }),
+        ),
       )
 
     case REMOVE_LINKIFIER:
@@ -602,20 +594,8 @@ const rest = (state = new State(), action: Action) => {
     case LOGIN_FAILURE:
       return state.set("signInPending", false)
 
-    case PUSH_BREADCRUMB:
-      if (action.label === null) return state
-      return state.set(
-        "breadcrumbs",
-        state.breadcrumbs.push(new Breadcrumb(action))
-      )
-
-    case POP_BREADCRUMB:
-      return state.set(
-        "breadcrumbs",
-        state.breadcrumbs.filterNot(
-          (breadcrumb) => breadcrumb.token === action.token
-        )
-      )
+    case SET_BREADCRUMBS:
+      return state.set("breadcrumbs", Immutable.List(action.crumbs))
 
     default:
       return state
@@ -647,6 +627,7 @@ const ui = combineReducers({
   webSocket,
   registry,
   session,
+  itemLists,
 })
 
 export default ui

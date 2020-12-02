@@ -27,7 +27,6 @@ from typing import (
     Mapping,
     Sequence,
     Iterable,
-    Mapping,
     Any,
     Union,
     List,
@@ -35,23 +34,47 @@ from typing import (
     Dict,
     DefaultDict,
     TypeVar,
-    cast,
 )
 
 logger = logging.getLogger(__name__)
 
-from . import apiobject
 from critic import api
+from critic.api import comment as public
+from . import apiobject
 
 
 @dataclasses.dataclass(frozen=True)
 class DraftChangesImpl:
-    author: api.user.User
-    is_draft: bool
-    reply: Optional[api.reply.Reply] = None
-    new_type: Optional[api.comment.CommentType] = None
-    new_state: Optional[api.comment.IssueState] = None
-    new_location: Optional[api.comment.Location] = None
+    __author: api.user.User
+    __is_draft: bool
+    __reply: Optional[api.reply.Reply] = None
+    __new_type: Optional[api.comment.CommentType] = None
+    __new_state: Optional[api.comment.IssueState] = None
+    __new_location: Optional[api.comment.Location] = None
+
+    @property
+    def author(self) -> api.user.User:
+        return self.__author
+
+    @property
+    def is_draft(self) -> bool:
+        return self.__is_draft
+
+    @property
+    def reply(self) -> Optional[api.reply.Reply]:
+        return self.__reply
+
+    @property
+    def new_type(self) -> Optional[api.comment.CommentType]:
+        return self.__new_type
+
+    @property
+    def new_state(self) -> Optional[api.comment.IssueState]:
+        return self.__new_state
+
+    @property
+    def new_location(self) -> Optional[api.comment.Location]:
+        return self.__new_location
 
 
 InternalState = Literal["open", "addressed", "closed"]
@@ -70,7 +93,6 @@ ArgumentsType = Tuple[
     int,
     int,
     InternalState,
-    int,
     int,
     int,
 ]
@@ -94,7 +116,6 @@ class Comment(apiobject.APIObject[WrapperType, ArgumentsType, int]):
         "state",
         "closed_by",
         "addressed_by",
-        "addressed_by_update",
     ]
 
     # "Closed" is only used in the database, really, the UI has always
@@ -111,6 +132,7 @@ class Comment(apiobject.APIObject[WrapperType, ArgumentsType, int]):
     }
 
     __location: Optional[api.comment.Location]
+    side: api.comment.Side
 
     def __init__(self, args: ArgumentsType):
         (
@@ -128,7 +150,6 @@ class Comment(apiobject.APIObject[WrapperType, ArgumentsType, int]):
             state,
             self.__resolved_by_id,
             self.__addressed_by_id,
-            self.__addressed_by_update_id,
         ) = args
 
         self.is_draft = self.__batch_id is None
@@ -194,9 +215,7 @@ class Comment(apiobject.APIObject[WrapperType, ArgumentsType, int]):
             ).wrap(critic)
         elif self.__first_commit_id is not None:
             repository = await self.getRepository(critic)
-            commit = await api.commit.fetch(
-                repository, commit_id=self.__first_commit_id
-            )
+            commit = await api.commit.fetch(repository, self.__first_commit_id)
             first_line, last_line = await get_lines(commit.sha1)
             # FIXME: Make commit message comment line numbers one-based too!
             first_line += 1
@@ -248,7 +267,8 @@ class Comment(apiobject.APIObject[WrapperType, ArgumentsType, int]):
             #         for backup_id, value in await result.all()
             #     ]
             return DraftChangesImpl(critic.effective_user, True)
-        async with critic.query(
+        async with api.critic.Query[int](
+            critic,
             """SELECT id
                  FROM comments
                 WHERE uid={user_id}
@@ -256,8 +276,8 @@ class Comment(apiobject.APIObject[WrapperType, ArgumentsType, int]):
                   AND batch IS NULL""",
             user_id=critic.effective_user.id,
             comment_id=self.id,
-        ) as result:
-            reply_id = await result.maybe_scalar()
+        ) as draft_reply_result:
+            reply_id = await draft_reply_result.maybe_scalar()
         reply: Optional[api.reply.Reply]
         if reply_id is not None:
             reply = await api.reply.fetch(critic, reply_id)
@@ -267,7 +287,19 @@ class Comment(apiobject.APIObject[WrapperType, ArgumentsType, int]):
         new_type = None
         new_state = None
         new_location = None
-        async with critic.query(
+        async with api.critic.Query[
+            Tuple[
+                InternalState,
+                InternalState,
+                api.comment.CommentType,
+                api.comment.CommentType,
+                int,
+                int,
+                int,
+                int,
+            ]
+        ](
+            critic,
             """SELECT from_state, to_state, from_type, to_type,
                       from_last_commit, to_last_commit,
                       from_addressed_by, to_addressed_by
@@ -288,10 +320,10 @@ class Comment(apiobject.APIObject[WrapperType, ArgumentsType, int]):
                 to_state,
                 from_type,
                 to_type,
-                from_last_commit,
-                to_last_commit,
-                from_addressed_by,
-                to_addressed_by,
+                from_last_commit,  # type: ignore
+                to_last_commit,  # type: ignore
+                from_addressed_by,  # type: ignore
+                to_addressed_by,  # type: ignore
             ) = row
             if to_type is not None and from_type == self.__type:
                 effective_type = new_type = to_type
@@ -305,11 +337,12 @@ class Comment(apiobject.APIObject[WrapperType, ArgumentsType, int]):
             critic.effective_user, False, reply, new_type, new_state, new_location
         )
 
-    @staticmethod
+    @classmethod
     async def refresh(
+        cls,
         critic: api.critic.Critic,
         tables: Set[str],
-        cached_comments: Mapping[Any, WrapperType],
+        cached_objects: Mapping[Any, WrapperType],
     ) -> None:
         if not tables.intersection(("commentchains", "comments")):
             return
@@ -319,10 +352,11 @@ class Comment(apiobject.APIObject[WrapperType, ArgumentsType, int]):
             f"""SELECT {Comment.columns()}
                   FROM commentchains
                  WHERE {{commentchains.id=object_ids:array}}""",
-            cached_comments,
+            cached_objects,
         )
 
 
+@public.fetchImpl
 @Comment.cached
 async def fetch(critic: api.critic.Critic, comment_id: int) -> WrapperType:
     async with Comment.query(
@@ -331,6 +365,7 @@ async def fetch(critic: api.critic.Critic, comment_id: int) -> WrapperType:
         return await Comment.makeOne(critic, result)
 
 
+@public.fetchManyImpl
 @Comment.cachedMany
 async def fetchMany(
     critic: api.critic.Critic, comment_ids: Sequence[int]
@@ -343,6 +378,7 @@ async def fetchMany(
         return await Comment.make(critic, result)
 
 
+@public.fetchAllImpl
 async def fetchAll(
     critic: api.critic.Critic,
     review: Optional[api.review.Review],
@@ -503,6 +539,7 @@ class CommitMessageLocation(Location[api.comment.CommitMessageLocation]):
         return await api.commit.fetch(self.repository, self.__commit_id)
 
 
+@public.makeCommitMessageLocationImpl
 def makeCommitMessageLocation(
     critic: api.critic.Critic,
     first_line: int,
@@ -536,12 +573,12 @@ class FileVersionLocation(Location[api.comment.FileVersionLocation]):
         last_line: int,
         repository: api.repository.Repository,
         file_id: int,
-        changeset: api.changeset.Changeset = None,
-        first_commit_id: int = None,
-        last_commit_id: int = None,
-        side: api.comment.Side = None,
-        commit: api.commit.Commit = None,
-        commit_id: int = None,
+        changeset: Optional[api.changeset.Changeset] = None,
+        first_commit_id: Optional[int] = None,
+        last_commit_id: Optional[int] = None,
+        side: Optional[api.comment.Side] = None,
+        commit: Optional[api.commit.Commit] = None,
+        commit_id: Optional[int] = None,
         is_translated: bool = False,
     ) -> None:
         super().__init__(first_line, last_line)
@@ -626,17 +663,18 @@ class FileVersionLocation(Location[api.comment.FileVersionLocation]):
             conditions = ["chain={comment_id}", "sha1={sha1}"]
             if critic.session_type == "user":
                 conditions.append("(state='current' OR uid={user})")
-            async with critic.query(
+            async with api.critic.Query[Tuple[int, int]](
+                critic,
                 f"""SELECT first_line, last_line
                       FROM commentchainlines
                      WHERE {" AND ".join(conditions)}""",
                 comment_id=comment.id,
                 sha1=file_information.sha1,
                 user=critic.effective_user,
-            ) as result:
+            ) as lines_result:
                 try:
-                    first_line, last_line = await result.one()
-                except result.ZeroRowsInResult:
+                    first_line, last_line = await lines_result.one()
+                except lines_result.ZeroRowsInResult:
                     raise KeyError
             return FileVersionLocation(
                 comment,
@@ -651,7 +689,8 @@ class FileVersionLocation(Location[api.comment.FileVersionLocation]):
             ).wrap(critic)
 
         if changeset:
-            async with critic.query(
+            async with api.critic.Query[int](
+                critic,
                 """SELECT 1
                      FROM changesetfiles
                     WHERE changeset={changeset}
@@ -681,6 +720,7 @@ class FileVersionLocation(Location[api.comment.FileVersionLocation]):
         return None
 
 
+@public.makeFileVersionLocationImpl
 async def makeFileVersionLocation(
     critic: api.critic.Critic,
     first_line: int,

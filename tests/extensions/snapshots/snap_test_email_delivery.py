@@ -311,7 +311,7 @@ snapshots['test_email_delivery created extensions: test-extension'] = {
         'payload': {
             'name': 'test-extension-***',
             'system': True,
-            'uri': 'git://extensions/test-extension.git'
+            'url': 'git://extensions/test-extension.git'
         },
         'query': {
             'fields': '-versions',
@@ -328,7 +328,7 @@ snapshots['test_email_delivery created extensions: test-extension'] = {
                     'key': 'test-extension-***',
                     'name': 'test-extension-***',
                     'publisher': None,
-                    'uri': 'git://extensions/test-extension.git'
+                    'url': 'git://extensions/test-extension.git'
                 }
             ]
         },
@@ -398,7 +398,7 @@ snapshots['test_email_delivery created extensions: email-delivery'] = {
         'payload': {
             'name': 'email-delivery-***',
             'system': True,
-            'uri': 'git://extensions/email-delivery.git'
+            'url': 'git://extensions/email-delivery.git'
         },
         'query': {
             'fields': '-versions',
@@ -415,7 +415,7 @@ snapshots['test_email_delivery created extensions: email-delivery'] = {
                     'key': 'email-delivery-***',
                     'name': 'email-delivery-***',
                     'publisher': None,
-                    'uri': 'git://extensions/email-delivery.git'
+                    'url': 'git://extensions/email-delivery.git'
                 }
             ]
         },

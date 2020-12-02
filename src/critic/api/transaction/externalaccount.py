@@ -1,8 +1,10 @@
 from __future__ import annotations
 
-from . import LazyAPIObject
 from critic import api
+from .createapiobject import CreateAPIObject
 
 
-class CreatedExternalAccount(LazyAPIObject, api_module=api.externalaccount):
+class CreateExternalAccount(
+    CreateAPIObject[api.externalaccount.ExternalAccount], api_module=api.externalaccount
+):
     pass

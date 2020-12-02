@@ -1,13 +1,14 @@
-import argparse
 import asyncio
 import json
 import logging
 import os
 import secrets
 import subprocess
-from typing import Any, Optional
+from typing import Optional
 
 logger = logging.getLogger(__name__)
+
+from .arguments import Arguments
 
 
 async def docker(command: str, *args: str) -> str:
@@ -24,20 +25,11 @@ async def docker(command: str, *args: str) -> str:
 
 
 class Database:
-    @staticmethod
-    def setup(parser: argparse.ArgumentParser) -> None:
-        group = parser.add_argument_group("Database settings")
-        group.add_argument("--database-name", default="critic", help="Database name")
-        group.add_argument(
-            "--database-username", default="critic", help="Database username"
-        )
-        group.add_argument("--database-password", help="Database password")
-
     container_id: Optional[str]
     host: Optional[str]
     port = 5432
 
-    def __init__(self, arguments: Any, state_dir: str, state_is_temporary: bool):
+    def __init__(self, arguments: Arguments, state_dir: str, state_is_temporary: bool):
         self.state_dir = state_dir
         self.state_is_temporary = state_is_temporary
         self.name = arguments.database_name
@@ -47,7 +39,7 @@ class Database:
         self.container_id = None
         self.host = None
 
-    def get_password(self, arguments: Any) -> str:
+    def get_password(self, arguments: Arguments) -> str:
         if arguments.database_password is not None:
             return arguments.database_password
 
@@ -69,7 +61,7 @@ class Database:
         env = os.environ.copy()
         env_args = []
 
-        def add_env(name, value):
+        def add_env(name: str, value: str) -> None:
             env[name] = value
             env_args.extend(["--env", name])
 
@@ -153,7 +145,7 @@ class Database:
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
         )
-        stdout, stderr = await process.communicate()
+        _, stderr = await process.communicate()
         if process.returncode != 0:
             logger.error("Failed!")
             if stderr:

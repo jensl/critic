@@ -19,6 +19,7 @@ import React, { useEffect, FunctionComponent } from "react"
 import CssBaseline from "@material-ui/core/CssBaseline"
 import { ThemeProvider } from "@material-ui/core/styles"
 
+import { loadExtensionInstallations } from "../actions/extension"
 import { loadSession } from "../actions/session"
 import { loadUsers } from "../actions/user"
 import { loadUserSettings } from "../actions/usersetting"
@@ -27,7 +28,6 @@ import {
   useSubscription,
   useSubscriptionIf,
   id,
-  useSignedInUser,
   useUserSetting,
 } from "../utils"
 import { ProvideHashContext } from "../utils/Hash"
@@ -37,27 +37,36 @@ import Structure from "./Application.Structure"
 import SignIn from "./Dialog.SignIn"
 import userSettings from "../userSettings"
 import { useSelector, useDispatch } from "../store"
+import Extensions from "../extensions"
+import { useSessionInfo } from "../utils/SessionContext"
 
-const Application: FunctionComponent = () => {
-  const dispatch = useDispatch()
-  const signedInUser = useSignedInUser()
-  const started = useSelector((state) => state.ui.rest.started)
+const WithSessionInfo: FunctionComponent = () => {
   const [themeName] = useUserSetting(userSettings.theme)
   const theme = selectTheme(themeName)
-  useSubscriptionIf(signedInUser !== null, loadUserSettings, id(signedInUser))
-  useSubscription(loadSession)
-  useSubscription(loadUsers)
-  useEffect(() => dispatch(connectWebSocket()), [dispatch])
-  if (!started) return null
+
+  useSubscription(loadExtensionInstallations)
+
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
       <ProvideHashContext>
         <Structure />
         <SignIn />
+        <Extensions />
       </ProvideHashContext>
     </ThemeProvider>
   )
+}
+
+const Application: FunctionComponent = () => {
+  const dispatch = useDispatch()
+  const { hasSessionInfo, signedInUser } = useSessionInfo()
+  const started = useSelector((state) => state.ui.rest.started)
+  useSubscriptionIf(signedInUser !== null, loadUserSettings, id(signedInUser))
+  useSubscription(loadSession)
+  useSubscription(loadUsers)
+  useEffect(() => dispatch(connectWebSocket()), [dispatch])
+  return started && hasSessionInfo ? <WithSessionInfo /> : null
 }
 
 const selectTheme = (name: string) => {

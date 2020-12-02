@@ -16,10 +16,10 @@
 
 from __future__ import annotations
 
-import json
-from typing import Tuple, Any, Iterable, Sequence, Optional, Set, Mapping
+from typing import Tuple, Any, Sequence, Optional
 
 from critic import api
+from critic.api import systemsetting as public
 from critic import dbaccess
 
 from . import apiobject
@@ -41,6 +41,7 @@ class SystemSetting(apiobject.APIObject[WrapperType, ArgumentsType, str]):
         return super().wrap(critic)
 
 
+@public.fetchImpl
 @SystemSetting.cached
 async def fetch(
     critic: api.critic.Critic, setting_id: Optional[int], key: Optional[str]
@@ -59,22 +60,25 @@ async def fetch(
             raise api.systemsetting.InvalidKey(value=key)
 
 
+@public.fetchManyImpl
 @SystemSetting.cachedMany
 async def fetchMany(
-    critic: api.critic.Critic, setting_ids: Iterable[int], keys: Iterable[str],
+    critic: api.critic.Critic,
+    setting_ids: Optional[Sequence[int]],
+    keys: Optional[Sequence[str]],
 ) -> Sequence[WrapperType]:
     if setting_ids is not None:
         condition = "id=ANY({setting_ids})"
-        setting_ids = list(setting_ids)
     else:
+        assert keys is not None
         condition = "key=ANY({keys})"
-        keys = list(keys)
     async with SystemSetting.query(
         critic, [condition], setting_ids=setting_ids, keys=keys
     ) as result:
         return await SystemSetting.make(critic, result)
 
 
+@public.fetchAllImpl
 async def fetchAll(
     critic: api.critic.Critic, prefix: Optional[str]
 ) -> Sequence[WrapperType]:

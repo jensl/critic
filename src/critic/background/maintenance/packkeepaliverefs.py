@@ -60,7 +60,7 @@ async def pack_keepalive_refs(repository: gitaccess.GitRepository) -> bool:
 
     new_value: Optional[SHA1] = None
 
-    async def createRef(target: Ref = None) -> None:
+    async def createRef(target: Optional[Ref] = None) -> None:
         nonlocal new_value
         parents = []
         if new_value:

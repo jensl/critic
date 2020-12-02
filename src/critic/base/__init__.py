@@ -14,21 +14,17 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
+from contextvars import ContextVar
 import json
 import os
 import sys
 from typing import (
-    Any,
-    Awaitable,
-    Dict,
-    List,
     Mapping,
     Optional,
     Sequence,
     TypedDict,
     TypeVar,
     Union,
-    overload,
 )
 
 
@@ -76,7 +72,10 @@ def settings_dir() -> str:
 DatabaseParameter = Union[int, str]
 DatabaseParameters = TypedDict(
     "DatabaseParameters",
-    {"args": Sequence[DatabaseParameter], "kwargs": Mapping[str, DatabaseParameter],},
+    {
+        "args": Sequence[str],
+        "kwargs": Mapping[str, DatabaseParameter],
+    },
 )
 
 Configuration = TypedDict(
@@ -90,6 +89,7 @@ Configuration = TypedDict(
         "paths.repositories": str,
         "paths.runtime": str,
         "paths.scratch": str,
+        "paths.source": Optional[str],
         "services.host": str,
         "services.port": int,
         "system.flavor": str,
@@ -99,24 +99,30 @@ Configuration = TypedDict(
     },
 )
 
-CONFIGURATION: Optional[Configuration] = None
+_CONFIGURATION: ContextVar[Configuration] = ContextVar("configuration")
 
 
 def configuration() -> Configuration:
-    global CONFIGURATION
-    if CONFIGURATION is None:
-        configuration_json_path = os.path.join(settings_dir(), "configuration.json")
-        try:
-            with open(configuration_json_path) as file:
-                configuration_json = file.read()
-        except OSError:
-            raise MissingConfiguration(configuration_json_path)
+    global _CONFIGURATION
+    try:
+        return _CONFIGURATION.get()
+    except LookupError:
+        pass
 
-        try:
-            CONFIGURATION = json.loads(configuration_json)
-        except ValueError:
-            raise InvalidConfiguration(configuration_json)
-    return CONFIGURATION
+    configuration_json_path = os.path.join(settings_dir(), "configuration.json")
+    try:
+        with open(configuration_json_path) as file:
+            configuration_json = file.read()
+    except OSError:
+        raise MissingConfiguration(configuration_json_path)
+
+    try:
+        configuration = json.loads(configuration_json)
+    except ValueError:
+        raise InvalidConfiguration(configuration_json)
+
+    _CONFIGURATION.set(configuration)
+    return configuration
 
 
 T = TypeVar("T")

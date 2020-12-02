@@ -28,7 +28,11 @@ const ReviewListItemTitle: FunctionComponent<OwnProps> = ({
       className={clsx(className, classes.reviewListItemTitle)}
       variant="body1"
     >
-      {review.summary}
+      {review.summary || (
+        <>
+          <em>No summary</em>
+        </>
+      )}
     </Typography>
   )
 }

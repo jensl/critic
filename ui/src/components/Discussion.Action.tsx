@@ -52,6 +52,7 @@ const Action: React.FunctionComponent<ActionProps & OwnProps> = ({
       className={clsx(className, classes.action)}
       size={size}
       onMouseDown={(ev) => ev.stopPropagation()}
+      variant="contained"
       {...buttonProps}
     >
       {children}

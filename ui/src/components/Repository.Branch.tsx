@@ -21,9 +21,9 @@ const RepositoryBranch: React.FunctionComponent = () => {
   } = useRouteMatch<Params>()
   const { id: repositoryID, name: repositoryName } = useRepository()!
   useSubscription(loadBranch, { repositoryID, name })
-  const branchID = branches.byName.get(`${repositoryID}:${name}`, -1)
-  const branch = branches.byID.get(branchID, null)
-  if (branch === null) return null
+  const branchID = branches.byName.get(`${repositoryID}:${name}`) ?? -1
+  const branch = branches.byID.get(branchID)
+  if (!branch) return null
   const prefix = `/repository/${repositoryName}/branch/${branch.name}`
   return (
     <Breadcrumb category="branch" label={branch.name} path={prefix}>

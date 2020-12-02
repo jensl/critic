@@ -17,7 +17,7 @@
 import asyncio
 import logging
 import os
-from typing import Any, BinaryIO, TextIO, Union
+from typing import Any, Awaitable, BinaryIO, Collection, TextIO, Type, TypeVar, Union
 
 logger = logging.getLogger(__name__)
 
@@ -67,8 +67,13 @@ def serialized(fn):
     return wrapper
 
 
+T = TypeVar("T")
+
+
 async def gather(
-    *coros_or_futures, loop=None, return_exceptions=False, silent_exceptions=()
+    *coros_or_futures: Awaitable[T],
+    return_exceptions: bool = False,
+    silent_exceptions: Collection[Type[BaseException]] = (),
 ):
     """Like asyncio.gather(), but cancels remaining pending futures"""
 
@@ -88,15 +93,13 @@ async def gather(
         for future in done:
             try:
                 future.result()
-            except silent_exceptions:
+            except silent_exceptions:  # type: ignore
                 pass
             except Exception:
                 logger.exception("Coroutine failed!")
         for future in pending:
             future.cancel()
         raise
-    else:
-        assert not pending
 
 
 async def create_reader(

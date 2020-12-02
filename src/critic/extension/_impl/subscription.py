@@ -14,8 +14,16 @@ from .. import Message
 
 @dataclass
 class MessageImpl:
-    channel: str
-    payload: object
+    __channel: str
+    __payload: object
+
+    @property
+    def channel(self) -> str:
+        return self.__channel
+
+    @property
+    def payload(self) -> object:
+        return self.__payload
 
 
 @asynccontextmanager
@@ -33,8 +41,6 @@ async def message_handle(
 class SubscriptionImpl(Runner):
     @property
     async def messages(self) -> AsyncIterator[MessageHandle]:
-        async for command, write_response in self.commands(
-            self.critic, self.stdin, self.stdout
-        ):
+        async for command, write_response in self.commands():
             assert isinstance(command, SubscriptionMessage)
             yield message_handle(command, write_response)

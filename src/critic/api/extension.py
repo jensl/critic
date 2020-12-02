@@ -16,10 +16,10 @@
 
 from __future__ import annotations
 
-from typing import Sequence, Optional, Any, overload
+from typing import Any, Awaitable, Callable, Sequence, Optional, overload
 
 from critic import api
-from critic import extensions
+from critic.api.apiobject import FunctionRef
 
 
 class Error(api.APIError, object_type="extension"):
@@ -57,34 +57,34 @@ class Extension(api.APIObject):
     async def key(self) -> str:
         """The extension's unique key
 
-           For a system extension, the key is the extension's name.  For other
-           extensions, the key is the publisher's username followed by a slash
-           followed by the extension's name."""
+        For a system extension, the key is the extension's name.  For other
+        extensions, the key is the publisher's username followed by a slash
+        followed by the extension's name."""
         return await self._impl.getKey(self.critic)
 
     @property
     async def path(self) -> str:
         """The extensions's primary file system path
 
-           None is returned if the extension could not be located. This value is
-           only available to code running in a background service (i.e. with
-           access to the "right" file system.)"""
+        None is returned if the extension could not be located. This value is
+        only available to code running in a background service (i.e. with
+        access to the "right" file system.)"""
         return await self._impl.getPath(self.critic)
 
     @property
     async def publisher(self) -> Optional[api.user.User]:
         """The extension's publisher
 
-           The user that published the extension.  This may not be the author
-           (who may not be a user of this Critic system.)
+        The user that published the extension.  This may not be the author
+        (who may not be a user of this Critic system.)
 
-           None if this is a system extension."""
+        None if this is a system extension."""
         return await self._impl.getPublisher(self.critic)
 
     @property
-    def uri(self) -> str:
-        """The extension's repository URI if hosted remotely."""
-        return self._impl.uri
+    def url(self) -> str:
+        """The extension's repository URL if hosted remotely."""
+        return self._impl.url
 
     @property
     async def versions(self) -> Sequence[api.extensionversion.ExtensionVersion]:
@@ -94,8 +94,8 @@ class Extension(api.APIObject):
     def default_version(self) -> api.extensionversion.ExtensionVersion:
         """The default extension version
 
-           This is typically the version whose extension description and other
-           metadata should be presented as the extension's true metadata."""
+        This is typically the version whose extension description and other
+        metadata should be presented as the extension's true metadata."""
         return self._impl.getDefaultVersion()
 
     @property
@@ -109,24 +109,24 @@ class Extension(api.APIObject):
     ) -> Optional[api.extensioninstallation.ExtensionInstallation]:
         """The current user's installation of the extension, or None
 
-           The installation is returned as an api.extensioninstallation.
-           ExtensionInstallation object.
+        The installation is returned as an api.extensioninstallation.
+        ExtensionInstallation object.
 
-           This is None if the current user does not have an active installation
-           of this extension."""
+        This is None if the current user does not have an active installation
+        of this extension."""
         return await api.extensioninstallation.fetch(
             self.critic, extension=self, user=self.critic.effective_user
         )
 
     @property
-    async def low_level(self) -> Optional[extensions.extension.Extension]:
+    async def low_level(self) -> Optional[Any]:
         """Low-level interface for managing the extension
 
-           The interface is returned as an extensions.extension.Extension
-           object. This interface should typically not be used directly.
+        The interface is returned as an extensions.extension.Extension
+        object. This interface should typically not be used directly.
 
-           None is returned if the on-disk extension is missing, inaccessible or
-           otherwise broken."""
+        None is returned if the on-disk extension is missing, inaccessible or
+        otherwise broken."""
         return await self._impl.getLowLevel(self.critic)
 
 
@@ -141,39 +141,50 @@ async def fetch(critic: api.critic.Critic, /, *, key: str) -> Extension:
 
 
 async def fetch(
-    critic: api.critic.Critic, extension_id: int = None, /, *, key: str = None
+    critic: api.critic.Critic,
+    extension_id: Optional[int] = None,
+    /,
+    *,
+    key: Optional[str] = None,
 ) -> Extension:
     """Fetch an Extension object with the given extension id or key
 
-       Exactly one of the 'extension_id' and 'key' arguments can be used.
+    Exactly one of the 'extension_id' and 'key' arguments can be used.
 
-       Exceptions:
+    Exceptions:
 
-         InvalidId: if 'extension_id' is used and is not a valid extension id.
-         InvalidKey: if 'key' is used and is not a valid extensions key."""
-    from .impl import extension as impl
-
-    return await impl.fetch(critic, extension_id, key)
+      InvalidId: if 'extension_id' is used and is not a valid extension id.
+      InvalidKey: if 'key' is used and is not a valid extensions key."""
+    return await fetchImpl.get()(critic, extension_id, key)
 
 
 async def fetchAll(
     critic: api.critic.Critic,
-    publisher: api.user.User = None,
-    installed_by: api.user.User = None,
+    publisher: Optional[api.user.User] = None,
+    installed_by: Optional[api.user.User] = None,
 ) -> Sequence[Extension]:
     """Fetch Extension objects for all extensions in the system
 
-       If 'publisher' is not None, it must be an api.user.User object, and only
-       extensions published by this user are returned.
+    If 'publisher' is not None, it must be an api.user.User object, and only
+    extensions published by this user are returned.
 
-       If 'installed_by' is not None, it must be an api.user.User object, and
-       only extensions that this user has installed are returned. This may
-       include extensions that are universally installed (i.e. installed for all
-       users, and not by this user directly.) If the user object represents the
-       anonymous user, only universally installed extensions are returned."""
-    from .impl import extension as impl
-
-    return await impl.fetchAll(critic, publisher, installed_by)
+    If 'installed_by' is not None, it must be an api.user.User object, and
+    only extensions that this user has installed are returned. This may
+    include extensions that are universally installed (i.e. installed for all
+    users, and not by this user directly.) If the user object represents the
+    anonymous user, only universally installed extensions are returned."""
+    return await fetchAllImpl.get()(critic, publisher, installed_by)
 
 
 resource_name = table_name = "extensions"
+
+
+fetchImpl: FunctionRef[
+    Callable[[api.critic.Critic, Optional[int], Optional[str]], Awaitable[Extension]]
+] = FunctionRef()
+fetchAllImpl: FunctionRef[
+    Callable[
+        [api.critic.Critic, Optional[api.user.User], Optional[api.user.User]],
+        Awaitable[Sequence[Extension]],
+    ]
+] = FunctionRef()

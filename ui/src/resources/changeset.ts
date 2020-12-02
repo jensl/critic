@@ -14,11 +14,12 @@
  * the License.
  */
 
-import { RequestParams, FetchJSONParams } from "../utils/Fetch.types"
-import { assertString, assertNumber } from "../debug"
+import { combineReducers } from "redux"
+import { immerable } from "immer"
+
+import { assertNumber } from "../debug"
 import { ResourceData } from "../types"
 import { Action, AutomaticMode } from "../actions"
-import { combineReducers } from "redux"
 import { lookupManyMap, primaryMap } from "../reducers/resource"
 import {
   ChangesetID,
@@ -28,9 +29,16 @@ import {
   CommitID,
   ReviewableFileChangeID,
   CommentID,
+  RequestOptions,
 } from "./types"
 import { SET_AUTOMATIC_CHANGESET } from "../actions"
 import produce from "../reducers/immer"
+import {
+  expectStatuses,
+  include,
+  withArgument,
+  withParameters,
+} from "./requestoptions"
 
 export type CompletionLevel =
   | "structure"
@@ -46,7 +54,7 @@ type ChangesetData = {
   to_commit: CommitID
   is_direct: boolean
   files: FileID[]
-  contributing_commits: CommitID[]
+  contributing_commits: CommitID[] | null
   review_state: ReviewState | null
 }
 
@@ -56,18 +64,25 @@ type ChangesetProps = {
   from_commit: CommitID
   to_commit: CommitID
   is_direct: boolean
-  files: readonly FileID[]
-  contributing_commits: readonly CommitID[]
+  files: readonly FileID[] | null
+  contributing_commits: readonly CommitID[] | null
   review_state: ReviewState | null
 }
 
-type RequestArguments = {
-  byID?: ChangesetID
-  byCommits?: ByCommits
-  automatic?: AutomaticMode
+type ByID = { byID: ChangesetID }
+type BySingleCommit = {
+  singleCommit: string
 }
+type ByCommitRange = {
+  fromCommit?: string
+  toCommit: string
+}
+type ByCommits = BySingleCommit | ByCommitRange
+type Automatic = { automatic: AutomaticMode }
 
-type RequestOptions = {
+type RequestArguments = ByID | ByCommits | Automatic
+
+type ChangesetRequestOptions = {
   reviewID?: ReviewID
   repositoryID?: RepositoryID
   onlyIfComplete?: false | string
@@ -78,19 +93,21 @@ const automatic = produce<Map<string, ChangesetID>>(
     if (action.type === SET_AUTOMATIC_CHANGESET)
       draft.set(`${action.reviewID}:${action.automatic}`, action.changesetID)
   },
-  new Map()
+  new Map(),
 )
 
 class Changeset {
+  [immerable] = true
+
   constructor(
     readonly id: ChangesetID,
     readonly completionLevel: ReadonlySet<CompletionLevel>,
     readonly fromCommit: CommitID,
     readonly toCommit: CommitID,
     readonly isDirect: boolean,
-    readonly files: readonly FileID[],
-    readonly contributingCommits: readonly CommitID[],
-    readonly reviewState: ReviewState | null
+    readonly files: readonly FileID[] | null,
+    readonly contributingCommits: readonly CommitID[] | null,
+    readonly reviewState: ReviewState | null,
   ) {}
 
   static new(props: ChangesetProps) {
@@ -102,7 +119,7 @@ class Changeset {
       props.is_direct,
       props.files,
       props.contributing_commits,
-      props.review_state
+      props.review_state,
     )
   }
 
@@ -125,71 +142,65 @@ class Changeset {
         if (fromCommit !== null) keys.push(`${fromCommit}..${toCommit}`)
         else keys.push(`..${toCommit}`)
         return keys
-      }
+      },
     ),
     automatic,
   })
 
-  static createRequest(
-    { byID, byCommits, automatic }: RequestArguments,
-    { reviewID, repositoryID, onlyIfComplete = false }: RequestOptions
-  ): FetchJSONParams {
-    var path = "changesets"
-    const params: RequestParams = {}
+  static requestOptions(
+    argument: RequestArguments,
+    { reviewID, repositoryID, onlyIfComplete = false }: ChangesetRequestOptions,
+  ): RequestOptions[] {
+    const options = []
 
     if (onlyIfComplete) {
-      params.only_if_complete = onlyIfComplete
+      options.push(withParameters({ only_if_complete: onlyIfComplete }))
     }
 
-    if (typeof byID === "number") {
-      path += "/" + byID
-    } else if (byCommits) {
-      const { fromCommit, toCommit, singleCommit } = byCommits
-
-      if (singleCommit) params.commit = singleCommit
-      else {
-        if (fromCommit) params.from = fromCommit
-        assertString(toCommit)
-        params.to = toCommit as string
-      }
+    if ("byID" in argument) {
+      options.push(withArgument(argument.byID))
+    } else if ("singleCommit" in argument)
+      options.push(withParameters({ commit: argument.singleCommit }))
+    else if ("toCommit" in argument) {
+      const { fromCommit, toCommit } = argument
+      if (fromCommit)
+        options.push(withParameters({ from: fromCommit, to: toCommit }))
+      else options.push(withParameters({ to: toCommit }))
     } else {
-      assertString(automatic)
-      params.automatic = automatic as string
+      const { automatic } = argument
+      options.push(withParameters({ automatic }))
     }
 
-    const include = ["commits", "filechanges", "files"]
+    options.push(include("commits", "filechanges", "files"))
 
     if (typeof reviewID === "number") {
-      params.review = String(reviewID)
-      include.push(
-        "changesets",
-        "comments",
-        "replies",
-        "reviewablefilechanges",
-        "users"
+      options.push(
+        withParameters({
+          review: reviewID,
+          // Exclude original comment locations, since they're likely to
+          // reference other changesets that we don't care about in this
+          // context. The translated location will still be included.
+          ["fields[comments]"]: "-location",
+        }),
       )
-      // Exclude original comment locations, since they're likely to reference
-      // other changesets that we don't care about in this context. The translated
-      // location will still be included.
-      params["fields[comments]"] = "-location"
+      options.push(
+        include(
+          "changesets",
+          "comments",
+          "replies",
+          "reviewablefilechanges",
+          "users",
+        ),
+      )
     } else {
       assertNumber(repositoryID)
-      params.repository = String(repositoryID)
+      options.push(withParameters({ repository: repositoryID }))
     }
 
-    console.error({
-      path,
-      params,
-      include,
-      expectStatus: [200, 202],
-    })
+    options.push(expectStatuses(200, 202))
 
-    return {
-      path,
-      params,
-      include,
-      expectStatus: [200, 202],
-    }
+    console.error(options)
+    return options
   }
 
   get props(): ChangesetProps {
@@ -214,29 +225,25 @@ type ReviewStateData = {
 type ReviewStateProps = ReviewStateData
 
 export class ReviewState {
+  [immerable] = true
+
   constructor(
     readonly review: ReviewID,
     readonly comments: readonly CommentID[],
-    readonly reviewableFileChanges: readonly ReviewableFileChangeID[]
+    readonly reviewableFileChanges: readonly ReviewableFileChangeID[],
   ) {}
 
   static new(props: ReviewStateProps) {
     return new ReviewState(
       props.review,
       props.comments,
-      props.reviewablefilechanges
+      props.reviewablefilechanges,
     )
   }
 
   static make(value: ResourceData | null) {
     return value && ReviewState.new(value as ReviewStateProps)
   }
-}
-
-type ByCommits = {
-  fromCommit?: string
-  toCommit?: string
-  singleCommit?: string
 }
 
 export default Changeset

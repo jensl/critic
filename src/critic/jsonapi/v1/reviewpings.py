@@ -17,16 +17,21 @@
 from __future__ import annotations
 
 import logging
-from typing import Sequence, Optional, Union
+from typing import Sequence
 
 logger = logging.getLogger(__name__)
 
 from critic import api
-from critic import jsonapi
+from ..check import convert
+from ..exceptions import UsageError
+from ..resourceclass import ResourceClass
+from ..parameters import Parameters
+from ..types import JSONInput, JSONResult
+from ..utils import numeric_id
 
 
 class ReviewPings(
-    jsonapi.ResourceClass[api.reviewping.ReviewPing],
+    ResourceClass[api.reviewping.ReviewPing],
     api_module=api.reviewping,
     exceptions=(api.reviewping.Error, api.reviewevent.Error, api.review.Error),
 ):
@@ -36,53 +41,48 @@ class ReviewPings(
 
     @staticmethod
     async def json(
-        parameters: jsonapi.Parameters, value: api.reviewping.ReviewPing
-    ) -> jsonapi.JSONResult:
+        parameters: Parameters, value: api.reviewping.ReviewPing
+    ) -> JSONResult:
         return {"event": value.event, "message": value.message}
 
-    @staticmethod
+    @classmethod
     async def single(
-        parameters: jsonapi.Parameters, value: str
+        cls, parameters: Parameters, argument: str
     ) -> api.reviewping.ReviewPing:
         return await api.reviewping.fetch(
             parameters.critic,
-            await api.reviewevent.fetch(parameters.critic, jsonapi.numeric_id(value)),
+            await api.reviewevent.fetch(parameters.critic, numeric_id(argument)),
         )
 
     @staticmethod
     async def multiple(
-        parameters: jsonapi.Parameters,
+        parameters: Parameters,
     ) -> Sequence[api.reviewping.ReviewPing]:
-        review = await Reviews.deduce(parameters)
+        review = await parameters.deduce(api.review.Review)
         if review is None:
-            raise jsonapi.UsageError.missingParameter("review")
+            raise UsageError.missingParameter("review")
         return await api.reviewping.fetchAll(parameters.critic, review)
 
     @staticmethod
     async def create(
-        parameters: jsonapi.Parameters, data: jsonapi.JSONInput
+        parameters: Parameters, data: JSONInput
     ) -> api.reviewping.ReviewPing:
         critic = parameters.critic
 
-        review = await Reviews.deduce(parameters)
-        converted = await jsonapi.convert(
+        review = await parameters.deduce(api.review.Review)
+        converted = await convert(
             parameters, {"review?": api.review.Review, "message?": str}, data
         )
 
         if not review:
             if "review" not in converted:
-                raise jsonapi.UsageError.missingParameter("review")
+                raise UsageError.missingParameter("review")
             review = converted["review"]
         elif "review" in converted and review != converted["review"]:
-            raise jsonapi.UsageError("Conflicting reviews specified")
+            raise UsageError("Conflicting reviews specified")
         assert review
 
         async with api.transaction.start(critic) as transaction:
-            created_ping = await transaction.modifyReview(review).pingReview(
+            return await transaction.modifyReview(review).pingReview(
                 converted["message"]
             )
-
-        return await created_ping
-
-
-from .reviews import Reviews

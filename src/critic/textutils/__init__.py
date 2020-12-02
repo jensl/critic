@@ -15,11 +15,10 @@
 # the License.
 
 import re
-import textwrap
-import unicodedata
+from typing import Collection, Optional, Set, Union
 
 
-def reflow(text, line_length=80, indent=0, hanging_indent=0):
+def reflow(text: str, line_length: int = 80, indent: int = 0, hanging_indent: int = 0):
     if line_length == 0:
         return text
 
@@ -41,7 +40,7 @@ def reflow(text, line_length=80, indent=0, hanging_indent=0):
         else:
             lines = []
             line = spaces
-            words = re.split("(\s+)", paragraph)
+            words = re.split(r"(\s+)", paragraph)
             ws = ""
             for word in words:
                 if not word.strip():
@@ -68,67 +67,12 @@ def reflow(text, line_length=80, indent=0, hanging_indent=0):
     return text
 
 
-def indent(string, width=4):
-    return textwrap.indent(string, " " * width)
+DEFAULT_ENCODINGS: Set[str] = set()
 
 
-def summarize(string, max_length=80, as_html=False):
-    if len(string) <= max_length:
-        return string
-    string = string[: max_length - 5]
-    if as_html:
-        from critic import htmlutils
-
-        return htmlutils.htmlify(string) + "[&#8230;]"
-    else:
-        return string + "[...]"
-
-
-def escape(text):
-    special = {
-        "\a": "a",
-        "\b": "b",
-        "\t": "t",
-        "\n": "n",
-        "\v": "v",
-        "\f": "f",
-        "\r": "r",
-    }
-
-    def escape1(match):
-        substring = match.group(0)
-
-        if ord(substring) < 128:
-            if substring in special:
-                return "\\%s" % special[substring]
-            elif ord(substring) < 32:
-                return "\\x%02x" % ord(substring)
-            else:
-                return substring
-
-        category = unicodedata.category(substring)
-        if category[0] in "CZ" or category == "So":
-            if ord(substring) < 256:
-                return "\\x%02x" % ord(substring)
-            elif ord(substring) < 65536:
-                return "\\u%04x" % ord(substring)
-            else:
-                return "\\U%08x" % ord(substring)
-        else:
-            return substring
-
-    text = decode(str(text))
-    escaped = re.sub("\W", escape1, text, flags=re.UNICODE)
-
-    return escaped
-
-
-DEFAULT_ENCODINGS = None
-
-
-def decode(text, *, default_encodings=None):
-    global DEFAULT_ENCODINGS
-
+def decode(
+    text: Union[bytes, str], *, default_encodings: Optional[Collection[str]] = None
+) -> str:
     assert isinstance(text, (bytes, str))
 
     if isinstance(text, str):
@@ -139,10 +83,11 @@ def decode(text, *, default_encodings=None):
     if default_encodings is None:
         default_encodings = DEFAULT_ENCODINGS
 
-    if default_encodings is None:
+    if not default_encodings:
         try:
             default_encodings = api.critic.settings().content.default_encodings
-            DEFAULT_ENCODINGS = default_encodings
+            assert default_encodings
+            DEFAULT_ENCODINGS.update(default_encodings)
         except api.critic.SessionNotInitialized:
             default_encodings = ["utf-8"]
 
@@ -162,7 +107,7 @@ def decode(text, *, default_encodings=None):
     return text.decode("ascii", errors="replace")
 
 
-def filtercr(text):
+def filtercr(text: str) -> str:
     lines = text.splitlines(True)
     for index in range(len(lines)):
         _, _, lines[index] = lines[index].rpartition("\r")

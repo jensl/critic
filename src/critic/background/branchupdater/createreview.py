@@ -17,7 +17,7 @@
 from __future__ import annotations
 
 import logging
-import textwrap
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +32,7 @@ async def create_review(
     branch_name: str,
     head: api.commit.Commit,
     *,
-    pendingrefupdate_id: int = None
+    pendingrefupdate_id: Optional[int] = None
 ) -> api.review.Review:
     if critic.effective_user.type == "regular":
         owners = [critic.effective_user]
@@ -51,14 +51,13 @@ async def create_review(
         )
 
         logger.debug("creating review ...")
-        review_modifier = await transaction.createReview(
-            head.repository, owners, head=head, branch=created_branch, via_push=True
-        )
+        review = (
+            await transaction.createReview(
+                head.repository, owners, head=head, branch=created_branch, via_push=True
+            )
+        ).subject
 
     logger.debug("transaction committed")
-
-    review = await review_modifier
-
     logger.debug("got review")
 
     lines = ["Review created:"]
@@ -76,7 +75,7 @@ async def create_review(
                 "Note: The review is not published yet, meaning no other users "
                 "have been notified about it or will see it. To publish the "
                 "review, go to the URL above.",
-                hanging_indent=" " * len("Note: "),
+                hanging_indent=len("Note: "),
             ).splitlines()
         )
 

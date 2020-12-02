@@ -1,7 +1,7 @@
 import React, { FunctionComponent } from "react"
 import clsx from "clsx"
 
-import { makeStyles, Theme } from "@material-ui/core/styles"
+import { makeStyles } from "@material-ui/core/styles"
 import ChevronRightIcon from "@material-ui/icons/ChevronRight"
 
 import Registry from "."
@@ -10,12 +10,12 @@ import File from "../resources/file"
 import FileChange from "../resources/filechange"
 import FileDiff from "../resources/filediff"
 
-const useStyles = makeStyles((theme: Theme) => ({
+const useStyles = makeStyles((theme) => ({
   changesetFileHeader: {
     display: "flex",
     flexDirection: "row",
     alignItems: "center",
-    padding: `2px ${theme.spacing(1)}px`,
+    padding: theme.spacing(0.5, 1),
     cursor: "pointer",
     ...theme.critic.monospaceFont,
   },
@@ -36,23 +36,38 @@ const useStyles = makeStyles((theme: Theme) => ({
     transition: "transform 0.5s",
   },
 
-  changedLines: {
-    flexGrow: 0,
-    minWidth: "6rem",
+  deletedLines: {
+    flexGrow: 1,
+    minWidth: "3rem",
+    maxWidth: "5rem",
     padding: "0 1rem",
+    paddingRight: theme.spacing(1),
     textAlign: "right",
+  },
+  insertedLines: {
+    flexGrow: 1,
+    minWidth: "3rem",
+    maxWidth: "5rem",
+    paddingLeft: theme.spacing(1),
+    textAlign: "left",
+  },
+  separator: {
+    flexGrow: 0,
+  },
+  invisible: {
+    visibility: "hidden",
   },
   path: {
     fontWeight: 500,
-    flexGrow: 1,
+    flexGrow: 3,
   },
 }))
 
 type Props = {
   className?: string
   file: File
-  fileChange: FileChange
-  fileDiff: FileDiff
+  fileChange?: FileChange
+  fileDiff?: FileDiff
   isExpanded: boolean
   expandFile: () => void
   collapseFile: () => void
@@ -61,16 +76,25 @@ type Props = {
 const ChangesetFileHeader: FunctionComponent<Props> = ({
   className,
   file,
+  fileChange,
   fileDiff,
   isExpanded,
   expandFile,
   collapseFile,
 }) => {
   const classes = useStyles()
-  var changedLines = null
-  if (fileDiff !== null) {
+  let deleted = false
+  let added = false
+  if (fileChange) {
+    deleted = fileChange.wasDeleted
+    added = fileChange.wasAdded
+  }
+  let deletedLines = null
+  let insertedLines = null
+  if (fileDiff) {
     const { deleted, inserted } = countChangedLines(fileDiff)
-    changedLines = `-${deleted}/+${inserted}`
+    deletedLines = `-${deleted}`
+    insertedLines = `+${inserted}`
   }
   const toggleExpanded = isExpanded ? collapseFile : expandFile
   return (
@@ -88,7 +112,16 @@ const ChangesetFileHeader: FunctionComponent<Props> = ({
           })}
         />
       </span>
-      <span className={classes.changedLines}>{changedLines}</span>
+      <span className={classes.deletedLines}>{!added && deletedLines}</span>
+      <span
+        className={clsx(
+          classes.separator,
+          (deleted || added) && classes.invisible,
+        )}
+      >
+        /
+      </span>
+      <span className={classes.insertedLines}>{!deleted && insertedLines}</span>
       <span className={classes.path}>{file.path}</span>
     </div>
   )

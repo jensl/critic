@@ -8,7 +8,7 @@ import struct
 import traceback
 from queue import Queue
 from threading import Thread
-from typing import AsyncIterable, BinaryIO, Optional, TypedDict, Union
+from typing import Any, AsyncIterable, BinaryIO, Dict, Optional, TypedDict, Union
 
 
 HEADER_FMT = "!I"
@@ -21,7 +21,9 @@ class LogRecord(TypedDict):
     traceback: Optional[str]
 
 
-def _write(stream: BinaryIO, queue: Queue[Union[logging.LogRecord, dict]]) -> None:
+def _write(
+    stream: BinaryIO, queue: Queue[Union[logging.LogRecord, Dict[str, Any]]]
+) -> None:
     while item := queue.get():
         if isinstance(item, logging.LogRecord):
             reduced = {
@@ -30,7 +32,7 @@ def _write(stream: BinaryIO, queue: Queue[Union[logging.LogRecord, dict]]) -> No
                     "name": item.name,
                     "message": (item.msg % item.args if item.args else item.msg),
                     "traceback": (
-                        "".join(traceback.format_exception(*item.exc_info))
+                        "".join(traceback.format_exception(*item.exc_info))  # type: ignore
                         if item.exc_info
                         else None
                     ),
@@ -47,18 +49,24 @@ def _write(stream: BinaryIO, queue: Queue[Union[logging.LogRecord, dict]]) -> No
 
 
 class BinaryHandler(logging.handlers.QueueHandler):
-    queue: Queue[Union[logging.LogRecord, dict]]
+    queue: Queue[Union[logging.LogRecord, Dict[str, Any]]]
 
     def __init__(self, stream: BinaryIO):
         self.queue = Queue()
         super().__init__(self.queue)
         Thread(target=_write, args=(stream, self.queue), daemon=True).start()
 
-    def write(self, item: dict) -> None:
+    def write(self, item: Dict[str, Any]) -> None:
         self.queue.put(item)
 
 
-def emit(record: dict, *, suffix: str = None) -> None:
+class BinaryLogRecord(TypedDict):
+    name: str
+    level: int
+    message: str
+
+
+def emit(record: BinaryLogRecord, *, suffix: Optional[str] = None) -> None:
     name = record["name"]
     if suffix:
         name += f":{suffix}"

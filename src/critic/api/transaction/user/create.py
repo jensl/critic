@@ -21,74 +21,82 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
-from . import CreatedUser
-from .. import Transaction
-
 from critic import api
 
+from ..base import TransactionBase
+from ..createapiobject import CreateAPIObject
+from ..item import Insert
+from ..useremail.create import CreateUserEmail
 
-def create_user(
-    transaction: Transaction,
-    name: str,
-    fullname: str,
-    email: Optional[str],
-    email_status: Optional[api.useremail.Status],
-    hashed_password: Optional[str],
-    status: api.user.Status,
-    external_account: Optional[api.externalaccount.ExternalAccount],
-) -> CreatedUser:
-    from . import CreatedUser, ModifyUser
-    from .. import Insert, Update, LazyInt
 
-    critic = transaction.critic
-    allow_user_registration = api.critic.settings().users.allow_registration
-    verify_email_addresses = api.critic.settings().users.verify_email_addresses
+class CreatedUser(CreateAPIObject[api.user.User], api_module=api.user):
+    @staticmethod
+    async def make(
+        transaction: TransactionBase,
+        name: str,
+        fullname: str,
+        email: Optional[str],
+        email_status: Optional[api.useremail.Status],
+        hashed_password: Optional[str],
+        status: api.user.Status,
+        external_account: Optional[api.externalaccount.ExternalAccount],
+    ) -> api.user.User:
+        critic = transaction.critic
+        allow_user_registration = api.critic.settings().users.allow_registration
+        verify_email_addresses = api.critic.settings().users.verify_email_addresses
 
-    if (
-        external_account is not None
-        and critic.session_type == "user"
-        and critic.actual_user is None
-        and critic.external_account == external_account
-        and external_account.provider is not None
-    ):
-        # This is a session where the user has authenticated using an external
-        # authentication provider, but no Critic user was connected to the
-        # external account.
-        configuration = external_account.provider.configuration
-        if not configuration.allow_user_registration and not allow_user_registration:
-            raise api.user.Error("user registration not enabled")
-        if email_status is None:
-            if not configuration.verify_email_address or not verify_email_addresses:
+        if (
+            external_account is not None
+            and critic.session_type == "user"
+            and critic.actual_user is None
+            and critic.external_account == external_account
+            and external_account.provider is not None
+        ):
+            # This is a session where the user has authenticated using an external
+            # authentication provider, but no Critic user was connected to the
+            # external account.
+            configuration = external_account.provider.configuration
+            if (
+                not configuration["allow_user_registration"]
+                and not allow_user_registration
+            ):
+                raise api.user.Error("user registration not enabled")
+            if email_status is None:
+                if (
+                    not configuration["verify_email_address"]
+                    or not verify_email_addresses
+                ):
+                    email_status = "trusted"
+                else:
+                    email_status = "unverified"
+        elif critic.session_type == "user" and critic.actual_user is None:
+            if not allow_user_registration:
+                raise api.user.Error("user registration not enabled")
+            if email_status is None:
+                if not verify_email_addresses:
+                    email_status = "trusted"
+                else:
+                    email_status = "unverified"
+        else:
+            api.PermissionDenied.raiseUnlessSystem(critic)
+            if email_status is None:
                 email_status = "trusted"
-            else:
-                email_status = "unverified"
-    elif critic.session_type == "user" and critic.actual_user is None:
-        if not allow_user_registration:
-            raise api.user.Error("user registration not enabled")
-        if email_status is None:
-            if not verify_email_addresses:
-                email_status = "trusted"
-            else:
-                email_status = "unverified"
-    else:
-        api.PermissionDenied.raiseUnlessSystem(critic)
-        if email_status is None:
-            email_status = "trusted"
 
-    user = CreatedUser(transaction).insert(
-        name=name, fullname=fullname, password=hashed_password, status=status
-    )
-
-    if email is not None:
-        useremail = CreatedUserEmail.make(transaction, user, email, email_status)
-
-        transaction.items.append(
-            Insert("selecteduseremails").values(uid=user, email=useremail)
+        user = await CreatedUser(transaction).insert(
+            name=name, fullname=fullname, password=hashed_password, status=status
         )
 
-        transaction.items.append(Insert("usergitemails").values(email=email, uid=user))
+        if email is not None:
+            useremail = await CreateUserEmail.make(
+                transaction, user, email, email_status
+            )
 
-    return user
+            await transaction.execute(
+                Insert("selecteduseremails").values(uid=user, email=useremail)
+            )
 
+            await transaction.execute(
+                Insert("usergitemails").values(email=email, uid=user)
+            )
 
-from ..useremail import CreatedUserEmail
+        return user

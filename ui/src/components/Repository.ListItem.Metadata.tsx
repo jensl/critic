@@ -26,12 +26,12 @@ const RepositoryListItemMetadata: FunctionComponent<OwnProps> = ({
   const classes = useStyles()
   return (
     <Typography className={clsx(className, classes.repositoryListItemMetadata)}>
-      {repository.statistics.commits} commits
+      {repository.statistics?.commits ?? "??"} commits
     </Typography>
   )
 }
 
 export default Registry.add(
   "Repository.ListItem.Metadata",
-  RepositoryListItemMetadata
+  RepositoryListItemMetadata,
 )

@@ -19,7 +19,7 @@ from __future__ import annotations
 import logging
 from abc import ABC, abstractmethod
 from types import TracebackType
-from typing import List, Sequence, Any, Optional, AsyncIterator, Type
+from typing import List, Sequence, Any, Optional, Type
 
 logger = logging.getLogger(__name__)
 
@@ -55,7 +55,7 @@ class SyntaxHighlightRanges(ABC):
         is_highlighted: Optional[bool] = None
 
         def __init__(
-            self, sha1: gitaccess.SHA1, language: str, conflicts: bool
+            self, sha1: gitaccess.SHA1, language: Optional[str], conflicts: bool
         ) -> None:
             self.sha1 = sha1
             self.language = language
@@ -70,7 +70,7 @@ class SyntaxHighlightRanges(ABC):
             )
 
         def add_line_range(
-            self, begin: int = 0, end: int = None
+            self, begin: int = 0, end: Optional[int] = None
         ) -> SyntaxHighlightRanges.LineRange:
             assert end is None or begin < end, (begin, end)
             line_range = SyntaxHighlightRanges.LineRange(begin, end)
@@ -87,7 +87,7 @@ class SyntaxHighlightRanges(ABC):
         return "Ranges(file_versions=%r)" % self.file_versions
 
     def add_file_version(
-        self, sha1: gitaccess.SHA1, language: str, conflicts: bool
+        self, sha1: gitaccess.SHA1, language: Optional[str], conflicts: bool
     ) -> FileVersion:
         file_version = SyntaxHighlightRanges.FileVersion(sha1, language, conflicts)
         self.file_versions.append(file_version)

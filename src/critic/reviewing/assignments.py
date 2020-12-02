@@ -88,7 +88,7 @@ class Assignments(Set[Assignment]):
         self,
         rfc: api.reviewablefilechange.ReviewableFileChange,
         *,
-        subject: api.user.User = None
+        subject: Optional[api.user.User] = None
     ) -> None:
         changeset = await rfc.changeset
         file = await rfc.file
@@ -134,8 +134,8 @@ async def initializeFilters(
 async def calculateAssignments(
     review: api.review.Review,
     *,
-    changesets: Collection[api.changeset.Changeset] = None,
-    subject: api.user.User = None
+    changesets: Optional[Collection[api.changeset.Changeset]] = None,
+    subject: Optional[api.user.User] = None
 ) -> Assignments:
     """Calculate review assignments for given changesets in a review
 
@@ -181,7 +181,7 @@ async def calculateAssignments(
                         scopes.update(await filter.scopes)
 
                 def add_assignment(
-                    reviewer: api.user.User, scope: api.reviewscope.ReviewScope = None
+                    reviewer: api.user.User, scope: Optional[api.reviewscope.ReviewScope] = None
                 ) -> None:
                     assignment = Assignment(changeset, file, scope, reviewer)
                     assignments.add(assignment)
@@ -206,8 +206,8 @@ async def calculateAssignments(
 async def currentAssignments(
     review: api.review.Review,
     *,
-    changesets: Collection[api.changeset.Changeset] = None,
-    subject: api.user.User = None
+    changesets: Optional[Collection[api.changeset.Changeset]] = None,
+    subject: Optional[api.user.User] = None
 ) -> Assignments:
     assignments = Assignments()
 

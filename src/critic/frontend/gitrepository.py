@@ -14,19 +14,23 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
+import aiohttp.web
 import asyncio
 import io
 import logging
+from typing import Optional, Tuple
+
+from multidict import CIMultiDict
 
 logger = logging.getLogger(__name__)
 
 from critic import api
 
 
-async def identifyFromRequest(req, *, require_suffix=None):
-    assert isinstance(require_suffix, bool)
-
-    components = req.path.split("/")
+async def identifyFromRequest(
+    critic: api.critic.Critic, req: aiohttp.web.BaseRequest, *, require_suffix: bool
+) -> Tuple[Optional[api.repository.Repository], Optional[str]]:
+    components = req.path.lstrip("/").split("/")
     for index in range(1, len(components) + 1):
         repository_path = "/".join(components[:index])
         additional_path = "/".join(components[index:])
@@ -36,9 +40,7 @@ async def identifyFromRequest(req, *, require_suffix=None):
 
         if repository_path.endswith(".git"):
             try:
-                repository = await api.repository.fetch(
-                    req.critic, path=repository_path
-                )
+                repository = await api.repository.fetch(critic, path=repository_path)
             except api.repository.InvalidRepositoryPath:
                 pass
             else:
@@ -51,68 +53,82 @@ class NeedsUser(Exception):
     pass
 
 
-async def invokeHttpBackend(req, repository, path):
-    request_environ = req.getEnvironment()
-
+async def invokeHttpBackend(
+    critic: api.critic.Critic,
+    req: aiohttp.web.BaseRequest,
+    repository: api.repository.Repository,
+    path: str,
+) -> aiohttp.web.StreamResponse:
     environ = {
         "GIT_HTTP_EXPORT_ALL": "true",
-        "REMOTE_ADDR": request_environ.get("REMOTE_ADDR", "unknown"),
-        "PATH_INFO": "/" + req.path,
+        "REMOTE_ADDR": req.remote,
+        "PATH_INFO": req.path,
         # "PATH_TRANSLATED": os.path.join(repository.path, path),
         "REQUEST_METHOD": req.method,
-        "QUERY_STRING": req.query,
+        "QUERY_STRING": req.query_string,
     }
 
-    if "CONTENT_TYPE" in request_environ:
-        environ["CONTENT_TYPE"] = request_environ["CONTENT_TYPE"]
+    if req.can_read_body:
+        environ["CONTENT_TYPE"] = req.content_type
 
-    for name, value in request_environ.items():
-        if name.startswith("HTTP_"):
-            environ[name] = value
+    for name, value in req.headers.items():
+        environ[f"HTTP_{name.upper().replace('-', '_')}"] = value
 
     if "HTTP_CONTENT_ENCODING" in environ:
         del environ["HTTP_CONTENT_ENCODING"]
         if "HTTP_CONTENT_LENGTH" in environ:
             del environ["HTTP_CONTENT_LENGTH"]
 
-    user = req.critic.effective_user
+    user = critic.effective_user
 
-    if not user.is_anonymous:
+    if user.is_regular:
         environ["REMOTE_USER"] = user.name
 
-    needs_user = False
+    logger.debug("environment: %r", environ)
 
-    async def handle_headers(headers_data):
-        nonlocal needs_user
+    needs_user = False
+    response: Optional[aiohttp.web.StreamResponse] = None
+
+    async def handle_headers(headers_data: io.BytesIO) -> None:
+        nonlocal needs_user, response
+        status: Optional[int] = 200
+        reason: Optional[str] = "OK"
+        headers = CIMultiDict[str]()
         for header in headers_data:
+            logger.debug("header: %r", header)
             name, _, value = header.strip().partition(b":")
             name = name.strip()
             value = value.strip()
             if name.lower() == b"status":
-                status_code, _, status_text = value.partition(b" ")
-                status_code = int(status_code, base=10)
+                status_code_text, _, reason_text = value.partition(b" ")
+                status_code = int(status_code_text, base=10)
                 if status_code == 403 and user.is_anonymous:
                     needs_user = True
-                req.setStatus(status_code, str(status_text.strip(), encoding="ascii"))
+                status = status_code
+                reason = str(reason_text.strip(), encoding="ascii")
             elif name.lower() == b"content-type":
-                req.setContentType(str(value, encoding="ascii"))
+                headers["content-type"] = str(value, encoding="ascii")
             else:
-                req.addResponseHeader(
-                    str(name, encoding="ascii"), str(value, encoding="ascii")
-                )
+                headers[str(name, encoding="ascii")] = str(value, encoding="ascii")
         if not needs_user:
-            await req.start()
+            logger.debug("starting response")
+            assert isinstance(status, int)
+            assert isinstance(reason, str)
+            response = aiohttp.web.StreamResponse(
+                status=status, reason=reason, headers=headers
+            )
+            await response.prepare(req)
 
-    logger.info("Running 'git http-backend': %s %s", req.method, req.getRequestURI())
+    logger.info("Running 'git http-backend': %s %s", req.method, req.url)
     logger.debug("Repository: %s", repository.path)
 
-    loop = req.critic.loop
-    input_queue = asyncio.Queue(loop=loop)
-    output_queue = asyncio.Queue(loop=loop)
+    loop = critic.loop
+    input_queue: "asyncio.Queue[bytes]" = asyncio.Queue(loop=loop)
+    output_queue: "asyncio.Queue[bytes]" = asyncio.Queue(loop=loop)
 
     async def write_input():
         while True:
-            data = await req.read(65536)
+            data: bytes = await req.content.read(65536)
             await input_queue.put(data)
             if not data:
                 break
@@ -123,7 +139,7 @@ async def invokeHttpBackend(req, repository, path):
             data = await output_queue.get()
             if not data:
                 break
-            if not req.isStarted():
+            if response is None and not needs_user:
                 try:
                     headers_end = data.index(b"\r\n\r\n")
                 except ValueError:
@@ -133,8 +149,10 @@ async def invokeHttpBackend(req, repository, path):
                 buffered.seek(0)
                 await handle_headers(buffered)
                 data = data[headers_end + 4 :]
-            if data and req.isStarted():
-                await req.write(data)
+            if response is not None and data:
+                await response.write(data)
+        if response is not None:
+            await response.write_eof()
 
     tasks = [
         repository.low_level.stream("http-backend", input_queue, output_queue, environ),
@@ -148,5 +166,10 @@ async def invokeHttpBackend(req, repository, path):
 
     await asyncio.gather(*tasks, loop=loop)
 
+    logger.debug("tasks done: %r", response)
+
     if needs_user:
         raise NeedsUser()
+
+    assert response is not None
+    return response

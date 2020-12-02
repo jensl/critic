@@ -27,6 +27,7 @@ import {
   sum,
   getProperty,
   map,
+  sorted,
   sortedBy,
   setWith,
   setWithout,
@@ -69,6 +70,7 @@ export {
   useUserSetting,
   useValue,
   Value,
+  sorted,
   sortedBy,
   setWith,
   setWithout,
@@ -150,7 +152,7 @@ export function makeMap<
     getKey?: ((entry: [K_in, V_in]) => K_out) | null
     getValue?: ((entry: [K_in, V_in]) => V_inter) | null
     mapValue?: ((value: V_inter) => V_out) | null
-  } = {}
+  } = {},
 ) {
   const usedGetKey =
     getKey || ((entry: [K_in, V_in]) => (entry[0] as unknown) as K_out)
@@ -225,12 +227,12 @@ type R = ReturnType<typeof resource>
 export function useResource<K extends keyof R>(name: K): R[K]
 export function useResource<K extends keyof R, V>(
   name: K,
-  map: (value: R[K]) => V
+  map: (value: R[K]) => V,
 ): V
 
 export function useResource<K extends keyof R, V>(
   name: K,
-  map?: (value: R[K]) => V
+  map?: (value: R[K]) => V,
 ): R[K] | V {
   const value = useSelector((state) => state.resource[name])
   return map ? map(value) : value
@@ -241,12 +243,12 @@ type E = ReturnType<typeof extra>
 export function useResourceExtra<K extends keyof E>(name: K): E[K]
 export function useResourceExtra<K extends keyof E, V>(
   name: K,
-  map: (value: E[K]) => V
+  map: (value: E[K]) => V,
 ): V
 
 export function useResourceExtra<K extends keyof E, V>(
   name: K,
-  map?: (value: E[K]) => V
+  map?: (value: E[K]) => V,
 ): E[K] | V {
   const value = useSelector((state) => state.resource.extra[name])
   return map ? map(value) : value
