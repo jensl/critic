@@ -47,3 +47,10 @@ class Backend:
         ) as response:
             await raise_for_status(response)
             return await response.json()
+
+    async def put(self, path: str, payload: object, **params: str) -> Any:
+        async with self.session.put(
+            f"{self.prefix}/api/v1/{path}", data=json.dumps(payload), params=params
+        ) as response:
+            await raise_for_status(response)
+            return await response.json()

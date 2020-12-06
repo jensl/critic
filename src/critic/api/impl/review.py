@@ -160,6 +160,7 @@ class Review(apiobject.APIObject[WrapperType, ArgumentsType, int]):
     __assigned_reviewer_ids: Optional[FrozenSet[int]]
     __active_reviewer_ids: Optional[FrozenSet[int]]
     __watcher_ids: Optional[FrozenSet[int]]
+    __user_ids: Optional[FrozenSet[int]]
     __commits: Optional[api.commitset.CommitSet]
     __changesets: Optional[Dict[api.commit.Commit, api.changeset.Changeset]]
     __files: Optional[FrozenSet[api.file.File]]
@@ -191,6 +192,7 @@ class Review(apiobject.APIObject[WrapperType, ArgumentsType, int]):
         self.__assigned_reviewer_ids = None
         self.__active_reviewer_ids = None
         self.__watcher_ids = None
+        self.__user_ids = None
         self.__commits = None
         self.__changesets = None
         self.__files = None
@@ -254,8 +256,13 @@ class Review(apiobject.APIObject[WrapperType, ArgumentsType, int]):
 
     async def isAccepted(self, critic: api.critic.Critic) -> bool:
         if self.__is_accepted is None:
+            logger.debug("r/%d: recalculating is_accepted", self.id)
             self.__is_accepted = False
             if await self.getInitialCommitsPending(critic):
+                logger.debug(
+                    "r/%d: is_accepted=False because initial commits are pending",
+                    self.id,
+                )
                 return False
             async with api.critic.Query[int](
                 critic,
@@ -268,6 +275,7 @@ class Review(apiobject.APIObject[WrapperType, ArgumentsType, int]):
                 review_id=self.id,
             ) as result:
                 if not await result.empty():
+                    logger.debug("r/%d: is_accepted=False because there are open issues", self.id)
                     return False
             async with api.critic.Query[int](
                 critic,
@@ -279,6 +287,7 @@ class Review(apiobject.APIObject[WrapperType, ArgumentsType, int]):
                 review_id=self.id,
             ) as result:
                 if not await result.empty():
+                    logger.debug("r/%d: is_accepted=False because there are unreviewed files", self.id)
                     return False
             self.__is_accepted = True
         return self.__is_accepted
@@ -353,14 +362,7 @@ class Review(apiobject.APIObject[WrapperType, ArgumentsType, int]):
     async def __fetchWatcherIds(self, critic: api.critic.Critic) -> None:
         if self.__watcher_ids is None:
             # Find all users associated in any way with the review.
-            async with api.critic.Query[int](
-                critic,
-                """SELECT uid
-                     FROM reviewusers
-                    WHERE review={review_id}""",
-                review_id=self.id,
-            ) as result:
-                watcher_ids = set(await result.scalars())
+            watcher_ids = set(await self.__fetchUserIds(critic))
 
             # Subtract owners and (assigned and/or active) reviewers.
             await self.__fetchOwnerIds(critic)
@@ -381,6 +383,24 @@ class Review(apiobject.APIObject[WrapperType, ArgumentsType, int]):
         await self.__fetchWatcherIds(critic)
         assert self.__watcher_ids is not None
         return frozenset(await api.user.fetchMany(critic, self.__watcher_ids))
+
+    async def __fetchUserIds(self, critic: api.critic.Critic) -> FrozenSet[int]:
+        if self.__user_ids is None:
+            # Find all users associated in any way with the review.
+            async with api.critic.Query[int](
+                critic,
+                """SELECT uid
+                     FROM reviewusers
+                    WHERE review={review_id}""",
+                review_id=self.id,
+            ) as result:
+                self.__user_ids = frozenset(await result.scalars())
+        return self.__user_ids
+
+    async def getUsers(self, critic: api.critic.Critic) -> FrozenSet[api.user.User]:
+        await self.__fetchUserIds(critic)
+        assert self.__user_ids is not None
+        return frozenset(await api.user.fetchMany(critic, self.__user_ids))
 
     async def getCommits(self, wrapper: WrapperType) -> api.commitset.CommitSet:
         if self.__commits is None:

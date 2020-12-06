@@ -40,6 +40,7 @@ from typing import (
     Mapping,
     Optional,
     Sequence,
+    Set,
     Tuple,
     Type,
     TypeVar,
@@ -499,12 +500,25 @@ class CommitCallbacksFailed(Exception):
     pass
 
 
+class SavepointError(Exception):
+    pass
+
+
+class Savepoint:
+    release: bool
+
+    def __init__(self, name: str):
+        self.name = name
+        self.release = False
+
+
 class Transaction(AsyncContextManager[TransactionCursor]):
     __state: Literal["created", "active", "commit", "rollback"]
     __cursor: Optional[TransactionCursor]
     __future: "asyncio.Future[bool]"
     __commit_callbacks: List[Callable[[], Awaitable[None]]]
     __rollback_callbacks: List[Callable[[], Awaitable[None]]]
+    __savepoints: Set[str]
 
     def __init__(
         self,
@@ -524,6 +538,7 @@ class Transaction(AsyncContextManager[TransactionCursor]):
         self.__future = asyncio.Future()
         self.__commit_callbacks = []
         self.__rollback_callbacks = []
+        self.__savepoints = set()
 
     @property
     def started(self) -> bool:
@@ -542,6 +557,25 @@ class Transaction(AsyncContextManager[TransactionCursor]):
     def add_rollback_callback(self, callback: Callable[[], Awaitable[None]]) -> None:
         assert self.__state in ("created", "active")
         self.__rollback_callbacks.append(callback)
+
+    @contextlib.asynccontextmanager
+    async def savepoint(self, name: str) -> AsyncIterator[Savepoint]:
+        if name in self.__savepoints:
+            raise SavepointError(f"SAVEPOINT already in effect: {name}")
+        self.__savepoints.add(name)
+        await self.__low_level.savepoint(name)
+        savepoint = Savepoint(name)
+        try:
+            yield savepoint
+        except Exception:
+            savepoint.release = False
+            raise
+        finally:
+            self.__savepoints.remove(name)
+            if savepoint.release:
+                await self.__low_level.release_savepoint(name)
+            else:
+                await self.__low_level.rollback_to_savepoint(name)
 
     async def __aenter__(self) -> TransactionCursor:
         async with self.__connection.lock("transaction begin"):

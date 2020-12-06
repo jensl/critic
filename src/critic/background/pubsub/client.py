@@ -598,7 +598,9 @@ class ClientImpl:
             await self.ready
         return self
 
-    async def __aexit__(self, *exc_info: Any) -> None:
+    async def __aexit__(self, exc_type: Any, exc: Any, tb: Any) -> None:
+        if exc_type is not None:
+            return
         if self.__mode == "lazy" and self.__futures:
             logger.debug("lazy connect...")
             try:

@@ -191,6 +191,7 @@ async def fetchAll(
 
 
 resource_name = "reviewablefilechanges"
+table_name = "reviewfiles"
 
 
 fetchImpl: FunctionRef[

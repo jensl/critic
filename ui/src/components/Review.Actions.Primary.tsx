@@ -1,7 +1,8 @@
 import React from "react"
 
 import Registry from "."
-import Publish from "./Review.Actions.Publish"
+import PublishChanges from "./Review.Actions.PublishChanges"
+import PublishReview from "./Review.Actions.PublishReview"
 import Delete from "./Review.Actions.Delete"
 import CreateBranch from "./Review.Actions.CreateBranch"
 import Integrate from "./Review.Actions.Integrate"
@@ -11,7 +12,8 @@ import Reopen from "./Review.Actions.Reopen"
 const ReviewActionsPrimary = () => {
   return (
     <>
-      <Publish />
+      <PublishReview />
+      <PublishChanges />
       <CreateBranch />
       <Delete />
       <Integrate />

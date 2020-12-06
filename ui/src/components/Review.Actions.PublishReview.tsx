@@ -4,14 +4,12 @@ import PublishIcon from "@material-ui/icons/Publish"
 
 import Registry from "."
 import ReviewActionsButton from "./Review.Actions.Button"
-import { kDialogID } from "./Dialog.Review.Publish"
+import { kDialogID } from "./Dialog.Review.PublishReview"
 import { useHash, useReview, useSignedInUser, isReviewOwner } from "../utils"
 
 type Props = { className?: string }
 
-const ReviewActionsPublish: React.FunctionComponent<Props> = ({
-  className,
-}) => {
+const PublishReview: React.FunctionComponent<Props> = ({ className }) => {
   const { updateHash } = useHash()
   const review = useReview()
   const signedInUser = useSignedInUser()
@@ -27,10 +25,10 @@ const ReviewActionsPublish: React.FunctionComponent<Props> = ({
       className={className}
       color="primary"
       onClick={() => updateHash({ dialog: kDialogID })}
-      label="Publish"
+      label="Publish review"
       icon={PublishIcon}
     />
   )
 }
 
-export default Registry.add("Review.Actions.Publish", ReviewActionsPublish)
+export default Registry.add("Review.Actions.PublishReview", PublishReview)

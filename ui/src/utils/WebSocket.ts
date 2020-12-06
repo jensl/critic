@@ -50,7 +50,7 @@ export const waitFor = async (
 
       const timerID =
         typeof timeout === "number"
-          ? setTimeout(() => finish("timeout"), timeout)
+          ? window.setTimeout(() => finish("timeout"), timeout)
           : null
 
       callback = (_, message) => {
@@ -113,7 +113,7 @@ export class Channel {
     return new Promise((resolve, reject) => {
       const timeoutID =
         typeof timeout === "number"
-          ? setTimeout(() => {
+          ? window.setTimeout(() => {
               try {
                 this._listeners.forEach((listener, index) => {
                   if (timeoutID === listener.timeoutID) throw index

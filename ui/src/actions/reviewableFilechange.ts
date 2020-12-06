@@ -20,10 +20,16 @@ import {
   include,
   withArguments,
   withParameters,
+  updateResource,
+  withArgument,
+  includeFields,
 } from "../resources"
+import Changeset from "../resources/changeset"
+import Review from "../resources/review"
 import ReviewableFileChange from "../resources/reviewablefilechange"
 import { ReviewID, ChangesetID, FileID } from "../resources/types"
 import { AsyncThunk } from "../state"
+import { map } from "../utils"
 
 export const toggleReviewableFileChange = (
   newReviewed: boolean,
@@ -85,3 +91,31 @@ export const toggleReviewableFileChange = (
 
   return !!updated.length
 }
+
+export const markAllAsReviewed = (
+  review: Review,
+  changeset: Changeset,
+): AsyncThunk<ReviewableFileChange[]> =>
+  updateResources(
+    "reviewablefilechanges",
+    { draft_changes: { new_is_reviewed: true } },
+    withParameters({
+      review: review.id,
+      changeset: changeset.id,
+      assignee: "(me)",
+      state: "pending",
+    }),
+    include("batches"),
+  )
+
+export const setIsReviewed = (
+  rfcs: Iterable<ReviewableFileChange>,
+  value: boolean,
+): AsyncThunk<ReviewableFileChange> =>
+  updateResource(
+    "reviewablefilechanges",
+    { draft_changes: { new_is_reviewed: value } },
+    withArguments(map(rfcs, (rfc) => rfc.id)),
+    include("batches", "reviews", "reviewtags"),
+    includeFields("reviews", ["id", "tags"]),
+  )

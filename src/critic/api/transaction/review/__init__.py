@@ -55,8 +55,8 @@ class CreateReviewEvent(
         self,
         transaction: TransactionBase,
         review: api.review.Review,
-        user: api.user.User,
-        event_type: api.reviewevent.EventType,
+        user: Optional[api.user.User],
+        event_type: Optional[api.reviewevent.EventType],
     ):
         super().__init__(transaction, review)
         self.user = user
@@ -64,43 +64,53 @@ class CreateReviewEvent(
         self.__created = None
 
     def __hash__(self) -> int:
-        return hash((CreateReviewEvent, self.review, self.user.id, self.type))
+        return hash((CreateReviewEvent, self.review))
 
     def __eq__(self, other: object) -> bool:
-        return (
-            isinstance(other, CreateReviewEvent)
-            and self.review == other.review
-            and self.user == other.user
-            and self.type == other.type
-        )
+        return isinstance(other, CreateReviewEvent) and self.review == other.review
 
     async def create_payload(
         self, resource_name: str, subject: api.reviewevent.ReviewEvent, /
     ) -> CreatedReviewEvent:
+        assert self.type is not None
         return CreatedReviewEvent(
             resource_name, subject.id, int(self.review), self.type
         )
 
     async def __create(self) -> api.reviewevent.ReviewEvent:
+        assert self.type is not None
         if self.__created is None:
             self.__created = await self.insert(
                 review=self.review, uid=self.user, type=self.type
             )
         return self.__created
 
+    def check_compatibility(self, other: CreateReviewEvent) -> None:
+        if other.type and self.type != other.type:
+            raise api.TransactionError(
+                f"Conflicting review event types in transaction: {self.type} != {other.type}"
+            )
+        if other.user and self.user != other.user:
+            raise api.TransactionError(
+                f"Conflicting review event users in transaction: {self.user} != {other.user}"
+            )
+
     @staticmethod
     async def ensure(
         transaction: TransactionBase,
         review: api.review.Review,
-        event_type: api.reviewevent.EventType,
+        event_type: Optional[api.reviewevent.EventType] = None,
         *,
         user: Optional[api.user.User] = None,
     ) -> api.reviewevent.ReviewEvent:
-        if user is None:
+        if event_type and user is None:
             user = transaction.critic.effective_user
-        return await transaction.shared.ensure(
-            CreateReviewEvent(transaction, review, user, event_type)
-        ).__create()
+        expected = CreateReviewEvent(transaction, review, user, event_type)
+        actual = transaction.shared.ensure(expected)
+        if actual.type is None:
+            raise api.TransactionError("No review event in transaction!")
+        actual.check_compatibility(expected)
+        return await actual.__create()
 
     @staticmethod
     async def create(
@@ -154,7 +164,7 @@ class ReviewUser(Finalizer):
         return hash((ReviewUser, self.review, self.user))
 
     async def __call__(
-        self, _: TransactionBase, cursor: dbaccess.TransactionCursor
+        self, transaction: TransactionBase, cursor: dbaccess.TransactionCursor
     ) -> None:
         is_owner = add_user = False
 
@@ -179,10 +189,11 @@ class ReviewUser(Finalizer):
         if add_user:
             await cursor.execute(
                 """INSERT
-                     INTO reviewusers (review, uid, owner)
-                   VALUES ({review_id}, {user_id}, {owner})""",
-                review_id=self.review,
-                user_id=self.user,
+                     INTO reviewusers (review, event, uid, owner)
+                   VALUES ({review}, {event}, {user}, {owner})""",
+                review=self.review,
+                event=await CreateReviewEvent.ensure(transaction, self.review),
+                user=self.user,
                 owner=bool(self.is_owner),
             )
         elif self.is_owner is not None and is_owner != self.is_owner:
@@ -309,3 +320,22 @@ async def has_unpublished_changes(
 ) -> bool:
     unpublished = await api.batch.fetchUnpublished(review, user)
     return not await unpublished.is_empty
+
+
+async def commits_behind_target_branch(
+    repository: api.repository.Repository,
+    head: api.commit.Commit,
+    target_branch: api.branch.Branch,
+    commits: api.commitset.CommitSet,
+) -> int:
+    upstreams = await commits.filtered_tails
+    if len(upstreams) != 1:
+        raise api.review.Error("Branch has multiple upstream commits")
+    (upstream,) = upstreams
+    if not await upstream.isAncestorOf(await target_branch.head):
+        raise api.review.Error("Branch is not based on target branch")
+    return await repository.low_level.revlist(
+        include=[(await target_branch.head).sha1],
+        exclude=[head.sha1],
+        count=True,
+    )

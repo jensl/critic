@@ -110,6 +110,10 @@ class GroupType(Protocol):
     def conflicts(self) -> bool:
         ...
 
+    @property
+    def repository_path(self) -> str:
+        ...
+
     def repository(self) -> gitaccess.GitRepository:
         ...
 

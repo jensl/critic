@@ -16,10 +16,11 @@
 
 from __future__ import annotations
 
-import logging
 from abc import ABC, abstractmethod
-from collections import defaultdict, deque
+from collections import deque
+import logging
 from typing import (
+    AsyncContextManager,
     Collection,
     Optional,
     Protocol,
@@ -28,7 +29,6 @@ from typing import (
     Dict,
     Set,
     List,
-    Tuple,
     Iterator,
     Iterable,
 )
@@ -39,7 +39,7 @@ from critic import api
 from critic import dbaccess
 
 from .protocol import PublishedMessage
-from .types import Publisher, SimplePublisher, AsyncCallback
+from .types import Publisher, AsyncCallback
 
 T = TypeVar("T")
 
@@ -72,13 +72,18 @@ class Finalizer:
 
 
 class Finalizers:
+    __tables: Set[str]
     __items: List[Finalizer]
     __items_set: Set[Finalizer]
 
-    def __init__(self, transaction: TransactionBase) -> None:
-        self.__transaction = transaction
+    def __init__(self) -> None:
+        self.__tables = set()
         self.__items = []
         self.__items_set = set()
+
+    @property
+    def tables(self) -> Collection[str]:
+        return self.__tables
 
     def __iter__(self) -> Iterator[Finalizer]:
         queue = deque(self.__items)
@@ -92,7 +97,7 @@ class Finalizers:
     def add(self, finalizer: Finalizer) -> bool:
         if finalizer in self.__items_set:
             return False
-        self.__transaction.tables.update(finalizer.tables)
+        self.__tables.update(finalizer.tables)
         self.__items.append(finalizer)
         self.__items_set.add(finalizer)
         return True
@@ -112,6 +117,11 @@ class Executable(Protocol[ReturnType]):
         ...
 
 
+class Savepoint(Protocol):
+    async def run_finalizers(self) -> None:
+        ...
+
+
 class TransactionBase(ABC):
     tables: Set[str]
     pre_commit_callbacks: List[AsyncCallback]
@@ -121,12 +131,25 @@ class TransactionBase(ABC):
         self.critic = critic
         self.tables = set()
         self.shared = Shared()
-        self.finalizers = Finalizers(self)
         self.pre_commit_callbacks = []
         self.post_commit_callbacks = []
 
+    @property
+    @abstractmethod
+    def finalizers(self) -> Finalizers:
+        ...
+
     @abstractmethod
     async def lock(self, table: str, **columns: dbaccess.Parameter) -> None:
+        ...
+
+    @property
+    @abstractmethod
+    def has_savepoint(self) -> bool:
+        ...
+
+    @abstractmethod
+    def savepoint(self, name: str) -> AsyncContextManager[Savepoint]:
         ...
 
     @abstractmethod

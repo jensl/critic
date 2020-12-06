@@ -13,6 +13,7 @@ import ChangesetFileFooter from "./Changeset.File.Footer"
 import { setWith, setWithout, useChangeset, useResource } from "../utils"
 import { pathWithExpandedFiles } from "../utils/Changeset"
 import { ChunkComments } from "../selectors/fileDiff"
+import ReviewableFileChange from "../resources/reviewablefilechange"
 
 const useStyles = makeStyles((theme: Theme) => ({
   root: {
@@ -29,6 +30,7 @@ export type Props = {
   variant: "unified" | "side-by-side"
   integrated: boolean
   comments: readonly ChunkComments[] | null
+  rfcs: ReadonlySet<ReviewableFileChange> | null
   PaperProps?: PaperProps
 }
 
@@ -38,6 +40,7 @@ const ChangesetFile: FunctionComponent<Props> = ({
   variant,
   integrated,
   comments,
+  rfcs,
   PaperProps = {},
 }) => {
   const classes = useStyles()
@@ -77,8 +80,8 @@ const ChangesetFile: FunctionComponent<Props> = ({
       elevation={integrated ? 0 : undefined}
       {...PaperProps}
     >
-      <ChangesetFileHeader {...commonProps} />
-      <Collapse in={isExpanded} mountOnEnter unmountOnExit>
+      <ChangesetFileHeader {...commonProps} rfcs={rfcs} />
+      <Collapse in={isExpanded}>
         <ChangesetFileChanges
           {...commonProps}
           comments={comments}

@@ -28,6 +28,7 @@ from typing import (
     Iterator,
     Optional,
     Collection,
+    Tuple,
     Union,
 )
 
@@ -41,7 +42,7 @@ from critic.gitaccess import SHA1
 WrapperType = api.commitset.CommitSet
 
 
-class CommitSet(apiobject.APIObject[WrapperType, tuple, int]):
+class CommitSet(apiobject.APIObject[WrapperType, Tuple[()], int]):
     wrapper_class = api.commitset.CommitSet
 
     commits: FrozenSet[api.commit.Commit]
@@ -50,7 +51,7 @@ class CommitSet(apiobject.APIObject[WrapperType, tuple, int]):
     children: DefaultDict[SHA1, Set[api.commit.Commit]]
     parents: DefaultDict[SHA1, Set[api.commit.Commit]]
 
-    def __init__(self, args: tuple = ()) -> None:
+    def __init__(self, args: Tuple[()] = ()) -> None:
         self.commits = frozenset()
         self.heads = frozenset()
         self.tails = frozenset()
@@ -149,13 +150,13 @@ class CommitSet(apiobject.APIObject[WrapperType, tuple, int]):
             return frozenset()
 
         repository = next(iter(self.commits)).repository
-        candidates = set(self.tails)
-        result = set()
+        candidates: Set[api.commit.Commit] = set(self.tails)
+        result: Set[api.commit.Commit] = set()
 
         while candidates:
             tail = candidates.pop()
 
-            eliminated = set()
+            eliminated: Set[api.commit.Commit] = set()
             for other in candidates:
                 try:
                     base = await repository.mergeBase(tail, other)
@@ -313,6 +314,11 @@ class CommitSet(apiobject.APIObject[WrapperType, tuple, int]):
         self, critic: api.critic.Critic, commits: Iterable[api.commit.Commit]
     ) -> api.commitset.CommitSet:
         return await create(critic, self.commits.symmetric_difference(commits))
+
+    def contains(self, commit: Union[SHA1, api.commit.Commit]) -> bool:
+        if isinstance(commit, str):
+            return commit in self.parents
+        return commit in self.commits
 
 
 def createNow(

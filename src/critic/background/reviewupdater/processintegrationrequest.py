@@ -154,11 +154,9 @@ async def squash(
         (upstream,) = await old_commits.filtered_tails
     except ValueError:
         raise Exception("irregular branch")
-    gitrepository = repository.low_level
-    gitrepository.set_author_details(old_head.author.name, old_head.author.email)
-    gitrepository.set_committer_details("Critic System", api.critic.getSystemEmail())
-    sha1 = await gitrepository.committree(old_head.tree, [upstream.sha1], message)
-    gitrepository.clear_user_details()
+    with repository.withSystemUserDetails(author=False) as gitrepository:
+        gitrepository.set_author_details(old_head.author.name, old_head.author.email)
+        sha1 = await gitrepository.committree(old_head.tree, [upstream.sha1], message)
     await insert_commits(repository, sha1)
     new_head = await api.commit.fetch(repository, sha1=sha1)
     await perform_rebase(request, review, new_head, squashed=True)
@@ -195,18 +193,17 @@ async def autosquash(
         (upstream,) = await old_commits.filtered_tails
     except ValueError:
         raise Exception("irregular branch")
-    gitrepository = repository.low_level
-    gitrepository.set_committer_details("Critic System", api.critic.getSystemEmail())
-    async with gitrepository.worktree(old_head) as worktree:
-        with worktree.with_environ(GIT_SEQUENCE_EDITOR="true"):
-            sha1 = await worktree_run(
-                worktree,
-                "rebase",
-                "-i",
-                "--autosquash",
-                str(upstream),
-                autosquashed=True,
-            )
+    with repository.withSystemUserDetails(author=False) as gitrepository:
+        async with gitrepository.worktree(old_head) as worktree:
+            with worktree.with_environ(GIT_SEQUENCE_EDITOR="true"):
+                sha1 = await worktree_run(
+                    worktree,
+                    "rebase",
+                    "-i",
+                    "--autosquash",
+                    str(upstream),
+                    autosquashed=True,
+                )
     await insert_commits(repository, sha1)
     new_head = await api.commit.fetch(repository, sha1=sha1)
     await perform_rebase(request, review, new_head, autosquashed=True)
@@ -287,14 +284,14 @@ async def cherry_pick(
         return False
 
     if not await target_head.isAncestorOf(review_head):
-        gitrepository = repository.low_level
-        gitrepository.set_committer_details(
-            "Critic System", api.critic.getSystemEmail()
-        )
-        async with gitrepository.worktree(target_head) as worktree:
-            sha1 = await worktree_run(
-                worktree, "cherry-pick", str(review_head), strategy_used="cherry-pick"
-            )
+        with repository.withSystemUserDetails(author=False) as gitrepository:
+            async with gitrepository.worktree(target_head) as worktree:
+                sha1 = await worktree_run(
+                    worktree,
+                    "cherry-pick",
+                    str(review_head),
+                    strategy_used="cherry-pick",
+                )
         await insert_commits(repository, sha1)
         review_head = await api.commit.fetch(repository, sha1=sha1)
         await perform_rebase(request, review, review_head, new_upstream=target_head)
@@ -339,35 +336,35 @@ async def rebase(review: api.review.Review, request: ReviewIntegrationRequest) -
     review_head = await review_branch.head
 
     if not await target_head.isAncestorOf(review_head):
-        gitrepository = repository.low_level
-        gitrepository.set_committer_details(
-            "Critic System", api.critic.getSystemEmail()
-        )
-        flags: Collection[gitaccess.RevlistFlag] = (  # type: ignore
-            "right-only",
-            "cherry-pick",
-            "no-merges",
-            "reverse",
-        )
-        async with gitrepository.worktree(target_head) as worktree:
-            pick_sha1s = await gitrepository.revlist(
-                symmetric=(target_head.sha1, review_head.sha1), flags=flags
+        with repository.withSystemUserDetails(author=False) as gitrepository:
+            flags: Collection[gitaccess.RevlistFlag] = (  # type: ignore
+                "right-only",
+                "cherry-pick",
+                "no-merges",
+                "reverse",
             )
-            if not pick_sha1s:
-                raise IntegrationRejected(
-                    "no commits to cherry-pick onto target branch",
+            async with gitrepository.worktree(target_head) as worktree:
+                pick_sha1s = await gitrepository.revlist(
+                    symmetric=(target_head.sha1, review_head.sha1), flags=flags
+                )
+                if not pick_sha1s:
+                    raise IntegrationRejected(
+                        "no commits to cherry-pick onto target branch",
+                        steps_taken=StepsTaken("rebase"),
+                    )
+                for pick_sha1 in pick_sha1s[:-1]:
+                    await worktree_run(
+                        worktree,
+                        "cherry-pick",
+                        pick_sha1,
+                        steps_taken=StepsTaken("rebase"),
+                    )
+                sha1 = await worktree_run(
+                    worktree,
+                    "cherry-pick",
+                    pick_sha1s[-1],
                     steps_taken=StepsTaken("rebase"),
                 )
-            for pick_sha1 in pick_sha1s[:-1]:
-                await worktree_run(
-                    worktree, "cherry-pick", pick_sha1, steps_taken=StepsTaken("rebase")
-                )
-            sha1 = await worktree_run(
-                worktree,
-                "cherry-pick",
-                pick_sha1s[-1],
-                steps_taken=StepsTaken("rebase"),
-            )
         await insert_commits(repository, sha1)
         review_head = await api.commit.fetch(repository, sha1=sha1)
         associated_commits = await perform_rebase(
@@ -414,19 +411,18 @@ async def merge(review: api.review.Review, request: ReviewIntegrationRequest) ->
     assert review_branch
     review_head = await review_branch.head
 
-    gitrepository = repository.low_level
-    gitrepository.set_user_details("Critic System", api.critic.getSystemEmail())
-    async with gitrepository.worktree(target_head) as worktree:
-        message = f"Merge branch '{review_branch.name}' into {target_branch.name}"
-        sha1 = await worktree_run(
-            worktree,
-            "merge",
-            "--no-ff",
-            "-m",
-            message,
-            str(review_head),
-            strategy_used="merge",
-        )
+    with repository.withSystemUserDetails(author=False) as gitrepository:
+        async with gitrepository.worktree(target_head) as worktree:
+            message = f"Merge branch '{review_branch.name}' into {target_branch.name}"
+            sha1 = await worktree_run(
+                worktree,
+                "merge",
+                "--no-ff",
+                "-m",
+                message,
+                str(review_head),
+                strategy_used="merge",
+            )
     await insert_commits(repository, sha1)
 
     branchupdate = await update_branch(

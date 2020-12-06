@@ -29,6 +29,25 @@ from ..base import TransactionBase
 async def update_review_files(
     review: api.review.Review, cursor: dbaccess.TransactionCursor
 ) -> None:
+    async with dbaccess.Query[Tuple[int, bool, bool]](
+        cursor,
+        """
+        SELECT rf.id, rf.reviewed,
+                      COUNT(ruf.reviewed)
+                 FROM reviewfiles AS rf
+      LEFT OUTER JOIN reviewuserfiles AS ruf ON (
+                        rf.id=ruf.file AND
+                        ruf.reviewed
+                      )
+                WHERE rf.review={review}
+             GROUP BY rf.id, rf.reviewed
+             """,
+        review=review,
+    ) as result1:
+        state = await result1.all()
+
+    logger.debug(f"{state=}")
+
     async with dbaccess.Query[Tuple[int, bool]](
         cursor,
         """SELECT id, correct_value
@@ -47,6 +66,8 @@ async def update_review_files(
         review=review,
     ) as result:
         adjustments_needed = await result.all()
+
+    logger.debug(f"{adjustments_needed=}")
 
     change_to_reviewed = []
     change_to_pending = []

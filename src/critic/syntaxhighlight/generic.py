@@ -28,6 +28,7 @@ except ImportError:
     SUPPORTED_LANGUAGES = {}
 else:
     SUPPORTED_LANGUAGES = {
+        "c/c++": "cpp",
         "python": "python3",
         "perl": "perl",
         "java": "java",

@@ -210,11 +210,13 @@ SQLValue = TypeVar("SQLValue", bound=dbaccess.SQLValue)
 
 
 class _GeneratedQuery(ABC):
-    parameters: Dict[str, dbaccess.Parameter]
+    parameters: Optional[Dict[str, dbaccess.Parameter]]
+    parameters_list: Optional[List[dbaccess.Parameters]]
 
     def __init__(self, table_or_object: Union[str, api.APIObject]):
         self.conditions: List[str] = []
-        self.parameters = {}
+        self.parameters = None
+        self.parameters_list = None
         if isinstance(table_or_object, api.APIObject):
             self.table_name = table_or_object.getTableName()
             self.id_column = table_or_object.getIdColumn()
@@ -229,6 +231,9 @@ class _GeneratedQuery(ABC):
         return (self.table_name,) if self.table_name else ()
 
     def set_parameter(self, name: str, value: dbaccess.Parameter) -> None:
+        assert self.parameters_list is None
+        if self.parameters is None:
+            self.parameters = {}
         assert name not in self.parameters
         self.parameters[name] = value
 
@@ -268,7 +273,11 @@ class _GeneratedQuery(ABC):
     async def execute(self, cursor: dbaccess.TransactionCursor) -> None:
         statement = self.statement
         if statement:
-            await cursor.execute(statement, **self.parameters)
+            assert (not self.parameters) or (not self.parameters_list)
+            if self.parameters:
+                await cursor.execute(statement, **self.parameters)
+            if self.parameters_list:
+                await cursor.executemany(statement, self.parameters_list)
 
     @property
     @abstractmethod
@@ -299,17 +308,31 @@ class Insert(_GeneratedQuery):
 
     def values(self, **columns: dbaccess.Parameter) -> Insert:
         self._set_column_names(sorted(columns.keys()))
-        self.parameters.update(columns)
+        assert self.parameters_list is None
+        if self.parameters is None:
+            self.parameters = columns
+        else:
+            self.parameters.update(columns)
         return self
 
     def default_values(self) -> Insert:
         self.__default_values = True
         return self
 
-    def query(self, query: str, **parameters: dbaccess.SQLValue) -> Insert:
+    def query(
+        self,
+        query: str,
+        *parameters_list: dbaccess.Parameters,
+        **parameters: dbaccess.Parameter,
+    ) -> Insert:
         self.__query = query
-        for name, value in parameters.items():
-            self.set_parameter(name, value)
+        assert (not parameters_list) or (not parameters)
+        if parameters:
+            for name, value in parameters.items():
+                self.set_parameter(name, value)
+        else:
+            assert self.parameters is None
+            self.parameters_list = [*parameters_list]
         return self
 
     @property
@@ -435,6 +458,7 @@ class Verify(_GeneratedQuery):
     async def __call__(
         self, transaction: TransactionBase, cursor: dbaccess.TransactionCursor, /
     ) -> None:
+        assert self.parameters is not None
         async with cursor.query(self.statement, **self.parameters) as result:
             async for row in result:
                 for column_name, actual_value in zip(self.column_names, row):
@@ -492,6 +516,7 @@ class Lock(_GeneratedQuery):
     async def __call__(
         self, transaction: TransactionBase, cursor: dbaccess.TransactionCursor, /
     ) -> None:
+        assert self.parameters is not None
         async with cursor.query(
             self.statement, **self.parameters, for_update=True
         ) as result:
@@ -500,9 +525,10 @@ class Lock(_GeneratedQuery):
     @property
     def statement(self) -> Optional[str]:
         return f"""
-            SELECT FOR UPDATE {self.id_column}
+            SELECT {self.id_column}
               FROM {self.table_name}
              WHERE {" AND ".join(self.conditions)}
+               FOR UPDATE
         """
 
 

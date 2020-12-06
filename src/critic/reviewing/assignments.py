@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Collection, Dict, List, Optional, Set, Tuple, Union
+from typing import Collection, Dict, List, Optional, Set, Union
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +42,12 @@ class Assignment:
             self.file,
             self.scope,
             self.user,
-        ) == (other.changeset, other.file, other.scope, other.user,)
+        ) == (
+            other.changeset,
+            other.file,
+            other.scope,
+            other.user,
+        )
 
 
 class PerUser(Set[Assignment]):
@@ -111,7 +116,7 @@ async def initializeFilters(
     files: Set[api.file.File] = set()
     for changeset in changesets:
         filechanges = await changeset.files
-        assert filechanges, await changeset.completion_level
+        assert filechanges is not None, await changeset.completion_level
         files.update(filechange.file for filechange in filechanges)
     result.setFiles(files)
 
@@ -139,8 +144,7 @@ async def calculateAssignments(
 ) -> Assignments:
     """Calculate review assignments for given changesets in a review
 
-       Return value is an Assignments object."""
-    critic = review.critic
+    Return value is an Assignments object."""
     assignments = Assignments()
 
     if changesets is None:
@@ -155,7 +159,7 @@ async def calculateAssignments(
         commit = await changeset.to_commit
         per_changeset = assignments.add_changeset(changeset)
         filechanges = await changeset.files
-        assert filechanges
+        assert filechanges is not None
 
         for filechange in filechanges:
             file = filechange.file
@@ -181,7 +185,8 @@ async def calculateAssignments(
                         scopes.update(await filter.scopes)
 
                 def add_assignment(
-                    reviewer: api.user.User, scope: Optional[api.reviewscope.ReviewScope] = None
+                    reviewer: api.user.User,
+                    scope: Optional[api.reviewscope.ReviewScope] = None,
                 ) -> None:
                     assignment = Assignment(changeset, file, scope, reviewer)
                     assignments.add(assignment)

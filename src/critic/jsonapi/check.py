@@ -584,6 +584,34 @@ class Repository(
         context.repository = value
 
 
+class BranchId(APIObjectById[api.branch.Branch], api_module=api.repository):
+    pass
+
+
+class BranchName(
+    APIObjectByKey[api.branch.Branch], api_module=api.repository, key="name"
+):
+    async def convert(
+        self, context: TypeCheckerContext, value: str
+    ) -> api.branch.Branch:
+        if context.repository is None:
+            raise Error("no repository set in context")
+        return await api.branch.fetch(
+            context.critic, repository=context.repository, name=value
+        )
+
+
+class Branch(
+    VariantChecker[api.branch.Branch],
+    types={
+        # TODO[typing]: These casts ought to be unnecessary.
+        cast(TypeCheckerCallable[api.branch.Branch], BranchId()),
+        cast(TypeCheckerCallable[api.branch.Branch], BranchName()),
+    },
+):
+    pass
+
+
 class Review(APIObjectById[api.review.Review], api_module=api.review):
     async def process(
         self, context: TypeCheckerContext, value: api.review.Review
@@ -715,6 +743,7 @@ CHECKER_MAP: Mapping[Any, Any] = {
     api.changeset.Changeset: Changeset(),
     api.extension.Extension: Extension(),
     api.reviewscope.ReviewScope: ReviewScope(),
+    api.branch.Branch: Branch(),
 }
 
 Converted = Mapping[str, Any]

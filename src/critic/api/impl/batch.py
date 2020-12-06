@@ -148,7 +148,7 @@ class Batch(apiobject.APIObject[WrapperType, ArgumentsType, int]):
     ) -> Set[api.comment.Comment]:
         if self.__created_comment_ids is None:
             await self.loadCommentChanges(critic)
-            assert self.__created_comment_ids
+            assert self.__created_comment_ids is not None
         return set(await api.comment.fetchMany(critic, self.__created_comment_ids))
 
     async def getWrittenReplies(
@@ -156,7 +156,7 @@ class Batch(apiobject.APIObject[WrapperType, ArgumentsType, int]):
     ) -> Set[api.reply.Reply]:
         if self.__written_reply_ids is None:
             await self.loadCommentChanges(critic)
-            assert self.__written_reply_ids
+            assert self.__written_reply_ids is not None
         return set(await api.reply.fetchMany(critic, self.__written_reply_ids))
 
     async def getResolvedIssues(
@@ -213,7 +213,7 @@ class Batch(apiobject.APIObject[WrapperType, ArgumentsType, int]):
         if self.__reviewed_file_changes is None:
             if self.__reviewed_file_change_ids is None:
                 await self.loadFileChanges(critic)
-                assert self.__reviewed_file_change_ids
+                assert self.__reviewed_file_change_ids is not None
             self.__reviewed_file_changes = frozenset(
                 await api.reviewablefilechange.fetchMany(
                     critic, self.__reviewed_file_change_ids
@@ -227,7 +227,7 @@ class Batch(apiobject.APIObject[WrapperType, ArgumentsType, int]):
         if self.__unreviewed_file_changes is None:
             if self.__unreviewed_file_change_ids is None:
                 await self.loadFileChanges(critic)
-                assert self.__unreviewed_file_change_ids
+                assert self.__unreviewed_file_change_ids is not None
             self.__unreviewed_file_changes = frozenset(
                 await api.reviewablefilechange.fetchMany(
                     critic, self.__unreviewed_file_change_ids
@@ -325,7 +325,7 @@ class Batch(apiobject.APIObject[WrapperType, ArgumentsType, int]):
 
         async with api.critic.Query[Tuple[int, bool]](
             critic,
-            """SELECT rf.id, rfc.to_reviewed
+            """SELECT ruf.file, rfc.to_reviewed
                  FROM reviewfiles AS rf
                  JOIN reviewuserfiles AS ruf ON (
                         ruf.file=rf.id
@@ -345,6 +345,7 @@ class Batch(apiobject.APIObject[WrapperType, ArgumentsType, int]):
             batch_id=self.id,
         ) as result:
             rows = await result.all()
+            logger.debug("loadFileChanges: rows=%r", rows)
 
         self.__reviewed_file_change_ids = set(
             filechange_id for filechange_id, to_reviewed in rows if to_reviewed
@@ -402,6 +403,4 @@ async def fetchUnpublished(
 ) -> WrapperType:
     if author is None:
         author = review.critic.effective_user
-    elif author != review.critic.effective_user:
-        api.PermissionDenied.raiseUnlessSystem(review.critic)
     return Batch(review=review, author=author).wrap(review.critic)

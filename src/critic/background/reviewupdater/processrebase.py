@@ -105,17 +105,18 @@ async def process_move_rebase(
     else:
         (new_upstream,) = upstreams
 
-    old_upstream = await rebase.old_upstream
+    # old_upstream = await rebase.old_upstream
+    #
+    # if await old_upstream.isAncestorOf(new_upstream):
+    #     handler = process_ff_move_rebase
+    # else:
+    #     handler = process_non_ff_move_rebase
 
-    if await old_upstream.isAncestorOf(new_upstream):
-        handler = process_ff_move_rebase
-    else:
-        handler = process_non_ff_move_rebase
-
-    result = await handler(
+    result = await process_non_ff_move_rebase(
         review, rebase, branchupdate, new_upstream, pendingrefupdate_id
     )
 
+    logger.debug("waiting for changed lines: changeset=%d", full_changeset.id)
     await full_changeset.ensure("changedlines")
 
     return result
@@ -153,11 +154,10 @@ async def process_ff_move_rebase(
         "introduced as part of the rebase."
     )
 
-    repository.low_level.set_user_details("Critic System", api.critic.getSystemEmail())
-    merge_sha1 = await repository.low_level.committree(
-        new_head.tree, [old_head.sha1, new_upstream.sha1], message
-    )
-    repository.low_level.clear_user_details()
+    with repository.withSystemUserDetails() as low_level:
+        merge_sha1 = await low_level.committree(
+            new_head.tree, [old_head.sha1, new_upstream.sha1], message
+        )
 
     await insert_commits(repository, merge_sha1)
 
@@ -236,7 +236,7 @@ async def process_ff_move_rebase(
     await emit_output(review.critic, pendingrefupdate_id, output)
 
     return RebaseProcessingResult(
-        new_upstream=new_upstream, changesets=changesets, equivalent_merge=merge
+        new_upstream=new_upstream, changesets=changesets, equivalent_merge=replay
     )
 
 

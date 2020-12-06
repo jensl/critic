@@ -11,6 +11,7 @@ import Actions from "./Commit.List.Actions"
 import { useSelector } from "../store"
 import { useResource } from "../utils"
 import Commit from "../resources/commit"
+import { SelectionScope } from "../reducers/uiSelectionScope"
 
 const useStyles = makeStyles((theme) => ({
   commitListSelectionPopup: {},
@@ -28,23 +29,20 @@ const useStyles = makeStyles((theme) => ({
 
 type Props = {
   className?: string
-  scopeID: string
   pathPrefix: string
+  selectionScope: SelectionScope | null
 }
 
 const CommitListSelectionPopup: FunctionComponent<Props> = ({
   className,
-  scopeID,
   pathPrefix,
+  selectionScope,
 }) => {
   const classes = useStyles()
   const commits = useResource("commits")
-  const selectionScope = useSelector((state) => state.ui.selectionScope)
+  if (!selectionScope) return null
   const { elementIDs, selectedIDs, isRangeSelecting } = selectionScope
-  const hasSelectedCommits =
-    selectionScope.scopeID === scopeID &&
-    selectedIDs.size > 0 &&
-    !isRangeSelecting
+  const hasSelectedCommits = selectedIDs.size > 0 && !isRangeSelecting
   if (!hasSelectedCommits) return null
   const selectedCommits = elementIDs
     .filter((elementID) => selectedIDs.has(elementID))
@@ -70,5 +68,5 @@ const CommitListSelectionPopup: FunctionComponent<Props> = ({
 
 export default Registry.add(
   "Commit.List.Selection.Popup",
-  CommitListSelectionPopup
+  CommitListSelectionPopup,
 )

@@ -18,7 +18,8 @@ import ReviewCommits from "./Review.Commits"
 import ReviewChanges from "./Review.Changes"
 import ReviewDiscussions from "./Review.Discussions"
 import CreateBranchDialog from "./Dialog.Review.CreateBranch"
-import PublishDialog from "./Dialog.Review.Publish"
+import PublishChangesDialog from "./Dialog.Review.PublishChanges"
+import PublishReviewDialog from "./Dialog.Review.PublishReview"
 import { loadAutomaticChangeset } from "../actions/changeset"
 import { useSubscription } from "../utils"
 
@@ -114,7 +115,8 @@ const Review: React.FunctionComponent<Props> = ({ className }) => {
         </Paper>
       </Container>
       <CreateBranchDialog />
-      <PublishDialog />
+      <PublishChangesDialog />
+      <PublishReviewDialog />
     </>
   )
 }

@@ -22,6 +22,8 @@ import math
 import traceback
 from typing import Optional
 
+from critic.background.githook import SetPendingRefUpdateState
+
 logger = logging.getLogger("critic.background.branchupdater")
 
 from . import PendingRefUpdateState
@@ -241,9 +243,12 @@ class BranchUpdater(background.service.BackgroundService):
                         )
                     except api.branch.InvalidName:
                         logger.debug("  missing from database")
-                        await githook.set_pendingrefupdate_state(
-                            critic, pendingrefupdate_id, "preliminary", "finished"
-                        )
+                        async with api.transaction.start(critic) as transaction:
+                            await transaction.execute(
+                                SetPendingRefUpdateState(
+                                    pendingrefupdate_id, "preliminary", "finished"
+                                )
+                            )
                     else:
                         assert not await branch.review
                         await delete_branch(branch, pendingrefupdate_id)

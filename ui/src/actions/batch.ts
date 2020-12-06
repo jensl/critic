@@ -27,7 +27,7 @@ type BatchPayload = {
 
 export const createBatch = (
   reviewID: ReviewID,
-  comment: string | undefined
+  comment?: string,
 ): AsyncThunk<Batch> => async (dispatch) => {
   const payload: BatchPayload = { review: reviewID }
   if (typeof comment === "string") {
@@ -38,14 +38,14 @@ export const createBatch = (
     Resource.create(
       "batches",
       payload,
-      include("reviews", "comments", "replies", "changesets")
-    )
+      include("reviews", "comments", "replies", "changesets"),
+    ),
   )
 }
 
 export const discardUnpublishedChanges = (
   reviewID: ReviewID,
-  items: DiscardItem[]
+  items: DiscardItem[],
 ): AsyncThunk<void> => async (dispatch: Dispatch) => {
   const options = [include("reviews")]
   if (
@@ -64,7 +64,7 @@ export const discardUnpublishedChanges = (
   ) {
     options.push(include("changesets", "reviewablefilechanges"))
     options.push(
-      excludeFields("changesets", ["completion_level", "contributing_commits"])
+      excludeFields("changesets", ["completion_level", "contributing_commits"]),
     )
     options.push(excludeFields("reviewablefilechanges", ["assigned_reviewers"]))
   }
@@ -76,7 +76,7 @@ export const discardUnpublishedChanges = (
         unpublished: "yes",
         discard: items.join(","),
       }),
-      ...options
-    )
+      ...options,
+    ),
   )
 }

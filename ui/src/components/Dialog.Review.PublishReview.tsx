@@ -37,4 +37,4 @@ const PublishReview: FunctionComponent<Props> = ({ className }) => {
   )
 }
 
-export default Registry.add("Dialog.Review.Publish", PublishReview)
+export default Registry.add("Dialog.Review.PublishReview", PublishReview)

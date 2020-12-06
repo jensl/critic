@@ -52,7 +52,7 @@ const loadFileDiffsForChangeset = (
   changeset: Changeset,
   channel: Channel | null,
   { reviewID, repositoryID }: LoadFileDiffsForChangesetOptions,
-): AsyncThunk<void> => async (dispatch) => {
+): AsyncThunk<void> => async (dispatch, getState) => {
   console.log("loadFileDiffsForChangeset", { changeset })
 
   if (!changeset.completionLevel.has("full")) {
@@ -83,12 +83,19 @@ const loadFileDiffsForChangeset = (
   const { files } = changeset
   assertNotNull(files)
 
-  const chunkCount = Math.ceil(files.length / 10)
-  const chunkSize = Math.ceil(files.length / chunkCount)
+  const filediffs = getState().resource.filediffs
+  const neededFilediffs = files.filter(
+    (fileID) => !filediffs.has(`${changeset.id}:${fileID}`),
+  )
+
+  if (neededFilediffs.length === 0) return
+
+  const chunkCount = Math.ceil(neededFilediffs.length / 10)
+  const chunkSize = Math.ceil(neededFilediffs.length / chunkCount)
   const promises = []
 
-  for (let offset = 0; offset < files.length; offset += chunkSize) {
-    const fileIDs = files.slice(offset, offset + chunkSize)
+  for (let offset = 0; offset < neededFilediffs.length; offset += chunkSize) {
+    const fileIDs = neededFilediffs.slice(offset, offset + chunkSize)
     promises.push(
       dispatch(
         loadFileDiffs(fileIDs, {

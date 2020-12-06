@@ -5,6 +5,7 @@ import SelectionScope from "./Selection.Scope"
 import CommitListItem from "./Commit.ListItem"
 import Popup from "./Commit.List.Popup"
 import { CommitID } from "../resources/types"
+import { useSelector } from "../store"
 
 type Props = {
   className?: string
@@ -21,6 +22,9 @@ const CommitList: FunctionComponent<Props> = ({
   commitIDs,
   withProgress = false,
 }) => {
+  const selectionScope = useSelector((state) => state.ui.selectionScope)
+  const thisSelectionScope =
+    selectionScope.scopeID === scopeID ? selectionScope : null
   return (
     <>
       <SelectionScope
@@ -35,10 +39,11 @@ const CommitList: FunctionComponent<Props> = ({
             key={commitID}
             commitID={commitID}
             withProgress={withProgress}
+            selectionScope={thisSelectionScope}
           />
         ))}
       </SelectionScope>
-      <Popup pathPrefix={pathPrefix} scopeID={scopeID} />
+      <Popup pathPrefix={pathPrefix} selectionScope={thisSelectionScope} />
     </>
   )
 }

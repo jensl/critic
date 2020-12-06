@@ -17,7 +17,13 @@
 import { immerable } from "immer"
 
 import { primaryMap } from "../reducers/resource"
-import { UserID } from "./types"
+import {
+  ChangesetID,
+  FileID,
+  ReviewableFileChangeID,
+  ReviewID,
+  UserID,
+} from "./types"
 
 type ReviewableFileChangeData = {
   id: number
@@ -49,15 +55,15 @@ class ReviewableFileChange {
   [immerable] = true
 
   constructor(
-    readonly id: number,
-    readonly review: number,
-    readonly changeset: number,
-    readonly file: number,
+    readonly id: ReviewableFileChangeID,
+    readonly review: ReviewID,
+    readonly changeset: ChangesetID,
+    readonly file: FileID,
     readonly deletedLines: number,
     readonly insertedLines: number,
     readonly isReviewed: boolean,
-    readonly reviewedBy: ReadonlySet<number>,
-    readonly assignedReviewers: ReadonlySet<number>,
+    readonly reviewedBy: ReadonlySet<UserID>,
+    readonly assignedReviewers: ReadonlySet<UserID>,
     readonly draftChanges: DraftChanges | null,
   ) {}
 
@@ -100,6 +106,12 @@ class ReviewableFileChange {
       assigned_reviewers: this.assignedReviewers,
       draft_changes: this.draftChanges,
     }
+  }
+
+  isReviewedBy(userID: UserID) {
+    return this.draftChanges?.author === userID
+      ? this.draftChanges.newIsReviewed
+      : this.reviewedBy.has(userID)
   }
 }
 

@@ -15,11 +15,22 @@
 # the License.
 
 from __future__ import annotations
+import contextlib
 
 import logging
 import os
 from dataclasses import dataclass
-from typing import Optional, Iterable, Tuple, List, Sequence, Set, TypeVar, cast
+from typing import (
+    Iterator,
+    Optional,
+    Iterable,
+    Tuple,
+    List,
+    Sequence,
+    Set,
+    TypeVar,
+    cast,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -146,6 +157,25 @@ class Repository(apiobject.APIObject[WrapperType, ArgumentsType, int]):
                 self.__low_level = gitaccessor.GitRepositoryProxy.make(self.path)
             critic.addCloseTask(self.__low_level.close)
         return self.__low_level
+
+    @contextlib.contextmanager
+    def withSystemUserDetails(
+        self, critic: api.critic.Critic, author: bool, committer:bool
+    ) -> Iterator[gitaccess.GitRepository]:
+        settings = api.critic.settings()
+        low_level = self.getLowLevel(critic)
+        name = settings.repositories.system_user_details.name
+        email = settings.repositories.system_user_details.email
+        if email is None:
+            email = f"critic@{settings.system.hostname}"
+        if author:
+            low_level.set_author_details(name, email)
+        if committer:
+            low_level.set_committer_details(name, email)
+        try:
+            yield low_level
+        finally:
+            low_level.clear_user_details()
 
     async def getSetting(self, wrapper: WrapperType, name: str, default: T) -> T:
         value, is_set = await api.usersetting.get(

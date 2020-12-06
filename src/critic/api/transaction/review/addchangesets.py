@@ -26,19 +26,21 @@ from critic import api
 from critic import dbaccess
 from critic.gitaccess import SHA1
 from critic import reviewing
-from ..base import TransactionBase
 from ..item import InsertMany, Insert, UpdateMany
+from ..modifier import Modifier
 from .updatereviewtags import UpdateReviewTags
 from . import CreateReviewEvent
 
 
 async def add_changesets(
-    transaction: TransactionBase,
-    review: api.review.Review,
+    modifier: Modifier[api.review.Review],
     changesets: Collection[api.changeset.Changeset],
     branchupdate: Optional[api.branchupdate.BranchUpdate],
     commits: Optional[api.commitset.CommitSet],
 ) -> None:
+    transaction = modifier.transaction
+    review = modifier.subject
+
     reviewchangesets_values: List[dbaccess.Parameters] = []
     reviewfiles_values: List[dbaccess.Parameters] = []
 
@@ -275,6 +277,6 @@ async def add_changesets(
                 )
             )
     else:
-        await CreateReviewEvent.ensure(transaction, review, "ready")
+        modifier.updates["is_ready"] = True
 
     transaction.finalizers.add(UpdateReviewTags(review))

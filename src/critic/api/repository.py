@@ -20,6 +20,7 @@ import re
 from typing import (
     Awaitable,
     Callable,
+    ContextManager,
     Optional,
     Sequence,
     Literal,
@@ -148,6 +149,11 @@ class Repository(api.APIObject):
         The interface is returned as a gitaccess.GitRepository object. This
         interface should typically not be used directly."""
         return self._impl.getLowLevel(self.critic)
+
+    def withSystemUserDetails(
+        self, *, author: bool = True, committer: bool = True
+    ) -> ContextManager[gitaccess.GitRepository]:
+        return self._impl.withSystemUserDetails(self.critic, author, committer)
 
     class Head(Protocol):
         @property

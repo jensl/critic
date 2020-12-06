@@ -12,6 +12,7 @@ import { sortedBy, useChangeset, useResource, useReview } from "../utils"
 import { pathWithExpandedFiles } from "../utils/Changeset"
 import { useSelector } from "../store"
 import { getCommentsForChangeset } from "../selectors/fileDiff"
+import { getReviewableFileChangesForChangeset } from "../selectors/reviewableFileChange"
 
 const useStyles = makeStyles((theme: Theme) => ({
   ChangesetFiles: {
@@ -40,6 +41,9 @@ const ChangesetFiles: FunctionComponent<Props> = ({
   const commentsForChangeset = useSelector((state) =>
     getCommentsForChangeset(state, { review, changeset }),
   )
+  const rfcsByFile = useSelector((state) =>
+    getReviewableFileChangesForChangeset(state, { review, changeset }),
+  )
   const { files } = changeset
   if (files === null) return <LoaderBlock />
   if (files.length === 1 && expandedFileIDs.size === 0)
@@ -56,6 +60,7 @@ const ChangesetFiles: FunctionComponent<Props> = ({
               comments={
                 commentsForChangeset.byFile.get(fileID)?.byChunk ?? null
               }
+              rfcs={rfcsByFile?.get(fileID) ?? null}
               {...ChangesetFileProps}
             />
             {integrated &&

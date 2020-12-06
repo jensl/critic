@@ -22,24 +22,28 @@ logger = logging.getLogger(__name__)
 
 from critic import api
 from . import ReviewUserTag, has_unpublished_changes
+from .updatewouldbeacceptedtag import UpdateWouldBeAcceptedTag
 from ..item import Delete, Insert
-from ..base import TransactionBase
+from ..modifier import Modifier
 
 
 async def mark_change_as_reviewed(
-    transaction: TransactionBase, rfc: api.reviewablefilechange.ReviewableFileChange
+    modifier: Modifier[api.review.Review],
+    rfc: api.reviewablefilechange.ReviewableFileChange,
 ) -> None:
+    transaction = modifier.transaction
     critic = transaction.critic
 
     draft_changes = await rfc.draft_changes
-    if draft_changes and draft_changes.new_is_reviewed:
-        raise api.reviewablefilechange.Error(
-            "Specified file change is already marked as reviewed",
-            code="ALREADY_REVIEWED",
-        )
-
     reviewed_by = await rfc.reviewed_by
-    if critic.effective_user in reviewed_by:
+
+    if draft_changes:
+        if draft_changes.new_is_reviewed:
+            raise api.reviewablefilechange.Error(
+                "Specified file change is already marked as reviewed",
+                code="ALREADY_REVIEWED",
+            )
+    elif critic.effective_user in reviewed_by:
         raise api.reviewablefilechange.Error(
             "Specified file change is already marked as reviewed",
             code="ALREADY_REVIEWED",
@@ -53,13 +57,15 @@ async def mark_change_as_reviewed(
     transaction.tables.add("reviewfilechanges")
 
     if draft_changes:
+        logger.debug("%r: unmarking as reviewed", rfc)
         await transaction.execute(
             Delete("reviewfilechanges").where(
-                file=rfc, user=critic.effective_user, to_reviewed=False
+                file=rfc, uid=critic.effective_user, to_reviewed=False
             )
         )
 
     if critic.effective_user not in reviewed_by:
+        logger.debug("%r: marking as reviewed", rfc)
         await transaction.execute(
             Insert("reviewfilechanges").values(
                 file=rfc,
@@ -76,3 +82,5 @@ async def mark_change_as_reviewed(
         "unpublished",
         has_unpublished_changes,
     )
+
+    transaction.finalizers.add(UpdateWouldBeAcceptedTag(modifier))

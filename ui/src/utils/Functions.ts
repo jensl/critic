@@ -14,19 +14,27 @@
  * the License.
  */
 
-export const all = <T>(items: T[], predicate: (v: T) => boolean) =>
-  items.reduce((value, item) => value && !!predicate(item), true)
+export const all = <T>(items: Iterable<T>, predicate: (v: T) => boolean) => {
+  for (const v of items) if (!predicate(v)) return false
+  return true
+}
 
 export const any = <T>(items: Iterable<T>, predicate: (v: T) => boolean) => {
   for (const v of items) if (predicate(v)) return true
   return false
 }
 
-export const count = <T>(items: T[], predicate: (v: T) => boolean) =>
-  items.reduce((value, item) => value + Number(predicate(item)), 0)
+export const count = <T>(items: Iterable<T>, predicate: (v: T) => boolean) => {
+  let count = 0
+  for (const v of items) if (predicate(v)) ++count
+  return count
+}
 
-export const sum = <T>(items: T[], reducer: (v: T) => number) =>
-  items.reduce((accumulator, item) => accumulator + reducer(item), 0)
+export const sum = <T>(items: Iterable<T>, reducer: (v: T) => number) => {
+  let sum = 0
+  for (const v of items) sum += reducer(v)
+  return sum
+}
 
 type SoonCallback = <T extends any[]>(args: T) => void
 
@@ -137,3 +145,9 @@ export const filteredSet = <T>(
 
 export const mergedSets = <T>(...items: Iterable<T>[]): ReadonlySet<T> =>
   new Set(items.flatMap((iterable) => [...iterable]))
+
+export const identicalSets = <T>(a: ReadonlySet<T>, b: ReadonlySet<T>) => {
+  if (a.size !== b.size) return false
+  const merged = new Set([...a, ...b])
+  return merged.size === a.size
+}

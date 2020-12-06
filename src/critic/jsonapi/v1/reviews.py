@@ -361,6 +361,7 @@ class Reviews(
                 "description?": str,
                 "branch?": str,
                 "owners?": [api.user.User],
+                "integration?": {"target_branch": api.branch.Branch},
             },
             data,
         )
@@ -400,6 +401,11 @@ class Reviews(
 
                 if "owners" in converted:
                     await modifier.setOwners(converted["owners"])
+
+                if "integration" in converted:
+                    await modifier.setTargetBranch(
+                        converted["integration"]["target_branch"]
+                    )
 
                 # Do this last, so that any mails generated are done so using
                 # up-to-date information, in case we're setting other things in

@@ -39,6 +39,7 @@ import {
   UPDATE_REVIEW_CATEGORY,
 } from "."
 import { ResourceData } from "../types"
+import { disableDefaults } from "../resources/requestoptions"
 
 export const updateReviewCategory = (
   category: ReviewCategory,
@@ -100,7 +101,7 @@ export const loadReview = (reviewID: ReviewID): AsyncThunk<Review> => async (
     limited &&
     (limited.has("changesets") || limited.has("reviewablefilechanges"))
   ) {
-    const options: RequestOptions[] = [withParameters({ fields: "changesets" })]
+    const options: RequestOptions[] = []
     if (!limited.has("changesets")) {
       // If we've got all changesets already, we just want the reviewable file
       // changes for each changeset.
@@ -119,7 +120,9 @@ export const loadReview = (reviewID: ReviewID): AsyncThunk<Review> => async (
     return await dispatch(
       fetchOne(
         "reviews",
+        disableDefaults(),
         withArgument(reviewID),
+        withParameters({ fields: "changesets" }),
         include("changesets", "reviewablefilechanges", "files"),
         ...options,
       ),

@@ -3,7 +3,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 from .backend import NotFound
-from .session import session
+from .session import DEFAULT_PASSWORD, session
 
 
 class User:
@@ -24,7 +24,7 @@ async def ensure(name: str) -> User:
                     "name": name,
                     "fullname": f"{name.capitalize()} von Testing",
                     "email": f"{name}@example.org",
-                    "password": "1234",
+                    "password": DEFAULT_PASSWORD,
                 },
             )
 

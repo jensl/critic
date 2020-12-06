@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import datetime
 import logging
-from typing import Tuple, Optional, Sequence, Iterable
+from typing import Collection, Tuple, Optional, Sequence, Iterable
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +53,21 @@ class ReviewEvent(apiobject.APIObject[WrapperType, ArgumentsType, int]):
         if self.__user_id is None:
             return api.user.system(critic)
         return await api.user.fetch(critic, self.__user_id)
+
+    async def getUsers(self, critic: api.critic.Critic) -> Collection[api.user.User]:
+        async with api.critic.Query[int](
+            critic,
+            """
+            SELECT uid
+              FROM reviewusers
+             WHERE review={review}
+               AND event<={event}
+            """,
+            review=self.__review_id,
+            event=self.id,
+        ) as result:
+            user_ids = await result.scalars()
+        return await api.user.fetchMany(critic, user_ids)
 
 
 @public.fetchImpl

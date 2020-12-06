@@ -29,6 +29,7 @@ from typing import (
 
 from critic import api
 from critic.api.apiobject import FunctionRef
+from critic.gitaccess import SHA1
 
 
 class InvalidCommitRange(Exception):
@@ -41,7 +42,7 @@ class InvalidCommitRange(Exception):
     pass
 
 
-class CommitSet(api.APIObject):
+class CommitSet(api.APIObject, Iterable[api.commit.Commit]):
     """Representation of a set of Commit objects"""
 
     def __adapt__(self) -> Sequence[int]:
@@ -205,6 +206,9 @@ class CommitSet(api.APIObject):
         self, commits: Iterable[api.commit.Commit]
     ) -> CommitSet:
         return await self._impl.symmetric_difference(self.critic, commits)
+
+    def contains(self, commit: Union[SHA1, api.commit.Commit]) -> bool:
+        return self._impl.contains(commit)
 
 
 def empty(critic: api.critic.Critic) -> CommitSet:

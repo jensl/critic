@@ -72,6 +72,7 @@ CREATE TYPE revieweventtype AS ENUM (
   'dropped',
   'reopened',
   'pinged',
+  'assignments',
   'branchupdate',
   'batch'
 );
@@ -117,16 +118,22 @@ CREATE INDEX batches_event
 CREATE TYPE reviewusertype AS ENUM
   ( 'automatic',
     'manual' );
-CREATE TABLE reviewusers
-  ( review INTEGER NOT NULL,
-    uid INTEGER NOT NULL,
-    owner BOOLEAN NOT NULL DEFAULT FALSE,
-    type reviewusertype NOT NULL DEFAULT 'automatic',
+CREATE TABLE reviewusers (
 
-    PRIMARY KEY (review, uid),
-    FOREIGN KEY (review) REFERENCES reviews ON DELETE CASCADE,
-    FOREIGN KEY (uid) REFERENCES users );
+  review INTEGER NOT NULL,
+  event INTEGER NOT NULL,
+  uid INTEGER NOT NULL,
+  owner BOOLEAN NOT NULL DEFAULT FALSE,
+  type reviewusertype NOT NULL DEFAULT 'automatic',
+
+  PRIMARY KEY (review, uid),
+  FOREIGN KEY (review) REFERENCES reviews ON DELETE CASCADE,
+  FOREIGN KEY (event) REFERENCES reviewevents ON DELETE CASCADE,
+  FOREIGN KEY (uid) REFERENCES users
+
+);
 CREATE INDEX reviewusers_uid ON reviewusers (uid);
+CREATE INDEX reviewusers_review_event ON reviewusers (review, event);
 
 -- Review branch updates:
 --   One row per row in the 'branchupdates' table that refers to branches
@@ -338,6 +345,7 @@ CREATE TABLE reviewassignmentstransactions (
   id SERIAL PRIMARY KEY,
 
   review INTEGER NOT NULL REFERENCES reviews ON DELETE CASCADE,
+  event INTEGER NOT NULL REFERENCES reviewevents ON DELETE CASCADE,
   assigner INTEGER NOT NULL REFERENCES users,
   note TEXT,
 

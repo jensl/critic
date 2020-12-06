@@ -43,6 +43,7 @@ from ..branch.modify import ModifyBranch
 from . import (
     CreateReviewEvent,
     ReviewUser,
+    commits_behind_target_branch,
     raiseUnlessPublished,
 )
 from .create import CreateReview
@@ -159,10 +160,14 @@ class ModifyReview(
         return ModifyBranch(self.transaction, branch)
 
     async def submitChanges(
-        self, batch_comment: Optional[api.comment.Comment] = None
+        self,
+        batch: api.batch.Batch,
+        batch_comment: Optional[api.comment.Comment] = None,
     ) -> api.batch.Batch:
         raiseUnlessPublished(self.subject)
-        return await submit_changes(self.transaction, self.subject, batch_comment)
+        return await submit_changes(
+            self.transaction, self.subject, batch, batch_comment
+        )
 
     async def discardChanges(self, discard: Container[api.batch.DiscardValue]) -> None:
         raiseUnlessPublished(self.subject)
@@ -172,13 +177,13 @@ class ModifyReview(
         self, rfc: api.reviewablefilechange.ReviewableFileChange
     ) -> None:
         raiseUnlessPublished(self.subject)
-        await mark_change_as_reviewed(self.transaction, rfc)
+        await mark_change_as_reviewed(self, rfc)
 
     async def markChangeAsPending(
         self, rfc: api.reviewablefilechange.ReviewableFileChange
     ) -> None:
         raiseUnlessPublished(self.subject)
-        await mark_change_as_pending(self.transaction, rfc)
+        await mark_change_as_pending(self, rfc)
 
     async def recordBranchUpdate(
         self, branchupdate: api.branchupdate.BranchUpdate
@@ -249,12 +254,27 @@ class ModifyReview(
             completion_level = await changeset.completion_level
             assert "changedlines" in completion_level, repr(completion_level)
 
-        await add_changesets(
-            self.transaction, self.subject, changesets, branchupdate, commits
-        )
+        await add_changesets(self, changesets, branchupdate, commits)
 
     async def pingReview(self, message: str) -> api.reviewping.ReviewPing:
         return await ping_review(self.transaction, self.subject, message)
+
+    async def setTargetBranch(self, target_branch: api.branch.Branch) -> None:
+        repository = await self.subject.repository
+        commits = await self.subject.commits
+        branch = await self.subject.branch
+        if branch:
+            head = await branch.head
+        else:
+            (head,) = commits.heads
+        commits_behind = await commits_behind_target_branch(
+            repository, head, target_branch, commits
+        )
+        async with self.update() as update:
+            update.set(
+                integration_target=target_branch,
+                integration_behind=commits_behind,
+            )
 
     async def deleteReview(self, *, deleting_repository: bool = False) -> None:
         if self.subject.state != "draft":

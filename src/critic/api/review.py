@@ -180,6 +180,12 @@ class Review(api.APIObject):
         return await self._impl.isAccepted(self.critic)
 
     @property
+    async def would_be_accepted(self) -> bool:
+        """True if the review would become "accepted" if the current user's
+        unpublished changes were published."""
+        return await self._impl.wouldBeAccepted(self)
+
+    @property
     def summary(self) -> Optional[str]:
         """The review's summary/title, or None"""
         return self._impl.summary
@@ -240,6 +246,11 @@ class Review(api.APIObject):
         A user is a watcher if he/she is on the list of users that receive
         emails about the review, and is neither an owner nor a reviewer."""
         return await self._impl.getWatchers(self.critic)
+
+    @property
+    async def users(self) -> FrozenSet[api.user.User]:
+        """All users involved in any way in the review"""
+        return await self._impl.getUsers(self.critic)
 
     @property
     async def filters(self) -> Sequence[api.reviewfilter.ReviewFilter]:

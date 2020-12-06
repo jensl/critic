@@ -121,4 +121,5 @@ export type RequestOptions = {
   method?: HTTPMethod
   expectedStatus?: number[]
   data?: any
+  disableDefaults?: true
 }

@@ -51,3 +51,4 @@ export const handleError = (
 ): RequestOptions => ({
   handleError: { [code]: handler },
 })
+export const disableDefaults = (): RequestOptions => ({ disableDefaults: true })

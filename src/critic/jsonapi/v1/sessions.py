@@ -16,6 +16,7 @@
 
 from __future__ import annotations
 
+import aiohttp.web
 import logging
 from typing import Optional, Literal
 
@@ -51,7 +52,7 @@ class Session(api.APIObject):
 
 
 class SessionError(Error):
-    http_status = 403
+    http_exception_type = aiohttp.web.HTTPForbidden
     title = "Session error"
 
     def __init__(self, message: str, *, code: Optional[str] = None):

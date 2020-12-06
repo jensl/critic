@@ -182,7 +182,7 @@ class ModifyBranch(BranchSettingMixin, Modifier[api.branch.Branch]):
         if disassociated_commits:
             await transaction.execute(
                 Delete("branchcommits").where(
-                    branch=branch, commit=disassociated_commits
+                    branch=branch, commit=list(disassociated_commits)
                 )
             )
 

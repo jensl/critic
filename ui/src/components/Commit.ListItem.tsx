@@ -10,7 +10,8 @@ import SHA1 from "./Commit.ListItem.SHA1"
 import Metadata from "./Commit.ListItem.Metadata"
 import ChangedLines from "./Commit.ListItem.ChangedLines"
 import { useResource } from "../utils"
-import { useSelector } from "../store"
+import { SelectionScope } from "../reducers/uiSelectionScope"
+import { pure } from "recompose"
 
 const useStyles = makeStyles((theme) => ({
   commitListitem: {
@@ -98,29 +99,25 @@ type Props = {
   className?: string
   commitID: number
   withProgress?: boolean
+  selectionScope: SelectionScope | null
 }
 
 const CommitListItem: FunctionComponent<Props> = ({
   className,
   commitID,
   withProgress,
+  selectionScope,
 }) => {
   const classes = useStyles()
-  const [isSelected, isFirstSelected, isLastSelected] = useSelector((state) => {
-    const {
-      selectedIDs,
-      firstSelectedID,
-      lastSelectedID,
-    } = state.ui.selectionScope
-    const elementID = String(commitID)
-    return [
-      selectedIDs.has(elementID),
-      elementID === firstSelectedID,
-      elementID === lastSelectedID,
-    ]
-  })
   const commit = useResource("commits", (commits) => commits.byID.get(commitID))
+
   if (!commit) return null
+
+  const elementID = String(commitID)
+  const isSelected = selectionScope?.selectedIDs.has(elementID) ?? false
+  const isFirstSelected = elementID === selectionScope?.firstSelectedID
+  const isLastSelected = elementID === selectionScope?.lastSelectedID
+
   return (
     <div
       className={clsx(className, classes.commitListitem, {

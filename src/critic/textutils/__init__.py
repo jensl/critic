@@ -55,7 +55,7 @@ def reflow(text: str, line_length: int = 80, indent: int = 0, hanging_indent: in
                     ):
                         lines.append(line)
                         line = hanging_spaces
-                    if len(line) > indent:
+                    elif len(line) > indent:
                         line += ws
                     line += word
             if line:

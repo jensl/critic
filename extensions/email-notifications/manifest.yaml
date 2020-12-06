@@ -1,3 +1,4 @@
+name: EmailNotifications
 authors:
   - Jens Widell <jens@critic-review.org>
 description: Email notifications
@@ -5,7 +6,8 @@ description: Email notifications
 package:
   type: python
   entrypoints:
-    reviewevent: emails.reviewevents:main
+    reviewevent:
+      target: emails.reviewevents:main
 
 roles:
   - type: subscription

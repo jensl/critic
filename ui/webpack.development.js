@@ -5,7 +5,8 @@ const HtmlWebpackPlugin = module.require("html-webpack-plugin")
 
 const listen_host = process.env.LISTEN_HOST
 const listen_port = process.env.LISTEN_PORT
-const critic_backend = process.env.CRITIC_BACKEND
+const api_backend = process.env.CRITIC_API_BACKEND
+const ws_backend = process.env.CRITIC_WS_BACKEND
 
 module.exports = merge(common, {
   mode: "development",
@@ -18,10 +19,10 @@ module.exports = merge(common, {
     },
     proxy: {
       "/api": {
-        target: critic_backend || "http://localhost:8080",
+        target: api_backend || "http://localhost:8080",
       },
       "/ws": {
-        target: critic_backend || "http://localhost:8080",
+        target: ws_backend || "http://localhost:8080",
         ws: true,
       },
     },

@@ -10,6 +10,9 @@ import ChangesetFiles, { Props as ChangesetFilesProps } from "./Changeset.Files"
 
 const useStyles = makeStyles({
   changeset: {},
+  actions: {
+    display: "flex",
+  },
 })
 
 type Props = {
@@ -31,7 +34,9 @@ const Changeset: FunctionComponent<Props> = ({
     variant ?? (useSideBySide ? "side-by-side" : "unified")
   return (
     <div className={clsx(className, classes.changeset)}>
-      <ChangesetActions variant={effectiveVariant} integrated={integrated} />
+      <div className={classes.actions}>
+        <ChangesetActions variant={effectiveVariant} integrated={integrated} />
+      </div>
       <ChangesetFiles
         variant={effectiveVariant}
         integrated={integrated}

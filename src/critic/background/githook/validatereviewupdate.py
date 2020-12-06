@@ -17,13 +17,13 @@
 from __future__ import annotations
 
 import logging
-from typing import Optional, Tuple
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 
 from critic import api
 from critic import gitaccess
-from critic.gitaccess import SHA1, as_sha1
+from critic.gitaccess import SHA1
 
 from . import ValidateError
 
@@ -63,6 +63,36 @@ async def validate_review_update(
     )
 
     pending_rebase = await review.pending_rebase
+
+    if not fast_forward_update and not pending_rebase:
+        old_head_tree = await repository.low_level.revparse(
+            old_sha1, object_type="tree"
+        )
+        new_head_tree = await repository.low_level.revparse(
+            new_sha1, object_type="tree"
+        )
+
+        if old_head_tree == new_head_tree:
+            async with api.transaction.start(critic) as transaction:
+                modifier = transaction.modifyReview(review)
+                pending_rebase = (
+                    await modifier.prepareRebase(history_rewrite=True)
+                ).subject
+        else:
+            integration = await review.integration
+            if integration:
+                target_branch = integration.target_branch
+                target_branch_head = await target_branch.head
+                new_upstream_sha1 = await repository.low_level.mergebase(
+                    new_sha1, target_branch_head.sha1
+                )
+
+                async with api.transaction.start(critic) as transaction:
+                    modifier = transaction.modifyReview(review)
+                    pending_rebase = (
+                        await modifier.prepareRebase(new_upstream=new_upstream_sha1)
+                    ).subject
+
     if pending_rebase:
         error_base = "conflicts with pending rebase: "
 
@@ -103,7 +133,7 @@ async def validate_review_update(
             actual_new_upstream = await repository.low_level.revparse(new_sha1 + "^")
             branch_commits = await branch.commits
 
-            if actual_new_upstream in branch_commits:
+            if branch_commits.contains(actual_new_upstream):
                 return ValidateError(
                     error_base
                     + "new upstream commit %s is part of the review"
@@ -113,11 +143,11 @@ async def validate_review_update(
                     "detected new upstream commit does not make sense.",
                 )
 
-            if actual_new_upstream in await branch_commits.filtered_tails:
+            if actual_new_upstream in (await branch_commits.filtered_tails):
                 return ValidateError(
                     error_base
                     + "new upstream commit %s is already an upstream commit"
-                    % actual_new_upstream[:8],
+                    % actual_new_upstream[:8],  # type: ignore
                     "Rebasing the changes onto a commit that they are "
                     "already based on is not meaningful, unless you are "
                     "performing a history rewrite. If so, please cancel "

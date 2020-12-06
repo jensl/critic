@@ -46,50 +46,48 @@ async def replay_rebase(
     if not os.path.isdir(worktrees_dir):
         os.mkdir(worktrees_dir, 0o700)
 
-    low_level = gitaccess.GitRepository.direct(repository.path)
-    low_level.set_user_details("Critic System", api.critic.getSystemEmail())
+    with repository.withSystemUserDetails() as low_level:
+        message = f"replay of rebase of {branch.name} onto {new_upstream.sha1}"
 
-    message = f"replay of rebase of {branch.name} onto {new_upstream.sha1}"
-
-    output = await low_level.run(
-        "commit-tree", old_head.tree, "-p", old_upstream.sha1, stdin_data=message
-    )
-    squash_sha1 = output.decode().strip()
-
-    with tempfile.TemporaryDirectory(dir=worktrees_dir) as worktree_dir:
-        await low_level.run(
-            "worktree", "add", "--detach", worktree_dir, new_upstream.sha1
+        output = await low_level.run(
+            "commit-tree", old_head.tree, "-p", old_upstream.sha1, stdin_data=message
         )
+        squash_sha1 = output.decode().strip()
 
-        low_level.set_worktree_path(worktree_dir)
-
-        try:
-            await low_level.run("cherry-pick", "--allow-empty", squash_sha1)
-        except gitaccess.GitProcessError:
-            message += "\n\nunmerged paths:\n" + "\n".join(
-                await list_unmerged_paths(low_level)
+        with tempfile.TemporaryDirectory(dir=worktrees_dir) as worktree_dir:
+            await low_level.run(
+                "worktree", "add", "--detach", worktree_dir, new_upstream.sha1
             )
 
-            # Merge conflicts is fine; we aim to visualize them, so just go
-            # ahead and commit anyway.
-            await low_level.run("commit", "-a", "-m", message)
+            low_level.set_worktree_path(worktree_dir)
 
-        replay_sha1 = await low_level.revparse("HEAD", object_type="commit")
+            try:
+                await low_level.run("cherry-pick", "--allow-empty", squash_sha1)
+            except gitaccess.GitProcessError:
+                message += "\n\nunmerged paths:\n" + "\n".join(
+                    await list_unmerged_paths(low_level)
+                )
 
-        logger.debug(
-            "created replay %s for rebase of %s onto %s",
-            replay_sha1,
-            branch.name,
-            new_upstream.sha1,
-        )
+                # Merge conflicts is fine; we aim to visualize them, so just go
+                # ahead and commit anyway.
+                await low_level.run("commit", "-a", "-m", message)
 
-        await low_level.updateref(
-            "refs/keepalive/" + replay_sha1, new_value=replay_sha1
-        )
+            replay_sha1 = await low_level.revparse("HEAD", object_type="commit")
 
-    low_level.set_worktree_path(None)
+            logger.debug(
+                "created replay %s for rebase of %s onto %s",
+                replay_sha1,
+                branch.name,
+                new_upstream.sha1,
+            )
 
-    await low_level.run("worktree", "prune")
-    await insert_commits(repository, replay_sha1)
+            await low_level.updateref(
+                "refs/keepalive/" + replay_sha1, new_value=replay_sha1
+            )
 
-    return await api.commit.fetch(repository, sha1=replay_sha1)
+        low_level.set_worktree_path(None)
+
+        await low_level.run("worktree", "prune")
+        await insert_commits(repository, replay_sha1)
+
+        return await api.commit.fetch(repository, sha1=replay_sha1)

@@ -19,7 +19,7 @@ import { ReviewID, UserID } from "../resources/types"
 import ReviewFilter from "../resources/reviewfilter"
 import { AsyncThunk } from "../state"
 
-interface ReviewFilterInput {
+export interface ReviewFilterInput {
   subject?: UserID | string
   type: "reviewer" | "watcher" | "ignored"
   path: string
@@ -29,7 +29,7 @@ interface ReviewFilterInput {
 }
 
 export const createReviewFilters = (
-  reviewFilters: ReviewFilterInput[]
+  reviewFilters: ReviewFilterInput[],
 ): AsyncThunk<ReviewFilter[]> =>
   createResources("reviewfilters", reviewFilters, {
     include: ["reviews", "changesets", "reviewablefilechanges"],

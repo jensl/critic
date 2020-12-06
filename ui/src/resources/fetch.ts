@@ -18,7 +18,7 @@ import {
   method,
   payload,
 } from "./requestoptions"
-import { sorted } from "../utils"
+import { any, sorted } from "../utils"
 
 export type ErrorCode = "BAD_BRANCH_NAME" | "MERGE_COMMIT"
 
@@ -81,7 +81,7 @@ const mergeOptions = (current: RequestOptions, next: RequestOptions) => {
 
 const makeRequest = <ResourceName extends keyof ResourceTypes>(
   resourceName: ResourceName,
-  optionList: RequestOptions[],
+  optionsList: RequestOptions[],
 ): FetchJSONParams => {
   const {
     defaultParams,
@@ -90,18 +90,28 @@ const makeRequest = <ResourceName extends keyof ResourceTypes>(
     completeRequest,
   } = resourceDefinitions[resourceName]
 
-  if (defaultParams) optionList.push(withParameters(defaultParams))
-  if (defaultInclude) optionList.push(include(...defaultInclude))
-  if (defaultExcludeFields)
-    Object.entries(defaultExcludeFields).forEach(([resourceName, fields]) =>
-      optionList.push(
-        excludeFields(resourceName as keyof ResourceTypes, fields),
-      ),
-    )
+  const finalOptionsList = []
+
+  const disableDefaults = any(
+    optionsList,
+    ({ disableDefaults }) => !!disableDefaults,
+  )
+
+  if (!disableDefaults) {
+    if (defaultParams) finalOptionsList.push(withParameters(defaultParams))
+    if (defaultInclude) finalOptionsList.push(include(...defaultInclude))
+    if (defaultExcludeFields)
+      Object.entries(defaultExcludeFields).forEach(([resourceName, fields]) =>
+        finalOptionsList.push(
+          excludeFields(resourceName as keyof ResourceTypes, fields),
+        ),
+      )
+  }
 
   const options: RequestOptions = {}
 
-  optionList.reduce(mergeOptions, options)
+  finalOptionsList.push(...optionsList)
+  finalOptionsList.reduce(mergeOptions, options)
 
   const { method, payload } = options
 
@@ -366,7 +376,7 @@ export const createResources = <ResourceName extends keyof ResourceTypes>(
   primaryResource(resourceName, [
     ...options,
     method("POST"),
-    payload(resources),
+    payload({ [resourceName]: resources }),
   ])
 
 export const createResource = <ResourceName extends keyof ResourceTypes>(

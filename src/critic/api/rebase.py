@@ -183,3 +183,4 @@ fetchAllImpl: FunctionRef[
 
 resource_name = "rebases"
 table_name = "reviewrebases"
+value_class = (Rebase, HistoryRewrite, MoveRebase)

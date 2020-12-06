@@ -23,13 +23,14 @@ import { assertNotNull } from "../debug"
 import { ChangesetID, FileID, RepositoryID, ReviewID } from "../resources/types"
 import { waitForCompletionLevel } from "../utils/Changeset"
 import { withData } from "../resources/requestoptions"
+import { filteredSet } from "../utils/Functions"
 
 export const loadFileDiff = (
   changesetID: ChangesetID,
   fileID: FileID,
-): AsyncThunk<FileDiff | null> => async (dispatch, getState) => {
-  if (getState().resource.filediffs.has(`${changesetID}:${fileID}`)) return null
-  return (await dispatch(loadFileDiffs([fileID], { changesetID })))[0]
+): AsyncThunk<void> => async (dispatch, getState) => {
+  if (!getState().resource.filediffs.has(`${changesetID}:${fileID}`))
+    await dispatch(loadFileDiffs([fileID], { changesetID }))
 }
 
 export const loadFileDiffs = (
@@ -45,13 +46,21 @@ export const loadFileDiffs = (
     repositoryID?: RepositoryID
     reviewID?: ReviewID
   },
-): AsyncThunk<FileDiff[]> => async (dispatch) => {
+): AsyncThunk<void> => async (dispatch, getState) => {
   let isComplete = false
 
   if (changeset) {
     changesetID = changeset.id
     isComplete = changeset.completionLevel.has("full")
   }
+
+  const filediffs = getState().resource.filediffs
+  const neededFileIDs = filteredSet(
+    fileIDs,
+    (fileID) => !filediffs.has(`${changesetID}:${fileID}`),
+  )
+
+  if (neededFileIDs.size === 0) return
 
   const channel = !isComplete
     ? await dispatch(Channel.subscribe(`changesets/${changesetID}`))
@@ -60,7 +69,7 @@ export const loadFileDiffs = (
   const { status, primary } = await dispatch(
     fetch(
       "filediffs",
-      withArguments([...fileIDs]),
+      withArguments([...neededFileIDs]),
       withData({
         changeset,
         changesetID,
@@ -75,10 +84,8 @@ export const loadFileDiffs = (
 
     await waitForCompletionLevel(channel, { changeset })
 
-    return await dispatch(
-      loadFileDiffs(fileIDs, { changesetID, repositoryID, reviewID }),
+    await dispatch(
+      loadFileDiffs(neededFileIDs, { changesetID, repositoryID, reviewID }),
     )
   }
-
-  return primary
 }

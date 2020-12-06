@@ -20,6 +20,7 @@ import datetime
 from typing import (
     Awaitable,
     Callable,
+    Collection,
     Optional,
     Iterable,
     Sequence,
@@ -53,24 +54,24 @@ class InvalidIds(api.InvalidIdsError, Error):
 
 EventType = Literal[
     "created",
-    "ready",
     "published",
     "closed",
     "dropped",
     "reopened",
     "pinged",
+    "assignments",
     "branchupdate",
     "batch",
 ]
 EVENT_TYPES: FrozenSet[EventType] = frozenset(
     [
         "created",
-        "ready",
         "published",
         "closed",
         "dropped",
         "reopened",
         "pinged",
+        "assignments",
         "branchupdate",
         "batch",
     ]
@@ -78,12 +79,12 @@ EVENT_TYPES: FrozenSet[EventType] = frozenset(
 """Review event types.
 
 - `created` The review was created.
-- `ready` The review is "ready" (its initial commits have been processed).
 - `published` The review was published.
 - `closed` The review was closed.
 - `dropped` The review was dropped.
 - `reopened` The review was reopened.
 - `pinged` The review was pinged.
+- `assignments` Reviewers were assigned or unassigned.
 - `branchupdate` The review branch was updated.
 - `batch` A batch of changes (e.g. comments or marking of code as reviewed)
         were published."""
@@ -163,6 +164,14 @@ class ReviewEvent(api.APIObject):
         if self.type != "ping":
             return None
         return await api.reviewping.fetch(self.critic, event=self)
+
+    @property
+    async def users(self) -> Collection[api.user.User]:
+        """Users associated with the review at the time of this event.
+
+        Includes users associated to the review due to this event and any event
+        occuring before it."""
+        return await self._impl.getUsers(self.critic)
 
 
 async def fetch(critic: api.critic.Critic, event_id: int) -> ReviewEvent:

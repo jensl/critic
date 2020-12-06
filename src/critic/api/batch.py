@@ -85,9 +85,14 @@ class Batch(api.APIObject):
         return self._impl == other._impl
 
     @property
-    def id(self) -> int:
+    def id(self) -> Optional[int]:
         """The batch's unique id, or None for unsubmitted changes"""
         return self._impl.id
+
+    @property
+    def is_unpublished(self) -> bool:
+        """True if the batch represents unpublished changes"""
+        return self.id is None
 
     @property
     async def is_empty(self) -> bool:

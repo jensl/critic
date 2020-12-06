@@ -21,31 +21,31 @@ import logging
 logger = logging.getLogger(__name__)
 
 from critic import api
-from ..item import Delete, Insert
-from ..base import TransactionBase
 from . import ReviewUserTag, has_unpublished_changes
+from .updatewouldbeacceptedtag import UpdateWouldBeAcceptedTag
+from ..item import Delete, Insert
+from ..modifier import Modifier
 
 
 async def mark_change_as_pending(
-    transaction: TransactionBase, rfc: api.reviewablefilechange.ReviewableFileChange
+    modifier: Modifier[api.review.Review],
+    rfc: api.reviewablefilechange.ReviewableFileChange,
 ) -> None:
+    transaction = modifier.transaction
     critic = transaction.critic
 
     draft_changes = await rfc.draft_changes
-    if draft_changes and not draft_changes.new_is_reviewed:
-        raise api.reviewablefilechange.Error(
-            "Specified file change is already marked as pending", code="ALREADY_PENDING"
-        )
-
     reviewed_by = await rfc.reviewed_by
-    if critic.effective_user not in reviewed_by:
+
+    if draft_changes:
+        if not draft_changes.new_is_reviewed:
+            raise api.reviewablefilechange.Error(
+                "Specified file change is already marked as pending",
+                code="ALREADY_PENDING",
+            )
+    elif critic.effective_user not in reviewed_by:
         raise api.reviewablefilechange.Error(
             "Specified file change is already marked as pending", code="ALREADY_PENDING"
-        )
-
-    if critic.effective_user not in await rfc.assigned_reviewers:
-        raise api.reviewablefilechange.Error(
-            "Specified file change is not assigned to current user"
         )
 
     transaction.tables.add("reviewfilechanges")
@@ -74,3 +74,5 @@ async def mark_change_as_pending(
         "unpublished",
         has_unpublished_changes,
     )
+
+    transaction.finalizers.add(UpdateWouldBeAcceptedTag(modifier))

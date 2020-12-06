@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 from critic import api
 from critic import dbaccess
-from . import CreateReviewEvent
+from . import CreateReviewEvent, commits_behind_target_branch
 from ..item import InsertMany
 from ..base import TransactionBase
 from ..branch import validate_commit_set
@@ -65,16 +65,8 @@ class CreateReview(CreateAPIObject[api.review.Review], api_module=api.review):
                     f"Invalid target branch: {target_branch.name} tracks "
                     f"{tracked_branch.source.name} in {tracked_branch.source.url}"
                 ) from None
-            upstreams = await commits.filtered_tails
-            if len(upstreams) != 1:
-                raise api.review.Error("Branch has multiple upstream commits")
-            (upstream,) = upstreams
-            if not await upstream.isAncestorOf(await target_branch.head):
-                raise api.review.Error("Branch is not based on target branch")
-            commits_behind = await repository.low_level.revlist(
-                include=[(await target_branch.head).sha1],
-                exclude=[head.sha1],
-                count=True,
+            commits_behind = await commits_behind_target_branch(
+                repository, head, target_branch, commits
             )
         else:
             commits_behind = None
@@ -99,9 +91,11 @@ class CreateReview(CreateAPIObject[api.review.Review], api_module=api.review):
         await transaction.execute(
             InsertMany(
                 "reviewusers",
-                ["review", "uid", "owner"],
+                ["review", "event", "uid", "owner"],
                 (
-                    dbaccess.parameters(review=review, uid=owner, owner=True)
+                    dbaccess.parameters(
+                        review=review, event=event, uid=owner, owner=True
+                    )
                     for owner in owners
                 ),
             )

@@ -28,12 +28,8 @@ from .changedfile import ChangedFile
 
 from ...syntaxhighlight.language import identify_language_from_path
 
-from critic import api
-from critic import dbaccess
-from critic import textutils
 from critic import pubsub
-from critic.dbaccess import Query
-from critic.gitaccess import GitBlob, SHA1
+from critic.gitaccess import SHA1
 
 
 def syntax_highlight_old(changed_file: ChangedFile) -> bool:
@@ -81,109 +77,24 @@ class SyntaxHighlightFile(RequestJob[protocol.SyntaxHighlighFile.Response]):
     async def issue_requests(
         self, client: pubsub.Client
     ) -> Sequence[pubsub.OutgoingRequest]:
-        async with self.group.repository() as repository:
-            source = textutils.decode(
-                (
-                    await repository.fetchone(
-                        self.sha1, object_factory=GitBlob, wanted_object_type="blob"
-                    )
-                ).data
-            )
-
+        if self.language_id is None:
+            return []
         pubsub_client = await self.service.pubsub_client
-
         return [
             await pubsub_client.request(
                 pubsub.Payload(
-                    protocol.SyntaxHighlighFile.Request(source, self.language_label)
+                    protocol.SyntaxHighlighFile.Request(
+                        self.group.repository_id,
+                        self.group.repository_path,
+                        self.sha1,
+                        self.language_id,
+                        self.language_label,
+                        self.conflicts,
+                    )
                 ),
                 pubsub.ChannelName("syntaxhighlightfile"),
             )
         ]
-
-    async def update_database(self, critic: api.critic.Critic) -> None:
-        if not self.responses:
-            return
-        [response] = self.responses
-        lines = response.lines
-        contexts = response.contexts
-        async with critic.transaction() as cursor:
-            await cursor.execute(
-                """INSERT
-                     INTO highlightfiles (
-                            repository, sha1, language, conflicts
-                          ) VALUES (
-                            {repository_id}, {sha1}, {language_id}, {conflicts}
-                          ) ON CONFLICT DO NOTHING""",
-                repository_id=self.group.repository_id,
-                sha1=self.sha1,
-                language_id=self.language_id,
-                conflicts=self.conflicts,
-            )
-            async with Query[int](
-                cursor,
-                """SELECT id
-                     FROM highlightfiles
-                    WHERE repository={repository_id}
-                      AND sha1={sha1}
-                      AND language={language_id}
-                      AND conflicts={conflicts}""",
-                repository_id=self.group.repository_id,
-                sha1=self.sha1,
-                language_id=self.language_id,
-                conflicts=self.conflicts,
-            ) as result:
-                file_id = await result.scalar()
-            await cursor.execute(
-                """UPDATE highlightfiles
-                      SET highlighted=TRUE,
-                          requested=FALSE
-                    WHERE id={file_id}""",
-                file_id=file_id,
-            )
-            await cursor.execute(
-                """DELETE
-                     FROM highlightlines
-                    WHERE file={file_id}""",
-                file_id=file_id,
-            )
-            await cursor.executemany(
-                """INSERT
-                     INTO highlightlines (
-                            file, line, data
-                          ) VALUES (
-                            {file_id}, {index}, {data}
-                          )""",
-                [
-                    dict(file_id=file_id, index=index, data=data)
-                    for index, data in enumerate(lines)
-                ],
-            )
-            await cursor.execute(
-                """DELETE
-                     FROM codecontexts
-                    WHERE sha1={sha1}
-                      AND language={language_id}""",
-                sha1=self.sha1,
-                language_id=self.language_id,
-            )
-            await cursor.executemany(
-                """INSERT INTO codecontexts (
-                     sha1, language, first_line, last_line, context
-                   ) VALUES (
-                     {sha1}, {language_id}, {first_line}, {last_line}, {context}
-                   )""",
-                (
-                    dbaccess.parameters(
-                        sha1=self.sha1,
-                        language_id=self.language_id,
-                        first_line=first_line,
-                        last_line=last_line,
-                        context=context,
-                    )
-                    for first_line, last_line, context in contexts
-                ),
-            )
 
     @staticmethod
     def for_files(

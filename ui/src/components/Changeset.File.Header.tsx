@@ -1,6 +1,7 @@
 import React, { FunctionComponent } from "react"
 import clsx from "clsx"
 
+import Checkbox from "@material-ui/core/Checkbox"
 import { makeStyles } from "@material-ui/core/styles"
 import ChevronRightIcon from "@material-ui/icons/ChevronRight"
 
@@ -9,6 +10,10 @@ import { countChangedLines } from "../utils/FileDiff"
 import File from "../resources/file"
 import FileChange from "../resources/filechange"
 import FileDiff from "../resources/filediff"
+import ReviewableFileChange from "../resources/reviewablefilechange"
+import { all, useSignedInUser } from "../utils"
+import { useDispatch } from "../store"
+import { setIsReviewed } from "../actions/reviewableFilechange"
 
 const useStyles = makeStyles((theme) => ({
   changesetFileHeader: {
@@ -61,6 +66,11 @@ const useStyles = makeStyles((theme) => ({
     fontWeight: 500,
     flexGrow: 3,
   },
+  state: {
+    flexGrow: 0,
+  },
+
+  checkbox: { padding: 0 },
 }))
 
 type Props = {
@@ -68,6 +78,7 @@ type Props = {
   file: File
   fileChange?: FileChange
   fileDiff?: FileDiff
+  rfcs: ReadonlySet<ReviewableFileChange> | null
   isExpanded: boolean
   expandFile: () => void
   collapseFile: () => void
@@ -78,11 +89,14 @@ const ChangesetFileHeader: FunctionComponent<Props> = ({
   file,
   fileChange,
   fileDiff,
+  rfcs,
   isExpanded,
   expandFile,
   collapseFile,
 }) => {
   const classes = useStyles()
+  const dispatch = useDispatch()
+  const signedInUser = useSignedInUser()
   let deleted = false
   let added = false
   if (fileChange) {
@@ -97,6 +111,11 @@ const ChangesetFileHeader: FunctionComponent<Props> = ({
     insertedLines = `+${inserted}`
   }
   const toggleExpanded = isExpanded ? collapseFile : expandFile
+  const hasReviewed =
+    !!signedInUser &&
+    !!rfcs &&
+    all(rfcs, (rfc) => rfc.isReviewedBy(signedInUser.id))
+
   return (
     <div
       className={clsx(className, classes.changesetFileHeader)}
@@ -123,6 +142,21 @@ const ChangesetFileHeader: FunctionComponent<Props> = ({
       </span>
       <span className={classes.insertedLines}>{!deleted && insertedLines}</span>
       <span className={classes.path}>{file.path}</span>
+      <span className={classes.state}>
+        {rfcs && (
+          <Checkbox
+            onMouseDown={(ev) => ev.stopPropagation()}
+            onClick={(ev) =>
+              dispatch(
+                setIsReviewed(rfcs, (ev.target as HTMLInputElement).checked),
+              )
+            }
+            checked={hasReviewed}
+            className={classes.checkbox}
+            color="primary"
+          />
+        )}
+      </span>
     </div>
   )
 }

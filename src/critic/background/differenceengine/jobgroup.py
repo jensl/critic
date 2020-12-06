@@ -20,7 +20,19 @@ import itertools
 import logging
 import time
 from abc import ABC, abstractmethod
-from typing import Collection, Iterable, List, Optional, Set
+from typing import (
+    Any,
+    Collection,
+    Iterable,
+    Iterator,
+    List,
+    Optional,
+    Sequence,
+    Set,
+    cast,
+)
+
+from critic.api import repository
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +41,7 @@ from critic import gitaccess
 
 from . import Key
 from .job import Job, RunnerType, ServiceType
+from .requestjob import RequestJob
 from .languageids import LanguageIds
 
 
@@ -41,7 +54,7 @@ class JobGroup(ABC):
     has_queries: Set[Job]
     __processed: Set[Job]
     failed: Set[Key]
-    repository_path: Optional[str]
+    __repository_path: Optional[str]
 
     def __init__(self, runner: RunnerType, key: Key, repository_id: int):
         self.__runner = runner
@@ -57,7 +70,7 @@ class JobGroup(ABC):
         self.failed = set()
         self.started = time.time()
         self.timestamp = time.time()
-        self.repository_path = None
+        self.__repository_path = None
 
     def __hash__(self) -> int:
         return hash(self.key)
@@ -113,17 +126,29 @@ class JobGroup(ABC):
         for added_job in jobs:
             logger.debug("  %r", added_job)
         self.not_started.update(jobs)
-        self.not_started_queue = sorted(self.not_started, key=lambda job: job.priority)
+        self.not_started_queue = sorted(
+            filter(lambda job: not isinstance(job, RequestJob), self.not_started),
+            key=lambda job: job.priority,
+        )
         return True
 
     def get_job_to_start(self) -> Optional[Job]:
-        if not self.not_started:
+        if not self.not_started_queue:
             return None
         self.timestamp = time.time()
         job = self.not_started_queue.pop(0)
         self.not_started.remove(job)
         self.running.add(job)
         return job
+
+    def get_request_jobs(self) -> Collection[RequestJob[Any]]:
+        request_jobs = set()
+        for job in self.not_started:
+            if isinstance(job, RequestJob):
+                request_jobs.add(cast(RequestJob[Any], job))
+        self.not_started.difference_update(request_jobs)
+        self.running.update(request_jobs)
+        return request_jobs
 
     @abstractmethod
     def start(self) -> None:
@@ -159,6 +184,15 @@ class JobGroup(ABC):
     def conflicts(self) -> bool:
         raise Exception("not a changeset")
 
+    @property
+    def repository_path(self) -> str:
+        assert self.__repository_path is not None
+        return self.__repository_path
+
+    @repository_path.setter
+    def repository_path(self, value: str) -> None:
+        self.__repository_path = value
+
     def repository(self) -> gitaccess.GitRepository:
-        assert self.repository_path is not None
-        return gitaccess.GitRepository.direct(self.repository_path)
+        assert self.__repository_path is not None
+        return gitaccess.GitRepository.direct(self.__repository_path)

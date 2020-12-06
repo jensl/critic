@@ -85,6 +85,18 @@ CREATE TABLE commentchainchanges
 CREATE INDEX commentchainchanges_batch ON commentchainchanges(batch);
 CREATE INDEX commentchainchanges_chain ON commentchainchanges(chain);
 
+CREATE VIEW effectivecommentchains (review, chain, uid, type, state ) AS
+     SELECT cc.review, ccc.chain, ccc.uid,
+            CASE WHEN ccc.from_type=cc.type THEN ccc.from_type
+                 ELSE cc.type
+            END,
+            CASE WHEN ccc.from_state=cc.state THEN ccc.to_state
+                 ELSE cc.state
+            END
+       FROM commentchains AS cc
+       JOIN commentchainchanges AS ccc ON (ccc.chain=cc.id)
+      WHERE ccc.state='draft';
+
 CREATE TYPE commentchainlinesstate AS ENUM
   ( 'draft',
     'current'

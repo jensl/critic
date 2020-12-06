@@ -14,6 +14,11 @@ const useStyles = makeStyles((theme) => ({
     justifyContent: "center",
     alignItems: "center",
     padding: `${theme.spacing(1)}px ${theme.spacing(2)}px`,
+    fontWeight: 700,
+    //display: "inline-block",
+    //width: "50%",
+    //marginLeft: "auto",
+    //marginRight: "auto",
   },
 }))
 

@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import logging
 import re
-from typing import Dict, Literal, Optional, TypedDict
+from typing import Collection, Dict, Literal, Optional, TypedDict
 
 logger = logging.getLogger(__name__)
 
@@ -69,64 +69,102 @@ async def find_tracked_branch(
         return None
 
 
+class EmitOutput:
+    def __init__(
+        self,
+        pendingrefupdate_id: Optional[int],
+        output: Optional[str],
+        error: Optional[str] = None,
+    ):
+        self.pendingrefupdate_id = pendingrefupdate_id
+        self.output = output
+        self.error = error
+
+    @property
+    def table_names(self) -> Collection[str]:
+        return ("pendingrefupdateoutputs",)
+
+    async def __call__(
+        self,
+        transaction: api.transaction.TransactionBase,
+        cursor: dbaccess.TransactionCursor,
+    ) -> None:
+        if self.pendingrefupdate_id is None:
+            return
+        output = self.output
+        if self.error is not None:
+            async with dbaccess.Query[int](
+                cursor,
+                """SELECT updater
+                    FROM pendingrefupdates
+                    WHERE id={pendingrefupdate_id}""",
+                pendingrefupdate_id=self.pendingrefupdate_id,
+            ) as result:
+                try:
+                    updater_id = await result.scalar()
+                except dbaccess.ZeroRowsInResult:
+                    # See comment below.
+                    return
+            updater: Optional[api.user.User]
+            if updater_id is not None:
+                updater = await api.user.fetch(transaction.critic, updater_id)
+            else:
+                updater = None
+            if not updater or updater.hasRole("developer"):
+                output = self.error
+        if (output and output.strip()) or self.error:
+            # It's possible that the row in |pendingrefupdate| has already been
+            # deleted, so use INSERT INTO/SELECT to avoid violating constraints
+            # when inserting rows into |pendingrefupdateoutputs|.
+            await cursor.execute(
+                """INSERT
+                    INTO pendingrefupdateoutputs (pendingrefupdate, output)
+                SELECT id, {output}
+                    FROM pendingrefupdates
+                    WHERE id={pendingrefupdate_id}""",
+                output=output,
+                pendingrefupdate_id=self.pendingrefupdate_id,
+            )
+
+
 async def emit_output(
     critic: api.critic.Critic,
     pendingrefupdate_id: Optional[int],
     output: Optional[str],
     error: Optional[str] = None,
 ) -> None:
-    if pendingrefupdate_id is None:
-        return
-    if error is not None:
-        async with critic.query(
-            """SELECT updater
-                 FROM pendingrefupdates
-                WHERE id={pendingrefupdate_id}""",
-            pendingrefupdate_id=pendingrefupdate_id,
-        ) as result:
-            try:
-                updater_id = await result.scalar()
-            except dbaccess.ZeroRowsInResult:
-                # See comment below.
-                return
-        updater: Optional[api.user.User]
-        if updater_id is not None:
-            updater = await api.user.fetch(critic, updater_id)
-        else:
-            updater = None
-        if not updater or updater.hasRole("developer"):
-            output = error
-    if (output and output.strip()) or error:
-        async with critic.transaction() as cursor:
-            # It's possible that the row in |pendingrefupdate| has already been
-            # deleted, so use INSERT INTO/SELECT to avoid violating constraints
-            # when inserting rows into |pendingrefupdateoutputs|.
-            await cursor.execute(
-                """INSERT
-                     INTO pendingrefupdateoutputs (pendingrefupdate, output)
-                   SELECT id, {output}
-                     FROM pendingrefupdates
-                    WHERE id={pendingrefupdate_id}""",
-                output=output,
-                pendingrefupdate_id=pendingrefupdate_id,
-            )
+    async with api.transaction.start(critic) as transaction:
+        await transaction.execute(EmitOutput(pendingrefupdate_id, output, error))
 
 
-async def set_pendingrefupdate_state(
-    critic: api.critic.Critic,
-    pendingrefupdate_id: Optional[int],
-    from_state: PendingRefUpdateState,
-    to_state: PendingRefUpdateState,
-) -> None:
-    if pendingrefupdate_id is None:
-        return
-    async with critic.transaction() as cursor:
+class SetPendingRefUpdateState:
+    def __init__(
+        self,
+        pendingrefupdate_id: Optional[int],
+        from_state: PendingRefUpdateState,
+        to_state: PendingRefUpdateState,
+    ):
+        self.pendingrefupdate_id = pendingrefupdate_id
+        self.from_state = from_state
+        self.to_state = to_state
+
+    @property
+    def table_names(self) -> Collection[str]:
+        return ("pendingrefupdates",)
+
+    async def __call__(
+        self,
+        transaction: api.transaction.TransactionBase,
+        cursor: dbaccess.TransactionCursor,
+    ) -> None:
+        if self.pendingrefupdate_id is None:
+            return
         await cursor.execute(
             """UPDATE pendingrefupdates
                   SET state={to_state}
                 WHERE id={pendingrefupdate_id}
                   AND state={from_state}""",
-            pendingrefupdate_id=pendingrefupdate_id,
-            from_state=from_state,
-            to_state=to_state,
+            pendingrefupdate_id=self.pendingrefupdate_id,
+            from_state=self.from_state,
+            to_state=self.to_state,
         )

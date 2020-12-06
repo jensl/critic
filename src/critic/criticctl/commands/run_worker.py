@@ -21,17 +21,21 @@ import asyncio
 import functools
 import logging
 import signal
-from typing import Any, Callable, List,  Tuple, cast
+from typing import Any, Callable, List, Tuple, cast
 
 logger = logging.getLogger(__name__)
 
 from critic import api
+from critic import dbaccess
 from critic import pubsub
 from critic.background.differenceengine.protocol import (
     AnalyzeChangedLines,
     SyntaxHighlighFile,
 )
+from critic.background.gitaccessor import GitRepositoryProxy
+from critic.gitaccess import GitBlob
 from critic.syntaxhighlight.generate import LanguageNotSupported, generate
+from critic import textutils
 
 name = "run-worker"
 title = "Run worker"
@@ -48,17 +52,110 @@ async def handle_syntaxhighlightfile(
 
     highlight_request = cast(SyntaxHighlighFile.Request, request.payload)
 
-    source = highlight_request.source
-    language = highlight_request.language
+    async with GitRepositoryProxy.make(highlight_request.repository_path) as repository:
+        source = textutils.decode(
+            (
+                await repository.fetchone(
+                    highlight_request.sha1,
+                    object_factory=GitBlob,
+                    wanted_object_type="blob",
+                )
+            ).data
+        )
 
-    logger.info("%s: handle_syntaxhighlight: language=%s", request.request_id, language)
+    logger.debug(
+        "%s: handle_syntaxhighlight: language=%s",
+        request.request_id,
+        highlight_request.language_label,
+    )
 
     try:
-        lines, contexts = await loop.run_in_executor(None, generate, source, language)
+        lines, contexts = await loop.run_in_executor(
+            None, generate, source, highlight_request.language_label
+        )
     except LanguageNotSupported:
-        raise Error(f"{language}: language not supported")
-    else:
-        return SyntaxHighlighFile.Response(lines, contexts)
+        raise Error(f"{highlight_request.language_label}: language not supported")
+
+    async with api.critic.startSession(for_system=True) as critic:
+        async with critic.transaction() as cursor:
+            await cursor.execute(
+                """INSERT
+                     INTO highlightfiles (
+                            repository, sha1, language, conflicts
+                          ) VALUES (
+                            {repository_id}, {sha1}, {language_id}, {conflicts}
+                          ) ON CONFLICT DO NOTHING""",
+                repository_id=highlight_request.repository_id,
+                sha1=highlight_request.sha1,
+                language_id=highlight_request.language_id,
+                conflicts=highlight_request.conflicts,
+            )
+            async with dbaccess.Query[int](
+                cursor,
+                """SELECT id
+                     FROM highlightfiles
+                    WHERE repository={repository_id}
+                      AND sha1={sha1}
+                      AND language={language_id}
+                      AND conflicts={conflicts}""",
+                repository_id=highlight_request.repository_id,
+                sha1=highlight_request.sha1,
+                language_id=highlight_request.language_id,
+                conflicts=highlight_request.conflicts,
+            ) as result:
+                file_id = await result.scalar()
+            await cursor.execute(
+                """UPDATE highlightfiles
+                      SET highlighted=TRUE,
+                          requested=FALSE
+                    WHERE id={file_id}""",
+                file_id=file_id,
+            )
+            await cursor.execute(
+                """DELETE
+                     FROM highlightlines
+                    WHERE file={file_id}""",
+                file_id=file_id,
+            )
+            await cursor.executemany(
+                """INSERT
+                     INTO highlightlines (
+                            file, line, data
+                          ) VALUES (
+                            {file_id}, {index}, {data}
+                          )""",
+                [
+                    dbaccess.parameters(file_id=file_id, index=index, data=data)
+                    for index, data in enumerate(lines)
+                ],
+            )
+            await cursor.execute(
+                """DELETE
+                     FROM codecontexts
+                    WHERE sha1={sha1}
+                      AND language={language_id}""",
+                sha1=highlight_request.sha1,
+                language_id=highlight_request.language_id,
+            )
+            await cursor.executemany(
+                """INSERT INTO codecontexts (
+                     sha1, language, first_line, last_line, context
+                   ) VALUES (
+                     {sha1}, {language_id}, {first_line}, {last_line}, {context}
+                   )""",
+                (
+                    dbaccess.parameters(
+                        sha1=highlight_request.sha1,
+                        language_id=highlight_request.language_id,
+                        first_line=first_line,
+                        last_line=last_line,
+                        context=context,
+                    )
+                    for first_line, last_line, context in contexts
+                ),
+            )
+
+    return SyntaxHighlighFile.Response(file_id)
 
 
 async def handle_analyzechangedlines(
@@ -73,14 +170,14 @@ async def handle_analyzechangedlines(
     old_lines = payload.old_lines
     new_lines = payload.new_lines
 
-    logger.info("%s: handle_analyzechangedlines", request.request_id)
+    logger.debug("%s: handle_analyzechangedlines", request.request_id)
 
     analysis = await loop.run_in_executor(None, analyzeChunk, old_lines, new_lines)
 
     if analysis is None:
-        logger.info("%s: no analysis: %r %r", request.request_id, old_lines, new_lines)
+        logger.debug("%s: no analysis: %r %r", request.request_id, old_lines, new_lines)
     else:
-        logger.info("%s: analysis: %r", request.request_id, analysis)
+        logger.debug("%s: analysis: %r", request.request_id, analysis)
 
     return AnalyzeChangedLines.Response(analysis)
 
@@ -95,7 +192,7 @@ class Handler:
         channel_name: pubsub.ChannelName,
         request: pubsub.IncomingRequest,
     ) -> None:
-        logger.info(
+        logger.debug(
             "%s: handle_request: channel_name=%r", request.request_id, channel_name
         )
 

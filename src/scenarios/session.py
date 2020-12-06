@@ -1,7 +1,6 @@
 from typing import AsyncIterator, Optional
 import aiohttp
 from contextlib import asynccontextmanager
-import json
 import logging
 
 logger = logging.getLogger(__name__)
@@ -9,7 +8,7 @@ logger = logging.getLogger(__name__)
 from .arguments import get as get_arguments
 from .backend import Backend
 
-DEFAULT_PASSWORD = "testing"
+DEFAULT_PASSWORD = "1234"
 
 
 @asynccontextmanager

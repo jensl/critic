@@ -12,6 +12,9 @@ import FileDiff, { MacroChunk } from "../resources/filediff"
 import { useSelector } from "../store"
 import { ChunkComments, getCommentsForChangeset } from "../selectors/fileDiff"
 import { useReview, useChangeset } from "../utils"
+import Changeset from "../resources/changeset"
+import { SelectionScope } from "../reducers/uiSelectionScope"
+import { pure } from "recompose"
 
 const useStyles = makeStyles((theme) => {
   const { diff, syntax, monospaceFont } = theme.critic
@@ -78,13 +81,6 @@ const useStyles = makeStyles((theme) => {
   }
 })
 
-type Props = {
-  className?: string
-  fileDiff?: FileDiff
-  variant: "unified" | "side-by-side"
-  comments: readonly ChunkComments[] | null
-}
-
 type SeparatorProps = {
   className?: string
   lineCount: number
@@ -104,20 +100,26 @@ const ChangesetDiffChunkSeparator: FunctionComponent<SeparatorProps> = ({
   </Button>
 )
 
-const ChangesetFileChanges: FunctionComponent<Props> = ({
-  className,
+type ChunksProps = {
+  classes: ReturnType<typeof useStyles>
+  changeset: Changeset
+  fileDiff: FileDiff
+  variant: "unified" | "side-by-side"
+  comments: readonly ChunkComments[] | null
+  selectionScope: SelectionScope | null
+  inView: boolean
+}
+
+const ChangesetFileChunks: FunctionComponent<ChunksProps> = ({
+  classes,
+  changeset,
   fileDiff,
   variant,
   comments,
+  selectionScope,
+  inView,
 }) => {
-  const classes = useStyles()
-  const { changeset } = useChangeset()
-  const [ref, inView] = useInView()
-  const selectionScope = useSelector((state) => state.ui.selectionScope)
-
-  if (!fileDiff) return null
-
-  if (fileDiff === null) return null
+  console.log("ChangesetFileChunks", { fileID: fileDiff.file })
   const ChangesetDiffChunk =
     variant === "side-by-side"
       ? ChangesetDiffChunk_SideBySide
@@ -147,16 +149,58 @@ const ChangesetFileChanges: FunctionComponent<Props> = ({
         chunk={chunk}
         comments={comments?.[index] || null}
         selectionScope={
-          selectionScope.scopeID === scopeID ? selectionScope : null
+          selectionScope?.scopeID === scopeID ? selectionScope : null
         }
         inView={inView}
       />,
     )
     previousChunk = chunk
   }
+
+  return <>{chunks}</>
+}
+
+const PureChangesetFileChunks = pure(ChangesetFileChunks)
+
+type Props = {
+  className?: string
+  fileDiff?: FileDiff
+  variant: "unified" | "side-by-side"
+  comments: readonly ChunkComments[] | null
+  isExpanded: boolean
+}
+
+const ChangesetFileChanges: FunctionComponent<Props> = ({
+  className,
+  fileDiff,
+  variant,
+  comments,
+  isExpanded,
+}) => {
+  const classes = useStyles()
+  const { changeset } = useChangeset()
+  const [ref, inView] = useInView()
+  const selectionScope = useSelector((state) => state.ui.selectionScope)
+
+  if (!fileDiff) return null
+
+  const thisSelectionScope = selectionScope.scopeID?.startsWith(
+    `chunk-${fileDiff.file}-`,
+  )
+    ? selectionScope
+    : null
+
   return (
     <div ref={ref} className={clsx(className, classes.changesetFileChanges)}>
-      {chunks}
+      <PureChangesetFileChunks
+        classes={classes}
+        changeset={changeset}
+        fileDiff={fileDiff}
+        variant={variant}
+        comments={comments}
+        selectionScope={thisSelectionScope}
+        inView={isExpanded && inView}
+      />
     </div>
   )
 }

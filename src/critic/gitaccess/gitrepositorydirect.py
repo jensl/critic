@@ -391,6 +391,8 @@ class GitRepositoryDirect(GitRepositoryImpl):
         flags: Collection[RevlistFlag],
     ) -> Union[Sequence[SHA1], int]:
         argv = ["rev-list"]
+        if count:
+            argv.append("--count")
         if offset is not None:
             argv.append("--skip=%d" % offset)
         if limit is not None:

@@ -82,6 +82,27 @@ export const joinPaths = (...components: string[]) => {
   return result
 }
 
+export const longestCommonPathPrefix = (paths: Iterable<string>) => {
+  let longestPrefix: string[] | null = null
+  for (const path of paths) {
+    if (!path.includes("/")) return null
+    const prefix = path.split("/")
+    prefix.pop()
+    if (longestPrefix === null) longestPrefix = prefix
+    else {
+      const limit = Math.max(prefix.length, longestPrefix.length)
+      let index = 0
+      while (index < limit)
+        if (prefix[index] !== longestPrefix[index]) break
+        else ++index
+      if (index === 0) return null
+      longestPrefix.splice(index)
+    }
+  }
+  if (!longestPrefix) return null
+  return longestPrefix.join("/") + "/"
+}
+
 export const maybeParseInt = (value: string) => {
   const valueAsInt = parseInt(value, 10)
   if (String(valueAsInt) === value) return valueAsInt

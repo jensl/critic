@@ -28,6 +28,7 @@ import {
   SetSelectedElementsAction,
   SelectionElementType,
 } from "."
+import { identicalSets } from "../utils/Functions"
 
 const setSelectionScope = (
   scopeID: string,
@@ -157,6 +158,10 @@ export const updateSelection = (x: number, y: number, isDown: boolean) => (
     scopeID,
     elements,
     elementIDs,
+    selectedIDs: currentSelectedIDs,
+    firstSelectedID: currentFirstSelectedID,
+    lastSelectedID: currentLastSelectedID,
+    isPending,
     isRangeSelecting,
     selectionAnchorID,
   } = state.ui.selectionScope
@@ -213,16 +218,23 @@ export const updateSelection = (x: number, y: number, isDown: boolean) => (
 
   if (newIsRangeSelecting || selectedIDs.size > 1 || !isDown) {
     const newIsPending = isDown
-    return dispatch(
-      setSelectedElements(
-        scopeID,
-        selectedIDs,
-        firstSelectedID,
-        lastSelectedID,
-        newIsPending,
-        newIsRangeSelecting,
-      ),
+    if (
+      isPending !== newIsPending ||
+      isRangeSelecting !== newIsRangeSelecting ||
+      currentFirstSelectedID !== firstSelectedID ||
+      currentLastSelectedID !== lastSelectedID ||
+      !identicalSets(currentSelectedIDs, selectedIDs)
     )
+      return dispatch(
+        setSelectedElements(
+          scopeID,
+          selectedIDs,
+          firstSelectedID,
+          lastSelectedID,
+          newIsPending,
+          newIsRangeSelecting,
+        ),
+      )
   }
 }
 

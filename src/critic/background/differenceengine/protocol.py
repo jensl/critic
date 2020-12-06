@@ -1,35 +1,24 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional, Sequence, Tuple
+from typing import Optional, Sequence
+
+from critic.gitaccess import SHA1
 
 
 class SyntaxHighlighFile:
     @dataclass
     class Request:
-        source: str
-        language: str
-
-        def __repr__(self) -> str:
-            return (
-                "SyntaxHighlightFile.Request("
-                f"source=[{len(self.source)} characters], "
-                f"language={self.language!r}"
-                ")"
-            )
+        repository_id: int
+        repository_path: str
+        sha1: SHA1
+        language_id: int
+        language_label: str
+        conflicts: bool
 
     @dataclass
     class Response:
-        lines: Sequence[bytes]
-        contexts: Sequence[Tuple[int, int, str]]
-
-        def __repr__(self) -> str:
-            return (
-                "SyntaxHighlightFile.Response("
-                f"lines=[{len(self.lines)} lines], "
-                f"contexts={self.contexts!r}"
-                ")"
-            )
+        file_id: int
 
 
 class AnalyzeChangedLines:

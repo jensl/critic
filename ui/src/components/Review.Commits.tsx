@@ -7,10 +7,16 @@ import { useReview } from "../utils"
 const ReviewCommits: FunctionComponent<{}> = () => {
   const review = useReview()
   if (!review) return null
+  const pathPrefix = `/review/${review.id}`
   return (
     <>
       {review.partitions.map((partition, index) => (
-        <Partition key={index} index={index} partition={partition} />
+        <Partition
+          key={index}
+          pathPrefix={pathPrefix}
+          index={index}
+          partition={partition}
+        />
       ))}
     </>
   )

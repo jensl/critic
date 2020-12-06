@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 from . import CreatedBatch, CreateReviewEvent
 from .updatereviewfiles import UpdateReviewFiles
 from .updatereviewtags import UpdateReviewTags
-from ..item import SubQuery, Update, Delete
+from ..item import Lock, SubQuery, Update, Delete
 from ..base import TransactionBase
 
 from critic import api
@@ -108,14 +108,22 @@ class PerformCommentChainsChanges:
 async def submit_changes(
     transaction: TransactionBase,
     review: api.review.Review,
+    unpublished_batch: api.batch.Batch,
     batch_comment: Optional[api.comment.Comment],
 ) -> api.batch.Batch:
     critic = transaction.critic
-    user = critic.effective_user
+    author = await unpublished_batch.author
 
-    unpublished_changes = await api.batch.fetchUnpublished(review)
+    # This mechanism is used (inside a SAVEPOINT) to calculate whether the
+    # review would be accepted after submitting changes. When doing so, the
+    # calculation will be performed for all review users (with unpublished
+    # changes) regardless of which user triggered the calculation.
+    if not transaction.has_savepoint:
+        api.PermissionDenied.raiseUnlessUser(critic, author)
 
-    if await unpublished_changes.is_empty:
+    if not unpublished_batch.is_unpublished:
+        raise api.batch.Error("Batch is not unpublished")
+    if await unpublished_batch.is_empty:
         raise api.batch.Error("No unpublished changes to submit")
 
     created_comments: List[api.comment.Comment] = []
@@ -124,7 +132,7 @@ async def submit_changes(
     if batch_comment:
         created_comments.append(batch_comment)
 
-    for comment in await unpublished_changes.created_comments:
+    for comment in await unpublished_batch.created_comments:
         if comment.text.strip():
             created_comments.append(comment)
         else:
@@ -133,28 +141,28 @@ async def submit_changes(
     logger.debug("created_comments=%r", created_comments)
     logger.debug("empty_comments=%r", empty_comments)
 
-    batch = await CreatedBatch(transaction, review).insert(
+    created_batch = await CreatedBatch(transaction, review).insert(
         event=await CreateReviewEvent.ensure(transaction, review, "batch"),
         comment=batch_comment,
     )
 
     await transaction.execute(
-        Update("commentchains").set(batch=batch).where(id=created_comments)
+        Update("commentchains").set(batch=created_batch).where(id=created_comments)
     )
     await transaction.execute(Delete("commentchains").where(id=empty_comments))
 
-    written_replies = list(await unpublished_changes.written_replies)
+    written_replies = list(await unpublished_batch.written_replies)
     await transaction.execute(
-        Update("comments").set(batch=batch).where(id=written_replies)
+        Update("comments").set(batch=created_batch).where(id=written_replies)
     )
 
     await transaction.execute(
         Update("commentchainlines").set(state="current").where(chain=created_comments)
     )
 
-    resolved_issues = await unpublished_changes.resolved_issues
-    reopened_issues = await unpublished_changes.reopened_issues
-    morphed_comments = await unpublished_changes.morphed_comments
+    resolved_issues = await unpublished_batch.resolved_issues
+    reopened_issues = await unpublished_batch.reopened_issues
+    morphed_comments = await unpublished_batch.morphed_comments
 
     # Lock all rows in |commentchains| that we may want to update.
     for issue in resolved_issues:
@@ -204,7 +212,7 @@ async def submit_changes(
            AND commentchainchanges.uid={user}
         """,
         issues=list(reopened_issues),
-        user=user,
+        user=author,
     ) as result:
         reopened_addressed_issue_ids = await result.scalars()
 
@@ -216,9 +224,9 @@ async def submit_changes(
     ):
         await transaction.execute(
             Update("commentchainchanges")
-            .set(batch=batch, state="performed")
+            .set(batch=created_batch, state="performed")
             .where(
-                uid=user,
+                uid=author,
                 state="draft",
                 chain=[
                     *resolved_issue_ids,
@@ -232,7 +240,7 @@ async def submit_changes(
         Update("commentchainlines")
         .set(state="current")
         .where(
-            uid=user,
+            uid=author,
             state="draft",
             chain=SubQuery(
                 """
@@ -242,7 +250,7 @@ async def submit_changes(
                    AND state='performed'
                    AND from_state='addressed'
                 """,
-                batch=batch,
+                batch=created_batch,
             ),
         )
     )
@@ -257,9 +265,9 @@ async def submit_changes(
             morphed_to_note.append(comment)
     await transaction.execute(
         Update("commentchainchanges")
-        .set(batch=batch, state="performed")
+        .set(batch=created_batch, state="performed")
         .where(
-            uid=user,
+            uid=author,
             state="draft",
             chain=SubQuery(
                 """
@@ -274,9 +282,9 @@ async def submit_changes(
     )
     await transaction.execute(
         Update("commentchainchanges")
-        .set(batch=batch, state="performed")
+        .set(batch=created_batch, state="performed")
         .where(
-            uid=user,
+            uid=author,
             state="draft",
             chain=SubQuery(
                 """
@@ -306,23 +314,26 @@ async def submit_changes(
     #     dict(batch=batch, new_state="open", old_state="closed",
     #          closed_by=None)))
 
-    await transaction.execute(PerformCommentChainsChanges(batch, user))
+    await transaction.execute(PerformCommentChainsChanges(created_batch, author))
 
-    reviewed_file_changes = await unpublished_changes.reviewed_file_changes
-    unreviewed_file_changes = await unpublished_changes.unreviewed_file_changes
+    reviewed_file_changes = await unpublished_batch.reviewed_file_changes
+    unreviewed_file_changes = await unpublished_batch.unreviewed_file_changes
+
+    logger.debug(f"{reviewed_file_changes=}")
+    logger.debug(f"{unreviewed_file_changes=}")
 
     # Lock all rows in |reviewfiles| that we may want to update.
     for rfc in reviewed_file_changes:
-        await transaction.lock("reviewfilechanges", file=rfc.id)
+        await transaction.execute(Lock(rfc))
     for rfc in unreviewed_file_changes:
-        await transaction.lock("reviewfilechanges", file=rfc.id)
+        await transaction.execute(Lock(rfc))
 
     # Mark valid draft changes as "performed".
     await transaction.execute(
         Update("reviewfilechanges")
-        .set(batch=batch, state="performed")
+        .set(batch=created_batch, state="performed")
         .where(
-            uid=user,
+            uid=author,
             state="draft",
             file=SubQuery(
                 """
@@ -342,7 +353,7 @@ async def submit_changes(
         Update("reviewuserfiles")
         .set(reviewed=True)
         .where(
-            uid=user,
+            uid=author,
             file=SubQuery(
                 """
                 SELECT file
@@ -351,7 +362,7 @@ async def submit_changes(
                    AND state='performed'
                    AND to_reviewed
                 """,
-                batch=batch,
+                batch=created_batch,
             ),
         )
     )
@@ -359,7 +370,7 @@ async def submit_changes(
         Update("reviewuserfiles")
         .set(reviewed=False)
         .where(
-            uid=user,
+            uid=author,
             file=SubQuery(
                 """
                 SELECT file
@@ -368,7 +379,7 @@ async def submit_changes(
                    AND state='performed'
                    AND NOT to_reviewed
                 """,
-                batch=batch,
+                batch=created_batch,
             ),
         )
     )
@@ -376,4 +387,4 @@ async def submit_changes(
     await transaction.execute(UpdateReviewFiles(review))
     transaction.finalizers.add(UpdateReviewTags(review))
 
-    return batch
+    return created_batch

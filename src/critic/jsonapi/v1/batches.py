@@ -178,6 +178,8 @@ class Batches(ResourceClass[api.batch.Batch], api_module=api.batch):
         else:
             comment_text = None
 
+        unpublished_batch = await api.batch.fetchUnpublished(review)
+
         async with api.transaction.start(critic) as transaction:
             modifier = transaction.modifyReview(review)
             note: Optional[api.comment.Comment]
@@ -193,7 +195,7 @@ class Batches(ResourceClass[api.batch.Batch], api_module=api.batch):
             else:
                 note = None
 
-            return await modifier.submitChanges(note)
+            return await modifier.submitChanges(unpublished_batch, note)
 
     @classmethod
     async def delete(

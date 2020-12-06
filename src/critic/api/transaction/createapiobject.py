@@ -46,6 +46,7 @@ class CreateAPIObject(Generic[APIObjectType]):
     ) -> None:
         assert self.resource_name
         self.__transaction = transaction
+        self.__is_faux = transaction.has_savepoint
 
     @property
     def critic(self) -> api.critic.Critic:
@@ -59,6 +60,8 @@ class CreateAPIObject(Generic[APIObjectType]):
         return ()
 
     async def __publish(self, value: APIObjectType) -> APIObjectType:
+        if self.__is_faux:
+            return value
         assert self.resource_name
         channels = [pubsub.ChannelName(self.resource_name)]
         channels.extend(
@@ -80,7 +83,7 @@ class CreateAPIObject(Generic[APIObjectType]):
         assert self.table_name
         return await self.__publish(
             await self.__transaction.execute(
-                InsertAndCollect(
+                InsertAndCollect[int, APIObjectType](
                     self.table_name, returning=self.id_column, collector=self.fetch
                 ).values(**values)
             )

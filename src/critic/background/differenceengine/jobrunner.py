@@ -16,7 +16,6 @@ from typing import (
     Sequence,
     Set,
     TypeVar,
-    cast,
 )
 
 logger = logging.getLogger(__name__)
@@ -54,13 +53,8 @@ class Pool:
                 job_to_start.signal_failure(error, traceback.format_exc())
                 await self.runner.job_failed(job_to_start)
             else:
-                if isinstance(job_to_start, RequestJob) and job_to_start.requests:
-                    self.runner.register_requests(
-                        cast(RequestJob[Any], job_to_start), job_to_start.requests
-                    )
-                else:
-                    job_to_start.signal_success()
-                    await self.runner.job_finished(cast(RequestJob[Any], job_to_start))
+                job_to_start.signal_success()
+                await self.runner.job_finished(job_to_start)
 
         def finished(future: "asyncio.Future[None]") -> None:
             del self.running[job_to_start.key]
@@ -176,6 +170,14 @@ class JobRunner(RunnerType):
                 else:
                     # No more jobs to start.
                     break
+
+            for group in sorted(self.all_groups, key=lambda group: group.timestamp):
+                for job in group.get_request_jobs():
+                    logger.debug("job runner: starting request job: %r", job)
+                    job.signal_started()
+                    await job.execute()
+                    if job.requests:
+                        self.register_requests(job, job.requests)
 
             # Process finished jobs.
             if self.finished_jobs:

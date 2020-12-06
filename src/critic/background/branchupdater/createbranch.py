@@ -76,11 +76,11 @@ async def create_branch(
     ) -> api.branch.Branch:
         return (
             await transaction.modifyRepository(head.repository).createBranch(
-                "normal",
+                "review" if is_creating_review else "normal",
                 branch_name,
                 branch_commits,
                 head=head,
-                base_branch=base_branch,
+                base_branch=None if is_creating_review else base_branch,
                 output=output_string,
                 is_creating_review=is_creating_review,
                 pendingrefupdate_id=pendingrefupdate_id,

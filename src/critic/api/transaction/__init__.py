@@ -30,7 +30,7 @@ from typing import (
 
 logger = logging.getLogger(__name__)
 
-from .base import Executable, ReturnType, TransactionBase
+from .base import Executable, Finalizers, ReturnType, TransactionBase
 from .item import Lock
 from .protocol import PublishedMessage
 from .types import Publisher, SimplePublisher
@@ -57,6 +57,31 @@ from .reviewscopefilter.mixin import Transaction as ReviewScopeFilterMixin
 from .user.mixin import Transaction as UserMixin
 
 
+class NoCommit(Exception):
+    pass
+
+
+class Savepoint:
+    def __init__(
+        self,
+        transaction: TransactionBase,
+        cursor: dbaccess.TransactionCursor,
+        name: str,
+    ):
+        self.__transaction = transaction
+        self.__cursor = cursor
+        self.name = name
+        self.__finalizers = Finalizers()
+
+    @property
+    def finalizers(self) -> Finalizers:
+        return self.__finalizers
+
+    async def run_finalizers(self) -> None:
+        for finalizer in self.__finalizers:
+            await finalizer(self.__transaction, self.__cursor)
+
+
 class Transaction(
     AccessControlProfileMixin,
     AccessTokenMixin,
@@ -73,24 +98,50 @@ class Transaction(
 ):
     __publishers: List[Publisher]
     __wakeup_services: Set[str]
+    __savepoint: Optional[Savepoint]
 
     def __init__(
         self,
         critic: api.critic.Critic,
         cursor: dbaccess.TransactionCursor,
         pubsub_client: pubsub.Client,
+        no_commit: bool,
     ) -> None:
         super().__init__(critic)
         self.__cursor = cursor
         self.__pubsub_client = pubsub_client
+        self.__no_commit = no_commit
         self.tables = set()
+        self.__finalizers = Finalizers()
         self.__publishers = []
         self.pre_commit_callbacks = []
         self.post_commit_callbacks = []
         self.__wakeup_services = set()
+        self.__savepoint = None
 
     async def lock(self, table: str, **columns: dbaccess.Parameter) -> None:
         await self.execute(Lock(table).where(**columns))
+
+    @property
+    def finalizers(self) -> Finalizers:
+        if self.__savepoint:
+            return self.__savepoint.finalizers
+        return self.__finalizers
+
+    @property
+    def has_savepoint(self) -> bool:
+        return self.__savepoint is not None
+
+    @contextlib.asynccontextmanager
+    async def savepoint(self, name: str) -> AsyncIterator[Savepoint]:
+        if self.__savepoint is not None:
+            raise Exception(f"nested savepoints: {name} and {self.__savepoint.name}")
+        async with self.__cursor.transaction.savepoint(name):
+            self.__savepoint = Savepoint(self, self.__cursor, name)
+            try:
+                yield self.__savepoint
+            finally:
+                self.__savepoint = None
 
     def publish(
         self,
@@ -205,6 +256,8 @@ class Transaction(
         self.__cursor.transaction.add_commit_callback(self.__post_commit)
         for finalizer in self.finalizers:
             await finalizer(self, self.__cursor)
+        if self.__no_commit:
+            raise NoCommit()
         for callback in self.pre_commit_callbacks:
             await callback()
         await self.__publish(self.__cursor)
@@ -241,14 +294,22 @@ from . import systemsetting
 
 @contextlib.asynccontextmanager
 async def start(
-    critic: api.critic.Critic, *, accept_no_pubsub: bool = False
+    critic: api.critic.Critic,
+    *,
+    accept_no_pubsub: bool = False,
+    no_commit: bool = False,
 ) -> AsyncIterator[Transaction]:
-    async with pubsub.connect(
-        "api.transaction", mode="lazy", accept_failure=accept_no_pubsub
-    ) as pubsub_client:
-        async with critic.transaction() as cursor:
-            async with Transaction(critic, cursor, pubsub_client) as transaction:
-                yield transaction
+    try:
+        async with pubsub.connect(
+            "api.transaction", mode="lazy", accept_failure=accept_no_pubsub
+        ) as pubsub_client:
+            async with critic.transaction() as cursor:
+                async with Transaction(
+                    critic, cursor, pubsub_client, no_commit
+                ) as transaction:
+                    yield transaction
+    except NoCommit:
+        pass
 
 
 # class PublishedMessage:

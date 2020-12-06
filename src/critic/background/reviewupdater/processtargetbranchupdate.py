@@ -37,9 +37,8 @@ async def process_target_branch_update(
     ],
 ) -> None:
     critic = review.critic
-
+    repository = await review.repository
     integration = asserted(await review.integration)
-    gitrepository = (await review.repository).low_level
     review_branch = asserted(await review.branch)
     review_branch_head = await review_branch.head
     target_branch = integration.target_branch
@@ -47,23 +46,22 @@ async def process_target_branch_update(
 
     updates: Dict[str, Any] = {}
 
-    new_behind = await gitrepository.revlist(
-        include=[target_branch_head.sha1], exclude=[review_branch_head.sha1], count=True
-    )
-    if new_behind != integration.commits_behind:
-        updates["integration"] = {"commits_behind": new_behind}
+    with repository.withSystemUserDetails() as gitrepository:
+        new_behind = await gitrepository.revlist(
+            include=[target_branch_head.sha1],
+            exclude=[review_branch_head.sha1],
+            count=True,
+        )
+        if new_behind != integration.commits_behind:
+            updates["integration"] = {"commits_behind": new_behind}
 
-    gitrepository.set_user_details("Critic System", api.critic.getSystemEmail())
-
-    async with gitrepository.worktree(target_branch_head, detach=True):
-        try:
-            await gitrepository.run("merge", review_branch_head.sha1)
-        except GitError:
-            unmerged_paths = await list_unmerged_paths(gitrepository)
-        else:
-            unmerged_paths = []
-
-    gitrepository.clear_user_details()
+        async with gitrepository.worktree(target_branch_head.sha1, detach=True):
+            try:
+                await gitrepository.run("merge", review_branch_head.sha1)
+            except GitError:
+                unmerged_paths = await list_unmerged_paths(gitrepository)
+            else:
+                unmerged_paths = []
 
     unmerged_files: Optional[Sequence[api.file.File]]
     if unmerged_paths:

@@ -50,3 +50,9 @@
 
 - name: unpublished
   description: You have unpublished changes in this review.
+
+# Implied: |unpublished|
+- name: would_be_accepted
+  description:
+    The review would become accepted if you published your current unpublished
+    changes.

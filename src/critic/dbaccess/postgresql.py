@@ -19,6 +19,7 @@ import contextlib
 import logging
 from psycopg2 import IntegrityError, OperationalError, ProgrammingError
 from psycopg2.extensions import TransactionRollbackError
+import re
 from typing import Any, AsyncContextManager, Dict, Optional, Tuple, AsyncIterator
 
 logger = logging.getLogger(__name__)
@@ -69,6 +70,11 @@ class Formatter(StatementFormatter):
         return replacement, parameters
 
 
+def check_savepoint_name(name: str) -> None:
+    if not re.match(r"[a-z]+(?:_+[a-z]+)*$", name):
+        raise Exception(f"invalid SAVEPOINT: {name!r}")
+
+
 class Connection(LowLevelConnection):
     def __init__(self, impl: Any, cursor: LowLevelCursor) -> None:
         self.__impl = impl
@@ -86,6 +92,18 @@ class Connection(LowLevelConnection):
 
     async def rollback(self) -> None:
         await self.cursor.execute("ROLLBACK")
+
+    async def savepoint(self, name: str) -> None:
+        check_savepoint_name(name)
+        await self.cursor.execute(f"SAVEPOINT {name}")
+
+    async def rollback_to_savepoint(self, name: str) -> None:
+        check_savepoint_name(name)
+        await self.cursor.execute(f"ROLLBACK TO SAVEPOINT {name}")
+
+    async def release_savepoint(self, name: str) -> None:
+        check_savepoint_name(name)
+        await self.cursor.execute(f"RELEASE SAVEPOINT {name}")
 
     async def cancel(self) -> None:
         await self.__impl.cancel()

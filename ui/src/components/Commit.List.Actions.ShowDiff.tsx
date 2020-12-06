@@ -23,13 +23,16 @@ const ShowDiff: FunctionComponent<ActionProps & OwnProps> = ({
 }) => {
   const classes = useStyles()
   var diffPath = pathPrefix
-  if (selectedCommits.length === 1)
+
+  if (selectedCommits.length === 0) return null
+  else if (selectedCommits.length === 1)
     diffPath += `/commit/${selectedCommits[0].sha1}`
   else {
     const lastCommit = selectedCommits[0]
     const firstCommit = selectedCommits[selectedCommits.length - 1]
     diffPath += `/diff/${firstCommit.sha1}^..${lastCommit.sha1}`
   }
+
   return (
     <Button
       component={Link}

@@ -24,6 +24,7 @@ logger = logging.getLogger(__name__)
 from critic import api
 from ..base import TransactionBase
 from ..insertandcollect import InsertAndCollect
+from . import CreateReviewEvent
 
 
 class ReviewAssignmentsTransaction:
@@ -66,6 +67,9 @@ class ReviewAssignmentsTransaction:
                     "reviewassignmentstransactions", returning="id"
                 ).values(
                     review=self.review,
+                    event=await CreateReviewEvent.ensure(
+                        self.transaction, self.review, "assignments"
+                    ),
                     assigner=self.transaction.critic.effective_user,
                 )
             )
