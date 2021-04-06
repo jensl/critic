@@ -22,7 +22,7 @@ import multiprocessing
 import os
 import signal
 import sys
-from typing import Dict, List, Literal, Optional, Tuple
+from typing import Any, Dict, List, Literal, Tuple
 
 logger = logging.getLogger("critic.background.workers")
 
@@ -69,6 +69,7 @@ class Workers(background.service.BackgroundService):
         process = await asyncio.create_subprocess_exec(
             os.path.join(sys.prefix, "bin", "criticctl"),
             "--binary-output",
+            "--verbose",
             "run-worker",
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
@@ -93,7 +94,7 @@ class Workers(background.service.BackgroundService):
                     break
                 logger.log(STDERR, "[pid=%d] %s", process.pid, line.decode().rstrip())
 
-        tasks: List[asyncio.Future] = [
+        tasks: List["asyncio.Future[Any]"] = [
             self.check_future(handle_stdout()),
             self.check_future(handle_stderr()),
             self.check_future(process.wait()),

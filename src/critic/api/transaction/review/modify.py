@@ -76,43 +76,43 @@ class ModifyReview(
     async def _setState(
         self, state: api.review.State, event: api.reviewevent.EventType
     ) -> None:
-        async with self.update() as update:
+        async with self.update(state=state) as update:
             update.set(state=state)
         await CreateReviewEvent.ensure(self.transaction, self.subject, event)
 
     async def publishReview(self) -> None:
-        api.review.Error.raiseUnless(await (await self.subject.reload()).can_publish)
+        api.review.Error.raiseUnless(await (await self.subject.refresh()).can_publish)
         await self._setState("open", "published")
 
     async def closeReview(self) -> None:
-        api.review.Error.raiseUnless(await (await self.subject.reload()).can_close)
+        api.review.Error.raiseUnless(await (await self.subject.refresh()).can_close)
         await self._setState("closed", "closed")
         await self._clearReviewTags()
 
     async def dropReview(self) -> None:
-        api.review.Error.raiseUnless(await (await self.subject.reload()).can_drop)
+        api.review.Error.raiseUnless(await (await self.subject.refresh()).can_drop)
         await self._setState("dropped", "dropped")
         await self._clearReviewTags()
 
     async def reopenReview(self) -> None:
-        api.review.Error.raiseUnless(await (await self.subject.reload()).can_reopen)
+        api.review.Error.raiseUnless(await (await self.subject.refresh()).can_reopen)
         await self._setState("open", "reopened")
         self._updateReviewTags()
 
     async def setSummary(self, new_summary: str) -> None:
-        async with self.update() as update:
+        async with self.update(summary=new_summary) as update:
             update.set(summary=new_summary)
 
     async def setDescription(self, new_description: str) -> None:
-        async with self.update() as update:
+        async with self.update(description=new_description) as update:
             update.set(description=new_description)
 
     async def setOwners(self, new_owners: Iterable[api.user.User]) -> None:
         new_owners = set(new_owners)
         current_owners = await self.subject.owners
 
-        added_owners = set(new_owners) - current_owners
-        removed_owners = current_owners - set(new_owners)
+        added_owners = set(new_owners).difference(current_owners)
+        removed_owners = set(current_owners).difference(new_owners)
 
         for user in added_owners:
             ReviewUser.ensure(self.transaction, self.subject, user, is_owner=True)
@@ -123,7 +123,7 @@ class ModifyReview(
         if await (await self.reload()).branch is not None:
             raise api.review.Error("Review already has a branch set")
 
-        async with self.update() as update:
+        async with self.update(branch=branch.id) as update:
             update.set(branch=branch)
 
         branchupdate_ids = await self.transaction.execute(
@@ -176,14 +176,16 @@ class ModifyReview(
     async def markChangeAsReviewed(
         self, rfc: api.reviewablefilechange.ReviewableFileChange
     ) -> None:
+        assert self.subject == await rfc.review
         raiseUnlessPublished(self.subject)
-        await mark_change_as_reviewed(self, rfc)
+        await mark_change_as_reviewed(self.transaction, rfc)
 
     async def markChangeAsPending(
         self, rfc: api.reviewablefilechange.ReviewableFileChange
     ) -> None:
+        assert self.subject == await rfc.review
         raiseUnlessPublished(self.subject)
-        await mark_change_as_pending(self, rfc)
+        await mark_change_as_pending(self.transaction, rfc)
 
     async def recordBranchUpdate(
         self, branchupdate: api.branchupdate.BranchUpdate
@@ -226,6 +228,7 @@ class ModifyReview(
     @overload
     async def addChangesets(
         self,
+        event: api.reviewevent.ReviewEvent,
         changesets: Collection[api.changeset.Changeset],
         *,
         branchupdate: api.branchupdate.BranchUpdate,
@@ -235,6 +238,7 @@ class ModifyReview(
     @overload
     async def addChangesets(
         self,
+        event: api.reviewevent.ReviewEvent,
         changesets: Collection[api.changeset.Changeset],
         *,
         commits: api.commitset.CommitSet,
@@ -243,6 +247,7 @@ class ModifyReview(
 
     async def addChangesets(
         self,
+        event: api.reviewevent.ReviewEvent,
         changesets: Collection[api.changeset.Changeset],
         *,
         branchupdate: Optional[api.branchupdate.BranchUpdate] = None,
@@ -254,7 +259,7 @@ class ModifyReview(
             completion_level = await changeset.completion_level
             assert "changedlines" in completion_level, repr(completion_level)
 
-        await add_changesets(self, changesets, branchupdate, commits)
+        await add_changesets(self, event, changesets, branchupdate, commits)
 
     async def pingReview(self, message: str) -> api.reviewping.ReviewPing:
         return await ping_review(self.transaction, self.subject, message)
@@ -270,7 +275,12 @@ class ModifyReview(
         commits_behind = await commits_behind_target_branch(
             repository, head, target_branch, commits
         )
-        async with self.update() as update:
+        async with self.update(
+            integration={
+                "target_branch": target_branch.id,
+                "commits_behind": commits_behind,
+            }
+        ) as update:
             update.set(
                 integration_target=target_branch,
                 integration_behind=commits_behind,

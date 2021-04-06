@@ -20,7 +20,7 @@ from types import ModuleType
 from typing import Tuple, Type, Union
 
 
-from .apiobject import APIObject
+from .apiobject import APIObject, APIObjectWithId
 from .apierror import (
     APIError,
     InvalidItemError,
@@ -83,6 +83,7 @@ from . import transaction
 
 __all__ = [
     "APIObject",
+    "APIObjectWithId",
     "APIError",
     "InvalidItemError",
     "InvalidItemsError",

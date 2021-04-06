@@ -24,15 +24,11 @@ from typing import (
     Any,
     Collection,
     Iterable,
-    Iterator,
     List,
     Optional,
-    Sequence,
     Set,
     cast,
 )
-
-from critic.api import repository
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +36,7 @@ from critic import api
 from critic import gitaccess
 
 from . import Key
-from .job import Job, RunnerType, ServiceType
+from .job import ChangesetGroupType, Job, RunnerType, ServiceType
 from .requestjob import RequestJob
 from .languageids import LanguageIds
 
@@ -54,7 +50,7 @@ class JobGroup(ABC):
     has_queries: Set[Job]
     __processed: Set[Job]
     failed: Set[Key]
-    __repository_path: Optional[str]
+    decode: api.repository.Decode
 
     def __init__(self, runner: RunnerType, key: Key, repository_id: int):
         self.__runner = runner
@@ -70,7 +66,6 @@ class JobGroup(ABC):
         self.failed = set()
         self.started = time.time()
         self.timestamp = time.time()
-        self.__repository_path = None
 
     def __hash__(self) -> int:
         return hash(self.key)
@@ -177,22 +172,14 @@ class JobGroup(ABC):
         return self.__repository_id
 
     @property
-    def changeset_id(self) -> int:
-        raise Exception("not a changeset")
-
-    @property
-    def conflicts(self) -> bool:
-        raise Exception("not a changeset")
-
-    @property
+    @abstractmethod
     def repository_path(self) -> str:
-        assert self.__repository_path is not None
-        return self.__repository_path
-
-    @repository_path.setter
-    def repository_path(self, value: str) -> None:
-        self.__repository_path = value
+        ...
 
     def repository(self) -> gitaccess.GitRepository:
-        assert self.__repository_path is not None
-        return gitaccess.GitRepository.direct(self.__repository_path)
+        return gitaccess.GitRepository.direct(self.repository_path)
+
+    @property
+    @abstractmethod
+    def as_changeset(self) -> ChangesetGroupType:
+        ...

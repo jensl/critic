@@ -127,76 +127,25 @@ snapshots['test_create_review websocket messages'] = {
         },
         {
             'channel': [
-                'changesets'
-            ],
-            'message': {
-                'action': 'created',
-                'object_id': Anonymous(ChangesetId='third'),
-                'resource_name': 'changesets'
-            }
-        },
-        {
-            'channel': [
-                'changesets'
-            ],
-            'message': {
-                'action': 'created',
-                'object_id': Anonymous(ChangesetId='second'),
-                'resource_name': 'changesets'
-            }
-        },
-        {
-            'channel': [
-                'changesets'
-            ],
-            'message': {
-                'action': 'created',
-                'object_id': Anonymous(ChangesetId='first'),
-                'resource_name': 'changesets'
-            }
-        },
-        {
-            'channel': [
-                'changesets'
-            ],
-            'message': {
-                'action': 'created',
-                'object_id': Anonymous(ChangesetId=Variable(1)),
-                'resource_name': 'changesets'
-            }
-        },
-        {
-            'channel': [
-                'changesets/<Anonymous(ChangesetId=Variable(1))>'
+                "reviews/<Anonymous(ReviewId='r/review1')>"
             ],
             'message': {
                 'action': 'modified',
-                'object_id': Anonymous(ChangesetId=Variable(1)),
-                'resource_name': 'changesets',
+                'object_id': Anonymous(ReviewId='r/review1'),
+                'resource_name': 'reviews',
                 'updates': {
-                    'completion_level': [
-                        'structure'
-                    ]
+                    'is_ready': True
                 }
             }
         },
         {
             'channel': [
-                'changesets/<Anonymous(ChangesetId=Variable(1))>'
+                'reviewfilters'
             ],
             'message': {
-                'action': 'modified',
-                'object_id': Anonymous(ChangesetId=Variable(1)),
-                'resource_name': 'changesets',
-                'updates': {
-                    'completion_level': [
-                        'analysis',
-                        'changedlines',
-                        'full',
-                        'structure',
-                        'syntaxhighlight'
-                    ]
-                }
+                'action': 'created',
+                'object_id': Anonymous(ReviewFilterId=Variable(1)),
+                'resource_name': 'reviewfilters'
             }
         },
         {
@@ -206,7 +155,7 @@ snapshots['test_create_review websocket messages'] = {
             ],
             'message': {
                 'action': 'created',
-                'event_type': 'ready',
+                'event_type': 'assignments',
                 'object_id': Anonymous(ReviewEventId=Variable(2)),
                 'resource_name': 'reviewevents',
                 'review_id': Anonymous(ReviewId='r/review1')
@@ -214,13 +163,16 @@ snapshots['test_create_review websocket messages'] = {
         },
         {
             'channel': [
-                'reviewfilters',
-                "reviews/<Anonymous(ReviewId='r/review1')>/reviewfilters"
+                "reviews/<Anonymous(ReviewId='r/review1')>"
             ],
             'message': {
-                'action': 'created',
-                'object_id': Anonymous(ReviewFilterId=Variable(1)),
-                'resource_name': 'reviewfilters'
+                'action': 'modified',
+                'object_id': Anonymous(ReviewId='r/review1'),
+                'resource_name': 'reviews',
+                'updates': {
+                    'state': 'open',
+                    'summary': 'test_review::test_create_review'
+                }
             }
         },
         {
@@ -285,8 +237,8 @@ snapshots['test_create_review websocket messages'] = {
         {
             'channel': [
                 'replies',
-                "reviews/<Anonymous(ReviewId='r/review1')>/replies",
-                'comments/<Anonymous(CommentId=Variable(1))>/replies'
+                'comments/<Anonymous(CommentId=Variable(1))>/replies',
+                "reviews/<Anonymous(ReviewId='r/review1')>/comments/<Anonymous(CommentId=Variable(1))>/replies"
             ],
             'message': {
                 'action': 'created',
@@ -302,6 +254,16 @@ snapshots['test_create_review websocket messages'] = {
                 'action': 'deleted',
                 'object_id': Anonymous(ReviewId='r/review1'),
                 'resource_name': 'reviews'
+            }
+        },
+        {
+            'channel': [
+                'branches/<Anonymous(BranchId=Variable(1))>'
+            ],
+            'message': {
+                'action': 'deleted',
+                'object_id': Anonymous(BranchId=Variable(1)),
+                'resource_name': 'branches'
             }
         }
     ]
@@ -501,35 +463,6 @@ snapshots['test_create_review review ready'] = {
                             'syntaxhighlight'
                         ],
                         'contributing_commits': [
-                            Anonymous(CommitId='first')
-                        ],
-                        'files': set([
-                            Anonymous(FileId=Variable(1))
-                        ]),
-                        'from_commit': Anonymous(CommitId=Variable(1)),
-                        'id': Anonymous(ChangesetId='first'),
-                        'is_direct': True,
-                        'is_replay': False,
-                        'repository': Anonymous(RepositoryId='test_create_review'),
-                        'review_state': {
-                            'comments': [
-                            ],
-                            'review': Anonymous(ReviewId='r/review1'),
-                            'reviewablefilechanges': [
-                                Anonymous(ReviewableFileChangeId=Variable(1))
-                            ]
-                        },
-                        'to_commit': Anonymous(CommitId='first')
-                    }),
-                    Frozen({
-                        'completion_level': [
-                            'analysis',
-                            'changedlines',
-                            'full',
-                            'structure',
-                            'syntaxhighlight'
-                        ],
-                        'contributing_commits': [
                             Anonymous(CommitId='second')
                         ],
                         'files': set([
@@ -549,6 +482,35 @@ snapshots['test_create_review review ready'] = {
                             ]
                         },
                         'to_commit': Anonymous(CommitId='second')
+                    }),
+                    Frozen({
+                        'completion_level': [
+                            'analysis',
+                            'changedlines',
+                            'full',
+                            'structure',
+                            'syntaxhighlight'
+                        ],
+                        'contributing_commits': [
+                            Anonymous(CommitId='first')
+                        ],
+                        'files': set([
+                            Anonymous(FileId=Variable(1))
+                        ]),
+                        'from_commit': Anonymous(CommitId=Variable(1)),
+                        'id': Anonymous(ChangesetId='first'),
+                        'is_direct': True,
+                        'is_replay': False,
+                        'repository': Anonymous(RepositoryId='test_create_review'),
+                        'review_state': {
+                            'comments': [
+                            ],
+                            'review': Anonymous(ReviewId='r/review1'),
+                            'reviewablefilechanges': [
+                                Anonymous(ReviewableFileChangeId=Variable(1))
+                            ]
+                        },
+                        'to_commit': Anonymous(CommitId='first')
                     }),
                     Frozen({
                         'completion_level': [
@@ -582,6 +544,14 @@ snapshots['test_create_review review ready'] = {
                 ]),
                 'filechanges': set([
                     Frozen({
+                        'changeset': Anonymous(ChangesetId='third'),
+                        'file': Anonymous(FileId=Variable(1)),
+                        'new_mode': 33188,
+                        'new_sha1': Anonymous(FileSHA1=Variable(3)),
+                        'old_mode': 33188,
+                        'old_sha1': Anonymous(FileSHA1=Variable(2))
+                    }),
+                    Frozen({
                         'changeset': Anonymous(ChangesetId='second'),
                         'file': Anonymous(FileId=Variable(1)),
                         'new_mode': 33188,
@@ -596,14 +566,6 @@ snapshots['test_create_review review ready'] = {
                         'new_sha1': Anonymous(FileSHA1=Variable(1)),
                         'old_mode': None,
                         'old_sha1': None
-                    }),
-                    Frozen({
-                        'changeset': Anonymous(ChangesetId='third'),
-                        'file': Anonymous(FileId=Variable(1)),
-                        'new_mode': 33188,
-                        'new_sha1': Anonymous(FileSHA1=Variable(3)),
-                        'old_mode': 33188,
-                        'old_sha1': Anonymous(FileSHA1=Variable(2))
                     })
                 ])
             },
@@ -1649,6 +1611,26 @@ snapshots['test_create_review review state (as alice)'] = {
                     ]
                 }
             ]
+        },
+        'status_code': 200
+    }
+}
+
+snapshots['test_create_review delete review'] = {
+    'request': {
+        'method': 'DELETE',
+        'path': "api/v1/reviews/<Anonymous(ReviewId='r/review1')>",
+        'query': {
+            'output_format': 'static'
+        }
+    },
+    'response': {
+        'data': {
+            'deleted': {
+                'reviews': [
+                    Anonymous(ReviewId='r/review1')
+                ]
+            }
         },
         'status_code': 200
     }

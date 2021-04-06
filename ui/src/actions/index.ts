@@ -46,6 +46,11 @@ export interface LoginFailureAction {
   error: LoginError
 }
 
+export const LOGOUT = "LOGOUT"
+export interface LogoutAction {
+  type: typeof LOGOUT
+}
+
 export const BRANCH_COMMITS_UPDATE = "BRANCH_COMMITS_UPDATE"
 export interface BranchCommitsUpdateAction {
   type: typeof BRANCH_COMMITS_UPDATE
@@ -107,6 +112,7 @@ export interface SetSelectionScopeAction {
 export const RESET_SELECTION_SCOPE = "RESET_SELECTION_SCOPE"
 export interface ResetSelectionScopeAction {
   type: typeof RESET_SELECTION_SCOPE
+  scopeID?: string
 }
 
 export const SET_SELECTION_RECT = "SET_SELECTION_RECT"
@@ -479,12 +485,18 @@ export interface RemoveWebSocketListenerAction {
 
 export type AutomaticMode = "everything" | "relevant" | "reviewable" | "pending"
 
+export class AutomaticChangesetEmpty extends Error {}
+export class AutomaticChangesetImpossible extends Error {}
+
 export const SET_AUTOMATIC_CHANGESET = "SET_AUTOMATIC_CHANGESET"
 export interface SetAutomaticChangesetAction {
   type: typeof SET_AUTOMATIC_CHANGESET
   reviewID: ReviewID
   automatic: AutomaticMode
-  changesetID: ChangesetID
+  changesetID:
+    | ChangesetID
+    | AutomaticChangesetEmpty
+    | AutomaticChangesetImpossible
 }
 
 export type ToastState = "showing" | "hiding" | "removing"
@@ -561,15 +573,19 @@ export interface TreesUpdate {
 
 export type ItemList = "account-settings-panels" | "system-settings-panels"
 
-export const ADD_ITEM_TO_LIST = "ADD_ITEM_TO_LIST"
 export interface AddItemToList {
-  type: typeof ADD_ITEM_TO_LIST
+  type: "ADD_ITEM_TO_LIST"
   list: ItemList
   extensionID: ExtensionID
   itemID: string
   render: FunctionComponent<{}>
   before: string | null
   after: string | null
+}
+
+export interface ResetExtension {
+  type: "RESET_EXTENSION"
+  extensionID: ExtensionID
 }
 
 export type Action =
@@ -630,6 +646,8 @@ export type Action =
   | LoginRequestAction
   | LoginSuccessAction
   | LoginFailureAction
+  | LogoutAction
   | DownloadAction
   | TreesUpdate
   | AddItemToList
+  | ResetExtension

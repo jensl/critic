@@ -14,61 +14,63 @@
  * the License.
  */
 
-import { ChannelCallback } from "../actions"
+import { ChannelCallback, SubscribeToChannelAction } from "../actions"
 import {
+  monitorChangesetByID,
   subscribeToChannel,
   unsubscribeFromChannel,
 } from "../actions/uiWebSocket"
 import { assertNotNull } from "../debug"
+import Changeset from "../resources/changeset"
 import { AsyncThunk, Dispatch } from "../state"
 
 type Status = "success" | "timeout"
 
-type WaitForOptions = {
-  predicate?: (message: unknown) => boolean
-  timeout?: number
-}
+// type WaitForOptions = {
+//   predicate?: (message: unknown) => boolean
+//   timeout?: number
+// }
 
-class Waiter {
-  constructor(readonly promise: Promise<Status>) {}
-}
+// class Waiter {
+//   constructor(readonly promise: Promise<Status>) {}
+// }
 
-export const waitFor = async (
-  dispatch: Dispatch,
-  channel: string,
-  { predicate, timeout }: WaitForOptions = {},
-) => {
-  let callback: ChannelCallback | null = null
+// export const waitFor = async (
+//   dispatch: Dispatch,
+//   channel: string,
+//   { predicate, timeout }: WaitForOptions = {},
+// ) => {
+//   let callback: ChannelCallback | null = null
 
-  const waiter = new Waiter(
-    new Promise((resolve) => {
-      const finish = (status: Status) => {
-        console.debug("waitFor:finish", { status })
-        dispatch(unsubscribeFromChannel(channel, callback!))
-        resolve(status)
-      }
+//   const waiter = new Waiter(
+//     new Promise((resolve) => {
+//       const finish = (status: Status) => {
+//         console.debug("waitFor:finish", { status })
+//         dispatch(unsubscribeFromChannel(channel, callback!))
+//         resolve(status)
+//       }
 
-      const timerID =
-        typeof timeout === "number"
-          ? window.setTimeout(() => finish("timeout"), timeout)
-          : null
+//       const timerID =
+//         typeof timeout === "number"
+//           ? window.setTimeout(() => finish("timeout"), timeout)
+//           : null
 
-      callback = (_, message) => {
-        console.debug("waitFor:message", { message })
-        if (predicate && !predicate(message)) return
-        if (timerID !== null) clearTimeout(timerID)
-        finish("success")
-      }
-    }),
-  )
+//       callback = (_, message) => {
+//         console.debug("waitFor:message", { message })
+//         if (predicate && !predicate(message)) return
+//         if (timerID !== null) clearTimeout(timerID)
+//         finish("success")
+//       }
+//     }),
+//   )
 
-  console.debug("waitFor:debug", { callback })
+//   console.debug("waitFor:debug", { callback })
 
-  assertNotNull(callback)
-  await dispatch(subscribeToChannel(channel, callback))
+//   assertNotNull(callback)
+//   await dispatch(subscribeToChannel(channel, callback))
 
-  return waiter
-}
+//   return waiter
+// }
 
 type Predicate = (message: unknown) => boolean
 type Options = { timeout?: number }
@@ -85,7 +87,11 @@ export class Channel {
   _callback: (channel: string, message: unknown) => void
   subscribed: Promise<boolean>
 
-  constructor(readonly dispatch: Dispatch, readonly name: string) {
+  constructor(
+    readonly dispatch: Dispatch,
+    readonly name: string,
+    action: (callback: ChannelCallback) => AsyncThunk<boolean>,
+  ) {
     this._queue = []
     this._listeners = []
     this._callback = (_, message: unknown) => {
@@ -102,7 +108,7 @@ export class Channel {
       this._listeners = stillPending
     }
 
-    this.subscribed = dispatch(subscribeToChannel(name, this._callback))
+    this.subscribed = dispatch(action(this._callback))
   }
 
   waitFor(predicate: Predicate, { timeout }: Options = {}) {
@@ -135,7 +141,19 @@ export class Channel {
   static subscribe = (name: string): AsyncThunk<Channel> => async (
     dispatch,
   ) => {
-    const channel = new Channel(dispatch, name)
+    const channel = new Channel(dispatch, name, subscribeToChannel(name))
+    await channel.subscribed
+    return channel
+  }
+
+  static monitorChangeset = (
+    changeset: Changeset,
+  ): AsyncThunk<Channel> => async (dispatch) => {
+    const channel = new Channel(
+      dispatch,
+      `changesets/${changeset.id}`,
+      monitorChangesetByID(changeset.id, ["full"]),
+    )
     await channel.subscribed
     return channel
   }

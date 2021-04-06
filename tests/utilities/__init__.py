@@ -29,7 +29,7 @@ T = TypeVar("T")
 
 
 class SupportsRaiseForStatus(Protocol):
-    def raise_for_status(self: T) -> T:
+    def raise_for_status(self) -> Any:
         ...
 
 

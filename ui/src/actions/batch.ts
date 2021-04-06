@@ -38,7 +38,14 @@ export const createBatch = (
     Resource.create(
       "batches",
       payload,
-      include("reviews", "comments", "replies", "changesets"),
+      include(
+        "reviews",
+        "comments",
+        "replies",
+        "changesets",
+        "reviewablefilechanges",
+        "batches",
+      ),
     ),
   )
 }
@@ -47,7 +54,11 @@ export const discardUnpublishedChanges = (
   reviewID: ReviewID,
   items: DiscardItem[],
 ): AsyncThunk<void> => async (dispatch: Dispatch) => {
-  const options = [include("reviews")]
+  const options = [
+    include("batches"),
+    include("reviews"),
+    include("reviewtags"),
+  ]
   if (
     items.includes("created_comments") ||
     items.includes("written_replies") ||

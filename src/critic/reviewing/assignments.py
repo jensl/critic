@@ -93,7 +93,7 @@ class Assignments(Set[Assignment]):
         self,
         rfc: api.reviewablefilechange.ReviewableFileChange,
         *,
-        subject: Optional[api.user.User] = None
+        subject: Optional[api.user.User] = None,
     ) -> None:
         changeset = await rfc.changeset
         file = await rfc.file
@@ -140,7 +140,8 @@ async def calculateAssignments(
     review: api.review.Review,
     *,
     changesets: Optional[Collection[api.changeset.Changeset]] = None,
-    subject: Optional[api.user.User] = None
+    subject: Optional[api.user.User] = None,
+    include_reviewed: bool = False,
 ) -> Assignments:
     """Calculate review assignments for given changesets in a review
 
@@ -151,9 +152,11 @@ async def calculateAssignments(
         changeset_per_commit = await review.changesets
         if changeset_per_commit is None:
             return assignments
-        changesets = list((await review.changesets).values())
+        changesets = list(changeset_per_commit.values())
 
     filters = await initializeFilters(review, changesets, subject)
+
+    logger.debug(f"{changesets=}")
 
     for changeset in changesets:
         commit = await changeset.to_commit
@@ -200,10 +203,11 @@ async def calculateAssignments(
                     for scope in scopes:
                         add_assignment(reviewer, scope)
 
-    for rfc in await api.reviewablefilechange.fetchAll(
-        review, assignee=subject, is_reviewed=True
-    ):
-        await assignments.add_from(rfc, subject=subject)
+    if include_reviewed:
+        for rfc in await api.reviewablefilechange.fetchAll(
+            review, assignee=subject, is_reviewed=True
+        ):
+            await assignments.add_from(rfc, subject=subject)
 
     return assignments
 
@@ -212,7 +216,7 @@ async def currentAssignments(
     review: api.review.Review,
     *,
     changesets: Optional[Collection[api.changeset.Changeset]] = None,
-    subject: Optional[api.user.User] = None
+    subject: Optional[api.user.User] = None,
 ) -> Assignments:
     assignments = Assignments()
 

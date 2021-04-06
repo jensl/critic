@@ -15,16 +15,17 @@
 # the License.
 
 from __future__ import annotations
+from abc import abstractmethod
 
 import re
 from typing import (
     Awaitable,
     Callable,
+    Collection,
     ContextManager,
     Optional,
     Sequence,
     Literal,
-    Set,
     Union,
     Iterable,
     Protocol,
@@ -99,61 +100,89 @@ Ref = Union[api.commit.Commit, str]
 Refs = Union[Ref, Iterable[Ref]]
 
 
-class Repository(api.APIObject):
+class Decode(Protocol):
+    def commitMetadata(self, value: bytes) -> str:
+        ...
+
+    def getCommitMetadataEncodings(self) -> Sequence[str]:
+        ...
+
+    def fileContent(self, path: str) -> Callable[[bytes], str]:
+        ...
+
+    def getFileContentEncodings(self, path: str) -> Sequence[str]:
+        ...
+
+    def path(self, value: bytes) -> str:
+        ...
+
+    def getPathEncodings(self) -> Sequence[str]:
+        ...
+
+
+class Repository(api.APIObjectWithId):
     """Representation of one of Critic's repositories"""
 
     @property
+    @abstractmethod
     def id(self) -> int:
         """The repository's unique id"""
-        return self._impl.id
+        ...
 
     @property
+    @abstractmethod
     def name(self) -> str:
         """The repository's short name"""
-        return self._impl.name
+        ...
 
     @property
+    @abstractmethod
     def path(self) -> str:
         """The repository's (relative) file-system path
 
         The path is relative the directory in which all repositories are
         stored on the host where Critic's services run. In most cases, the
         absolute file-system path is not relevant."""
-        return self._impl.path
+        ...
 
     @property
+    @abstractmethod
     async def is_ready(self) -> bool:
         """True if the repository is ready for use
 
         This returns False temporarily after a repository has been added to
         the database, until it has also been created on disk."""
-        return await self._impl.isReady(self.critic)
+        ...
 
     @property
+    @abstractmethod
     async def documentation_path(self) -> Optional[str]:
         """Path of the repository's documentation entry point"""
-        return await self._impl.getDocumentationPath(self)
+        ...
 
     @property
+    @abstractmethod
     async def urls(self) -> Sequence[str]:
         """The repository's URLs
 
         The URL types included depends on the effective user's
         'repository.urlType' preference setting."""
-        return await self._impl.getURLs(self)
+        ...
 
     @property
+    @abstractmethod
     def low_level(self) -> gitaccess.GitRepository:
         """Low-level interface for accessing the Git repository
 
         The interface is returned as a gitaccess.GitRepository object. This
         interface should typically not be used directly."""
-        return self._impl.getLowLevel(self.critic)
+        ...
 
+    @abstractmethod
     def withSystemUserDetails(
         self, *, author: bool = True, committer: bool = True
     ) -> ContextManager[gitaccess.GitRepository]:
-        return self._impl.withSystemUserDetails(self.critic, author, committer)
+        ...
 
     class Head(Protocol):
         @property
@@ -180,21 +209,25 @@ class Repository(api.APIObject):
             ...
 
     @property
+    @abstractmethod
     def head(self) -> Repository.Head:
-        return self._impl.getHead(self)
+        ...
 
     @overload
+    @abstractmethod
     async def resolveRef(
         self, ref: str, *, expect: Optional[ObjectType] = None
     ) -> SHA1:
         ...
 
     @overload
+    @abstractmethod
     async def resolveRef(
         self, ref: str, *, expect: Optional[ObjectType] = None, short: Literal[True]
     ) -> str:
         ...
 
+    @abstractmethod
     async def resolveRef(
         self, ref: str, *, expect: Optional[ObjectType] = None, short: bool = False
     ) -> Union[SHA1, str]:
@@ -210,9 +243,10 @@ class Repository(api.APIObject):
         it is given as the argument value: '--short=N'.
 
         If the ref can't be resolved, an InvalidRef exception is raised."""
-        return await self._impl.resolveRef(self, str(ref), expect, short)
+        ...
 
-    async def listRefs(self, *, pattern: Optional[str] = None) -> Set[str]:
+    @abstractmethod
+    async def listRefs(self, *, pattern: Optional[str] = None) -> Collection[str]:
         """List refs using 'git for-each-ref'
 
         By default, '--format=%(refname)' is used, and the return value is a
@@ -220,11 +254,9 @@ class Repository(api.APIObject):
 
         If 'pattern' is not None, it's given to 'git for-each-ref' as the
         last argument, to search for refs whose names match the pattern."""
-        if pattern is not None:
-            pattern = str(pattern)
-            assert not pattern.startswith("-")
-        return await self._impl.listRefs(self, pattern)
+        ...
 
+    @abstractmethod
     async def listCommits(
         self,
         *,
@@ -240,43 +272,9 @@ class Repository(api.APIObject):
         'include' but not reachable from the commits in 'exclude'.
 
         The return value is a list of api.commit.Commit objects."""
+        ...
 
-        def is_valid_ref(ref: Refs) -> Optional[str]:
-            if isinstance(ref, (api.commit.Commit, str)):
-                ref = str(ref)
-                if ref == "--all" or RE_SHA1.match(ref):
-                    return ref
-            return None
-
-        def is_valid_refs(refs: Sequence[str]) -> bool:
-            return (
-                len(refs) == 1
-                if "--all" in refs
-                else all(is_valid_ref(ref) for ref in refs)
-            )
-
-        if include is None:
-            include_refs = []
-        elif is_valid_ref(include):
-            assert not isinstance(include, Iterable)
-            include_refs = [str(include)]
-        else:
-            assert isinstance(include, Iterable)
-            include_refs = [str(ref) for ref in include]
-        if exclude is None:
-            exclude_refs = []
-        elif is_valid_ref(exclude):
-            exclude_refs = [str(exclude)]
-        else:
-            assert isinstance(exclude, Iterable)
-            exclude_refs = [str(ref) for ref in exclude]
-        assert is_valid_refs(include_refs)
-        assert is_valid_refs(exclude_refs)
-
-        return await self._impl.listCommits(
-            self, include_refs, exclude_refs, paths, min_parents, max_parents
-        )
-
+    @abstractmethod
     async def mergeBase(self, *commits: api.commit.Commit) -> api.commit.Commit:
         """Calculate merge-base of two or more commits
 
@@ -284,14 +282,9 @@ class Repository(api.APIObject):
         and the merge-base of all of its parents is returned.
 
         The return value is an api.commit.Commit object."""
-        assert commits
-        assert all(isinstance(commit, api.commit.Commit) for commit in commits)
-        if len(commits) == 1:
-            (commit,) = commits
-            commits = await commit.parents
-            assert len(commits) > 1
-        return await self._impl.mergeBase(self, *commits)
+        ...
 
+    @abstractmethod
     async def protectCommit(self, commit: api.commit.Commit) -> None:
         """Create a "hidden" ref to |commit|
 
@@ -300,8 +293,21 @@ class Repository(api.APIObject):
 
         The ref is created under refs/keepalive/, and is thus not fetched by
         a typically configured repository clone."""
-        await self._impl.protectCommit(commit)
+        ...
 
+    @overload
+    @abstractmethod
+    async def getFileContents(
+        self, *, commit: api.commit.Commit, file: api.file.File
+    ) -> Optional[bytes]:
+        ...
+
+    @overload
+    @abstractmethod
+    async def getFileContents(self, *, sha1: SHA1) -> Optional[bytes]:
+        ...
+
+    @abstractmethod
     async def getFileContents(
         self,
         *,
@@ -309,14 +315,11 @@ class Repository(api.APIObject):
         file: Optional[api.file.File] = None,
         sha1: Optional[SHA1] = None,
     ) -> Optional[bytes]:
-        assert (commit is None) == (file is None)
-        assert (commit is None) != (sha1 is None)
-        assert commit is None or isinstance(commit, api.commit.Commit)
-        assert file is None or isinstance(file, api.file.File)
-        return await self._impl.getFileContents(self, commit, file, sha1)
+        ...
 
     class Statistics(Protocol):
         @property
+        @abstractmethod
         def commits(self) -> int:
             """Approximate number of commits in the repository
 
@@ -325,11 +328,13 @@ class Repository(api.APIObject):
             ...
 
         @property
+        @abstractmethod
         def branches(self) -> int:
             """The number of non-review branches in the repository"""
             ...
 
         @property
+        @abstractmethod
         def reviews(self) -> int:
             """The total number of reviews in the repository
 
@@ -338,14 +343,22 @@ class Repository(api.APIObject):
             ...
 
     @property
+    @abstractmethod
     async def statistics(self) -> Statistics:
         """Return some statistics about the repository
 
         The statistics are returned as a Statistics object."""
-        return await self._impl.getStatistics(self.critic)
+        ...
 
+    @abstractmethod
     async def getSetting(self, name: str, default: T) -> T:
-        return await self._impl.getSetting(self, name, default)
+        ...
+
+    @abstractmethod
+    async def getDecode(
+        self, commit: Optional[Union[SHA1, api.commit.Commit]] = None
+    ) -> Decode:
+        ...
 
 
 @overload

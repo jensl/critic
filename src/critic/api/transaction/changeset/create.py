@@ -16,7 +16,7 @@
 
 from __future__ import annotations
 
-from typing import Collection, Optional
+from typing import Collection, NamedTuple, Optional, Tuple
 
 from critic import api
 from critic import dbaccess
@@ -46,11 +46,11 @@ class FindChangesetId:
             async with dbaccess.Query[int](
                 cursor,
                 """SELECT id
-                        FROM changesets
+                     FROM changesets
                     WHERE repository={repository}
-                        AND to_commit={to_commit}
-                        AND from_commit IS NULL
-                        AND for_merge IS NULL""",
+                      AND to_commit={to_commit}
+                      AND from_commit IS NULL
+                      AND for_merge IS NULL""",
                 repository=self.to_commit.repository,
                 to_commit=self.to_commit,
             ) as result:
@@ -59,18 +59,63 @@ class FindChangesetId:
         async with dbaccess.Query[int](
             cursor,
             """SELECT id
-                    FROM changesets
+                 FROM changesets
                 WHERE repository={repository}
-                    AND to_commit={to_commit}
-                    AND from_commit={from_commit}
-                    AND for_merge IS NULL
-                    AND is_replay={conflicts}""",
+                  AND to_commit={to_commit}
+                  AND from_commit={from_commit}
+                  AND for_merge IS NULL
+                  AND is_replay={conflicts}""",
             repository=self.to_commit.repository,
             to_commit=self.to_commit,
             from_commit=self.from_commit,
             conflicts=self.conflicts,
         ) as result:
             return await result.maybe_scalar()
+
+
+class MergeChangesetIds(NamedTuple):
+    primary: int
+    reference: int
+
+
+class FindMergeChangesetIds:
+    def __init__(
+        self,
+        parent: api.commit.Commit,
+        merge: api.commit.Commit,
+    ):
+        self.parent = parent
+        self.merge = merge
+
+    @property
+    def table_names(self) -> Collection[str]:
+        return ()
+
+    async def __call__(
+        self, transaction: TransactionBase, cursor: dbaccess.TransactionCursor, /
+    ) -> Optional[MergeChangesetIds]:
+        async with dbaccess.Query[Tuple[int, int]](
+            cursor,
+            """SELECT to_commit, id
+                 FROM changesets
+                WHERE repository={repository}
+                  AND {parent} IN (from_commit, to_commit)
+                  AND for_merge={merge}""",
+            repository=self.merge.repository,
+            parent=self.parent,
+            merge=self.merge,
+        ) as result:
+            changeset_ids = dict(await result.all())
+        if changeset_ids:
+            return MergeChangesetIds(
+                changeset_ids[self.merge.id], changeset_ids[self.parent.id]
+            )
+        return None
+
+
+class MergeChangesets(NamedTuple):
+    primary: api.changeset.Changeset
+    reference: api.changeset.Changeset
 
 
 class CreateChangeset(
@@ -96,3 +141,36 @@ class CreateChangeset(
             to_commit=to_commit,
             is_replay=conflicts,
         )
+
+    @staticmethod
+    async def ensureMerge(
+        transaction: TransactionBase,
+        parent: api.commit.Commit,
+        merge: api.commit.Commit,
+    ) -> MergeChangesets:
+        critic = transaction.critic
+        if (
+            changeset_ids := await transaction.execute(
+                FindMergeChangesetIds(parent, merge)
+            )
+        ) :
+            primary = await api.changeset.fetch(critic, changeset_ids.primary)
+            reference = await api.changeset.fetch(critic, changeset_ids.reference)
+        else:
+            repository = merge.repository
+            mergebase = await repository.mergeBase(merge)
+
+            primary = await CreateChangeset(transaction).insert(
+                repository=repository,
+                from_commit=parent,
+                to_commit=merge,
+                for_merge=merge,
+            )
+            reference = await CreateChangeset(transaction).insert(
+                repository=repository,
+                from_commit=mergebase,
+                to_commit=parent,
+                for_merge=merge,
+            )
+
+        return MergeChangesets(primary, reference)

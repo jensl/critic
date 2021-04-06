@@ -18,18 +18,20 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Sequence, Union, Optional, Tuple, Any
+from typing import Collection, Sequence, Union, Optional, Tuple
+
 
 logger = logging.getLogger(__name__)
 
 from critic import api
 from critic.api import filecontent as public
+from critic.api.apiobject import Actual
 from critic import diff
-from critic import textutils
 from critic.gitaccess import SHA1
 from critic.syntaxhighlight import requestHighlight, language
 from critic.syntaxhighlight.ranges import SyntaxHighlightRanges
-from . import apiobject
+from .apiobject import APIObjectImpl
+from .filediff.parthelper import PartHelper
 
 
 @dataclass(frozen=True)
@@ -46,29 +48,65 @@ class Line:
         return self.__content
 
 
-WrapperType = api.filecontent.FileContent
+PublicType = public.FileContent
 ArgumentsType = Tuple[api.repository.Repository, SHA1, Optional[api.file.File]]
 
 
-class FileContent(apiobject.APIObject[WrapperType, ArgumentsType, Any]):
+class FileContent(PublicType, APIObjectImpl, module=public):
     wrapper_class = api.filecontent.FileContent
 
     __plain_lines: Optional[Sequence[str]]
 
-    def __init__(self, args: ArgumentsType):
-        (self.repository, self.sha1, self.file) = args
+    def __init__(
+        self,
+        repository: api.repository.Repository,
+        sha1: SHA1,
+        commit: Optional[api.commit.Commit],
+        file: Optional[api.file.File],
+    ):
+        self.__repository = repository
+        self.__sha1 = sha1
+        self.__commit = commit
+        self.__file = file
         self.__plain_lines = None
 
-    async def getLines(
-        self,
-        critic: api.critic.Critic,
-        first_line: Optional[int],
-        last_line: Optional[int],
-        plain: bool,
-        syntax: Optional[str],
-    ) -> Sequence[Union[str, api.filecontent.Line]]:
-        from . import filediff
+    def __hash__(self) -> int:
+        return hash((self.__repository, self.__sha1, self.__file))
 
+    def __eq__(self, other: object) -> bool:
+        return (
+            isinstance(other, FileContent)
+            and self.repository == other.repository
+            and self.sha1 == other.sha1
+            and self.file == other.file
+        )
+
+    def getCacheKeys(self) -> Collection[object]:
+        return ((self.__repository, self.__sha1, self.__file),)
+
+    async def refresh(self: Actual) -> Actual:
+        return self
+
+    @property
+    def repository(self) -> api.repository.Repository:
+        return self.__repository
+
+    @property
+    def file(self) -> Optional[api.file.File]:
+        return self.__file
+
+    @property
+    def sha1(self) -> SHA1:
+        return self.__sha1
+
+    async def getLines(  # type: ignore[override]
+        self,
+        first_line: Optional[int] = None,
+        last_line: Optional[int] = None,
+        *,
+        plain: bool = False,
+        syntax: Optional[str] = None,
+    ) -> Union[Sequence[str], Sequence[Line]]:
         if first_line is None:
             first_line = 0
         else:
@@ -81,7 +119,10 @@ class FileContent(apiobject.APIObject[WrapperType, ArgumentsType, Any]):
                         self.sha1, wanted_object_type="blob"
                     )
                 ).asBlob()
-                self.__plain_lines = diff.parse.splitlines(textutils.decode(blob.data))
+                decoder = await self.repository.getFileContentDecoder(
+                    self.__commit, self.__file
+                )
+                self.__plain_lines = diff.parse.splitlines(decoder(blob.data))
             return self.__plain_lines[first_line:last_line]
 
         if syntax is None and self.file is not None:
@@ -104,7 +145,7 @@ class FileContent(apiobject.APIObject[WrapperType, ArgumentsType, Any]):
         assert lines is not None
 
         return [
-            Line(1 + first_line + index, list(filediff.PartHelper.make(content)))
+            Line(1 + first_line + index, list(PartHelper.make(content)))
             for index, content in enumerate(lines)
         ]
 
@@ -115,7 +156,7 @@ async def fetch(
     sha1: Optional[SHA1],
     commit: Optional[api.commit.Commit],
     file: Optional[api.file.File],
-) -> WrapperType:
+) -> PublicType:
     if commit:
         assert file
         try:
@@ -126,4 +167,4 @@ async def fetch(
             raise api.filecontent.NoSuchFile(file.path)
         sha1 = file_information.sha1
     assert sha1
-    return await FileContent.makeOne(repository.critic, values=(repository, sha1, file))
+    return FileContent.storeOne(FileContent(repository, sha1, commit, file))

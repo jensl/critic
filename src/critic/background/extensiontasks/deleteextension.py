@@ -15,6 +15,7 @@ class DeleteExtension(Request[bool]):
     async def dispatch(self, critic: api.critic.Critic) -> bool:
         extension = await api.extension.fetch(critic, self.extension_id)
         path = await extension.path
+        assert path is not None
         if os.path.isdir(path):
             shutil.rmtree(path)
         return True

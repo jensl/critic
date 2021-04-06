@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Generic, TypeVar, Collection
+from typing import Generic, Sequence, TypeVar
 
 
 WrappedType = TypeVar("WrappedType")
@@ -33,6 +33,6 @@ def immediate(value: WrappedType) -> ImmediateWrapper[WrappedType]:
     return ImmediateWrapper(value)
 
 
-def basic_list(value: Collection[WrappedType]) -> ValueWrapper[Collection[WrappedType]]:
+def basic_list(value: Sequence[WrappedType]) -> ValueWrapper[Sequence[WrappedType]]:
     """Wrap a value to signal that it is a list of basic values"""
     return BasicListWrapper(value)

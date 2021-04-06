@@ -24,6 +24,7 @@ logger = logging.getLogger(__name__)
 from . import CreatedBatch, CreateReviewEvent
 from .updatereviewfiles import UpdateReviewFiles
 from .updatereviewtags import UpdateReviewTags
+from .clearwouldbeacceptedtag import ClearWouldBeAcceptedTag
 from ..item import Lock, SubQuery, Update, Delete
 from ..base import TransactionBase
 
@@ -38,18 +39,18 @@ class PerformCommentChainsChanges:
 
     @property
     def table_names(self) -> Collection[str]:
-        return ("commentchains",)
+        return ("comments",)
 
     async def __call__(
         self, _: TransactionBase, cursor: dbaccess.TransactionCursor, /
     ) -> None:
         morphed_comments: List[dbaccess.Parameters] = []
-        closed_issues: List[dbaccess.Parameters] = []
+        resolved_issues: List[dbaccess.Parameters] = []
         reopened_issues: List[dbaccess.Parameters] = []
 
         async with cursor.query(
-            """SELECT chain, to_type, to_state, to_addressed_by
-                 FROM commentchainchanges
+            """SELECT comment, to_type, to_state, to_addressed_by
+                 FROM commentchanges
                 WHERE batch={batch}
                   AND state='performed'""",
             batch=self.batch,
@@ -67,8 +68,8 @@ class PerformCommentChainsChanges:
                     )
                 else:
                     assert to_state is not None
-                    if to_state == "closed":
-                        closed_issues.append(
+                    if to_state == "resolved":
+                        resolved_issues.append(
                             dict(comment_id=comment_id, user=self.user)
                         )
                     else:
@@ -83,23 +84,23 @@ class PerformCommentChainsChanges:
         logger.debug("reopened_issues=%r", reopened_issues)
 
         await cursor.executemany(
-            """UPDATE commentchains
-                SET type={new_type}
+            """UPDATE comments
+                  SET type={new_type}
                 WHERE id={comment_id}""",
             morphed_comments,
         )
         await cursor.executemany(
-            """UPDATE commentchains
-                SET state='closed',
+            """UPDATE comments
+                SET issue_state='resolved',
                     closed_by={user}
                 WHERE id={comment_id}""",
-            closed_issues,
+            resolved_issues,
         )
         await cursor.executemany(
-            """UPDATE commentchains
-                SET state={new_state},
-                    addressed_by={new_addressed_by},
-                    addressed_by_update=NULL
+            """UPDATE comments
+                  SET issue_state={new_state},
+                      addressed_by={new_addressed_by},
+                      addressed_by_update=NULL
                 WHERE id={comment_id}""",
             reopened_issues,
         )
@@ -121,22 +122,21 @@ async def submit_changes(
     if not transaction.has_savepoint:
         api.PermissionDenied.raiseUnlessUser(critic, author)
 
+    logger.debug(await unpublished_batch.created_comments)
+    logger.debug(await unpublished_batch.reviewed_file_changes)
+
     if not unpublished_batch.is_unpublished:
         raise api.batch.Error("Batch is not unpublished")
     if await unpublished_batch.is_empty:
         raise api.batch.Error("No unpublished changes to submit")
 
-    created_comments: List[api.comment.Comment] = []
-    empty_comments = []
+    created_comments = [*await unpublished_batch.created_comments]
+    empty_comments = [*await unpublished_batch.empty_comments]
 
     if batch_comment:
         created_comments.append(batch_comment)
 
-    for comment in await unpublished_batch.created_comments:
-        if comment.text.strip():
-            created_comments.append(comment)
-        else:
-            empty_comments.append(comment)
+    raised_issues = any(comment.type == "issue" for comment in created_comments)
 
     logger.debug("created_comments=%r", created_comments)
     logger.debug("empty_comments=%r", empty_comments)
@@ -147,39 +147,41 @@ async def submit_changes(
     )
 
     await transaction.execute(
-        Update("commentchains").set(batch=created_batch).where(id=created_comments)
+        Update("comments").set(batch=created_batch).where(id=created_comments)
     )
-    await transaction.execute(Delete("commentchains").where(id=empty_comments))
+    await transaction.execute(Delete("comments").where(id=empty_comments))
 
-    written_replies = list(await unpublished_batch.written_replies)
+    written_replies = [*await unpublished_batch.written_replies]
     await transaction.execute(
-        Update("comments").set(batch=created_batch).where(id=written_replies)
+        Update("replies").set(batch=created_batch).where(id=written_replies)
     )
+    empty_replies = [*await unpublished_batch.empty_replies]
+    await transaction.execute(Delete("replies").where(id=empty_replies))
 
     await transaction.execute(
-        Update("commentchainlines").set(state="current").where(chain=created_comments)
+        Update("commentlines").set(state="current").where(comment=created_comments)
     )
 
     resolved_issues = await unpublished_batch.resolved_issues
     reopened_issues = await unpublished_batch.reopened_issues
     morphed_comments = await unpublished_batch.morphed_comments
 
-    # Lock all rows in |commentchains| that we may want to update.
+    # Lock all rows in |comments| that we may want to update.
     for issue in resolved_issues:
-        await transaction.lock("commentchains", id=issue.id)
+        await transaction.lock("comments", id=issue.id)
     for issue in reopened_issues:
-        await transaction.lock("commentchains", id=issue.id)
+        await transaction.lock("comments", id=issue.id)
     for comment in morphed_comments.keys():
-        await transaction.lock("commentchains", id=comment.id)
+        await transaction.lock("comments", id=comment.id)
 
     async with api.critic.Query[int](
         critic,
         """
         SELECT id
-          FROM commentchains
-         WHERE {id=issues:array}
+          FROM comments
+         WHERE id=ANY({issues})
            AND type='issue'
-           AND state='open'
+           AND issue_state='open'
         """,
         issues=list(resolved_issues),
     ) as result:
@@ -189,10 +191,10 @@ async def submit_changes(
         critic,
         """
         SELECT id
-          FROM commentchains
-         WHERE {id=issues:array}
+          FROM comments
+         WHERE id=ANY({issues})
            AND type='issue'
-           AND state='closed'
+           AND issue_state='resolved'
         """,
         issues=list(reopened_issues),
     ) as result:
@@ -202,14 +204,14 @@ async def submit_changes(
         critic,
         """
         SELECT id
-          FROM commentchains
-          JOIN commentchainchanges ON (chain=id)
-         WHERE {id=issues:array}
+          FROM comments
+          JOIN commentchanges ON (comment=id)
+         WHERE id=ANY({issues})
            AND type='issue'
-           AND commentchains.state='addressed'
+           AND comments.issue_state='addressed'
            AND addressed_by=from_addressed_by
-           AND commentchainchanges.batch IS NULL
-           AND commentchainchanges.uid={user}
+           AND commentchanges.batch IS NULL
+           AND commentchanges.author={user}
         """,
         issues=list(reopened_issues),
         user=author,
@@ -223,12 +225,12 @@ async def submit_changes(
         or reopened_addressed_issue_ids
     ):
         await transaction.execute(
-            Update("commentchainchanges")
+            Update("commentchanges")
             .set(batch=created_batch, state="performed")
             .where(
-                uid=author,
+                author=author,
                 state="draft",
-                chain=[
+                comment=[
                     *resolved_issue_ids,
                     *reopened_resolved_issue_ids,
                     *reopened_addressed_issue_ids,
@@ -237,15 +239,15 @@ async def submit_changes(
         )
 
     await transaction.execute(
-        Update("commentchainlines")
+        Update("commentlines")
         .set(state="current")
         .where(
-            uid=author,
+            author=author,
             state="draft",
-            chain=SubQuery(
+            comment=SubQuery(
                 """
-                SELECT chain
-                  FROM commentchainchanges
+                SELECT comment
+                  FROM commentchanges
                  WHERE batch={batch}
                    AND state='performed'
                    AND from_state='addressed'
@@ -264,15 +266,15 @@ async def submit_changes(
         else:
             morphed_to_note.append(comment)
     await transaction.execute(
-        Update("commentchainchanges")
+        Update("commentchanges")
         .set(batch=created_batch, state="performed")
         .where(
-            uid=author,
+            author=author,
             state="draft",
-            chain=SubQuery(
+            comment=SubQuery(
                 """
                 SELECT id
-                  FROM commentchains
+                  FROM comments
                  WHERE id=ANY ({comments})
                    AND type='note'
                 """,
@@ -281,15 +283,15 @@ async def submit_changes(
         )
     )
     await transaction.execute(
-        Update("commentchainchanges")
+        Update("commentchanges")
         .set(batch=created_batch, state="performed")
         .where(
-            uid=author,
+            author=author,
             state="draft",
-            chain=SubQuery(
+            comment=SubQuery(
                 """
                 SELECT id
-                  FROM commentchains
+                  FROM comments
                  WHERE id=ANY ({comments})
                    AND type='issue'
                 """,
@@ -300,11 +302,11 @@ async def submit_changes(
 
     # Actually perform state changes marked as valid above.
     # transaction.execute(Query(
-    #     """UPDATE commentchains
+    #     """UPDATE comments
     #           SET state={new_state},
     #               closed_by={closed_by}
-    #         WHERE id IN (SELECT chain
-    #                        FROM commentchainchanges
+    #         WHERE id IN (SELECT comment
+    #                        FROM commentchanges
     #                       WHERE batch={batch}
     #                         AND state='performed'
     #                         AND to_state={new_state}
@@ -330,7 +332,7 @@ async def submit_changes(
 
     # Mark valid draft changes as "performed".
     await transaction.execute(
-        Update("reviewfilechanges")
+        Update("reviewuserfilechanges")
         .set(batch=created_batch, state="performed")
         .where(
             uid=author,
@@ -357,7 +359,7 @@ async def submit_changes(
             file=SubQuery(
                 """
                 SELECT file
-                  FROM reviewfilechanges
+                  FROM reviewuserfilechanges
                  WHERE batch={batch}
                    AND state='performed'
                    AND to_reviewed
@@ -374,7 +376,7 @@ async def submit_changes(
             file=SubQuery(
                 """
                 SELECT file
-                  FROM reviewfilechanges
+                  FROM reviewuserfilechanges
                  WHERE batch={batch}
                    AND state='performed'
                    AND NOT to_reviewed
@@ -385,6 +387,14 @@ async def submit_changes(
     )
 
     await transaction.execute(UpdateReviewFiles(review))
-    transaction.finalizers.add(UpdateReviewTags(review))
+
+    # Skip this step if we have a savepoint, i.e. if we're publishing changes to
+    # check whether the review would be accepted afterwards. Review tags won't
+    # affect the accepted state of the review, which is all we care about.
+    if not transaction.has_savepoint:
+        transaction.finalizers.add(
+            UpdateReviewTags(review, raised_issues=raised_issues)
+        )
+        transaction.finalizers.add(ClearWouldBeAcceptedTag(review))
 
     return created_batch

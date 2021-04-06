@@ -15,8 +15,10 @@
 # the License.
 
 import asyncio
+import collections
 import re
 from typing import (
+    Callable,
     Dict,
     Iterator,
     List,
@@ -29,18 +31,12 @@ from typing import (
     Union,
 )
 
-from critic import diff
+from critic import api
 from critic import gitaccess
-from critic import textutils
 from critic.gitaccess import SHA1
 
 
-def splitlines(
-    source: Union[bytes, str], *, limit: Optional[int] = None
-) -> Sequence[str]:
-    if isinstance(source, bytes):
-        source = textutils.decode(source)
-
+def splitlines(source: str, *, limit: Optional[int] = None) -> Sequence[str]:
     if not source:
         return source
 
@@ -59,6 +55,30 @@ def splitlines(
     return lines
 
 
+def normalize_line(line: str) -> str:
+    """Normalize leading and trailing white-space in line
+
+    Leading white-space is normalized to a single space (if there was
+    any) and trailing white-space is stripped."""
+
+    rstripped = line.rstrip()
+    stripped = rstripped.lstrip()
+    if stripped != rstripped:
+        return " " + stripped
+    return rstripped
+
+
+class Lines(List[str]):
+    def __init__(self, lines: Sequence[str]):
+        super(Lines, self).__init__(lines)
+        self.normalized = [normalize_line(line) for line in lines]
+        self.counted = collections.Counter(self.normalized)
+
+    def count_duplicates(self, index: int) -> int:
+        line = self.normalized[index]
+        return self.counted[line]
+
+
 ExamineResult = Union[None, Literal["binary"], int]
 
 
@@ -72,6 +92,7 @@ async def examine_files(
     repository: gitaccess.GitRepository,
     commit: SHA1,
     paths: Mapping[str, ExamineResult],
+    decode: api.repository.Decode,
 ) -> Mapping[str, ExamineResult]:
     """Basic check of file version at |paths| in |commit|
 
@@ -99,7 +120,7 @@ async def examine_files(
         *paths,
     ]
 
-    output = textutils.decode(await repository.run(*argv)).rstrip("\0")
+    output = decode.path(await repository.run(*argv)).rstrip("\0")
     per_path: Dict[str, ExamineResult] = {}
 
     for line in output.split("\0"):
@@ -147,7 +168,11 @@ class BasicDiffBlock(NamedTuple):
 
 
 async def basic_file_difference(
-    repository: gitaccess.GitRepository, from_commit: SHA1, to_commit: SHA1, path: str
+    repository: gitaccess.GitRepository,
+    from_commit: SHA1,
+    to_commit: SHA1,
+    path: str,
+    decode: api.repository.Decode,
 ) -> Tuple[SHA1, SHA1, Iterator[BasicDiffBlock]]:
     """Run 'git diff-tree' and parse the output
 
@@ -185,7 +210,7 @@ async def basic_file_difference(
     old_file_sha1 = await get_file_sha1(from_commit, path)
     new_file_sha1 = await get_file_sha1(to_commit, path)
 
-    diff = textutils.decode(await repository.run(*argv))
+    diff = decode.fileContent(path)(await repository.run(*argv))
 
     if not diff:
         # Empty diff => white-space only changes.
@@ -483,10 +508,10 @@ def with_false_splits_merged(
 
         old_begin = prev_block[OLD_OFFSET]
         old_end = next_block[OLD_OFFSET] + next_block[OLD_LENGTH]
-        old_counted = diff.analyze.Lines(old_lines[old_begin:old_end])
+        old_counted = Lines(old_lines[old_begin:old_end])
         new_begin = prev_block[NEW_OFFSET]
         new_end = next_block[NEW_OFFSET] + next_block[NEW_LENGTH]
-        new_counted = diff.analyze.Lines(new_lines[new_begin:new_end])
+        new_counted = Lines(new_lines[new_begin:new_end])
 
         for index in range(context_between):
             if not (
@@ -524,6 +549,8 @@ async def file_difference(
     from_commit: SHA1,
     to_commit: SHA1,
     path: str,
+    decode_old: api.repository.Decode,
+    decode_new: api.repository.Decode,
 ) -> FileDifference:
     """Parse differences in a file between two commits
 
@@ -540,21 +567,23 @@ async def file_difference(
     Added, removed and/or binary files, are handled elsewhere."""
 
     old_file_sha1, new_file_sha1, blocks = await basic_file_difference(
-        repository, from_commit, to_commit, path
+        repository, from_commit, to_commit, path, decode_new
     )
 
-    def fetch_lines(blob: gitaccess.GitBlob) -> Tuple[Sequence[str], bool]:
+    def fetch_lines(
+        blob: gitaccess.GitBlob, decode: Callable[[bytes], str]
+    ) -> Tuple[Sequence[str], bool]:
         """Fetch file blob from repository and split into lines"""
         linebreak = blob.data.endswith(b"\n")
-        return splitlines(blob.data), linebreak
+        return splitlines(decode(blob.data)), linebreak
 
     old_blob, new_blob = await repository.fetchall(
         old_file_sha1, new_file_sha1, wanted_object_type="blob"
     )
     assert isinstance(old_blob, gitaccess.GitBlob)
-    old_lines, old_linebreak = fetch_lines(old_blob)
+    old_lines, old_linebreak = fetch_lines(old_blob, decode_old.fileContent(path))
     assert isinstance(new_blob, gitaccess.GitBlob)
-    new_lines, new_linebreak = fetch_lines(new_blob)
+    new_lines, new_linebreak = fetch_lines(new_blob, decode_new.fileContent(path))
 
     # Complete the list of blocks by inserting additional blocks for white-space
     # only changes in the "context" between blocks (or before the first, or

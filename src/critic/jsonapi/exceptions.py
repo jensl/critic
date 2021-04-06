@@ -62,6 +62,10 @@ class PathError(Error):
             }
         return result
 
+    @staticmethod
+    def fromError(error: BaseException) -> PathError:
+        return PathError(str(error), code=getattr(error, "code"))
+
 
 class UsageError(Error):
     """Raised for invalid paths and/or query parameters

@@ -29,6 +29,7 @@ export type Props = {
   fileID: number
   variant: "unified" | "side-by-side"
   integrated: boolean
+  mountOnExpand: boolean
   comments: readonly ChunkComments[] | null
   rfcs: ReadonlySet<ReviewableFileChange> | null
   PaperProps?: PaperProps
@@ -39,6 +40,7 @@ const ChangesetFile: FunctionComponent<Props> = ({
   fileID,
   variant,
   integrated,
+  mountOnExpand,
   comments,
   rfcs,
   PaperProps = {},
@@ -55,6 +57,7 @@ const ChangesetFile: FunctionComponent<Props> = ({
   const fileDiff = fileDiffs.get(`${changeset.id}:${fileID}`)
   if (!file) return null
   const isExpanded = expandedFileIDs.has(fileID)
+  const canCollapse = changeset.files?.length !== 1
   const expandFile = () =>
     history.replace(
       pathWithExpandedFiles(location, setWith(expandedFileIDs, fileID)),
@@ -68,6 +71,7 @@ const ChangesetFile: FunctionComponent<Props> = ({
     fileChange,
     fileDiff,
     isExpanded,
+    canCollapse,
     expandFile,
     collapseFile,
   }
@@ -86,6 +90,7 @@ const ChangesetFile: FunctionComponent<Props> = ({
           {...commonProps}
           comments={comments}
           variant={variant}
+          mountOnExpand={mountOnExpand}
         />
         <ChangesetFileFooter {...commonProps} />
       </Collapse>

@@ -17,15 +17,17 @@
 from __future__ import annotations
 
 import logging
-from typing import Optional, Tuple, Sequence
+from typing import Callable, Optional, Tuple, Sequence
+
+from critic.api.impl.queryhelper import QueryHelper, QueryResult
 
 logger = logging.getLogger(__name__)
 
 from critic import api
 from critic.api import rebase as public
-from . import apiobject
+from .apiobject import APIObjectImplWithId
 
-WrapperType = api.rebase.Rebase
+PublicType = public.Rebase
 ArgumentsType = Tuple[
     int,
     int,
@@ -38,114 +40,144 @@ ArgumentsType = Tuple[
 ]
 
 
-class Rebase(apiobject.APIObject[WrapperType, ArgumentsType, int]):
-    wrapper_class = WrapperType
-    table_name = "reviewrebases"
-    column_names = [
-        "id",
-        "review",
-        "uid",
-        "branchupdate",
-        "old_upstream",
-        "new_upstream",
-        "equivalent_merge",
-        "replayed_rebase",
-    ]
-
-    def __init__(self, args: ArgumentsType) -> None:
+class Rebase(PublicType, APIObjectImplWithId, module=public):
+    def update(self, args: ArgumentsType) -> int:
         (
-            self.id,
-            self.review_id,
-            self.creator_id,
-            self.branchupdate_id,
-            self.old_upstream_id,
-            self.new_upstream_id,
-            self.equivalent_merge_id,
-            self.replayed_rebase_id,
+            self.__id,
+            self.__review_id,
+            self.__creator_id,
+            self.__branchupdate_id,
+            _,
+            _,
+            _,
+            _,
         ) = args
+        return self.__id
 
-        if self.new_upstream_id is None:
-            self.wrapper_class = api.rebase.HistoryRewrite
-        else:
-            self.wrapper_class = api.rebase.MoveRebase
+    @property
+    def id(self) -> int:
+        return self.__id
 
-    async def getReview(self, critic: api.critic.Critic) -> api.review.Review:
-        return await api.review.fetch(critic, self.review_id)
+    @property
+    async def review(self) -> api.review.Review:
+        return await api.review.fetch(self.critic, self.__review_id)
 
-    async def getRepository(
-        self, critic: api.critic.Critic
-    ) -> api.repository.Repository:
-        return await (await self.getReview(critic)).repository
+    @property
+    def is_pending(self) -> bool:
+        return self.__branchupdate_id is None
 
-    async def getBranchUpdate(
-        self, critic: api.critic.Critic
-    ) -> Optional[api.branchupdate.BranchUpdate]:
-        if self.branchupdate_id is None:
+    @property
+    async def repository(self) -> api.repository.Repository:
+        return await (await self.review).repository
+
+    @property
+    async def branchupdate(self) -> Optional[api.branchupdate.BranchUpdate]:
+        if self.__branchupdate_id is None:
             return None
-        return await api.branchupdate.fetch(critic, self.branchupdate_id)
+        return await api.branchupdate.fetch(self.critic, self.__branchupdate_id)
 
-    async def __getCommit(
-        self, critic: api.critic.Critic, commit_id: int
-    ) -> api.commit.Commit:
-        return await api.commit.fetch(await self.getRepository(critic), commit_id)
+    @property
+    async def creator(self) -> api.user.User:
+        if self.__creator_id is None:
+            return api.user.system(self.critic)
+        return await api.user.fetch(self.critic, self.__creator_id)
 
-    async def getOldUpstream(self, critic: api.critic.Critic) -> api.commit.Commit:
-        assert self.old_upstream_id is not None
-        return await self.__getCommit(critic, self.old_upstream_id)
+    @classmethod
+    def getQueryByIds(
+        cls,
+    ) -> Callable[[api.critic.Critic, Sequence[int]], QueryResult[ArgumentsType]]:
+        return queries.queryByIds
 
-    async def getNewUpstream(self, critic: api.critic.Critic) -> api.commit.Commit:
-        assert self.new_upstream_id is not None
-        return await self.__getCommit(critic, self.new_upstream_id)
 
-    async def getEquivalentMerge(
-        self, critic: api.critic.Critic
-    ) -> Optional[api.commit.Commit]:
-        assert self.new_upstream_id is not None
-        if self.equivalent_merge_id is None:
+queries = QueryHelper[ArgumentsType](
+    PublicType.getTableName(),
+    "id",
+    "review",
+    "uid",
+    "branchupdate",
+    "old_upstream",
+    "new_upstream",
+    "equivalent_merge",
+    "replayed_rebase",
+)
+
+
+class HistoryRewrite(public.HistoryRewrite, Rebase, module=public):
+    pass
+
+
+class MoveRebase(public.MoveRebase, Rebase, module=public):
+    def update(self, args: ArgumentsType) -> int:
+        (
+            _,
+            _,
+            _,
+            _,
+            self.__old_upstream_id,
+            self.__new_upstream_id,
+            self.__equivalent_merge_id,
+            self.__replayed_rebase_id,
+        ) = args
+        return super().update(args)
+
+    async def __getCommit(self, commit_id: int) -> api.commit.Commit:
+        return await api.commit.fetch(await self.repository, commit_id)
+
+    @property
+    async def old_upstream(self) -> api.commit.Commit:
+        assert self.__old_upstream_id is not None
+        return await self.__getCommit(self.__old_upstream_id)
+
+    @property
+    async def new_upstream(self) -> api.commit.Commit:
+        assert self.__new_upstream_id is not None
+        return await self.__getCommit(self.__new_upstream_id)
+
+    @property
+    async def equivalent_merge(self) -> Optional[api.commit.Commit]:
+        assert self.__new_upstream_id is not None
+        if self.__equivalent_merge_id is None:
             return None
-        return await self.__getCommit(critic, self.equivalent_merge_id)
+        return await self.__getCommit(self.__equivalent_merge_id)
 
-    async def getReplayedRebase(
-        self, critic: api.critic.Critic
-    ) -> Optional[api.commit.Commit]:
-        assert self.new_upstream_id is not None
-        if self.replayed_rebase_id is None:
+    @property
+    async def replayed_rebase(self) -> Optional[api.commit.Commit]:
+        assert self.__new_upstream_id is not None
+        if self.__replayed_rebase_id is None:
             return None
-        return await self.__getCommit(critic, self.replayed_rebase_id)
+        return await self.__getCommit(self.__replayed_rebase_id)
 
-    async def getCreator(self, critic: api.critic.Critic) -> api.user.User:
-        if self.creator_id is None:
-            return api.user.system(critic)
-        return await api.user.fetch(critic, self.creator_id)
+
+def make(critic: api.critic.Critic, args: ArgumentsType) -> Rebase:
+    new_upstream_id = args[5]
+    return (
+        HistoryRewrite(critic, args)
+        if new_upstream_id is None
+        else MoveRebase(critic, args)
+    )
 
 
 @public.fetchImpl
-@Rebase.cached
 async def fetch(
     critic: api.critic.Critic,
     rebase_id: Optional[int],
     branchupdate: Optional[api.branchupdate.BranchUpdate],
-) -> WrapperType:
-    conditions = []
+) -> PublicType:
     if rebase_id is not None:
-        conditions.append("id={rebase_id}")
-    if branchupdate is not None:
-        conditions.append("branchupdate={branchupdate}")
-    async with Rebase.query(
-        critic, conditions, rebase_id=rebase_id, branchupdate=branchupdate
-    ) as result:
-        try:
-            return await Rebase.makeOne(critic, result)
-        except result.ZeroRowsInResult:
-            if branchupdate is not None:
-                raise api.rebase.NotARebase(branchupdate)
-            raise
+        return await Rebase.ensureOne(rebase_id, queries.idFetcher(critic, make))
+
+    assert branchupdate
+    return Rebase.storeOne(
+        await queries.query(critic, branchupdate=branchupdate).makeOne(
+            make, api.rebase.NotARebase(branchupdate)
+        )
+    )
 
 
 @public.fetchAllImpl
 async def fetchAll(
     critic: api.critic.Critic, review: Optional[api.review.Review], pending: bool
-) -> Sequence[WrapperType]:
+) -> Sequence[PublicType]:
     conditions = []
     if review is not None:
         conditions.append("review={review}")
@@ -153,7 +185,6 @@ async def fetchAll(
         conditions.append("branchupdate IS NULL")
     else:
         conditions.append("branchupdate IS NOT NULL")
-    async with Rebase.query(
-        critic, conditions, review=review, order_by="id DESC"
-    ) as result:
-        return await Rebase.make(critic, result)
+    return Rebase.store(
+        await queries.query(critic, *conditions, review=review).make(make)
+    )

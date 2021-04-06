@@ -23,6 +23,7 @@ with a certain status (see `User.STATUS_VALUES`).
 """
 
 from __future__ import annotations
+from abc import abstractmethod
 
 from typing import Awaitable, Callable, Sequence
 
@@ -47,20 +48,23 @@ class InvalidReviewEvent(Error):
         )
 
 
-class ReviewPing(api.APIObject):
+class ReviewPing(api.APIObjectWithId):
     """Representation of a review ping."""
 
     @property
+    @abstractmethod
     def id(self) -> int:
-        return self._impl.id
+        ...
 
     @property
+    @abstractmethod
     async def event(self) -> api.reviewevent.ReviewEvent:
-        return await self._impl.getEvent(self.critic)
+        ...
 
     @property
+    @abstractmethod
     def message(self) -> str:
-        return self._impl.message
+        ...
 
 
 async def fetch(

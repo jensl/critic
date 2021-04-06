@@ -1,19 +1,10 @@
 import React, { useState } from "react"
 
 import Button from "@material-ui/core/Button"
-import { makeStyles } from "@material-ui/core/styles"
 
 import Registry from "."
 import { ActionProps } from "./Changeset.Action"
-import {
-  all,
-  any,
-  count,
-  sum,
-  useChangeset,
-  useReview,
-  useSignedInUser,
-} from "../utils"
+import { count, sum, useChangeset, useReview, useSignedInUser } from "../utils"
 import { useDispatch, useSelector } from "../store"
 import { markAllAsReviewed } from "../actions/reviewableFilechange"
 import { useRequireSession } from "./Dialog.SignIn"
@@ -22,20 +13,19 @@ import AssignChanges, {
   AssignChangesReason,
 } from "./Dialog.Review.AssignChanges"
 
-const useStyles = makeStyles({
-  markAllAsReviewed: {
-    marginLeft: "auto",
-  },
-})
-
-const MarkAllAsReviewed: React.FunctionComponent<ActionProps> = () => {
-  const classes = useStyles()
+const MarkAllAsReviewed: React.FunctionComponent<ActionProps> = ({
+  automaticMode,
+}) => {
   const dispatch = useDispatch()
   const signedInUser = useSignedInUser()
   const review = useReview()
   const { changeset } = useChangeset()
   const rfcsByFile = useSelector((state) =>
-    getReviewableFileChangesForChangeset(state, { review, changeset }),
+    getReviewableFileChangesForChangeset(state, {
+      review,
+      changeset,
+      automaticMode,
+    }),
   )
   const [requireSession, signInDialog] = useRequireSession(
     "You need to sign in before you can mark changes as reviewed.",
@@ -63,11 +53,14 @@ const MarkAllAsReviewed: React.FunctionComponent<ActionProps> = () => {
         )
       : 0
 
-  console.log({ countTotal, countAssigned, countReviewed })
-
   const onClick = async () => {
     if (await requireSession()) {
-      await dispatch(markAllAsReviewed(review, changeset))
+      await dispatch(
+        markAllAsReviewed(
+          review,
+          automaticMode !== "everything" ? changeset : null,
+        ),
+      )
       if (countAssigned === 0) setAssignChangesReason("nothing-assigned")
       else if (countAssigned < countTotal)
         setAssignChangesReason("something-unassigned")
@@ -76,11 +69,7 @@ const MarkAllAsReviewed: React.FunctionComponent<ActionProps> = () => {
 
   return (
     <>
-      <Button
-        className={classes.markAllAsReviewed}
-        disabled={countReviewed === countTotal}
-        onClick={onClick}
-      >
+      <Button disabled={countReviewed === countTotal} onClick={onClick}>
         Mark all as reviewed
       </Button>
       {signInDialog}

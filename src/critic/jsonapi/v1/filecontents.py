@@ -16,7 +16,7 @@
 
 from __future__ import annotations
 
-from typing import Sequence, TypedDict, Union
+from typing import Optional, Sequence, TypedDict, Union
 
 from critic import api
 from ..exceptions import UsageError
@@ -36,15 +36,11 @@ def reduce_line(line: api.filecontent.Line) -> Line:
     }
 
 
-JSONResult = TypedDict(
-    "JSONResult",
-    {
-        "repository": api.repository.Repository,
-        "file": api.file.File,
-        "sha1": str,
-        "lines": Union[Sequence[str], Sequence[Line]],
-    },
-)
+class JSONResult(TypedDict):
+    repository: api.repository.Repository
+    sha1: str
+    file: Optional[api.file.File]
+    lines: Union[Sequence[str], Sequence[Line]]
 
 
 class FileContents(
@@ -58,8 +54,6 @@ class FileContents(
     async def json(
         parameters: Parameters, value: api.filecontent.FileContent
     ) -> JSONResult:
-        """TODO: add documentation"""
-
         first = parameters.query.get("first", converter=int)
         last = parameters.query.get("last", converter=int)
 
@@ -69,19 +63,17 @@ class FileContents(
         else:
             lines = [reduce_line(line) for line in await value.getLines(first, last)]
 
-        return {
-            "repository": value.repository,
-            "file": value.file,
-            "sha1": value.sha1,
-            "lines": lines,
-        }
+        return JSONResult(
+            repository=value.repository,
+            sha1=value.sha1,
+            file=value.file,
+            lines=lines,
+        )
 
     @staticmethod
     async def multiple(
         parameters: Parameters,
     ) -> api.filecontent.FileContent:
-        """TODO: add documentation"""
-
         commit = await parameters.deduce(api.commit.Commit)
         if commit is None:
             raise UsageError.missingParameter("commit")

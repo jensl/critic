@@ -15,6 +15,7 @@
 # the License.
 
 from __future__ import annotations
+from abc import abstractmethod
 
 from typing import Any, Awaitable, Callable, Sequence, Optional, overload
 
@@ -40,38 +41,43 @@ class InvalidKey(api.InvalidItemError, Error, item_type="key"):
     pass
 
 
-class Extension(api.APIObject):
+class Extension(api.APIObjectWithId):
     """Representation of a Critic extension"""
 
     @property
+    @abstractmethod
     def id(self) -> int:
         """The extension's unique id"""
-        return self._impl.id
+        ...
 
     @property
+    @abstractmethod
     def name(self) -> str:
         """The extension's name"""
-        return self._impl.name
+        ...
 
     @property
+    @abstractmethod
     async def key(self) -> str:
         """The extension's unique key
 
         For a system extension, the key is the extension's name.  For other
         extensions, the key is the publisher's username followed by a slash
         followed by the extension's name."""
-        return await self._impl.getKey(self.critic)
+        ...
 
     @property
-    async def path(self) -> str:
+    @abstractmethod
+    async def path(self) -> Optional[str]:
         """The extensions's primary file system path
 
         None is returned if the extension could not be located. This value is
         only available to code running in a background service (i.e. with
         access to the "right" file system.)"""
-        return await self._impl.getPath(self.critic)
+        ...
 
     @property
+    @abstractmethod
     async def publisher(self) -> Optional[api.user.User]:
         """The extension's publisher
 
@@ -79,24 +85,26 @@ class Extension(api.APIObject):
         (who may not be a user of this Critic system.)
 
         None if this is a system extension."""
-        return await self._impl.getPublisher(self.critic)
+        ...
 
     @property
+    @abstractmethod
     def url(self) -> str:
         """The extension's repository URL if hosted remotely."""
-        return self._impl.url
+        ...
 
     @property
     async def versions(self) -> Sequence[api.extensionversion.ExtensionVersion]:
         return await api.extensionversion.fetchAll(self.critic, extension=self)
 
     @property
+    @abstractmethod
     def default_version(self) -> api.extensionversion.ExtensionVersion:
         """The default extension version
 
         This is typically the version whose extension description and other
         metadata should be presented as the extension's true metadata."""
-        return self._impl.getDefaultVersion()
+        ...
 
     @property
     async def live_version(self) -> api.extensionversion.ExtensionVersion:
@@ -119,6 +127,7 @@ class Extension(api.APIObject):
         )
 
     @property
+    @abstractmethod
     async def low_level(self) -> Optional[Any]:
         """Low-level interface for managing the extension
 
@@ -127,7 +136,7 @@ class Extension(api.APIObject):
 
         None is returned if the on-disk extension is missing, inaccessible or
         otherwise broken."""
-        return await self._impl.getLowLevel(self.critic)
+        ...
 
 
 @overload

@@ -13,6 +13,9 @@ import { pathWithExpandedFiles } from "../utils/Changeset"
 import { useSelector } from "../store"
 import { getCommentsForChangeset } from "../selectors/fileDiff"
 import { getReviewableFileChangesForChangeset } from "../selectors/reviewableFileChange"
+import { AutomaticMode } from "../actions"
+
+const kMountOnExpandLimit = 25
 
 const useStyles = makeStyles((theme: Theme) => ({
   ChangesetFiles: {
@@ -24,6 +27,7 @@ export type Props = {
   className?: string
   variant: "unified" | "side-by-side"
   integrated: boolean
+  automaticMode?: AutomaticMode
   ChangesetFileProps?: Partial<Omit<ChangesetFileProps, "fileID" | "variant">>
 }
 
@@ -31,6 +35,7 @@ const ChangesetFiles: FunctionComponent<Props> = ({
   className,
   variant,
   integrated,
+  automaticMode,
   ChangesetFileProps = {},
 }) => {
   const classes = useStyles()
@@ -42,13 +47,17 @@ const ChangesetFiles: FunctionComponent<Props> = ({
     getCommentsForChangeset(state, { review, changeset }),
   )
   const rfcsByFile = useSelector((state) =>
-    getReviewableFileChangesForChangeset(state, { review, changeset }),
+    getReviewableFileChangesForChangeset(state, {
+      review,
+      changeset,
+      automaticMode,
+    }),
   )
   const { files } = changeset
   if (files === null) return <LoaderBlock />
-  if (files.length === 1 && expandedFileIDs.size === 0)
-    return <Redirect to={pathWithExpandedFiles(location, files)} />
-  return (
+  return files.length === 1 && expandedFileIDs.size === 0 ? (
+    <Redirect to={pathWithExpandedFiles(location, files)} />
+  ) : (
     <div className={clsx(className, classes.ChangesetFiles)}>
       {sortedBy(files, (fileID) => fileByID.get(fileID)?.path ?? "").map(
         (fileID, index) => (
@@ -57,6 +66,7 @@ const ChangesetFiles: FunctionComponent<Props> = ({
               fileID={fileID}
               variant={variant}
               integrated={integrated}
+              mountOnExpand={files.length > kMountOnExpandLimit}
               comments={
                 commentsForChangeset.byFile.get(fileID)?.byChunk ?? null
               }

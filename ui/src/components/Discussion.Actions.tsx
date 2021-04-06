@@ -18,12 +18,14 @@ import React from "react"
 
 import Registry from "."
 import AddReply from "./Discussion.Action.AddReply"
-import RaiseIssue from "./Discussion.Action.RaiseIssue"
-import WriteNote from "./Discussion.Action.WriteNote"
-import Edit from "./Discussion.Action.Edit"
 import Delete from "./Discussion.Action.Delete"
-import Save from "./Discussion.Action.Save"
 import Discard from "./Discussion.Action.Discard"
+import Edit from "./Discussion.Action.Edit"
+import RaiseIssue from "./Discussion.Action.RaiseIssue"
+import ResolveIssue from "./Discussion.Action.ResolveIssue"
+import ReopenIssue from "./Discussion.Action.ReopenIssue"
+import Save from "./Discussion.Action.Save"
+import WriteNote from "./Discussion.Action.WriteNote"
 
 const Actions: React.FunctionComponent = () => (
   <>
@@ -34,6 +36,8 @@ const Actions: React.FunctionComponent = () => (
     <Delete />
     <Save />
     <Discard />
+    <ResolveIssue />
+    <ReopenIssue />
   </>
 )
 

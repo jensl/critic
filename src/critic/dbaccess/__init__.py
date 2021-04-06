@@ -59,6 +59,7 @@ from .types import (
     ExecuteArguments,
     Parameter,
     Parameters,
+    SQLAtom,
     SQLRow,
     SQLValue,
     adapt,
@@ -248,7 +249,7 @@ class Connection:
 
     @contextlib.asynccontextmanager
     async def query(
-        self, query: str, **parameters: Parameters
+        self, query: str, **parameters: Parameter
     ) -> AsyncIterator[ResultSet[SQLRow]]:
         cursor: BasicCursor
 
@@ -443,10 +444,18 @@ class TransactionCursor(BasicCursor):
                     await self._low_level.execute(formatted_statement, execute_arg)
                     set_rows(self._low_level.rowcount)
 
-    def _insert_statement(self, table_name: str, column_names: Sequence[str]) -> str:
+    def _insert_statement(
+        self,
+        table_name: str,
+        column_names: Sequence[str],
+        on_conflict: Optional[Literal["do_nothing"]] = None,
+    ) -> str:
         columns = ", ".join(f'"{name}"' for name in column_names)
         exprs = ", ".join(("{%s}" % name) for name in column_names)
-        return f'INSERT INTO "{table_name}" ({columns}) VALUES ({exprs})'
+        conflict_clause = f" ON CONFLICT DO NOTHING" if on_conflict else ""
+        return (
+            f'INSERT INTO "{table_name}" ({columns}) VALUES ({exprs}){conflict_clause}'
+        )
 
     @overload
     async def insert(
@@ -454,6 +463,7 @@ class TransactionCursor(BasicCursor):
         table_name: str,
         columns: Mapping[str, Parameter],
         *,
+        on_conflict: Optional[Literal["do_nothing"]] = None,
         returning: str,
         value_type: Type[ValueType],
     ) -> ValueType:
@@ -468,10 +478,13 @@ class TransactionCursor(BasicCursor):
         table_name: str,
         columns: Mapping[str, Parameter],
         *,
+        on_conflict: Optional[Literal["do_nothing"]] = None,
         returning: Optional[str] = None,
         value_type: Optional[Type[ValueType]] = None,
     ) -> Optional[ValueType]:
-        statement = self._insert_statement(table_name, list(columns.keys()))
+        statement = self._insert_statement(
+            table_name, list(columns.keys()), on_conflict
+        )
         if returning is not None:
             async with self.query(statement, returning=returning, **columns) as result:
                 return cast(ValueType, await result.scalar())
@@ -490,9 +503,18 @@ class TransactionCursor(BasicCursor):
 
     async def delete(self, table_name: str, **where: Parameter) -> None:
         assert where
-        conditions = [('"%s"={%s}' % (name, name)) for name in where.keys()]
+
+        def condition(name: str, value: Parameter) -> str:
+            if isinstance(value, (list, set, tuple)):
+                return f"{name}=ANY({{{name}}})"
+            return f"{name}={{{name}}}"
+
+        def conditions() -> Iterable[str]:
+            return (condition(name, value) for name, value in where.items())
+
         await self.execute(
-            f'DELETE FROM "{table_name}" WHERE {" AND ".join(conditions)}', **where
+            f'DELETE FROM "{table_name}" WHERE {" AND ".join(conditions())}',
+            **where,
         )
 
 
@@ -566,6 +588,7 @@ class Transaction(AsyncContextManager[TransactionCursor]):
         await self.__low_level.savepoint(name)
         savepoint = Savepoint(name)
         try:
+            logger.warning("savepoint: %s", name)
             yield savepoint
         except Exception:
             savepoint.release = False
@@ -573,8 +596,10 @@ class Transaction(AsyncContextManager[TransactionCursor]):
         finally:
             self.__savepoints.remove(name)
             if savepoint.release:
+                logger.warning("release savepoint: %s", name)
                 await self.__low_level.release_savepoint(name)
             else:
+                logger.warning("rollback to savepoint: %s", name)
                 await self.__low_level.rollback_to_savepoint(name)
 
     async def __aenter__(self) -> TransactionCursor:
@@ -684,19 +709,19 @@ class ResultSet(AsyncIterable[RowType]):
             return self.__rows
         return cast(Sequence[RowType], await self.__cursor.fetchall())
 
-    async def one(self) -> RowType:
+    async def one(self, error: Optional[Exception] = None) -> RowType:
         if not self.__cursor:
             raise DetachedResultSet()
         if self.__rows is None:
             row = cast(RowType, await self.__cursor.fetchone())
             if row is None:
-                raise ZeroRowsInResult()
+                raise error if error else ZeroRowsInResult()
             if await self.__cursor.fetchall():
                 raise MultipleRowsInResult()
             return row
         else:
             if not self.__rows:
-                raise ZeroRowsInResult()
+                raise error if error else ZeroRowsInResult()
             if len(self.__rows) > 1:
                 raise MultipleRowsInResult()
             return self.__rows[0]
@@ -838,6 +863,7 @@ async def shutdown() -> None:
 
 __all__ = [
     "Adaptable",
+    "SQLAtom",
     "adapt",
     "parameters",
     "IntegrityError",

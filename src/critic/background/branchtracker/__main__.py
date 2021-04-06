@@ -136,7 +136,7 @@ class BranchTrackerService(background.service.BackgroundService):
                           EXTRACT('epoch' FROM (MIN(next) - NOW()))
                      FROM trackedbranches
                     WHERE NOT disabled
-                      AND NOT ({id=processing_ids:array})""",
+                      AND NOT (id=ANY({processing_ids}))""",
                 processing_ids=list(self.processing),
             ) as status_result:
                 pending_branches, update_delay = await status_result.one()

@@ -14,13 +14,17 @@
  * the License.
  */
 
+import { Location } from "../actions/comment"
+import { assertNotNull } from "../debug"
+import { SelectionScope } from "../reducers/uiSelectionScope"
 import Comment from "../resources/comment"
 import Reply from "../resources/reply"
-import { ReplyID } from "../resources/types"
+import { DiffSide, FileID, ReplyID } from "../resources/types"
+import { mappedSet } from "./Functions"
 
 export const sortedComments = (
   comments: Iterable<Comment>,
-  replies: ReadonlyMap<ReplyID, Reply>
+  replies: ReadonlyMap<ReplyID, Reply>,
 ): Comment[] => {
   const timestamp = (comment: Comment) => {
     const lastReply = replies.get(comment.replies[comment.replies.length - 1])
@@ -52,4 +56,45 @@ export const commentIDFromHash = (hash: Map<string, string>) => {
     default:
       return null
   }
+}
+
+export const fileIDFromLineID = (lineID: string): FileID =>
+  parseInt((/^f(\d+):/.exec(lineID) ?? ["", "-1"])[1], 10)
+
+export const sideFromLineID = (lineID: string): DiffSide | null =>
+  /^f\d+:o\d+$/.test(lineID) ? "old" : /^f\d+:n\d+$/.test(lineID) ? "new" : null
+
+export const sideFromLineIDs = (lineIDs: ReadonlySet<string>): DiffSide => {
+  const sides = mappedSet(lineIDs, sideFromLineID)
+  if (sides.has("old") && !sides.has("new")) return "old"
+  if (sides.has("new") && !sides.has("old")) return "new"
+  return "new"
+}
+
+export const lineNumberFromLineID = (lineID: string, side: DiffSide): number =>
+  parseInt(
+    ((side === "old"
+      ? /^f\d+:o(\d+)(?::n\d+)?$/
+      : /^f\d+(?::o\d+)?:n(\d+)$/
+    ).exec(lineID) ?? ["", "0"])[1],
+    10,
+  )
+
+export const locationFromSelectionScope = ({
+  firstSelectedID,
+  lastSelectedID,
+  selectedIDs,
+}: SelectionScope): Omit<Location, "changesetID"> => {
+  assertNotNull(firstSelectedID)
+  assertNotNull(lastSelectedID)
+
+  const fileID = fileIDFromLineID(firstSelectedID)
+  const side =
+    sideFromLineID(firstSelectedID) ??
+    sideFromLineID(lastSelectedID) ??
+    sideFromLineIDs(selectedIDs)
+  const firstLine = lineNumberFromLineID(firstSelectedID, side)
+  const lastLine = lineNumberFromLineID(lastSelectedID, side)
+
+  return { fileID, side, firstLine, lastLine }
 }

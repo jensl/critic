@@ -106,7 +106,7 @@ class ReviewEventsService(background.service.BackgroundService):
 
                     event = await api.reviewevent.fetch(critic, event_id)
 
-                    futures.add(critic.ensure_future(self.handle_event(critic, event)))
+                    futures.add(asyncio.create_task(self.handle_event(critic, event)))
 
                 if not futures:
                     break

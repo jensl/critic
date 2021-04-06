@@ -14,127 +14,131 @@
  * the License.
  */
 
-import Immutable from "immutable"
-import isEqual from "lodash/isEqual"
+// import isEqual from "lodash/isEqual"
 
-import {
-  Action,
-  ADD_SUBSCRIPTION,
-  ADD_SUBSCRIBER,
-  REMOVE_SUBSCRIBER,
-  CHECK_SUBSCRIPTION,
-  SubscribedAction,
-} from "../actions"
-import { assertNull, assertNotNull } from "../debug"
+// import produce from "./immer"
+// import {
+//   Action,
+//   ADD_SUBSCRIPTION,
+//   ADD_SUBSCRIBER,
+//   REMOVE_SUBSCRIBER,
+//   CHECK_SUBSCRIPTION,
+//   SubscribedAction,
+// } from "../actions"
+// import { assertNull, assertNotNull } from "../debug"
 
-import Token from "../utils/Token"
+// import Token from "../utils/Token"
 
-export class Subscription extends Immutable.Record<{
-  action: SubscribedAction
-  args: any[]
-  tokens: Immutable.Set<Token>
-}>(
-  {
-    action: () => null,
-    args: [],
-    tokens: Immutable.Set<Token>(),
-  },
-  "Subscription"
-) {}
+// type Subscription = {
+//   action: SubscribedAction
+//   args: readonly any[]
+//   tokens: Set<Token>
+// }
 
-export const findSubscriptionByArgs = (
-  state: Immutable.Map<SubscribedAction, Immutable.List<Subscription>>,
-  action: (...args: any[]) => any,
-  args: any[]
-): [number, Subscription | null] => {
-  const subscriptions = state.get(action)
-  if (!subscriptions) return [-1, null]
-  const index = subscriptions.findIndex(
-    (subscription) =>
-      subscription.action === action && isEqual(subscription.args, args)
-  )
-  return [index, index === -1 ? null : subscriptions.get(index, null)]
-}
+// type State = Map<SubscribedAction, Subscription[]>
 
-export const findSubscriptionByToken = (
-  state: Immutable.Map<SubscribedAction, Immutable.List<Subscription>>,
-  action: (...args: any[]) => any,
-  token: Token
-): [number, Subscription | null] => {
-  const subscriptions = state.get(action)
-  if (!subscriptions) return [-1, null]
-  const index = subscriptions.findIndex(
-    (subscription) =>
-      subscription.action === action && subscription.tokens.has(token)
-  )
-  return [index, index === -1 ? null : subscriptions.get(index, null)]
-}
+// type FindSubscriptionResult = {
+//   subscriptions: Subscription[] | null
+//   subscription: Subscription | null
+//   index: number | null
+// }
 
-const fnName = (fn: any) =>
-  String(fn).replace(/^function\s+(\w+)\([\s\S]*$/, "$1")
+// const findSubscription = (
+//   state: State,
+//   action: SubscribedAction,
+//   predicate: (subscription: Subscription) => boolean,
+//   createIfMissing: boolean = false,
+// ): FindSubscriptionResult => {
+//   let subscriptions = state.get(action) ?? null
+//   if (!subscriptions) {
+//     if (createIfMissing) state.set(action, (subscriptions = []))
+//     return { subscriptions, subscription: null, index: null }
+//   }
+//   const indexOrNull = (index: number) => (index >= 0 ? index : null)
+//   const index = indexOrNull(subscriptions.findIndex(predicate))
+//   const subscription = index !== null ? subscriptions[index] : null
+//   return { subscriptions, subscription, index }
+// }
 
-export const resourceSubscriptions = (
-  state = Immutable.Map<SubscribedAction, Immutable.List<Subscription>>(),
-  action: Action
-): Immutable.Map<SubscribedAction, Immutable.List<Subscription>> => {
-  switch (action.type) {
-    case ADD_SUBSCRIPTION:
-    case ADD_SUBSCRIBER:
-    case CHECK_SUBSCRIPTION: {
-      const [index, subscription] = findSubscriptionByArgs(
-        state,
-        action.action,
-        action.args
-      )
+// export const findSubscriptionByArgs = (
+//   state: State,
+//   action: SubscribedAction,
+//   args: any[],
+//   createIfMissing: boolean = false,
+// ): FindSubscriptionResult =>
+//   findSubscription(
+//     state,
+//     action,
+//     (subscription) => isEqual(subscription.args, args),
+//     createIfMissing,
+//   )
 
-      switch (action.type) {
-        case ADD_SUBSCRIPTION:
-          assertNull(subscription)
-          let subscriptions = state.get(action.action)
-          if (!subscriptions)
-            state = state.set(
-              action.action,
-              (subscriptions = Immutable.List<Subscription>())
-            )
-          return state.set(
-            action.action,
-            subscriptions.push(new Subscription({ ...action }))
-          )
+// export const findSubscriptionByToken = (
+//   state: State,
+//   action: SubscribedAction,
+//   token: Token,
+// ): FindSubscriptionResult =>
+//   findSubscription(state, action, (subscription) =>
+//     subscription.tokens.has(token),
+//   )
 
-        case ADD_SUBSCRIBER:
-          assertNotNull(subscription)
-          return state.setIn(
-            [action.action, index, "tokens"],
-            subscription!.tokens.add(action.token)
-          )
+// const fnName = (fn: any) =>
+//   String(fn).replace(/^function\s+(\w+)\([\s\S]*$/, "$1")
 
-        case CHECK_SUBSCRIPTION:
-        default:
-          console.debug("Checking subscription", {
-            action: fnName(action.action),
-            args: action.args,
-          })
-          if (subscription && subscription.tokens.size === 0) {
-            console.debug("Deleting subscription!")
-            return state.deleteIn([action.action, index])
-          }
-          return state
-      }
-    }
+// export const resourceSubscriptions = produce(
+//   (draft: State, dispatchedAction: Action) => {
+//     switch (dispatchedAction.type) {
+//       case ADD_SUBSCRIPTION:
+//       case ADD_SUBSCRIBER:
+//       case CHECK_SUBSCRIPTION:
+//         {
+//           const { action, args } = dispatchedAction
+//           const { subscriptions, subscription, index } = findSubscriptionByArgs(
+//             draft,
+//             action,
+//             args,
+//             dispatchedAction.type === ADD_SUBSCRIPTION,
+//           )
 
-    case REMOVE_SUBSCRIBER:
-      const [index, subscription] = findSubscriptionByToken(
-        state,
-        action.action,
-        action.token
-      )
-      assertNotNull(subscription)
-      return state.setIn(
-        [action.action, index, "tokens"],
-        subscription!.tokens.delete(action.token)
-      )
+//           switch (dispatchedAction.type) {
+//             case ADD_SUBSCRIPTION:
+//               assertNotNull(subscriptions)
+//               assertNull(subscription)
+//               subscriptions.push({ action, args, tokens: new Set() })
+//               break
 
-    default:
-      return state
-  }
-}
+//             case ADD_SUBSCRIBER:
+//               assertNotNull(subscription)
+//               subscription.tokens.add(dispatchedAction.token)
+//               break
+
+//             case CHECK_SUBSCRIPTION:
+//               console.debug("Checking subscription", {
+//                 action: fnName(action),
+//                 args,
+//               })
+//               if (subscription?.tokens.size === 0) {
+//                 assertNotNull(subscriptions)
+//                 assertNotNull(index)
+//                 console.debug("Deleting subscription!")
+//                 subscriptions.splice(index, 1)
+//               }
+//               return draft
+//           }
+//         }
+//         break
+
+//       case REMOVE_SUBSCRIBER:
+//         {
+//           const { action, token } = dispatchedAction
+//           const { subscription } = findSubscriptionByToken(draft, action, token)
+//           assertNotNull(subscription)
+//           subscription.tokens.delete(token)
+//         }
+//         break
+//     }
+//   },
+//   new Map(),
+// )
+
+export {}

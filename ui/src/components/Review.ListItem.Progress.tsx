@@ -47,12 +47,12 @@ const ReviewListItemProgress: FunctionComponent<OwnProps> = ({
       <>
         <CircularProgress
           className={classes.background}
-          variant="static"
+          variant="determinate"
           value={100}
         />
         <CircularProgress
           className={classes.value}
-          variant="static"
+          variant="determinate"
           value={review.progress.reviewing * 100}
           thickness={4}
         />

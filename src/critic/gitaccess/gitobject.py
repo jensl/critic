@@ -15,18 +15,27 @@
 # the License.
 
 from __future__ import annotations
+from abc import ABC, abstractmethod
 
 import io
 import stat
-from typing import Collection, Dict, Optional, Type, Literal, TypeVar, Iterable, cast
+from typing import (
+    Collection,
+    Dict,
+    Optional,
+    Sequence,
+    Type,
+    Literal,
+    TypeVar,
+    Iterable,
+    cast,
+)
 
 from . import GitError, SHA1, as_sha1
 from .gitusertime import GitUserTime
 
-from critic import textutils
-
 ObjectType = Literal["blob", "commit", "tag", "tree"]
-OBJECT_TYPES: Collection[ObjectType] = frozenset(("blob", "commit", "tag", "tree"))
+OBJECT_TYPES: Collection[ObjectType] = frozenset(["blob", "commit", "tag", "tree"])
 
 
 def asObjectType(value: str) -> ObjectType:
@@ -37,7 +46,7 @@ def asObjectType(value: str) -> ObjectType:
 T = TypeVar("T", bound="GitObject")
 
 
-class GitObject:
+class GitObject(ABC):
     factory_for: Dict[ObjectType, Type[GitObject]] = {}
 
     def __init_subclass__(cls) -> None:
@@ -57,23 +66,24 @@ class GitObject:
         return isinstance(other, GitObject) and str(self) == str(other)
 
     @classmethod
+    @abstractmethod
     def fromRawObject(cls: Type[T], raw_object: GitRawObject) -> T:
-        return cls(raw_object.sha1, raw_object.object_type, raw_object.data)
+        ...
 
     def asBlob(self) -> GitBlob:
-        assert isinstance(self, GitBlob)
+        assert isinstance(self, GitBlob), repr(self)
         return self
 
     def asCommit(self) -> GitCommit:
-        assert isinstance(self, GitCommit)
+        assert isinstance(self, GitCommit), repr(self)
         return self
 
     def asTag(self) -> GitTag:
-        assert isinstance(self, GitTag)
+        assert isinstance(self, GitTag), repr(self)
         return self
 
     def asTree(self) -> GitTree:
-        assert isinstance(self, GitTree)
+        assert isinstance(self, GitTree), repr(self)
         return self
 
     @staticmethod
@@ -97,7 +107,7 @@ class GitRawObject(GitObject):
         self.data = data
 
     @classmethod
-    def fromRawObject(cls, raw_object: GitRawObject) -> GitRawObject:
+    def fromRawObject(cls, raw_object: GitRawObject) -> GitRawObject:  # type: ignore[override]
         return raw_object
 
     @staticmethod
@@ -120,7 +130,13 @@ class GitRawObject(GitObject):
         return GitRawObject(as_sha1(sha1.decode("ascii")), "commit", data.getvalue())
 
 
-class GitBlob(GitObject):
+class GitParsedObject(GitObject):
+    @classmethod
+    def fromRawObject(cls: Type[T], raw_object: GitRawObject) -> T:
+        return cls(raw_object.sha1, raw_object.object_type, raw_object.data)
+
+
+class GitBlob(GitParsedObject):
     object_type = "blob"
 
     def __init__(self, sha1: SHA1, object_type: ObjectType, data: bytes):
@@ -128,8 +144,14 @@ class GitBlob(GitObject):
         self.data = data
 
 
-class GitCommit(GitObject):
+class GitCommit(GitParsedObject):
     object_type = "commit"
+
+    tree: SHA1
+    parents: Sequence[SHA1]
+    author: GitUserTime
+    committer: GitUserTime
+    message: bytes
 
     def __init__(
         self, sha1: SHA1, object_type: ObjectType = "commit", data: bytes = b""
@@ -175,11 +197,11 @@ class GitCommit(GitObject):
         committer: bytes,
         message: bytes,
     ) -> GitCommit:
-        self.tree = tree.decode("ascii")
+        self.tree = as_sha1(tree.decode("ascii"))
         self.parents = [as_sha1(parent.decode("ascii")) for parent in parents]
-        self.author = GitUserTime(textutils.decode(author))
-        self.committer = GitUserTime(textutils.decode(committer))
-        self.message = textutils.decode(message)
+        self.author = GitUserTime(author)
+        self.committer = GitUserTime(committer)
+        self.message = message
         return self
 
     @staticmethod
@@ -196,7 +218,7 @@ class GitCommit(GitObject):
         )
 
 
-class GitTag(GitObject):
+class GitTag(GitParsedObject):
     object_type = "tag"
 
     def __init__(self, sha1: SHA1, object_type: ObjectType, data: bytes):
@@ -216,18 +238,18 @@ class GitTag(GitObject):
             elif key == b"tag":
                 self.tag = value.decode("ascii")
             elif key == b"tagger":
-                self.tagger = GitUserTime(textutils.decode(value))
+                self.tagger = GitUserTime(value)
             else:
                 raise GitError("Unknown tag header: %r", line)
 
-        self.message = textutils.decode(data_buffer.read())
+        self.message = data_buffer.read()
 
 
 class GitTreeEntry:
     def __init__(
         self,
         mode: int,
-        name: str,
+        name: bytes,
         sha1: SHA1,
         *,
         object_type: Optional[ObjectType] = None,
@@ -255,7 +277,7 @@ class GitTreeEntry:
         return stat.S_ISDIR(self.mode)
 
 
-class GitTree(GitObject):
+class GitTree(GitParsedObject):
     object_type = "tree"
 
     def __init__(self, sha1: SHA1, object_type: ObjectType, data: bytes):
@@ -278,9 +300,7 @@ class GitTree(GitObject):
             offset += 20
 
             entry = GitTreeEntry(
-                int(entry_mode, base=8),
-                textutils.decode(entry_name),
-                as_sha1(entry_sha1.hex()),
+                int(entry_mode, base=8), entry_name, as_sha1(entry_sha1.hex())
             )
             self.entries.append(entry)
             self.by_name[entry.name] = entry

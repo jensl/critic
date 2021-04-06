@@ -26,6 +26,7 @@ on the repository, the state of the review (see `Review.STATE_VALUES`), and/or
 its category (see `Review.CATEGORY_VALUES`)."""
 
 from __future__ import annotations
+from abc import abstractmethod
 
 import datetime
 import logging
@@ -34,7 +35,7 @@ from typing import (
     Callable,
     Optional,
     Literal,
-    FrozenSet,
+    Collection,
     Sequence,
     Mapping,
     Protocol,
@@ -71,19 +72,19 @@ class InvalidIds(api.InvalidIdsError, Error):
     pass
 
 
-class InvalidBranch(Error):
+class InvalidBranch(api.InvalidItemError, item_type="branch"):
     """Raised by `fetch()` when an invalid branch is used.
 
     An "invalid branch" here means a branch that does not have a review
     associated with it."""
 
-    def __init__(self, branch: api.branch.Branch) -> None:
-        """Constructor"""
-        super(InvalidBranch, self).__init__("Invalid review branch: %r" % str(branch))
+    @property
+    def branch(self) -> api.branch.Branch:
+        return self.value
 
 
 State = Literal["draft", "open", "closed", "dropped"]
-STATE_VALUES: FrozenSet[State] = frozenset(["draft", "open", "closed", "dropped"])
+STATE_VALUES: Collection[State] = frozenset(["draft", "open", "closed", "dropped"])
 """Possible review states.
 
 - `draft` The review has not been published yet.
@@ -99,7 +100,7 @@ def as_state(value: str) -> State:
 
 
 Category = Literal["incoming", "outgoing", "other"]
-CATEGORY_VALUES: FrozenSet[Category] = frozenset(["incoming", "outgoing", "other"])
+CATEGORY_VALUES: Collection[Category] = frozenset(["incoming", "outgoing", "other"])
 """Review categories.
 
 - `incoming` Open reviews in which the effective user is assigned to review
@@ -119,7 +120,7 @@ def as_category(value: str) -> Category:
 
 
 IntegrationState = Literal["planned", "in-progress", "performed", "failed"]
-INTEGRATION_STATE_VALUES: FrozenSet[IntegrationState] = frozenset(
+INTEGRATION_STATE_VALUES: Collection[IntegrationState] = frozenset(
     ["planned", "in-progress", "performed", "failed"]
 )
 
@@ -131,7 +132,7 @@ def as_integration_state(value: str) -> IntegrationState:
 
 
 IntegrationStrategy = Literal["fast-forward", "cherry-pick", "rebase", "merge"]
-INTEGRATION_STRATEGY_VALUES: FrozenSet[IntegrationStrategy] = frozenset(
+INTEGRATION_STRATEGY_VALUES: Collection[IntegrationStrategy] = frozenset(
     ["fast-forward", "cherry-pick", "rebase", "merge"]
 )
 
@@ -142,82 +143,89 @@ def as_integration_strategy(value: str) -> IntegrationStrategy:
     return cast(IntegrationStrategy, value)
 
 
-class Review(api.APIObject):
+class Review(api.APIObjectWithId):
     """Representation of a Critic review."""
 
     @property
+    @abstractmethod
     def id(self) -> int:
         """The review's unique numeric id."""
-        return self._impl.id
+        ...
 
     @property
+    @abstractmethod
     def state(self) -> State:
         """The review's current state."""
-        return self._impl.state
+        ...
 
     @property
+    @abstractmethod
     async def can_publish(self) -> BooleanWithReason:
-        return await self._impl.canPublish(self.critic)
+        ...
 
     @property
+    @abstractmethod
     async def can_close(self) -> BooleanWithReason:
-        return await self._impl.canClose(self.critic)
+        ...
 
     @property
+    @abstractmethod
     async def can_drop(self) -> BooleanWithReason:
-        return await self._impl.canDrop(self.critic)
+        ...
 
     @property
+    @abstractmethod
     async def can_reopen(self) -> BooleanWithReason:
-        return await self._impl.canReopen(self.critic)
+        ...
 
     @property
+    @abstractmethod
     async def is_accepted(self) -> bool:
         """True if the review is "accepted", False otherwise.
 
         Being "accepted" means all changes are marked as reviewed, and there
         are no open issues."""
-        return await self._impl.isAccepted(self.critic)
+        ...
 
     @property
-    async def would_be_accepted(self) -> bool:
-        """True if the review would become "accepted" if the current user's
-        unpublished changes were published."""
-        return await self._impl.wouldBeAccepted(self)
-
-    @property
+    @abstractmethod
     def summary(self) -> Optional[str]:
         """The review's summary/title, or None"""
-        return self._impl.summary
+        ...
 
     @property
+    @abstractmethod
     def description(self) -> Optional[str]:
         """The review's description, or None."""
-        return self._impl.description
+        ...
 
     @property
+    @abstractmethod
     async def repository(self) -> api.repository.Repository:
         """The repository containing the review branch.
 
         The value is a `critic.api.repository.Repository` object."""
-        return await self._impl.getRepository(self.critic)
+        ...
 
     @property
+    @abstractmethod
     async def branch(self) -> Optional[api.branch.Branch]:
         """The review branch.
 
         The value is a `critic.api.branch.Branch` object."""
-        return await self._impl.getBranch(self.critic)
+        ...
 
     @property
-    async def owners(self) -> FrozenSet[api.user.User]:
+    @abstractmethod
+    async def owners(self) -> Collection[api.user.User]:
         """The users that own the review.
 
         The value is a set of `critic.api.user.User` objects."""
-        return await self._impl.getOwners(self.critic)
+        ...
 
     @property
-    async def assigned_reviewers(self) -> FrozenSet[api.user.User]:
+    @abstractmethod
+    async def assigned_reviewers(self) -> Collection[api.user.User]:
         """The review's assigned reviewers
 
         The reviewers are returned as a set of api.user.User objects.
@@ -225,32 +233,35 @@ class Review(api.APIObject):
         Assigned reviewers are users that have been (manually or
         automatically) assigned as such. An assigned reviewer may or may not
         also be an active reviewer (a reviewer that has reviewed changes)."""
-        return await self._impl.getAssignedReviewers(self.critic)
+        ...
 
     @property
-    async def active_reviewers(self) -> FrozenSet[api.user.User]:
+    @abstractmethod
+    async def active_reviewers(self) -> Collection[api.user.User]:
         """The review's active reviewers
 
         The reviewers are returned as a set of api.user.User objects.
 
         Active reviewers are users that have reviewed changes. An active
         reviewer may or may not also be an assigned reviewer (see above)."""
-        return await self._impl.getActiveReviewers(self.critic)
+        ...
 
     @property
-    async def watchers(self) -> FrozenSet[api.user.User]:
+    @abstractmethod
+    async def watchers(self) -> Collection[api.user.User]:
         """The review's watchers
 
         The watchers are returned as a set of api.user.User objects.
 
         A user is a watcher if he/she is on the list of users that receive
         emails about the review, and is neither an owner nor a reviewer."""
-        return await self._impl.getWatchers(self.critic)
+        ...
 
     @property
-    async def users(self) -> FrozenSet[api.user.User]:
+    @abstractmethod
+    async def users(self) -> Collection[api.user.User]:
         """All users involved in any way in the review"""
-        return await self._impl.getUsers(self.critic)
+        ...
 
     @property
     async def filters(self) -> Sequence[api.reviewfilter.ReviewFilter]:
@@ -268,6 +279,7 @@ class Review(api.APIObject):
         return await api.reviewevent.fetchAll(self.critic, review=self)
 
     @property
+    @abstractmethod
     async def commits(self) -> api.commitset.CommitSet:
         """The set of "reviewable" commits.
 
@@ -276,18 +288,22 @@ class Review(api.APIObject):
         reachable from the review branch, consult the `commits` attribute on
         the `critic.api.branch.Branch` object that is returned by the
         `Review.branch` attribute."""
-        return await self._impl.getCommits(self)
+        ...
 
     @property
-    async def changesets(self) -> Mapping[api.commit.Commit, api.changeset.Changeset]:
+    @abstractmethod
+    async def changesets(
+        self,
+    ) -> Optional[Mapping[api.commit.Commit, api.changeset.Changeset]]:
         """Changesets for each commit in `commits`
 
         The changesets are returned as a dictionary mapping
         api.commit.Commit objects to api.changeset.Changeset objects."""
-        return await self._impl.getChangesets(self)
+        ...
 
     @property
-    async def files(self) -> FrozenSet[api.file.File]:
+    @abstractmethod
+    async def files(self) -> Collection[api.file.File]:
         """The set of files touched by the changes under review
 
         This includes any files that have been touched along the way but that
@@ -298,7 +314,7 @@ class Review(api.APIObject):
         file that in any way has been touched.
 
         The files are returned as a set of api.file.File objects."""
-        return await self._impl.getFiles(self.critic)
+        ...
 
     @property
     async def rebases(self) -> Sequence[api.rebase.Rebase]:
@@ -309,33 +325,37 @@ class Review(api.APIObject):
         return await api.rebase.fetchAll(self.critic, review=self)
 
     @property
+    @abstractmethod
     async def pending_rebase(self) -> Optional[api.rebase.Rebase]:
         """The pending rebase of the review branch.
 
         The values is a `critic.api.rebase.Rebase` object, or None if there
         is no pending rebase."""
-        return await self._impl.getPendingRebase(self)
+        ...
 
     @property
+    @abstractmethod
     async def issues(self) -> Sequence[api.comment.Issue]:
         """The issues in the review
 
         The issues are returned as a list of api.comment.Issue objects."""
-        return await self._impl.getIssues(self)
+        ...
 
     @property
+    @abstractmethod
     async def open_issues(self) -> Sequence[api.comment.Issue]:
         """The open issues in the review
 
         The issues are returned as a list of api.comment.Issue objects."""
-        return await self._impl.getOpenIssues(self)
+        ...
 
     @property
+    @abstractmethod
     async def notes(self) -> Sequence[api.comment.Note]:
         """The notes in the review
 
         The notes are returned as a list of api.comment.Note objects."""
-        return await self._impl.getNotes(self)
+        ...
 
     @property
     async def first_partition(self) -> api.partition.Partition:
@@ -343,14 +363,14 @@ class Review(api.APIObject):
             self.critic, await self.commits, await self.rebases
         )
 
+    @abstractmethod
     async def isReviewableCommit(self, commit: api.commit.Commit) -> bool:
         """Return true if the commit is a primary commit in this review
 
         A primary commit is one that is included in one of the log
         partitions, and not just part of the "actual log" after a rebase of
         the review branch."""
-        assert isinstance(commit, api.commit.Commit)
-        return await self._impl.isReviewableCommit(self.critic, commit)
+        ...
 
     class Progress(Protocol):
         """Overall reviewing progress summary.
@@ -374,39 +394,44 @@ class Review(api.APIObject):
             ...
 
     @property
+    @abstractmethod
     async def progress(self) -> Progress:
         """Review progress
 
         See also |is_accepted| for a simple yes/no answer to whether the
         review has been accepted."""
-        return await self._impl.getProgress(self.critic)
+        ...
 
     @property
+    @abstractmethod
     async def total_progress(self) -> float:
         """Total progress made on a review
 
         Total progress is expressed as a number between 0 and 1, 1 being
         fully reviewed and 0 being fully pending."""
-        return await self._impl.getTotalProgress(self.critic)
+        ...
 
     @property
+    @abstractmethod
     async def progress_per_commit(self) -> Sequence[CommitChangeCount]:
         """Progress made on a review, grouped by commit
 
         Returned as a list of CommitChangeCount, where each has the number of
         total changed lines, and the number of reviewed changed lines"""
-        return await self._impl.getProgressPerCommit(self.critic)
+        ...
 
     @property
+    @abstractmethod
     async def initial_commits_pending(self) -> bool:
         """Return true if the review's initial commits are pending
 
         This means their corresponding changesets have not yet been added to
         the review, and is only the case temporarily right after the review
         has been created."""
-        return await self._impl.getInitialCommitsPending(self.critic)
+        ...
 
     @property
+    @abstractmethod
     async def pending_update(self) -> Optional[api.branchupdate.BranchUpdate]:
         """The pending update of the review's branch, or None if there isn't one
 
@@ -415,17 +440,19 @@ class Review(api.APIObject):
         have been updated, but the commits added to the branch have not yet
         been added to the review, and no emails will have been sent about it
         to reviewers and watchers yet."""
-        return await self._impl.getPendingUpdate(self.critic)
+        ...
 
     @property
-    async def tags(self) -> FrozenSet[api.reviewtag.ReviewTag]:
+    @abstractmethod
+    async def tags(self) -> Collection[api.reviewtag.ReviewTag]:
         """Return the review tags for the current user
 
         The tags are returned as a set of api.reviewtag.ReviewTag objects. If
         there is no current user, an empty set is returned."""
-        return await self._impl.getTags(self.critic)
+        ...
 
     @property
+    @abstractmethod
     async def last_changed(self) -> datetime.datetime:
         """Return the timestamp of the most recent change of this review
 
@@ -433,14 +460,15 @@ class Review(api.APIObject):
 
         Specifically, this is the timestamp of the most recently recorded
         review event."""
-        return await self._impl.getLastChanged(self.critic)
+        ...
 
+    @abstractmethod
     async def prefetchCommits(self) -> None:
         """Prefetch all commits that are referenced from this review
 
         This is an optimization if all or most of those commits will be used
         later."""
-        await self._impl.prefetchCommits(self.critic)
+        ...
 
     @property
     async def pings(self) -> Sequence[api.reviewping.ReviewPing]:
@@ -485,7 +513,7 @@ class Review(api.APIObject):
             ...
 
         @property
-        def conflicts(self) -> FrozenSet[api.file.File]:
+        def conflicts(self) -> Collection[api.file.File]:
             """Files in which conflicts are expected.
 
             The value is a set of api.file.File objects.
@@ -500,20 +528,24 @@ class Review(api.APIObject):
             ...
 
     @property
+    @abstractmethod
     async def integration(self) -> Optional[Integration]:
-        return await self._impl.getIntegration(self)
+        ...
 
 
 class CommitChangeCount(Protocol):
     @property
+    @abstractmethod
     def commit_id(self) -> int:
         ...
 
     @property
+    @abstractmethod
     def total_changes(self) -> int:
         ...
 
     @property
+    @abstractmethod
     def reviewed_changes(self) -> int:
         ...
 

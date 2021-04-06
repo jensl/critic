@@ -27,12 +27,18 @@ const ReviewListItemMetadata: FunctionComponent<OwnProps> = ({
 }) => {
   const classes = useStyles()
   return (
-    <Typography className={clsx(className, classes.reviewListItemMetadata)}>
-      by{" "}
+    <div>
+      <Typography
+        className={clsx(className, classes.reviewListItemMetadata)}
+        display="inline"
+        component="span"
+      >
+        {"by "}
+      </Typography>
       {map(review.owners, (userID) => (
         <UserListItem key={userID} userID={userID} />
       ))}
-    </Typography>
+    </div>
   )
 }
 

@@ -39,12 +39,6 @@ from critic import pubsub
 from critic.base import binarylog
 
 
-class APIObjectWrapper:
-    def __init__(self, api_object: api.APIObject):
-        self.api_module = api_object.getModule()
-        self.object_id = int(api_object)
-
-
 class ExtensionHostService(BackgroundService):
     name = "extensionhost"
     want_pubsub = True

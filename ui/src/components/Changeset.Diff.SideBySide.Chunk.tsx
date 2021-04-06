@@ -25,7 +25,6 @@ const SideBySideChunk: FunctionComponent<ChunkProps> = ({
   selectionScope,
   inView,
 }) => {
-  console.log("SideBySideChunk", { scopeID })
   const classes = useStyles()
   const lines = chunk.content.map((line, index) => (
     <Line

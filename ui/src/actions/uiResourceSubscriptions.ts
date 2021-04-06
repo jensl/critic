@@ -14,96 +14,100 @@
  * the License.
  */
 
-import defer from "lodash/defer"
+// import defer from "lodash/defer"
 
-import { Dispatch, GetState } from "../state"
-import Token from "../utils/Token"
-import {
-  SubscribedAction,
-  ADD_SUBSCRIPTION,
-  ADD_SUBSCRIBER,
-  REMOVE_SUBSCRIBER,
-  CHECK_SUBSCRIPTION,
-  Action,
-} from "."
-import {
-  findSubscriptionByArgs,
-  findSubscriptionByToken,
-  Subscription,
-} from "../reducers/uiResourceSubscriptions"
+// import { Dispatch, GetState, Thunk } from "../state"
+// import Token from "../utils/Token"
+// import {
+//   SubscribedAction,
+//   ADD_SUBSCRIPTION,
+//   ADD_SUBSCRIBER,
+//   REMOVE_SUBSCRIBER,
+//   CHECK_SUBSCRIPTION,
+//   Action,
+// } from "."
+// import {
+//   findSubscriptionByArgs,
+//   findSubscriptionByToken,
+//   Subscription,
+// } from "../reducers/uiResourceSubscriptions"
 
-const addSubscription = (action: SubscribedAction, args: any[]): Action => ({
-  type: ADD_SUBSCRIPTION,
-  action,
-  args,
-})
+// const addSubscription = (action: SubscribedAction, args: any[]): Action => ({
+//   type: ADD_SUBSCRIPTION,
+//   action,
+//   args,
+// })
 
-const addSubscriber = (
-  action: SubscribedAction,
-  args: any[],
-  token: Token
-): Action => ({
-  type: ADD_SUBSCRIBER,
-  action,
-  args,
-  token,
-})
+// const addSubscriber = (
+//   action: SubscribedAction,
+//   args: any[],
+//   token: Token,
+// ): Action => ({
+//   type: ADD_SUBSCRIBER,
+//   action,
+//   args,
+//   token,
+// })
 
-const fnName = (fn: any) =>
-  String(fn).replace(/^function\s+(\w+)\([\s\S]*$/, "$1")
+// const fnName = (fn: any) =>
+//   String(fn).replace(/^function\s+(\w+)\([\s\S]*$/, "$1")
 
-export const registerSubscriber = (action: SubscribedAction, args: any[]) => (
-  dispatch: Dispatch,
-  getState: GetState
-) => {
-  const token = Token.create()
-  const [, subscription] = findSubscriptionByArgs(
-    getState().ui.resourceSubscriptions,
-    action,
-    args
-  )
-  if (!subscription) {
-    console.debug("New subscription", { action: fnName(action), args })
-    dispatch(addSubscription(action, args))
-    dispatch(action(...args))
-  }
-  console.debug("New subscriber", { action: fnName(action), args, token })
-  dispatch(addSubscriber(action, args, token))
-  return token
-}
+// export const registerSubscriber = (action: SubscribedAction, args: any[]) => (
+//   dispatch: Dispatch,
+//   getState: GetState,
+// ) => {
+//   const token = Token.create()
+//   const { subscription } = findSubscriptionByArgs(
+//     getState().ui.resourceSubscriptions,
+//     action,
+//     args,
+//   )
+//   if (!subscription) {
+//     console.debug("New subscription", { action: fnName(action), args })
+//     dispatch(addSubscription(action, args))
+//     dispatch(action(...args))
+//   }
+//   console.debug("New subscriber", { action: fnName(action), args, token })
+//   dispatch(addSubscriber(action, args, token))
+//   return token
+// }
 
-const removeSubscriber = (action: SubscribedAction, token: Token): Action => ({
-  type: REMOVE_SUBSCRIBER,
-  action,
-  token,
-})
+// const removeSubscriber = (action: SubscribedAction, token: Token): Action => ({
+//   type: REMOVE_SUBSCRIBER,
+//   action,
+//   token,
+// })
 
-const checkSubscription = (action: SubscribedAction, args: any[]): Action => ({
-  type: CHECK_SUBSCRIPTION,
-  action,
-  args,
-})
+// const checkSubscription = (action: SubscribedAction, args: any[]): Action => ({
+//   type: CHECK_SUBSCRIPTION,
+//   action,
+//   args,
+// })
 
-export const unregisterSubscriber = (
-  action: SubscribedAction,
-  token: Token
-) => (dispatch: Dispatch, getState: GetState) => {
-  const [, subscription] = findSubscriptionByToken(
-    getState().ui.resourceSubscriptions,
-    action,
-    token
-  )
-  if (subscription) {
-    console.debug("Unregister subscriber", {
-      action: fnName(action),
-      args: subscription.args,
-      count: subscription.tokens.size,
-      token,
-    })
-    dispatch(removeSubscriber(action, token))
-    defer(dispatch, checkSubscription(action, subscription.args))
-  }
-}
+// export const unregisterSubscriber = (
+//   action: SubscribedAction,
+//   token: Token,
+// ) => (dispatch: Dispatch, getState: GetState) => {
+//   const [, subscription] = findSubscriptionByToken(
+//     getState().ui.resourceSubscriptions,
+//     action,
+//     token,
+//   )
+//   if (subscription) {
+//     console.debug("Unregister subscriber", {
+//       action: fnName(action),
+//       args: subscription.args,
+//       count: subscription.tokens.size,
+//       token,
+//     })
+//     dispatch(removeSubscriber(action, token))
+//     defer(dispatch, checkSubscription(action, subscription.args))
+//   }
+// }
 
-export const reloadSubscription = (subscription: Subscription) =>
-  subscription.action(...subscription.args)
+// export const reloadSubscription = (subscription: Subscription) =>
+//   subscription.action(...subscription.args)
+
+// export const reloadSubscriptions: Thunk<void> = (dispatch, getState) => {}
+
+export {}

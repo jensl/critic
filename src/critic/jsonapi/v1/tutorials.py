@@ -15,11 +15,16 @@
 # the License.
 
 from __future__ import annotations
+from typing import TypedDict
 
 from critic import api
 from ..resourceclass import ResourceClass
 from ..parameters import Parameters
-from ..types import JSONResult
+
+
+class JSONResult(TypedDict):
+    name: str
+    source: str
 
 
 class Tutorials(ResourceClass[api.tutorial.Tutorial], api_module=api.tutorial):
@@ -27,7 +32,7 @@ class Tutorials(ResourceClass[api.tutorial.Tutorial], api_module=api.tutorial):
 
     @staticmethod
     async def json(parameters: Parameters, value: api.tutorial.Tutorial) -> JSONResult:
-        return {"id": value.id, "source": value.source}
+        return JSONResult(name=value.name, source=value.source)
 
     @classmethod
     async def single(

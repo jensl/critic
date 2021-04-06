@@ -16,85 +16,102 @@
 
 from __future__ import annotations
 
-from typing import Tuple, Optional, Sequence
-
 import logging
+from typing import Any, Callable, Tuple, Optional, Sequence
 
 logger = logging.getLogger(__name__)
 
 from critic import api
 from critic.api import systemevent as public
-from critic import base
-from critic.dbaccess import ProgrammingError
+from .apiobject import APIObjectImplWithId
+from .queryhelper import QueryHelper, QueryResult
 
-from . import apiobject
-
-WrapperType = api.systemevent.SystemEvent
+PublicType = public.SystemEvent
 ArgumentsType = Tuple[int, str, str, str, str, bool]
 
 
-class SystemEvent(apiobject.APIObject[WrapperType, ArgumentsType, int]):
-    wrapper_class = WrapperType
-    column_names = ["id", "category", "key", "title", "data", "handled"]
+class SystemEvent(PublicType, APIObjectImplWithId, module=public):
+    def update(self, args: ArgumentsType) -> int:
+        (
+            self.__id,
+            self.__category,
+            self.__key,
+            self.__title,
+            self.__data,
+            self.__handled,
+        ) = args
+        return self.__id
 
-    def __init__(self, args: ArgumentsType):
-        self.id, self.category, self.key, self.title, self.data, self.handled = args
+    @property
+    def id(self) -> int:
+        return self.__id
+
+    @property
+    def category(self) -> str:
+        return self.__category
+
+    @property
+    def key(self) -> str:
+        return self.__key
+
+    @property
+    def title(self) -> str:
+        return self.__title
+
+    @property
+    def data(self) -> Any:
+        return self.__data
+
+    @property
+    def handled(self) -> bool:
+        return self.__handled
+
+    @classmethod
+    def getQueryByIds(
+        cls,
+    ) -> Callable[[api.critic.Critic, Sequence[int]], QueryResult[ArgumentsType]]:
+        return queries.queryByIds
+
+
+queries = QueryHelper[ArgumentsType](
+    PublicType.getTableName(),
+    "id",
+    "category",
+    "key",
+    "title",
+    "data",
+    "handled",
+    default_order_by=["id DESC"],
+)
 
 
 @public.fetchImpl
-@SystemEvent.cached
 async def fetch(
     critic: api.critic.Critic,
     event_id: Optional[int],
     category: Optional[str],
     key: Optional[str],
-) -> WrapperType:
-    try:
-        async with critic.query(
-            f"SELECT 1 FROM {SystemEvent.table()} WHERE FALSE"
-        ) as result:
-            await result.ignore()
-    except ProgrammingError:
-        # The |systemevents| table doesn't exist. This happens during upgrade
-        # from a pre-2.0 system. Ignore the error here.
-        assert event_id is None
-        raise base.UninitializedDatabase()
-
+) -> PublicType:
     if event_id is not None:
-        async with SystemEvent.query(
-            critic, ["id={event_id}"], event_id=event_id
-        ) as result:
-            return await SystemEvent.makeOne(critic, result)
-
-    assert category is not None
-    assert key is not None
-
-    async with SystemEvent.query(
-        critic,
-        f"""SELECT {SystemEvent.columns()}
-              FROM {SystemEvent.table()}
-             WHERE category={{category}}
-               AND key={{key}}
-          ORDER BY id DESC
-             LIMIT 1""",
-        category=category,
-        key=key,
-    ) as result:
-        try:
-            return await SystemEvent.makeOne(critic, result)
-        except result.ZeroRowsInResult:
-            raise api.systemevent.NotFound(category, key)
+        return await SystemEvent.ensureOne(
+            event_id, queries.idFetcher(critic, SystemEvent)
+        )
+    assert category is not None and key is not None
+    return SystemEvent.storeOne(
+        await queries.query(
+            critic,
+            queries.formatQuery("category={category}", "key={key}", limit=1),
+            category=category,
+            key=key,
+        ).makeOne(SystemEvent, public.NotFound(category, key))
+    )
 
 
 @public.fetchManyImpl
-@SystemEvent.cachedMany
 async def fetchMany(
     critic: api.critic.Critic, event_ids: Sequence[int]
-) -> Sequence[WrapperType]:
-    async with SystemEvent.query(
-        critic, ["id=ANY({event_ids})"], event_ids=event_ids
-    ) as result:
-        return await SystemEvent.make(critic, result)
+) -> Sequence[PublicType]:
+    return await SystemEvent.ensure(event_ids, queries.idsFetcher(critic, SystemEvent))
 
 
 @public.fetchAllImpl
@@ -103,7 +120,7 @@ async def fetchAll(
     category: Optional[str],
     key: Optional[str],
     pending: bool,
-) -> Sequence[WrapperType]:
+) -> Sequence[PublicType]:
     conditions = []
     if category is not None:
         conditions.append("category={category}")
@@ -111,12 +128,11 @@ async def fetchAll(
             conditions.append("key={key}")
     if pending:
         conditions.append("NOT handled")
-    try:
-        async with SystemEvent.query(
-            critic, conditions, order_by="id DESC", category=category, key=key
-        ) as result:
-            return await SystemEvent.make(critic, result)
-    except ProgrammingError:
-        # The |systemevents| doesn't exist. This happens during upgrade from a
-        # pre-2.0 system.
-        raise api.DatabaseSchemaError("Missing table: systemevents")
+    return SystemEvent.store(
+        await queries.query(
+            critic,
+            *conditions,
+            category=category,
+            key=key,
+        ).make(SystemEvent)
+    )

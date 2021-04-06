@@ -15,6 +15,7 @@
 # the License.
 
 from __future__ import annotations
+from abc import abstractmethod
 
 from typing import (
     Any,
@@ -24,7 +25,6 @@ from typing import (
     Optional,
     Sequence,
     Iterable,
-    Union,
     overload,
 )
 
@@ -54,6 +54,10 @@ class InvalidKey(api.InvalidItemError, Error, item_type="key"):
     pass
 
 
+class InvalidKeys(api.InvalidItemsError, Error, items_type="keys"):
+    pass
+
+
 class InvalidPrefix(Error):
     """Raised when an invalid prefix is used"""
 
@@ -63,33 +67,35 @@ class InvalidPrefix(Error):
         self.value = value
 
 
-class SystemSetting(api.APIObject):
-    def __str__(self) -> str:
-        return self.key
-
+class SystemSetting(api.APIObjectWithId):
     @property
+    @abstractmethod
     def id(self) -> int:
         """The setting's unique id"""
-        return self._impl.id
+        ...
 
     @property
+    @abstractmethod
     def key(self) -> str:
         """The setting's unique key"""
-        return self._impl.key
+        ...
 
     @property
+    @abstractmethod
     def description(self) -> str:
         """The setting's description"""
-        return self._impl.description
+        ...
 
     @property
+    @abstractmethod
     def is_privileged(self) -> bool:
-        return self._impl.is_privileged
+        ...
 
     @property
+    @abstractmethod
     def value(self) -> Any:
         """The setting's value"""
-        return self._impl.value
+        ...
 
 
 @overload

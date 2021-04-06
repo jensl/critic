@@ -18,16 +18,18 @@ from __future__ import annotations
 
 import datetime
 import logging
-from typing import Optional, Sequence, Tuple
+from typing import Callable, Optional, Sequence, Tuple
+
+from .queryhelper import QueryHelper, QueryResult, join
 
 logger = logging.getLogger(__name__)
 
-from critic import api
+from critic import api, dbaccess
 from critic.api import branchupdate as public
-from . import apiobject
+from .apiobject import APIObjectImplWithId
 
 
-WrapperType = api.branchupdate.BranchUpdate
+PublicType = api.branchupdate.BranchUpdate
 ArgumentsType = Tuple[
     int,
     int,
@@ -39,70 +41,60 @@ ArgumentsType = Tuple[
 ]
 
 
-class BranchUpdate(apiobject.APIObject[WrapperType, ArgumentsType, int]):
-    wrapper_class = api.branchupdate.BranchUpdate
-    column_names = [
-        "id",
-        "branch",
-        "updater",
-        "from_head",
-        "to_head",
-        "updated_at",
-        "output",
-    ]
-
+class BranchUpdate(PublicType, APIObjectImplWithId, module=public):
     __associated_commits: Optional[api.commitset.CommitSet]
     __disassociated_commits: Optional[api.commitset.CommitSet]
     __commits: Optional[api.commitset.CommitSet]
 
-    def __init__(self, args: ArgumentsType):
+    def update(self, args: ArgumentsType) -> int:
         (
-            self.id,
+            self.__id,
             self.__branch_id,
             self.__updater_id,
             self.__from_head_id,
             self.__to_head_id,
-            self.timestamp,
-            self.output,
+            self.__timestamp,
+            self.__output,
         ) = args
         self.__associated_commits = None
         self.__disassociated_commits = None
         self.__commits = None
+        return self.__id
 
-    async def getBranch(self, critic: api.critic.Critic) -> api.branch.Branch:
-        return await api.branch.fetch(critic, self.__branch_id)
+    @property
+    def id(self) -> int:
+        return self.__id
 
-    async def getRepository(
-        self, critic: api.critic.Critic
-    ) -> api.repository.Repository:
-        return await (await self.getBranch(critic)).repository
+    @property
+    async def branch(self) -> api.branch.Branch:
+        return await api.branch.fetch(self.critic, self.__branch_id)
 
-    async def getUpdater(self, critic: api.critic.Critic) -> Optional[api.user.User]:
+    @property
+    async def repository(self) -> api.repository.Repository:
+        return await (await self.branch).repository
+
+    @property
+    async def updater(self) -> Optional[api.user.User]:
         if self.__updater_id is None:
             return None
-        return await api.user.fetch(critic, self.__updater_id)
+        return await api.user.fetch(self.critic, self.__updater_id)
 
-    async def getFromHead(
-        self, critic: api.critic.Critic
-    ) -> Optional[api.commit.Commit]:
+    @property
+    async def from_head(self) -> Optional[api.commit.Commit]:
         if self.__from_head_id is None:
             return None
-        return await api.commit.fetch(
-            await self.getRepository(critic), self.__from_head_id
-        )
+        return await api.commit.fetch(await self.repository, self.__from_head_id)
 
-    async def getToHead(self, critic: api.critic.Critic) -> api.commit.Commit:
-        return await api.commit.fetch(
-            await self.getRepository(critic), self.__to_head_id
-        )
+    @property
+    async def to_head(self) -> api.commit.Commit:
+        return await api.commit.fetch(await self.repository, self.__to_head_id)
 
-    async def getAssociatedCommits(
-        self, critic: api.critic.Critic
-    ) -> api.commitset.CommitSet:
+    @property
+    async def associated_commits(self) -> api.commitset.CommitSet:
         if self.__associated_commits is None:
-            repository = await self.getRepository(critic)
+            repository = await self.repository
             async with api.critic.Query[int](
-                critic,
+                self.critic,
                 """SELECT commit
                      FROM branchupdatecommits
                     WHERE branchupdate={branchupdate_id}
@@ -110,19 +102,17 @@ class BranchUpdate(apiobject.APIObject[WrapperType, ArgumentsType, int]):
                 branchupdate_id=self.id,
             ) as result:
                 commit_ids = await result.scalars()
-            logger.debug(f"{commit_ids=}")
             self.__associated_commits = await api.commitset.create(
-                critic, await api.commit.fetchMany(repository, commit_ids)
+                self.critic, await api.commit.fetchMany(repository, commit_ids)
             )
         return self.__associated_commits
 
-    async def getDisassociatedCommits(
-        self, critic: api.critic.Critic
-    ) -> api.commitset.CommitSet:
+    @property
+    async def disassociated_commits(self) -> api.commitset.CommitSet:
         if self.__disassociated_commits is None:
-            repository = await self.getRepository(critic)
+            repository = await self.repository
             async with api.critic.Query[int](
-                critic,
+                self.critic,
                 """SELECT commit
                      FROM branchupdatecommits
                     WHERE branchupdate={branchupdate_id}
@@ -131,16 +121,17 @@ class BranchUpdate(apiobject.APIObject[WrapperType, ArgumentsType, int]):
             ) as result:
                 commit_ids = await result.scalars()
             self.__disassociated_commits = await api.commitset.create(
-                critic, await api.commit.fetchMany(repository, commit_ids)
+                self.critic, await api.commit.fetchMany(repository, commit_ids)
             )
         return self.__disassociated_commits
 
-    async def getCommits(self, critic: api.critic.Critic) -> api.commitset.CommitSet:
+    @property
+    async def commits(self) -> api.commitset.CommitSet:
         if self.__commits is None:
-            repository = await self.getRepository(critic)
+            repository = await self.repository
             commit_ids = set()
             async with api.critic.Query[Tuple[int, bool]](
-                critic,
+                self.critic,
                 """SELECT commit, associated
                      FROM branchupdates
                      JOIN branchupdatecommits ON (
@@ -158,45 +149,77 @@ class BranchUpdate(apiobject.APIObject[WrapperType, ArgumentsType, int]):
                     else:
                         commit_ids.remove(commit_id)
             self.__commits = await api.commitset.create(
-                critic, await api.commit.fetchMany(repository, commit_ids)
+                self.critic, await api.commit.fetchMany(repository, commit_ids)
             )
         return self.__commits
 
+    @property
+    def timestamp(self) -> datetime.datetime:
+        return self.__timestamp
+
+    @property
+    def output(self) -> Optional[str]:
+        return self.__output
+
+    @classmethod
+    def getQueryByIds(
+        cls,
+    ) -> Callable[[api.critic.Critic, Sequence[int]], QueryResult[ArgumentsType]]:
+        return queries.queryByIds
+
+
+queries = QueryHelper[ArgumentsType](
+    PublicType.getTableName(),
+    "id",
+    "branch",
+    "updater",
+    "from_head",
+    "to_head",
+    "updated_at",
+    "output",
+)
+
 
 @public.fetchImpl
-@BranchUpdate.cached
 async def fetch(
     critic: api.critic.Critic,
     branchupdate_id: Optional[int],
     event: Optional[api.reviewevent.ReviewEvent],
-) -> WrapperType:
-    tables = [BranchUpdate.table()]
-    conditions = []
+) -> PublicType:
     if branchupdate_id is not None:
-        conditions.append("branchupdates.id={branchupdate_id}")
-    else:
-        assert event
-        if event.type != "branchupdate":
-            raise api.branchupdate.InvalidReviewEvent(event)
-        tables.append("reviewupdates ON (reviewupdates.branchupdate=branchupdates.id)")
-        conditions.append("reviewupdates.event={event}")
-    async with BranchUpdate.query(
-        critic, conditions, branchupdate_id=branchupdate_id, event=event
-    ) as result:
-        return await BranchUpdate.makeOne(critic, result)
+        return await BranchUpdate.ensureOne(
+            branchupdate_id, queries.idFetcher(critic, BranchUpdate)
+        )
+    assert event
+    if event.type != "branchupdate":
+        raise api.branchupdate.InvalidReviewEvent(event)
+    try:
+        return BranchUpdate.storeOne(
+            await queries.query(
+                critic,
+                queries.formatQuery(
+                    "reviewupdates.event={event}",
+                    joins=[
+                        join(
+                            reviewupdates=[
+                                "reviewupdates.branchupdate=branchupdates.id"
+                            ],
+                        )
+                    ],
+                ),
+            ).makeOne(BranchUpdate)
+        )
+    except dbaccess.ZeroRowsInResult:
+        raise public.InvalidReviewEvent(event)
 
 
 @public.fetchManyImpl
-@BranchUpdate.cachedMany
 async def fetchMany(
     critic: api.critic.Critic, branchupdate_ids: Sequence[int]
-) -> Sequence[WrapperType]:
-    async with BranchUpdate.query(
-        critic,
-        ["branchupdates.id=ANY({branchupdate_ids})"],
-        branchupdate_ids=branchupdate_ids,
-    ) as result:
-        return await BranchUpdate.make(critic, result)
+) -> Sequence[PublicType]:
+    return await BranchUpdate.ensure(
+        branchupdate_ids, queries.idsFetcher(critic, BranchUpdate)
+    )
 
 
 @public.fetchAllImpl
@@ -204,13 +227,7 @@ async def fetchAll(
     critic: api.critic.Critic,
     branch: Optional[api.branch.Branch],
     updater: Optional[api.user.User],
-) -> Sequence[WrapperType]:
-    conditions = []
-    if branch is not None:
-        conditions.append("branch={branch}")
-    if updater is not None:
-        conditions.append("updater={updater}")
-    async with BranchUpdate.query(
-        critic, conditions, order_by="id DESC", branch=branch, updater=updater
-    ) as result:
-        return await BranchUpdate.make(critic, result)
+) -> Sequence[PublicType]:
+    return BranchUpdate.store(
+        await queries.query(critic, branch=branch, updater=updater).make(BranchUpdate)
+    )

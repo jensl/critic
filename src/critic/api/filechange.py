@@ -15,6 +15,7 @@
 # the License.
 
 from __future__ import annotations
+from abc import abstractmethod
 
 from typing import Awaitable, Callable, Iterable, Sequence, Optional
 
@@ -38,53 +39,47 @@ class InvalidIds(api.InvalidIdsError, Error):
 class FileChange(api.APIObject):
     """Representation of the changes to a file introduced by a changeset"""
 
-    def __hash__(self) -> int:
-        return hash((self.changeset, self.file))
-
-    def __eq__(self, other: object) -> bool:
-        return (
-            isinstance(other, FileChange)
-            and self.changeset == other.changeset
-            and self.file == other.file
-        )
-
+    @abstractmethod
     def __lt__(self, other: object) -> bool:
-        return isinstance(other, FileChange) and (
-            self.changeset < other.changeset
-            or (self.changeset == other.changeset and self.file < other.file)
-        )
+        ...
 
     @property
+    @abstractmethod
     def changeset(self) -> api.changeset.Changeset:
-        return self._impl.changeset
+        ...
 
     @property
+    @abstractmethod
     def file(self) -> api.file.File:
-        return self._impl.file
+        ...
 
     @property
+    @abstractmethod
     def old_sha1(self) -> Optional[SHA1]:
-        return self._impl.old_sha1
+        ...
 
     @property
+    @abstractmethod
     def old_mode(self) -> Optional[int]:
-        return self._impl.old_mode
+        ...
 
     @property
+    @abstractmethod
     def new_sha1(self) -> Optional[SHA1]:
-        return self._impl.new_sha1
+        ...
 
     @property
+    @abstractmethod
     def new_mode(self) -> Optional[int]:
-        return self._impl.new_mode
+        ...
 
     @property
     def was_added(self) -> bool:
-        return self._impl.old_sha1 is None
+        return self.old_sha1 is None
 
     @property
     def was_deleted(self) -> bool:
-        return self._impl.new_sha1 is None
+        return self.new_sha1 is None
 
 
 async def fetch(changeset: api.changeset.Changeset, file: api.file.File) -> FileChange:

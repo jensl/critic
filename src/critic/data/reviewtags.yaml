@@ -9,14 +9,14 @@
 # Implied: |assigned|
 - name: pending
   description:
-    There are new changes that you are assigned to review, and that no-one has
-    marked as reviewed yet.
+    There are changes that you are assigned to review, and that needs to be
+    reviewed by one or more additional reviewers, for instance you.
 
-# Implied: |assigned|
+# Implied: |assigned|, and not |unseen|
 - name: unseen
   description:
     There are new changes that you are assigned to review, and haven't marked
-    as reviewed yet. Other reviewers have marked them as reviewed, however.
+    as reviewed yet. Enough reviewers have marked them as reviewed, however.
 
 # Implied: |assigned|
 - name: single
@@ -24,7 +24,7 @@
     You are assigned to review some changes in this review that no other user is
     assigned to review.
 
-# Implied: |assigned| and |pending|, and not |active| or |single|
+# Implied: |assigned| and |pending|, and not |active|
 - name: available
   description:
     You are assigned to review some changes in this review. Other users may also
@@ -56,3 +56,9 @@
   description:
     The review would become accepted if you published your current unpublished
     changes.
+
+# Implied: |unpublished|
+- name: would_be_unaccepted
+  description:
+    The review is accepted now, but would no longer be if you published your
+    current unpublished changes.

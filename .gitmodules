@@ -1,0 +1,3 @@
+[submodule "extensions/email-delivery"]
+	path = extensions/email-delivery
+	url = ../critic-email-delivery.git

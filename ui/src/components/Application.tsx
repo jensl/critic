@@ -39,6 +39,19 @@ import userSettings from "../userSettings"
 import { useSelector, useDispatch } from "../store"
 import Extensions from "../extensions"
 import { useSessionInfo } from "../utils/SessionContext"
+import { KeyboardEventHandler } from "../utils/KeyboardShortcuts"
+import ResourceSubscriptions from "../utils/ResourceSubscriber"
+import MouseTracker from "../utils/Mouse"
+
+const selectTheme = (name: string) => {
+  switch (name) {
+    case "light":
+    default:
+      return lightTheme
+    case "dark":
+      return darkTheme
+  }
+}
 
 const WithSessionInfo: FunctionComponent = () => {
   const [themeName] = useUserSetting(userSettings.theme)
@@ -51,32 +64,34 @@ const WithSessionInfo: FunctionComponent = () => {
       <CssBaseline />
       <ProvideHashContext>
         <Structure />
-        <SignIn />
+        <SignIn global />
         <Extensions />
       </ProvideHashContext>
     </ThemeProvider>
   )
 }
 
-const Application: FunctionComponent = () => {
-  const dispatch = useDispatch()
+const WithoutSessionInfo: FunctionComponent = () => {
   const { hasSessionInfo, signedInUser } = useSessionInfo()
   const started = useSelector((state) => state.ui.rest.started)
   useSubscriptionIf(signedInUser !== null, loadUserSettings, id(signedInUser))
   useSubscription(loadSession)
   useSubscription(loadUsers)
-  useEffect(() => dispatch(connectWebSocket()), [dispatch])
   return started && hasSessionInfo ? <WithSessionInfo /> : null
 }
 
-const selectTheme = (name: string) => {
-  switch (name) {
-    case "light":
-    default:
-      return lightTheme
-    case "dark":
-      return darkTheme
-  }
+const Application: FunctionComponent = () => {
+  const dispatch = useDispatch()
+  useEffect(() => dispatch(connectWebSocket()), [dispatch])
+  return (
+    <MouseTracker>
+      <KeyboardEventHandler>
+        <ResourceSubscriptions>
+          <WithoutSessionInfo />
+        </ResourceSubscriptions>
+      </KeyboardEventHandler>
+    </MouseTracker>
+  )
 }
 
 export default Application

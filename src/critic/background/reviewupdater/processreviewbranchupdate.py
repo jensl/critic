@@ -90,7 +90,7 @@ async def process_review_branch_update(
         modifier = transaction.modifyReview(review)
 
         logger.debug("recording branch update")
-        await modifier.recordBranchUpdate(branchupdate)
+        event = await modifier.recordBranchUpdate(branchupdate)
 
         if rebase:
             assert rebase_processing_result
@@ -109,12 +109,16 @@ async def process_review_branch_update(
 
         if added_changesets:
             logger.debug("adding changesets")
-            await modifier.addChangesets(added_changesets, branchupdate=branchupdate)
+            await modifier.addChangesets(
+                event, added_changesets, branchupdate=branchupdate
+            )
 
         if added_commits:
             await transaction.execute(EmitOutput(pendingrefupdate_id, "  done."))
 
-        assigned_reviewers = await review.assigned_reviewers - assigned_reviewers_before
+        assigned_reviewers = set(await review.assigned_reviewers).difference(
+            assigned_reviewers_before
+        )
         if assigned_reviewers:
             lines = ["Assigned reviewers:"]
             lines.extend(

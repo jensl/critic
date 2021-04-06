@@ -32,13 +32,3 @@ class ChangedLines:
     insert_offset: int
     insert_count: int
     insert_length: int
-
-    def extract_old_lines(self, lines: Sequence[T]) -> Sequence[T]:
-        assert self.delete_length
-        assert self.delete_offset + self.delete_length <= len(lines)
-        return lines[self.delete_offset : self.delete_offset + self.delete_length]
-
-    def extract_new_lines(self, lines: Sequence[T]) -> Sequence[T]:
-        assert self.insert_length
-        assert self.insert_offset + self.insert_length <= len(lines)
-        return lines[self.insert_offset : self.insert_offset + self.insert_length]

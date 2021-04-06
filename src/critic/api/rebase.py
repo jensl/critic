@@ -16,8 +16,9 @@
 
 from __future__ import annotations
 
+from abc import abstractmethod
 import logging
-from typing import Awaitable, Callable, Optional, Sequence, cast, overload
+from typing import Awaitable, Callable, Literal, Optional, Sequence, cast, overload
 
 from critic.api.apiobject import FunctionRef
 
@@ -47,40 +48,48 @@ class NotARebase(Error):
         self.branchupdate = branchupdate
 
 
-class Rebase(api.APIObject):
+class Rebase(api.APIObjectWithId):
     """Representation of a rebase of a review branch."""
 
-    type: str
+    @property
+    @abstractmethod
+    def type(self) -> Literal["history-rewrite", "move"]:
+        ...
 
     @property
+    @abstractmethod
     def id(self) -> int:
         """The rebases unique numeric id."""
-        return self._impl.id
+        ...
 
     @property
+    @abstractmethod
     async def review(self) -> api.review.Review:
         """The review whose branch was rebased.
 
         The value is a `critic.api.review.Review` object."""
-        return await self._impl.getReview(self.critic)
+        ...
 
     @property
+    @abstractmethod
     def is_pending(self) -> bool:
-        return self._impl.branchupdate_id is None
+        ...
 
     @property
+    @abstractmethod
     async def branchupdate(self) -> Optional[api.branchupdate.BranchUpdate]:
         """The record branch update that performed the rebase.
 
         The value is a `critic.api.branchupdate.BranchUpdate` object."""
-        return await self._impl.getBranchUpdate(self.critic)
+        ...
 
     @property
+    @abstractmethod
     async def creator(self) -> api.user.User:
         """The user who performed the rebase.
 
         The value is a `critic.api.user.User` object."""
-        return await self._impl.getCreator(self.critic)
+        ...
 
     @property
     def as_history_rewrite(self) -> HistoryRewrite:
@@ -100,7 +109,9 @@ class HistoryRewrite(Rebase):
     same upstream commit as before it and makes the exact same changes
     relative it, but contains a different set of actual commits."""
 
-    type = "history-rewrite"
+    @property
+    def type(self) -> Literal["history-rewrite"]:
+        return "history-rewrite"
 
 
 class MoveRebase(Rebase):
@@ -109,23 +120,29 @@ class MoveRebase(Rebase):
     A move rebase moves the changes in the review onto a different upstream
     commit."""
 
-    type = "move"
+    @property
+    def type(self) -> Literal["move"]:
+        return "move"
 
     @property
+    @abstractmethod
     async def old_upstream(self) -> api.commit.Commit:
-        return await self._impl.getOldUpstream(self.critic)
+        ...
 
     @property
+    @abstractmethod
     async def new_upstream(self) -> api.commit.Commit:
-        return await self._impl.getNewUpstream(self.critic)
+        ...
 
     @property
+    @abstractmethod
     async def equivalent_merge(self) -> Optional[api.commit.Commit]:
-        return await self._impl.getEquivalentMerge(self.critic)
+        ...
 
     @property
+    @abstractmethod
     async def replayed_rebase(self) -> Optional[api.commit.Commit]:
-        return await self._impl.getReplayedRebase(self.critic)
+        ...
 
 
 @overload

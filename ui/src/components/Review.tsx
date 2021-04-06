@@ -13,12 +13,12 @@ import Container from "@material-ui/core/Container"
 import Registry from "."
 import ReviewHeader from "./Review.Header"
 import ReviewDetails from "./Review.Details"
-import ReviewActions from "./Review.Actions"
 import ReviewCommits from "./Review.Commits"
 import ReviewChanges from "./Review.Changes"
 import ReviewDiscussions from "./Review.Discussions"
 import CreateBranchDialog from "./Dialog.Review.CreateBranch"
 import PublishChangesDialog from "./Dialog.Review.PublishChanges"
+import DiscardChangesDialog from "./Dialog.Review.DiscardChanges"
 import PublishReviewDialog from "./Dialog.Review.PublishReview"
 import { loadAutomaticChangeset } from "../actions/changeset"
 import { useSubscription } from "../utils"
@@ -64,8 +64,10 @@ type Props = {
 
 const Review: React.FunctionComponent<Props> = ({ className }) => {
   const classes = useStyles()
-  const { activeTab, reviewID } = useRouteMatch<Params>().params
-  useSubscription(loadAutomaticChangeset, "everything", parseInt(reviewID, 10))
+  const { activeTab, reviewID: reviewIDString } = useRouteMatch<Params>().params
+  const reviewID = parseInt(reviewIDString, 10)
+  useSubscription(loadAutomaticChangeset, "everything", reviewID)
+  useSubscription(loadAutomaticChangeset, "pending", reviewID)
   if (!activeTab) return <Redirect to={`/review/${reviewID}/commits`} />
   return (
     <>
@@ -74,9 +76,6 @@ const Review: React.FunctionComponent<Props> = ({ className }) => {
         <Paper className={classes.paper}>
           <div className={classes.details}>
             <ReviewDetails />
-          </div>
-          <div className={classes.actions}>
-            <ReviewActions />
           </div>
           <Divider />
           <Tabs
@@ -106,7 +105,10 @@ const Review: React.FunctionComponent<Props> = ({ className }) => {
           </Tabs>
           <Switch>
             <Route path="/review/:reviewID/commits" component={ReviewCommits} />
-            <Route path="/review/:reviewID/changes" component={ReviewChanges} />
+            <Route
+              path="/review/:reviewID/changes/:mode?"
+              component={ReviewChanges}
+            />
             <Route
               path="/review/:reviewID/discussions"
               component={ReviewDiscussions}
@@ -115,6 +117,7 @@ const Review: React.FunctionComponent<Props> = ({ className }) => {
         </Paper>
       </Container>
       <CreateBranchDialog />
+      <DiscardChangesDialog />
       <PublishChangesDialog />
       <PublishReviewDialog />
     </>

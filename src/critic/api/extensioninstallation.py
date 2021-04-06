@@ -15,6 +15,7 @@
 # the License.
 
 from __future__ import annotations
+from abc import abstractmethod
 
 import logging
 from typing import Any, Awaitable, Callable, Optional, Sequence, overload
@@ -39,52 +40,45 @@ class InvalidId(api.InvalidIdError, Error):
     pass
 
 
-class ExtensionInstallation(api.APIObject):
+class ExtensionInstallation(api.APIObjectWithId):
     """Representation of a single installation of a Critic extension"""
 
-    def __repr__(self) -> str:
-        return f"ExtensionInstallation(id={self.id}, extension_id={self._impl._ExtensionInstallation__extension_id})"
-
     @property
+    @abstractmethod
     def id(self) -> int:
         """The extension installation's unique id"""
-        return self._impl.id
+        ...
 
     @property
+    @abstractmethod
     async def extension(self) -> api.extension.Extension:
         """The installed extension"""
-        return await self._impl.getExtension(self.critic)
+        ...
 
     @property
+    @abstractmethod
     async def version(self) -> api.extensionversion.ExtensionVersion:
         """The installed extension version, or None
 
         None is returned if this is a "live" installation, i.e. one that
         runs directly in the extension's source repository, or follows its
         master branch if it is a bare/remote repository."""
-        return await self._impl.getVersion(self.critic)
+        ...
 
     @property
-    def is_live(self) -> bool:
-        """True if this is a "live" installation"""
-        return self._impl.is_live
-
-    @property
-    async def runtime_path(self) -> str:
-        return await self._impl.getRuntimePath(self.critic)
-
-    @property
+    @abstractmethod
     async def user(self) -> Optional[api.user.User]:
         """The installing user, or None
 
         None is returned if this is a "universal" installation, i.e. one that
         applies to all users."""
-        return await self._impl.getUser(self.critic)
+        ...
 
     @property
+    @abstractmethod
     def is_universal(self) -> bool:
         """True if this is a "universal" installation"""
-        return self._impl.is_universal
+        ...
 
     @property
     async def manifest(self) -> Any:

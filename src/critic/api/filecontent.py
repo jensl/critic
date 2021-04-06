@@ -15,6 +15,7 @@
 # the License.
 
 from __future__ import annotations
+from abc import abstractmethod
 
 from typing import (
     Awaitable,
@@ -47,30 +48,23 @@ class FileContentDelayed(api.ResultDelayedError):
 class FileContent(api.APIObject):
     """Representation of the contents of a file"""
 
-    def __hash__(self) -> int:
-        return hash((self.repository.id, self.file, self.sha1))
-
-    def __eq__(self, other: object) -> bool:
-        return (
-            isinstance(other, FileContent)
-            and self.repository == other.repository
-            and self.file == other.file
-            and self.sha1 == other.sha1
-        )
-
     @property
+    @abstractmethod
     def repository(self) -> api.repository.Repository:
-        return self._impl.repository
+        ...
 
     @property
-    def file(self) -> api.file.File:
-        return self._impl.file
+    @abstractmethod
+    def file(self) -> Optional[api.file.File]:
+        ...
 
     @property
+    @abstractmethod
     def sha1(self) -> SHA1:
-        return self._impl.sha1
+        ...
 
     @overload
+    @abstractmethod
     async def getLines(
         self,
         first_line: Optional[int] = None,
@@ -81,6 +75,7 @@ class FileContent(api.APIObject):
         ...
 
     @overload
+    @abstractmethod
     async def getLines(
         self,
         first_line: Optional[int] = None,
@@ -90,6 +85,7 @@ class FileContent(api.APIObject):
     ) -> Sequence[Line]:
         ...
 
+    @abstractmethod
     async def getLines(
         self,
         first_line: Optional[int] = None,
@@ -98,18 +94,7 @@ class FileContent(api.APIObject):
         plain: bool = False,
         syntax: Optional[str] = None,
     ) -> Union[Sequence[str], Sequence[Line]]:
-        if first_line is not None:
-            first_line = int(first_line)
-            assert first_line > 0
-        if last_line is not None:
-            last_line = int(last_line)
-            assert last_line > 0
-        assert not first_line or not last_line or first_line <= last_line
-        assert not plain or syntax is None
-
-        return await self._impl.getLines(
-            self.critic, first_line, last_line, plain, syntax
-        )
+        ...
 
 
 class Line(Protocol):

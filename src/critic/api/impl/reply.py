@@ -17,32 +17,56 @@
 from __future__ import annotations
 
 import datetime
-from typing import Tuple, Optional, Iterable, Sequence
+from typing import Callable, Tuple, Optional, Sequence
 
 from critic import api
 from critic.api import reply as public
-from . import apiobject
+from .queryhelper import QueryHelper, QueryResult
+from .apiobject import APIObjectImplWithId
 
 
-WrapperType = api.reply.Reply
+PublicType = public.Reply
 ArgumentsType = Tuple[int, int, Optional[int], int, str, datetime.datetime]
 
 
-class Reply(apiobject.APIObject[WrapperType, ArgumentsType, int]):
-    wrapper_class = WrapperType
-    table_name = "comments"
-    column_names = ["id", "chain", "batch", "uid", "text", "time"]
-
-    def __init__(self, args: ArgumentsType):
+class Reply(PublicType, APIObjectImplWithId, module=public):
+    def update(self, args: ArgumentsType) -> int:
         (
-            self.id,
+            self.__id,
             self.__comment_id,
             self.__batch_id,
             self.__author_id,
-            self.text,
-            self.timestamp,
+            self.__text,
+            self.__timestamp,
         ) = args
-        self.is_draft = self.__batch_id is None
+        self.__is_draft = self.__batch_id is None
+        return self.__id
+
+    @property
+    def id(self) -> int:
+        return self.__id
+
+    @property
+    def is_draft(self) -> bool:
+        return self.__is_draft
+
+    @property
+    async def comment(self) -> api.comment.Comment:
+        return await api.comment.fetch(self.critic, self.__comment_id)
+
+    @property
+    async def author(self) -> api.user.User:
+        return await api.user.fetch(self.critic, self.__author_id)
+
+    @property
+    def timestamp(self) -> datetime.datetime:
+        return self.__timestamp
+
+    @property
+    def text(self) -> str:
+        return self.__text
+        """The reply's text"""
+        ...
 
     def __lt__(self, other: object) -> bool:
         assert isinstance(other, Reply)
@@ -50,32 +74,28 @@ class Reply(apiobject.APIObject[WrapperType, ArgumentsType, int]):
             return self.id < other.id
         return (self.__batch_id or 0) < (other.__batch_id or 0)
 
-    def __eq__(self, other: object) -> bool:
-        return isinstance(other, Reply) and self.id == other.id
+    @classmethod
+    def getQueryByIds(
+        cls,
+    ) -> Callable[[api.critic.Critic, Sequence[int]], QueryResult[ArgumentsType]]:
+        return queries.queryByIds
 
-    async def getComment(self, critic: api.critic.Critic) -> api.comment.Comment:
-        return await api.comment.fetch(critic, self.__comment_id)
 
-    async def getAuthor(self, critic: api.critic.Critic) -> api.user.User:
-        return await api.user.fetch(critic, self.__author_id)
+queries = QueryHelper[ArgumentsType](
+    PublicType.getTableName(), "id", "comment", "batch", "author", "text", "time"
+)
 
 
 @public.fetchImpl
-@Reply.cached
-async def fetch(critic: api.critic.Critic, reply_id: int) -> WrapperType:
-    async with Reply.query(critic, ["id={reply_id}"], reply_id=reply_id) as result:
-        return await Reply.makeOne(critic, result)
+async def fetch(critic: api.critic.Critic, reply_id: int) -> PublicType:
+    return await Reply.ensureOne(reply_id, queries.idFetcher(critic, Reply))
 
 
 @public.fetchManyImpl
-@Reply.cachedMany
 async def fetchMany(
-    critic: api.critic.Critic, reply_ids: Iterable[int]
-) -> Sequence[WrapperType]:
-    async with Reply.query(
-        critic, ["id=ANY({reply_ids})"], reply_ids=list(reply_ids)
-    ) as result:
-        return await Reply.make(critic, result)
+    critic: api.critic.Critic, reply_ids: Sequence[int]
+) -> Sequence[PublicType]:
+    return await Reply.ensure(reply_ids, queries.idsFetcher(critic, Reply))
 
 
 @public.fetchAllImpl
@@ -83,13 +103,7 @@ async def fetchAll(
     critic: api.critic.Critic,
     comment: Optional[api.comment.Comment],
     author: Optional[api.user.User],
-) -> Sequence[WrapperType]:
-    conditions = []
-    if comment is not None:
-        conditions.append("chain={comment}")
-    if author is not None:
-        conditions.append("uid={author}")
-    async with Reply.query(
-        critic, conditions, comment=comment, author=author
-    ) as result:
-        return await Reply.make(critic, result)
+) -> Sequence[PublicType]:
+    return Reply.store(
+        await queries.query(critic, comment=comment, author=author).make(Reply)
+    )

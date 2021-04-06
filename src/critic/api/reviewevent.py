@@ -16,6 +16,7 @@
 
 from __future__ import annotations
 
+from abc import abstractmethod
 import datetime
 from typing import (
     Awaitable,
@@ -32,24 +33,6 @@ from typing import (
 
 from critic import api
 from critic.api.apiobject import FunctionRef
-
-
-class Error(api.APIError, object_type="review event"):
-    """Base exception for all errors related to the `ReviewEvent` class."""
-
-    pass
-
-
-class InvalidId(api.InvalidIdError, Error):
-    """Raised by `fetch()` when an invalid review event id is used."""
-
-    pass
-
-
-class InvalidIds(api.InvalidIdsError, Error):
-    """Raised by `fetchMany()` when invalid review event ids are used."""
-
-    pass
 
 
 EventType = Literal[
@@ -90,54 +73,75 @@ EVENT_TYPES: FrozenSet[EventType] = frozenset(
         were published."""
 
 
+class Error(api.APIError, object_type="review event"):
+    """Base exception for all errors related to the `ReviewEvent` class."""
+
+    pass
+
+
+class InvalidId(api.InvalidIdError, Error):
+    """Raised by `fetch()` when an invalid review event id is used."""
+
+    pass
+
+
+class InvalidIds(api.InvalidIdsError, Error):
+    """Raised by `fetchMany()` when invalid review event ids are used."""
+
+    pass
+
+
+class NoSuchEvent(Error):
+    def __init__(self, review: api.review.Review, event_type: EventType):
+        super().__init__(f"Review {review.id} has not been {event_type} yet!")
+
+
 def as_event_type(value: str) -> EventType:
     if value not in EVENT_TYPES:
         raise ValueError(f"invalid review event type: {value!r}")
     return cast(EventType, value)
 
 
-class ReviewEvent(api.APIObject):
+class ReviewEvent(api.APIObjectWithId):
     """Representation of a review event.
 
     For a list of event types, see `ReviewEvent.EVENT_TYPES`."""
 
-    def __str__(self) -> str:
-        return str(self._impl)
-
     @property
-    def id(self) -> int:
-        """The event's unique id"""
-        return self._impl.id
-
-    @property
+    @abstractmethod
     async def review(self) -> api.review.Review:
-        """The affected review.
-
-        The value is a `critic.api.review.Review` object."""
-        return await self._impl.getReview(self.critic)
+        """The affected review."""
+        ...
 
     @property
+    @abstractmethod
     async def user(self) -> Optional[api.user.User]:
         """The user that triggered the event.
 
-        The value is a `critic.api.user.User` object, or None if the event was
-        triggered by the system independently of any direct user interaction.
-        """
-        return await self._impl.getUser(self.critic)
+        The value is None if the event was triggered by the system independently
+        of any direct user interaction."""
+        ...
 
     @property
+    @abstractmethod
     def type(self) -> EventType:
-        """The type of event.
-
-        The value is one of the strings in `ReviewEvent.EVENT_TYPES`."""
-        return self._impl.type
+        """The type of event."""
+        ...
 
     @property
+    @abstractmethod
     def timestamp(self) -> datetime.datetime:
-        """The time at which the event occurred.
+        """The time at which the event occurred."""
+        ...
 
-        The value is a `datetime.datetime` object."""
-        return self._impl.timestamp
+    @property
+    @abstractmethod
+    async def users(self) -> Collection[api.user.User]:
+        """Users associated with the review at the time of this event.
+
+        Includes users associated to the review due to this event and any event
+        occuring before it."""
+        ...
 
     @property
     async def branchupdate(self) -> Optional[api.branchupdate.BranchUpdate]:
@@ -165,16 +169,35 @@ class ReviewEvent(api.APIObject):
             return None
         return await api.reviewping.fetch(self.critic, event=self)
 
-    @property
-    async def users(self) -> Collection[api.user.User]:
-        """Users associated with the review at the time of this event.
 
-        Includes users associated to the review due to this event and any event
-        occuring before it."""
-        return await self._impl.getUsers(self.critic)
+@overload
+async def fetch(
+    critic: api.critic.Critic,
+    event_id: int,
+    /,
+) -> ReviewEvent:
+    ...
 
 
-async def fetch(critic: api.critic.Critic, event_id: int) -> ReviewEvent:
+@overload
+async def fetch(
+    critic: api.critic.Critic,
+    /,
+    *,
+    review: api.review.Review,
+    event_type: Literal["created", "published"],
+) -> ReviewEvent:
+    ...
+
+
+async def fetch(
+    critic: api.critic.Critic,
+    event_id: Optional[int] = None,
+    /,
+    *,
+    review: Optional[api.review.Review] = None,
+    event_type: Optional[Literal["created", "published"]] = None,
+) -> ReviewEvent:
     """Fetch a `ReviewEvent` object by event id.
 
     Arguments:
@@ -186,7 +209,7 @@ async def fetch(critic: api.critic.Critic, event_id: int) -> ReviewEvent:
 
     Raises:
         InvalidId: The `event_id` is not a valid event id."""
-    return await fetchImpl.get()(critic, event_id)
+    return await fetchImpl.get()(critic, event_id, review, event_type)
 
 
 async def fetchMany(
@@ -254,7 +277,15 @@ resource_name = table_name = "reviewevents"
 
 
 fetchImpl: FunctionRef[
-    Callable[[api.critic.Critic, int], Awaitable[ReviewEvent]]
+    Callable[
+        [
+            api.critic.Critic,
+            Optional[int],
+            Optional[api.review.Review],
+            Optional[EventType],
+        ],
+        Awaitable[ReviewEvent],
+    ]
 ] = FunctionRef()
 fetchManyImpl: FunctionRef[
     Callable[[api.critic.Critic, Sequence[int]], Awaitable[Sequence[ReviewEvent]]]

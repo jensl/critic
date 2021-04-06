@@ -41,11 +41,6 @@ async def discard_changes(
 
     if "created_comments" in discard:
         await transaction.execute(
-            Delete("commentchains").where(
-                id=list(await unpublished_changes.created_comments)
-            )
-        )
-        await transaction.execute(
             Delete("comments").where(
                 id=list(await unpublished_changes.created_comments)
             )
@@ -53,10 +48,10 @@ async def discard_changes(
 
     if "written_replies" in discard:
         await transaction.execute(
-            Delete("comments").where(id=list(await unpublished_changes.written_replies))
+            Delete("replies").where(id=list(await unpublished_changes.written_replies))
         )
 
-    modified_comments = set()
+    modified_comments: Set[api.comment.Comment] = set()
 
     if "resolved_issues" in discard:
         modified_comments.update(await unpublished_changes.resolved_issues)
@@ -67,17 +62,17 @@ async def discard_changes(
 
     if modified_comments:
         await transaction.execute(
-            Delete("commentchainchanges").where(
-                uid=author, state="draft", chain=list(modified_comments)
+            Delete("commentchanges").where(
+                author=author, state="draft", comment=list(modified_comments)
             )
         )
 
     if "reopened_issues" in discard:
         await transaction.execute(
-            Delete("commentchainlines").where(
-                uid=author,
+            Delete("commentlines").where(
+                author=author,
                 state="draft",
-                chain=list(await unpublished_changes.reopened_issues),
+                comment=list(await unpublished_changes.reopened_issues),
             )
         )
 
@@ -89,9 +84,9 @@ async def discard_changes(
         file_changes.update(await unpublished_changes.unreviewed_file_changes)
 
     if file_changes:
-        transaction.tables.add("reviewfilechanges")
+        transaction.tables.add("reviewuserfilechanges")
         await transaction.execute(
-            Delete("reviewfilechanges").where(
+            Delete("reviewuserfilechanges").where(
                 uid=author, state="draft", file=list(file_changes)
             )
         )

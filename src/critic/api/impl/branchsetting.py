@@ -16,70 +16,84 @@
 
 from __future__ import annotations
 
-from typing import Optional, Tuple, Sequence, Any
+from typing import Callable, Optional, Tuple, Sequence, Any
 
-from critic import api
+from critic import api, dbaccess
 from critic.api import branchsetting as public
-from . import apiobject
+from .apiobject import APIObjectImplWithId
+from .queryhelper import QueryHelper, QueryResult
 
 
-WrapperType = api.branchsetting.BranchSetting
+PublicType = api.branchsetting.BranchSetting
 ArgumentsType = Tuple[int, int, str, str, Any]
 
 
-class BranchSetting(apiobject.APIObject[WrapperType, ArgumentsType, int]):
-    wrapper_class = WrapperType
-    column_names = ["id", "branch", "scope", "name", "value"]
+class BranchSetting(PublicType, APIObjectImplWithId, module=public):
+    def update(self, args: ArgumentsType) -> int:
+        (self.__id, self.__branch_id, self.__scope, self.__name, self.__value) = args
+        return self.__id
 
-    def __init__(self, args: ArgumentsType):
-        (self.id, self.__branch_id, self.scope, self.name, self.value) = args
+    @property
+    def id(self) -> int:
+        return self.__id
 
-    async def getBranch(self, critic: api.critic.Critic) -> api.branch.Branch:
-        return await api.branch.fetch(critic, self.__branch_id)
+    @property
+    async def branch(self) -> api.branch.Branch:
+        return await api.branch.fetch(self.critic, self.__branch_id)
+
+    @property
+    def scope(self) -> str:
+        return self.__scope
+
+    @property
+    def name(self) -> str:
+        return self.__name
+
+    @property
+    def value(self) -> Any:
+        return self.__value
+
+    @classmethod
+    def getQueryByIds(
+        cls,
+    ) -> Callable[[api.critic.Critic, Sequence[int]], QueryResult[ArgumentsType]]:
+        return queries.queryByIds
+
+
+queries = QueryHelper[ArgumentsType](
+    PublicType.getTableName(), "id", "branch", "scope", "name", "value"
+)
 
 
 @public.fetchImpl
-@BranchSetting.cached
 async def fetch(
     critic: api.critic.Critic,
     setting_id: Optional[int],
     branch: Optional[api.branch.Branch],
     scope: Optional[str],
     name: Optional[str],
-) -> WrapperType:
-    conditions = []
+) -> PublicType:
     if setting_id is not None:
-        conditions.append("id={setting_id}")
-    else:
-        conditions.extend(["branch={branch}", "scope={scope}", "name={name}"])
+        return await BranchSetting.ensureOne(
+            setting_id, queries.idFetcher(critic, BranchSetting), public.InvalidId
+        )
 
-    async with BranchSetting.query(
-        critic,
-        conditions,
-        setting_id=setting_id,
-        branch=branch,
-        scope=scope,
-        name=name,
-    ) as result:
-        try:
-            return await BranchSetting.makeOne(critic, result)
-        except result.ZeroRowsInResult:
-            if setting_id is not None:
-                raise api.branchsetting.InvalidId(invalid_id=setting_id)
-            assert scope is not None and name is not None
-            raise api.branchsetting.NotDefined(scope, name)
+    assert scope is not None and name is not None
+
+    try:
+        return BranchSetting.storeOne(
+            await queries.query(critic, branch=branch, scope=scope, name=name).makeOne(
+                BranchSetting
+            )
+        )
+    except dbaccess.ZeroRowsInResult:
+        raise api.branchsetting.NotDefined(scope, name)
 
 
 @public.fetchAllImpl
 async def fetchAll(
     critic: api.critic.Critic, branch: Optional[api.branch.Branch], scope: Optional[str]
-) -> Sequence[WrapperType]:
-    conditions = ["TRUE"]
-    if branch is not None:
-        conditions.append("branch={branch}")
-    if scope is not None:
-        conditions.append("scope={scope}")
-    async with BranchSetting.query(
-        critic, conditions, branch=branch, scope=scope
-    ) as result:
-        return await BranchSetting.make(critic, result)
+) -> Sequence[PublicType]:
+    return BranchSetting.store(
+        await queries.query(critic, branch=branch, scope=scope).make(BranchSetting)
+    )

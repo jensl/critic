@@ -16,61 +16,92 @@
 
 from __future__ import annotations
 
-from typing import Collection, Tuple, Sequence, Optional
+from typing import Callable, Collection, Tuple, Sequence, Optional
 
 from critic import api
 from critic.api import reviewfilter as public
-from . import apiobject
+from .apiobject import APIObjectImplWithId
+from .queryhelper import QueryHelper, QueryResult
 
 
-WrapperType = api.reviewfilter.ReviewFilter
+PublicType = public.ReviewFilter
 ArgumentsType = Tuple[int, int, api.reviewfilter.FilterType, str, bool, int, int]
 
 
-class ReviewFilter(apiobject.APIObject[WrapperType, ArgumentsType, int]):
-    wrapper_class = api.reviewfilter.ReviewFilter
-    column_names = ["id", "uid", "type", "path", "default_scope", "review", "creator"]
-
+class ReviewFilter(PublicType, APIObjectImplWithId, module=public):
     __scopes: Optional[Collection[api.reviewscope.ReviewScope]]
 
-    def __init__(self, args: ArgumentsType):
+    def update(self, args: ArgumentsType) -> int:
         (
-            self.id,
+            self.__id,
             self.__subject_id,
-            self.type,
-            self.path,
-            self.default_scope,
+            self.__type,
+            self.__path,
+            self.__default_scope,
             self.__review_id,
             self.__creator_id,
         ) = args
         self.__scopes = None
+        return self.__id
 
-    async def getSubject(self, critic: api.critic.Critic) -> api.user.User:
-        return await api.user.fetch(critic, self.__subject_id)
+    @property
+    def id(self) -> int:
+        return self.__id
 
-    async def getReview(self, critic: api.critic.Critic) -> api.review.Review:
-        return await api.review.fetch(critic, self.__review_id)
+    @property
+    async def review(self) -> api.review.Review:
+        return await api.review.fetch(self.critic, self.__review_id)
 
-    async def getScopes(
-        self, wrapper: WrapperType
-    ) -> Collection[api.reviewscope.ReviewScope]:
+    @property
+    async def subject(self) -> api.user.User:
+        return await api.user.fetch(self.critic, self.__subject_id)
+
+    @property
+    def type(self) -> public.FilterType:
+        return self.__type
+
+    @property
+    def path(self) -> str:
+        return self.__path
+
+    @property
+    def default_scope(self) -> bool:
+        return self.__default_scope
+
+    @property
+    async def scopes(self) -> Collection[api.reviewscope.ReviewScope]:
         if self.__scopes is None:
-            self.__scopes = await api.reviewscope.fetchAll(
-                wrapper.critic, filter=wrapper
-            )
+            self.__scopes = await api.reviewscope.fetchAll(self.critic, filter=self)
         return self.__scopes
 
-    async def getCreator(self, critic: api.critic.Critic) -> api.user.User:
-        return await api.user.fetch(critic, self.__creator_id)
+    @property
+    async def creator(self) -> api.user.User:
+        return await api.user.fetch(self.critic, self.__creator_id)
+
+    @classmethod
+    def getQueryByIds(
+        cls,
+    ) -> Callable[[api.critic.Critic, Sequence[int]], QueryResult[ArgumentsType]]:
+        return queries.queryByIds
+
+
+queries = QueryHelper[ArgumentsType](
+    PublicType.getTableName(),
+    "id",
+    "uid",
+    "type",
+    "path",
+    "default_scope",
+    "review",
+    "creator",
+)
 
 
 @public.fetchImpl
-@ReviewFilter.cached
-async def fetch(critic: api.critic.Critic, filter_id: int) -> WrapperType:
-    async with ReviewFilter.query(
-        critic, ["id={filter_id}"], filter_id=filter_id
-    ) as result:
-        return await ReviewFilter.makeOne(critic, result)
+async def fetch(critic: api.critic.Critic, filter_id: int) -> PublicType:
+    return await ReviewFilter.ensureOne(
+        filter_id, queries.idFetcher(critic, ReviewFilter)
+    )
 
 
 @public.fetchAllImpl
@@ -78,13 +109,10 @@ async def fetchAll(
     critic: api.critic.Critic,
     review: Optional[api.review.Review],
     subject: Optional[api.user.User],
-) -> Sequence[WrapperType]:
-    conditions = []
-    if review:
-        conditions.append("review={review}")
-    if subject:
-        conditions.append("uid={subject}")
-    async with ReviewFilter.query(
-        critic, conditions, review=review, subject=subject
-    ) as result:
-        return await ReviewFilter.make(critic, result)
+    scope: Optional[api.reviewscope.ReviewScope],
+) -> Sequence[PublicType]:
+    return ReviewFilter.store(
+        await queries.query(critic, review=review, uid=subject, scope=scope).make(
+            ReviewFilter
+        )
+    )

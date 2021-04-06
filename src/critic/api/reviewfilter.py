@@ -15,6 +15,7 @@
 # the License.
 
 from __future__ import annotations
+from abc import abstractmethod
 
 from typing import Awaitable, Callable, Collection, Sequence, Optional
 
@@ -35,55 +36,63 @@ class InvalidId(api.InvalidIdError, Error):
     pass
 
 
-class ReviewFilter(api.APIObject):
+class ReviewFilter(api.APIObjectWithId):
     """Representation of a review filter
 
     A review filter is a filter that applies to a single review only."""
 
     @property
+    @abstractmethod
     def id(self) -> int:
         """The review filter's unique id"""
-        return self._impl.id
+        ...
 
     @property
+    @abstractmethod
     async def review(self) -> api.review.Review:
         """The review filter's review"""
-        return await self._impl.getReview(self.critic)
+        ...
 
     @property
+    @abstractmethod
     async def subject(self) -> api.user.User:
         """The filter's subject
 
         The subject is the user that the filter applies to."""
-        return await self._impl.getSubject(self.critic)
+        ...
 
     @property
+    @abstractmethod
     def type(self) -> FilterType:
         """The filter's type
 
         The type is always one of "reviewer", "watcher" and "ignore"."""
-        return self._impl.type
+        ...
 
     @property
+    @abstractmethod
     def path(self) -> str:
         """The filter's path"""
-        return self._impl.path
+        ...
 
     @property
+    @abstractmethod
     def default_scope(self) -> bool:
-        return self._impl.default_scope
+        ...
 
     @property
+    @abstractmethod
     async def scopes(self) -> Collection[api.reviewscope.ReviewScope]:
-        return await self._impl.getScopes(self)
+        ...
 
     @property
+    @abstractmethod
     async def creator(self) -> api.user.User:
         """The review filter's creator
 
         This is the user that created the review filter, which can be
         different from the filter's subject."""
-        return await self._impl.getCreator(self.critic)
+        ...
 
 
 async def fetch(
@@ -97,9 +106,10 @@ async def fetchAll(
     critic: api.critic.Critic,
     *,
     review: Optional[api.review.Review] = None,
-    subject: Optional[api.user.User] = None
+    subject: Optional[api.user.User] = None,
+    scope: Optional[api.reviewscope.ReviewScope] = None,
 ) -> Sequence[ReviewFilter]:
-    return await fetchAllImpl.get()(critic, review, subject)
+    return await fetchAllImpl.get()(critic, review, subject, scope)
 
 
 resource_name = table_name = "reviewfilters"
@@ -110,7 +120,12 @@ fetchImpl: FunctionRef[
 ] = FunctionRef()
 fetchAllImpl: FunctionRef[
     Callable[
-        [api.critic.Critic, Optional[api.review.Review], Optional[api.user.User]],
+        [
+            api.critic.Critic,
+            Optional[api.review.Review],
+            Optional[api.user.User],
+            Optional[api.reviewscope.ReviewScope],
+        ],
         Awaitable[Sequence[ReviewFilter]],
     ]
 ] = FunctionRef()

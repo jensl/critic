@@ -15,6 +15,7 @@
 # the License.
 
 from __future__ import annotations
+from abc import abstractmethod
 
 from typing import Awaitable, Callable, Sequence, Optional, overload
 
@@ -32,41 +33,45 @@ class InvalidId(api.InvalidIdError, Error):
     pass
 
 
-class UserSSHKey(api.APIObject):
-    def __str__(self) -> str:
-        return f"{self.type} {self.key}"
-
+class UserSSHKey(api.APIObjectWithId):
     @property
+    @abstractmethod
     def id(self) -> int:
-        return self._impl.id
+        ...
 
     @property
+    @abstractmethod
     async def user(self) -> api.user.User:
         """The user whose key this is"""
-        return await self._impl.getUser(self.critic)
+        ...
 
     @property
+    @abstractmethod
     def type(self) -> str:
         """The key type (typically "rsa", "dsa", "ecdsa" or "ecdsa25519")"""
-        return self._impl.type
+        ...
 
     @property
+    @abstractmethod
     def key(self) -> str:
         """The actual key, base64-encoded"""
-        return self._impl.key
+        ...
 
     @property
+    @abstractmethod
     def comment(self) -> str:
         """User-provided comment"""
-        return self._impl.comment
+        ...
 
     @property
+    @abstractmethod
     def bits(self) -> int:
-        return self._impl.getBits()
+        ...
 
     @property
+    @abstractmethod
     def fingerprint(self) -> str:
-        return self._impl.getFingerprint()
+        ...
 
 
 @overload

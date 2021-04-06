@@ -145,14 +145,18 @@ async def finishLinked(
 
         linked = additional_linked
 
-        for resource_type, linked_items in linked_json.items():
-            if isinstance(linked_items, str):
-                assert linked_items == "limited"
-                continue
+    for resource_type, linked_items in linked_json.items():
+        if isinstance(linked_items, str):
+            assert linked_items == "limited"
+            continue
 
+        try:
             linked_items.sort(
                 key=ResourceClass.lookup([api_version, resource_type]).sort_key
             )
+        except TypeError:
+            logger.error(linked_items)
+            raise
 
     return linked_json
 
@@ -178,15 +182,13 @@ async def finishGET(
             try:
                 resource_json = await reduceValue(parameters, json_fn, values.get())
             except ResourceSkipped as error:
-                raise PathError(str(error))
+                raise PathError.fromError(error)
             try:
                 included_values.add(values.get())
             except TypeError:
                 pass
     except resource_class.exceptions as error:
-        raise PathError(str(error))
-    # except IndexError:
-    #     raise PathError("List index out of range")
+        raise PathError.fromError(error)
 
     parameters.primary_resource_type = resource_class.name
 
@@ -239,18 +241,18 @@ async def finishGET(
             ]
         }
 
-    if "tracing" in parameters.debug:
+    # if "tracing" in parameters.debug:
 
-        def trace_json(trace: Any) -> Any:
-            return {
-                "label": trace.label,
-                "begin": trace.begin,
-                "end": trace.end,
-                "children": [trace_json(child) for child in trace.children],
-                "args": trace.args,
-            }
+    #     def trace_json(trace: Any) -> Any:
+    #         return {
+    #             "label": trace.label,
+    #             "begin": trace.begin,
+    #             "end": trace.end,
+    #             "children": [trace_json(child) for child in trace.children],
+    #             "args": trace.args,
+    #         }
 
-        top_json.setdefault("debug", {})["tracing"] = trace_json(critic.tracer.traces())
+    #     top_json.setdefault("debug", {})["tracing"] = trace_json(critic.tracer.traces())
 
     return top_json
 
@@ -489,7 +491,7 @@ async def handleRequestInternal(parameters: Parameters) -> JSONResult:
                         parameters.query.get("output_format", choices=("static",))
                         == "static"
                     ):
-                        raise PathError(str(error))
+                        raise PathError.fromError(error)
                     raise
                 if len(arguments) > 1 or not path:
                     break
@@ -504,7 +506,7 @@ async def handleRequestInternal(parameters: Parameters) -> JSONResult:
                     raise UsageError("Resource requires an argument: %s" % resource_id)
                 break
         except resource_class.exceptions as error:
-            raise PathError(str(error))
+            raise PathError.fromError(error)
 
     if path:
         raise UsageError("Invalid path")

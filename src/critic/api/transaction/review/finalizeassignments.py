@@ -36,9 +36,7 @@ class FinalizeAssignments(Finalizer):
         self.assignments_transaction = assignments_transaction
         self.review = assignments_transaction.review
         self.user = user
-
-    def __hash__(self) -> int:
-        return hash((FinalizeAssignments, self.review, self.user))
+        super().__init__(self.review, self.user)
 
     async def __call__(
         self, _: TransactionBase, cursor: dbaccess.TransactionCursor
@@ -48,7 +46,7 @@ class FinalizeAssignments(Finalizer):
         transaction_id = self.assignments_transaction.id
 
         expected_assignments = await calculateAssignments(
-            self.review, subject=self.user
+            self.review, subject=self.user, include_reviewed=True
         )
         actual_assignments = await currentAssignments(self.review, subject=self.user)
 

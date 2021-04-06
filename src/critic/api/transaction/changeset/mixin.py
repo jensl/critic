@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Tuple
 
 from critic import api
 from ..base import TransactionBase
@@ -14,3 +14,10 @@ class Transaction(TransactionBase):
         conflicts: bool,
     ) -> ModifyChangeset:
         return await ModifyChangeset.ensure(self, from_commit, to_commit, conflicts)
+
+    async def ensureMergeChangeset(
+        self,
+        parent: api.commit.Commit,
+        merge: api.commit.Commit,
+    ) -> Tuple[ModifyChangeset, ModifyChangeset]:
+        return await ModifyChangeset.ensureMerge(self, parent, merge)

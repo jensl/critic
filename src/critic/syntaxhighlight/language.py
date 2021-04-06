@@ -19,7 +19,7 @@ import itertools
 import logging
 import os
 import re
-from typing import Dict, List, Mapping, Optional, Sequence, Tuple
+from typing import Callable, Dict, List, Mapping, Optional, Sequence, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -144,11 +144,11 @@ def identify_language_from_path(path: str) -> Optional[str]:
 
 
 async def identify_language_from_source(
-    repository: gitaccess.GitRepository, sha1: SHA1
+    repository: gitaccess.GitRepository, sha1: SHA1, decode: Callable[[bytes], str]
 ) -> Optional[str]:
     if PER_INTERPRETER or PER_EMACS_MODE or PER_VIM_FILETYPE:
         gitobject = await repository.fetchone(sha1, wanted_object_type="blob")
-        lines = diff.parse.splitlines(gitobject.asBlob().data, limit=2)
+        lines = diff.parse.splitlines(decode(gitobject.asBlob().data), limit=2)
 
         if PER_INTERPRETER:
             interpreter = find_interpreter(lines)

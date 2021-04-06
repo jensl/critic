@@ -54,7 +54,7 @@ class ExtensionTasks(background.service.BackgroundService):
                 await cursor.execute(
                     """DELETE
                          FROM extensionfilterhookevents
-                        WHERE {id=finished_events:array}""",
+                        WHERE id=ANY({finished_events})""",
                     finished_events=finished_events,
                 )
 

@@ -16,6 +16,7 @@
 
 from __future__ import annotations
 
+import itertools
 import logging
 import collections
 from typing import Any, Collection, Optional, Set, List, Dict, Tuple
@@ -29,11 +30,11 @@ from critic import reviewing
 from ..item import InsertMany, Insert, UpdateMany
 from ..modifier import Modifier
 from .updatereviewtags import UpdateReviewTags
-from . import CreateReviewEvent
 
 
 async def add_changesets(
     modifier: Modifier[api.review.Review],
+    event: api.reviewevent.ReviewEvent,
     changesets: Collection[api.changeset.Changeset],
     branchupdate: Optional[api.branchupdate.BranchUpdate],
     commits: Optional[api.commitset.CommitSet],
@@ -65,6 +66,7 @@ async def add_changesets(
         )
     scope_filters.sort()
     logger.debug(f"{scope_filters=}")
+    logger.debug(f"{changesets=}")
 
     for changeset in changesets:
         reviewchangesets_values.append(
@@ -116,17 +118,19 @@ async def add_changesets(
         )
     )
 
-    from ....reviewing.assignments import calculateAssignments
-
-    assignments = await calculateAssignments(review, changesets=changesets)
+    assignments = await reviewing.assignments.calculateAssignments(
+        review, changesets=changesets
+    )
 
     logger.debug("assignments: %r", assignments)
 
     if assignments:
-        associated_users = (
-            (await review.assigned_reviewers)
-            | (await review.active_reviewers)
-            | (await review.watchers)
+        associated_users: Set[api.user.User] = set(
+            itertools.chain(
+                await review.assigned_reviewers,
+                await review.active_reviewers,
+                await review.watchers,
+            )
         )
         new_users = set(assignments.per_user.keys()) - associated_users
 
@@ -135,8 +139,11 @@ async def add_changesets(
             await transaction.execute(
                 InsertMany(
                     "reviewusers",
-                    ["review", "uid"],
-                    [dict(review=review, uid=user) for user in new_users],
+                    ["review", "event", "uid"],
+                    (
+                        dbaccess.parameters(review=review, event=event, uid=user)
+                        for user in new_users
+                    ),
                 )
             )
 
@@ -161,6 +168,8 @@ async def add_changesets(
             for assignment in assignments
             if assignment.scope
         ]
+
+        logger.debug(f"{default_reviewuserfiles_values=}")
 
         transaction.tables.add("reviewuserfiles")
         await transaction.execute(
@@ -199,8 +208,8 @@ async def add_changesets(
         comments = await api.comment.fetchAll(
             critic, review=review, commit=from_head, files=changed_files
         )
-        commentchains_values: List[dbaccess.Parameters] = []
-        commentchainlines_values: List[dbaccess.Parameters] = []
+        comments_values: List[dbaccess.Parameters] = []
+        commentlines_values: List[dbaccess.Parameters] = []
 
         logger.debug("from_head: %r", from_head)
         logger.debug("comments: %r", comments)
@@ -211,9 +220,9 @@ async def add_changesets(
 
         async with api.critic.Query[Tuple[int, SHA1, int, int]](
             critic,
-            """SELECT chain, sha1, first_line, last_line
-                 FROM commentchainlines
-                WHERE {chain=comment_ids:array}""",
+            """SELECT comment, sha1, first_line, last_line
+                 FROM commentlines
+                WHERE comment=ANY({comment_ids})""",
             comment_ids=[comment.id for comment in comments],
         ) as result:
             async for comment_id, sha1, first_line, last_line in result:
@@ -234,9 +243,9 @@ async def add_changesets(
                 )
             )
 
-            commentchainlines_values.extend(
+            commentlines_values.extend(
                 dbaccess.parameters(
-                    chain=comment,
+                    comment=comment,
                     state="draft" if comment.is_draft else "current",
                     sha1=location.sha1,
                     first_line=location.first_line + 1,
@@ -247,33 +256,33 @@ async def add_changesets(
             )
 
             if propagation_result.addressed_by:
-                commentchains_values.append(
+                comments_values.append(
                     dbaccess.parameters(
                         comment=comment,
-                        state="addressed",
+                        issue_state="addressed",
                         addressed_by=propagation_result.addressed_by,
                         branchupdate=branchupdate,
                     )
                 )
 
-        if commentchains_values:
-            logger.debug("address comments: %r", commentchains_values)
+        if comments_values:
+            logger.debug("address comments: %r", comments_values)
 
             await transaction.execute(
                 UpdateMany(
-                    "commentchains",
-                    ["state", "addressed_by", "addressed_by_update"],
-                    commentchains_values,
+                    "comments",
+                    ["issue_state", "addressed_by", "addressed_by_update"],
+                    comments_values,
                 ).where("id={comment}")
             )
 
-        if commentchainlines_values:
-            transaction.tables.add("commentchainlines")
+        if commentlines_values:
+            transaction.tables.add("commentlines")
             await transaction.execute(
                 InsertMany(
-                    "commentchainlines",
-                    ["chain", "state", "sha1", "first_line", "last_line"],
-                    commentchainlines_values,
+                    "commentlines",
+                    ["comment", "state", "sha1", "first_line", "last_line"],
+                    commentlines_values,
                 )
             )
     else:

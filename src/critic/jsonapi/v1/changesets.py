@@ -28,12 +28,12 @@ from ..parameters import Parameters
 from ..utils import numeric_id, sorted_by_id
 from ..valuewrapper import ValueWrapper, basic_list
 
-Files = ValueWrapper[Collection[api.filechange.FileChange]]
-ContributingCommits = ValueWrapper[Collection[api.commit.Commit]]
+Files = ValueWrapper[Sequence[api.filechange.FileChange]]
+ContributingCommits = ValueWrapper[Sequence[api.commit.Commit]]
 
 Comments = Sequence[api.comment.Comment]
 ReviewableFileChanges = ValueWrapper[
-    Collection[api.reviewablefilechange.ReviewableFileChange]
+    Sequence[api.reviewablefilechange.ReviewableFileChange]
 ]
 ReviewState = TypedDict(
     "ReviewState",
@@ -161,7 +161,7 @@ class Changesets(ResourceClass[api.changeset.Changeset], api_module=api.changese
                 )
             except api.changeset.Error as error:
                 raise UsageError(f"Invalid 'only_if_complete' parameter: {error}")
-            if only_if_complete - await changeset.completion_level:
+            if only_if_complete.difference(await changeset.completion_level):
                 raise ResultDelayed("Incomplete changeset")
 
         return changeset

@@ -1,5 +1,5 @@
 import React, { FunctionComponent } from "react"
-import { Link } from "react-router-dom"
+import { Link, useHistory } from "react-router-dom"
 import clsx from "clsx"
 
 import { makeStyles } from "@material-ui/core/styles"
@@ -7,6 +7,7 @@ import Button from "@material-ui/core/Button"
 
 import Registry from "."
 import { ActionProps } from "./Commit.List.Actions.types"
+import { ShortcutScope } from "../utils/KeyboardShortcuts"
 
 const useStyles = makeStyles({
   commitListActionsShowDiff: {},
@@ -22,25 +23,33 @@ const ShowDiff: FunctionComponent<ActionProps & OwnProps> = ({
   selectedCommits,
 }) => {
   const classes = useStyles()
-  var diffPath = pathPrefix
+  const history = useHistory()
 
   if (selectedCommits.length === 0) return null
-  else if (selectedCommits.length === 1)
-    diffPath += `/commit/${selectedCommits[0].sha1}`
-  else {
-    const lastCommit = selectedCommits[0]
-    const firstCommit = selectedCommits[selectedCommits.length - 1]
-    diffPath += `/diff/${firstCommit.sha1}^..${lastCommit.sha1}`
-  }
+
+  const lastCommit = () => selectedCommits[0]
+  const firstCommit = () => selectedCommits[selectedCommits.length - 1]
+
+  const diffPath =
+    selectedCommits.length === 1
+      ? `${pathPrefix}/commit/${selectedCommits[0].sha1}`
+      : `${pathPrefix}/diff/${firstCommit().sha1}^..${lastCommit().sha1}`
+
+  console.log({ diffPath })
 
   return (
-    <Button
-      component={Link}
-      to={diffPath}
-      className={clsx(className, classes.commitListActionsShowDiff)}
+    <ShortcutScope
+      name="ShowDiff"
+      handler={{ d: () => history.push(diffPath) }}
+      component={Button}
+      componentProps={{
+        component: Link,
+        to: diffPath,
+        className: clsx(className, classes.commitListActionsShowDiff),
+      }}
     >
       Show diff
-    </Button>
+    </ShortcutScope>
   )
 }
 

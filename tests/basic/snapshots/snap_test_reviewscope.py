@@ -8,353 +8,6 @@ from tests.utilities import Anonymous, Frozen, Masked, Variable
 
 snapshots = Snapshot()
 
-snapshots['test_reviewscope websocket messages'] = {
-    'publish': [
-        {
-            'channel': [
-                'repositories'
-            ],
-            'message': {
-                'action': 'created',
-                'object_id': Anonymous(RepositoryId='test_reviewscope'),
-                'resource_name': 'repositories'
-            }
-        },
-        {
-            'channel': [
-                "repositories/<Anonymous(RepositoryId='test_reviewscope')>"
-            ],
-            'message': {
-                'action': 'modified',
-                'object_id': Anonymous(RepositoryId='test_reviewscope'),
-                'resource_name': 'repositories',
-                'updates': {
-                    'is_ready': True
-                }
-            }
-        },
-        {
-            'channel': [
-                'branches'
-            ],
-            'message': {
-                'action': 'created',
-                'name': 'master',
-                'object_id': Anonymous(BranchId='master'),
-                'repository_id': Anonymous(RepositoryId='test_reviewscope'),
-                'resource_name': 'branches'
-            }
-        },
-        {
-            'channel': [
-                'branchupdates',
-                "branches/<Anonymous(BranchId='master')>/branchupdates"
-            ],
-            'message': {
-                'action': 'created',
-                'object_id': Anonymous(BranchUpdateId=Variable(1)),
-                'resource_name': 'branchupdates'
-            }
-        },
-        {
-            'channel': [
-                'reviewscopes'
-            ],
-            'message': {
-                'action': 'created',
-                'object_id': Anonymous(ReviewScopeId='special'),
-                'resource_name': 'reviewscopes'
-            }
-        },
-        {
-            'channel': [
-                'reviewscopefilters'
-            ],
-            'message': {
-                'action': 'created',
-                'object_id': Anonymous(ReviewScopeFilterId='special'),
-                'resource_name': 'reviewscopefilters'
-            }
-        },
-        {
-            'channel': [
-                'repositoryfilters',
-                "users/<Anonymous(UserId='bob')>/repositoryfilters"
-            ],
-            'message': {
-                'action': 'created',
-                'object_id': Anonymous(RepositoryFilterId='bob'),
-                'resource_name': 'repositoryfilters'
-            }
-        },
-        {
-            'channel': [
-                'repositoryfilters',
-                "users/<Anonymous(UserId='carol')>/repositoryfilters"
-            ],
-            'message': {
-                'action': 'created',
-                'object_id': Anonymous(RepositoryFilterId='carol'),
-                'resource_name': 'repositoryfilters'
-            }
-        },
-        {
-            'channel': [
-                'repositoryfilters',
-                "users/<Anonymous(UserId='dave')>/repositoryfilters"
-            ],
-            'message': {
-                'action': 'created',
-                'object_id': Anonymous(RepositoryFilterId='dave'),
-                'resource_name': 'repositoryfilters'
-            }
-        },
-        {
-            'channel': [
-                'branches'
-            ],
-            'message': {
-                'action': 'created',
-                'name': 'branch1',
-                'object_id': Anonymous(BranchId='branch1'),
-                'repository_id': Anonymous(RepositoryId='test_reviewscope'),
-                'resource_name': 'branches'
-            }
-        },
-        {
-            'channel': [
-                'branchupdates',
-                "branches/<Anonymous(BranchId='branch1')>/branchupdates"
-            ],
-            'message': {
-                'action': 'created',
-                'object_id': Anonymous(BranchUpdateId=Variable(2)),
-                'resource_name': 'branchupdates'
-            }
-        },
-        {
-            'channel': [
-                'branches'
-            ],
-            'message': {
-                'action': 'created',
-                'name': 'r/test_reviewscope',
-                'object_id': Anonymous(BranchId=Variable(1)),
-                'repository_id': Anonymous(RepositoryId='test_reviewscope'),
-                'resource_name': 'branches'
-            }
-        },
-        {
-            'channel': [
-                'branchupdates',
-                'branches/<Anonymous(BranchId=Variable(1))>/branchupdates'
-            ],
-            'message': {
-                'action': 'created',
-                'object_id': Anonymous(BranchUpdateId=Variable(3)),
-                'resource_name': 'branchupdates'
-            }
-        },
-        {
-            'channel': [
-                'reviews'
-            ],
-            'message': {
-                'action': 'created',
-                'object_id': Anonymous(ReviewId='test_reviewscope'),
-                'resource_name': 'reviews'
-            }
-        },
-        {
-            'channel': [
-                'reviewevents',
-                "reviews/<Anonymous(ReviewId='test_reviewscope')>/reviewevents"
-            ],
-            'message': {
-                'action': 'created',
-                'event_type': 'created',
-                'object_id': Anonymous(ReviewEventId=Variable(1)),
-                'resource_name': 'reviewevents',
-                'review_id': Anonymous(ReviewId='test_reviewscope')
-            }
-        },
-        {
-            'channel': [
-                'changesets'
-            ],
-            'message': {
-                'action': 'created',
-                'object_id': Anonymous(ChangesetId=Variable(1)),
-                'resource_name': 'changesets'
-            }
-        },
-        {
-            'channel': [
-                'changesets/<Anonymous(ChangesetId=Variable(1))>'
-            ],
-            'message': {
-                'action': 'modified',
-                'object_id': Anonymous(ChangesetId=Variable(1)),
-                'resource_name': 'changesets',
-                'updates': {
-                    'completion_level': [
-                        'structure'
-                    ]
-                }
-            }
-        },
-        {
-            'channel': [
-                'changesets/<Anonymous(ChangesetId=Variable(1))>'
-            ],
-            'message': {
-                'action': 'modified',
-                'object_id': Anonymous(ChangesetId=Variable(1)),
-                'resource_name': 'changesets',
-                'updates': {
-                    'completion_level': [
-                        'analysis',
-                        'changedlines',
-                        'full',
-                        'structure',
-                        'syntaxhighlight'
-                    ]
-                }
-            }
-        },
-        {
-            'channel': [
-                'reviewevents',
-                "reviews/<Anonymous(ReviewId='test_reviewscope')>/reviewevents"
-            ],
-            'message': {
-                'action': 'created',
-                'event_type': 'ready',
-                'object_id': Anonymous(ReviewEventId=Variable(2)),
-                'resource_name': 'reviewevents',
-                'review_id': Anonymous(ReviewId='test_reviewscope')
-            }
-        },
-        {
-            'channel': [
-                'reviewevents',
-                "reviews/<Anonymous(ReviewId='test_reviewscope')>/reviewevents"
-            ],
-            'message': {
-                'action': 'created',
-                'event_type': 'published',
-                'object_id': Anonymous(ReviewEventId=Variable(3)),
-                'resource_name': 'reviewevents',
-                'review_id': Anonymous(ReviewId='test_reviewscope')
-            }
-        },
-        {
-            'channel': [
-                'reviewevents',
-                "reviews/<Anonymous(ReviewId='test_reviewscope')>/reviewevents"
-            ],
-            'message': {
-                'action': 'created',
-                'event_type': 'batch',
-                'object_id': Anonymous(ReviewEventId=Variable(4)),
-                'resource_name': 'reviewevents',
-                'review_id': Anonymous(ReviewId='test_reviewscope')
-            }
-        },
-        {
-            'channel': [
-                'batches',
-                "reviews/<Anonymous(ReviewId='test_reviewscope')>/batches"
-            ],
-            'message': {
-                'action': 'created',
-                'object_id': Anonymous(BatchId=Variable(1)),
-                'resource_name': 'batches'
-            }
-        },
-        {
-            'channel': [
-                'reviewevents',
-                "reviews/<Anonymous(ReviewId='test_reviewscope')>/reviewevents"
-            ],
-            'message': {
-                'action': 'created',
-                'event_type': 'batch',
-                'object_id': Anonymous(ReviewEventId=Variable(5)),
-                'resource_name': 'reviewevents',
-                'review_id': Anonymous(ReviewId='test_reviewscope')
-            }
-        },
-        {
-            'channel': [
-                'batches',
-                "reviews/<Anonymous(ReviewId='test_reviewscope')>/batches"
-            ],
-            'message': {
-                'action': 'created',
-                'object_id': Anonymous(BatchId=Variable(2)),
-                'resource_name': 'batches'
-            }
-        },
-        {
-            'channel': [
-                'reviewevents',
-                "reviews/<Anonymous(ReviewId='test_reviewscope')>/reviewevents"
-            ],
-            'message': {
-                'action': 'created',
-                'event_type': 'batch',
-                'object_id': Anonymous(ReviewEventId=Variable(6)),
-                'resource_name': 'reviewevents',
-                'review_id': Anonymous(ReviewId='test_reviewscope')
-            }
-        },
-        {
-            'channel': [
-                'batches',
-                "reviews/<Anonymous(ReviewId='test_reviewscope')>/batches"
-            ],
-            'message': {
-                'action': 'created',
-                'object_id': Anonymous(BatchId=Variable(3)),
-                'resource_name': 'batches'
-            }
-        },
-        {
-            'channel': [
-                "reviews/<Anonymous(ReviewId='test_reviewscope')>"
-            ],
-            'message': {
-                'action': 'deleted',
-                'object_id': Anonymous(ReviewId='test_reviewscope'),
-                'resource_name': 'reviews'
-            }
-        },
-        {
-            'channel': [
-                'branches/<Anonymous(BranchId=Variable(1))>'
-            ],
-            'message': {
-                'action': 'deleted',
-                'object_id': Anonymous(BranchId=Variable(1)),
-                'resource_name': 'branches'
-            }
-        },
-        {
-            'channel': [
-                "repositories/<Anonymous(RepositoryId='test_reviewscope')>"
-            ],
-            'message': {
-                'action': 'deleted',
-                'name': 'test_reviewscope',
-                'object_id': Anonymous(RepositoryId='test_reviewscope'),
-                'path': Anonymous(RepositoryPath='test_reviewscope'),
-                'resource_name': 'repositories'
-            }
-        }
-    ]
-}
-
 snapshots['test_reviewscope review scope filters (initial)'] = {
     'request': {
         'method': 'GET',
@@ -392,7 +45,7 @@ snapshots['test_reviewscope review scope filters (final)'] = {
                 'reviewscopes': set([
                     Frozen({
                         'id': Anonymous(ReviewScopeId='special'),
-                        'name': 'special'
+                        'name': 'special-***'
                     })
                 ])
             },
@@ -409,50 +62,16 @@ snapshots['test_reviewscope review scope filters (final)'] = {
     }
 }
 
-snapshots['test_reviewscope created repositoryfilters: carol'] = {
-    'request': {
-        'method': 'POST',
-        'path': 'api/v1/repositoryfilters',
-        'payload': {
-            'path': '/',
-            'repository': Anonymous(RepositoryId='test_reviewscope'),
-            'type': 'reviewer'
-        },
-        'query': {
-            'output_format': 'static'
-        }
-    },
-    'response': {
-        'data': {
-            'repositoryfilters': [
-                {
-                    'default_scope': True,
-                    'delegates': [
-                    ],
-                    'id': Anonymous(RepositoryFilterId='carol'),
-                    'path': '/',
-                    'repository': Anonymous(RepositoryId='test_reviewscope'),
-                    'scopes': [
-                    ],
-                    'subject': Anonymous(UserId='carol'),
-                    'type': 'reviewer'
-                }
-            ]
-        },
-        'status_code': 200
-    }
-}
-
 snapshots['test_reviewscope push branch: branch1'] = {
     'returncode': 0,
     'stderr': [
         'remote: ',
         "remote: Branch created based on 'master', with 1 associated commit:        ",
-        'remote:   http://critic.example.org/log?repository=test_reviewscope&branch=branch1        ',
+        'remote:   http://critic.example.org/log?repository=test_reviewscope-***&branch=branch1        ',
         'remote: To create a review of the commit:        ',
-        'remote:   http://critic.example.org/createreview?repository=test_reviewscope&branch=branch1        ',
+        'remote:   http://critic.example.org/createreview?repository=test_reviewscope-***&branch=branch1        ',
         'remote: ',
-        'To http://critic.example.org/test_reviewscope.git',
+        'To http://critic.example.org/test_reviewscope-***.git',
         ' * [new branch]                                                                        branch1 -> branch1'
     ],
     'stdout': [
@@ -534,135 +153,6 @@ snapshots['test_reviewscope review (initial)'] = {
     }
 }
 
-snapshots['test_reviewscope created repositoryfilters: bob'] = {
-    'request': {
-        'method': 'POST',
-        'path': 'api/v1/repositoryfilters',
-        'payload': {
-            'path': '/',
-            'repository': Anonymous(RepositoryId='test_reviewscope'),
-            'scopes': [
-                Anonymous(ReviewScopeId='special')
-            ],
-            'type': 'reviewer'
-        },
-        'query': {
-            'output_format': 'static'
-        }
-    },
-    'response': {
-        'data': {
-            'repositoryfilters': [
-                {
-                    'default_scope': True,
-                    'delegates': [
-                    ],
-                    'id': Anonymous(RepositoryFilterId='bob'),
-                    'path': '/',
-                    'repository': Anonymous(RepositoryId='test_reviewscope'),
-                    'scopes': [
-                        Anonymous(ReviewScopeId='special')
-                    ],
-                    'subject': Anonymous(UserId='bob'),
-                    'type': 'reviewer'
-                }
-            ]
-        },
-        'status_code': 200
-    }
-}
-
-snapshots['test_reviewscope created reviewscopes: special'] = {
-    'request': {
-        'method': 'POST',
-        'path': 'api/v1/reviewscopes',
-        'payload': {
-            'name': 'special'
-        },
-        'query': {
-            'output_format': 'static'
-        }
-    },
-    'response': {
-        'data': {
-            'reviewscopes': [
-                {
-                    'id': Anonymous(ReviewScopeId='special'),
-                    'name': 'special'
-                }
-            ]
-        },
-        'status_code': 200
-    }
-}
-
-snapshots['test_reviewscope created reviewscopefilters: special'] = {
-    'request': {
-        'method': 'POST',
-        'path': "api/v1/repositories/<Anonymous(RepositoryId='test_reviewscope')>/reviewscopefilters",
-        'payload': {
-            'included': True,
-            'path': '**/*.special',
-            'scope': Anonymous(ReviewScopeId='special')
-        },
-        'query': {
-            'output_format': 'static'
-        }
-    },
-    'response': {
-        'data': {
-            'reviewscopefilters': [
-                {
-                    'id': Anonymous(ReviewScopeFilterId='special'),
-                    'path': '**/*.special',
-                    'repository': Anonymous(RepositoryId='test_reviewscope'),
-                    'scope': Anonymous(ReviewScopeId='special')
-                }
-            ]
-        },
-        'status_code': 200
-    }
-}
-
-snapshots['test_reviewscope created repositoryfilters: dave'] = {
-    'request': {
-        'method': 'POST',
-        'path': 'api/v1/repositoryfilters',
-        'payload': {
-            'default_scope': False,
-            'path': '/',
-            'repository': Anonymous(RepositoryId='test_reviewscope'),
-            'scopes': [
-                Anonymous(ReviewScopeId='special')
-            ],
-            'type': 'reviewer'
-        },
-        'query': {
-            'output_format': 'static'
-        }
-    },
-    'response': {
-        'data': {
-            'repositoryfilters': [
-                {
-                    'default_scope': False,
-                    'delegates': [
-                    ],
-                    'id': Anonymous(RepositoryFilterId='dave'),
-                    'path': '/',
-                    'repository': Anonymous(RepositoryId='test_reviewscope'),
-                    'scopes': [
-                        Anonymous(ReviewScopeId='special')
-                    ],
-                    'subject': Anonymous(UserId='dave'),
-                    'type': 'reviewer'
-                }
-            ]
-        },
-        'status_code': 200
-    }
-}
-
 snapshots['test_reviewscope reviewable file changes (initial)'] = {
     'request': {
         'method': 'GET',
@@ -677,18 +167,18 @@ snapshots['test_reviewscope reviewable file changes (initial)'] = {
             'linked': {
                 'files': set([
                     Frozen({
-                        'id': Anonymous(FileId='created.special'),
-                        'path': 'created.special'
-                    }),
-                    Frozen({
                         'id': Anonymous(FileId='created.regular'),
                         'path': 'created.regular'
+                    }),
+                    Frozen({
+                        'id': Anonymous(FileId='created.special'),
+                        'path': 'created.special'
                     })
                 ]),
                 'reviewscopes': set([
                     Frozen({
                         'id': Anonymous(ReviewScopeId='special'),
-                        'name': 'special'
+                        'name': 'special-***'
                     })
                 ])
             },

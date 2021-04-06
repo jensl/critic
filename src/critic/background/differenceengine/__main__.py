@@ -47,7 +47,7 @@ class ChangesetsMonitor:
     async def __update(self, critic: api.critic.Critic, changeset_id: int) -> None:
         old_levels = self.__levels.get(changeset_id, set())
         changeset = await api.changeset.fetch(critic, changeset_id)
-        new_levels = self.__levels[changeset_id] = await changeset.completion_level
+        new_levels = self.__levels[changeset_id] = set(await changeset.completion_level)
 
         if old_levels is None or new_levels - old_levels:
             self.__service.check_future(

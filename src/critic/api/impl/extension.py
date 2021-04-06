@@ -18,7 +18,9 @@ from __future__ import annotations
 
 import logging
 import os
-from typing import Tuple, Optional, Sequence
+from typing import Callable, Tuple, Optional, Sequence
+
+from .queryhelper import QueryHelper, QueryResult, join
 
 logger = logging.getLogger(__name__)
 
@@ -27,30 +29,38 @@ from critic.api import extension as public
 from critic import base
 from critic.background import utils
 from critic import extensions
-from . import apiobject
+from .apiobject import APIObjectImplWithId
 
 
-WrapperType = api.extension.Extension
+PublicType = public.Extension
 ArgumentsType = Tuple[int, str, Optional[int], str]
 
 
-class Extension(apiobject.APIObject[WrapperType, ArgumentsType, int]):
-    wrapper_class = WrapperType
-    column_names = ["id", "name", "publisher", "uri"]
+class Extension(PublicType, APIObjectImplWithId, module=public):
+    def update(self, args: ArgumentsType) -> int:
+        (self.__id, self.__name, self.__publisher_id, self.__url) = args
+        return self.__id
 
-    def __init__(self, args: ArgumentsType):
-        (self.id, self.name, self.__publisher_id, self.url) = args
+    @property
+    def id(self) -> int:
+        return self.__id
 
-    async def getKey(self, critic: api.critic.Critic) -> str:
-        publisher = await self.getPublisher(critic)
+    @property
+    def name(self) -> str:
+        return self.__name
+
+    @property
+    async def key(self) -> str:
+        publisher = await self.publisher
         if publisher is None:
             return self.name
         return f"{publisher.name}/{self.name}"
 
-    async def getPath(self, critic: api.critic.Critic) -> Optional[str]:
+    @property
+    async def path(self) -> Optional[str]:
         if not utils.is_background_service():
             return None
-        publisher = await self.getPublisher(critic)
+        publisher = await self.publisher
         base_dir = os.path.join(str(base.configuration()["paths.data"]), "extensions")
         if publisher is None:
             base_dir = os.path.join(base_dir, "system")
@@ -58,39 +68,29 @@ class Extension(apiobject.APIObject[WrapperType, ArgumentsType, int]):
             base_dir = os.path.join(base_dir, "user", str(publisher.name))
         return os.path.join(base_dir, self.name + ".git")
 
-    async def getPublisher(self, critic: api.critic.Critic) -> Optional[api.user.User]:
+    @property
+    async def publisher(self) -> Optional[api.user.User]:
         if self.__publisher_id is None:
             return None
-        return await api.user.fetch(critic, self.__publisher_id)
+        return await api.user.fetch(self.critic, self.__publisher_id)
 
-    async def getInstallation(
-        self, critic: api.critic.Critic
-    ) -> Optional[api.extensioninstallation.ExtensionInstallation]:
-        async with api.critic.Query[int](
-            critic,
-            """SELECT ei.id
-                 FROM extensioninstalls AS ei
-                WHERE ei.extension={extension}
-                  AND (ei.uid={user} OR ei.uid IS NULL)
-             ORDER BY ei.uid NULLS LAST
-                LIMIT 1""",
-            extension=self.id,
-            user=critic.effective_user,
-        ) as result:
-            try:
-                install_id = await result.scalar()
-            except result.ZeroRowsInResult:
-                return None
-        return await api.extensioninstallation.fetch(critic, install_id)
+    @property
+    def url(self) -> str:
+        return self.__url
 
-    async def getLowLevel(
-        self, critic: api.critic.Critic
-    ) -> Optional[extensions.extension.Extension]:
+    @property
+    def default_version(self) -> api.extensionversion.ExtensionVersion:
+        raise Exception("NOT IMPLEMENTED")
+
+    @property
+    async def low_level(self) -> Optional[extensions.extension.Extension]:
         if self.__publisher_id is None:
             publisher_name = None
         else:
-            publisher_name = (await api.user.fetch(critic, self.__publisher_id)).name
-        path = await self.getPath(critic)
+            publisher_name = (
+                await api.user.fetch(self.critic, self.__publisher_id)
+            ).name
+        path = await self.path
         assert path is not None
         try:
             return extensions.extension.Extension(
@@ -99,41 +99,46 @@ class Extension(apiobject.APIObject[WrapperType, ArgumentsType, int]):
         except extensions.extension.ExtensionError:
             return None
 
+    @classmethod
+    def getQueryByIds(
+        cls,
+    ) -> Callable[[api.critic.Critic, Sequence[int]], QueryResult[ArgumentsType]]:
+        return queries.queryByIds
+
+
+queries = QueryHelper[ArgumentsType](
+    PublicType.getTableName(), "id", "name", "publisher", "uri"
+)
+
 
 @public.fetchImpl
-@Extension.cached
 async def fetch(
     critic: api.critic.Critic, extension_id: Optional[int], key: Optional[str]
-) -> WrapperType:
+) -> PublicType:
     if not api.critic.settings().extensions.enabled:
         raise api.extension.Error("Extension support not enabled")
 
     conditions = []
     if extension_id is not None:
-        conditions.append("extensions.id={extension_id}")
-        publisher_name, extension_name = None, None
-    else:
-        assert key is not None
-        publisher_name, _, extension_name = key.rpartition("/")
-        conditions.append("extensions.name={extension_name}")
-        if not publisher_name:
-            conditions.append("publisher IS NULL")
-        else:
-            conditions.append("users.name={publisher_name}")
+        return await Extension.ensureOne(
+            extension_id, queries.idFetcher(critic, Extension)
+        )
 
-    async with Extension.query(
-        critic,
-        conditions,
-        extension_id=extension_id,
-        extension_name=extension_name,
-        publisher_name=publisher_name,
-    ) as result:
-        try:
-            return await Extension.makeOne(critic, result)
-        except result.ZeroRowsInResult:
-            if key is not None:
-                raise api.extension.InvalidKey(value=key)
-            raise
+    assert key is not None
+    publisher_name, _, name = key.rpartition("/")
+    conditions.append("name={name}")
+    if not publisher_name:
+        conditions.append("publisher IS NULL")
+        publisher = None
+    else:
+        publisher = await api.user.fetch(critic, name=publisher_name)
+        conditions.append("publisher={publisher}")
+
+    return Extension.storeOne(
+        await queries.query(
+            critic, *conditions, name=name, publisher=publisher
+        ).makeOne(Extension, public.InvalidKey(value=key))
+    )
 
 
 @public.fetchAllImpl
@@ -141,20 +146,21 @@ async def fetchAll(
     critic: api.critic.Critic,
     publisher: Optional[api.user.User],
     installed_by: Optional[api.user.User],
-) -> Sequence[WrapperType]:
+) -> Sequence[PublicType]:
     if not api.critic.settings().extensions.enabled:
         raise api.extension.Error("Extension support not enabled")
 
-    tables = [Extension.table()]
+    joins = []
     conditions = []
 
     if publisher:
         conditions.append("publisher={publisher}")
     if installed_by:
-        tables.append("extensioninstalls ON (extension=extensions.id)")
-        conditions.append("uid={installed_by}")
+        joins.append(join(extensioninstalls=["extension=extensions.id"]))
+        conditions.append("extensioninstalls.uid={installed_by}")
 
-    async with Extension.query(
-        critic, conditions, publisher=publisher, installed_by=installed_by
-    ) as result:
-        return await Extension.make(critic, result)
+    return Extension.store(
+        await queries.query(critic, queries.formatQuery(*conditions, joins=joins)).make(
+            Extension
+        )
+    )

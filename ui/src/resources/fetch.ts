@@ -20,7 +20,11 @@ import {
 } from "./requestoptions"
 import { any, sorted } from "../utils"
 
-export type ErrorCode = "BAD_BRANCH_NAME" | "MERGE_COMMIT"
+export type ErrorCode =
+  | "BAD_BRANCH_NAME"
+  | "MERGE_COMMIT"
+  | "AUTOMATIC_CHANGESET_EMPTY"
+  | "AUTOMATIC_CHANGESET_IMPOSSIBLE"
 
 type BaseResponseJSON = {
   linked?: { [resourceName: string]: JSONData[] | "limited" }
@@ -125,7 +129,7 @@ const makeRequest = <ResourceName extends keyof ResourceTypes>(
   if (options.include)
     params.include = sorted(new Set(options.include)).join(",")
 
-  const { expectedStatus = [200, 202, 204, 404] } = options
+  const { expectedStatus = [200, 202, 204, 404], handleError } = options
 
   const post = method === "POST" ? payload : undefined
   const put = method === "PUT" ? payload : undefined
@@ -137,6 +141,7 @@ const makeRequest = <ResourceName extends keyof ResourceTypes>(
     post,
     put,
     expectStatus: expectedStatus,
+    handleError,
   }
 }
 
@@ -167,8 +172,6 @@ export const fetch = <ResourceName extends keyof ResourceTypes>(
 
   //else if (args.length && typeof args[0] === "object")
   //  Object.assign(request, args[0])
-
-  console.warn(resourceName, { request: makeRequest(resourceName, options) })
 
   const { status, json } = await dispatch(
     fetchJSON(makeRequest(resourceName, options)),
@@ -248,10 +251,12 @@ const updatesFromJSON = <ResourceName extends keyof ResourceTypes>(
         // `fields` query parameter to skip some fields) then update an
         // existing record, if there is one. Otherwise, we'd end up nulling
         // the skipped fields in the existing record.
+        delete prepared.is_partial
         const existing = lookup(resource, value)
         if (existing) {
-          console.warn("merging", { existing, prepared })
-          delete prepared.is_partial
+          const existingProps = existing.props
+          for (const key of Object.keys(existingProps))
+            if (!value.hasOwnProperty(key)) prepared[key] = existingProps[key]
           return construct(Object.assign(existing.props, prepared))
         }
       }

@@ -206,7 +206,7 @@ class Filediffs(
         if changeset is None:
             raise UsageError("changeset needs to be specified, ex. &changeset=<id>")
 
-        if not await changeset.ensure(block=False):
+        if not await changeset.ensure_completion_level(block=False):
             raise ResultDelayed("Changeset is not finished")
 
         file_ids = [numeric_id(argument) for argument in arguments]
@@ -230,7 +230,7 @@ class Filediffs(
         if changeset is None:
             raise UsageError("changeset needs to be specified, ex. &changeset=<id>")
 
-        if not await changeset.ensure(block=False):
+        if not await changeset.ensure_completion_level(block=False):
             raise ResultDelayed("Changeset is not finished")
 
         return sorted(await api.filediff.fetchAll(changeset))

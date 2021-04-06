@@ -5,11 +5,9 @@ import contextlib
 import logging
 import os
 import pytest
-import socketserver
 import subprocess
 import tempfile
-import threading
-from typing import Any, AsyncIterator, Literal, Optional, TextIO, cast
+from typing import Any, AsyncIterator, Literal, Mapping, Optional, TextIO, Union, cast
 
 from ..utilities import ExecuteResult, Anonymizer, execute, raise_for_status
 from .instance import Instance, User
@@ -31,7 +29,7 @@ def ensure_dir(path: str) -> str:
 
 
 @pytest.fixture(scope="session")
-def git_askpass(workdir):
+def git_askpass(workdir: str) -> str:
     filename = os.path.join(
         ensure_dir(os.path.join(workdir, "scripts")), "git-askpass.sh"
     )
@@ -47,7 +45,7 @@ class GitBase:
         path: str,
         anonymizer: Anonymizer,
         user: Optional[User],
-        git_askpass: str = None,
+        git_askpass: Optional[str] = None,
     ):
         self.path = path
         self.anonymizer = anonymizer
@@ -55,7 +53,12 @@ class GitBase:
         self.git_askpass = git_askpass
 
     async def execute(
-        self, git: Literal["git"], command: str, *args: str, env=None, stdin: str = None
+        self,
+        git: Literal["git"],
+        command: str,
+        *args: str,
+        env: Mapping[str, str] = {},
+        stdin: Optional[str] = None,
     ) -> ExecuteResult:
         use_env = {}
         if self.user:
@@ -107,16 +110,23 @@ class Worktree(GitBase):
         ref: str,
         *,
         detach: bool = False,
-        create_branch: str = None,
-        reset_branch: str = None,
+        create_branch: Optional[str] = None,
+        reset_branch: Optional[str] = None,
+        track: Optional[Union[str, Literal[True]]] = None,
     ) -> ExecuteResult:
         args = []
         if detach:
             args.append("--detach")
         if create_branch:
             args.extend(["-b", create_branch])
+            if track:
+                raise_for_status(await self.execute("git", "fetch"))
+                if track is True:
+                    track = create_branch
+                args.extend(["-t", track])
         if reset_branch:
             args.extend(["-B", reset_branch])
+
         return raise_for_status(await self.execute("git", "checkout", *args, ref))
 
     @contextlib.asynccontextmanager
@@ -129,6 +139,15 @@ class Worktree(GitBase):
 
     async def delete(self, filename: str) -> None:
         raise_for_status(await self.execute("git", "rm", filename))
+
+    # async def checkout(
+    #     self, ref: Optional[str] = None, tracking: bool = False
+    # ) -> ExecuteResult:
+    #     args = []
+    #     if tracking:
+    #         raise_for_status(await self.execute("git", "fetch"))
+    #         args
+    #     return raise_for_status(await self.execute("git", "checkout", ref))
 
     async def commit(self, message: str, *, amend: bool = False) -> ExecuteResult:
         args = ["-m", message]
@@ -143,14 +162,22 @@ class Worktree(GitBase):
             await self.execute("git", "push", "-u", "origin", await self.head_name())
         )
 
-    async def push(self, *, delete: bool = False, force: bool = False) -> ExecuteResult:
+    async def push(
+        self, *, remote: str = "origin", delete: bool = False, force: bool = False
+    ) -> ExecuteResult:
         args = []
         if delete:
             args.append("--delete")
         if force:
             args.append("--force")
+        local_name = await self.head_name()
+        if await self.config(f"branch.{local_name}.remote") == remote:
+            upstream_name = await self.config(f"branch.{local_name}.merge")
+            refspec = f"{local_name}:{upstream_name}"
+        else:
+            refspec = local_name
         return raise_for_status(
-            await self.execute("git", "push", *args, "origin", await self.head_name())
+            await self.execute("git", "push", *args, remote, refspec)
         )
 
     async def head_sha1(self) -> str:
@@ -166,6 +193,14 @@ class Worktree(GitBase):
     async def define_sha1(self, label: str) -> None:
         self.anonymizer.define(True, CommitSHA1={label: await self.head_sha1()})
 
+    async def config(self, name: str) -> Optional[str]:
+        result = await self.execute("git", "config", "--get", name)
+        if result.returncode == 0:
+            return result.stdout.strip()
+        elif result.returncode != 1:
+            raise_for_status(result)
+        return None
+
 
 class LocalRepository(GitBase):
     def __init__(
@@ -175,8 +210,8 @@ class LocalRepository(GitBase):
         path: str,
         anonymizer: Anonymizer,
         *,
-        user: User = None,
-        git_askpass: str = None,
+        user: Optional[User] = None,
+        git_askpass: Optional[str] = None,
     ):
         super().__init__(path, anonymizer, user, git_askpass)
         self.workdir = workdir
@@ -214,21 +249,15 @@ class LocalRepository(GitBase):
         anonymizer: Anonymizer,
         *,
         user: Optional[User],
-        git_askpass: str = None,
-        fetch=True,
+        git_askpass: Optional[str] = None,
+        fetch: bool = True,
     ) -> AsyncIterator[LocalRepository]:
         basedir = ensure_dir(os.path.join(workdir, "repositories"))
-        with tempfile.TemporaryDirectory(
-            prefix=f"{name}-", suffix=".git", dir=basedir
-        ) as path:
+        with tempfile.TemporaryDirectory(prefix=f"{name}-", dir=basedir) as path:
             if fetch:
-                raise_for_status(
-                    await execute("git-clone", "git", "clone", "--bare", url, path)
-                )
+                raise_for_status(await execute("git-clone", "git", "clone", url, path))
             else:
-                raise_for_status(
-                    await execute("git-init", "git", "init", "--bare", path)
-                )
+                raise_for_status(await execute("git-init", "git", "init", path))
             repository = LocalRepository(
                 workdir, name, path, anonymizer, user=user, git_askpass=git_askpass
             )
@@ -241,7 +270,10 @@ class LocalRepository(GitBase):
 
     @contextlib.asynccontextmanager
     async def worktree(
-        self, commit=None, *, new_branch=None
+        self,
+        commit: Optional[str] = None,
+        *,
+        new_branch: Optional[str] = None,
     ) -> AsyncIterator[Worktree]:
         basedir = ensure_dir(os.path.join(self.workdir, "worktrees"))
 
@@ -257,7 +289,7 @@ class LocalRepository(GitBase):
             if commit:
                 args.append(commit)
             raise_for_status(await self.execute("git", "worktree", "add", *args))
-            yield Worktree(path, self.anonymizer, self.user)
+            yield Worktree(path, self.anonymizer, self.user, self.git_askpass)
 
         subprocess.call(["git", "worktree", "prune"])
 
@@ -354,7 +386,7 @@ class CriticRepository:
 
     async def __create(self) -> None:
         async with self.api.session(self.admin) as as_admin:
-            logger.info("Creating repository: %s", self.name)
+            logger.debug("creating repository: %s", self.name)
 
             repository = raise_for_status(
                 await as_admin.post(
@@ -370,12 +402,14 @@ class CriticRepository:
         self.anonymizer.define(RepositoryName={self.name: self.unique_name})
         self.anonymizer.define(RepositoryPath={self.name: f"{self.unique_name}.git"})
 
-        for url in repository["urls"]:
-            if url.startswith("http"):
-                self.url = url
-                break
-        else:
-            pytest.fail("No HTTP repository URL returned!")
+        # for url in repository["urls"]:
+        #     if url.startswith("http"):
+        #         self.url = url
+        #         break
+        # else:
+        #     pytest.fail("No HTTP repository URL returned!")
+
+        self.url = f"{self.api.frontend.prefix}/{repository['path']}"
 
         async with self.clone(self.admin, fetch=False) as clone:
             sha1 = await clone.create_empty_commit()
@@ -405,7 +439,7 @@ class CriticRepository:
 
     @contextlib.asynccontextmanager
     async def clone(
-        self, user: User = None, fetch=True
+        self, user: Optional[User] = None, fetch: bool = True
     ) -> AsyncIterator[LocalRepository]:
         url = self.url.replace("://", f"://{user.name}@") if user else self.url
         async with LocalRepository.clone(
@@ -419,7 +453,7 @@ class CriticRepository:
             yield repository
 
     @contextlib.asynccontextmanager
-    async def worktree(self, user: User = None) -> AsyncIterator[Worktree]:
+    async def worktree(self, user: Optional[User] = None) -> AsyncIterator[Worktree]:
         async with self.clone(user) as repository:
             async with repository.worktree() as worktree:
                 yield worktree

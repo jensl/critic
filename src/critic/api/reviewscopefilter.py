@@ -15,6 +15,7 @@
 # the License.
 
 from __future__ import annotations
+from abc import abstractmethod
 
 from typing import Awaitable, Callable, Optional, Sequence
 
@@ -30,31 +31,36 @@ class InvalidId(api.InvalidIdError, Error):
     """Raised when an invalid review scope filter id is used."""
 
 
-class ReviewScopeFilter(api.APIObject):
+class ReviewScopeFilter(api.APIObjectWithId):
     """Representation of a review scope filter"""
 
     @property
+    @abstractmethod
     def id(self) -> int:
         """The scope's unique id"""
-        return self._impl.id
+        ...
 
     @property
+    @abstractmethod
     async def repository(self) -> api.repository.Repository:
         """The repository in which the filter applies"""
-        return await self._impl.getRepository(self.critic)
+        ...
 
     @property
+    @abstractmethod
     async def scope(self) -> api.reviewscope.ReviewScope:
         """The review scope the filter assigns to changes"""
-        return await self._impl.getReviewScope(self.critic)
+        ...
 
     @property
+    @abstractmethod
     def path(self) -> str:
-        return self._impl.path
+        ...
 
     @property
+    @abstractmethod
     def included(self) -> bool:
-        return self._impl.included
+        ...
 
 
 async def fetch(critic: api.critic.Critic, filter_id: int, /) -> ReviewScopeFilter:

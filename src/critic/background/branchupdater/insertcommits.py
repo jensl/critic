@@ -23,7 +23,7 @@ from typing import Dict, Sequence, Set, Tuple
 
 logger = logging.getLogger(__name__)
 
-from critic import api
+from critic import api, dbaccess
 from critic import gitaccess
 from critic.gitaccess import SHA1
 
@@ -41,6 +41,7 @@ async def insert_commits(
     critic = repository.critic
     repository_id = repository.id
     low_level = repository.low_level
+    decode = await repository.getDecode(sha1)
 
     sha1 = await low_level.revparse(sha1, object_type="commit")
 
@@ -87,27 +88,32 @@ async def insert_commits(
             async with critic.query(
                 """SELECT sha1
                      FROM commits
-                    WHERE {sha1=sha1s:array}""",
+                    WHERE sha1=ANY({sha1s})""",
                 sha1s=sha1s_chunk,
             ) as result:
                 new_sha1s.difference_update(await result.scalars())
 
-    gitusers = set()
-    gituser_names = set()
-    gituser_emails = set()
+    gitusers: Set[Tuple[str, str]] = set()
+    gituser_names: Set[str] = set()
+    gituser_emails: Set[str] = set()
     new_commits = []
     edges_values: Set[Tuple[SHA1, SHA1]] = set()
 
     for sha1, commit in commits.items():
         if sha1 in new_sha1s:
+            author_name = decode.commitMetadata(commit.author.name)
+            author_email = decode.commitMetadata(commit.author.email)
+            committer_name = decode.commitMetadata(commit.committer.name)
+            committer_email = decode.commitMetadata(commit.committer.email)
+
             gitusers.update(
                 [
-                    (commit.author.name, commit.author.email),
-                    (commit.committer.name, commit.committer.email),
+                    (author_name, author_email),
+                    (committer_name, committer_email),
                 ]
             )
-            gituser_names.update([commit.author.name, commit.committer.name])
-            gituser_emails.update([commit.author.email, commit.committer.email])
+            gituser_names.update([author_name, committer_name])
+            gituser_emails.update([author_email, committer_email])
 
             new_commits.append(commit)
             edges_values.update(
@@ -120,8 +126,8 @@ async def insert_commits(
         async with cursor.query(
             """SELECT id, fullname, email
                  FROM gitusers
-                WHERE {fullname=gituser_names:array}
-                   OR {email=gituser_emails:array}""",
+                WHERE fullname=ANY({gituser_names})
+                   OR email=ANY({gituser_emails})""",
             gituser_names=list(gituser_names),
             gituser_emails=list(gituser_emails),
         ) as result:
@@ -147,8 +153,8 @@ async def insert_commits(
             async with cursor.query(
                 """SELECT id, fullname, email
                      FROM gitusers
-                    WHERE {fullname=gituser_names:array}
-                       OR {email=gituser_emails:array}""",
+                    WHERE fullname=ANY({gituser_names})
+                       OR email=ANY({gituser_emails})""",
                 gituser_names=list(new_gituser_names),
                 gituser_emails=list(new_gituser_emails),
             ) as result:
@@ -165,14 +171,20 @@ async def insert_commits(
                VALUES ({sha1}, {author_gituser}, {author_time},
                        {commit_gituser}, {commit_time})""",
             (
-                dict(
+                dbaccess.parameters(
                     sha1=commit.sha1,
                     author_gituser=gituser_ids[
-                        (commit.author.name, commit.author.email)
+                        (
+                            decode.commitMetadata(commit.author.name),
+                            decode.commitMetadata(commit.author.email),
+                        )
                     ],
                     author_time=commit.author.time,
                     commit_gituser=gituser_ids[
-                        (commit.committer.name, commit.committer.email)
+                        (
+                            decode.commitMetadata(commit.committer.name),
+                            decode.commitMetadata(commit.committer.email),
+                        )
                     ],
                     commit_time=commit.committer.time,
                 )

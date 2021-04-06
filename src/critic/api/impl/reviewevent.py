@@ -18,24 +18,47 @@ from __future__ import annotations
 
 import datetime
 import logging
-from typing import Collection, Tuple, Optional, Sequence, Iterable
+from typing import (
+    Callable,
+    Collection,
+    Tuple,
+    Optional,
+    Sequence,
+)
 
 logger = logging.getLogger(__name__)
 
 from critic import api
 from critic.api import reviewevent as public
-from . import apiobject
+from .apiobject import APIObjectImplWithId
+from .queryhelper import QueryHelper, QueryResult
 
-WrapperType = api.reviewevent.ReviewEvent
+PublicType = api.reviewevent.ReviewEvent
 ArgumentsType = Tuple[int, int, int, api.reviewevent.EventType, datetime.datetime]
 
 
-class ReviewEvent(apiobject.APIObject[WrapperType, ArgumentsType, int]):
-    wrapper_class = api.reviewevent.ReviewEvent
-    column_names = ["id", "review", "uid", "type", "time"]
+class ReviewEvent(PublicType, APIObjectImplWithId, module=public):
+    def update(self, args: ArgumentsType) -> int:
+        (
+            self.__id,
+            self.__review_id,
+            self.__user_id,
+            self.__type,
+            self.__timestamp,
+        ) = args
+        return self.__id
 
-    def __init__(self, args: ArgumentsType):
-        (self.id, self.__review_id, self.__user_id, self.type, self.timestamp) = args
+    @property
+    def id(self) -> int:
+        return self.__id
+
+    @property
+    def type(self) -> api.reviewevent.EventType:
+        return self.__type
+
+    @property
+    def timestamp(self) -> datetime.datetime:
+        return self.__timestamp
 
     def __str__(self) -> str:
         actor = "Critic" if self.__user_id is None else f"user {self.__user_id}"
@@ -46,17 +69,20 @@ class ReviewEvent(apiobject.APIObject[WrapperType, ArgumentsType, int]):
             actor,
         )
 
-    async def getReview(self, critic: api.critic.Critic) -> api.review.Review:
-        return await api.review.fetch(critic, self.__review_id)
+    @property
+    async def review(self) -> api.review.Review:
+        return await api.review.fetch(self.critic, self.__review_id)
 
-    async def getUser(self, critic: api.critic.Critic) -> api.user.User:
+    @property
+    async def user(self) -> api.user.User:
         if self.__user_id is None:
-            return api.user.system(critic)
-        return await api.user.fetch(critic, self.__user_id)
+            return api.user.system(self.critic)
+        return await api.user.fetch(self.critic, self.__user_id)
 
-    async def getUsers(self, critic: api.critic.Critic) -> Collection[api.user.User]:
+    @property
+    async def users(self) -> Collection[api.user.User]:
         async with api.critic.Query[int](
-            critic,
+            self.critic,
             """
             SELECT uid
               FROM reviewusers
@@ -67,27 +93,44 @@ class ReviewEvent(apiobject.APIObject[WrapperType, ArgumentsType, int]):
             event=self.id,
         ) as result:
             user_ids = await result.scalars()
-        return await api.user.fetchMany(critic, user_ids)
+        return await api.user.fetchMany(self.critic, user_ids)
+
+    @classmethod
+    def getQueryByIds(
+        cls,
+    ) -> Callable[[api.critic.Critic, Sequence[int]], QueryResult[ArgumentsType]]:
+        return queries.queryByIds
+
+
+queries = QueryHelper[ArgumentsType](
+    PublicType.getTableName(), "id", "review", "uid", "type", "time"
+)
 
 
 @public.fetchImpl
-@ReviewEvent.cached
-async def fetch(critic: api.critic.Critic, event_id: int) -> WrapperType:
-    async with ReviewEvent.query(
-        critic, ["id={event_id}"], event_id=event_id
-    ) as result:
-        return await ReviewEvent.makeOne(critic, result)
+async def fetch(
+    critic: api.critic.Critic,
+    event_id: Optional[int],
+    review: Optional[api.review.Review],
+    event_type: Optional[public.EventType],
+) -> ReviewEvent:
+    if event_id is not None:
+        return await ReviewEvent.ensureOne(
+            event_id, queries.idFetcher(critic, ReviewEvent)
+        )
+    assert review and event_type
+    return ReviewEvent.storeOne(
+        await queries.query(critic, review=review, type=event_type).makeOne(
+            ReviewEvent, public.NoSuchEvent(review, event_type)
+        )
+    )
 
 
 @public.fetchManyImpl
-@ReviewEvent.cachedMany
 async def fetchMany(
-    critic: api.critic.Critic, event_ids: Iterable[int]
-) -> Sequence[WrapperType]:
-    async with ReviewEvent.query(
-        critic, ["id=ANY({event_ids})"], event_ids=list(event_ids)
-    ) as result:
-        return await ReviewEvent.make(critic, result)
+    critic: api.critic.Critic, event_ids: Sequence[int]
+) -> Sequence[ReviewEvent]:
+    return await ReviewEvent.ensure(event_ids, queries.idsFetcher(critic, ReviewEvent))
 
 
 @public.fetchAllImpl
@@ -96,16 +139,12 @@ async def fetchAll(
     review: Optional[api.review.Review],
     user: Optional[api.user.User],
     event_type: Optional[api.reviewevent.EventType],
-) -> Sequence[WrapperType]:
-    conditions = []
-    if review:
-        conditions.append("review={review}")
-    if user:
-        conditions.append("uid={user}")
-    if event_type:
-        conditions.append("type={event_type}")
-
-    async with ReviewEvent.query(
-        critic, conditions, review=review, user=user, event_type=event_type
-    ) as result:
-        return await ReviewEvent.make(critic, result)
+) -> Sequence[ReviewEvent]:
+    return ReviewEvent.store(
+        await queries.query(
+            critic,
+            review=review,
+            uid=user,
+            type=event_type,
+        ).make(ReviewEvent)
+    )

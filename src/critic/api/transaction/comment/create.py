@@ -25,9 +25,11 @@ logger = logging.getLogger(__name__)
 from critic import api
 from critic.reviewing.comment.propagate import PropagationResult
 from ..base import TransactionBase
-from ..review import ReviewUser, ReviewUserTag
-from ..item import Insert, InsertMany, Update
 from ..createapiobject import CreateAPIObject
+from ..item import Insert, InsertMany, Update
+from ..review import ReviewUser
+from ..review.updatewouldbeacceptedtag import UpdateWouldBeAcceptedTag
+from ..review.updateunpublishedtag import UpdateUnpublishedTag
 
 
 class CreateComment(CreateAPIObject[api.comment.Comment], api_module=api.comment):
@@ -71,23 +73,23 @@ class CreateComment(CreateAPIObject[api.comment.Comment], api_module=api.comment
 
         comment = await CreateComment(transaction, review).insert(
             review=review,
-            uid=author,
+            author=author,
             type=comment_type,
             text=text,
-            origin=side,
+            side=side,
             file=file,
             first_commit=first_commit,
             last_commit=last_commit,
         )
 
         if location:
-            transaction.tables.add("commentchainlines")
+            transaction.tables.add("commentlines")
             if isinstance(location, api.comment.CommitMessageLocation):
                 # FIXME: Make commit message comment line numbers one-based too!
                 await transaction.execute(
-                    Insert("commentchainlines").values(
-                        chain=comment,
-                        uid=author,
+                    Insert("commentlines").values(
+                        comment=comment,
+                        author=author,
                         sha1=(await location.as_commit_message.commit).sha1,
                         first_line=location.first_line - 1,
                         last_line=location.last_line - 1,
@@ -98,12 +100,12 @@ class CreateComment(CreateAPIObject[api.comment.Comment], api_module=api.comment
                 assert propagation_result is not None
                 await transaction.execute(
                     InsertMany(
-                        "commentchainlines",
-                        ["chain", "uid", "sha1", "first_line", "last_line"],
+                        "commentlines",
+                        ["comment", "author", "sha1", "first_line", "last_line"],
                         (
                             dbaccess.parameters(
-                                chain=comment,
-                                uid=author,
+                                comment=comment,
+                                author=author,
                                 sha1=location.sha1,
                                 first_line=location.first_line + 1,
                                 last_line=location.last_line + 1,
@@ -115,12 +117,15 @@ class CreateComment(CreateAPIObject[api.comment.Comment], api_module=api.comment
                 if comment_type == "issue" and propagation_result.addressed_by:
                     await transaction.execute(
                         Update(comment).set(
-                            state="addressed",
+                            issue_state="addressed",
                             addressed_by=propagation_result.addressed_by,
                         )
                     )
 
         ReviewUser.ensure(transaction, review, author)
-        ReviewUserTag.ensure(transaction, review, author, "unpublished")
+
+        if text.strip():
+            transaction.finalizers.add(UpdateUnpublishedTag(review))
+            transaction.finalizers.add(UpdateWouldBeAcceptedTag(review))
 
         return comment

@@ -15,6 +15,7 @@
 # the License.
 
 from __future__ import annotations
+from abc import abstractmethod
 
 from typing import (
     Awaitable,
@@ -41,18 +42,20 @@ class InvalidName(api.InvalidItemError, Error, item_type="name"):
     """Raied when an invalid review scope name is used."""
 
 
-class ReviewScope(api.APIObject):
+class ReviewScope(api.APIObjectWithId):
     """Representation of a review scope"""
 
     @property
+    @abstractmethod
     def id(self) -> int:
         """The scope's unique id"""
-        return self._impl.id
+        ...
 
     @property
+    @abstractmethod
     def name(self) -> str:
         """The scope's name"""
-        return self._impl.name
+        ...
 
 
 @overload

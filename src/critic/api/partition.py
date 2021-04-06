@@ -1,4 +1,5 @@
 from __future__ import annotations
+from abc import abstractmethod
 
 from typing import Awaitable, Callable, Protocol, Iterable, Optional
 
@@ -35,21 +36,24 @@ class Partition(api.APIObject):
             ...
 
     @property
+    @abstractmethod
     def preceding(self) -> Optional[Partition.Edge]:
         """The edge leading to the preceding (newer) partition"""
-        return self._impl.preceding
+        ...
 
     @property
+    @abstractmethod
     def following(self) -> Optional[Partition.Edge]:
         """The edge leading to the following (older) partition"""
-        return self._impl.following
+        ...
 
     @property
+    @abstractmethod
     def commits(self) -> api.commitset.CommitSet:
         """The set of commits in the partition
 
         The return value is an api.commitset.CommitSet object."""
-        return self._impl.commits
+        ...
 
 
 async def create(

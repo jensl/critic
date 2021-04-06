@@ -2,25 +2,37 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
-import json
 import logging
 import os
 import pickle
-import pytest
-import re
 import signal
 import struct
 import subprocess
-from threading import Thread
-from typing import Any, AsyncIterator, Literal, Optional, Tuple
+from typing import AsyncIterator, Literal, Optional, Tuple, TypedDict
 
 from . import Instance
+from .. import Config
 from ...utilities import ExecuteResult, execute
 
 logger = logging.getLogger(__name__)
 
 
 HEADER_FMT = "!I"
+
+
+class LogMessage(TypedDict):
+    name: str
+    level: int
+    message: str
+    traceback: Optional[str]
+
+
+class ControlPipeMessage(TypedDict):
+    log: Optional[LogMessage]
+
+    root_dir: Optional[str]
+    criticctl_path: Optional[str]
+    http: Optional[Tuple[str, int]]
 
 
 class ControlPipe:
@@ -38,7 +50,7 @@ class ControlPipe:
         self.writer.write(data)
         await self.writer.drain()
 
-    async def read(self) -> AsyncIterator[object]:
+    async def read(self) -> AsyncIterator[ControlPipeMessage]:
         while True:
             try:
                 header = await self.reader.readexactly(struct.calcsize(HEADER_FMT))
@@ -68,15 +80,22 @@ async def read_stderr(reader: Optional[asyncio.StreamReader]) -> None:
 
 
 class Quickstart(Instance):
-    def __init__(self, config, workdir):
+    root_dir: Optional[str]
+    criticctl_path: Optional[str]
+
+    def __init__(self, config: Config, workdir: str):
         self.config = config
         self.workdir = workdir
         self.statedir = os.path.join(self.workdir, "state")
 
-        self.address = None
         self.root_dir = None
         self.criticctl_path = None
         self.has_details = asyncio.Event()
+        self.instance_log_level = getattr(
+            logging, self.config.getoption("instance-log-level", "warn").upper()
+        )
+
+        logging.getLogger("instance").setLevel(self.instance_log_level)
 
     @contextlib.asynccontextmanager
     async def run_automatic(self) -> AsyncIterator[None]:
@@ -106,7 +125,7 @@ class Quickstart(Instance):
         )
 
         try:
-            queue: asyncio.Queue[Tuple[str, Optional[str]]] = asyncio.Queue()
+            # queue: asyncio.Queue[Tuple[str, Optional[str]]] = asyncio.Queue()
 
             self.stdout_task = asyncio.create_task(read_stdout(self.quickstart.stdout))
             self.stderr_task = asyncio.create_task(read_stderr(self.quickstart.stderr))
@@ -144,6 +163,7 @@ class Quickstart(Instance):
         log_stdout: bool = True,
         log_stderr: bool = True,
     ) -> ExecuteResult:
+        assert self.criticctl_path is not None
         if self.config.getoption("verbose") > 0:
             loquacity = ["--verbose"]
         elif self.config.getoption("verbose") < 0:
@@ -174,29 +194,36 @@ class Quickstart(Instance):
         logger.debug("control pipe connected")
 
         async def run() -> None:
-            async for msg in self.controlpipe.read():
-                if isinstance(msg, dict):
-                    if "log" in msg:
-                        record = msg["log"]
-                        logging.getLogger(record["name"]).log(
-                            record["level"], record["message"]
-                        )
-                        continue
-                    logger.debug("received msg: %r", msg)
-                    if "root_dir" in msg:
-                        self.root_dir = msg["root_dir"]
-                    if "criticctl_path" in msg:
-                        self.criticctl_path = msg["criticctl_path"]
-                    if "http" in msg:
-                        self.address = msg["http"]
+            has_address = False
 
-                if self.root_dir and self.criticctl_path and self.address:
+            async for msg in self.controlpipe.read():
+                if (record := msg.get("log")) :
+                    logging.getLogger("instance." + record["name"]).log(
+                        record["level"], record["message"]
+                    )
+                    continue
+                logger.debug("received msg: %r", msg)
+                if (root_dir := msg.get("root_dir")) :
+                    self.root_dir = root_dir
+                if (criticctl_path := msg.get("criticctl_path")) :
+                    self.criticctl_path = criticctl_path
+                if (address := msg.get("http")) :
+                    self.address = address
+                    has_address = True
+
+                if self.root_dir and self.criticctl_path and has_address:
                     self.has_details.set()
 
         run_task = asyncio.create_task(run())
 
         logger.debug("waiting for instance details...")
         await self.has_details.wait()
+
+        logger.info(
+            "Connected to running instance:\n  root_dir: %s\n  address: %s:%d",
+            self.root_dir,
+            *self.address,
+        )
 
         try:
             yield

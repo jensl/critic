@@ -15,6 +15,7 @@
 # the License.
 
 from __future__ import annotations
+from abc import abstractmethod
 
 from typing import Awaitable, Callable, Optional, Sequence
 
@@ -40,65 +41,79 @@ class InvalidId(api.InvalidIdError, Error):
     pass
 
 
-class ReviewIntegrationRequest(api.APIObject):
+class ReviewIntegrationRequest(api.APIObjectWithId):
     @property
+    @abstractmethod
     def id(self) -> int:
-        return self._impl.id
+        ...
 
     @property
+    @abstractmethod
     async def review(self) -> api.review.Review:
-        return await self._impl.getReview(self.critic)
+        ...
 
     @property
+    @abstractmethod
     async def target_branch(self) -> api.branch.Branch:
-        return await self._impl.getTargetBranch(self.critic)
+        ...
 
     @property
+    @abstractmethod
     async def branchupdate(self) -> api.branchupdate.BranchUpdate:
-        return await self._impl.getBranchUpdate(self.critic)
+        ...
 
     @property
+    @abstractmethod
     def squash_requested(self) -> bool:
-        return self._impl.do_squash
+        ...
 
     @property
-    def squash_message(self) -> str:
-        return self._impl.squash_message
+    @abstractmethod
+    def squash_message(self) -> Optional[str]:
+        ...
 
     @property
+    @abstractmethod
     def squash_performed(self) -> bool:
-        return self._impl.squashed
+        ...
 
     @property
+    @abstractmethod
     def autosquash_requested(self) -> bool:
-        return self._impl.do_autosquash
+        ...
 
     @property
+    @abstractmethod
     def autosquash_performed(self) -> bool:
-        return self._impl.autosquashed
+        ...
 
     @property
+    @abstractmethod
     def integration_requested(self) -> bool:
-        return self._impl.do_integrate
+        ...
 
     @property
+    @abstractmethod
     def integration_performed(self) -> bool:
         """True if integration has been performed.
 
         Note that "performed" here means "attempted", it might have failed."""
-        return self._impl.integrated
+        ...
 
     @property
+    @abstractmethod
     def strategy_used(self) -> Optional[api.review.IntegrationStrategy]:
-        return self._impl.strategy_used
+        ...
 
     @property
+    @abstractmethod
     def successful(self) -> Optional[bool]:
-        return self._impl.successful
+        ...
 
     @property
+    @abstractmethod
     def error_message(self) -> Optional[str]:
-        return self._impl.error_message
+        ...
 
 
 async def fetch(critic: api.critic.Critic, request_id: int) -> ReviewIntegrationRequest:

@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-from typing import Set, Any, Type
+from typing import Set, Any, Type, cast
 
 from critic import api
 from .parameters import Parameters
+from .resourceclass import APIObject
 
 
 class Linked(object):
@@ -24,9 +25,13 @@ class Linked(object):
     def isEmpty(self) -> bool:
         return not any(self.linked_per_type.values())
 
-    def add(self, resource_path: str, value: Any) -> Type[ResourceClass[api.APIObject]]:
-        resource_class = ResourceClass.lookup(resource_path)
-        assert isinstance(value, resource_class.value_class)
+    def add(
+        self, resource_path: str, value: APIObject
+    ) -> Type[ResourceClass[APIObject]]:
+        resource_class = cast(
+            Type[ResourceClass[APIObject]], ResourceClass.lookup(resource_path)
+        )
+        assert isinstance(value, resource_class.value_class)  # type: ignore
         linked = self.linked_per_type.get(resource_class.name)
         if linked is not None:
             linked.add(value)

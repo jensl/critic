@@ -16,13 +16,14 @@
 
 from __future__ import annotations
 
+from abc import abstractmethod
 from typing import (
     Awaitable,
     Callable,
     Sequence,
     Iterable,
     Optional,
-    FrozenSet,
+    Collection,
     Protocol,
 )
 
@@ -56,18 +57,21 @@ class InvalidChangeset(Error):
         self.changeset = changeset
 
 
-class ReviewableFileChange(api.APIObject):
+class ReviewableFileChange(api.APIObjectWithId):
     """Representation of changes to a file, to be reviewed"""
 
     @property
+    @abstractmethod
     def id(self) -> int:
-        return self._impl.id
+        ...
 
     @property
+    @abstractmethod
     async def review(self) -> api.review.Review:
-        return await self._impl.getReview(self.critic)
+        ...
 
     @property
+    @abstractmethod
     async def changeset(self) -> api.changeset.Changeset:
         """The changeset that the change is part of
 
@@ -75,58 +79,65 @@ class ReviewableFileChange(api.APIObject):
         that this changeset is always of a single commit, and that this
         commit will be included in a partition in the review (meaning it will
         not be part of a rebased version of the review branch.)"""
-        return await self._impl.getChangeset(self.critic)
+        ...
 
     @property
+    @abstractmethod
     async def file(self) -> api.file.File:
         """The file that was changed
 
         The file is returned as an api.file.File object."""
-        return await self._impl.getFile(self.critic)
+        ...
 
     @property
+    @abstractmethod
     async def scope(self) -> Optional[api.reviewscope.ReviewScope]:
-        return await self._impl.getReviewScope(self.critic)
+        ...
 
     @property
+    @abstractmethod
     def deleted_lines(self) -> int:
         """Number of deleted or modified lines
 
         In other words, number of lines in the old version of the file that
         are not present in the new version of the file."""
-        return self._impl.deleted_lines
+        ...
 
     @property
+    @abstractmethod
     def inserted_lines(self) -> int:
         """Number of modified or inserted lines
 
         In other words, number of lines in the new version of the file that
         were not present in the old version of the file."""
-        return self._impl.inserted_lines
+        ...
 
     @property
+    @abstractmethod
     def is_reviewed(self) -> bool:
         """True if the file change has been marked as reviewed.
 
         This is true if any user has marked this change as reviewed and
         submitted the changes. To check whether the current user has, look for
         the user in the set returned by `reviewed_by`."""
-        return self._impl.is_reviewed
+        ...
 
     @property
-    async def reviewed_by(self) -> FrozenSet[api.user.User]:
+    @abstractmethod
+    async def reviewed_by(self) -> Collection[api.user.User]:
         """The user or users that reviewed the changes
 
         The value is a set of api.user.User objects, empty if the change has not
         been reviewed yet."""
-        return await self._impl.getReviewedBy(self.critic)
+        ...
 
     @property
-    async def assigned_reviewers(self) -> FrozenSet[api.user.User]:
+    @abstractmethod
+    async def assigned_reviewers(self) -> Collection[api.user.User]:
         """The users that are assigned to review the changes
 
         The reviewers are returned as a set of api.user.User objects."""
-        return await self._impl.getAssignedReviewers(self.critic)
+        ...
 
     class DraftChanges(Protocol):
         """Draft changes to file change state"""
@@ -144,13 +155,14 @@ class ReviewableFileChange(api.APIObject):
             ...
 
     @property
+    @abstractmethod
     async def draft_changes(self) -> Optional[ReviewableFileChange.DraftChanges]:
         """The file change's current draft changes
 
         The draft changes are returned as a ReviewableFileChange.DraftChanges
         object, or None if the current user has no unpublished changes to
         this file change."""
-        return await self._impl.getDraftChanges(self.critic)
+        ...
 
 
 async def fetch(
@@ -177,16 +189,19 @@ async def fetchAll(
 ) -> Sequence[ReviewableFileChange]:
     """Fetch all reviewable file changes in a review
 
-    If a |changeset| is specified, fetch only file changes that are part of
-    that changeset.
+    If a |changeset| is specified, fetch only file changes that are part of that
+    changeset.
 
     If a |file| is specified, fetch only file changes in that file.
 
     If a |assignee| is specified, fetch only file changes that the specified
     user is assigned to review.
 
-    If |is_reviewed| is specified (not |None|), fetch only file changes that
-    are marked as reviewed (when |is_reviewed==True|) or not."""
+    If |is_reviewed| is specified (not |None|), fetch only file changes that are
+    marked as reviewed (when |is_reviewed==True|) or not. If |assignee| is also
+    specified, consider whether that user has marked the changes as reviewed. If
+    |assignee| is not specified, consider whether enough users have marked the
+    changes as reviewed."""
     return await fetchAllImpl.get()(review, changeset, file, assignee, is_reviewed)
 
 

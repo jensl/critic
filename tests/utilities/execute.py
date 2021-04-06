@@ -10,14 +10,28 @@ import shlex
 import signal
 import snapshottest
 import subprocess
-from typing import Any, Dict, Literal, Optional, Sequence, Set, TextIO, Tuple
+from typing import (
+    Any,
+    Dict,
+    List,
+    Literal,
+    Mapping,
+    Optional,
+    Sequence,
+    Set,
+    TextIO,
+    Tuple,
+)
 
 logger = logging.getLogger(__name__)
 
 
 class ExecuteError(Exception):
     def __init__(
-        self, returncode: int, stdout: str, stderr: str,
+        self,
+        returncode: int,
+        stdout: str,
+        stderr: str,
     ):
         self.returncode = returncode
         self.stdout = stdout
@@ -75,9 +89,9 @@ snapshottest.formatter.Formatter.register_formatter(ExecuteResultFormatter())
 async def execute(
     description: str,
     *argv: str,
-    cwd=None,
-    env=None,
-    stdin: str = None,
+    cwd: Optional[str] = None,
+    env: Mapping[str, str] = {},
+    stdin: Optional[str] = None,
     log_stdout: bool = True,
     log_stderr: bool = True,
 ) -> ExecuteResult:
@@ -133,7 +147,7 @@ async def execute(
             #     logger.debug("%s: %s", prefix, line.rstrip())
             collect.write(line)
 
-    tasks = [
+    tasks: List["asyncio.Task[Any]"] = [
         asyncio.create_task(process.wait()),
         asyncio.create_task(
             write_to_pipe(f"execute[{description}]: stdin", process.stdin, stdin)
@@ -157,6 +171,8 @@ async def execute(
     ]
 
     await asyncio.wait(tasks)
+
+    assert process.returncode is not None
 
     if process.returncode != 0:
         logger.info(

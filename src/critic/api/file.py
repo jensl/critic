@@ -15,6 +15,7 @@
 # the License.
 
 from __future__ import annotations
+from abc import abstractmethod
 
 from typing import Awaitable, Callable, Iterable, Optional, Sequence, overload
 
@@ -56,7 +57,7 @@ class MissingPaths(Error):
         super().__init__("Missing paths: %s" % ", ".join(sorted(paths)))
 
 
-class File(api.APIObject):
+class File(api.APIObjectWithId):
     def __str__(self) -> str:
         return self.path
 
@@ -64,14 +65,16 @@ class File(api.APIObject):
         return "%s(id=%d, path=%r)" % (type(self).__name__, self.id, self.path)
 
     @property
+    @abstractmethod
     def id(self) -> int:
         """The path's unique id"""
-        return self._impl.id
+        ...
 
     @property
+    @abstractmethod
     def path(self) -> str:
         """The path"""
-        return self._impl.path
+        ...
 
 
 @overload

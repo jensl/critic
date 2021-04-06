@@ -16,88 +16,83 @@
 
 from __future__ import annotations
 
-from typing import Tuple, Any, Optional, Set, Mapping, List
+from typing import Callable, Tuple, Any, Optional, Sequence
 
 from critic import api
 from critic.api import usersetting as public
-from . import apiobject
+from .queryhelper import QueryHelper, QueryResult
+from .apiobject import APIObjectImplWithId
 
 
-WrapperType = api.usersetting.UserSetting
-RowType = Tuple[int, int, str, str, Any]
+PublicType = public.UserSetting
+ArgumentsType = Tuple[int, int, str, str, Any]
 
 
-class UserSetting(apiobject.APIObject[WrapperType, RowType, int]):
-    wrapper_class = api.usersetting.UserSetting
-    column_names = ["id", "uid", "scope", "name", "value"]
+class UserSetting(PublicType, APIObjectImplWithId, module=public):
+    def update(self, args: ArgumentsType) -> int:
+        (self.__id, self.__user_id, self.__scope, self.__name, self.__value) = args
+        return self.__id
 
-    def __init__(self, args: RowType) -> None:
-        (self.id, self.__user_id, self.scope, self.name, self.value) = args
+    @property
+    def id(self) -> int:
+        return self.__id
 
-    async def getUser(self, critic: api.critic.Critic) -> api.user.User:
-        return await api.user.fetch(critic, self.__user_id)
+    @property
+    async def user(self) -> api.user.User:
+        return await api.user.fetch(self.critic, self.__user_id)
+
+    @property
+    def scope(self) -> str:
+        return self.__scope
+
+    @property
+    def name(self) -> str:
+        return self.__name
+
+    @property
+    def value(self) -> Any:
+        return self.__value
 
     @classmethod
-    async def refresh(
+    def getQueryByIds(
         cls,
-        critic: api.critic.Critic,
-        tables: Set[str],
-        cached_objects: Mapping[Any, WrapperType],
-    ) -> None:
-        if "usersettings" not in tables:
-            return
+    ) -> Callable[[api.critic.Critic, Sequence[int]], QueryResult[ArgumentsType]]:
+        return queries.queryByIds
 
-        await UserSetting.updateAll(
-            critic,
-            f"""SELECT {UserSetting.columns()}
-                  FROM {UserSetting.table()}
-                 WHERE {{id=object_ids:array}}""",
-            cached_objects,
-        )
+
+queries = QueryHelper[ArgumentsType](
+    PublicType.getTableName(), "id", "uid", "scope", "name", "value"
+)
 
 
 @public.fetchImpl
-@UserSetting.cached
 async def fetch(
     critic: api.critic.Critic,
-    usersetting_id: Optional[int],
+    setting_id: Optional[int],
     scope: Optional[str],
     name: Optional[str],
-) -> WrapperType:
-    conditions = ["uid={user}"]
-    if usersetting_id is not None:
-        conditions.append("id={usersetting_id}")
-    else:
-        conditions.extend(["scope={scope}", "name={name}"])
+) -> PublicType:
+    if setting_id is not None:
+        setting = await UserSetting.ensureOne(
+            setting_id, queries.idFetcher(critic, UserSetting)
+        )
+        api.PermissionDenied.raiseUnlessUser(critic, await setting.user)
+        return setting
 
-    async with UserSetting.query(
-        critic,
-        conditions,
-        user=critic.effective_user,
-        usersetting_id=usersetting_id,
-        scope=scope,
-        name=name,
-    ) as result:
-        try:
-            return await UserSetting.makeOne(critic, result)
-        except result.ZeroRowsInResult:
-            if usersetting_id is not None:
-                raise api.usersetting.InvalidId(invalid_id=usersetting_id)
-            assert scope is not None and name is not None
-            raise api.usersetting.NotDefined(scope, name)
+    assert scope and name
+    return UserSetting.storeOne(
+        await queries.query(
+            critic, uid=critic.effective_user, scope=scope, name=name
+        ).makeOne(UserSetting, public.NotDefined(scope, name))
+    )
 
 
 @public.fetchAllImpl
 async def fetchAll(
     critic: api.critic.Critic, scope: Optional[str]
-) -> List[WrapperType]:
-    conditions = ["uid={user}"]
-    if scope is not None:
-        conditions.append("scope={scope}")
-    async with UserSetting.query(
-        critic,
-        conditions,
-        user=critic.effective_user,
-        scope=scope,
-    ) as result:
-        return await UserSetting.make(critic, result)
+) -> Sequence[PublicType]:
+    return UserSetting.store(
+        await queries.query(critic, uid=critic.effective_user, scope=scope).make(
+            UserSetting
+        )
+    )

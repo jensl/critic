@@ -17,14 +17,15 @@
 import Resource, { include, withArgument, withParameters } from "../resources"
 import { CommentID, ReplyID } from "../resources/types"
 
-const kIncludeResources = include("batches", "comments")
+const kIncludeResources = include(
+  "batches",
+  "comments",
+  "reviews",
+  "reviewtags",
+)
 
 export const createReply = (commentID: CommentID) =>
-  Resource.create(
-    "replies",
-    withParameters({ comment: commentID }),
-    kIncludeResources,
-  )
+  Resource.create("replies", { comment: commentID }, kIncludeResources)
 
 export const setReplyText = (replyID: ReplyID, text: string) =>
   Resource.update("replies", { text }, withArgument(replyID), kIncludeResources)

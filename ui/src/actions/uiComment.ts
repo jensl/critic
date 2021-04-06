@@ -15,7 +15,6 @@
  */
 
 import { createComment, setCommentText, deleteComment } from "./comment"
-import { resetSelectionScope } from "./uiSelectionScope"
 import { showToast } from "./uiToast"
 import {
   CommentID,
@@ -25,7 +24,6 @@ import {
   FileID,
   DiffSide,
 } from "../resources/types"
-import Comment from "../resources/comment"
 import {
   EXPAND_COMMENT,
   Action,
@@ -59,7 +57,7 @@ export const setHighlightedComment = (commentID: CommentID): Action => ({
 
 export const updateCommentInput = (
   commentID: CommentID,
-  updates: Partial<CommentInputProps>
+  updates: Partial<CommentInputProps>,
 ): Action => ({
   type: UPDATE_COMMENT_INPUT,
   commentID,
@@ -73,9 +71,9 @@ export const createCodeComment = (
   fileID: FileID,
   side: DiffSide,
   firstLine: number,
-  lastLine: number
+  lastLine: number,
 ) => async (dispatch: Dispatch) => {
-  dispatch(resetSelectionScope())
+  dispatch({ type: "RESET_SELECTION_SCOPE" })
 
   const comment = await dispatch(
     createComment(reviewID, type, "", {
@@ -84,7 +82,7 @@ export const createCodeComment = (
       side,
       firstLine,
       lastLine,
-    })
+    }),
   )
 
   if (comment) dispatch(expandComment(comment.id))
@@ -98,7 +96,7 @@ export const raiseIssueInCode = (
   fileID: FileID,
   side: DiffSide,
   firstLine: number,
-  lastLine: number
+  lastLine: number,
 ) =>
   createCodeComment(
     "issue",
@@ -107,7 +105,7 @@ export const raiseIssueInCode = (
     fileID,
     side,
     firstLine,
-    lastLine
+    lastLine,
   )
 
 export const writeNoteInCode = (
@@ -116,7 +114,7 @@ export const writeNoteInCode = (
   fileID: FileID,
   side: DiffSide,
   firstLine: number,
-  lastLine: number
+  lastLine: number,
 ) =>
   createCodeComment(
     "note",
@@ -125,13 +123,13 @@ export const writeNoteInCode = (
     fileID,
     side,
     firstLine,
-    lastLine
+    lastLine,
   )
 
 export const saveCodeCommentInput = (
   commentInput: CommentInput,
   text: string,
-  force = false
+  force = false,
 ) => async (dispatch: Dispatch, getState: GetState) => {
   const saveNow = async (commentInput: CommentInput) => {
     console.error("saveNow", { commentInput })
@@ -171,7 +169,7 @@ export const saveCodeCommentInput = (
 
 export const dismissCodeCommentInput = (
   commentInput: CommentInput,
-  text: string
+  text: string,
 ) => async (dispatch: Dispatch) => {
   if (!text.trim()) {
     // Empty. Delete the draft comment.

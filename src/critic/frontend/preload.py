@@ -150,6 +150,10 @@ async def json_responses(
             review_id = int(components[1])
         except ValueError:
             return preloaded
+        try:
+            review = await api.review.fetch(critic, review_id)
+        except api.review.InvalidId:
+            return preloaded
 
         include = {
             "batches",
@@ -189,11 +193,21 @@ async def json_responses(
                 unpublished="yes",
             )
 
+        async def default_mode() -> api.changeset.AutomaticMode:
+            if (
+                critic.actual_user
+                and critic.actual_user in await review.assigned_reviewers
+            ):
+                return "pending"
+            return "everything"
+
         if len(components) >= 3:
             if components[2] == "changes":
-                await preload_changeset(
-                    "changeset/automatic/everything", review_id=review_id
-                )
+                mode = components[3] if len(components) > 3 else await default_mode()
+                if mode in api.changeset.AUTOMATIC_MODES:
+                    await preload_changeset(
+                        f"changeset/automatic/{mode}", review_id=review_id
+                    )
             elif components[2] == "changeset":
                 await preload_changeset("/".join(components[2:]), review_id=review_id)
     elif path.startswith("/repository/"):

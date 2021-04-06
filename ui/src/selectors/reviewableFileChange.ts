@@ -22,6 +22,8 @@ import { getChangeset } from "./fileDiff"
 import { State } from "../state"
 import ReviewableFileChange from "../resources/reviewablefilechange"
 import { ReviewID, CommitID, ChangesetID, FileID } from "../resources/types"
+import { AutomaticMode } from "../actions"
+import { DefaultMap } from "../utils"
 
 const getChangesets = (state: State) => state.resource.changesets
 const getReviewableFileChanges = (state: State) =>
@@ -29,7 +31,7 @@ const getReviewableFileChanges = (state: State) =>
 
 const getReviewableFileChangesAsArray = createSelector(
   getReviewableFileChanges,
-  (reviewableFileChanges) => castImmutable([...reviewableFileChanges.values()])
+  (reviewableFileChanges) => castImmutable([...reviewableFileChanges.values()]),
 )
 
 export const getReviewableFileChangesForReview = createSelector(
@@ -38,14 +40,17 @@ export const getReviewableFileChangesForReview = createSelector(
   (review, reviewableFileChanges) =>
     review
       ? reviewableFileChanges.filter((rfc) => rfc.review === review.id)
-      : null
+      : null,
 )
 
 export const getReviewableFileChangesPerReviewAndCommit = createSelector(
   getChangesets,
   getReviewableFileChanges,
   (changesets, reviewableFileChanges) => {
-    const result = new Map<ReviewID, Map<CommitID, Set<ReviewableFileChange>>>()
+    const result = new DefaultMap<
+      ReviewID,
+      DefaultMap<CommitID, Set<ReviewableFileChange>>
+    >(() => new DefaultMap(() => new Set()))
     for (const rfc of reviewableFileChanges.values()) {
       const changeset = changesets.byID.get(rfc.changeset)
       if (!changeset) {
@@ -53,42 +58,36 @@ export const getReviewableFileChangesPerReviewAndCommit = createSelector(
         continue
       }
       const commitID = changeset.toCommit
-      let perReview = result.get(rfc.review)
-      let perCommit: Set<ReviewableFileChange> | undefined
-      if (!perReview)
-        result.set(
-          rfc.review,
-          (perReview = new Map([[commitID, (perCommit = new Set())]]))
-        )
-      else {
-        perCommit = perReview.get(commitID)
-        if (!perCommit) perReview.set(commitID, (perCommit = new Set()))
-      }
-      perCommit.add(rfc)
+      result.get(rfc.review).get(commitID).add(rfc)
     }
     return castImmutable(result)
-  }
+  },
 )
 
 export const getReviewableFileChangesPerChangeset = createSelector(
   getReviewableFileChangesForReview,
   (reviewableFileChanges) => {
-    const result = new Map<ChangesetID, Set<ReviewableFileChange>>()
+    const result = new DefaultMap<ChangesetID, Set<ReviewableFileChange>>(
+      () => new Set(),
+    )
     if (reviewableFileChanges)
-      for (const rfc of reviewableFileChanges) {
-        let perChangeset = result.get(rfc.changeset)
-        if (!perChangeset) result.set(rfc.changeset, (perChangeset = new Set()))
-        perChangeset.add(rfc)
-      }
-    return castImmutable(result)
-  }
+      for (const rfc of reviewableFileChanges)
+        result.get(rfc.changeset).add(rfc)
+    return castImmutable(result.map)
+  },
 )
+
+type GetAutomaticModeProps = { automaticMode?: AutomaticMode }
+
+const getAutomaticMode = (state: State, props: GetAutomaticModeProps) =>
+  props.automaticMode
 
 export const getReviewableFileChangesForChangeset = createSelector(
   getChangesets,
   getReviewableFileChangesForReview,
   getChangeset,
-  (changesets, reviewableFileChanges, changeset) => {
+  getAutomaticMode,
+  (changesets, reviewableFileChanges, changeset, automaticMode) => {
     if (
       !reviewableFileChanges ||
       !changeset ||
@@ -97,32 +96,35 @@ export const getReviewableFileChangesForChangeset = createSelector(
     ) {
       return null
     }
-    const result = new Map<FileID, Set<ReviewableFileChange>>()
+    const result = new DefaultMap<FileID, Set<ReviewableFileChange>>(
+      () => new Set(),
+    )
     for (const fileID of changeset.files) result.set(fileID, new Set())
     let found = false
-    if (changeset.contributingCommits.length === 1) {
+    if (automaticMode === "everything") {
+      for (const rfc of reviewableFileChanges) result.get(rfc.file).add(rfc)
+      found = true
+    } else if (changeset.contributingCommits.length === 1) {
       for (const rfc of reviewableFileChanges) {
         if (rfc.changeset === changeset.id) {
-          result.get(rfc.file)!.add(rfc)
+          result.get(rfc.file).add(rfc)
           found = true
         }
       }
     } else {
       const contributingChangesetIDs = new Set(
         changeset.contributingCommits.map((commitID) =>
-          changesets.byCommits.get(String(commitID))
-        )
+          changesets.byCommits.get(String(commitID)),
+        ),
       )
       for (const rfc of reviewableFileChanges) {
         if (contributingChangesetIDs.has(rfc.changeset)) {
-          let perFile = result.get(rfc.file)
-          if (!perFile) result.set(rfc.file, (perFile = new Set()))
-          perFile.add(rfc)
+          result.get(rfc.file).add(rfc)
           found = true
         }
       }
     }
     if (!found) return null
-    return castImmutable(result)
-  }
+    return castImmutable(result.map)
+  },
 )

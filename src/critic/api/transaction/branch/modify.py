@@ -247,12 +247,12 @@ class ModifyBranch(BranchSettingMixin, Modifier[api.branch.Branch]):
                  WHERE id!={branch}
                    AND repository={repository}
                    AND base IS NOT NULL
-                   AND {head=associated_commits:array}
+                   AND head=ANY({associated_commits})
                 """,
                 branchupdate=branchupdate,
                 branch=branch,
                 repository=repository,
-                associated_commits=associated_commits,
+                associated_commits=[*associated_commits],
             )
         )
         await transaction.execute(

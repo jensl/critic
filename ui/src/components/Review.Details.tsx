@@ -5,6 +5,7 @@ import Author from "./Review.Details.Author"
 import Branch from "./Review.Details.Branch"
 import State from "./Review.Details.State"
 import Reviewers from "./Review.Details.Reviewers"
+import Actions from "./Review.Details.Actions"
 
 const ReviewDetails: FunctionComponent = () => (
   <>
@@ -12,6 +13,7 @@ const ReviewDetails: FunctionComponent = () => (
     <Branch />
     <Author />
     <Reviewers />
+    <Actions />
   </>
 )
 

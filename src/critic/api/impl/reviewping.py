@@ -17,55 +17,68 @@
 from __future__ import annotations
 
 import logging
-from typing import Tuple, Sequence
+from typing import Callable, Tuple, Sequence
+
+from critic.api.impl.queryhelper import QueryHelper, QueryResult, join
 
 logger = logging.getLogger(__name__)
 
 from critic import api
 from critic.api import reviewping as public
-from . import apiobject
+from .apiobject import APIObjectImplWithId
 
-WrapperType = api.reviewping.ReviewPing
+PublicType = public.ReviewPing
 ArgumentsType = Tuple[int, str]
 
 
-class ReviewPing(apiobject.APIObject[WrapperType, ArgumentsType, int]):
-    wrapper_class = api.reviewping.ReviewPing
-    column_names = ["event", "message"]
+class ReviewPing(PublicType, APIObjectImplWithId, module=public):
+    def update(self, args: ArgumentsType) -> int:
+        (self.__id, self.__message) = args
+        return self.__id
 
-    def __init__(self, args: ArgumentsType):
-        (self.id, self.message) = args
+    @property
+    def id(self) -> int:
+        return self.__id
+
+    @property
+    async def event(self) -> api.reviewevent.ReviewEvent:
+        return await api.reviewevent.fetch(self.critic, self.__id)
+
+    @property
+    def message(self) -> str:
+        return self.__message
 
     @classmethod
-    def makeCacheKey(cls, args: ArgumentsType) -> int:
-        return args[0]
+    def getQueryByIds(
+        cls,
+    ) -> Callable[[api.critic.Critic, Sequence[int]], QueryResult[ArgumentsType]]:
+        return queries.queryByIds
 
-    async def getEvent(self, critic: api.critic.Critic) -> api.reviewevent.ReviewEvent:
-        return await api.reviewevent.fetch(critic, self.id)
+
+queries = QueryHelper[ArgumentsType](
+    PublicType.getTableName(), "event", "message", default_order_by=["event ASC"]
+)
 
 
 @public.fetchImpl
-@ReviewPing.cached
 async def fetch(
     critic: api.critic.Critic, event: api.reviewevent.ReviewEvent
-) -> WrapperType:
+) -> PublicType:
     if event.type != "pinged":
         raise api.reviewping.InvalidReviewEvent(event)
-    async with ReviewPing.query(critic, ["event={event}"], event=event) as result:
-        return await ReviewPing.makeOne(critic, result)
+    return await ReviewPing.ensureOne(event.id, queries.idFetcher(critic, ReviewPing))
 
 
 @public.fetchAllImpl
 async def fetchAll(
     critic: api.critic.Critic, review: api.review.Review
-) -> Sequence[WrapperType]:
-    async with ReviewPing.query(
-        critic,
-        f"""SELECT {ReviewPing.columns()}
-              FROM {ReviewPing.table()}
-              JOIN reviewevents ON (reviewevents.id=reviewpings.event)
-             WHERE reviewevents.review={{review}}
-          ORDER BY reviewpings.event""",
-        review=review,
-    ) as result:
-        return await ReviewPing.make(critic, result)
+) -> Sequence[PublicType]:
+    return ReviewPing.store(
+        await queries.query(
+            critic,
+            queries.formatQuery(
+                "review={review}", joins=[join(reviewevents=["id=event"])]
+            ),
+            review=review,
+        ).make(ReviewPing)
+    )

@@ -21,20 +21,19 @@ import contextlib
 import contextvars
 import inspect
 import logging
-from collections import defaultdict
 from typing import (
     AsyncContextManager,
     AsyncIterator,
     ClassVar,
+    Collection,
+    ContextManager,
     Optional,
-    Mapping,
     Any,
     List,
     Dict,
     Set,
     Callable,
     Coroutine,
-    DefaultDict,
     Tuple,
     FrozenSet,
     Iterator,
@@ -49,6 +48,10 @@ logger = logging.getLogger(__name__)
 from critic import api
 from critic.api import critic as public
 from critic import dbaccess
+from .objectcache import ObjectCache
+
+
+SESSION: contextvars.ContextVar[public.Critic] = contextvars.ContextVar("session")
 
 
 class NoKey(object):
@@ -132,8 +135,12 @@ class Settings(SettingsGroup):
         return Settings.__value
 
     @staticmethod
-    async def load(critic: api.critic.Critic) -> Settings:
-        Settings.__value = Settings(await api.systemsetting.fetchAll(critic))
+    async def load(critic: public.Critic) -> Settings:
+        try:
+            settings = await api.systemsetting.fetchAll(critic)
+        except dbaccess.ProgrammingError:
+            settings = []
+        Settings.__value = Settings(settings)
         return Settings.get()
 
 
@@ -144,68 +151,73 @@ def settings() -> Settings:
 
 T = TypeVar("T")
 
-CloseTask = Callable[[], Coroutine[Any, Any, None]]
 
-
-class Critic(object):
-    session_profiles: List[api.accesscontrolprofile.AccessControlProfile]
-    database: Optional[dbaccess.Connection]
-    actual_user: Optional[api.user.User]
-    access_token: Optional[api.accesstoken.AccessToken]
-    authentication_labels: Optional[FrozenSet[str]]
-    access_control_profiles: Set[api.accesscontrolprofile.AccessControlProfile]
-    external_account: Optional[api.externalaccount.ExternalAccount]
-    close_tasks: List[CloseTask]
-    __objects_cache: Dict[type, Dict[Any, api.APIObject]]
-    __custom_cache: Dict[type, Dict[Any, Any]]
+class Critic(public.Critic):
+    __session_profiles: List[api.accesscontrolprofile.AccessControlProfile]
+    __actual_user: Optional[api.user.User]
+    __access_token: Optional[api.accesstoken.AccessToken]
+    __authentication_labels: Optional[FrozenSet[str]]
+    __access_control_profiles: Set[api.accesscontrolprofile.AccessControlProfile]
+    __external_account: Optional[api.externalaccount.ExternalAccount]
+    __close_tasks: List[public.CloseTask]
     __effective_user: Optional[api.user.User]
     __slice: Optional[Tuple[int, Optional[int]]]
-    __critical_sections: DefaultDict[str, asyncio.Lock]
 
-    def __init__(self, session_type: api.critic.SessionType) -> None:
-        self.is_closing = self.is_closed = False
-        self.session_type = session_type
-        self.session_profiles = []
-        self.database = None
-        self.tracer = DefaultTracer()
-        self.actual_user = None
-        self.access_token = None
-        self.authentication_labels = None
-        self.access_control_profiles = set()
-        self.external_account = None
-        self.close_tasks = []
-        self.__objects_cache = {}
-        self.__custom_cache = {}
+    def __init__(
+        self, connection: dbaccess.Connection, session_type: public.SessionType
+    ) -> None:
+        self.__task = asyncio.current_task()
+        self.__is_closing = self.__is_closed = False
+        self.__session_type = session_type
+        self.__session_profiles = []
+        self.__database = connection
+        self.__tracer = DefaultTracer()
+        self.__actual_user = None
+        self.__access_token = None
+        self.__authentication_labels = None
+        self.__access_control_profiles = set()
+        self.__external_account = None
+        self.__close_tasks = []
         self.__effective_user = None
         self.__slice = None
-        self.__critical_sections = defaultdict(asyncio.Lock)
 
-    def setDatabase(self, database: dbaccess.Connection) -> None:
-        self.database = database
+    @property
+    def is_closed(self) -> bool:
+        return self.__is_closed
 
-    def getEffectiveUser(self, critic: api.critic.Critic) -> api.user.User:
-        if self.__effective_user:
-            return self.__effective_user
-        if self.actual_user:
-            return self.actual_user
-        if self.session_type == "system":
-            return api.user.system(critic)
-        return api.user.anonymous(critic)
+    @property
+    def is_closing(self) -> bool:
+        return self.__is_closing
 
-    async def _ensureBaseProfile(self, wrapper: api.critic.Critic) -> None:
-        if not self.session_profiles:
-            self.session_profiles.insert(
-                0, await api.accesscontrolprofile.fetch(wrapper)
+    @property
+    def session_type(self) -> public.SessionType:
+        return self.__session_type
+
+    async def _ensureBaseProfile(self) -> None:
+        if not self.__session_profiles:
+            self.__session_profiles.insert(
+                0, await api.accesscontrolprofile.fetch(self)
             )
 
-    async def getSessionProfiles(
-        self, wrapper: api.critic.Critic
+    @property
+    async def session_profiles(
+        self,
     ) -> FrozenSet[api.accesscontrolprofile.AccessControlProfile]:
-        await self._ensureBaseProfile(wrapper)
-        return frozenset(self.session_profiles)
+        await self._ensureBaseProfile()
+        return frozenset(self.__session_profiles)
+
+    @property
+    def effective_user(self) -> api.user.User:
+        if self.__effective_user:
+            return self.__effective_user
+        if self.__actual_user:
+            return self.__actual_user
+        if self.__session_type == "system":
+            return api.user.system(self)
+        return api.user.anonymous(self)
 
     @contextlib.contextmanager
-    def setEffectiveUser(self, user: api.user.User) -> Iterator[None]:
+    def __setEffectiveUser(self, user: api.user.User) -> Iterator[None]:
         api.PermissionDenied.raiseIfRegularUser(user.critic)
         previous = self.__effective_user
         self.__effective_user = user
@@ -214,97 +226,90 @@ class Critic(object):
         finally:
             self.__effective_user = previous
 
+    def asUser(self, user: api.user.User) -> ContextManager[None]:
+        return self.__setEffectiveUser(user)
+
+    @property
+    def actual_user(self) -> Optional[api.user.User]:
+        return self.__actual_user
+
+    @property
+    def authentication_labels(self) -> Optional[FrozenSet[str]]:
+        return self.__authentication_labels
+
+    @property
+    def access_token(self) -> Optional[api.accesstoken.AccessToken]:
+        return self.__access_token
+
+    @property
+    def external_account(self) -> Optional[api.externalaccount.ExternalAccount]:
+        return self.__external_account
+
     def hasRole(self, role: str) -> Optional[bool]:
-        return self.actual_user.hasRole(role) if self.actual_user else None
+        return self.__actual_user.hasRole(role) if self.__actual_user else None
+
+    @property
+    def database(self) -> dbaccess.Connection:
+        assert asyncio.current_task() == self.__task
+        return self.__database
 
     @contextlib.contextmanager
     def user_session(self) -> Iterator[None]:
-        assert self.session_type == "system"
-        actual_user = self.actual_user
-        self.session_type = "user"
-        self.actual_user = None
+        assert self.__session_type == "system"
+        actual_user = self.__actual_user
+        self.__session_type = "user"
+        self.__actual_user = None
         try:
             yield
         finally:
-            self.session_type = "system"
-            self.actual_user = actual_user
-            self.access_token = None
-            self.authentication_labels = None
+            self.__session_type = "system"
+            self.__actual_user = actual_user
+            self.__access_token = None
+            self.__authentication_labels = None
 
     async def setActualUser(self, user: api.user.User) -> None:
-        self.session_type = "user"
-        self.actual_user = user
+        assert not user.is_anonymous
+        assert self.__session_type != "user" or self.__actual_user is None, (
+            self.__session_type,
+            self.__actual_user,
+        )
+        self.__session_type = "user"
+        self.__actual_user = user
         if user.status == "retired":
             async with api.transaction.start(user.critic) as transaction:
                 await transaction.modifyUser(user).setStatus("current")
 
     async def setAccessToken(self, access_token: api.accesstoken.AccessToken) -> None:
-        assert self.actual_user == await access_token.user
-        self.access_token = access_token
+        assert self.__access_token is None
+        assert self.__actual_user == await access_token.user
+        self.__access_token = access_token
         profile = await access_token.profile
         if profile is not None:
-            await self._ensureBaseProfile(access_token.critic)
-            self.session_profiles.append(profile)
+            await self._ensureBaseProfile()
+            self.__session_profiles.append(profile)
 
-    async def loadSettings(self, critic: api.critic.Critic) -> Settings:
-        return await Settings.load(critic)
+    def setAuthenticationLabels(self, labels: Collection[str]) -> None:
+        assert self.__authentication_labels is None
+        self.__authentication_labels = frozenset(labels)
 
-    def lookupObject(self, cls: type, key: Any) -> api.APIObject:
-        return self.__objects_cache[cls][key]
+    def addAccessControlProfile(
+        self, profile: api.accesscontrolprofile.AccessControlProfile
+    ) -> None:
+        self.__access_control_profiles.add(profile)
 
-    def lookupObjects(self, cls: type) -> Mapping[Any, api.APIObject]:
-        return self.__objects_cache[cls]
-
-    def initializeObjects(self, cls: type) -> Dict[Any, api.APIObject]:
-        return self.__objects_cache.setdefault(cls, {})
-
-    def assignObjects(self, cls: type, key: Any, value: api.APIObject) -> None:
-        assert isinstance(value, getattr(cls, "wrapper_class"))
-        self.initializeObjects(cls)[key] = value
-
-    def lookupCustom(self, cls: type, key: Any, default: Optional[Any] = None) -> Any:
-        cache = self.__custom_cache.get(cls, None)
-        return cache.get(key, default) if cache else default
-
-    def assignCustom(self, cls: type, key: Any, value: Any) -> None:
-        self.__custom_cache.setdefault(cls, {})[key] = value
-
-    def criticalSection(self, key: str) -> asyncio.Lock:
-        return self.__critical_sections[key]
-
-    def ensure_future(self, coroutine: Coroutine[Any, Any, T]) -> "asyncio.Future[T]":
-        return asyncio.ensure_future(coroutine)
-
-    def check_future(
-        self,
-        coroutine: Coroutine[Any, Any, T],
-        callback: Optional[Callable[[T], None]] = None,
-    ) -> "asyncio.Future[T]":
-        def check(future: "asyncio.Future[T]") -> None:
-            try:
-                result = future.result()
-            except Exception:
-                logger.exception("Checked coroutine failed!")
-            else:
-                if callback is not None:
-                    callback(result)
-
-        future = self.ensure_future(coroutine)
-        future.add_done_callback(check)
-        return future
-
-    async def gather(
-        self, coroutines_or_futures: Tuple[Awaitable[Any], ...], return_exceptions: bool
-    ) -> Sequence[Any]:
-        """Call asyncio.gather() with the correct `loop` argument"""
-        return await asyncio.gather(
-            *coroutines_or_futures, return_exceptions=return_exceptions
+    async def setExternalAccount(
+        self, external_account: api.externalaccount.ExternalAccount
+    ) -> None:
+        assert (
+            self.__actual_user is None
+            or self.__actual_user == await external_account.user
         )
+        assert self.__external_account is None
+        assert self.__session_type == "user"
+        self.__external_account = external_account
 
-    async def maybe_await(self, coroutine_or_future: Any) -> Any:
-        if inspect.isawaitable(coroutine_or_future):
-            return await coroutine_or_future
-        return coroutine_or_future
+    async def __loadSettings(self) -> Settings:
+        return await Settings.load(self)
 
     async def wakeup_service(self, service_name: str) -> None:
         from critic import background
@@ -314,15 +319,15 @@ class Critic(object):
     def enableTracing(self) -> None:
         raise Exception("NOT IMPLEMENTED")
 
-    def addCloseTask(self, fn: CloseTask) -> None:
-        self.close_tasks.append(fn)
+    def addCloseTask(self, fn: public.CloseTask) -> None:
+        self.__close_tasks.append(fn)
 
     async def close(self) -> None:
-        if self.is_closed:
+        if self.__is_closed:
             return
-        self.is_closing = True
-        if self.close_tasks:
-            tasks = [self.ensure_future(fn()) for fn in self.close_tasks]
+        self.__is_closing = True
+        if self.__close_tasks:
+            tasks = [asyncio.create_task(fn()) for fn in self.__close_tasks]
             done, _ = await asyncio.wait(tasks)
             for future in done:
                 try:
@@ -330,59 +335,59 @@ class Critic(object):
                 except Exception:
                     logger.exception("Close task failed!")
         try:
-            for Implementation, cached_objects in self.__objects_cache.items():
-                if hasattr(Implementation, "close"):
-                    getattr(Implementation, "close")(cached_objects)
-            if self.database:
-                await self.database.close()
+            # for Implementation, cached_objects in self.__objects_cache.items():
+            #     if hasattr(Implementation, "close"):
+            #         getattr(Implementation, "close")(cached_objects)
+            if self.__database:
+                await self.__database.close()
         finally:
-            self.database = None
-            self.is_closed = True
+            self.__is_closed = True
 
-    @staticmethod
-    async def transactionEnded(critic: api.critic.Critic, tables: Set[str]) -> None:
-        objects_cache = Critic.fromWrapper(critic).__objects_cache
-        for Implementation, cached_objects in objects_cache.items():
-            if hasattr(Implementation, "refresh"):
-                await getattr(Implementation, "refresh")(critic, tables, cached_objects)
+    async def transactionEnded(self, tables: Collection[str]) -> None:
+        await ObjectCache.get().refreshAll(self, frozenset(tables))
 
     @contextlib.contextmanager
-    def pushSlice(self, offset: int, count: Optional[int]) -> Iterator[None]:
+    def __pushSlice(self, offset: int, count: Optional[int]) -> Iterator[None]:
         assert self.__slice is None, "slice already set"
         self.__slice = (offset, count)
         yield
         assert self.__slice is None, "set limit never consumed"
 
+    def pushSlice(
+        self, *, offset: int = 0, count: Optional[int] = None
+    ) -> ContextManager[None]:
+        return self.__pushSlice(offset, count)
+
     def popSlice(self) -> Tuple[int, Optional[int]]:
         if self.__slice is None:
-            raise api.critic.NoSlice()
+            raise public.NoSlice()
         try:
             return self.__slice
         finally:
             self.__slice = None
 
     @staticmethod
-    def fromWrapper(critic: api.critic.Critic) -> Critic:
+    def fromWrapper(critic: public.Critic) -> Critic:
         return critic._impl  # type: ignore
 
-
-_session: contextvars.ContextVar[api.critic.Critic] = contextvars.ContextVar("session")
-
-
-@contextlib.asynccontextmanager
-async def _startSession(critic: api.critic.Critic) -> AsyncIterator[api.critic.Critic]:
-    async with dbaccess.connection() as connection:
-        impl = Critic.fromWrapper(critic)
-        impl.setDatabase(connection)
-        await impl.loadSettings(critic)
-        if critic.session_type in ("system", "testing"):
-            impl.actual_user = api.user.system(critic)
-        token = _session.set(critic)
-        try:
-            yield critic
-        finally:
-            _session.reset(token)
-            await impl.close()
+    @staticmethod
+    @contextlib.asynccontextmanager
+    async def startSession(
+        session_type: public.SessionType,
+    ) -> AsyncIterator[public.Critic]:
+        async with dbaccess.connection() as connection:
+            critic = Critic(connection, session_type)
+            cache = ObjectCache.create()
+            await critic.__loadSettings()
+            if critic.session_type in ("system", "testing"):
+                critic.__actual_user = api.user.system(critic)
+            token = SESSION.set(critic)
+            try:
+                yield critic
+            finally:
+                cache.destroy()
+                SESSION.reset(token)
+                await critic.close()
 
 
 @public.startSessionImpl
@@ -390,8 +395,8 @@ def startSession(
     for_user: bool,
     for_system: bool,
     for_testing: bool,
-) -> AsyncContextManager[api.critic.Critic]:
-    session_type: api.critic.SessionType
+) -> AsyncContextManager[public.Critic]:
+    session_type: public.SessionType
 
     if for_user:
         session_type = "user"
@@ -400,9 +405,9 @@ def startSession(
     else:
         session_type = "testing"
 
-    return _startSession(api.critic.Critic(Critic(session_type)))
+    return Critic.startSession(session_type)
 
 
 @public.getSessionImpl
-def getSession() -> api.critic.Critic:
-    return _session.get()
+def getSession() -> public.Critic:
+    return SESSION.get()

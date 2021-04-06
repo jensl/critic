@@ -24,11 +24,13 @@ logger = logging.getLogger(__name__)
 from critic import api
 from critic.gitaccess import SHA1
 
-from .job import Job, RunnerType
+from .job import ChangesetGroupType, Job, RunnerType
 from .jobgroup import JobGroup
 
 
 class CustomHighlight(JobGroup):
+    __repository_path: str
+
     def __init__(
         self,
         runner: RunnerType,
@@ -44,6 +46,14 @@ class CustomHighlight(JobGroup):
 
     def __str__(self) -> str:
         return "custom highlight %d" % self.request_id
+
+    @property
+    def repository_path(self) -> str:
+        return self.__repository_path
+
+    @property
+    def as_changeset(self) -> ChangesetGroupType:
+        raise Exception("not a changeset")
 
     def start(self) -> None:
         logger.debug("%s: starting", self)
@@ -61,7 +71,7 @@ class CustomHighlight(JobGroup):
                     WHERE id={repository_id}""",
                 repository_id=self.repository_id,
             ) as repository_path:
-                self.repository_path = await repository_path.scalar()
+                self.__repository_path = await repository_path.scalar()
 
         async with api.critic.Query[Tuple[SHA1, str, bool]](
             critic,

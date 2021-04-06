@@ -17,62 +17,90 @@
 from __future__ import annotations
 
 import sshpubkeys
-from typing import Tuple, Optional, Sequence
+from typing import Callable, Tuple, Optional, Sequence
 
 from critic import api
 from critic.api import usersshkey as public
-from . import apiobject
+from critic.api.impl.queryhelper import QueryHelper, QueryResult
+from .apiobject import APIObjectImplWithId
 
 
-WrapperType = api.usersshkey.UserSSHKey
+PublicType = public.UserSSHKey
 ArgumentsType = Tuple[int, int, str, str, str]
 
 
-class UserSSHKey(apiobject.APIObject[WrapperType, ArgumentsType, int]):
-    wrapper_class = api.usersshkey.UserSSHKey
-    column_names = ["id", "uid", "type", "key", "comment"]
-
+class UserSSHKey(PublicType, APIObjectImplWithId, module=public):
     __parsed_key: Optional[sshpubkeys.SSHKey]
 
-    def __init__(self, args: ArgumentsType) -> None:
-        (self.id, self.__user_id, self.type, self.key, self.comment) = args
-        self.__parsed_key = None
+    def __str__(self) -> str:
+        return f"{self.type} {self.key}"
 
-    async def getUser(self, critic: api.critic.Critic) -> api.user.User:
-        return await api.user.fetch(critic, self.__user_id)
+    def update(self, args: ArgumentsType) -> int:
+        (self.__id, self.__user_id, self.__type, self.__key, self.__comment) = args
+        self.__parsed_key = None
+        return self.__id
+
+    @property
+    def id(self) -> int:
+        return self.__id
+
+    @property
+    async def user(self) -> api.user.User:
+        return await api.user.fetch(self.critic, self.__user_id)
+
+    @property
+    def type(self) -> str:
+        return self.__type
+
+    @property
+    def key(self) -> str:
+        return self.__key
+
+    @property
+    def comment(self) -> str:
+        return self.__comment
+
+    @property
+    def bits(self) -> int:
+        return self.__parsedKey().bits
+
+    @property
+    def fingerprint(self) -> str:
+        return self.__parsedKey().hash_md5().replace("MD5:", "")
 
     def __parsedKey(self) -> sshpubkeys.SSHKey:
         if self.__parsed_key is None:
             self.__parsed_key = sshpubkeys.SSHKey(f"{self.type} {self.key}")
         return self.__parsed_key
 
-    def getBits(self) -> int:
-        return self.__parsedKey().bits
+    @classmethod
+    def getQueryByIds(
+        cls,
+    ) -> Callable[[api.critic.Critic, Sequence[int]], QueryResult[ArgumentsType]]:
+        return queries.queryByIds
 
-    def getFingerprint(self) -> str:
-        return self.__parsedKey().hash_md5().replace("MD5:", "")
+
+queries = QueryHelper[ArgumentsType](
+    PublicType.getTableName(), "id", "uid", "type", "key", "comment"
+)
 
 
 @public.fetchImpl
-@UserSSHKey.cached
 async def fetch(
     critic: api.critic.Critic,
     usersshkey_id: Optional[int],
     key_type: Optional[str],
     key: Optional[str],
-) -> Optional[WrapperType]:
+) -> Optional[PublicType]:
     if usersshkey_id is not None:
-        condition = "id={usersshkey_id}"
+        usersshkey = await UserSSHKey.ensureOne(
+            usersshkey_id, queries.idFetcher(critic, UserSSHKey)
+        )
     else:
-        condition = "type={key_type} AND key={key}"
-    async with UserSSHKey.query(
-        critic, [condition], usersshkey_id=usersshkey_id, key_type=key_type, key=key
-    ) as result:
-        try:
-            usersshkey = await UserSSHKey.makeOne(critic, result)
-        except result.ZeroRowsInResult:
-            if usersshkey_id is not None:
-                raise
+        usersshkey = UserSSHKey.storeOne(
+            await queries.query(critic, type=key_type, key=key).makeOne(UserSSHKey)
+        )
+        if not usersshkey:
             return None
     api.PermissionDenied.raiseUnlessUser(critic, await usersshkey.user)
     return usersshkey
@@ -81,17 +109,13 @@ async def fetch(
 @public.fetchAllImpl
 async def fetchAll(
     critic: api.critic.Critic, user: Optional[api.user.User]
-) -> Sequence[WrapperType]:
-    conditions = ["TRUE"]
+) -> Sequence[PublicType]:
+    conditions = []
     if user is not None:
         api.PermissionDenied.raiseUnlessUser(critic, user)
         conditions.append("uid={user}")
     else:
         api.PermissionDenied.raiseUnlessSystem(critic)
-    async with critic.query(
-        f"""SELECT {UserSSHKey.columns()}
-              FROM {UserSSHKey.table()}
-             WHERE {" AND ".join(conditions)}""",
-        user=user,
-    ) as result:
-        return await UserSSHKey.make(critic, result)
+    return UserSSHKey.store(
+        await queries.query(critic, *conditions, user=user).make(UserSSHKey)
+    )

@@ -19,6 +19,7 @@ class CloneExternal(Request[bool]):
             "Cloning external extension %s from %s", await extension.key, extension.url
         )
         path = await extension.path
+        assert path is not None
         if not os.path.isdir(os.path.dirname(path)):
             os.makedirs(os.path.dirname(path))
         gitrepository = gitaccess.GitRepository.direct(path, allow_missing=True)

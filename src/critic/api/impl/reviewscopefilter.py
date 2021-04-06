@@ -16,57 +16,71 @@
 
 from __future__ import annotations
 
-from typing import Tuple, Optional, Sequence
+from typing import Callable, Tuple, Optional, Sequence
 
 from critic import api
 from critic.api import reviewscopefilter as public
-from . import apiobject
+from critic.api.impl.queryhelper import QueryHelper, QueryResult
+from .apiobject import APIObjectImplWithId
 
-WrapperType = api.reviewscopefilter.ReviewScopeFilter
+PublicType = public.ReviewScopeFilter
 ArgumentsType = Tuple[int, int, int, str, bool]
 
 
-class ReviewScopeFilter(apiobject.APIObject[WrapperType, ArgumentsType, int]):
-    wrapper_class = WrapperType
-    column_names = ["id", "repository", "scope", "path", "included"]
-
-    def __init__(self, args: ArgumentsType):
+class ReviewScopeFilter(PublicType, APIObjectImplWithId, module=public):
+    def update(self, args: ArgumentsType) -> int:
         (
-            self.id,
+            self.__id,
             self.__repository_id,
             self.__scope_id,
-            self.path,
-            self.included,
+            self.__path,
+            self.__included,
         ) = args
+        return self.__id
 
-    async def getRepository(
-        self, critic: api.critic.Critic
-    ) -> api.repository.Repository:
-        return await api.repository.fetch(critic, self.__repository_id)
+    @property
+    def id(self) -> int:
+        return self.__id
 
-    async def getReviewScope(
-        self, critic: api.critic.Critic
-    ) -> api.reviewscope.ReviewScope:
-        return await api.reviewscope.fetch(critic, self.__scope_id)
+    @property
+    async def repository(self) -> api.repository.Repository:
+        return await api.repository.fetch(self.critic, self.__repository_id)
+
+    @property
+    async def scope(self) -> api.reviewscope.ReviewScope:
+        return await api.reviewscope.fetch(self.critic, self.__scope_id)
+
+    @property
+    def path(self) -> str:
+        return self.__path
+
+    @property
+    def included(self) -> bool:
+        return self.__included
+
+    @classmethod
+    def getQueryByIds(
+        cls,
+    ) -> Callable[[api.critic.Critic, Sequence[int]], QueryResult[ArgumentsType]]:
+        return queries.queryByIds
+
+
+queries = QueryHelper[ArgumentsType](
+    PublicType.getTableName(), "id", "repository", "scope", "path", "included"
+)
 
 
 @public.fetchImpl
-@ReviewScopeFilter.cached
-async def fetch(critic: api.critic.Critic, filter_id: int) -> WrapperType:
-    async with ReviewScopeFilter.query(
-        critic, ["id={filter_id}"], filter_id=filter_id
-    ) as result:
-        return await ReviewScopeFilter.makeOne(critic, result)
+async def fetch(critic: api.critic.Critic, filter_id: int) -> PublicType:
+    return await ReviewScopeFilter.ensureOne(
+        filter_id, queries.idFetcher(critic, ReviewScopeFilter)
+    )
 
 
 @public.fetchAllImpl
 async def fetchAll(
     critic: api.critic.Critic, repository: Optional[api.repository.Repository]
-) -> Sequence[WrapperType]:
-    conditions = []
-    if repository:
-        conditions.append("repository={repository}")
-    async with ReviewScopeFilter.query(
-        critic, conditions, repository=repository
-    ) as result:
-        return await ReviewScopeFilter.make(critic, result)
+) -> Sequence[PublicType]:
+    return ReviewScopeFilter.store(
+        await queries.query(critic, repository=repository).make(ReviewScopeFilter)
+    )

@@ -274,7 +274,7 @@ async def update_review_tags(critic: api.critic.Critic) -> None:
                 await cursor.execute(
                     """DELETE
                          FROM reviewtags
-                        WHERE {id=deleted_tag_ids:array}""",
+                        WHERE id=ANY({deleted_tag_ids})""",
                     deleted_tag_ids=deleted_tag_ids,
                 )
 

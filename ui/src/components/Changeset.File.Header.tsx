@@ -1,19 +1,16 @@
 import React, { FunctionComponent } from "react"
 import clsx from "clsx"
 
-import Checkbox from "@material-ui/core/Checkbox"
 import { makeStyles } from "@material-ui/core/styles"
 import ChevronRightIcon from "@material-ui/icons/ChevronRight"
 
 import Registry from "."
+import ReviewState from "./Changeset.File.Header.ReviewState"
 import { countChangedLines } from "../utils/FileDiff"
 import File from "../resources/file"
 import FileChange from "../resources/filechange"
 import FileDiff from "../resources/filediff"
 import ReviewableFileChange from "../resources/reviewablefilechange"
-import { all, useSignedInUser } from "../utils"
-import { useDispatch } from "../store"
-import { setIsReviewed } from "../actions/reviewableFilechange"
 
 const useStyles = makeStyles((theme) => ({
   changesetFileHeader: {
@@ -69,8 +66,6 @@ const useStyles = makeStyles((theme) => ({
   state: {
     flexGrow: 0,
   },
-
-  checkbox: { padding: 0 },
 }))
 
 type Props = {
@@ -80,6 +75,7 @@ type Props = {
   fileDiff?: FileDiff
   rfcs: ReadonlySet<ReviewableFileChange> | null
   isExpanded: boolean
+  canCollapse: boolean
   expandFile: () => void
   collapseFile: () => void
 }
@@ -91,12 +87,11 @@ const ChangesetFileHeader: FunctionComponent<Props> = ({
   fileDiff,
   rfcs,
   isExpanded,
+  canCollapse,
   expandFile,
   collapseFile,
 }) => {
   const classes = useStyles()
-  const dispatch = useDispatch()
-  const signedInUser = useSignedInUser()
   let deleted = false
   let added = false
   if (fileChange) {
@@ -110,11 +105,11 @@ const ChangesetFileHeader: FunctionComponent<Props> = ({
     deletedLines = `-${deleted}`
     insertedLines = `+${inserted}`
   }
-  const toggleExpanded = isExpanded ? collapseFile : expandFile
-  const hasReviewed =
-    !!signedInUser &&
-    !!rfcs &&
-    all(rfcs, (rfc) => rfc.isReviewedBy(signedInUser.id))
+  const toggleExpanded = isExpanded
+    ? canCollapse
+      ? collapseFile
+      : () => null
+    : expandFile
 
   return (
     <div
@@ -142,21 +137,7 @@ const ChangesetFileHeader: FunctionComponent<Props> = ({
       </span>
       <span className={classes.insertedLines}>{!deleted && insertedLines}</span>
       <span className={classes.path}>{file.path}</span>
-      <span className={classes.state}>
-        {rfcs && (
-          <Checkbox
-            onMouseDown={(ev) => ev.stopPropagation()}
-            onClick={(ev) =>
-              dispatch(
-                setIsReviewed(rfcs, (ev.target as HTMLInputElement).checked),
-              )
-            }
-            checked={hasReviewed}
-            className={classes.checkbox}
-            color="primary"
-          />
-        )}
-      </span>
+      <ReviewState className={classes.state} file={file} rfcs={rfcs} />
     </div>
   )
 }

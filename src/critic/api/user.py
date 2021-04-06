@@ -23,14 +23,13 @@ with a certain status (see `User.STATUS_VALUES`).
 """
 
 from __future__ import annotations
+from abc import abstractmethod
 
 from typing import (
     Awaitable,
     Callable,
     Collection,
-    FrozenSet,
     Iterable,
-    List,
     Literal,
     Mapping,
     Optional,
@@ -86,7 +85,7 @@ class InvalidRole(Error):
 
 
 Type = Literal["regular", "anonymous", "system"]
-TYPE_VALUES: FrozenSet[Type] = frozenset(["regular", "anonymous", "system"])
+TYPE_VALUES: Collection[Type] = frozenset(["regular", "anonymous", "system"])
 """User type values.
 
 - `"regular"` A regular (human or bot) user.
@@ -100,9 +99,9 @@ def as_type(value: str) -> Type:
     return cast(Type, value)
 
 
-Status = Literal["current", "absent", "retired", "disabled"]
-STATUS_VALUES: FrozenSet[Status] = frozenset(
-    ["current", "absent", "retired", "disabled"]
+Status = Literal["current", "absent", "retired", "disabled", "anonymous", "system"]
+STATUS_VALUES: Collection[Status] = frozenset(
+    ["current", "absent", "retired", "disabled", "anonymous", "system"]
 )
 """User status values.
 
@@ -119,7 +118,7 @@ def as_status(value: str) -> Status:
 
 
 PasswordStatus = Literal["set", "not-set", "disabled"]
-PASSWORD_STATUS_VALUES: FrozenSet[PasswordStatus] = frozenset(
+PASSWORD_STATUS_VALUES: Collection[PasswordStatus] = frozenset(
     ["set", "not-set", "disabled"]
 )
 """Password status values.
@@ -136,7 +135,7 @@ def as_password_status(value: str) -> PasswordStatus:
     return cast(PasswordStatus, value)
 
 
-class User(api.APIObject):
+class User(api.APIObjectWithId):
     """Representation of a Critic user"""
 
     def __str__(self) -> str:
@@ -161,26 +160,31 @@ class User(api.APIObject):
         return self.id
 
     @property
+    @abstractmethod
     def type(self) -> Type:
         """The type of user: "regular", "anonymous" or "system"."""
-        return self._impl.type
+        ...
 
     @property
-    def id(self) -> Optional[int]:
+    @abstractmethod
+    def id(self) -> int:
         """The user's unique id"""
-        return self._impl.id
+        ...
 
     @property
+    @abstractmethod
     def name(self) -> Optional[str]:
         """The user's unique username"""
-        return self._impl.name
+        ...
 
     @property
+    @abstractmethod
     def fullname(self) -> Optional[str]:
         """The user's full name"""
-        return self._impl.fullname
+        ...
 
     @property
+    @abstractmethod
     def status(self) -> Status:
         """The user's status
 
@@ -189,7 +193,7 @@ class User(api.APIObject):
 
         For the anonymous user, the value is "anonymous".
         For the Critic system user, the value is "system"."""
-        return self._impl.status
+        ...
 
     @property
     def is_regular(self) -> bool:
@@ -217,7 +221,8 @@ class User(api.APIObject):
         return useremail.address if useremail else None
 
     @property
-    async def git_emails(self) -> Set[str]:
+    @abstractmethod
+    async def git_emails(self) -> Collection[str]:
         """The user's "git" email addresses
 
         The value is a set of strings.
@@ -225,56 +230,32 @@ class User(api.APIObject):
         These addresses are used to identify the user as author or committer
         of Git commits by matching the email address in the commit's meta
         data."""
-        return await self._impl.getGitEmails(self.critic)
+        ...
 
     @property
+    @abstractmethod
     async def repository_filters(
         self,
     ) -> Mapping[
-        api.repository.Repository, List[api.repositoryfilter.RepositoryFilter]
+        api.repository.Repository, Sequence[api.repositoryfilter.RepositoryFilter]
     ]:
         """The user's repository filters
 
         The value is a dictionary mapping api.repository.Repository objects
         to lists of api.repositoryfilter.RepositoryFilter objects."""
-        return await self._impl.getRepositoryFilters(self.critic)
+        ...
 
     @property
-    def roles(self) -> FrozenSet[str]:
-        return self._impl.roles
+    @abstractmethod
+    def roles(self) -> Collection[str]:
+        ...
 
     def hasRole(self, role: str) -> bool:
         """Return True if the user has the named role
 
         If the argument is not a valid role name, an InvalidRole exception is
         raised."""
-        return self._impl.hasRole(role)
-
-    # async def getPreference(
-    #     self, item: str, *, repository: Optional[api.repository.Repository] = None
-    # ) -> api.preference.Preference:
-    #     """Fetch the user's preference setting for `item`
-
-    #     The setting is returned as an api.preference.Preference object, whose
-    #     'user' and 'repository' attributes can be used to determine whether
-    #     there was a per-user and/or per-repository override, or if a system
-    #     default value was used.
-
-    #     If 'repository' is not None, fetch a per-repository override if there
-    #     is one.
-
-    #     Args:
-    #         item (str): The preference item name.
-    #         repository (critic.api.repository.Repository): Return the override
-    #             for the specified repository, if there is one.
-
-    #     Returns:
-    #         A `critic.api.preference.Preference` object.
-
-    #     Raises:
-    #         InvalidPreferenceItem: The requested `item` is not valid."""
-    #     assert repository is None or isinstance(repository, api.repository.Repository)
-    #     return await self._impl.getPreference(self, item, repository)
+        ...
 
     async def isAuthorOf(self, commit: api.commit.Commit) -> bool:
         """Return true if this user is the author of the given commit.
@@ -291,7 +272,8 @@ class User(api.APIObject):
         return commit.author.email in await self.git_emails
 
     @property
-    async def url_prefixes(self) -> List[str]:
+    @abstractmethod
+    async def url_prefixes(self) -> Sequence[str]:
         """URL prefixes the user wishes to see
 
         A URL prefix will typically be on the format
@@ -303,9 +285,10 @@ class User(api.APIObject):
 
         On systems that are reachable via e.g. different hostnames, users can
         typically select which URLs they wish to see in e.g. Git hook output."""
-        return await self._impl.getURLPrefixes(self)
+        ...
 
     @property
+    @abstractmethod
     def password_status(self) -> PasswordStatus:
         """The user's password status
 
@@ -323,7 +306,7 @@ class User(api.APIObject):
         password update UI to display.
 
         Note: The user's password is of course not accessible."""
-        return self._impl.password_status
+        ...
 
 
 @overload

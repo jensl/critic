@@ -117,7 +117,7 @@ class Extension(object):
         source_blob = await repository.fetchone(
             manifest_sha1, wanted_object_type="blob", object_factory=gitaccess.GitBlob
         )
-        source = textutils.decode(source_blob.data)
+        source = source_blob.data.decode()
 
         manifest = Manifest(path=path, filename=filename, source=source)
         manifest.read()

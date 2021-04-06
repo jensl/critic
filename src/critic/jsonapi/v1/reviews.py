@@ -18,14 +18,16 @@ from __future__ import annotations
 
 import logging
 from typing import (
+    Awaitable,
     Collection,
-    FrozenSet,
     List,
     Optional,
     Sequence,
     TypedDict,
     Union,
 )
+
+from critic.base.types import BooleanWithReason
 
 logger = logging.getLogger(__name__)
 
@@ -95,7 +97,7 @@ async def partitions(value: api.review.Review) -> Collection[Partition]:
 
 async def changesets(
     value: api.review.Review,
-) -> Optional[ValueWrapper[Collection[api.changeset.Changeset]]]:
+) -> Optional[ValueWrapper[Sequence[api.changeset.Changeset]]]:
     changesets = await value.changesets
     if changesets is None:
         return None
@@ -104,7 +106,7 @@ async def changesets(
 
 async def filters(
     value: api.review.Review,
-) -> ValueWrapper[Collection[api.reviewfilter.ReviewFilter]]:
+) -> ValueWrapper[Sequence[api.reviewfilter.ReviewFilter]]:
     return await sorted_by_id(value.filters)
 
 
@@ -123,7 +125,7 @@ class Integration(TypedDict):
     squashed: bool
     autosquashed: bool
     strategy_used: Optional[api.review.IntegrationStrategy]
-    conflicts: FrozenSet[api.file.File]
+    conflicts: Awaitable[ValueWrapper[Sequence[api.file.File]]]
     error_message: Optional[str]
 
 
@@ -131,16 +133,16 @@ async def integration(review: api.review.Review) -> Optional[Integration]:
     value = await review.integration
     if value is None:
         return None
-    return {
-        "target_branch": value.target_branch,
-        "commits_behind": value.commits_behind,
-        "state": value.state,
-        "squashed": value.squashed,
-        "autosquashed": value.autosquashed,
-        "strategy_used": value.strategy_used,
-        "conflicts": value.conflicts,
-        "error_message": value.error_message,
-    }
+    return Integration(
+        target_branch=value.target_branch,
+        commits_behind=value.commits_behind,
+        state=value.state,
+        squashed=value.squashed,
+        autosquashed=value.autosquashed,
+        strategy_used=value.strategy_used,
+        conflicts=sorted_by_id(value.conflicts),
+        error_message=value.error_message,
+    )
 
 
 class Reviews(
@@ -200,9 +202,25 @@ class Reviews(
                 # greatly optimizes later looking them up per review.
                 await api.reviewablefilechange.fetchAll(value)
 
+        async def can_publish() -> bool:
+            return bool(await value.can_publish)
+
+        async def can_close() -> bool:
+            return bool(await value.can_close)
+
+        async def can_drop() -> bool:
+            return bool(await value.can_drop)
+
+        async def can_reopen() -> bool:
+            return bool(await value.can_reopen)
+
         return {
             "id": value.id,
             "state": value.state,
+            "can_publish": can_publish(),
+            "can_close": can_close(),
+            "can_drop": can_drop(),
+            "can_reopen": can_reopen(),
             "is_accepted": value.is_accepted,
             "summary": value.summary,
             "description": value.description,

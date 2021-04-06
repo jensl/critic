@@ -15,6 +15,7 @@
 # the License.
 
 from __future__ import annotations
+from abc import abstractmethod
 
 from typing import Awaitable, Callable, Literal, Optional, Sequence, FrozenSet
 
@@ -38,38 +39,44 @@ AccessType = Literal["user", "system", "anonymous"]
 ACCESS_TYPES: FrozenSet[AccessType] = frozenset(["user", "system", "anonymous"])
 
 
-class AccessToken(api.APIObject):
+class AccessToken(api.APIObjectWithId):
     """Representation of an access token"""
 
     @property
+    @abstractmethod
     def access_type(self) -> AccessType:
         """The type of access granted by this access token"""
-        return self._impl.access_type
+        ...
 
     @property
+    @abstractmethod
     def id(self) -> int:
         """The access token's unique id"""
-        return self._impl.id
+        ...
 
     @property
-    async def user(self) -> api.user.User:
+    @abstractmethod
+    async def user(self) -> Optional[api.user.User]:
         """The user authenticated by the access token, or None"""
-        return await self._impl.getUser(self.critic)
+        ...
 
     @property
+    @abstractmethod
     def token(self) -> str:
         """The actual secret token"""
-        return self._impl.getToken(self.critic)
+        ...
 
     @property
+    @abstractmethod
     def title(self) -> Optional[str]:
         """The access token's title, or None"""
-        return self._impl.title
+        ...
 
     @property
+    @abstractmethod
     async def profile(self) -> Optional[api.accesscontrolprofile.AccessControlProfile]:
         """The access token's access control profile"""
-        return await self._impl.getProfile(self.critic)
+        ...
 
 
 async def fetch(critic: api.critic.Critic, token_id: int, /) -> AccessToken:

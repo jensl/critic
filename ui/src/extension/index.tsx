@@ -1,7 +1,7 @@
 import React, { useContext, useEffect, useState } from "react"
 
 import { useDispatch } from "../store"
-import { ADD_ITEM_TO_LIST, ItemList } from "../actions"
+import { ItemList } from "../actions"
 // import Extension from "../resources/extension"
 import { Dispatch } from "../state"
 import { assertNotNull } from "../debug"
@@ -32,7 +32,7 @@ export class Critic {
     options: Options = {},
   ) {
     this.dispatch({
-      type: ADD_ITEM_TO_LIST,
+      type: "ADD_ITEM_TO_LIST",
       list,
       extensionID: this.extension.id,
       itemID,
@@ -56,6 +56,10 @@ export class Critic {
       body,
       credentials: "same-origin",
     })
+  }
+
+  reset() {
+    this.dispatch({ type: "RESET_EXTENSION", extensionID: this.extension.id })
   }
 }
 
@@ -85,7 +89,12 @@ export const WithCritic: React.FunctionComponent<Props> = ({
   const [critic, setCritic] = useState<Critic | null>(null)
 
   useEffect(() => {
-    setCritic(extension ? new Critic(dispatch, extension) : null)
+    if (extension) {
+      const critic = new Critic(dispatch, extension)
+      setCritic(critic)
+      return () => critic.reset()
+    }
+    setCritic(null)
   }, [dispatch, extension])
 
   if (!critic) return null

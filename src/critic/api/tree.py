@@ -15,6 +15,7 @@
 # the License.
 
 from __future__ import annotations
+from abc import abstractmethod
 
 from typing import Awaitable, Callable, Protocol, Sequence, Optional, overload
 
@@ -59,25 +60,17 @@ class NotADirectory(Error):
 class Tree(api.APIObject):
     """Representation of a Git tree object, i.e. a directory listing"""
 
-    def __hash__(self) -> int:
-        return hash((self.repository.id, self.sha1))
-
-    def __eq__(self, other: object) -> bool:
-        return (
-            isinstance(other, Tree)
-            and self.repository == other.repository
-            and self.sha1 == other.sha1
-        )
-
     @property
+    @abstractmethod
     def repository(self) -> api.repository.Repository:
         """The repository containing this entry"""
-        return self._impl.repository
+        ...
 
     @property
+    @abstractmethod
     def sha1(self) -> SHA1:
         """The SHA-1 of this tree's Git object"""
-        return self._impl.sha1
+        ...
 
     class Entry(Protocol):
         """Representation of a single directory entry"""
@@ -128,17 +121,18 @@ class Tree(api.APIObject):
             ...
 
     @property
+    @abstractmethod
     def entries(self) -> Sequence[Tree.Entry]:
         """The entries of this directory
 
 
         The entries are returned as a list of Entry objects, ordered
         lexicographically by name."""
-        return self._impl.getEntries(self)
+        ...
 
+    @abstractmethod
     async def readLink(self, entry: Tree.Entry) -> str:
-        assert entry.isSymbolicLink
-        return await self._impl.readLink(entry)
+        ...
 
 
 @overload

@@ -1,8 +1,6 @@
 from __future__ import annotations
-from tests.fixtures import anonymizer
 
 import aiohttp
-import asyncio
 import contextlib
 import logging
 import pytest
@@ -58,7 +56,7 @@ class FrontendResponse:
         method: str,
         path: str,
         query: Optional[Dict[str, Any]],
-        request_body: Union[bytes, str] = None,
+        request_body: Optional[Union[bytes, str]] = None,
         *,
         response: aiohttp.ClientResponse,
     ) -> FrontendResponse:
@@ -84,7 +82,7 @@ class FrontendResponse:
             )
         return self
 
-    def to_json(self) -> dict:
+    def to_json(self) -> dict[Any, Any]:
         request: Dict[str, Any] = dict(method=self.method, path=self.path)
         if self.query:
             request["query"] = self.query
@@ -100,7 +98,7 @@ class FrontendResponse:
         )
 
     @staticmethod
-    def from_json(value: dict) -> FrontendResponse:
+    def from_json(value: dict[Any, Any]) -> FrontendResponse:
         return FrontendResponse(
             value["request"]["method"],
             value["request"]["path"],
@@ -143,7 +141,11 @@ class Frontend:
         return self.__address[1]
 
     async def get(
-        self, path: str, *, params: Dict[str, Any], headers=None
+        self,
+        path: str,
+        *,
+        params: Dict[str, Any],
+        headers: Optional[dict[str, str]] = None,
     ) -> FrontendResponse:
         async with self.__client_session.get(
             f"{self.__prefix}/{path}", params=params, headers=headers

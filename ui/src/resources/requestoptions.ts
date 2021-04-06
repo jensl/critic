@@ -47,7 +47,7 @@ export const expectStatuses = (
 })
 export const handleError = (
   code: ErrorCode,
-  handler: (error: ResourceError) => boolean | undefined,
+  handler: (error: ResourceError) => boolean | void,
 ): RequestOptions => ({
   handleError: { [code]: handler },
 })

@@ -5,7 +5,6 @@ from typing import (
     Any,
     Awaitable,
     Callable,
-    Collection,
     Iterable,
     Literal,
     Optional,
@@ -17,9 +16,10 @@ from typing import (
     cast,
 )
 
+from critic import api
+from critic.jsonapi.valuewrapper import ValueWrapper, basic_list
 from .exceptions import PathError, UsageError
 from .types import Request
-from .valuewrapper import basic_list, ValueWrapper
 
 
 def id_or_name(argument: str) -> Tuple[Optional[int], Optional[str]]:
@@ -42,37 +42,21 @@ def numeric_id(argument: str) -> int:
 T = TypeVar("T")
 
 
-async def maybe_await(result: Union[T, Awaitable[T]]) -> T:
-    if not inspect.isawaitable(result):
-        return cast(T, result)
-    result = await cast(Awaitable[T], result)
-    assert not inspect.isawaitable(result), result
-    return result
+async def maybe_await(value: Union[T, Awaitable[T]]) -> T:
+    if inspect.isawaitable(value):
+        return await cast(Awaitable[T], value)
+    return value  # type: ignore
 
 
-class ObjectWithId(Protocol):
-    @property
-    def id(self) -> Any:
-        ...
-
-
-Sortable = TypeVar("Sortable", bound=ObjectWithId)
+Sortable = TypeVar("Sortable", bound=api.APIObjectWithId)
 
 
 async def sorted_by_id(
-    items: Union[
-        Iterable[Sortable],
-        Awaitable[Iterable[Sortable]],
-        Callable[[], Union[Iterable[Sortable], Awaitable[Iterable[Sortable]]]],
-    ],
-) -> ValueWrapper[Collection[Sortable]]:
-    if callable(items):
-        items = items()
-    items = await maybe_await(items)
-    assert isinstance(items, Iterable)
-    return basic_list(
-        cast(Collection[Sortable], sorted(items, key=lambda item: item.id))
-    )
+    items: Union[Iterable[Sortable], Awaitable[Iterable[Sortable]]],
+) -> ValueWrapper[Sequence[Sortable]]:
+    if inspect.isawaitable(items):
+        items = await cast(Awaitable[Iterable[Sortable]], items)
+    return basic_list(sorted(cast(Iterable[Sortable], items), key=lambda item: item.id))
 
 
 def many(converter: Callable[[str], T]) -> Callable[[str], Sequence[T]]:
@@ -99,4 +83,4 @@ def getAPIVersion(req: Request) -> Literal["v1"]:
     if api_version != "v1":
         raise PathError("Unsupported API version: %r" % api_version)
 
-    return api_version
+    return "v1"

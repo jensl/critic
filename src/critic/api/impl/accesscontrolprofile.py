@@ -16,97 +16,52 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Optional, Tuple, Generic, TypeVar, Sequence
+from typing import Callable, Optional, Tuple, Generic, Sequence
 
-from critic import api
+from critic import api, dbaccess
 from critic.api import accesscontrolprofile as public
-from .apiobject import APIObject
-
-public_class = public.AccessControlProfile
-
-# HTTPException = public_class.HTTPException
-# RepositoryException = public_class.RepositoryException
-# ExtensionException = public_class.ExtensionException
+from .apiobject import APIObjectImplWithId
+from .queryhelper import QueryHelper, QueryResult, join
 
 
-@dataclass(frozen=True)
-class HTTPException:
-    __id: int
-    __request_method: Optional[public.HTTPMethod]
-    __path_pattern: Optional[str]
-
-    @property
-    def id(self) -> int:
-        return self.__id
-
-    @property
-    def request_method(self) -> Optional[public.HTTPMethod]:
-        return self.__request_method
-
-    @property
-    def path_pattern(self) -> Optional[str]:
-        return self.__path_pattern
-
-
-@dataclass(frozen=True)
-class RepositoryException:
-    __id: int
-    __access_type: Optional[public.RepositoryAccessType]
-    __repository: Optional[api.repository.Repository]
-
-    @property
-    def id(self) -> int:
-        return self.__id
-
-    @property
-    def access_type(self) -> Optional[public.RepositoryAccessType]:
-        return self.__access_type
-
-    @property
-    def repository(self) -> Optional[api.repository.Repository]:
-        return self.__repository
-
-
-@dataclass(frozen=True)
-class ExtensionException:
-    __id: int
-    __access_type: Optional[public.ExtensionAccessType]
-    __extension: Optional[api.extension.Extension]
-
-    @property
-    def id(self) -> int:
-        return self.__id
-
-    @property
-    def access_type(self) -> Optional[public.ExtensionAccessType]:
-        return self.__access_type
-
-    @property
-    def extension(self) -> Optional[api.extension.Extension]:
-        return self.__extension
-
-
-ExceptionType = TypeVar("ExceptionType")
-
-
-@dataclass(frozen=True)
-class Category(Generic[ExceptionType]):
+class Category(Generic[public.ExceptionType]):
     __rule: public.RuleValue
-    __exceptions: Sequence[ExceptionType]
+    _exceptions: Sequence[public.ExceptionType]
+
+    def __init__(
+        self, rule: public.RuleValue, exceptions: Sequence[public.ExceptionType]
+    ):
+        self.__rule = rule
+        self._exceptions = exceptions
+
+    @property
+    def rule(self) -> public.RuleValue:
+        return self.__rule
+
+    # @property
+    # def exceptions(self) -> Sequence[public.ExceptionType]:
+    #     return self.__exceptions
+
+
+class HTTPCategory:
+    def __init__(
+        self, rule: public.RuleValue, exceptions: Sequence[public.HTTPException]
+    ):
+        self.__rule = rule
+        self.__exceptions = exceptions
 
     @property
     def rule(self) -> public.RuleValue:
         return self.__rule
 
     @property
-    def exceptions(self) -> Sequence[ExceptionType]:
+    def exceptions(self) -> Sequence[public.HTTPException]:
         return self.__exceptions
 
 
-WrapperType = public.AccessControlProfile
+PublicType = public.AccessControlProfile
 ArgumentsType = Tuple[
-    Optional[int],
+    int,
     Optional[str],
     Optional[int],
     public.RuleValue,
@@ -114,71 +69,82 @@ ArgumentsType = Tuple[
     public.RuleValue,
 ]
 
+AllowEverythingId = -1
+ALLOW_EVERYTHING_ARGS: ArgumentsType = (
+    AllowEverythingId,
+    None,
+    None,
+    "allow",
+    "allow",
+    "allow",
+)
 
-class AccessControlProfile(APIObject[WrapperType, ArgumentsType, int]):
-    wrapper_class = api.accesscontrolprofile.AccessControlProfile
-    column_names = ["id", "title", "access_token", "http", "repositories", "extensions"]
 
+class AccessControlProfile(PublicType, APIObjectImplWithId, module=public):
     http_rule: public.RuleValue
     repositories_rule: public.RuleValue
     extensions_rule: public.RuleValue
 
-    def __init__(
-        self, args: ArgumentsType = (None, None, None, "allow", "allow", "allow")
-    ):
+    def update(self, args: ArgumentsType) -> int:
         (
-            self.id,
-            self.title,
+            self.__id,
+            self.__title,
             self.__token_id,
-            self.http_rule,
-            self.repositories_rule,
-            self.extensions_rule,
+            self.__http_rule,
+            self.__repositories_rule,
+            self.__extensions_rule,
         ) = args
+        return self.__id
 
-    async def getAccessToken(
-        self, critic: api.critic.Critic
-    ) -> Optional[api.accesstoken.AccessToken]:
+    @property
+    def id(self) -> int:
+        return self.__id
+
+    @property
+    def title(self) -> Optional[str]:
+        return self.__title
+
+    @property
+    async def access_token(self) -> Optional[api.accesstoken.AccessToken]:
         if self.__token_id is None:
             return None
-        return await api.accesstoken.fetch(critic, self.__token_id)
+        return await api.accesstoken.fetch(self.critic, self.__token_id)
 
-    async def getHTTP(
-        self, critic: api.critic.Critic
-    ) -> public.Category[public.HTTPException]:
+    @property
+    async def http(self) -> public.HTTPCategory:
         async with api.critic.Query[Tuple[int, public.HTTPMethod, str]](
-            critic,
+            self.critic,
             """SELECT id, request_method, path_pattern
                  FROM accesscontrol_http
                 WHERE profile={profile_id}
              ORDER BY id ASC""",
             profile_id=self.id,
         ) as result:
-            return Category[public.HTTPException](
-                self.http_rule,
+            return public.HTTPCategory(
+                self.__http_rule,
                 [
-                    HTTPException(exception_id, method, path_pattern)
+                    public.HTTPException(exception_id, method, path_pattern)
                     async for exception_id, method, path_pattern in result
                 ],
             )
 
-    async def getRepositories(
-        self, critic: api.critic.Critic
-    ) -> public.Category[public.RepositoryException]:
+    @property
+    async def repositories(self) -> public.RepositoryCategory:
         async with api.critic.Query[Tuple[int, public.RepositoryAccessType, int]](
-            critic,
+            self.critic,
             """SELECT id, access_type, repository
                  FROM accesscontrol_repositories
                 WHERE profile={profile_id}
              ORDER BY id ASC""",
             profile_id=self.id,
         ) as result:
-            return Category[public.RepositoryException](
-                self.repositories_rule,
+            return public.RepositoryCategory(
+                self.__repositories_rule,
                 [
-                    RepositoryException(
+                    public.RepositoryException(
                         exception_id,
                         access_type,
-                        await api.repository.fetch(critic, repository_id)
+                        await api.repository.fetch(self.critic, repository_id)
                         if repository_id is not None
                         else None,
                     )
@@ -186,26 +152,25 @@ class AccessControlProfile(APIObject[WrapperType, ArgumentsType, int]):
                 ],
             )
 
-    async def getExtensions(
-        self, critic: api.critic.Critic
-    ) -> public.Category[public.ExtensionException]:
+    @property
+    async def extensions(self) -> public.ExtensionCategory:
         if not api.critic.settings().extensions.enabled:
-            return Category(self.extensions_rule, [])
+            return public.ExtensionCategory(self.extensions_rule, [])
         async with api.critic.Query[Tuple[int, public.ExtensionAccessType, str]](
-            critic,
+            self.critic,
             """SELECT id, access_type, extension_key
                  FROM accesscontrol_extensions
                 WHERE profile={profile_id}
              ORDER BY id ASC""",
             profile_id=self.id,
         ) as result:
-            return Category[public.ExtensionException](
-                self.extensions_rule,
+            return public.ExtensionCategory(
+                self.__extensions_rule,
                 [
-                    ExtensionException(
+                    public.ExtensionException(
                         exception_id,
                         access_type,
-                        await api.extension.fetch(critic, key=extension_key)
+                        await api.extension.fetch(self.critic, key=extension_key)
                         if extension_key is not None
                         else None,
                     )
@@ -213,81 +178,115 @@ class AccessControlProfile(APIObject[WrapperType, ArgumentsType, int]):
                 ],
             )
 
+    @classmethod
+    def getQueryByIds(
+        cls,
+    ) -> Callable[[api.critic.Critic, Sequence[int]], QueryResult[ArgumentsType]]:
+        return queries.queryByIds
+
+
+acps = PublicType.getTableName()
+
+queries = QueryHelper[ArgumentsType](
+    PublicType.getTableName(),
+    "id",
+    "title",
+    "access_token",
+    "http",
+    "repositories",
+    "extensions",
+)
+
 
 @public.fetchImpl
-@AccessControlProfile.cached
-async def fetch(critic: api.critic.Critic, profile_id: Optional[int]) -> WrapperType:
+async def fetch(critic: api.critic.Critic, profile_id: Optional[int]) -> PublicType:
     if profile_id is not None:
-        async with AccessControlProfile.query(
-            critic, ["id={profile_id}"], profile_id=profile_id
-        ) as result:
-            return await AccessControlProfile.makeOne(critic, result)
+        return await AccessControlProfile.ensureOne(
+            profile_id,
+            queries.idFetcher(critic, AccessControlProfile),
+            public.InvalidId,
+        )
 
     if critic.session_type in ("system", "testing"):
         # For system (and unit testing) access, return a profile that allows
         # everything.
-        return AccessControlProfile().wrap(critic)
+        return AccessControlProfile(critic, ALLOW_EVERYTHING_ARGS)
+
+    async def attempt(
+        query: QueryResult[ArgumentsType],
+    ) -> AccessControlProfile:
+        return AccessControlProfile.storeOne(
+            await query.makeOne(
+                AccessControlProfile,
+            )
+        )
+
+    def by_user(
+        user: Optional[api.user.User],
+    ) -> QueryResult[ArgumentsType]:
+        return queries.query(
+            critic,
+            queries.formatQuery(
+                "access_type='user'",
+                "uid={user}" if user is not None else "uid IS NULL",
+                joins=[
+                    join(
+                        useraccesscontrolprofiles=[
+                            f"useraccesscontrolprofiles.profile={acps}.id"
+                        ],
+                    )
+                ],
+            ),
+            user=user,
+        )
 
     if critic.actual_user is not None:
-        async with AccessControlProfile.query(
-            critic,
-            f"""SELECT {AccessControlProfile.columns()}
-                  FROM {AccessControlProfile.table()}
-                  JOIN useraccesscontrolprofiles AS uacp ON (
-                         uacp.profile={AccessControlProfile.table()}.id
-                       )
-                 WHERE access_type='user'
-                   AND uid={{user}}""",
-            user=critic.actual_user,
-        ) as result:
-            try:
-                return await AccessControlProfile.makeOne(critic, result)
-            except result.ZeroRowsInResult:
-                pass
+        try:
+            return await attempt(by_user(critic.actual_user))
+        except dbaccess.ZeroRowsInResult:
+            pass
 
     if critic.authentication_labels:
         labels = "|".join(sorted(critic.authentication_labels))
-        async with AccessControlProfile.query(
-            critic,
-            f"""SELECT {AccessControlProfile.columns()}
-                  FROM {AccessControlProfile.table()}
-                  JOIN labeledaccesscontrolprofiles AS lacp ON (
-                         lacp.profile={AccessControlProfile.table()}.id
-                       )
-                 WHERE labels={{labels}}""",
-            labels=labels,
-        ) as result:
-            try:
-                return await AccessControlProfile.makeOne(critic, result)
-            except result.ZeroRowsInResult:
-                pass
-
-    async with AccessControlProfile.query(
-        critic,
-        f"""SELECT {AccessControlProfile.columns()}
-              FROM {AccessControlProfile.table()}
-              JOIN useraccesscontrolprofiles AS uacp ON (
-                     uacp.profile={AccessControlProfile.table()}.id
-                   )
-             WHERE access_type='user'
-               AND uid IS NULL""",
-    ) as result:
         try:
-            return await AccessControlProfile.makeOne(critic, result)
-        except result.ZeroRowsInResult:
+            return await attempt(
+                queries.query(
+                    critic,
+                    queries.formatQuery(
+                        "labels={labels}",
+                        joins=[
+                            join(
+                                labeledaccesscontrolprofiles=[
+                                    f"labeledaccesscontrolprofiles.profile={acps}.id"
+                                ],
+                            )
+                        ],
+                    ),
+                    labels=labels,
+                )
+            )
+        except dbaccess.ZeroRowsInResult:
             pass
 
+    try:
+        return await attempt(by_user(None))
+    except dbaccess.ZeroRowsInResult:
+        pass
+
     # Default to an access control profile that allows everything.
-    return AccessControlProfile().wrap(critic)
+    return AccessControlProfile(critic, ALLOW_EVERYTHING_ARGS)
 
 
 @public.fetchAllImpl
 async def fetchAll(
     critic: api.critic.Critic, title: Optional[str]
-) -> Sequence[WrapperType]:
+) -> Sequence[PublicType]:
     conditions = ["access_token IS NULL"]
     if title is not None:
         conditions.append("title={title}")
 
-    async with AccessControlProfile.query(critic, conditions, title=title) as result:
-        return await AccessControlProfile.make(critic, result)
+    return AccessControlProfile.store(
+        await queries.query(critic, *conditions, title=title).make(
+            AccessControlProfile
+        ),
+    )

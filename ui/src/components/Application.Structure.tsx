@@ -14,10 +14,8 @@
  * the License.
  */
 
-import React, { FunctionComponent } from "react"
+import React, { FunctionComponent, useEffect } from "react"
 import { makeStyles } from "@material-ui/core/styles"
-
-import { documentClicked } from "../actions/ui"
 
 import Registry from "."
 import TopBar from "./Application.TopBar"
@@ -37,21 +35,23 @@ const ApplicationStructure: FunctionComponent = () => {
   const dispatch = useDispatch()
   const started = useSelector((state) => state.ui.rest.started)
   if (!started) return null
-  return (
-    <div
-      className={classes.application}
-      onMouseDown={(ev) => {
-        let target: Node | null = ev.target as Node
-        while (target) {
-          if (target.nodeType === Node.ELEMENT_NODE) {
-            if ((target as HTMLElement).classList.contains("MuiDialog-root"))
-              return
-          }
-          target = target.parentNode
+  useEffect(() => {
+    const listener = (ev: MouseEvent) => {
+      let target: Node | null = ev.target as Node
+      while (target) {
+        if (target.nodeType === Node.ELEMENT_NODE) {
+          if ((target as HTMLElement).classList.contains("MuiDialog-root"))
+            return
         }
-        dispatch(documentClicked())
-      }}
-    >
+        target = target.parentNode
+      }
+      dispatch({ type: "DOCUMENT_CLICKED" })
+    }
+    document.addEventListener("mousedown", listener)
+    return () => document.removeEventListener("mousedown", listener)
+  }, [])
+  return (
+    <div className={classes.application}>
       <TopBar />
       <Sidebar />
       <Content />

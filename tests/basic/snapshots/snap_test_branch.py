@@ -8,167 +8,16 @@ from tests.utilities import Anonymous, Frozen, Masked, Variable
 
 snapshots = Snapshot()
 
-snapshots['test_push_branch websocket messages'] = {
-    'publish': [
-        {
-            'channel': [
-                'repositories'
-            ],
-            'message': {
-                'action': 'created',
-                'object_id': Anonymous(RepositoryId='test_push_branch'),
-                'resource_name': 'repositories'
-            }
-        },
-        {
-            'channel': [
-                "repositories/<Anonymous(RepositoryId='test_push_branch')>"
-            ],
-            'message': {
-                'action': 'modified',
-                'object_id': Anonymous(RepositoryId='test_push_branch'),
-                'resource_name': 'repositories',
-                'updates': {
-                    'is_ready': True
-                }
-            }
-        },
-        {
-            'channel': [
-                'branches'
-            ],
-            'message': {
-                'action': 'created',
-                'name': 'master',
-                'object_id': Anonymous(BranchId='master'),
-                'repository_id': Anonymous(RepositoryId='test_push_branch'),
-                'resource_name': 'branches'
-            }
-        },
-        {
-            'channel': [
-                'branchupdates',
-                "branches/<Anonymous(BranchId='master')>/branchupdates"
-            ],
-            'message': {
-                'action': 'created',
-                'object_id': Anonymous(BranchUpdateId=Variable(6)),
-                'resource_name': 'branchupdates'
-            }
-        },
-        {
-            'channel': [
-                'branches'
-            ],
-            'message': {
-                'action': 'created',
-                'name': 'branch1',
-                'object_id': Anonymous(BranchId='branch1'),
-                'repository_id': Anonymous(RepositoryId='test_push_branch'),
-                'resource_name': 'branches'
-            }
-        },
-        {
-            'channel': [
-                'branchupdates',
-                "branches/<Anonymous(BranchId='branch1')>/branchupdates"
-            ],
-            'message': {
-                'action': 'created',
-                'object_id': Anonymous(BranchUpdateId=Variable(1)),
-                'resource_name': 'branchupdates'
-            }
-        },
-        {
-            'channel': [
-                'branchupdates',
-                "branches/<Anonymous(BranchId='branch1')>/branchupdates"
-            ],
-            'message': {
-                'action': 'created',
-                'object_id': Anonymous(BranchUpdateId=Variable(2)),
-                'resource_name': 'branchupdates'
-            }
-        },
-        {
-            'channel': [
-                'branchupdates',
-                "branches/<Anonymous(BranchId='branch1')>/branchupdates"
-            ],
-            'message': {
-                'action': 'created',
-                'object_id': Anonymous(BranchUpdateId=Variable(3)),
-                'resource_name': 'branchupdates'
-            }
-        },
-        {
-            'channel': [
-                'branchupdates',
-                "branches/<Anonymous(BranchId='branch1')>/branchupdates"
-            ],
-            'message': {
-                'action': 'created',
-                'object_id': Anonymous(BranchUpdateId=Variable(4)),
-                'resource_name': 'branchupdates'
-            }
-        },
-        {
-            'channel': [
-                'branchupdates',
-                "branches/<Anonymous(BranchId='branch1')>/branchupdates"
-            ],
-            'message': {
-                'action': 'created',
-                'object_id': Anonymous(BranchUpdateId=Variable(5)),
-                'resource_name': 'branchupdates'
-            }
-        },
-        {
-            'channel': [
-                'branchupdates',
-                "branches/<Anonymous(BranchId='master')>/branchupdates"
-            ],
-            'message': {
-                'action': 'created',
-                'object_id': Anonymous(BranchUpdateId=Variable(7)),
-                'resource_name': 'branchupdates'
-            }
-        },
-        {
-            'channel': [
-                "branches/<Anonymous(BranchId='branch1')>"
-            ],
-            'message': {
-                'action': 'deleted',
-                'object_id': Anonymous(BranchId='branch1'),
-                'resource_name': 'branches'
-            }
-        },
-        {
-            'channel': [
-                "repositories/<Anonymous(RepositoryId='test_push_branch')>"
-            ],
-            'message': {
-                'action': 'deleted',
-                'name': 'test_push_branch',
-                'object_id': Anonymous(RepositoryId='test_push_branch'),
-                'path': Anonymous(RepositoryPath='test_push_branch'),
-                'resource_name': 'repositories'
-            }
-        }
-    ]
-}
-
 snapshots['test_push_branch 1'] = {
     'returncode': 0,
     'stderr': [
         'remote: ',
         "remote: Branch created based on 'master', with 3 associated commits:        ",
-        'remote:   http://critic.example.org/log?repository=test_push_branch&branch=branch1        ',
+        'remote:   http://critic.example.org/log?repository=test_push_branch-***&branch=branch1        ',
         'remote: To create a review of all 3 commits:        ',
-        'remote:   http://critic.example.org/createreview?repository=test_push_branch&branch=branch1        ',
+        'remote:   http://critic.example.org/createreview?repository=test_push_branch-***&branch=branch1        ',
         'remote: ',
-        'To http://critic.example.org/test_push_branch.git',
+        'To http://critic.example.org/test_push_branch-***.git',
         ' * [new branch]                                                                        branch1 -> branch1'
     ],
     'stdout': [
@@ -207,9 +56,9 @@ snapshots['test_push_branch 2'] = {
                 'branchupdates': set([
                     Frozen({
                         'associated': set([
-                            Anonymous(CommitId='third'),
+                            Anonymous(CommitId='second'),
                             Anonymous(CommitId='first'),
-                            Anonymous(CommitId='second')
+                            Anonymous(CommitId='third')
                         ]),
                         'branch': Anonymous(BranchId='branch1'),
                         'disassociated': set([
@@ -217,9 +66,9 @@ snapshots['test_push_branch 2'] = {
                         'from_head': None,
                         'id': Anonymous(BranchUpdateId=Variable(1)),
                         'output': '''Branch created based on 'master', with 3 associated commits:
-  http://critic.example.org/log?repository=test_push_branch&branch=branch1
+  http://critic.example.org/log?repository=test_push_branch-***&branch=branch1
 To create a review of all 3 commits:
-  http://critic.example.org/createreview?repository=test_push_branch&branch=branch1''',
+  http://critic.example.org/createreview?repository=test_push_branch-***&branch=branch1''',
                         'timestamp': Anonymous(Timestamp=Masked()),
                         'to_head': Anonymous(CommitId='third'),
                         'updater': Anonymous(UserId='alice')
@@ -237,15 +86,15 @@ To create a review of all 3 commits:
                             'name': 'Alice von Testing',
                             'timestamp': Anonymous(Timestamp=Masked())
                         },
-                        'id': Anonymous(CommitId='second'),
-                        'message': '''second
+                        'id': Anonymous(CommitId='third'),
+                        'message': '''third
 ''',
                         'parents': [
-                            Anonymous(CommitId='first')
+                            Anonymous(CommitId='second')
                         ],
-                        'sha1': Anonymous(CommitSHA1='second'),
-                        'summary': 'second',
-                        'tree': Anonymous(TreeSHA1=Variable(2))
+                        'sha1': Anonymous(CommitSHA1='third'),
+                        'summary': 'third',
+                        'tree': Anonymous(TreeSHA1=Variable(3))
                     }),
                     Frozen({
                         'author': {
@@ -279,15 +128,15 @@ To create a review of all 3 commits:
                             'name': 'Alice von Testing',
                             'timestamp': Anonymous(Timestamp=Masked())
                         },
-                        'id': Anonymous(CommitId='third'),
-                        'message': '''third
+                        'id': Anonymous(CommitId='second'),
+                        'message': '''second
 ''',
                         'parents': [
-                            Anonymous(CommitId='second')
+                            Anonymous(CommitId='first')
                         ],
-                        'sha1': Anonymous(CommitSHA1='third'),
-                        'summary': 'third',
-                        'tree': Anonymous(TreeSHA1=Variable(3))
+                        'sha1': Anonymous(CommitSHA1='second'),
+                        'summary': 'second',
+                        'tree': Anonymous(TreeSHA1=Variable(2))
                     })
                 ])
             }
@@ -302,7 +151,7 @@ snapshots['test_push_branch 3'] = {
         'remote: ',
         'remote: Associated 1 new commit to the branch.        ',
         'remote: ',
-        'To http://critic.example.org/test_push_branch.git',
+        'To http://critic.example.org/test_push_branch-***.git',
         "   <CommitSHA1='third'>..<CommitSHA1='fourth'>  branch1 -> branch1"
     ],
     'stdout': [
@@ -332,8 +181,8 @@ snapshots['test_push_branch 4'] = {
                     'size': 4,
                     'type': 'normal',
                     'updates': [
-                        Anonymous(BranchUpdateId=Variable(2)),
-                        Anonymous(BranchUpdateId=Variable(1))
+                        Anonymous(BranchUpdateId=Variable(1)),
+                        Anonymous(BranchUpdateId=Variable(2))
                     ]
                 }
             ],
@@ -341,9 +190,9 @@ snapshots['test_push_branch 4'] = {
                 'branchupdates': set([
                     Frozen({
                         'associated': set([
-                            Anonymous(CommitId='third'),
+                            Anonymous(CommitId='second'),
                             Anonymous(CommitId='first'),
-                            Anonymous(CommitId='second')
+                            Anonymous(CommitId='third')
                         ]),
                         'branch': Anonymous(BranchId='branch1'),
                         'disassociated': set([
@@ -351,9 +200,9 @@ snapshots['test_push_branch 4'] = {
                         'from_head': None,
                         'id': Anonymous(BranchUpdateId=Variable(1)),
                         'output': '''Branch created based on 'master', with 3 associated commits:
-  http://critic.example.org/log?repository=test_push_branch&branch=branch1
+  http://critic.example.org/log?repository=test_push_branch-***&branch=branch1
 To create a review of all 3 commits:
-  http://critic.example.org/createreview?repository=test_push_branch&branch=branch1''',
+  http://critic.example.org/createreview?repository=test_push_branch-***&branch=branch1''',
                         'timestamp': Anonymous(Timestamp=Masked()),
                         'to_head': Anonymous(CommitId='third'),
                         'updater': Anonymous(UserId='alice')
@@ -374,48 +223,6 @@ To create a review of all 3 commits:
                     })
                 ]),
                 'commits': set([
-                    Frozen({
-                        'author': {
-                            'email': 'alice@example.org',
-                            'name': 'Alice von Testing',
-                            'timestamp': Anonymous(Timestamp=Masked())
-                        },
-                        'committer': {
-                            'email': 'alice@example.org',
-                            'name': 'Alice von Testing',
-                            'timestamp': Anonymous(Timestamp=Masked())
-                        },
-                        'id': Anonymous(CommitId='second'),
-                        'message': '''second
-''',
-                        'parents': [
-                            Anonymous(CommitId='first')
-                        ],
-                        'sha1': Anonymous(CommitSHA1='second'),
-                        'summary': 'second',
-                        'tree': Anonymous(TreeSHA1=Variable(2))
-                    }),
-                    Frozen({
-                        'author': {
-                            'email': 'alice@example.org',
-                            'name': 'Alice von Testing',
-                            'timestamp': Anonymous(Timestamp=Masked())
-                        },
-                        'committer': {
-                            'email': 'alice@example.org',
-                            'name': 'Alice von Testing',
-                            'timestamp': Anonymous(Timestamp=Masked())
-                        },
-                        'id': Anonymous(CommitId='first'),
-                        'message': '''first
-''',
-                        'parents': [
-                            Anonymous(CommitId=Variable(1))
-                        ],
-                        'sha1': Anonymous(CommitSHA1='first'),
-                        'summary': 'first',
-                        'tree': Anonymous(TreeSHA1=Variable(1))
-                    }),
                     Frozen({
                         'author': {
                             'email': 'alice@example.org',
@@ -457,6 +264,48 @@ To create a review of all 3 commits:
                         'sha1': Anonymous(CommitSHA1='fourth'),
                         'summary': 'fourth',
                         'tree': Anonymous(TreeSHA1=Variable(4))
+                    }),
+                    Frozen({
+                        'author': {
+                            'email': 'alice@example.org',
+                            'name': 'Alice von Testing',
+                            'timestamp': Anonymous(Timestamp=Masked())
+                        },
+                        'committer': {
+                            'email': 'alice@example.org',
+                            'name': 'Alice von Testing',
+                            'timestamp': Anonymous(Timestamp=Masked())
+                        },
+                        'id': Anonymous(CommitId='first'),
+                        'message': '''first
+''',
+                        'parents': [
+                            Anonymous(CommitId=Variable(1))
+                        ],
+                        'sha1': Anonymous(CommitSHA1='first'),
+                        'summary': 'first',
+                        'tree': Anonymous(TreeSHA1=Variable(1))
+                    }),
+                    Frozen({
+                        'author': {
+                            'email': 'alice@example.org',
+                            'name': 'Alice von Testing',
+                            'timestamp': Anonymous(Timestamp=Masked())
+                        },
+                        'committer': {
+                            'email': 'alice@example.org',
+                            'name': 'Alice von Testing',
+                            'timestamp': Anonymous(Timestamp=Masked())
+                        },
+                        'id': Anonymous(CommitId='second'),
+                        'message': '''second
+''',
+                        'parents': [
+                            Anonymous(CommitId='first')
+                        ],
+                        'sha1': Anonymous(CommitSHA1='second'),
+                        'summary': 'second',
+                        'tree': Anonymous(TreeSHA1=Variable(2))
                     })
                 ])
             }
@@ -472,7 +321,7 @@ snapshots['test_push_branch 5'] = {
         'remote: Associated 1 new commit to the branch.        ',
         'remote: Disassociated 1 old commit from the branch.        ',
         'remote: ',
-        'To http://critic.example.org/test_push_branch.git',
+        'To http://critic.example.org/test_push_branch-***.git',
         " + <CommitSHA1='fourth'>...<CommitSHA1='amended-fourth'> branch1 -> branch1 (forced update)"
     ],
     'stdout': [
@@ -502,9 +351,9 @@ snapshots['test_push_branch 6'] = {
                     'size': 4,
                     'type': 'normal',
                     'updates': [
-                        Anonymous(BranchUpdateId=Variable(3)),
+                        Anonymous(BranchUpdateId=Variable(1)),
                         Anonymous(BranchUpdateId=Variable(2)),
-                        Anonymous(BranchUpdateId=Variable(1))
+                        Anonymous(BranchUpdateId=Variable(3))
                     ]
                 }
             ],
@@ -542,9 +391,9 @@ Disassociated 1 old commit from the branch.''',
                     }),
                     Frozen({
                         'associated': set([
-                            Anonymous(CommitId='third'),
+                            Anonymous(CommitId='second'),
                             Anonymous(CommitId='first'),
-                            Anonymous(CommitId='second')
+                            Anonymous(CommitId='third')
                         ]),
                         'branch': Anonymous(BranchId='branch1'),
                         'disassociated': set([
@@ -552,9 +401,9 @@ Disassociated 1 old commit from the branch.''',
                         'from_head': None,
                         'id': Anonymous(BranchUpdateId=Variable(1)),
                         'output': '''Branch created based on 'master', with 3 associated commits:
-  http://critic.example.org/log?repository=test_push_branch&branch=branch1
+  http://critic.example.org/log?repository=test_push_branch-***&branch=branch1
 To create a review of all 3 commits:
-  http://critic.example.org/createreview?repository=test_push_branch&branch=branch1''',
+  http://critic.example.org/createreview?repository=test_push_branch-***&branch=branch1''',
                         'timestamp': Anonymous(Timestamp=Masked()),
                         'to_head': Anonymous(CommitId='third'),
                         'updater': Anonymous(UserId='alice')
@@ -581,6 +430,27 @@ To create a review of all 3 commits:
                         'sha1': Anonymous(CommitSHA1='third'),
                         'summary': 'third',
                         'tree': Anonymous(TreeSHA1=Variable(3))
+                    }),
+                    Frozen({
+                        'author': {
+                            'email': 'alice@example.org',
+                            'name': 'Alice von Testing',
+                            'timestamp': Anonymous(Timestamp=Masked())
+                        },
+                        'committer': {
+                            'email': 'alice@example.org',
+                            'name': 'Alice von Testing',
+                            'timestamp': Anonymous(Timestamp=Masked())
+                        },
+                        'id': Anonymous(CommitId='first'),
+                        'message': '''first
+''',
+                        'parents': [
+                            Anonymous(CommitId=Variable(1))
+                        ],
+                        'sha1': Anonymous(CommitSHA1='first'),
+                        'summary': 'first',
+                        'tree': Anonymous(TreeSHA1=Variable(1))
                     }),
                     Frozen({
                         'author': {
@@ -644,27 +514,6 @@ To create a review of all 3 commits:
                         'sha1': Anonymous(CommitSHA1='fourth'),
                         'summary': 'fourth',
                         'tree': Anonymous(TreeSHA1=Variable(4))
-                    }),
-                    Frozen({
-                        'author': {
-                            'email': 'alice@example.org',
-                            'name': 'Alice von Testing',
-                            'timestamp': Anonymous(Timestamp=Masked())
-                        },
-                        'committer': {
-                            'email': 'alice@example.org',
-                            'name': 'Alice von Testing',
-                            'timestamp': Anonymous(Timestamp=Masked())
-                        },
-                        'id': Anonymous(CommitId='first'),
-                        'message': '''first
-''',
-                        'parents': [
-                            Anonymous(CommitId=Variable(1))
-                        ],
-                        'sha1': Anonymous(CommitSHA1='first'),
-                        'summary': 'first',
-                        'tree': Anonymous(TreeSHA1=Variable(1))
                     })
                 ])
             }
@@ -679,7 +528,7 @@ snapshots['test_push_branch 7'] = {
         'remote: ',
         'remote: Associated 2 new commits to the branch.        ',
         'remote: ',
-        'To http://critic.example.org/test_push_branch.git',
+        'To http://critic.example.org/test_push_branch-***.git',
         "   <CommitSHA1='amended-fourth'>..<CommitSHA1='merge-branch1-branch2'>  branch1 -> branch1"
     ],
     'stdout': [
@@ -709,10 +558,10 @@ snapshots['test_push_branch 8'] = {
                     'size': 6,
                     'type': 'normal',
                     'updates': [
-                        Anonymous(BranchUpdateId=Variable(4)),
-                        Anonymous(BranchUpdateId=Variable(3)),
+                        Anonymous(BranchUpdateId=Variable(1)),
                         Anonymous(BranchUpdateId=Variable(2)),
-                        Anonymous(BranchUpdateId=Variable(1))
+                        Anonymous(BranchUpdateId=Variable(3)),
+                        Anonymous(BranchUpdateId=Variable(4))
                     ]
                 }
             ],
@@ -750,25 +599,6 @@ Disassociated 1 old commit from the branch.''',
                     }),
                     Frozen({
                         'associated': set([
-                            Anonymous(CommitId='third'),
-                            Anonymous(CommitId='first'),
-                            Anonymous(CommitId='second')
-                        ]),
-                        'branch': Anonymous(BranchId='branch1'),
-                        'disassociated': set([
-                        ]),
-                        'from_head': None,
-                        'id': Anonymous(BranchUpdateId=Variable(1)),
-                        'output': '''Branch created based on 'master', with 3 associated commits:
-  http://critic.example.org/log?repository=test_push_branch&branch=branch1
-To create a review of all 3 commits:
-  http://critic.example.org/createreview?repository=test_push_branch&branch=branch1''',
-                        'timestamp': Anonymous(Timestamp=Masked()),
-                        'to_head': Anonymous(CommitId='third'),
-                        'updater': Anonymous(UserId='alice')
-                    }),
-                    Frozen({
-                        'associated': set([
                             Anonymous(CommitId='merge-branch1-branch2'),
                             Anonymous(CommitId='side1')
                         ]),
@@ -780,6 +610,25 @@ To create a review of all 3 commits:
                         'output': 'Associated 2 new commits to the branch.',
                         'timestamp': Anonymous(Timestamp=Masked()),
                         'to_head': Anonymous(CommitId='merge-branch1-branch2'),
+                        'updater': Anonymous(UserId='alice')
+                    }),
+                    Frozen({
+                        'associated': set([
+                            Anonymous(CommitId='second'),
+                            Anonymous(CommitId='first'),
+                            Anonymous(CommitId='third')
+                        ]),
+                        'branch': Anonymous(BranchId='branch1'),
+                        'disassociated': set([
+                        ]),
+                        'from_head': None,
+                        'id': Anonymous(BranchUpdateId=Variable(1)),
+                        'output': '''Branch created based on 'master', with 3 associated commits:
+  http://critic.example.org/log?repository=test_push_branch-***&branch=branch1
+To create a review of all 3 commits:
+  http://critic.example.org/createreview?repository=test_push_branch-***&branch=branch1''',
+                        'timestamp': Anonymous(Timestamp=Masked()),
+                        'to_head': Anonymous(CommitId='third'),
                         'updater': Anonymous(UserId='alice')
                     })
                 ]),
@@ -816,15 +665,15 @@ To create a review of all 3 commits:
                             'name': 'Alice von Testing',
                             'timestamp': Anonymous(Timestamp=Masked())
                         },
-                        'id': Anonymous(CommitId='amended-fourth'),
-                        'message': '''amended-fourth
+                        'id': Anonymous(CommitId='first'),
+                        'message': '''first
 ''',
                         'parents': [
-                            Anonymous(CommitId='third')
+                            Anonymous(CommitId=Variable(1))
                         ],
-                        'sha1': Anonymous(CommitSHA1='amended-fourth'),
-                        'summary': 'amended-fourth',
-                        'tree': Anonymous(TreeSHA1=Variable(5))
+                        'sha1': Anonymous(CommitSHA1='first'),
+                        'summary': 'first',
+                        'tree': Anonymous(TreeSHA1=Variable(1))
                     }),
                     Frozen({
                         'author': {
@@ -837,36 +686,15 @@ To create a review of all 3 commits:
                             'name': 'Alice von Testing',
                             'timestamp': Anonymous(Timestamp=Masked())
                         },
-                        'id': Anonymous(CommitId='second'),
-                        'message': '''second
+                        'id': Anonymous(CommitId='side1'),
+                        'message': '''side1
 ''',
                         'parents': [
-                            Anonymous(CommitId='first')
+                            Anonymous(CommitId='second')
                         ],
-                        'sha1': Anonymous(CommitSHA1='second'),
-                        'summary': 'second',
-                        'tree': Anonymous(TreeSHA1=Variable(2))
-                    }),
-                    Frozen({
-                        'author': {
-                            'email': 'alice@example.org',
-                            'name': 'Alice von Testing',
-                            'timestamp': Anonymous(Timestamp=Masked())
-                        },
-                        'committer': {
-                            'email': 'alice@example.org',
-                            'name': 'Alice von Testing',
-                            'timestamp': Anonymous(Timestamp=Masked())
-                        },
-                        'id': Anonymous(CommitId='fourth'),
-                        'message': '''fourth
-''',
-                        'parents': [
-                            Anonymous(CommitId='third')
-                        ],
-                        'sha1': Anonymous(CommitSHA1='fourth'),
-                        'summary': 'fourth',
-                        'tree': Anonymous(TreeSHA1=Variable(4))
+                        'sha1': Anonymous(CommitSHA1='side1'),
+                        'summary': 'side1',
+                        'tree': Anonymous(TreeSHA1=Variable(7))
                     }),
                     Frozen({
                         'author': {
@@ -901,202 +729,6 @@ To create a review of all 3 commits:
                             'name': 'Alice von Testing',
                             'timestamp': Anonymous(Timestamp=Masked())
                         },
-                        'id': Anonymous(CommitId='side1'),
-                        'message': '''side1
-''',
-                        'parents': [
-                            Anonymous(CommitId='second')
-                        ],
-                        'sha1': Anonymous(CommitSHA1='side1'),
-                        'summary': 'side1',
-                        'tree': Anonymous(TreeSHA1=Variable(7))
-                    }),
-                    Frozen({
-                        'author': {
-                            'email': 'alice@example.org',
-                            'name': 'Alice von Testing',
-                            'timestamp': Anonymous(Timestamp=Masked())
-                        },
-                        'committer': {
-                            'email': 'alice@example.org',
-                            'name': 'Alice von Testing',
-                            'timestamp': Anonymous(Timestamp=Masked())
-                        },
-                        'id': Anonymous(CommitId='first'),
-                        'message': '''first
-''',
-                        'parents': [
-                            Anonymous(CommitId=Variable(1))
-                        ],
-                        'sha1': Anonymous(CommitSHA1='first'),
-                        'summary': 'first',
-                        'tree': Anonymous(TreeSHA1=Variable(1))
-                    })
-                ])
-            }
-        },
-        'status_code': 200
-    }
-}
-
-snapshots['test_push_branch 9'] = {
-    'returncode': 0,
-    'stderr': [
-        'remote: ',
-        'remote: Associated 1 new commit to the branch.        ',
-        'remote: ',
-        'To http://critic.example.org/test_push_branch.git',
-        "   <CommitSHA1='merge-branch1-branch2'>..<CommitSHA1='merge-branch1-branch3'>  branch1 -> branch1"
-    ],
-    'stdout': [
-    ]
-}
-
-snapshots['test_push_branch 10'] = {
-    'request': {
-        'method': 'GET',
-        'path': "api/v1/branches/<Anonymous(BranchId='branch1')>",
-        'query': {
-            'include': 'commits,branchupdates',
-            'output_format': 'static'
-        }
-    },
-    'response': {
-        'data': {
-            'branches': [
-                {
-                    'base_branch': Anonymous(BranchId='master'),
-                    'head': Anonymous(CommitId='merge-branch1-branch3'),
-                    'id': Anonymous(BranchId='branch1'),
-                    'is_archived': False,
-                    'is_merged': False,
-                    'name': 'branch1',
-                    'repository': Anonymous(RepositoryId='test_push_branch'),
-                    'size': 7,
-                    'type': 'normal',
-                    'updates': [
-                        Anonymous(BranchUpdateId=Variable(5)),
-                        Anonymous(BranchUpdateId=Variable(4)),
-                        Anonymous(BranchUpdateId=Variable(3)),
-                        Anonymous(BranchUpdateId=Variable(2)),
-                        Anonymous(BranchUpdateId=Variable(1))
-                    ]
-                }
-            ],
-            'linked': {
-                'branchupdates': set([
-                    Frozen({
-                        'associated': set([
-                            Anonymous(CommitId='amended-fourth')
-                        ]),
-                        'branch': Anonymous(BranchId='branch1'),
-                        'disassociated': set([
-                            Anonymous(CommitId='fourth')
-                        ]),
-                        'from_head': Anonymous(CommitId='fourth'),
-                        'id': Anonymous(BranchUpdateId=Variable(3)),
-                        'output': '''Associated 1 new commit to the branch.
-Disassociated 1 old commit from the branch.''',
-                        'timestamp': Anonymous(Timestamp=Masked()),
-                        'to_head': Anonymous(CommitId='amended-fourth'),
-                        'updater': Anonymous(UserId='alice')
-                    }),
-                    Frozen({
-                        'associated': set([
-                            Anonymous(CommitId='merge-branch1-branch3')
-                        ]),
-                        'branch': Anonymous(BranchId='branch1'),
-                        'disassociated': set([
-                        ]),
-                        'from_head': Anonymous(CommitId='merge-branch1-branch2'),
-                        'id': Anonymous(BranchUpdateId=Variable(5)),
-                        'output': 'Associated 1 new commit to the branch.',
-                        'timestamp': Anonymous(Timestamp=Masked()),
-                        'to_head': Anonymous(CommitId='merge-branch1-branch3'),
-                        'updater': Anonymous(UserId='alice')
-                    }),
-                    Frozen({
-                        'associated': set([
-                            Anonymous(CommitId='third'),
-                            Anonymous(CommitId='first'),
-                            Anonymous(CommitId='second')
-                        ]),
-                        'branch': Anonymous(BranchId='branch1'),
-                        'disassociated': set([
-                        ]),
-                        'from_head': None,
-                        'id': Anonymous(BranchUpdateId=Variable(1)),
-                        'output': '''Branch created based on 'master', with 3 associated commits:
-  http://critic.example.org/log?repository=test_push_branch&branch=branch1
-To create a review of all 3 commits:
-  http://critic.example.org/createreview?repository=test_push_branch&branch=branch1''',
-                        'timestamp': Anonymous(Timestamp=Masked()),
-                        'to_head': Anonymous(CommitId='third'),
-                        'updater': Anonymous(UserId='alice')
-                    }),
-                    Frozen({
-                        'associated': set([
-                            Anonymous(CommitId='fourth')
-                        ]),
-                        'branch': Anonymous(BranchId='branch1'),
-                        'disassociated': set([
-                        ]),
-                        'from_head': Anonymous(CommitId='third'),
-                        'id': Anonymous(BranchUpdateId=Variable(2)),
-                        'output': 'Associated 1 new commit to the branch.',
-                        'timestamp': Anonymous(Timestamp=Masked()),
-                        'to_head': Anonymous(CommitId='fourth'),
-                        'updater': Anonymous(UserId='alice')
-                    }),
-                    Frozen({
-                        'associated': set([
-                            Anonymous(CommitId='merge-branch1-branch2'),
-                            Anonymous(CommitId='side1')
-                        ]),
-                        'branch': Anonymous(BranchId='branch1'),
-                        'disassociated': set([
-                        ]),
-                        'from_head': Anonymous(CommitId='amended-fourth'),
-                        'id': Anonymous(BranchUpdateId=Variable(4)),
-                        'output': 'Associated 2 new commits to the branch.',
-                        'timestamp': Anonymous(Timestamp=Masked()),
-                        'to_head': Anonymous(CommitId='merge-branch1-branch2'),
-                        'updater': Anonymous(UserId='alice')
-                    })
-                ]),
-                'commits': set([
-                    Frozen({
-                        'author': {
-                            'email': 'alice@example.org',
-                            'name': 'Alice von Testing',
-                            'timestamp': Anonymous(Timestamp=Masked())
-                        },
-                        'committer': {
-                            'email': 'alice@example.org',
-                            'name': 'Alice von Testing',
-                            'timestamp': Anonymous(Timestamp=Masked())
-                        },
-                        'id': Anonymous(CommitId='third'),
-                        'message': '''third
-''',
-                        'parents': [
-                            Anonymous(CommitId='second')
-                        ],
-                        'sha1': Anonymous(CommitSHA1='third'),
-                        'summary': 'third',
-                        'tree': Anonymous(TreeSHA1=Variable(3))
-                    }),
-                    Frozen({
-                        'author': {
-                            'email': 'alice@example.org',
-                            'name': 'Alice von Testing',
-                            'timestamp': Anonymous(Timestamp=Masked())
-                        },
-                        'committer': {
-                            'email': 'alice@example.org',
-                            'name': 'Alice von Testing',
-                            'timestamp': Anonymous(Timestamp=Masked())
-                        },
                         'id': Anonymous(CommitId='amended-fourth'),
                         'message': '''amended-fourth
 ''',
@@ -1127,6 +759,181 @@ To create a review of all 3 commits:
                         'sha1': Anonymous(CommitSHA1='second'),
                         'summary': 'second',
                         'tree': Anonymous(TreeSHA1=Variable(2))
+                    }),
+                    Frozen({
+                        'author': {
+                            'email': 'alice@example.org',
+                            'name': 'Alice von Testing',
+                            'timestamp': Anonymous(Timestamp=Masked())
+                        },
+                        'committer': {
+                            'email': 'alice@example.org',
+                            'name': 'Alice von Testing',
+                            'timestamp': Anonymous(Timestamp=Masked())
+                        },
+                        'id': Anonymous(CommitId='fourth'),
+                        'message': '''fourth
+''',
+                        'parents': [
+                            Anonymous(CommitId='third')
+                        ],
+                        'sha1': Anonymous(CommitSHA1='fourth'),
+                        'summary': 'fourth',
+                        'tree': Anonymous(TreeSHA1=Variable(4))
+                    })
+                ])
+            }
+        },
+        'status_code': 200
+    }
+}
+
+snapshots['test_push_branch 9'] = {
+    'returncode': 0,
+    'stderr': [
+        'remote: ',
+        'remote: Associated 1 new commit to the branch.        ',
+        'remote: ',
+        'To http://critic.example.org/test_push_branch-***.git',
+        "   <CommitSHA1='merge-branch1-branch2'>..<CommitSHA1='merge-branch1-branch3'>  branch1 -> branch1"
+    ],
+    'stdout': [
+    ]
+}
+
+snapshots['test_push_branch 10'] = {
+    'request': {
+        'method': 'GET',
+        'path': "api/v1/branches/<Anonymous(BranchId='branch1')>",
+        'query': {
+            'include': 'commits,branchupdates',
+            'output_format': 'static'
+        }
+    },
+    'response': {
+        'data': {
+            'branches': [
+                {
+                    'base_branch': Anonymous(BranchId='master'),
+                    'head': Anonymous(CommitId='merge-branch1-branch3'),
+                    'id': Anonymous(BranchId='branch1'),
+                    'is_archived': False,
+                    'is_merged': False,
+                    'name': 'branch1',
+                    'repository': Anonymous(RepositoryId='test_push_branch'),
+                    'size': 7,
+                    'type': 'normal',
+                    'updates': [
+                        Anonymous(BranchUpdateId=Variable(1)),
+                        Anonymous(BranchUpdateId=Variable(2)),
+                        Anonymous(BranchUpdateId=Variable(3)),
+                        Anonymous(BranchUpdateId=Variable(4)),
+                        Anonymous(BranchUpdateId=Variable(5))
+                    ]
+                }
+            ],
+            'linked': {
+                'branchupdates': set([
+                    Frozen({
+                        'associated': set([
+                            Anonymous(CommitId='second'),
+                            Anonymous(CommitId='first'),
+                            Anonymous(CommitId='third')
+                        ]),
+                        'branch': Anonymous(BranchId='branch1'),
+                        'disassociated': set([
+                        ]),
+                        'from_head': None,
+                        'id': Anonymous(BranchUpdateId=Variable(1)),
+                        'output': '''Branch created based on 'master', with 3 associated commits:
+  http://critic.example.org/log?repository=test_push_branch-***&branch=branch1
+To create a review of all 3 commits:
+  http://critic.example.org/createreview?repository=test_push_branch-***&branch=branch1''',
+                        'timestamp': Anonymous(Timestamp=Masked()),
+                        'to_head': Anonymous(CommitId='third'),
+                        'updater': Anonymous(UserId='alice')
+                    }),
+                    Frozen({
+                        'associated': set([
+                            Anonymous(CommitId='amended-fourth')
+                        ]),
+                        'branch': Anonymous(BranchId='branch1'),
+                        'disassociated': set([
+                            Anonymous(CommitId='fourth')
+                        ]),
+                        'from_head': Anonymous(CommitId='fourth'),
+                        'id': Anonymous(BranchUpdateId=Variable(3)),
+                        'output': '''Associated 1 new commit to the branch.
+Disassociated 1 old commit from the branch.''',
+                        'timestamp': Anonymous(Timestamp=Masked()),
+                        'to_head': Anonymous(CommitId='amended-fourth'),
+                        'updater': Anonymous(UserId='alice')
+                    }),
+                    Frozen({
+                        'associated': set([
+                            Anonymous(CommitId='merge-branch1-branch2'),
+                            Anonymous(CommitId='side1')
+                        ]),
+                        'branch': Anonymous(BranchId='branch1'),
+                        'disassociated': set([
+                        ]),
+                        'from_head': Anonymous(CommitId='amended-fourth'),
+                        'id': Anonymous(BranchUpdateId=Variable(4)),
+                        'output': 'Associated 2 new commits to the branch.',
+                        'timestamp': Anonymous(Timestamp=Masked()),
+                        'to_head': Anonymous(CommitId='merge-branch1-branch2'),
+                        'updater': Anonymous(UserId='alice')
+                    }),
+                    Frozen({
+                        'associated': set([
+                            Anonymous(CommitId='merge-branch1-branch3')
+                        ]),
+                        'branch': Anonymous(BranchId='branch1'),
+                        'disassociated': set([
+                        ]),
+                        'from_head': Anonymous(CommitId='merge-branch1-branch2'),
+                        'id': Anonymous(BranchUpdateId=Variable(5)),
+                        'output': 'Associated 1 new commit to the branch.',
+                        'timestamp': Anonymous(Timestamp=Masked()),
+                        'to_head': Anonymous(CommitId='merge-branch1-branch3'),
+                        'updater': Anonymous(UserId='alice')
+                    }),
+                    Frozen({
+                        'associated': set([
+                            Anonymous(CommitId='fourth')
+                        ]),
+                        'branch': Anonymous(BranchId='branch1'),
+                        'disassociated': set([
+                        ]),
+                        'from_head': Anonymous(CommitId='third'),
+                        'id': Anonymous(BranchUpdateId=Variable(2)),
+                        'output': 'Associated 1 new commit to the branch.',
+                        'timestamp': Anonymous(Timestamp=Masked()),
+                        'to_head': Anonymous(CommitId='fourth'),
+                        'updater': Anonymous(UserId='alice')
+                    })
+                ]),
+                'commits': set([
+                    Frozen({
+                        'author': {
+                            'email': 'alice@example.org',
+                            'name': 'Alice von Testing',
+                            'timestamp': Anonymous(Timestamp=Masked())
+                        },
+                        'committer': {
+                            'email': 'alice@example.org',
+                            'name': 'Alice von Testing',
+                            'timestamp': Anonymous(Timestamp=Masked())
+                        },
+                        'id': Anonymous(CommitId='third'),
+                        'message': '''third
+''',
+                        'parents': [
+                            Anonymous(CommitId='second')
+                        ],
+                        'sha1': Anonymous(CommitSHA1='third'),
+                        'summary': 'third',
+                        'tree': Anonymous(TreeSHA1=Variable(3))
                     }),
                     Frozen({
                         'author': {
@@ -1161,15 +968,15 @@ To create a review of all 3 commits:
                             'name': 'Alice von Testing',
                             'timestamp': Anonymous(Timestamp=Masked())
                         },
-                        'id': Anonymous(CommitId='fourth'),
-                        'message': '''fourth
+                        'id': Anonymous(CommitId='first'),
+                        'message': '''first
 ''',
                         'parents': [
-                            Anonymous(CommitId='third')
+                            Anonymous(CommitId=Variable(1))
                         ],
-                        'sha1': Anonymous(CommitSHA1='fourth'),
-                        'summary': 'fourth',
-                        'tree': Anonymous(TreeSHA1=Variable(4))
+                        'sha1': Anonymous(CommitSHA1='first'),
+                        'summary': 'first',
+                        'tree': Anonymous(TreeSHA1=Variable(1))
                     }),
                     Frozen({
                         'author': {
@@ -1225,15 +1032,57 @@ To create a review of all 3 commits:
                             'name': 'Alice von Testing',
                             'timestamp': Anonymous(Timestamp=Masked())
                         },
-                        'id': Anonymous(CommitId='first'),
-                        'message': '''first
+                        'id': Anonymous(CommitId='amended-fourth'),
+                        'message': '''amended-fourth
 ''',
                         'parents': [
-                            Anonymous(CommitId=Variable(1))
+                            Anonymous(CommitId='third')
                         ],
-                        'sha1': Anonymous(CommitSHA1='first'),
-                        'summary': 'first',
-                        'tree': Anonymous(TreeSHA1=Variable(1))
+                        'sha1': Anonymous(CommitSHA1='amended-fourth'),
+                        'summary': 'amended-fourth',
+                        'tree': Anonymous(TreeSHA1=Variable(5))
+                    }),
+                    Frozen({
+                        'author': {
+                            'email': 'alice@example.org',
+                            'name': 'Alice von Testing',
+                            'timestamp': Anonymous(Timestamp=Masked())
+                        },
+                        'committer': {
+                            'email': 'alice@example.org',
+                            'name': 'Alice von Testing',
+                            'timestamp': Anonymous(Timestamp=Masked())
+                        },
+                        'id': Anonymous(CommitId='second'),
+                        'message': '''second
+''',
+                        'parents': [
+                            Anonymous(CommitId='first')
+                        ],
+                        'sha1': Anonymous(CommitSHA1='second'),
+                        'summary': 'second',
+                        'tree': Anonymous(TreeSHA1=Variable(2))
+                    }),
+                    Frozen({
+                        'author': {
+                            'email': 'alice@example.org',
+                            'name': 'Alice von Testing',
+                            'timestamp': Anonymous(Timestamp=Masked())
+                        },
+                        'committer': {
+                            'email': 'alice@example.org',
+                            'name': 'Alice von Testing',
+                            'timestamp': Anonymous(Timestamp=Masked())
+                        },
+                        'id': Anonymous(CommitId='fourth'),
+                        'message': '''fourth
+''',
+                        'parents': [
+                            Anonymous(CommitId='third')
+                        ],
+                        'sha1': Anonymous(CommitSHA1='fourth'),
+                        'summary': 'fourth',
+                        'tree': Anonymous(TreeSHA1=Variable(4))
                     })
                 ])
             }
@@ -1248,7 +1097,7 @@ snapshots['test_push_branch 11'] = {
         'remote: ',
         'remote: Associated 9 new commits to the branch.        ',
         'remote: ',
-        'To http://critic.example.org/test_push_branch.git',
+        'To http://critic.example.org/test_push_branch-***.git',
         "   <CommitSHA1='initial'>..<CommitSHA1='merge-master-branch1'>  master -> master"
     ],
     'stdout': [
@@ -1277,11 +1126,11 @@ snapshots['test_push_branch 12'] = {
                     'size': 7,
                     'type': 'normal',
                     'updates': [
-                        Anonymous(BranchUpdateId=Variable(5)),
-                        Anonymous(BranchUpdateId=Variable(4)),
-                        Anonymous(BranchUpdateId=Variable(3)),
+                        Anonymous(BranchUpdateId=Variable(1)),
                         Anonymous(BranchUpdateId=Variable(2)),
-                        Anonymous(BranchUpdateId=Variable(1))
+                        Anonymous(BranchUpdateId=Variable(3)),
+                        Anonymous(BranchUpdateId=Variable(4)),
+                        Anonymous(BranchUpdateId=Variable(5))
                     ]
                 }
             ]
@@ -1296,7 +1145,7 @@ snapshots['test_push_branch 13'] = {
         'remote: ',
         'remote: Deleted branch with 7 associated commits.        ',
         'remote: ',
-        'To http://critic.example.org/test_push_branch.git',
+        'To http://critic.example.org/test_push_branch-***.git',
         ' - [deleted]                                                                           branch1'
     ],
     'stdout': [

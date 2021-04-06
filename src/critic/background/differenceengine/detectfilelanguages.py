@@ -15,6 +15,7 @@
 # the License.
 
 from __future__ import annotations
+from dataclasses import dataclass
 
 import logging
 from typing import (
@@ -55,6 +56,14 @@ class Language(NamedTuple):
     id: int
 
 
+@dataclass
+class FileVersion:
+    changed_file: ChangedFile
+    sha1: SHA1
+    conflicts: bool
+    decode: api.repository.Decode
+
+
 class DetectFileLanguages(Job):
     # Detect file languages quite soon.
     priority = 1  # ExamineFiles.priority + 1
@@ -67,13 +76,12 @@ class DetectFileLanguages(Job):
 
     language_by_sha1: Dict[SHA1, Language]
 
-    def __init__(
-        self, group: GroupType, file_versions: Sequence[Tuple[ChangedFile, SHA1, bool]]
-    ):
+    def __init__(self, group: GroupType, file_versions: Sequence[FileVersion]):
         super().__init__(
             group,
             tuple(
-                changed_file.required_file_id for changed_file, _, _ in file_versions
+                file_version.changed_file.required_file_id
+                for file_version in file_versions
             ),
         )
         self.file_versions = file_versions
@@ -90,28 +98,36 @@ class DetectFileLanguages(Job):
     async def execute(self) -> None:
         setup()
 
-        from_source_sha1s = set()
+        from_source_sha1s: List[FileVersion] = []
 
-        for (changed_file, sha1, _) in self.file_versions:
-            label = identify_language_from_path(changed_file.path)
+        for file_version in self.file_versions:
+            label = identify_language_from_path(file_version.changed_file.path)
             if label is not None:
                 language_id = self.group.language_ids.get_id(label)
                 if language_id is not None:
-                    self.language_by_sha1[sha1] = Language(label, language_id)
+                    self.language_by_sha1[file_version.sha1] = Language(
+                        label, language_id
+                    )
             else:
-                from_source_sha1s.add(sha1)
+                from_source_sha1s.append(file_version)
 
         if from_source_sha1s:
             async with self.group.repository() as repository:
-                for sha1 in from_source_sha1s:
-                    label = await identify_language_from_source(repository, sha1)
+                for file_version in from_source_sha1s:
+                    label = await identify_language_from_source(
+                        repository,
+                        file_version.sha1,
+                        file_version.decode.fileContent(file_version.changed_file.path),
+                    )
                     if label is not None:
                         language_id = self.group.language_ids.get_id(label)
                         if language_id is not None:
-                            self.language_by_sha1[sha1] = Language(label, language_id)
+                            self.language_by_sha1[file_version.sha1] = Language(
+                                label, language_id
+                            )
 
     async def update_database(self, critic: api.critic.Critic) -> None:
-        changeset_id = self.group.changeset_id
+        changeset_id = self.group.as_changeset.changeset_id
         repository_id = self.group.repository_id
         async with critic.transaction() as cursor:
             await cursor.executemany(
@@ -124,33 +140,33 @@ class DetectFileLanguages(Job):
                 (
                     dbaccess.parameters(
                         repository_id=repository_id,
-                        sha1=sha1,
-                        language_id=self.language_by_sha1[sha1].id,
-                        conflicts=conflicts,
+                        sha1=file_version.sha1,
+                        language_id=self.language_by_sha1[file_version.sha1].id,
+                        conflicts=file_version.conflicts,
                     )
-                    for _, sha1, conflicts in self.file_versions
-                    if sha1 in self.language_by_sha1
+                    for file_version in self.file_versions
+                    if file_version.sha1 in self.language_by_sha1
                 ),
             )
 
             old_highlightfile_updates: List[Parameters] = []
             new_highlightfile_updates: List[Parameters] = []
 
-            for changed_file, sha1, conflicts in self.file_versions:
-                if sha1 not in self.language_by_sha1:
+            for file_version in self.file_versions:
+                if file_version.sha1 not in self.language_by_sha1:
                     continue
-                if sha1 == changed_file.old_sha1:
+                if file_version.sha1 == file_version.changed_file.old_sha1:
                     updates = old_highlightfile_updates
                 else:
                     updates = new_highlightfile_updates
                 updates.append(
                     dict(
                         changeset_id=changeset_id,
-                        file_id=changed_file.file_id,
+                        file_id=file_version.changed_file.file_id,
                         repository_id=repository_id,
-                        sha1=sha1,
-                        language_id=self.language_by_sha1[sha1].id,
-                        conflicts=conflicts,
+                        sha1=file_version.sha1,
+                        language_id=self.language_by_sha1[file_version.sha1].id,
+                        conflicts=file_version.conflicts,
                     )
                 )
 
@@ -173,12 +189,20 @@ class DetectFileLanguages(Job):
                     updates,
                 )
 
-    def follow_ups(self) -> Iterable[SyntaxHighlightFile]:
-        for _, sha1, conflicts in self.file_versions:
-            language = self.language_by_sha1.get(sha1)
-            if language is None:
-                continue
-            yield SyntaxHighlightFile(self.group, sha1, language.label, conflicts)
+    # def follow_ups(self) -> Iterable[SyntaxHighlightFile]:
+    #     for file_version in self.file_versions:
+    #         language = self.language_by_sha1.get(file_version.sha1)
+    #         if language is None:
+    #             continue
+    #         yield SyntaxHighlightFile(
+    #             self.group,
+    #             file_version.sha1,
+    #             language.label,
+    #             file_version.conflicts,
+    #             file_version.decode.getFileContentEncodings(
+    #                 file_version.changed_file.path
+    #             ),
+    #         )
 
     @staticmethod
     def for_files(
@@ -188,7 +212,11 @@ class DetectFileLanguages(Job):
         skip_file_versions: Collection[Tuple[int, SHA1]] = frozenset(),
         process_all: bool = False,
     ) -> Iterable[DetectFileLanguages]:
-        file_versions: List[Tuple[ChangedFile, SHA1, bool]] = []
+        file_versions: List[FileVersion] = []
+
+        conflicts = group.as_changeset.conflicts
+        decode_old = group.as_changeset.decode_old
+        decode_new = group.as_changeset.decode_new
 
         for changed_file in changed_files:
             logger.debug(f"{changed_file=}")
@@ -203,7 +231,9 @@ class DetectFileLanguages(Job):
                 ):
                     assert changed_file.old_sha1
                     file_versions.append(
-                        (changed_file, changed_file.old_sha1, group.conflicts)
+                        FileVersion(
+                            changed_file, changed_file.old_sha1, conflicts, decode_old
+                        )
                     )
                 if (
                     not changed_file.is_removed
@@ -214,7 +244,11 @@ class DetectFileLanguages(Job):
                     )
                 ):
                     assert changed_file.new_sha1
-                    file_versions.append((changed_file, changed_file.new_sha1, False))
+                    file_versions.append(
+                        FileVersion(
+                            changed_file, changed_file.new_sha1, False, decode_new
+                        )
+                    )
 
         CHUNK_SIZE = 100
 

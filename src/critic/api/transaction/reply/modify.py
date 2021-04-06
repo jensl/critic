@@ -19,6 +19,7 @@ from __future__ import annotations
 from ..item import Delete, Update
 from ..base import TransactionBase
 from ..modifier import Modifier
+from ..review.updateunpublishedtag import UpdateUnpublishedTag
 from .create import CreateReply
 
 from critic import api
@@ -29,13 +30,19 @@ class ModifyReply(Modifier[api.reply.Reply]):
         if not self.subject.is_draft:
             raise api.reply.Error("Published replies cannot be " + action)
 
+    async def __updateTags(self) -> None:
+        review = await (await self.subject.comment).review
+        self.transaction.finalizers.add(UpdateUnpublishedTag(review))
+
     async def setText(self, text: str) -> None:
         self.__raiseUnlessDraft("edited")
         await self.transaction.execute(Update(self.subject).set(text=text))
+        await self.__updateTags()
 
     async def delete(self) -> None:
         self.__raiseUnlessDraft("deleted")
         await self.transaction.execute(Delete(self.subject))
+        await self.__updateTags()
 
     @staticmethod
     async def create(

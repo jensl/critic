@@ -10,12 +10,10 @@ from typing import (
     Dict,
     AsyncIterator,
     List,
-    Literal,
     Optional,
     Tuple,
     TypeVar,
     cast,
-    overload,
 )
 
 from .frontend import Frontend
@@ -55,8 +53,10 @@ class WebSocket:
     __connection: asyncio.Future[aiohttp.ClientWebSocketResponse]
     __messages: List[Any]
 
-    def __init__(self, frontend: Frontend):
+    def __init__(self, frontend: Frontend, anonymizer: Anonymizer, snapshot: Any):
         self.__frontend = frontend
+        self.__anonymizer = anonymizer
+        self.__snapshot = snapshot
         self.__messages = []
         self.__connection = asyncio.Future()
         self.__task = asyncio.create_task(self.__run())
@@ -80,7 +80,7 @@ class WebSocket:
         ) as connection:
             self.__connection.set_result(connection)
             async for msg in connection:
-                logger.debug("websocket message: %r", msg)
+                logger.debug("websocket message: %r", msg.json()["publish"])
                 async with self.__condition:
                     try:
                         self.__messages.append(msg.json()["publish"])
@@ -93,93 +93,83 @@ class WebSocket:
     async def connect(
         frontend: Frontend, anonymizer: Anonymizer, snapshot: Any
     ) -> AsyncIterator[WebSocket]:
-        websocket = WebSocket(frontend)
+        websocket = WebSocket(frontend, anonymizer, snapshot)
         await websocket.__connection
         try:
             yield websocket
         finally:
             logger.debug("closing websocket")
-            messages = await websocket.close()
-        snapshot.assert_match(anonymizer({"publish": messages}), "websocket messages")
+            await websocket.close()
 
-    @overload
-    async def __find(
+    def __find(
         self, channel: Optional[str], match: DictMatches
+    ) -> Optional[Tuple[int, Dict[str, Any]]]:
+        for index, publish in enumerate(self.__messages):
+            if channel is not None and channel not in publish["channel"]:
+                continue
+            message = publish["message"]
+            if match and match != message:
+                continue
+            logger.debug("found matching message: %r", message)
+            return index, message
+        return None
+
+    async def __wait_for(
+        self,
+        channel: Optional[str],
+        match: DictMatches,
     ) -> Tuple[int, Dict[str, Any]]:
-        ...
-
-    @overload
-    async def __find(
-        self,
-        channel: Optional[str],
-        match: DictMatches,
-        *,
-        block: Literal[False],
-    ) -> Optional[Tuple[int, Dict[str, Any]]]:
-        ...
-
-    async def __find(
-        self,
-        channel: Optional[str],
-        match: DictMatches,
-        *,
-        block: bool = True,
-    ) -> Optional[Tuple[int, Dict[str, Any]]]:
-        logger.debug("looking for: %r", match)
-
-        def find() -> Optional[Tuple[int, Dict[str, Any]]]:
-            for index, publish in enumerate(self.__messages):
-                if channel is not None and channel not in publish["channel"]:
-                    continue
-                message = publish["message"]
-                if match and match != message:
-                    continue
-                logger.debug("found matching message: %r", message)
-                return index, message
-            return None
-
         async def find_blocking() -> Tuple[int, Dict[str, Any]]:
             async with self.__condition:
                 while True:
-                    if found := find():
+                    if found := self.__find(channel, match):
                         return found
                     await self.__condition.wait()
 
-        if block:
-            try:
-                return await asyncio.wait_for(find_blocking(), timeout=60)
-            except asyncio.TimeoutError:
-                assert False, f"message not found: {channel=} {match=}"
-
-        return find()
+        try:
+            return await asyncio.wait_for(find_blocking(), timeout=60)
+        except asyncio.TimeoutError:
+            assert False, f"message not found: {channel=} {match=}"
 
     async def expect(self, channel: Optional[str] = None, /, **checks: Any) -> Any:
         logger.debug("looking for: %r", checks)
-        _, message = await self.__find(channel, DictMatches(checks))
+        _, message = await self.__wait_for(channel, DictMatches(checks))
         return message
 
     async def expect_noblock(
         self, channel: Optional[str] = None, /, **checks: Any
     ) -> Any:
         logger.debug("looking for: %r", checks)
-        if found := await self.__find(channel, DictMatches(checks), block=False):
+        if found := self.__find(channel, DictMatches(checks)):
             _, message = found
             return message
         return None
 
     async def pop(self, channel: Optional[str] = None, /, **checks: Any) -> Any:
         logger.debug("looking for: %r", checks)
-        index, message = await self.__find(channel, DictMatches(checks))
+        index, message = await self.__wait_for(channel, DictMatches(checks))
         del self.__messages[index]
         return message
 
     async def pop_noblock(self, channel: Optional[str] = None, /, **checks: Any) -> Any:
         logger.debug("looking for: %r", checks)
-        if found := await self.__find(channel, DictMatches(checks), block=False):
+        if found := self.__find(channel, DictMatches(checks)):
             index, message = found
             del self.__messages[index]
             return message
         return None
+
+    async def pop_all(self, channel: Optional[str] = None, /, **checks: Any) -> None:
+        match = DictMatches(checks)
+        while found := self.__find(channel, match):
+            index, message = found
+            logger.debug("dropping message: %r", message)
+            del self.__messages[index]
+
+    async def assert_match(self) -> None:
+        self.__snapshot.assert_match(
+            self.__anonymizer({"publish": self.__messages}), "websocket messages"
+        )
 
 
 @pytest.fixture

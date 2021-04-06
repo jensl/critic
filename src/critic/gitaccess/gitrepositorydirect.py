@@ -467,7 +467,7 @@ class GitRepositoryDirect(GitRepositoryImpl):
             entries.append(
                 GitTreeEntry(
                     int(mode, base=8),
-                    textutils.decode(name),
+                    name,
                     as_sha1(sha1.decode("ascii")),
                     object_type=asObjectType(object_type.decode("ascii")),
                     size=size,
@@ -626,7 +626,8 @@ class GitRepositoryDirect(GitRepositoryImpl):
             command += old_value + "\0"
         elif not (delete or create):
             command += "\0"
-        await self.run("update-ref", "--stdin", "-z", stdin_data=command)
+        logger.warning(f"{command=}")
+        stdout = await self.run("update-ref", "--stdin", "-z", stdin_data=command)
 
     async def lsremote(
         self,

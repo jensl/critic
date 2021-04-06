@@ -15,6 +15,7 @@
 # the License.
 
 from __future__ import annotations
+from abc import abstractmethod
 
 from typing import Awaitable, Literal, Sequence, Iterable, Callable, Protocol, Optional
 
@@ -36,83 +37,91 @@ class Filediff(api.APIObject):
     A filediff has a list of macro chunks, where each macro chunk represents
     a partition of a file."""
 
-    def __hash__(self) -> int:
-        return hash(("filediff", self.filechange))
-
-    def __eq__(self, other: object) -> bool:
-        return isinstance(other, Filediff) and self.filechange == other.filechange
-
+    @abstractmethod
     def __lt__(self, other: object) -> bool:
-        return isinstance(other, Filediff) and self.filechange < other.filechange
+        ...
 
     @property
+    @abstractmethod
     def filechange(self) -> api.filechange.FileChange:
-        return self._impl.filechange
+        ...
 
     @property
+    @abstractmethod
     def old_is_binary(self) -> bool:
         """True if the old version of the file is binary"""
-        return self._impl.old_is_binary
+        ...
 
     @property
-    def old_syntax(self) -> str:
+    @abstractmethod
+    def old_syntax(self) -> Optional[str]:
         """The syntax of the old version of the file
 
         The syntax is returned as a string label, or None if the file version
         is binary or if no supported syntax could be determined from the
         filename or content."""
-        return self._impl.old_syntax
+        ...
 
     @property
+    @abstractmethod
     def old_length(self) -> int:
         """The number of lines in the old version of the file"""
-        return self._impl.old_length
+        ...
 
     @property
+    @abstractmethod
     def old_linebreak(self) -> bool:
         """True if the old version of the file is non-binary and ends with
         linebreak"""
-        return self._impl.old_linebreak
+        ...
 
     @property
+    @abstractmethod
     async def old_count(self) -> int:
         """The number of "deleted" lines in the diff"""
-        return await self._impl.getOldCount(self.critic)
+        ...
 
     @property
+    @abstractmethod
     def new_is_binary(self) -> bool:
         """True if the new version of the file is binary"""
-        return self._impl.new_is_binary
+        ...
 
     @property
-    def new_syntax(self) -> str:
+    @abstractmethod
+    def new_syntax(self) -> Optional[str]:
         """The syntax of the new version of the file
 
         The syntax is returned as a string label, or None if the file version
         is binary or if no supported syntax could be determined from the
         filename or content."""
-        return self._impl.new_syntax
+        ...
 
     @property
+    @abstractmethod
     def new_length(self) -> int:
         """The number of lines in the new version of the file"""
-        return self._impl.new_length
+        ...
 
     @property
+    @abstractmethod
     def new_linebreak(self) -> bool:
         """True if the new version of the file is non-binary and ends with
         linebreak"""
-        return self._impl.new_linebreak
+        ...
 
     @property
+    @abstractmethod
     async def new_count(self) -> int:
         """The number of "inserted" lines in the diff"""
-        return await self._impl.getNewCount(self.critic)
+        ...
 
     @property
+    @abstractmethod
     async def changed_lines(self) -> Sequence[ChangedLines]:
-        return await self._impl.getChangedLines(self.critic)
+        ...
 
+    @abstractmethod
     async def getMacroChunks(
         self,
         context_lines: int,
@@ -127,11 +136,7 @@ class Filediff(api.APIObject):
         context lines, and then merge blocks that overlap, are adjacent, or
         have less than |minimum_gap| number of lines between them. ()
         """
-        if comments is not None:
-            comments = list(comments)
-        return await self._impl.getMacroChunks(
-            self.critic, int(context_lines), int(minimum_gap), comments, block_filter
-        )
+        ...
 
 
 class ChangedLines(Protocol):
@@ -354,6 +359,7 @@ async def fetchAll(changeset: api.changeset.Changeset) -> Sequence[Filediff]:
 
 
 resource_name = "filediffs"
+table_name = "changesetfiledifferences"
 
 
 fetchImpl: FunctionRef[

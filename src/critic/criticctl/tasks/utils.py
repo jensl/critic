@@ -324,6 +324,7 @@ class FilesystemLocationsArguments(Protocol):
     repositories_dir: str
     data_dir: str
     scratch_dir: str
+    source_dir: Optional[str]
 
 
 def setup_filesystem_locations(parser: argparse.ArgumentParser) -> None:

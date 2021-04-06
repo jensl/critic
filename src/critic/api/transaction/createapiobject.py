@@ -2,6 +2,8 @@ import logging
 import types
 from typing import Any, Collection, Generic, Optional, Sequence, Tuple, TypeVar
 
+from critic.api.apiobject import APIObjectWithId
+
 logger = logging.getLogger(__name__)
 
 from critic import api
@@ -77,6 +79,7 @@ class CreateAPIObject(Generic[APIObjectType]):
     async def create_payload(
         self, resource_name: str, subject: APIObjectType, /
     ) -> CreatedAPIObject:
+        assert isinstance(subject, APIObjectWithId)
         return CreatedAPIObject(resource_name, subject.id)
 
     async def insert(self, **values: dbaccess.Parameter) -> APIObjectType:

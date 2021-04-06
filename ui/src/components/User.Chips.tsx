@@ -15,10 +15,11 @@
  */
 
 import React, { FunctionComponent } from "react"
+
 import { makeStyles } from "@material-ui/core/styles"
 
 import Registry from "."
-import Chip from "./User.Chip"
+import Chip, { Props as UserChipProps } from "./User.Chip"
 import { UserID } from "../resources/types"
 import User from "../resources/user"
 import { compareByProps } from "../utils/Functions"
@@ -31,10 +32,16 @@ const useStyles = makeStyles((theme) => ({
 }))
 
 type Props = {
+  className?: string
   userIDs: Iterable<UserID>
+  UserChipProps?: Omit<UserChipProps, "userID">
 }
 
-const UserChips: FunctionComponent<Props> = ({ userIDs }) => {
+const UserChips: FunctionComponent<Props> = ({
+  className,
+  userIDs,
+  UserChipProps,
+}) => {
   const classes = useStyles()
   const users = useResource("users")
   const allUsers = new Set<User>()
@@ -44,11 +51,16 @@ const UserChips: FunctionComponent<Props> = ({ userIDs }) => {
   }
   const sortedUsers = [...allUsers].sort(compareByProps("fullname", "name"))
   return (
-    <>
+    <span className={className}>
       {sortedUsers.map((user) => (
-        <Chip className={classes.chip} key={user.id} userID={user.id} />
+        <Chip
+          className={classes.chip}
+          key={user.id}
+          userID={user.id}
+          {...UserChipProps}
+        />
       ))}
-    </>
+    </span>
   )
 }
 

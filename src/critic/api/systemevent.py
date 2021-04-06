@@ -15,6 +15,7 @@
 # the License.
 
 from __future__ import annotations
+from abc import abstractmethod
 
 from typing import Any, Awaitable, Callable, Sequence, Iterable, Optional, overload
 
@@ -47,39 +48,45 @@ class NotFound(Error):
         super().__init__(f"No matching system event found: {category=} {key=}")
 
 
-class SystemEvent(api.APIObject):
+class SystemEvent(api.APIObjectWithId):
     @property
+    @abstractmethod
     def id(self) -> int:
         """The event's unique id"""
-        return self._impl.id
+        ...
 
     @property
+    @abstractmethod
     def category(self) -> str:
         """Event category"""
-        return self._impl.category
+        ...
 
     @property
+    @abstractmethod
     def key(self) -> str:
         """Event key"""
-        return self._impl.key
+        ...
 
     @property
+    @abstractmethod
     def title(self) -> str:
         """Event title"""
-        return self._impl.title
+        ...
 
     @property
+    @abstractmethod
     def data(self) -> Any:
         """Event data"""
-        return self._impl.data
+        ...
 
     @property
+    @abstractmethod
     def handled(self) -> bool:
         """True if the event has been handled
 
         Note: Not all events are actually handled in any way. For those that
         are not, this attribute is always False."""
-        return self._impl.handled
+        ...
 
 
 @overload

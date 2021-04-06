@@ -10,6 +10,7 @@ from .websocket import WebSocket
 from .instance import User
 from .repository import Worktree
 from ..utilities import Anonymizer, raise_for_status
+from ..utilities.execute import ExecuteResult
 
 
 class Branch:
@@ -30,14 +31,13 @@ class Branch:
     def id(self) -> int:
         return self.data["object_id"]
 
-    async def push(self) -> None:
-        self.anonymizer.assert_match(
-            await self.worktree.push_new(), f"push branch: {self.name}"
-        )
+    async def push(self) -> ExecuteResult:
+        output = raise_for_status(await self.worktree.push_new())
         self.data = await self.websocket.expect(
             action="created", resource_name="branches", name=self.name
         )
         self.anonymizer.define(BranchId={self.name: self.id})
+        return output
 
 
 class CreateBranch(Protocol):

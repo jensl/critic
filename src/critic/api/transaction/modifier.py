@@ -30,6 +30,7 @@ from typing import (
 
 from critic import api
 from critic import pubsub
+from critic.api.apiobject import APIObjectWithId
 
 from .base import TransactionBase
 from .item import Delete, Update
@@ -74,14 +75,15 @@ class Modifier(Generic[APIObjectType], ModifierBase):
         return self.subject.getResourceName()
 
     @property
-    def subject_id(self) -> int:
-        return self.subject.id
+    def subject_id(self) -> Optional[int]:
+        return self.subject.id if isinstance(self.subject, APIObjectWithId) else None
 
     async def reload(self) -> APIObjectType:
-        return await self.subject.reload()
+        return await self.subject.refresh()
 
     @contextlib.asynccontextmanager
     async def update(self, **fields: Any) -> AsyncIterator[Update]:
+        assert isinstance(self.subject, APIObjectWithId)
         update = Update(self.subject)
         yield update
         await self.transaction.execute(update)
@@ -89,6 +91,7 @@ class Modifier(Generic[APIObjectType], ModifierBase):
         self.updates.update(fields)
 
     async def delete(self) -> None:
+        assert isinstance(self.subject, APIObjectWithId)
         await self.transaction.execute(Delete(self.subject))
         self.deleted = True
 
@@ -110,9 +113,9 @@ class Modifier(Generic[APIObjectType], ModifierBase):
 
         message: PublishedMessage
         if self.deleted:
-            message = await self.create_deleted_payload()
+            message = await self.create_deleted_payload(object_id)
         elif self.modified or self.updates:
-            message = await self.create_modified_payload()
+            message = await self.create_modified_payload(object_id)
         else:
             return None
 
@@ -121,8 +124,8 @@ class Modifier(Generic[APIObjectType], ModifierBase):
             message,
         )
 
-    async def create_modified_payload(self) -> ModifiedAPIObject:
-        return ModifiedAPIObject(self.resource_name, self.subject_id, self.updates)
+    async def create_modified_payload(self, object_id:int) -> ModifiedAPIObject:
+        return ModifiedAPIObject(self.resource_name, object_id, self.updates)
 
-    async def create_deleted_payload(self) -> DeletedAPIObject:
-        return DeletedAPIObject(self.resource_name, self.subject_id)
+    async def create_deleted_payload(self, object_id:int) -> DeletedAPIObject:
+        return DeletedAPIObject(self.resource_name, object_id)

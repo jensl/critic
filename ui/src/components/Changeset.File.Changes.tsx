@@ -119,7 +119,6 @@ const ChangesetFileChunks: FunctionComponent<ChunksProps> = ({
   selectionScope,
   inView,
 }) => {
-  console.log("ChangesetFileChunks", { fileID: fileDiff.file })
   const ChangesetDiffChunk =
     variant === "side-by-side"
       ? ChangesetDiffChunk_SideBySide
@@ -168,6 +167,7 @@ type Props = {
   variant: "unified" | "side-by-side"
   comments: readonly ChunkComments[] | null
   isExpanded: boolean
+  mountOnExpand: boolean
 }
 
 const ChangesetFileChanges: FunctionComponent<Props> = ({
@@ -176,13 +176,14 @@ const ChangesetFileChanges: FunctionComponent<Props> = ({
   variant,
   comments,
   isExpanded,
+  mountOnExpand,
 }) => {
   const classes = useStyles()
   const { changeset } = useChangeset()
   const [ref, inView] = useInView()
   const selectionScope = useSelector((state) => state.ui.selectionScope)
 
-  if (!fileDiff) return null
+  if (!fileDiff || (mountOnExpand && !isExpanded)) return null
 
   const thisSelectionScope = selectionScope.scopeID?.startsWith(
     `chunk-${fileDiff.file}-`,

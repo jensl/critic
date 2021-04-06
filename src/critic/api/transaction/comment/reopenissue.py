@@ -26,7 +26,8 @@ from critic.gitaccess import SHA1
 from critic import reviewing
 from ..base import TransactionBase
 from ..item import Delete, Insert, InsertMany, Update
-from ..review import ReviewUserTag, has_unpublished_changes
+from ..review.updateunpublishedtag import UpdateUnpublishedTag
+from ..review.updatewouldbeacceptedtag import UpdateWouldBeAcceptedTag
 
 
 async def reopen_issue(
@@ -44,15 +45,10 @@ async def reopen_issue(
     if review.state in ("closed", "dropped"):
         raise api.comment.Error(f"Review is {review.state}")
 
-    transaction.tables.add("commentchainchanges")
+    transaction.tables.add("commentchanges")
 
-    ReviewUserTag.ensure(
-        transaction,
-        await issue.review,
-        critic.effective_user,
-        "unpublished",
-        has_unpublished_changes,
-    )
+    transaction.finalizers.add(UpdateUnpublishedTag(review))
+    transaction.finalizers.add(UpdateWouldBeAcceptedTag(review))
 
     draft_changes = await issue.draft_changes
 
@@ -64,8 +60,8 @@ async def reopen_issue(
 
         if new_state == "resolved":
             await transaction.execute(
-                Delete("commentchainchanges").where(
-                    uid=user, chain=issue, to_state="closed"
+                Delete("commentchanges").where(
+                    author=user, comment=issue, to_state="resolved"
                 )
             )
             return
@@ -85,8 +81,8 @@ async def reopen_issue(
         async with api.critic.Query[Tuple[SHA1, int, int]](
             critic,
             """SELECT sha1, first_line, last_line
-                 FROM commentchainlines
-                WHERE chain={issue}""",
+                 FROM commentlines
+                WHERE comment={issue}""",
             issue=issue,
         ) as result:
             existing_locations = {
@@ -112,12 +108,12 @@ async def reopen_issue(
 
         await transaction.execute(
             InsertMany(
-                "commentchainlines",
-                ["uid", "chain", "sha1", "first_line", "last_line"],
+                "commentlines",
+                ["author", "comment", "sha1", "first_line", "last_line"],
                 [
                     dict(
-                        uid=user,
-                        chain=issue,
+                        author=user,
+                        comment=issue,
                         sha1=location.sha1,
                         first_line=location.first_line + 1,
                         last_line=location.last_line + 1,
@@ -132,12 +128,12 @@ async def reopen_issue(
             await transaction.execute(Update(issue).set(state=to_state))
             return
     else:
-        from_state = "closed"
+        from_state = "resolved"
 
     await transaction.execute(
-        Insert("commentchainchanges").values(
-            uid=user,
-            chain=issue,
+        Insert("commentchanges").values(
+            author=user,
+            comment=issue,
             from_state=from_state,
             to_state=to_state,
             from_addressed_by=from_addressed_by,

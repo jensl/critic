@@ -14,6 +14,7 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
+from abc import abstractmethod
 from typing import (
     Any,
     Awaitable,
@@ -69,36 +70,41 @@ class InvalidName(Error):
         self.name = name
 
 
-class UserSetting(api.APIObject):
+class UserSetting(api.APIObjectWithId):
     """Representation of a user setting"""
 
     @property
+    @abstractmethod
     def id(self) -> int:
         """The setting's unique id"""
-        return self._impl.id
+        ...
 
     @property
+    @abstractmethod
     async def user(self) -> api.user.User:
         """The user whose setting this is"""
-        return await self._impl.getUser(self.critic)
+        ...
 
     @property
+    @abstractmethod
     def scope(self) -> str:
         """The setting's scope"""
-        return self._impl.scope
+        ...
 
     @property
+    @abstractmethod
     def name(self) -> str:
         """The setting's name"""
-        return self._impl.name
+        ...
 
     @property
+    @abstractmethod
     def value(self) -> Any:
         """The setting's value
 
         The value is stored as JSON but returned in parsed form, and can thus
         be a dictionary, list, string, number, boolean or None."""
-        return self._impl.value
+        ...
 
 
 @overload

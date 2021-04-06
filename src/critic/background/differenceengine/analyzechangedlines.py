@@ -20,15 +20,16 @@ import asyncio
 import logging
 from typing import Collection, Iterable, List, Optional, Sequence
 
+from critic.background.differenceengine import changedfile
+
 logger = logging.getLogger(__name__)
 
 from critic import api
 from critic import dbaccess
-from critic import diff
 from critic import gitaccess
 from critic import pubsub
 
-from . import protocol
+from . import Key, protocol
 from .changedfile import ChangedFile
 from .changedlines import ChangedLines
 from .requestjob import RequestJob, GroupType
@@ -53,7 +54,9 @@ class AnalyzeChangedLines(RequestJob[protocol.AnalyzeChangedLines.Response]):
     ):
         self.changed_file = changed_file
         self.blocks = blocks
-        key = (self.changed_file.file_id,) + tuple(
+        file_id = self.changed_file.file_id
+        assert file_id is not None
+        key: Key = (file_id,) + tuple(
             (block.delete_offset, block.insert_offset) for block in self.blocks
         )
         super().__init__(group, key)
@@ -69,56 +72,45 @@ class AnalyzeChangedLines(RequestJob[protocol.AnalyzeChangedLines.Response]):
     async def issue_requests(
         self, client: pubsub.Client
     ) -> Sequence[pubsub.OutgoingRequest]:
-        async with self.group.repository() as repository:
-            old_blob, new_blob = await repository.fetchall(
-                self.changed_file.required_old_sha1,
-                self.changed_file.required_new_sha1,
-                wanted_object_type="blob",
-            )
-
-        assert isinstance(old_blob, gitaccess.GitBlob)
-        assert isinstance(new_blob, gitaccess.GitBlob)
-
-        old_lines = diff.parse.splitlines(old_blob.data)
-        new_lines = diff.parse.splitlines(new_blob.data)
+        path = self.changed_file.path
+        old_sha1 = self.changed_file.required_old_sha1
+        old_encodings = self.group.as_changeset.decode_old.getFileContentEncodings(path)
+        new_sha1 = self.changed_file.required_new_sha1
+        new_encodings = self.group.as_changeset.decode_new.getFileContentEncodings(path)
 
         pubsub_client = await self.service.pubsub_client
 
-        return await asyncio.gather(
-            *(
-                pubsub_client.request(
-                    pubsub.Payload(
-                        protocol.AnalyzeChangedLines.Request(
-                            block.extract_old_lines(old_lines),
-                            block.extract_new_lines(new_lines),
-                        )
-                    ),
-                    pubsub.ChannelName("analyzechangedlines"),
-                )
-                for block in self.blocks
-            )
-        )
-
-    async def update_database(self, critic: api.critic.Critic) -> None:
-        assert self.responses is not None and len(self.responses) == len(self.blocks)
-
-        async with critic.transaction() as cursor:
-            await cursor.executemany(
-                """UPDATE changesetchangedlines
-                      SET analysis={analysis}
-                    WHERE changeset={changeset_id}
-                      AND file={file_id}
-                      AND "index"={index}""",
-                (
-                    dbaccess.parameters(
-                        changeset_id=self.group.changeset_id,
-                        file_id=self.changed_file.file_id,
-                        analysis=response.analysis if response is not None else None,
-                        index=block.index,
+        return [
+            await pubsub_client.request(
+                pubsub.Payload(
+                    protocol.AnalyzeChangedLines.Request(
+                        self.group.as_changeset.changeset_id,
+                        self.changed_file.required_file_id,
+                        protocol.Source(
+                            self.group.repository_path,
+                            old_encodings,
+                            old_sha1,
+                        ),
+                        protocol.Source(
+                            self.group.repository_path,
+                            new_encodings,
+                            new_sha1,
+                        ),
+                        [
+                            protocol.Block(
+                                block.index,
+                                block.delete_offset,
+                                block.delete_length,
+                                block.insert_offset,
+                                block.insert_length,
+                            )
+                            for block in self.blocks
+                        ],
                     )
-                    for response, block in zip(self.responses, self.blocks)
                 ),
+                pubsub.ChannelName("analyzechangedlines"),
             )
+        ]
 
     @staticmethod
     def for_blocks(

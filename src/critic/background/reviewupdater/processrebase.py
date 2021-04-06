@@ -117,7 +117,7 @@ async def process_move_rebase(
     )
 
     logger.debug("waiting for changed lines: changeset=%d", full_changeset.id)
-    await full_changeset.ensure("changedlines")
+    await full_changeset.ensure_completion_level("changedlines")
 
     return result
 
@@ -219,7 +219,7 @@ async def process_ff_move_rebase(
         critic, from_commit=new_head, to_commit=replay, conflicts=True
     )
 
-    await changeset.ensure("changedlines")
+    await changeset.ensure_completion_level("changedlines")
 
     # FIXME: Should add more than one changeset here!
     changesets = (changeset,)
@@ -315,7 +315,7 @@ async def process_non_ff_move_rebase(
         critic, from_commit=new_head, to_commit=replay, conflicts=True
     )
 
-    await changeset.ensure("changedlines")
+    await changeset.ensure_completion_level("changedlines")
 
     changesets = (changeset,)
 

@@ -28,7 +28,7 @@ import flags from "./uiFlags"
 import values from "./uiValues"
 import { counters } from "./uiCounters"
 import mouse from "./uiMouse"
-import { resourceSubscriptions } from "./uiResourceSubscriptions"
+//import { resourceSubscriptions } from "./uiResourceSubscriptions"
 import { selectionScope } from "./uiSelectionScope"
 import { createTextField } from "./uiTextField"
 import webSocket from "./uiWebSocket"
@@ -620,7 +620,7 @@ const ui = combineReducers({
   values,
   //inView,
   mouse,
-  resourceSubscriptions,
+  //resourceSubscriptions,
   rest,
   selectionScope,
   textField,

@@ -133,6 +133,11 @@ class GitProxyError(GitError):
         self.stderr = stderr
 
 
+class GitProxyDisconnect(GitError):
+    def __init__(self) -> None:
+        super().__init__("connection closed by peer")
+
+
 GenericCommand = Literal[
     "version",
     "repositories_dir",
@@ -164,7 +169,9 @@ GENERIC_COMMANDS: Collection[GenericCommand] = frozenset(
 
 class GitRepositoryProxy(GitRepositoryImpl):
     fetch_requests: Dict[SHA1, List[FetchJob]]
-    fetchrange_requests: Dict[RequestId, "asyncio.Queue[Optional[GitRawObject]]"]
+    fetchrange_requests: Dict[
+        RequestId, "asyncio.Queue[Optional[Union[GitRawObject, GitError]]]"
+    ]
     generic_requests: Dict[RequestId, "asyncio.Future[Any]"]
     streams: Dict[RequestId, Tuple["asyncio.Queue[bytes]", "asyncio.Future[None]"]]
 
@@ -251,8 +258,10 @@ class GitRepositoryProxy(GitRepositoryImpl):
             object_factory = resolve_object_factory(wanted_object_type)
         if include is not None:
             request_id = self.__request_id()
-            queue: "asyncio.Queue[Optional[GitRawObject]]"
-            queue = self.fetchrange_requests[request_id] = asyncio.Queue()
+            queue: "asyncio.Queue[Optional[Union[GitRawObject, GitError]]]" = (
+                asyncio.Queue()
+            )
+            self.fetchrange_requests[request_id] = queue
             await self.write_message(
                 FetchRangeRequest(
                     request_id,
@@ -268,6 +277,8 @@ class GitRepositoryProxy(GitRepositoryImpl):
                 raw_object = await queue.get()
                 if raw_object is None:
                     break
+                if isinstance(raw_object, GitError):
+                    raise raw_object
                 yield raw_object.sha1, object_factory.fromRawObject(raw_object)
             del self.fetchrange_requests[request_id]
             return
@@ -362,10 +373,21 @@ class GitRepositoryProxy(GitRepositoryImpl):
         await asyncio.gather(handle_input(), future)
 
     async def dispatch_message(self, message: Optional[OutputMessage]) -> None:
-        try:
-            await self.__dispatch_message(message)
-        except Exception:
-            logger.exception("Crash in message dispatch!")
+        if message is None:
+            for jobs in self.fetch_requests.values():
+                for job in jobs:
+                    job.future.set_exception(GitProxyDisconnect())
+            for queue in self.fetchrange_requests.values():
+                await queue.put(GitProxyDisconnect())
+            for generic_request in self.generic_requests.values():
+                generic_request.set_exception(GitProxyDisconnect())
+            for _, future in self.streams.values():
+                future.set_exception(GitProxyDisconnect())
+        else:
+            try:
+                await self.__dispatch_message(message)
+            except Exception:
+                logger.exception("Crash in message dispatch!")
 
     async def __dispatch_message(self, message: Optional[OutputMessage]) -> None:
         def make_raw_object() -> GitRawObject:
@@ -407,7 +429,7 @@ class GitRepositoryProxy(GitRepositoryImpl):
             assert not future.done()
             await output_queue.put(message.data)
         elif isinstance(message, StreamEnd):
-            output_queue, future = self.streams[message.request_id]
+            output_queue, future = self.streams.pop(message.request_id)
             assert not future.done()
             future.set_result(None)
         else:

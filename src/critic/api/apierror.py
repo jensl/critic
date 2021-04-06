@@ -33,10 +33,15 @@ class APIError(Exception):
     invalid input.)"""
 
     object_type: Optional[str] = None
+    code: Optional[str] = None
 
-    def __init_subclass__(cls, object_type: Optional[str] = None) -> None:
+    def __init_subclass__(
+        cls, object_type: Optional[str] = None, code: Optional[str] = None
+    ) -> None:
         if object_type is not None:
             cls.object_type = object_type
+        if code is not None:
+            cls.code = code
 
     def __init__(self, message: str, *, code: Optional[str] = None) -> None:
         super().__init__(message)
@@ -96,15 +101,9 @@ class InvalidItemsError(APIError):
 class InvalidIdError(InvalidItemError, item_type="id"):
     code = "INVALID_ID"
 
-    def __init__(self, *args: Any, invalid_id: Any, **kwargs: Any) -> None:
-        super().__init__(*args, value=invalid_id, **kwargs)
-
 
 class InvalidIdsError(InvalidItemsError, items_type="ids"):
     code = "INVALID_IDS"
-
-    def __init__(self, *args: Any, invalid_ids: Iterable[Any], **kwargs: Any) -> None:
-        super().__init__(*args, values=invalid_ids, **kwargs)
 
 
 class PermissionDenied(Exception):

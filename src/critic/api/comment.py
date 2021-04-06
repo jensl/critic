@@ -15,6 +15,7 @@
 # the License.
 
 from __future__ import annotations
+from abc import ABC, abstractmethod
 
 import datetime
 from typing import (
@@ -67,49 +68,56 @@ def as_comment_type(value: str) -> CommentType:
     return cast(CommentType, value)
 
 
-class Comment(api.APIObject):
+class Comment(api.APIObjectWithId):
     @property
+    @abstractmethod
     def id(self) -> int:
         """The comment's unique id"""
-        return self._impl.id
+        ...
 
     @property
+    @abstractmethod
     def type(self) -> CommentType:
         """The comment's type
 
         The type is one of "issue" and "note"."""
-        raise Exception("not reached")
+        ...
 
     @property
+    @abstractmethod
     def is_draft(self) -> bool:
         """True if the comment is not yet published
 
         Unpublished comments are not displayed to other users."""
-        return self._impl.is_draft
+        ...
 
     @property
+    @abstractmethod
     async def review(self) -> api.review.Review:
 
         """The review to which the comment belongs
 
         The review is returned as an api.review.Review object."""
-        return await self._impl.getReview(self.critic)
+        ...
 
     @property
+    @abstractmethod
     async def author(self) -> api.user.User:
         """The comment's author
 
         The author is returned as an api.user.User object."""
-        return await self._impl.getAuthor(self.critic)
+        ...
 
     @property
+    @abstractmethod
     def timestamp(self) -> Optional[datetime.datetime]:
         """The comment's timestamp
 
         The return value is a datetime.datetime object."""
-        return self._impl.timestamp
+        ...
 
     @property
+    @abstractmethod
     async def location(self) -> Optional[Location]:
         """The location of the comment, or None
 
@@ -118,12 +126,13 @@ class Comment(api.APIObject):
         was made against lines in a file version, the return value is
         api.comment.FileVersionLocation object.  Otherwise, the return value
         is None."""
-        return await self._impl.getLocation(self.critic)
+        ...
 
     @property
+    @abstractmethod
     def text(self) -> str:
         """The comment's text"""
-        return self._impl.text
+        ...
 
     @property
     async def replies(self) -> Sequence[api.reply.Reply]:
@@ -168,6 +177,7 @@ class Comment(api.APIObject):
             ...
 
     @property
+    @abstractmethod
     async def draft_changes(self) -> Optional[DraftChanges]:
         """The comment's current draft changes
 
@@ -177,7 +187,7 @@ class Comment(api.APIObject):
         If the comment is currently an issue, or the current user has an
         unpublished change of the comment's type to issue, the returned
         object will be an Issue.DraftChanges instead."""
-        return await self._impl.getDraftChanges(self.critic)
+        ...
 
     @property
     def as_issue(self) -> Issue:
@@ -206,27 +216,30 @@ class Issue(Comment):
         return "issue"
 
     @property
+    @abstractmethod
     def state(self) -> IssueState:
         """The issue's state
 
         The state is one of the strings "open", "addressed" or "resolved"."""
-        return self._impl.state
+        ...
 
     @property
+    @abstractmethod
     async def addressed_by(self) -> Optional[api.commit.Commit]:
         """The commit that addressed the issue, or None
 
         The value is an api.commit.Commit object, or None if the issue's
         state is not "addressed"."""
-        return await self._impl.getAddressedBy(self.critic)
+        ...
 
     @property
+    @abstractmethod
     async def resolved_by(self) -> Optional[api.user.User]:
         """The user that resolved the issue, or None
 
         The value is an api.user.User object, or None if the issue's state is
         not "resolved"."""
-        return await self._impl.getResolvedBy(self.critic)
+        ...
 
     class DraftChanges(Comment.DraftChanges, Protocol):
         """Draft changes to the issue"""
@@ -254,8 +267,9 @@ class Issue(Comment):
             ...
 
     @property
+    @abstractmethod
     async def draft_changes(self) -> Optional[DraftChanges]:
-        return await self._impl.getDraftChanges(self.critic)
+        ...
 
 
 class Note(Comment):
@@ -276,12 +290,13 @@ def as_location_type(value: str) -> LocationType:
     return cast(LocationType, value)
 
 
-class Location(api.APIObject):
+class Location(ABC):
     def __len__(self) -> int:
         """Return the the length of the location, in lines"""
         return (self.last_line - self.first_line) + 1
 
     @property
+    @abstractmethod
     def type(self) -> LocationType:
         """The location's type
 
@@ -289,18 +304,20 @@ class Location(api.APIObject):
         ...
 
     @property
+    @abstractmethod
     def first_line(self) -> int:
         """The line number of the first commented line
 
         Note that line numbers are one-based."""
-        return self._impl.first_line
+        ...
 
     @property
+    @abstractmethod
     def last_line(self) -> int:
         """The line number of the last commented line
 
         Note that line numbers are one-based."""
-        return self._impl.last_line
+        ...
 
     @property
     def as_commit_message(self) -> CommitMessageLocation:
@@ -320,9 +337,10 @@ class CommitMessageLocation(Location):
         return "commit-message"
 
     @property
+    @abstractmethod
     async def commit(self) -> api.commit.Commit:
         """The commit whose message was commented"""
-        return await self._impl.getCommit(self.critic)
+        ...
 
     @staticmethod
     def make(
@@ -331,9 +349,7 @@ class CommitMessageLocation(Location):
         last_line: int,
         commit: api.commit.Commit,
     ) -> CommitMessageLocation:
-        return makeCommitMessageLocationImpl.get()(
-            critic, first_line, last_line, commit
-        )
+        return makeCommitMessageLocationImpl.get()(first_line, last_line, commit)
 
 
 Side = Literal["old", "new"]
@@ -346,6 +362,7 @@ class FileVersionLocation(Location):
         return "file-version"
 
     @property
+    @abstractmethod
     async def changeset(self) -> Optional[api.changeset.Changeset]:
         """The changeset containing the comment
 
@@ -366,18 +383,20 @@ class FileVersionLocation(Location):
 
         If this is an object returned by translateTo() called with a
         changeset argument, then this will be that changeset."""
-        return await self._impl.getChangeset(self.critic)
+        ...
 
     @property
-    def side(self) -> Side:
+    @abstractmethod
+    def side(self) -> Optional[Side]:
         """The commented side ("old" or "new") of the changeset
 
         If the user did not make the comment while looking at a changeset
         (i.e. a diff) but rather while looking at a single version of the
         file, then this attribute returns None."""
-        return self._impl.side
+        ...
 
     @property
+    @abstractmethod
     async def commit(self) -> Optional[api.commit.Commit]:
         """The commit whose version of the file this location references
 
@@ -389,38 +408,43 @@ class FileVersionLocation(Location):
         Comment.location) then this is the commit whose version of the file
         the comment was originally made against, or None if the comment was
         made while looking at a diff."""
-        return await self._impl.getCommit(self.critic)
+        ...
 
     @property
+    @abstractmethod
     async def file(self) -> api.file.File:
         """The commented file"""
-        return await self._impl.getFile(self.critic)
+        ...
 
     @property
+    @abstractmethod
     async def file_information(self) -> api.commit.Commit.FileInformation:
         """Return information about the referenced file version
 
         Returns an api.commit.Commit.FileInformation object."""
-        assert await self.file
-        return await self._impl.getFileInformation(self)
+        ...
 
     @property
+    @abstractmethod
     def is_translated(self) -> bool:
         """True if this is a location returned by |translateTo()|"""
-        return self._impl.is_translated
+        ...
 
     @overload
+    @abstractmethod
     async def translateTo(
         self, *, changeset: api.changeset.Changeset
     ) -> Optional[FileVersionLocation]:
         ...
 
     @overload
+    @abstractmethod
     async def translateTo(
         self, *, commit: api.commit.Commit
     ) -> Optional[FileVersionLocation]:
         ...
 
+    @abstractmethod
     async def translateTo(
         self,
         *,
@@ -446,7 +470,7 @@ class FileVersionLocation(Location):
 
         If the |commit| argument is not None, the returned object's |commit|
         will be that commit, and its |changeset| and |side| will be None."""
-        return await self._impl.translateTo(self.critic, changeset, commit)
+        ...
 
     # @overload
     # @staticmethod
@@ -482,7 +506,7 @@ class FileVersionLocation(Location):
         commit: Optional[api.commit.Commit] = None,
     ) -> FileVersionLocation:
         return await makeFileVersionLocationImpl.get()(
-            critic, first_line, last_line, file, changeset, side, commit
+            first_line, last_line, file, changeset, side, commit
         )
 
 
@@ -558,8 +582,7 @@ async def fetchAll(
     )
 
 
-resource_name = "comments"
-table_name = "commentchains"
+resource_name = table_name = "comments"
 value_class = (Comment, Note, Issue)
 
 
@@ -589,7 +612,6 @@ fetchAllImpl: FunctionRef[
 makeCommitMessageLocationImpl: FunctionRef[
     Callable[
         [
-            api.critic.Critic,
             int,
             int,
             api.commit.Commit,
@@ -600,7 +622,6 @@ makeCommitMessageLocationImpl: FunctionRef[
 makeFileVersionLocationImpl: FunctionRef[
     Callable[
         [
-            api.critic.Critic,
             int,
             int,
             api.file.File,

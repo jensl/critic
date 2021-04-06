@@ -19,6 +19,7 @@ import { FileID, ChangesetID } from "../resources/types"
 import { SelectionScope } from "../reducers/uiSelectionScope"
 import { pure } from "recompose"
 import { LineComments } from "../selectors/fileDiff"
+import { locationFromSelectionScope } from "../utils/Comment"
 
 const useStyles = makeStyles((theme: Theme) => ({
   changesetDiffSideBySideLine: {
@@ -105,7 +106,6 @@ const SideBySideLine: FunctionComponent<OwnProps> = ({
 
   const {
     selectedIDs = null,
-    firstSelectedID = null,
     lastSelectedID = null,
     isRangeSelecting = false,
   } = selectionScope || {}
@@ -130,43 +130,27 @@ const SideBySideLine: FunctionComponent<OwnProps> = ({
 
   let createCommentOld: React.ReactElement | null = null
   let createCommentNew = null
-  if (firstSelectedID !== null && !isRangeSelecting) {
-    if (oldIsSelected && lastSelectedID === oldID) {
-      const firstLine = parseInt(
-        (/^f\d+:o(\d+)$/.exec(firstSelectedID) || ["", "0"])[1],
-        10,
-      )
-      const lastLine = line.oldOffset
+  if (selectionScope && lastSelectedID !== null && !isRangeSelecting) {
+    if (lastSelectedID === oldID) {
       createCommentOld = (
         <ChangesetComment
           key="new-comment-old"
           className={clsx(classes.comment, classes.commentOld)}
           location={{
             changesetID,
-            fileID,
-            side: "old",
-            firstLine,
-            lastLine,
+            ...locationFromSelectionScope(selectionScope),
           }}
         />
       )
     }
-    if (newIsSelected && lastSelectedID === newID) {
-      const firstLine = parseInt(
-        (/^f\d+:n(\d+)$/.exec(firstSelectedID) || ["", "0"])[1],
-        10,
-      )
-      const lastLine = line.newOffset
+    if (lastSelectedID === newID) {
       createCommentNew = (
         <ChangesetComment
           key="new-comment-new"
           className={clsx(classes.comment, classes.commentNew)}
           location={{
             changesetID,
-            fileID,
-            side: "new",
-            firstLine,
-            lastLine,
+            ...locationFromSelectionScope(selectionScope),
           }}
         />
       )

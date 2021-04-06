@@ -15,6 +15,7 @@
 # the License.
 
 from __future__ import annotations
+from abc import abstractmethod
 
 from typing import (
     Awaitable,
@@ -28,7 +29,7 @@ from typing import (
 )
 
 from critic import api
-from critic.api.apiobject import FunctionRef
+from .apiobject import FunctionRef
 
 
 class Error(api.APIError, object_type="branch"):
@@ -52,7 +53,7 @@ class InvalidName(api.InvalidItemError, Error, item_type="name"):
 BranchType = Literal["normal", "review"]
 
 
-class Branch(api.APIObject):
+class Branch(api.APIObjectWithId):
     """Representation of a Git branch, according to Critic
 
     Critic extends Git's branch concept by adding a heuristically determined
@@ -62,19 +63,22 @@ class Branch(api.APIObject):
     BRANCH_TYPES = frozenset({"normal", "review"})
 
     @property
+    @abstractmethod
     def id(self) -> int:
         """The branch's unique id"""
-        return self._impl.id
+        ...
 
     @property
+    @abstractmethod
     def type(self) -> BranchType:
         """The branch's type"""
-        return self._impl.type
+        ...
 
     @property
+    @abstractmethod
     def name(self) -> str:
         """The branch's name excluding the 'refs/heads/' prefix"""
-        return self._impl.name
+        ...
 
     @property
     def ref(self) -> str:
@@ -82,26 +86,31 @@ class Branch(api.APIObject):
         return f"refs/heads/{self.name}"
 
     @property
+    @abstractmethod
     async def repository(self) -> api.repository.Repository:
         """The repository that contains the branch
 
         The repository is returned as an api.repository.Repository object."""
-        return await self._impl.getRepository(self.critic)
+        ...
 
     @property
+    @abstractmethod
     def is_archived(self) -> bool:
-        return self._impl.is_archived
+        ...
 
     @property
+    @abstractmethod
     def is_merged(self) -> bool:
-        return self._impl.is_merged
+        ...
 
     @property
+    @abstractmethod
     def size(self) -> int:
         """The number of commits associated with the branch"""
-        return self._impl.size
+        ...
 
     @property
+    @abstractmethod
     async def base_branch(self) -> Optional[Branch]:
         """The upstream branch which this branch is based on
 
@@ -111,14 +120,16 @@ class Branch(api.APIObject):
         The base branch is returned as an api.branch.Branch object, or None
         for branches with no upstream branch (typically at least the master
         branch.)"""
-        return await self._impl.getBaseBranch(self.critic)
+        ...
 
     @property
+    @abstractmethod
     async def head(self) -> api.commit.Commit:
         """The branch's head commit"""
-        return await self._impl.getHead(self)
+        ...
 
     @property
+    @abstractmethod
     async def commits(self) -> api.commitset.CommitSet:
         """The commits belonging to the branch
 
@@ -128,7 +139,7 @@ class Branch(api.APIObject):
               from the head of the branch.  If the branch is a review branch
               that has been rebased, this is not the same as the commits that
               are considered part of the review."""
-        return await self._impl.getCommits(self)
+        ...
 
     @property
     async def updates(self) -> Sequence[api.branchupdate.BranchUpdate]:
@@ -154,13 +165,10 @@ class Branch(api.APIObject):
     async def review(self) -> Optional[api.review.Review]:
         """The review associated with this branch
 
-        If this is not a review branch, None is returned.
-
-        The review is returned as an api.review.Review object."""
-        try:
+        If this is not a review branch, None is returned."""
+        if self.type == "review":
             return await api.review.fetch(self.critic, branch=self)
-        except api.review.InvalidBranch:
-            return None
+        return None
 
 
 @overload

@@ -14,6 +14,7 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
+from abc import abstractmethod
 from typing import Awaitable, Callable
 from critic import api
 from critic.api.apiobject import FunctionRef
@@ -25,8 +26,8 @@ class Error(api.APIError, object_type="tutorial"):
     pass
 
 
-class InvalidId(api.InvalidIdError, Error):
-    """Raised when an invalid tutorial id is used"""
+class InvalidName(api.InvalidItemError, Error, item_type="name"):
+    """Raised when an invalid tutorial name is used"""
 
     pass
 
@@ -35,12 +36,14 @@ class Tutorial(api.APIObject):
     """Representation of a tutorial text"""
 
     @property
-    def id(self) -> str:
-        return self._impl.id
+    @abstractmethod
+    def name(self) -> str:
+        ...
 
     @property
+    @abstractmethod
     def source(self) -> str:
-        return self._impl.source
+        ...
 
 
 async def fetch(critic: api.critic.Critic, tutorial_id: str, /) -> Tutorial:

@@ -390,7 +390,7 @@ async def run_load_balancer(
             worker_paths.remove(worker_path)
             await semaphore.acquire()
 
-    async def start():
+    async def start() -> asyncio.AbstractServer:
         for index in range(arguments.scale):
             worker_tasks.append(asyncio.create_task(run_worker(index)))
 
@@ -415,8 +415,12 @@ async def run_load_balancer(
                 for socket in server.sockets:
                     await server_started(critic, arguments, socket.getsockname())
 
-    async def stop():
+        return server
+
+    async def stop(server: asyncio.AbstractServer) -> None:
         logger.info("Stopping load balancer")
+        server.close()
+        await server.wait_closed()
         for task in worker_tasks:
             if not task.done():
                 task.cancel()
@@ -424,9 +428,9 @@ async def run_load_balancer(
         logger.info("Load balancer stopped")
 
     with tempfile.TemporaryDirectory() as work_dir:
-        await start()
+        server = await start()
         await stopped.wait()
-        await stop()
+        await stop(server)
 
 
 def setup(parser: argparse.ArgumentParser) -> None:

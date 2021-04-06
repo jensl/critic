@@ -15,6 +15,7 @@
 # the License.
 
 from __future__ import annotations
+from abc import abstractmethod
 
 import datetime
 from typing import (
@@ -59,7 +60,7 @@ class NotAFile(Error):
         self.path = path
 
 
-class Commit(api.APIObject):
+class Commit(api.APIObjectWithId):
     """Representation of a Git commit"""
 
     def __str__(self) -> str:
@@ -75,26 +76,31 @@ class Commit(api.APIObject):
         return str(self) == str(other)
 
     @property
+    @abstractmethod
     def id(self) -> int:
         """The commit's unique database id"""
-        return self._impl.id
+        ...
 
     @property
+    @abstractmethod
     def repository(self) -> api.repository.Repository:
         """The repository containing the commit"""
-        return self._impl.repository
+        ...
 
     @property
+    @abstractmethod
     def sha1(self) -> SHA1:
         """The commit's full 40 character SHA-1"""
-        return self._impl.sha1
+        ...
 
     @property
+    @abstractmethod
     def tree(self) -> SHA1:
         """The SHA-1 of the tree object referenced by the commit"""
-        return self._impl.tree
+        ...
 
     @property
+    @abstractmethod
     def summary(self) -> str:
         """The commit's single-line summary
 
@@ -103,39 +109,44 @@ class Commit(api.APIObject):
         first non-empty line after that, with '[fixup] ' or '[squash] '
         prepended.  If there is no such non-empty line, the returned summary
         is just '[fixup]' or '[squash]'."""
-        return self._impl.getSummary()
+        ...
 
     @property
+    @abstractmethod
     def message(self) -> str:
         """The commit's full commit message"""
-        return self._impl.low_level.message
+        ...
 
     @property
+    @abstractmethod
     def is_merge(self) -> bool:
         """True if this commit has more than one parent"""
-        return self._impl.isMerge()
+        ...
 
     @property
-    async def parents(self) -> Tuple[Commit]:
+    @abstractmethod
+    async def parents(self) -> Sequence[Commit]:
         """The commit's parents
 
         The return value is a list of api.Commit objects."""
-        return await self._impl.getParents()
+        ...
 
     @property
+    @abstractmethod
     def low_level(self) -> gitaccess.GitCommit:
         """Low-level representation of this commit
 
         The representation is returned as a gitaccess.GitCommit object. This
         representation should typically not be used directly."""
-        return self._impl.low_level
+        ...
 
     @property
+    @abstractmethod
     async def description(self) -> CommitDescription:
         """A "friendly" description of the commit
 
         The description is returned as an CommitDescription object."""
-        return await self._impl.getDescription(self)
+        ...
 
     class UserAndTimestamp(Protocol):
         """Representation of the author or committer meta-data of a commit"""
@@ -153,30 +164,32 @@ class Commit(api.APIObject):
             ...
 
     @property
+    @abstractmethod
     def author(self) -> UserAndTimestamp:
         """The commit's "author" meta-data"""
-        return self._impl.getAuthor(self.critic)
+        ...
 
     @property
+    @abstractmethod
     def committer(self) -> UserAndTimestamp:
         """The commit's "committer" meta-data"""
-        return self._impl.getCommitter(self.critic)
+        ...
 
+    @abstractmethod
     def isParentOf(self, child: Commit) -> bool:
         """Return True if |self| is one of |child|'s parents
 
         Using this is more efficient than checking if |self| is in the list
         returned by |child.parents|."""
-        assert isinstance(child, Commit)
-        return self._impl.isParentOf(child)
+        ...
 
+    @abstractmethod
     async def isAncestorOf(self, commit: Commit) -> bool:
         """Return True if |self| is an ancestor of |commit|
 
         Also return True if |self| is |commit|, meaning a commit is considered
         an ancestor of itself."""
-        assert isinstance(commit, Commit)
-        return await self._impl.isAncestorOf(commit)
+        ...
 
     class FileInformation(Protocol):
         """Basic information about a file in a commit"""
@@ -197,6 +210,7 @@ class Commit(api.APIObject):
         def size(self) -> int:
             ...
 
+    @abstractmethod
     async def getFileInformation(
         self, file: api.file.File
     ) -> Optional[FileInformation]:
@@ -205,16 +219,18 @@ class Commit(api.APIObject):
         The entry is returned as an Commit.FileInformation object, or None if
         the path was not found in the commit's tree. If the path is found but
         is not a blob (e.g. because it's a directory), NotAFile is raised."""
-        return await self._impl.getFileInformation(file)
+        ...
 
+    @abstractmethod
     async def getFileContents(self, file: api.file.File) -> Optional[bytes]:
         """Fetch the blob (contents) of a file in the commit
 
         The return value is a `bytes` value, or None if the path was not
         found in the commit's tree. If the path is found but is not a blob
         (e.g. because it is a directory), NotAFile is raised."""
-        return await self._impl.getFileContents(file)
+        ...
 
+    @abstractmethod
     async def getFileLines(self, file: api.file.File) -> Optional[Sequence[str]]:
         """Fetch the lines of a file in the commit
 
@@ -224,7 +240,7 @@ class Commit(api.APIObject):
         numbers.
 
         Note: commit.getFileContents(...).splitlines() is *not* correct!"""
-        return await self._impl.getFileLines(file)
+        ...
 
 
 class CommitDescription(Protocol):
@@ -250,7 +266,7 @@ class CommitDescription(Protocol):
     #     """The oldest tag that points directly at the commit, or None
 
     #        The tag is returned as an api.tag.Tag object."""
-    #     return await self._impl.getTag(self.critic)
+    #     ...
 
 
 @overload

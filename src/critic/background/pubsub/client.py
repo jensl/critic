@@ -201,6 +201,7 @@ class ClientImpl:
     __subscriptions: Dict[ChannelName, Set[Subscription]]
     __promiscuous_callback: Optional[PromiscuousCallback]
     # __published: List[protocol.ClientPublish]
+    __request_tasks: Set["asyncio.Future[None]"]
 
     def __init__(
         self,
@@ -231,6 +232,7 @@ class ClientImpl:
         self.__subscriptions = {}
         self.__promiscuous_callback = None
         # self.__published = []
+        self.__request_tasks = set()
 
     def _token(self) -> protocol.Token:
         self.__token_counter += 1
@@ -322,11 +324,9 @@ class ClientImpl:
                 logger.exception(f"failed to send message: {error}")
 
         async def commit_callback() -> None:
-            logger.debug("commit_callback")
             await flush()
 
         async def rollback_callback() -> None:
-            logger.debug("rollback_callback")
             future.cancel()
 
         cursor.transaction.add_commit_callback(commit_callback)
@@ -469,11 +469,22 @@ class ClientImpl:
                 message.request_id,
                 message.payload,
             )
-            asyncio.ensure_future(
+
+            def done(future: "asyncio.Future[None]") -> None:
+                try:
+                    future.result()
+                except Exception:
+                    logger.exception("request callback crashed")
+                finally:
+                    self.__request_tasks.remove(future)
+
+            future = asyncio.create_task(
                 invoke_request_callback(
                     subscription.request_callback, message.channel, incoming_request
                 )
             )
+            self.__request_tasks.add(future)
+            future.add_done_callback(done)
 
     async def __incoming(self, message: Optional[Any] = None) -> None:
         if message is None:
@@ -484,8 +495,6 @@ class ClientImpl:
             self.__connection = None
             return
 
-        logger.debug(f"incoming: {message=}")
-
         if isinstance(message, protocol.ServerAck):
             try:
                 future = self.__futures.pop(message.token)
@@ -495,6 +504,8 @@ class ClientImpl:
                 # if not future.cancelled:
                 future.set_result(None)
             return
+
+        logger.debug(f"incoming: {message=}")
 
         if isinstance(message, protocol.ServerClose):
             logger.debug("received server close")

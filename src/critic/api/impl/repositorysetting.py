@@ -16,58 +16,80 @@
 
 from __future__ import annotations
 
-from typing import Tuple, Optional, Sequence, Any
+from typing import Callable, Tuple, Optional, Sequence, Any
 
-from . import apiobject
 from critic import api
 from critic.api import repositorysetting as public
+from .apiobject import APIObjectImplWithId
+from .queryhelper import QueryHelper, QueryResult
 
-WrapperType = api.repositorysetting.RepositorySetting
+PublicType = public.RepositorySetting
 ArgumentsType = Tuple[int, int, str, str, Any]
 
 
-class RepositorySetting(apiobject.APIObject[WrapperType, ArgumentsType, int]):
-    wrapper_class = api.repositorysetting.RepositorySetting
-    column_names = ["id", "repository", "scope", "name", "value"]
+class RepositorySetting(PublicType, APIObjectImplWithId, module=public):
+    def update(self, args: ArgumentsType) -> int:
+        (
+            self.__id,
+            self.__repository_id,
+            self.__scope,
+            self.__name,
+            self.__value,
+        ) = args
+        return self.__id
 
-    def __init__(self, args: ArgumentsType):
-        (self.id, self.__repository_id, self.scope, self.name, self.value) = args
+    @property
+    def id(self) -> int:
+        return self.__id
 
-    async def getRepository(
-        self, critic: api.critic.Critic
-    ) -> api.repository.Repository:
-        return await api.repository.fetch(critic, self.__repository_id)
+    @property
+    async def repository(self) -> api.repository.Repository:
+        return await api.repository.fetch(self.critic, self.__repository_id)
+
+    @property
+    def scope(self) -> str:
+        return self.__scope
+
+    @property
+    def name(self) -> str:
+        return self.__name
+
+    @property
+    def value(self) -> Any:
+        return self.__value
+
+    @classmethod
+    def getQueryByIds(
+        cls,
+    ) -> Callable[[api.critic.Critic, Sequence[int]], QueryResult[ArgumentsType]]:
+        return queries.queryByIds
+
+
+queries = QueryHelper[ArgumentsType](
+    PublicType.getTableName(), "id", "repository", "scope", "name", "value"
+)
 
 
 @public.fetchImpl
-@RepositorySetting.cached
 async def fetch(
     critic: api.critic.Critic,
     setting_id: Optional[int],
     repository: Optional[api.repository.Repository],
     scope: Optional[str],
     name: Optional[str],
-) -> WrapperType:
-    conditions = []
+) -> PublicType:
     if setting_id is not None:
-        conditions.append("id={setting_id}")
-    else:
-        conditions.extend(["repository={repository}", "scope={scope}", "name={name}"])
+        setting = await RepositorySetting.ensureOne(
+            setting_id, queries.idFetcher(critic, RepositorySetting)
+        )
+        return setting
 
-    async with RepositorySetting.query(
-        critic,
-        conditions,
-        setting_id=setting_id,
-        repository=repository,
-        scope=scope,
-        name=name,
-    ) as result:
-        try:
-            return await RepositorySetting.makeOne(critic, result)
-        except result.ZeroRowsInResult:
-            if scope is not None and name is not None:
-                raise api.repositorysetting.NotDefined(scope, name)
-            raise
+    assert repository and scope and name
+    return RepositorySetting.storeOne(
+        await queries.query(
+            critic, repository=repository, scope=scope, name=name
+        ).makeOne(RepositorySetting, public.NotDefined(scope, name))
+    )
 
 
 @public.fetchAllImpl
@@ -75,13 +97,9 @@ async def fetchAll(
     critic: api.critic.Critic,
     repository: Optional[api.repository.Repository],
     scope: Optional[str],
-) -> Sequence[WrapperType]:
-    conditions = []
-    if repository is not None:
-        conditions.append("repository={repository}")
-    if scope is not None:
-        conditions.append("scope={scope}")
-    async with RepositorySetting.query(
-        critic, conditions, repository=repository, scope=scope
-    ) as result:
-        return await RepositorySetting.make(critic, result)
+) -> Sequence[PublicType]:
+    return RepositorySetting.store(
+        await queries.query(critic, repository=repository, scope=scope).make(
+            RepositorySetting
+        )
+    )

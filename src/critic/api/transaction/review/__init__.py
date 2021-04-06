@@ -159,9 +159,7 @@ class ReviewUser(Finalizer):
         self.review = review
         self.user = user
         self.is_owner = is_owner
-
-    def __hash__(self) -> int:
-        return hash((ReviewUser, self.review, self.user))
+        super().__init__(self.review, self.user)
 
     async def __call__(
         self, transaction: TransactionBase, cursor: dbaccess.TransactionCursor
@@ -237,9 +235,7 @@ class ReviewUserTag(Finalizer):
         self.user = user
         self.tag = tag
         self.value = value
-
-    def __hash__(self) -> int:
-        return hash((ReviewUserTag, self.review, self.user, self.tag))
+        super().__init__(self.review, self.user, self.tag)
 
     def should_run_after(self, other: object) -> bool:
         return isinstance(other, ReviewUser)
@@ -330,7 +326,7 @@ async def commits_behind_target_branch(
 ) -> int:
     upstreams = await commits.filtered_tails
     if len(upstreams) != 1:
-        raise api.review.Error("Branch has multiple upstream commits")
+        raise api.review.Error("Branch has multiple upstream commits: %r" % upstreams)
     (upstream,) = upstreams
     if not await upstream.isAncestorOf(await target_branch.head):
         raise api.review.Error("Branch is not based on target branch")

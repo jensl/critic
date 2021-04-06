@@ -19,8 +19,6 @@ import { Dispatch } from "../state"
 import {
   CLEAR_FLAG,
   ClearFlagAction,
-  DOCUMENT_CLICKED,
-  DocumentClickedAction,
   SET_FLAG,
   SetFlagAction,
   TOGGLE_FLAG,
@@ -67,10 +65,6 @@ export const decrementCounter = (counter: string): UpdateCounterAction => ({
   type: UPDATE_COUNTER,
   counter,
   update: -1,
-})
-
-export const documentClicked = (): DocumentClickedAction => ({
-  type: DOCUMENT_CLICKED,
 })
 
 /*
@@ -212,7 +206,7 @@ export const setChangesetContext = changeset => ({
 export const pushKeyboardShortcutScope = (
   name: string,
   handler: KeyboardShortcutHandlerFunc,
-  scopeType: KeyboardShortcutScopeType = "default"
+  scopeType: KeyboardShortcutScopeType = "default",
 ) => (dispatch: Dispatch): Token => {
   const token = Token.create()
   dispatch({
@@ -226,14 +220,14 @@ export const pushKeyboardShortcutScope = (
 }
 
 export const popKeyboardShortcutScope = (
-  token: Token
+  token: Token,
 ): PopKeyboardShortcutScopeAction => ({
   type: POP_KEYBOARD_SHORTCUT_SCOPE,
   token,
 })
 
 export const setSingleSpaceWidth = (
-  width: number
+  width: number,
 ): SetSingleSpaceWidthAction => ({
   type: SET_SINGLE_SPACE_WIDTH,
   width,
@@ -361,7 +355,7 @@ export const setReviewListCount = ({ category, count = 10 }) => ({
 })*/
 
 export const addLinkifier = (pattern: string, generateURL: GenerateURLFunc) => (
-  dispatch: Dispatch
+  dispatch: Dispatch,
 ) => {
   const token = Token.create()
   dispatch<AddLinkifierAction>({

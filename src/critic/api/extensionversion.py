@@ -15,6 +15,7 @@
 # the License.
 
 from __future__ import annotations
+from abc import abstractmethod
 
 from typing import (
     Any,
@@ -59,30 +60,26 @@ class InvalidSHA1(api.InvalidItemError, Error, item_type="sha1"):
 PackageType = Literal["python"]
 
 
-class ExtensionVersion(api.APIObject):
+class ExtensionVersion(api.APIObjectWithId):
     @property
+    @abstractmethod
     def id(self) -> int:
-        return self._impl.id
+        ...
 
     @property
+    @abstractmethod
     async def extension(self) -> api.extension.Extension:
-        return await self._impl.getExtension(self.critic)
+        ...
 
     @property
-    def is_live(self) -> bool:
-        return self._impl.name is None
-
-    @property
+    @abstractmethod
     def name(self) -> Optional[str]:
-        return self._impl.name
+        ...
 
     @property
+    @abstractmethod
     def sha1(self) -> SHA1:
-        return self._impl.sha1
-
-    @property
-    def snapshot_path(self) -> str:
-        return self._impl.snapshot_path
+        ...
 
     class Entrypoint(Protocol):
         @property
@@ -165,8 +162,9 @@ class ExtensionVersion(api.APIObject):
             ...
 
     @property
+    @abstractmethod
     async def manifest(self) -> Manifest:
-        return await self._impl.getManifest(self)
+        ...
 
 
 @overload

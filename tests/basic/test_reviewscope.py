@@ -1,5 +1,3 @@
-from critic.api.reviewablefilechange import ReviewableFileChange
-from tests.utilities.filter import Anonymous
 import pytest
 
 from ..fixtures.api import API
@@ -109,14 +107,14 @@ async def test_reviewscope(
         anonymizer.assert_match(
             raise_for_status(await api.get(f"reviews/{review.id}")), "review (initial)"
         )
-        reviewfilechanges = raise_for_status(
+        reviewablefilechanges = raise_for_status(
             await api.get(
                 f"reviews/{review.id}/reviewablefilechanges",
                 include="files,reviewscopes",
             )
         )
         anonymizer.define(
-            FileId=map_to_id(reviewfilechanges.data["linked"]["files"], "path")
+            FileId=map_to_id(reviewablefilechanges.data["linked"]["files"], "path")
         )
 
         def rfc_name(rfc: dict) -> str:
@@ -130,11 +128,12 @@ async def test_reviewscope(
 
         anonymizer.define(
             ReviewableFileChangeId=map_to_id(
-                reviewfilechanges.data["reviewablefilechanges"], rfc_name
+                reviewablefilechanges.data["reviewablefilechanges"], rfc_name
             )
         )
         anonymizer.assert_match(
-            reviewfilechanges, "reviewable file changes (initial)",
+            reviewablefilechanges,
+            "reviewable file changes (initial)",
         )
 
         await review.publish()
@@ -192,7 +191,9 @@ async def test_reviewscope(
 
         anonymizer.assert_match(
             raise_for_status(
-                await api.get(f"reviews/{review.id}/reviewablefilechanges",)
+                await api.get(
+                    f"reviews/{review.id}/reviewablefilechanges",
+                )
             ),
             "reviewable file changes (final)",
         )

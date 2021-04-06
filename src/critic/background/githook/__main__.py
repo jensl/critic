@@ -552,7 +552,7 @@ class GitHookClient(LineProtocolClient):
             async with critic.query(
                 """SELECT COUNT(*)
                      FROM pendingrefupdates
-                    WHERE {id=pendingrefupdate_ids:array}
+                    WHERE id=ANY({pendingrefupdate_ids})
                       AND state NOT IN ('finished', 'failed')""",
                 pendingrefupdate_ids=list(updates.keys()),
             ) as result:
@@ -561,7 +561,7 @@ class GitHookClient(LineProtocolClient):
             async with critic.query(
                 """SELECT pendingrefupdate, id, output
                      FROM pendingrefupdateoutputs
-                    WHERE {pendingrefupdate=pendingrefupdate_ids:array}
+                    WHERE pendingrefupdate=ANY({pendingrefupdate_ids})
                  ORDER BY pendingrefupdate, id""",
                 pendingrefupdate_ids=list(updates.keys()),
             ) as result:
@@ -599,7 +599,7 @@ class GitHookClient(LineProtocolClient):
                 critic,
                 """SELECT id
                      FROM pendingrefupdates
-                    WHERE {id=pendingrefupdate_ids:array}
+                    WHERE id=ANY({pendingrefupdate_ids})
                       AND state NOT IN ('finished', 'failed')""",
                 pendingrefupdate_ids=list(updates.keys()),
             ) as result:
@@ -626,7 +626,7 @@ class GitHookClient(LineProtocolClient):
                     await cursor.execute(
                         """UPDATE pendingrefupdates
                               SET abandoned=TRUE
-                            WHERE {id=pendingrefupdate_ids:array}""",
+                            WHERE id=ANY({pendingrefupdate_ids})""",
                         pendingrefupdate_ids=timed_out_ids,
                     )
 
@@ -635,7 +635,7 @@ class GitHookClient(LineProtocolClient):
         async with critic.query(
             """SELECT name, old_sha1, new_sha1, branchupdate
                  FROM pendingrefupdates
-                WHERE {id=pendingrefupdate_ids:array}
+                WHERE id=ANY({pendingrefupdate_ids})
                   AND state='failed'""",
             pendingrefupdate_ids=list(updates.keys()),
         ) as result:
@@ -699,7 +699,7 @@ class GitHookClient(LineProtocolClient):
             await cursor.execute(
                 """DELETE
                      FROM pendingrefupdates
-                    WHERE {id=pendingrefupdate_ids:array}
+                    WHERE id=ANY({pendingrefupdate_ids})
                       AND state IN ('finished', 'failed')
                       AND NOT abandoned""",
                 pendingrefupdate_ids=list(updates.keys()),

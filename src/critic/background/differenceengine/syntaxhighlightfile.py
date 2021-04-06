@@ -67,11 +67,13 @@ class SyntaxHighlightFile(RequestJob[protocol.SyntaxHighlighFile.Response]):
         sha1: SHA1,
         language_label: str,
         conflicts: bool,
+        encodings: Sequence[str],
     ):
         super().__init__(group, (sha1, language_label, conflicts))
         self.sha1 = sha1
         self.language_label = language_label
         self.conflicts = conflicts
+        self.encodings = encodings
         self.language_id = group.language_ids.get_id(self.language_label)
 
     async def issue_requests(
@@ -84,9 +86,12 @@ class SyntaxHighlightFile(RequestJob[protocol.SyntaxHighlighFile.Response]):
             await pubsub_client.request(
                 pubsub.Payload(
                     protocol.SyntaxHighlighFile.Request(
+                        protocol.Source(
+                            self.group.repository_path,
+                            self.encodings,
+                            self.sha1,
+                        ),
                         self.group.repository_id,
-                        self.group.repository_path,
-                        self.sha1,
                         self.language_id,
                         self.language_label,
                         self.conflicts,
@@ -106,17 +111,27 @@ class SyntaxHighlightFile(RequestJob[protocol.SyntaxHighlighFile.Response]):
         highlighted, and for which the appropriate language could be deduced
         from the file's path alone."""
 
-        conflicts = group.conflicts
+        conflicts = group.as_changeset.conflicts
+        decode_old = group.as_changeset.decode_old
+        decode_new = group.as_changeset.decode_new
 
         for changed_file in changed_files:
             language_label = identify_language_from_path(changed_file.path)
             if language_label is not None:
                 if syntax_highlight_old(changed_file):
                     yield SyntaxHighlightFile(
-                        group, changed_file.required_old_sha1, language_label, conflicts
+                        group,
+                        changed_file.required_old_sha1,
+                        language_label,
+                        conflicts,
+                        decode_old.getFileContentEncodings(changed_file.path),
                     )
 
                 if syntax_highlight_new(changed_file):
                     yield SyntaxHighlightFile(
-                        group, changed_file.required_new_sha1, language_label, False
+                        group,
+                        changed_file.required_new_sha1,
+                        language_label,
+                        False,
+                        decode_new.getFileContentEncodings(changed_file.path),
                     )

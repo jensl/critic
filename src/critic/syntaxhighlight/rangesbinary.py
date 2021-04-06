@@ -42,7 +42,7 @@ class SyntaxHighlightRangesBinary(SyntaxHighlightRanges):
             self.critic,
             """SELECT label, id
                  FROM highlightlanguages
-                WHERE {label=languages:array}""",
+                WHERE label=ANY({languages})""",
             languages=list(sha1s_per_language.keys()),
         ) as languages_result:
             language_ids = dict(await languages_result.all())
@@ -55,7 +55,7 @@ class SyntaxHighlightRangesBinary(SyntaxHighlightRanges):
                 self.critic,
                 """SELECT id, sha1
                      FROM highlightfiles
-                    WHERE {sha1=sha1s:array}
+                    WHERE sha1=ANY({sha1s})
                       AND language={language}
                       AND highlighted""",
                 sha1s=list(sha1s),

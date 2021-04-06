@@ -53,6 +53,21 @@ class ModifyChangeset(Modifier[api.changeset.Changeset]):
             ),
         )
 
+    @staticmethod
+    async def ensureMerge(
+        transaction: TransactionBase,
+        parent: api.commit.Commit,
+        merge: api.commit.Commit,
+    ) -> Tuple[ModifyChangeset, ModifyChangeset]:
+        assert parent.repository == merge.repository
+
+        changesets = await CreateChangeset.ensureMerge(transaction, parent, merge)
+
+        return (
+            ModifyChangeset(transaction, changesets.primary),
+            ModifyChangeset(transaction, changesets.reference),
+        )
+
 
 class RequestContent:
     def __init__(self, modifier: ModifyChangeset):
@@ -159,7 +174,7 @@ class RequestHighlight:
                 await cursor.execute(
                     """UPDATE highlightfiles
                           SET requested=TRUE
-                        WHERE {id=non_highlighted_ids:array}""",
+                        WHERE id=ANY({non_highlighted_ids})""",
                     non_highlighted_ids=non_highlighted_ids,
                 )
                 updated = True

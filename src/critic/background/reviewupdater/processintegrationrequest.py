@@ -457,6 +457,7 @@ async def process_integration_request(
         try:
             if request.squash_requested:
                 squashed = True
+                assert request.squash_message is not None
                 await squash(review, request, request.squash_message)
             elif request.autosquash_requested:
                 autosquashed = True

@@ -284,7 +284,7 @@ class ParametersImpl(Parameters):
     def getLinked(self, resource_type: str) -> Set[Any]:
         return self.__linked.pop(resource_type, set())
 
-    def addLinked(self, value: Any) -> None:
+    def addLinked(self, value: api.APIObject) -> None:
         self.__linked[ResourceClass.find(value).name].add(value)
 
     def in_context(

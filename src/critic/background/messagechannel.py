@@ -109,8 +109,11 @@ class MessageChannel(Generic[InputMessage, OutputMessage]):
         async def dispatch_messages(
             dispatch: Callable[[Optional[OutputMessage]], Awaitable[None]]
         ) -> None:
-            async for message in self.read_messages():
-                await dispatch(message)
+            try:
+                async for message in self.read_messages():
+                    await dispatch(message)
+            except ConnectionClosed:
+                pass
             await dispatch(None)
 
         if self.__dispatch_message:
@@ -139,11 +142,11 @@ class MessageChannel(Generic[InputMessage, OutputMessage]):
 
     async def close(self) -> None:
         try:
-            self.__connected.cancel()
-            try:
-                await self.__connected
-            except asyncio.CancelledError:
-                pass
+            if not self.__connected.done():
+                self.__connected.cancel()
+            await self.__connected
+        except asyncio.CancelledError:
+            pass
         except Exception:
             if self.__reading:
                 self.__reading.cancel()

@@ -24,7 +24,6 @@ import Commit from "../resources/commit"
 import Changeset, { CompletionLevel } from "../resources/changeset"
 import { Channel } from "./WebSocket"
 import { assertEqual } from "../debug"
-import { AsyncThunk } from "../state"
 
 const SHA1 = "[^.:]+"
 
@@ -245,6 +244,7 @@ export const waitForCompletionLevel = async (
     )
     return true
   } catch (error) {
+    console.error("wtf?", { error })
     assertEqual(error, "timeout")
     return false
   }

@@ -16,6 +16,7 @@
 
 from __future__ import annotations
 
+import itertools
 import logging
 from typing import Collection, Dict, List, Set, Tuple
 
@@ -28,10 +29,12 @@ from . import deserialize_key, serialize_key
 from .changedfile import ChangedFile
 from .changedlines import ChangedLines
 from .jobgroup import JobGroup
-from .job import Job, RunnerType
+from .job import Job, RunnerType, ChangesetGroupType
 
 
 class Changeset(JobGroup):
+    __repository_path: str
+
     def __init__(
         self,
         runner: RunnerType,
@@ -45,12 +48,28 @@ class Changeset(JobGroup):
         self.syntax_highlight = False
 
     @property
+    def repository_path(self) -> str:
+        return self.__repository_path
+
+    @property
+    def as_changeset(self) -> ChangesetGroupType:
+        return self
+
+    @property
     def changeset_id(self) -> int:
         return self.__changeset_id
 
     @property
     def conflicts(self) -> bool:
         return self.__conflicts
+
+    @property
+    def decode_old(self) -> api.repository.Decode:
+        return self.__decode_old
+
+    @property
+    def decode_new(self) -> api.repository.Decode:
+        return self.__decode_new
 
     def __str__(self) -> str:
         return "changeset %d" % self.changeset_id
@@ -69,15 +88,11 @@ class Changeset(JobGroup):
         from .syntaxhighlightfile import SyntaxHighlightFile
 
         if initial_calculation:
-            async with api.critic.Query[str](
-                critic,
-                """SELECT repositories.path
-                        FROM repositories
-                        JOIN changesets ON (changesets.repository=repositories.id)
-                    WHERE changesets.id={changeset_id}""",
-                changeset_id=self.changeset_id,
-            ) as repository_path:
-                self.repository_path = await repository_path.scalar()
+            changeset = await api.changeset.fetch(critic, self.changeset_id)
+            repository = await changeset.repository
+            self.__repository_path = repository.path
+            self.__decode_old = await repository.getDecode(await changeset.from_commit)
+            self.__decode_new = await repository.getDecode(await changeset.to_commit)
 
         async with api.critic.Query[str](
             critic,
@@ -357,7 +372,7 @@ class Changeset(JobGroup):
                       insert_count, insert_length, analysis IS NULL
                  FROM changesetchangedlines
                 WHERE changeset={changeset_id}
-                  AND {file=file_ids:array}
+                  AND file=ANY({file_ids})
              ORDER BY file, "index" """,
             changeset_id=self.changeset_id,
             file_ids=list(per_file.keys()),
@@ -461,26 +476,60 @@ class Changeset(JobGroup):
             syntax_highlight_jobs: Set[Job] = set()
             detect_file_language_jobs: Set[Job] = set()
 
-            async with api.critic.Query[Tuple[int, SHA1, bool, bool, str]](
+            async with api.critic.Query[Tuple[int, SHA1, bool, bool, str, str]](
                 critic,
                 """SELECT DISTINCT csfd.file, hlf.sha1, hlf.conflicts,
-                                   hlf.highlighted, hll.label
+                                   hlf.highlighted, hll.label, files.path
                      FROM highlightfiles AS hlf
                      JOIN highlightlanguages AS hll ON (hll.id=hlf.language)
                      JOIN changesetfiledifferences AS csfd ON (
-                            csfd.old_highlightfile=hlf.id OR
-                            csfd.new_highlightfile=hlf.id
+                            csfd.old_highlightfile=hlf.id
                           )
+                     JOIN files ON (files.id=csfd.file)
                     WHERE csfd.changeset={changeset_id}""",
                 changeset_id=self.changeset_id,
             ) as highlight_files:
-                highlight_files_rows = await highlight_files.all()
+                old_highlight_files_rows = await highlight_files.all()
+            async with api.critic.Query[Tuple[int, SHA1, bool, bool, str, str]](
+                critic,
+                """SELECT DISTINCT csfd.file, hlf.sha1, hlf.conflicts,
+                                   hlf.highlighted, hll.label, files.path
+                     FROM highlightfiles AS hlf
+                     JOIN highlightlanguages AS hll ON (hll.id=hlf.language)
+                     JOIN changesetfiledifferences AS csfd ON (
+                            csfd.new_highlightfile=hlf.id
+                          )
+                     JOIN files ON (files.id=csfd.file)
+                    WHERE csfd.changeset={changeset_id}""",
+                changeset_id=self.changeset_id,
+            ) as highlight_files:
+                new_highlight_files_rows = await highlight_files.all()
             evaluated_files = set(
-                (file_id, sha1) for (file_id, sha1, _, _, _) in highlight_files_rows
+                (file_id, sha1)
+                for (file_id, sha1, _, _, _, _) in itertools.chain(
+                    old_highlight_files_rows, new_highlight_files_rows
+                )
             )
             syntax_highlight_jobs.update(
-                SyntaxHighlightFile(self, sha1, language_label, conflicts)
-                for _, sha1, conflicts, is_highlighted, language_label in highlight_files_rows
+                SyntaxHighlightFile(
+                    self,
+                    sha1,
+                    language_label,
+                    conflicts,
+                    self.decode_old.getFileContentEncodings(path),
+                )
+                for _, sha1, conflicts, is_highlighted, language_label, path in old_highlight_files_rows
+                if not is_highlighted
+            )
+            syntax_highlight_jobs.update(
+                SyntaxHighlightFile(
+                    self,
+                    sha1,
+                    language_label,
+                    conflicts,
+                    self.decode_new.getFileContentEncodings(path),
+                )
+                for _, sha1, conflicts, is_highlighted, language_label, path in new_highlight_files_rows
                 if not is_highlighted
             )
 

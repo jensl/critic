@@ -19,15 +19,15 @@ from __future__ import annotations
 import logging
 import stat
 from dataclasses import dataclass
-from typing import Tuple, Optional, Sequence, Any
+from typing import Collection, Tuple, Optional, Sequence
 
 logger = logging.getLogger(__name__)
 
-from .apiobject import APIObject
+from .apiobject import APIObjectImpl
 from critic import api
 from critic.api import tree as public
+from critic.api.apiobject import Actual
 from critic import gitaccess
-from critic import textutils
 from critic.gitaccess import SHA1
 
 
@@ -76,53 +76,58 @@ class Entry:
         return (self.mode & 0o777000) == 0o160000
 
 
-WrapperType = api.tree.Tree
-ArgumentsType = Tuple[api.repository.Repository, SHA1, Sequence[gitaccess.GitTreeEntry]]
+PublicType = public.Tree
 CacheKeyType = Tuple[int, SHA1]
 
 
-class Tree(APIObject[WrapperType, ArgumentsType, CacheKeyType]):
+class Tree(PublicType, APIObjectImpl):
     wrapper_class = api.tree.Tree
 
     __entries: Optional[Sequence[api.tree.Tree.Entry]]
 
-    def __init__(self, args: ArgumentsType):
-        (self.repository, self.sha1, self.__low_entries) = args
+    def __init__(
+        self,
+        repository: api.repository.Repository,
+        sha1: SHA1,
+        low_entries: Sequence[gitaccess.GitTreeEntry],
+    ):
+        super().__init__(repository.critic)
+        self.__repository = repository
+        self.__sha1 = sha1
+        self.__low_entries = low_entries
         self.__entries = None
 
-    @staticmethod
-    def cacheKey(wrapper: WrapperType) -> CacheKeyType:
-        return (wrapper.repository.id, wrapper.sha1)
+    def __hash__(self) -> int:
+        return hash((self.__repository, self.__sha1))
 
-    @classmethod
-    def makeCacheKey(cls, args: ArgumentsType) -> CacheKeyType:
-        repository, sha1, _ = args
-        return (repository.id, sha1)
+    def __eq__(self, other: object) -> bool:
+        return (
+            isinstance(other, Tree)
+            and self.__repository == other.__repository
+            and self.__sha1 == other.__sha1
+        )
 
-    @staticmethod
-    def fetchCacheKey(
-        critic: api.critic.Critic, *args: Any
-    ) -> Tuple[api.critic.Critic, Optional[CacheKeyType]]:
-        repository: Optional[api.repository.Repository]
-        sha1: Optional[SHA1]
-        commit: Optional[api.commit.Commit]
-        entry: Optional[api.tree.Tree.Entry]
-        repository, sha1, commit, _, entry = args
-        if repository is not None:
-            assert sha1 is not None
-            return critic, (repository.id, sha1)
-        elif commit is not None:
-            return critic, None
-        else:
-            assert entry is not None
-            return critic, (entry.tree.repository.id, entry.sha1)
+    def getCacheKeys(self) -> Collection[object]:
+        return ((self.__repository, self.__sha1),)
 
-    def getEntries(self, wrapper: WrapperType) -> Sequence[api.tree.Tree.Entry]:
+    async def refresh(self: Actual) -> Actual:
+        return self
+
+    @property
+    def repository(self) -> api.repository.Repository:
+        return self.__repository
+
+    @property
+    def sha1(self) -> SHA1:
+        return self.__sha1
+
+    @property
+    def entries(self) -> Sequence[api.tree.Tree.Entry]:
         if self.__entries is None:
             self.__entries = sorted(
                 (
                     Entry(
-                        wrapper,
+                        self,
                         low_entry.mode,
                         low_entry.name,
                         low_entry.sha1,
@@ -134,14 +139,14 @@ class Tree(APIObject[WrapperType, ArgumentsType, CacheKeyType]):
             )
         return self.__entries
 
-    async def readLink(self, entry: api.tree.Tree.Entry) -> str:
-        contents = await self.repository.getFileContents(sha1=entry.sha1)
+    async def readLink(self, entry: PublicType.Entry) -> str:
+        contents = await self.__repository.getFileContents(sha1=entry.sha1)
         assert contents is not None
-        return textutils.decode(contents)
+        decode = await self.__repository.getDecode()
+        return decode.path(contents)
 
 
 @public.fetchImpl
-@Tree.cached
 async def fetch(
     critic: api.critic.Critic,
     repository: Optional[api.repository.Repository],
@@ -149,7 +154,7 @@ async def fetch(
     commit: Optional[api.commit.Commit],
     path: Optional[str],
     entry: Optional[api.tree.Tree.Entry],
-) -> WrapperType:
+) -> PublicType:
     if commit is not None:
         assert path is not None
         repository = commit.repository
@@ -166,12 +171,11 @@ async def fetch(
     elif entry is not None:
         repository = entry.tree.repository
         sha1 = entry.sha1
-    assert repository is not None
-    assert sha1 is not None
+    assert repository is not None and sha1 is not None
 
     try:
         entries = await repository.low_level.lstree(sha1, long_format=True)
     except gitaccess.GitFetchError:
         raise api.tree.InvalidSHA1(repository, sha1)
 
-    return await Tree.makeOne(repository.critic, values=(repository, sha1, entries))
+    return Tree.storeOne(Tree(repository, sha1, entries))

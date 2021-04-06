@@ -94,7 +94,7 @@ export function assertNotNull<T>(
   actual: T,
   message: string = "Expected not null",
 ): asserts actual is NonNullable<T> {
-  if (actual === null) {
+  if (actual === null || actual === undefined) {
     console.error("assertFalse failed", { actual })
     throw new DebugError(`assertFalse(): ${message}`)
   }

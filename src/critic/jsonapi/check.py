@@ -49,6 +49,7 @@ from critic import api
 from .exceptions import InputError
 from .parameters import Parameters
 from .types import JSONInput, JSONInputItem
+from .utils import maybe_await
 
 
 def ishashable(value: Any) -> bool:
@@ -231,8 +232,11 @@ def makeTypeChecker(
     if value is None:
         return TypeChecker()
     if isinstance(value, type):
-        value = CHECKER_MAP.get(value, value)
-    if isinstance(value, TypeCheckerBase):  # type: ignore
+        if issubclass(value, api.APIObject):
+            value = APIOBJECT_MAP.get(APIObjectKey(value), value)
+        else:
+            value = TYPE_MAP.get(value, value)
+    if isinstance(value, TypeCheckerBase):
         return value
     if isinstance(value, type) and issubclass(value, TypeCheckerBase):
         return value()  # type: ignore
@@ -482,7 +486,7 @@ class APIObject(TypeCheckerBase[Intermediate, APIObjectClass]):
 
     async def process(self, context: TypeCheckerContext, value: APIObjectClass) -> None:
         async def maybe_get(name: str) -> Any:
-            return await context.critic.maybe_await(getattr(value, name, None))
+            return await maybe_await(getattr(value, name, None))
 
         if not context.review:
             context.review = await maybe_get("review")
@@ -731,19 +735,39 @@ class Null(TypeChecker[Optional[T]]):
         return value is None
 
 
-CHECKER_MAP: Mapping[Any, Any] = {
+APIObjectType = TypeVar("APIObjectType", bound=api.APIObject)
+
+
+class APIObjectKey:
+    def __init__(self, cls: Any):
+        self.__resource_name = cls.getResourceName()
+
+    def __hash__(self) -> int:
+        return hash(self.__resource_name)
+
+    def __eq__(self, other: object) -> bool:
+        return (
+            isinstance(other, APIObjectKey)
+            and self.__resource_name == other.__resource_name
+        )
+
+
+TYPE_MAP: Mapping[Any, Any] = {
     int: IntegerChecker(),
     str: StringChecker(),
     bool: BooleanChecker(),
-    api.user.User: User(),
-    api.repository.Repository: Repository(),
-    api.review.Review: Review(),
-    api.commit.Commit: Commit(),
-    api.file.File: File(),
-    api.changeset.Changeset: Changeset(),
-    api.extension.Extension: Extension(),
-    api.reviewscope.ReviewScope: ReviewScope(),
-    api.branch.Branch: Branch(),
+}
+
+APIOBJECT_MAP: Mapping[APIObjectKey, Any] = {
+    APIObjectKey(api.user.User): User(),
+    APIObjectKey(api.repository.Repository): Repository(),
+    APIObjectKey(api.review.Review): Review(),
+    APIObjectKey(api.commit.Commit): Commit(),
+    APIObjectKey(api.file.File): File(),
+    APIObjectKey(api.changeset.Changeset): Changeset(),
+    APIObjectKey(api.extension.Extension): Extension(),
+    APIObjectKey(api.reviewscope.ReviewScope): ReviewScope(),
+    APIObjectKey(api.branch.Branch): Branch(),
 }
 
 Converted = Mapping[str, Any]

@@ -57,11 +57,16 @@ const useStyles = makeStyles((theme) => ({
 }))
 
 type Props = {
+  global?: boolean
   callback?: ((user: User | null) => void) | null
   reason?: string
 }
 
-const SignIn: FunctionComponent<Props> = ({ callback, reason }) => {
+const SignIn: FunctionComponent<Props> = ({
+  global = false,
+  callback,
+  reason,
+}) => {
   const classes = useStyles()
   const dispatch = useDispatch()
   const { isOpen, closeDialog } = useDialog(kDialogID)
@@ -84,56 +89,67 @@ const SignIn: FunctionComponent<Props> = ({ callback, reason }) => {
       else closeDialog()
     }
   }
-  const fields = session.fields.map((field) => {
-    const hasError =
-      !!signInError && signInError.code === `invalid:${field.identifier}`
+  const fields = session.fields.map((field, index) => {
+    const hasError = signInError?.code === `invalid:${field.identifier}`
     return (
       <TextField
         key={field.identifier}
         id={fieldID(field)}
         error={hasError}
-        helperText={signInError && hasError ? signInError.message : null}
+        helperText={hasError ? signInError?.message : undefined}
         label={field.label}
         type={field.hidden ? "password" : "text"}
         margin="normal"
         fullWidth
+        autoFocus={index === 0}
       />
     )
   })
 
   const onClose = () => {
-    if (callback) callback(null)
-    else closeDialog()
+    if (global) closeDialog()
+    else if (callback) callback(null)
   }
 
   return (
     <Dialog
-      open={callback === undefined ? isOpen : !!callback}
+      open={global ? isOpen : !!callback}
       onClose={onClose}
       aria-labelledby="simple-dialog-title"
     >
-      <DialogTitle id="simple-dialog-title">Sign in</DialogTitle>
-      <DialogContent>
-        {reason && (
-          <Alert className={classes.alert} severity="info">
-            {reason}
-          </Alert>
-        )}
-        <form className={classes.form}>{fields}</form>
-      </DialogContent>
-      <DialogActions>
-        <Button onClick={onClose}>Cancel</Button>
-        <WithProgress inProgress={signInPending} successful={signInSuccessful}>
-          <Button
-            color="primary"
-            variant="contained"
-            disabled={signInPending || signInSuccessful}
-            onClick={doSignIn}
+      <form
+        className={classes.form}
+        onSubmit={(ev) => {
+          doSignIn()
+          ev.preventDefault()
+        }}
+      >
+        <DialogTitle id="simple-dialog-title">Sign in</DialogTitle>
+        <DialogContent>
+          {reason && (
+            <Alert className={classes.alert} severity="info">
+              {reason}
+            </Alert>
+          )}
+          {fields}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={onClose}>Cancel</Button>
+          <WithProgress
+            inProgress={signInPending}
+            successful={signInSuccessful}
           >
-            Sign in
-          </Button>
-        </WithProgress>
-      </DialogActions>
+            <Button
+              color="primary"
+              variant="contained"
+              disabled={signInPending || signInSuccessful}
+              type="submit"
+            >
+              Sign in
+            </Button>
+          </WithProgress>
+        </DialogActions>
+      </form>
     </Dialog>
   )
 }

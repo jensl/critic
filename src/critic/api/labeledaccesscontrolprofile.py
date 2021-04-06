@@ -15,8 +15,9 @@
 # the License.
 
 from __future__ import annotations
+from abc import abstractmethod
 
-from typing import Awaitable, Callable, Optional, Sequence, Tuple, Iterable
+from typing import Awaitable, Callable, Collection, Optional, Sequence, Iterable
 
 from critic import api
 from critic.api.apiobject import FunctionRef
@@ -43,26 +44,17 @@ class LabeledAccessControlProfile(api.APIObject):
 
     RULE_VALUES = frozenset(["allow", "deny"])
 
-    def __str__(self) -> str:
-        return "|".join(self.labels)
-
-    def __hash__(self) -> int:
-        return hash(str(self))
-
-    def __eq__(self, other: object) -> bool:
-        return isinstance(other, LabeledAccessControlProfile) and str(self) == str(
-            other
-        )
-
     @property
-    def labels(self) -> Tuple[str]:
+    @abstractmethod
+    def labels(self) -> Collection[str]:
         """The labels for which the access control profile is selected"""
-        return self._impl.labels
+        ...
 
     @property
+    @abstractmethod
     async def profile(self) -> api.accesscontrolprofile.AccessControlProfile:
         """The access control profile that is selected"""
-        return await self._impl.getAccessControlProfile(self.critic)
+        ...
 
 
 async def fetch(

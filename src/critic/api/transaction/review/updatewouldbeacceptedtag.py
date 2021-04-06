@@ -19,74 +19,95 @@ from __future__ import annotations
 import logging
 from typing import Dict
 
-from critic.api.transaction.review.submitchanges import submit_changes
-
 logger = logging.getLogger(__name__)
-
-from ..base import TransactionBase, Finalizer
-from ..modifier import Modifier
 
 from critic import api
 from critic import dbaccess
+from ..base import TransactionBase, Finalizer
+from .submitchanges import submit_changes
 
 
 class UpdateWouldBeAcceptedTag(Finalizer):
     tables = frozenset(("reviewusertags",))
 
-    def __init__(self, modifier: Modifier[api.review.Review]):
-        self.__modifier = modifier
+    def __init__(self, review: api.review.Review):
+        self.__review = review
+        super().__init__(self.__review)
 
-    @property
-    def review(self) -> api.review.Review:
-        return self.__modifier.subject
-
-    def __hash__(self) -> int:
-        return hash((UpdateWouldBeAcceptedTag, self.review))
-
-    def __eq__(self, other: object) -> bool:
-        return (
-            isinstance(other, UpdateWouldBeAcceptedTag) and self.review == other.review
-        )
+    async def is_accepted(self) -> bool:
+        return await (await self.__review.refresh()).is_accepted
 
     async def __call__(
         self, transaction: TransactionBase, cursor: dbaccess.TransactionCursor
     ) -> None:
-        review = self.review
-        would_be_accepted: Dict[api.user.User, bool] = {}
-        for user in await review.users:
-            batch = await (await api.batch.fetchUnpublished(review, user)).reload()
+        is_accepted_now = await self.is_accepted()
+        logger.debug(f"{is_accepted_now=}")
+        accepted_after_publish: Dict[api.user.User, bool] = {}
+        for user in await self.__review.users:
+            batch = await api.batch.fetchUnpublished(self.__review, user)
             if await batch.is_empty:
                 continue
-            logger.debug("%r: faux-submitting changes for %r", review, user)
+            logger.debug("%r: faux-submitting changes for %r", self.__review, user)
             async with transaction.savepoint(
                 "update_would_be_accepted_tag"
             ) as savepoint:
-                await submit_changes(transaction, review, batch, None)
+                await submit_changes(transaction, self.__review, batch, None)
                 await savepoint.run_finalizers()
-                would_be_accepted[user] = await (
-                    await self.__modifier.reload()
-                ).is_accepted
-        async with dbaccess.Query[int](
-            cursor,
-            """
-            SELECT id
-              FROM reviewtags
-             WHERE name='would_be_accepted'
-            """,
-        ) as result:
-            tag_id = await result.scalar()
+                is_accepted_then = await self.is_accepted()
+                logger.debug(f"{user=} {is_accepted_then=}")
+                if is_accepted_then != is_accepted_now:
+                    accepted_after_publish[user] = is_accepted_then
+        logger.debug(f"{accepted_after_publish=}")
+        would_be_accepted = await api.reviewtag.fetch(
+            transaction.critic, name="would_be_accepted"
+        )
+        would_be_unaccepted = await api.reviewtag.fetch(
+            transaction.critic, name="would_be_unaccepted"
+        )
         await cursor.delete(
             "reviewusertags",
-            review=review,
-            tag=tag_id,
+            review=self.__review,
+            tag=[would_be_accepted, would_be_unaccepted],
         )
-        users = [user for user, has_tag in would_be_accepted.items() if has_tag]
-        logger.debug("%r would be accepted by %r", review, users)
-        if users:
+        should_have_would_be_accepted = [
+            user for user, is_accepted in accepted_after_publish.items() if is_accepted
+        ]
+        should_have_would_be_unaccepted = [
+            user
+            for user, is_accepted in accepted_after_publish.items()
+            if not is_accepted
+        ]
+        if should_have_would_be_accepted:
+            logger.debug(
+                "%r would be accepted by %r",
+                self.__review,
+                should_have_would_be_accepted,
+            )
             await cursor.insertmany(
                 "reviewusertags",
                 (
-                    dbaccess.parameters(review=review, uid=user, tag=tag_id)
-                    for user in users
+                    dbaccess.parameters(
+                        review=self.__review,
+                        uid=user,
+                        tag=would_be_accepted,
+                    )
+                    for user in should_have_would_be_accepted
+                ),
+            )
+        if should_have_would_be_unaccepted:
+            logger.debug(
+                "%r would be unaccepted by %r",
+                self.__review,
+                should_have_would_be_unaccepted,
+            )
+            await cursor.insertmany(
+                "reviewusertags",
+                (
+                    dbaccess.parameters(
+                        review=self.__review,
+                        uid=user,
+                        tag=would_be_unaccepted,
+                    )
+                    for user in should_have_would_be_unaccepted
                 ),
             )

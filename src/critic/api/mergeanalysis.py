@@ -15,8 +15,9 @@
 # the License.
 
 from __future__ import annotations
+from abc import abstractmethod
 
-from typing import Awaitable, Callable, FrozenSet, Mapping, Sequence
+from typing import Awaitable, Callable, Collection, Mapping, Optional, Sequence
 
 from critic import api
 from critic.api.apiobject import FunctionRef
@@ -33,21 +34,21 @@ class Delayed(api.ResultDelayedError):
 class MergeChangeset(api.APIObject):
     """Representation of the changes made by a merge compared to one parent"""
 
-    def __repr__(self) -> str:
-        return f"MergeChangeset(merge={self.merge!r}, parent={self.parent!r})"
-
     @property
+    @abstractmethod
     def merge(self) -> api.commit.Commit:
         """The merge commit"""
-        return self._impl.merge
+        ...
 
     @property
+    @abstractmethod
     def parent(self) -> api.commit.Commit:
         """The merge parent commit that this changeset compares to"""
-        return self._impl.parent
+        ...
 
     @property
-    async def files(self) -> FrozenSet[api.file.File]:
+    @abstractmethod
+    async def files(self) -> Optional[Collection[api.file.File]]:
         """The set of files that were modified by both sides of the merge
 
         The returned value is a set of api.file.File objects.
@@ -59,8 +60,9 @@ class MergeChangeset(api.APIObject):
         Note that only some, or none, of these files may have been changed on
         both sides in such a way that there was a conflict. Inclusion in this
         list simply means that the file has been modified at all."""
-        return await self._impl.getFiles(self.critic)
+        ...
 
+    @abstractmethod
     async def getMacroChunks(
         self, *, adjacency_limit: int = 2, context_lines: int = 3
     ) -> Mapping[api.file.File, Sequence[api.filediff.MacroChunk]]:
@@ -81,11 +83,10 @@ class MergeChangeset(api.APIObject):
         parent commit and the merge commit, for the latter block to be
         included in the returned filediff object. A zero limit means only
         overlapping or directly adjacent changes are included."""
-        return await self._impl.getMacroChunks(
-            self.critic, adjacency_limit, context_lines
-        )
+        ...
 
-    async def ensure(self, *, block: bool = True) -> bool:
+    @abstractmethod
+    async def ensure_availability(self, *, block: bool = True) -> bool:
         """Ensure (or check) the availability of linked data.
 
         Args:
@@ -97,25 +98,28 @@ class MergeChangeset(api.APIObject):
             `False`, then `True` is returned if all linked data is immediately
             available, and `False` if any subsequent accesses may raies
             critic.api.ResultDelayedError exceptions."""
-        return await self._impl.ensure(self.critic, bool(block))
+        ...
 
 
 class MergeAnalysis(api.APIObject):
     """Representation of the analysis of a merge commit"""
 
     @property
+    @abstractmethod
     def merge(self) -> api.commit.Commit:
-        return self._impl.merge
+        ...
 
     @property
+    @abstractmethod
     async def changes_relative_parents(self) -> Sequence[MergeChangeset]:
         """Filtered changes relative each parent.
 
         The returned value is a list of MergeChangeset objects, one for each
         parent of the merge commit, in the same order as the parents."""
-        return await self._impl.getChangesRelativeParent(self.critic)
+        ...
 
     @property
+    @abstractmethod
     async def conflict_resolutions(self) -> api.changeset.Changeset:
         """Conflict resolution changes.
 
@@ -133,9 +137,10 @@ class MergeAnalysis(api.APIObject):
         This diff will also include, as direct changes, any modifications made
         to the worktree when performing the merge that were not made to resolve
         conflicts."""
-        return await self._impl.getConflictResolutions(self.critic)
+        ...
 
-    async def ensure(self, block: bool = True) -> bool:
+    @abstractmethod
+    async def ensure_availability(self, *, block: bool = True) -> bool:
         """Ensure (or check) the availability of linked data.
 
         Args:
@@ -147,7 +152,7 @@ class MergeAnalysis(api.APIObject):
             `False`, then `True` is returned if all linked data is immediately
             available, and `False` if any subsequent accesses may raies
             critic.api.ResultDelayedError exceptions."""
-        return await self._impl.ensure(self.critic, bool(block))
+        ...
 
 
 async def fetch(merge: api.commit.Commit) -> MergeAnalysis:

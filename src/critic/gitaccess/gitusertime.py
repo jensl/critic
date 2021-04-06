@@ -22,14 +22,16 @@ logger = logging.getLogger(__name__)
 
 from . import GitError
 
-RE_VALUE = re.compile(r"^(.*?)\s+<(.*?)>\s+(\d+)\s+(\+|-)(\d\d)(\d\d)$")
+RE_VALUE = re.compile(br"^(.*?)\s+<(.*?)>\s+(\d+)\s+(\+|-)(\d\d)(\d\d)$")
 
 
 class GitUserTime:
-    def __init__(self, value: str) -> None:
+    def __init__(self, value: bytes) -> None:
         match = RE_VALUE.match(value)
         if not match:
-            raise GitError("Malformed Git user metadata: %r" % value)
+            raise GitError(
+                "Malformed Git user metadata: %r" % value.decode(errors="replace")
+            )
         self.name, self.email, timestamp, sign, hours, minutes = match.groups()
 
         utcoffset = datetime.timedelta(
@@ -42,7 +44,9 @@ class GitUserTime:
         self.time = datetime.datetime.fromtimestamp(int(timestamp, base=10), timezone)
 
     def __str__(self) -> str:
+        name = self.name.decode(errors="replace")
+        email = self.email.decode(errors="replace")
         return (
-            f"{self.name} <{self.email}> {int(self.time.timestamp())} "
+            f"{name} <{email}> {int(self.time.timestamp())} "
             f"{self.time.strftime('%z')}"
         )

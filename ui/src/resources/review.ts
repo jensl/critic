@@ -22,6 +22,10 @@ import { CommentID, CommitID, FileID, RebaseID, ReviewTagID } from "./types"
 type ReviewData = {
   id: number
   state: "draft" | "open" | "closed" | "dropped"
+  can_publish: boolean
+  can_close: boolean
+  can_drop: boolean
+  can_reopen: boolean
   is_accepted: boolean
   summary: string
   description: string
@@ -48,6 +52,10 @@ type ReviewData = {
 type ReviewProps = {
   id: number
   state: "draft" | "open" | "closed" | "dropped"
+  can_publish: boolean
+  can_close: boolean
+  can_drop: boolean
+  can_reopen: boolean
   is_accepted: boolean
   summary: string
   description: string
@@ -77,6 +85,10 @@ class Review {
   constructor(
     readonly id: number,
     readonly state: "draft" | "open" | "closed" | "dropped",
+    readonly canPublish: boolean,
+    readonly canClose: boolean,
+    readonly canDrop: boolean,
+    readonly canReopen: boolean,
     readonly isAccepted: boolean,
     readonly summary: string,
     readonly description: string,
@@ -103,6 +115,10 @@ class Review {
     return new Review(
       props.id,
       props.state,
+      props.can_publish,
+      props.can_close,
+      props.can_drop,
+      props.can_reopen,
       props.is_accepted,
       props.summary,
       props.description,
@@ -150,6 +166,10 @@ class Review {
   get props(): ReviewProps {
     return {
       ...this,
+      can_publish: this.canPublish,
+      can_close: this.canClose,
+      can_drop: this.canDrop,
+      can_reopen: this.canReopen,
       is_accepted: this.isAccepted,
       active_reviewers: this.activeReviewers,
       assigned_reviewers: this.assignedReviewers,

@@ -15,6 +15,7 @@
 # the License.
 
 from __future__ import annotations
+from abc import abstractmethod
 
 from typing import (
     Awaitable,
@@ -45,57 +46,65 @@ class InvalidId(api.InvalidIdError, Error):
 FilterType = Literal["reviewer", "watcher", "ignore"]
 
 
-class RepositoryFilter(api.APIObject):
+class RepositoryFilter(api.APIObjectWithId):
     """Representation of a repository filter
 
     A repository filter is a filter that applies to all reviews in a
     repository."""
 
     @property
+    @abstractmethod
     def id(self) -> int:
         """The repository filter's unique id"""
-        return self._impl.id
+        ...
 
     @property
+    @abstractmethod
     async def repository(self) -> api.repository.Repository:
         """The repository filter's repository"""
-        return await self._impl.getRepository(self.critic)
+        ...
 
     @property
+    @abstractmethod
     async def subject(self) -> api.user.User:
         """The filter's subject
 
         The subject is the user that the filter applies to."""
-        return await self._impl.getSubject(self.critic)
+        ...
 
     @property
+    @abstractmethod
     def type(self) -> FilterType:
         """The filter's type
 
         The type is always one of "reviewer", "watcher" and "ignore"."""
-        return self._impl.type
+        ...
 
     @property
+    @abstractmethod
     def path(self) -> str:
         """The filter's path"""
-        return self._impl.path
+        ...
 
     @property
+    @abstractmethod
     def default_scope(self) -> bool:
-        return self._impl.default_scope
+        ...
 
     @property
+    @abstractmethod
     async def scopes(self) -> Collection[api.reviewscope.ReviewScope]:
-        return await self._impl.getScopes(self)
+        ...
 
     @property
+    @abstractmethod
     async def delegates(self) -> Collection[api.user.User]:
         """The repository filter's delegates, or None
 
         The delegates are returned as a frozenset of api.user.User objects.
         If the filter's type is not "reviewer", this attribute's value is
         None."""
-        return await self._impl.getDelegates(self)
+        ...
 
 
 async def fetch(critic: api.critic.Critic, filter_id: int) -> RepositoryFilter:

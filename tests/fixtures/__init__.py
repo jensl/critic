@@ -21,7 +21,7 @@ class Node(Protocol):
 
 
 class Config(Protocol):
-    def getoption(self, name: str, /) -> Optional[str]:
+    def getoption(self, name: str, /, default: Optional[Any] = None) -> Any:
         ...
 
 
@@ -38,7 +38,7 @@ def event_loop():
 
 
 @pytest.fixture
-def anonymizer(snapshot) -> Anonymizer:
+def anonymizer(snapshot: Snapshot) -> Anonymizer:
     def resource_filters(resource_name: str, *suffixes: str) -> Sequence[str]:
         if suffixes and suffixes[0]:
             suffixes = tuple(f"[*].{suffix}" for suffix in suffixes)
@@ -55,9 +55,10 @@ def anonymizer(snapshot) -> Anonymizer:
     def default_filters(resource_name: str) -> Sequence[str]:
         return [
             *resource_filters(resource_name, "id"),
+            f"$.response.data.deleted.{resource_name}[*]",
             f'$.publish[message.resource_name="{resource_name}"].message.object_id',
-            f"$.request.path:(?<=api/v1/{resource_name}/)\d+",
-            f"$.publish[*].channel[*]:(?<={resource_name}/)(\d+)",
+            rf"$.request.path:(?<=api/v1/{resource_name}/)\d+",
+            rf"$.publish[*].channel[*]:(?<={resource_name}/)(\d+)",
         ]
 
     def message_filters(resource_name: str, *suffixes: str) -> Sequence[str]:
@@ -138,7 +139,9 @@ def anonymizer(snapshot) -> Anonymizer:
             *resource_filters("filediffs", "file"),
             *resource_filters("reviewablefilechanges", "file"),
         ],
-        FileSHA1=[*resource_filters("filechanges", "new_sha1", "old_sha1"),],
+        FileSHA1=[
+            *resource_filters("filechanges", "new_sha1", "old_sha1"),
+        ],
         ReplyId=[
             *default_filters("replies"),
             *resource_filters("batches", "written_replies[*]"),
@@ -168,7 +171,9 @@ def anonymizer(snapshot) -> Anonymizer:
             *resource_filters("reviewfilters", "review"),
             "$.publish[*].message.review_id",
         ],
-        ReviewEventId=[*default_filters("reviewevents"),],
+        ReviewEventId=[
+            *default_filters("reviewevents"),
+        ],
         ReviewFilterId=[
             *default_filters("reviewfilters"),
             *resource_filters("reviews", "filters[*]"),
@@ -179,7 +184,9 @@ def anonymizer(snapshot) -> Anonymizer:
             *resource_filters("reviewscopefilters", "scope"),
             *resource_filters("reviewablefilechanges", "scope"),
         ],
-        ReviewScopeFilterId=[*default_filters("reviewscopefilters"),],
+        ReviewScopeFilterId=[
+            *default_filters("reviewscopefilters"),
+        ],
         ReviewTagId=[
             *default_filters("reviewtags"),
             *resource_filters("reviews", "tags[*]"),

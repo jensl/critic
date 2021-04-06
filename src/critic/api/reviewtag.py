@@ -15,6 +15,7 @@
 # the License.
 
 from __future__ import annotations
+from abc import abstractmethod
 
 from typing import Awaitable, Callable, Iterable, Optional, Sequence, overload
 
@@ -50,18 +51,21 @@ class InvalidNames(api.InvalidItemsError, Error, items_type="names"):
     pass
 
 
-class ReviewTag(api.APIObject):
+class ReviewTag(api.APIObjectWithId):
     @property
+    @abstractmethod
     def id(self) -> int:
-        return self._impl.id
+        ...
 
     @property
+    @abstractmethod
     def name(self) -> str:
-        return self._impl.name
+        ...
 
     @property
+    @abstractmethod
     def description(self) -> str:
-        return self._impl.description
+        ...
 
 
 @overload

@@ -6,12 +6,18 @@ from typing import Optional, Sequence
 from critic.gitaccess import SHA1
 
 
+@dataclass
+class Source:
+    repository_path: str
+    encodings: Sequence[str]
+    sha1: SHA1
+
+
 class SyntaxHighlighFile:
     @dataclass
     class Request:
+        source: Source
         repository_id: int
-        repository_path: str
-        sha1: SHA1
         language_id: int
         language_label: str
         conflicts: bool
@@ -21,20 +27,24 @@ class SyntaxHighlighFile:
         file_id: int
 
 
+@dataclass
+class Block:
+    index: int
+    old_offset: int
+    old_length: int
+    new_offset: int
+    new_length: int
+
+
 class AnalyzeChangedLines:
     @dataclass
     class Request:
-        old_lines: Sequence[str]
-        new_lines: Sequence[str]
-
-        def __repr__(self) -> str:
-            return (
-                "AnalyzeChangedLines.Request("
-                f"old_lines=[{len(self.old_lines)} lines], "
-                f"new_lines=[{len(self.new_lines)} lines]"
-                ")"
-            )
+        changeset_id: int
+        file_id: int
+        old_source: Source
+        new_source: Source
+        blocks: Sequence[Block]
 
     @dataclass
     class Response:
-        analysis: Optional[str]
+        duration: float

@@ -16,33 +16,46 @@
 
 from __future__ import annotations
 
-from typing import Tuple, Optional, Set, Sequence
+from typing import Callable, Collection, Tuple, Optional, Sequence
 
 from critic.api import useremail as public
-from . import apiobject
+from .queryhelper import QueryHelper, QueryResult, join, left_outer_join
+from .apiobject import APIObjectImplWithId
 from ... import api
 
-WrapperType = api.useremail.UserEmail
-ArgumentsType = Tuple[int, int, str, api.useremail.Status, Optional[str]]
+PublicType = public.UserEmail
+ArgumentsType = Tuple[int, int, str, public.Status]
 
 
-class UserEmail(apiobject.APIObject[WrapperType, ArgumentsType, int]):
-    wrapper_class = api.useremail.UserEmail
-    column_names = ["id", "uid", "email", "status", "token"]
-
+class UserEmail(PublicType, APIObjectImplWithId, module=public):
     __is_selected: Optional[bool]
 
-    def __init__(self, args: ArgumentsType) -> None:
-        (self.id, self.__user_id, self.address, self.status, self.token) = args
+    def update(self, args: ArgumentsType) -> int:
+        (self.__id, self.__user_id, self.__address, self.__status) = args
         self.__is_selected = None
+        return self.__id
 
-    async def getUser(self, critic: api.critic.Critic) -> api.user.User:
-        return await api.user.fetch(critic, self.__user_id)
+    @property
+    def id(self) -> int:
+        return self.__id
 
-    async def isSelected(self, critic: api.critic.Critic) -> bool:
+    @property
+    async def user(self) -> api.user.User:
+        return await api.user.fetch(self.critic, self.__user_id)
+
+    @property
+    def address(self) -> str:
+        return self.__address
+
+    @property
+    def status(self) -> public.Status:
+        return self.__status
+
+    @property
+    async def is_selected(self) -> bool:
         if self.__is_selected is None:
             async with api.critic.Query[bool](
-                critic,
+                self.critic,
                 """SELECT TRUE
                      FROM selecteduseremails
                     WHERE uid={user_id}
@@ -54,17 +67,27 @@ class UserEmail(apiobject.APIObject[WrapperType, ArgumentsType, int]):
         return self.__is_selected
 
     @classmethod
-    def refresh_tables(cls) -> Set[str]:
-        return {UserEmail.table(), "selecteduseremails"}
+    def refresh_tables(cls) -> Collection[str]:
+        return {UserEmail.getTableName(), "selecteduseremails"}
+
+    @classmethod
+    def getQueryByIds(
+        cls,
+    ) -> Callable[[api.critic.Critic, Sequence[int]], QueryResult[ArgumentsType]]:
+        return queries.queryByIds
+
+
+queries = QueryHelper[ArgumentsType](
+    PublicType.getTableName(), "id", "uid", "email", "status"
+)
 
 
 @public.fetchImpl
-@UserEmail.cached
 async def fetch(
     critic: api.critic.Critic,
     useremail_id: Optional[int],
     user: Optional[api.user.User],
-) -> Optional[WrapperType]:
+) -> Optional[PublicType]:
     if useremail_id is None:
         async with api.critic.Query[int](
             critic,
@@ -77,10 +100,9 @@ async def fetch(
                 useremail_id = await selected_result.scalar()
             except selected_result.ZeroRowsInResult:
                 return None
-    async with UserEmail.query(
-        critic, ["id={useremail_id}"], useremail_id=useremail_id
-    ) as result:
-        useremail = await UserEmail.makeOne(critic, result)
+    useremail = await UserEmail.ensureOne(
+        useremail_id, queries.idFetcher(critic, UserEmail)
+    )
     api.PermissionDenied.raiseUnlessUser(critic, await useremail.user)
     return useremail
 
@@ -89,22 +111,38 @@ async def fetch(
 async def fetchAll(
     critic: api.critic.Critic,
     user: Optional[api.user.User],
-    status: Optional[api.useremail.Status],
+    status: Optional[public.Status],
     selected: Optional[bool],
-) -> Sequence[WrapperType]:
-    conditions = []
+) -> Sequence[PublicType]:
     if user is not None:
-        conditions.append("useremails.uid={user}")
         api.PermissionDenied.raiseUnlessUser(critic, user)
     else:
         # We do not let users inspect each other's email addresses aside from
         # the selected one.
         api.PermissionDenied.raiseUnlessSystem(critic)
+    joins = []
+    conditions = []
+    if user is not None:
+        conditions.append("uid={user}")
     if status is not None:
-        conditions.append("useremails.status={status}")
+        conditions.append("status={status}")
     if selected is not None:
-        conditions.append("useremails.selected={selected}")
-    async with UserEmail.query(
-        critic, conditions, user=user, status=status, selected=selected
-    ) as result:
-        return await UserEmail.make(critic, result)
+        if selected:
+            joins.append(
+                join(selecteduseremails=["selecteduseremails.email=useremails.id"])
+            )
+        else:
+            joins.append(
+                left_outer_join(
+                    selecteduseremails=["selecteduseremails.email=useremails.id"]
+                )
+            )
+            conditions.append("selecteduseremails.email IS NULL")
+    return UserEmail.store(
+        await queries.query(
+            critic,
+            queries.formatQuery(*conditions, joins=joins),
+            user=user,
+            status=status,
+        ).make(UserEmail)
+    )

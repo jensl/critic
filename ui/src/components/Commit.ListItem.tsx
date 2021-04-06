@@ -8,6 +8,7 @@ import Progress from "./Commit.ListItem.Progress"
 import Summary from "./Commit.ListItem.Summary"
 import SHA1 from "./Commit.ListItem.SHA1"
 import Metadata from "./Commit.ListItem.Metadata"
+import Reviewers from "./Commit.ListItem.Reviewers"
 import ChangedLines from "./Commit.ListItem.ChangedLines"
 import { useResource } from "../utils"
 import { SelectionScope } from "../reducers/uiSelectionScope"
@@ -24,6 +25,8 @@ const useStyles = makeStyles((theme) => ({
       cursor: "pointer",
       borderRadius: 4,
     },
+
+    "& > *": { alignSelf: "center" },
   },
   selected: {
     background: theme.palette.secondary.light,
@@ -52,10 +55,10 @@ const useStyles = makeStyles((theme) => ({
   [theme.breakpoints.up("sm")]: {
     withProgress: {
       gridTemplateRows: "1fr 1fr",
-      gridTemplateColumns: "4rem 1fr 8rem",
+      gridTemplateColumns: "4rem 1fr 2fr 8rem",
       gridTemplateAreas: `
-      "progress summary sha1"
-      "progress metadata lines"
+      "progress summary summary sha1"
+      "progress metadata reviewers lines"
     `,
     },
     withoutProgress: {
@@ -133,6 +136,7 @@ const CommitListItem: FunctionComponent<Props> = ({
       <Summary commit={commit} />
       <SHA1 commit={commit} />
       <Metadata commit={commit} />
+      <Reviewers commit={commit} />
       <ChangedLines commit={commit} />
     </div>
   )

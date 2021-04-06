@@ -18,7 +18,8 @@ from __future__ import annotations
 
 from typing import Collection
 
-from ..review import CreateReviewObject
+from ..review import CreateReviewObject, ReviewUser
+from ..review.updateunpublishedtag import UpdateUnpublishedTag
 from ..base import TransactionBase
 
 from critic import api
@@ -49,6 +50,14 @@ class CreateReply(CreateReviewObject[api.reply.Reply], api_module=api.reply):
         author: api.user.User,
         text: str,
     ) -> api.reply.Reply:
-        return await CreateReply(transaction, await comment.review, comment).insert(
-            chain=comment, uid=author, text=text
+        review = await comment.review
+        reply = await CreateReply(transaction, await comment.review, comment).insert(
+            comment=comment, author=author, text=text
         )
+
+        ReviewUser.ensure(transaction, review, author)
+
+        if text.strip():
+            transaction.finalizers.add(UpdateUnpublishedTag(review))
+
+        return reply

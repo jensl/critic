@@ -103,9 +103,7 @@ async def handle_incoming(
             raise ProtocolError(f"Invalid input: {key}: empty channel name")
         return channels
 
-    if "subscribe" in parsed:
-        channels = parse_channels("subscribe")
-
+    async def subscribe(channels: List[pubsub.ChannelName]) -> None:
         async def handle(
             channel_name: pubsub.ChannelName, message: pubsub.Message
         ) -> None:
@@ -114,17 +112,50 @@ async def handle_incoming(
         await asyncutils.gather(
             *(pubsub_client.subscribe(channel, handle) for channel in channels)
         )
-
         await ws.send_str(json.dumps({"subscribed": channels}))
 
-    if "unsubscribe" in parsed:
-        channels = parse_channels("unsubscribe")
-
+    async def unsubscribe(channels: List[pubsub.ChannelName]) -> None:
         await asyncutils.gather(
             *(pubsub_client.unsubscribe(channel_name=channel) for channel in channels)
         )
-
         await ws.send_str(json.dumps({"unsubscribed": channels}))
+
+    if "subscribe" in parsed:
+        await subscribe(parse_channels("subscribe"))
+
+    if "unsubscribe" in parsed:
+        await unsubscribe(parse_channels("unsubscribe"))
+
+    monitor_changeset = parsed.pop("monitor_changeset", None)
+    if monitor_changeset:
+        changeset_id = int(monitor_changeset["changeset_id"])
+        required_levels = set(
+            map(
+                api.changeset.as_completion_level,
+                monitor_changeset.get("required_levels", ["full"]),
+            )
+        )
+        channels = [pubsub.ChannelName(f"changesets/{changeset_id}")]
+
+        await subscribe(channels)
+
+        async with api.critic.startSession(for_user=True) as critic:
+            changeset = await api.changeset.fetch(critic, changeset_id)
+            completion_level = await changeset.completion_level
+
+        await ws.send_str(
+            json.dumps(
+                {
+                    "monitor_changeset": {
+                        "changeset_id": changeset_id,
+                        "completion_level": sorted(completion_level),
+                    }
+                }
+            )
+        )
+
+        if not required_levels.difference(completion_level):
+            await unsubscribe(channels)
 
     if parsed:
         await ws.send_str(
@@ -169,39 +200,17 @@ async def serve(request: aiohttp.web.BaseRequest) -> aiohttp.web.StreamResponse:
         if protocol == "testing_1":
             await pubsub_client.subscribe_promiscuous(handle_promiscuous)
 
-        # async def receieve_messages() -> None:
-        #     while not req.response.closed:
-        #         message = await req.response.receive()
-
-        #         logger.debug("incoming: %r", message)
-
-        #         try:
-        #             await handle_incoming(req, pubsub_client, message)
-        #         except ProtocolError as error:
-        #             await req.closeWebSocketResponse(
-        #                 code=CODE_PROTOCOL_ERROR, message=str(error)
-        #             )
-        #             break
-
-        # async def heartbeat() -> None:
-        #     while not req.response.closed:
-        #         await asyncio.sleep(60)
-        #         await req.response.ping()
-
-        # done, pending = await asyncio.wait(
-        #     [receieve_messages(), heartbeat()], return_when=asyncio.FIRST_COMPLETED
-        # )
-
         while not ws.closed:
             message = await ws.receive()
-
-            logger.debug("incoming: %r", message)
 
             try:
                 await handle_incoming(ws, pubsub_client, message)
             except ProtocolError as error:
                 await ws.close(code=CODE_PROTOCOL_ERROR, message=str(error).encode())
                 break
+            except Exception as error:
+                logger.exception("handle_incoming failed")
+                await ws.send_str(json.dumps({"error": str(error)}))
 
     logger.debug("WebSocket connection finished")
 

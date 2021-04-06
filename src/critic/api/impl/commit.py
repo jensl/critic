@@ -20,17 +20,18 @@ import datetime
 import re
 import logging
 from dataclasses import dataclass
-from typing import Iterable, Mapping, Sequence, Tuple, Optional, Union, cast
+from typing import Collection, Iterable, Sequence, Tuple, Optional, Union, cast
+
 
 logger = logging.getLogger(__name__)
 
 from critic import api
 from critic.api import commit as public
+from critic.api.repository import Decode
 from critic import diff
 from critic import gitaccess
 from critic.gitaccess import SHA1
-from . import apiobject
-from .critic import Critic
+from .apiobject import APIObjectImplWithId
 
 RE_FOLLOWUP = re.compile("(fixup|squash)!.*(?:\n[ \t]*)+(.*)")
 
@@ -78,72 +79,125 @@ class FileInformation:
         return self.__size
 
 
-WrapperType = api.commit.Commit
-ArgumentsType = Tuple[api.repository.Repository, int, gitaccess.GitObject]
+@dataclass
+class CommitMetadata:
+    author: UserAndTimestamp
+    committer: UserAndTimestamp
+    message: str
+    low_level: gitaccess.GitCommit
+
+    @staticmethod
+    async def make(decode: Decode, low_level: gitaccess.GitCommit) -> CommitMetadata:
+        return CommitMetadata(
+            UserAndTimestamp(
+                decode.commitMetadata(low_level.author.name),
+                decode.commitMetadata(low_level.author.email),
+                low_level.author.time,
+            ),
+            UserAndTimestamp(
+                decode.commitMetadata(low_level.committer.name),
+                decode.commitMetadata(low_level.committer.email),
+                low_level.committer.time,
+            ),
+            decode.commitMetadata(low_level.message),
+            low_level,
+        )
+
+
+PublicType = public.Commit
+ArgumentsType = Tuple[api.repository.Repository, int, CommitMetadata]
 CacheKeyType = Tuple[int, Union[int, SHA1]]
 
 
-class Commit(apiobject.APIObject[WrapperType, ArgumentsType, CacheKeyType]):
-    wrapper_class = WrapperType
-
+class Commit(PublicType, APIObjectImplWithId, module=public):
     __description: Optional[CommitDescription]
 
-    def __init__(self, args: ArgumentsType):
-        (self.repository, self.id, low_level) = args
-        self.low_level = low_level.asCommit()
-        self.sha1 = self.low_level.sha1
-        self.tree = self.low_level.tree
+    def __init__(
+        self,
+        repository: api.repository.Repository,
+        commit_id: int,
+        metadata: CommitMetadata,
+    ):
+        super().__init__(repository.critic, (repository, commit_id, metadata))
 
-    def getSummary(self) -> str:
-        match = RE_FOLLOWUP.match(self.low_level.message)
+    def update(self, args: ArgumentsType) -> int:
+        (self.__repository, self.__id, metadata) = args
+        self.__author = metadata.author
+        self.__committer = metadata.committer
+        self.__message = metadata.message
+        self.__low_level = metadata.low_level
+        self.__sha1 = self.__low_level.sha1
+        self.__tree = self.__low_level.tree
+        return self.id
+
+    @property
+    def id(self) -> int:
+        return self.__id
+
+    @property
+    def repository(self) -> api.repository.Repository:
+        return self.__repository
+
+    @property
+    def sha1(self) -> SHA1:
+        return self.__sha1
+
+    @property
+    def tree(self) -> SHA1:
+        return self.__tree
+
+    @property
+    def summary(self) -> str:
+        match = RE_FOLLOWUP.match(self.__message)
         if match:
             followup_type, summary = match.groups()
             return "[%s] %s" % (followup_type, summary)
-        return self.low_level.message.split("\n", 1)[0]
+        return self.__message.split("\n", 1)[0]
 
-    def isMerge(self) -> bool:
-        return len(self.low_level.parents) > 1
+    @property
+    def message(self) -> str:
+        return self.__message
 
-    async def getParents(self) -> Tuple[WrapperType, ...]:
-        if not self.low_level.parents:
+    @property
+    def is_merge(self) -> bool:
+        return len(self.__low_level.parents) > 1
+
+    @property
+    async def parents(self) -> Sequence[PublicType]:
+        if not self.__low_level.parents:
             return ()
-        return tuple(
-            await fetchMany(self.repository, None, self.low_level.parents, None)
-        )
+        return await fetchMany(self.repository, None, self.__low_level.parents, None)
 
-    async def getDescription(
-        self, wrapper: WrapperType
-    ) -> api.commit.CommitDescription:
+    @property
+    def low_level(self) -> gitaccess.GitCommit:
+        return self.__low_level
+
+    @property
+    async def description(self) -> public.CommitDescription:
         if self.__description is None:
-            self.__description = CommitDescription(wrapper)
+            self.__description = CommitDescription(self)
             await self.__description.calculateBranch()
         return self.__description
 
-    def getAuthor(self, critic: api.critic.Critic) -> WrapperType.UserAndTimestamp:
-        return UserAndTimestamp(
-            self.low_level.author.name,
-            self.low_level.author.email,
-            self.low_level.author.time,
-        )
+    @property
+    def author(self) -> PublicType.UserAndTimestamp:
+        return self.__author
 
-    def getCommitter(self, critic: api.critic.Critic) -> WrapperType.UserAndTimestamp:
-        return UserAndTimestamp(
-            self.low_level.committer.name,
-            self.low_level.committer.email,
-            self.low_level.committer.time,
-        )
+    @property
+    def committer(self) -> PublicType.UserAndTimestamp:
+        return self.__committer
 
-    def isParentOf(self, child: WrapperType) -> bool:
-        return self.low_level.sha1 in child.low_level.parents
+    def isParentOf(self, child: PublicType) -> bool:
+        return self.__low_level.sha1 in child.low_level.parents
 
-    async def isAncestorOf(self, commit: WrapperType) -> bool:
+    async def isAncestorOf(self, commit: PublicType) -> bool:
         return await self.repository.low_level.mergebase(
             self.sha1, commit.sha1, is_ancestor=True
         )
 
     async def getFileInformation(
         self, file: api.file.File
-    ) -> Optional[WrapperType.FileInformation]:
+    ) -> Optional[PublicType.FileInformation]:
         entries = await self.repository.low_level.lstree(
             self.sha1, file.path, long_format=True
         )
@@ -151,7 +205,7 @@ class Commit(apiobject.APIObject[WrapperType, ArgumentsType, CacheKeyType]):
             return None
         entry = entries[0]
         if len(entries) > 1 or entry.object_type != "blob" or not entry.isreg():
-            raise api.commit.NotAFile(file.path)
+            raise public.NotAFile(file.path)
         assert entry.size is not None, entry
         return FileInformation(file, entry.mode, entry.sha1, entry.size)
 
@@ -170,26 +224,28 @@ class Commit(apiobject.APIObject[WrapperType, ArgumentsType, CacheKeyType]):
         contents = await self.getFileContents(file)
         if contents is None:
             return None
-        return diff.parse.splitlines(contents)
+        decode = await self.repository.getDecode(self)
+        return diff.parse.splitlines(decode.fileContent(file.path)(contents))
+
+    def getCacheKeys(self) -> Collection[object]:
+        return ((self.repository, self.id), (self.repository, self.sha1))
 
     @classmethod
-    def create(cls, critic: api.critic.Critic, args: ArgumentsType) -> WrapperType:
-        repository_id = int(args[0])
-        wrapper = Commit(args).wrap(critic)
-        Commit.add_cached(critic, (repository_id, wrapper.id), wrapper)
-        Commit.add_cached(critic, (repository_id, wrapper.sha1), wrapper)
-        return wrapper
+    async def doRefreshAll(
+        cls, critic: api.critic.Critic, commits: Collection[object], /
+    ) -> None:
+        pass
 
 
 class CommitDescription:
     __branch: Optional[api.branch.Branch]
 
-    def __init__(self, commit: api.commit.Commit) -> None:
+    def __init__(self, commit: public.Commit) -> None:
         self.__commit = commit
         self.__branch = None
 
     @property
-    def commit(self) -> api.commit.Commit:
+    def commit(self) -> public.Commit:
         return self.__commit
 
     @property
@@ -223,73 +279,143 @@ class CommitDescription:
     #     return None
 
 
+async def commit_id_from_sha1(critic: api.critic.Critic, sha1: SHA1) -> int:
+    assert sha1
+    async with api.critic.Query[int](
+        critic,
+        """SELECT id
+                FROM commits
+            WHERE sha1={sha1}""",
+        sha1=sha1,
+    ) as result:
+        try:
+            return await result.scalar()
+        except result.ZeroRowsInResult:
+            raise public.InvalidSHA1(value=sha1)
+
+
+async def sha1_from_commit_id(critic: api.critic.Critic, commit_id: int) -> SHA1:
+    assert commit_id
+    async with api.critic.Query[SHA1](
+        critic,
+        """SELECT sha1
+                FROM commits
+            WHERE id={commit_id}""",
+        commit_id=commit_id,
+    ) as result:
+        try:
+            return await result.scalar()
+        except result.ZeroRowsInResult:
+            raise public.InvalidId(value=commit_id)
+
+
+async def makeCommit(
+    repository: api.repository.Repository, commit_id: int, sha1: SHA1
+) -> Commit:
+    return Commit(
+        repository,
+        commit_id,
+        await CommitMetadata.make(
+            await repository.getDecode(),
+            (
+                await repository.low_level.fetchone(sha1, wanted_object_type="commit")
+            ).asCommit(),
+        ),
+    )
+
+
+async def fetch_by_id(args: Tuple[api.repository.Repository, int]) -> Commit:
+    repository, commit_id = args
+    return await makeCommit(
+        repository, commit_id, await sha1_from_commit_id(repository.critic, commit_id)
+    )
+
+
+async def fetch_by_sha1(args: Tuple[api.repository.Repository, SHA1]) -> Commit:
+    repository, sha1 = args
+    return await makeCommit(
+        repository, await commit_id_from_sha1(repository.critic, sha1), sha1
+    )
+
+
+async def fetch_by_rows(
+    repository: api.repository.Repository, rows: Sequence[Tuple[SHA1, int]]
+) -> Collection[Commit]:
+    commit_id_by_sha1 = dict(rows)
+    commits = set()
+    decode = await repository.getDecode()
+    async for sha1, gitobject in repository.low_level.fetch(
+        *commit_id_by_sha1.keys(), wanted_object_type="commit"
+    ):
+        if isinstance(gitobject, gitaccess.GitFetchError):
+            raise gitobject
+        commits.add(
+            Commit(
+                repository,
+                commit_id_by_sha1[sha1],
+                await CommitMetadata.make(decode, gitobject.asCommit()),
+            )
+        )
+    return commits
+
+
+async def lookup_ids(
+    critic: api.critic.Critic, sha1s: Sequence[SHA1]
+) -> Sequence[Tuple[SHA1, int]]:
+    async with api.critic.Query[Tuple[SHA1, int]](
+        critic,
+        """
+        SELECT sha1, id
+          FROM commits
+         WHERE sha1=ANY({sha1s})
+        """,
+        sha1s=sha1s,
+    ) as result:
+        return await result.all()
+
+
+async def fetch_by_ids(
+    args: Sequence[Tuple[api.repository.Repository, int]]
+) -> Collection[Commit]:
+    assert len(args) != 0
+    repository = args[0][0]
+    commit_ids = [commit_id for _, commit_id in args]
+    async with api.critic.Query[Tuple[SHA1, int]](
+        repository.critic,
+        """
+        SELECT sha1, id
+          FROM commits
+         WHERE id=ANY({commit_ids})
+        """,
+        commit_ids=commit_ids,
+    ) as result:
+        rows = await result.all()
+    return await fetch_by_rows(repository, rows)
+
+
+async def fetch_by_sha1s(
+    args: Sequence[Tuple[api.repository.Repository, SHA1]]
+) -> Collection[Commit]:
+    assert len(args) != 0
+    assert len(set(repository for repository, _ in args)) == 1
+    repository = args[0][0]
+    sha1s = [sha1 for _, sha1 in args]
+    return await fetch_by_rows(repository, await lookup_ids(repository.critic, sha1s))
+
+
 @public.fetchImpl
 async def fetch(
     repository: api.repository.Repository,
     commit_id: Optional[int],
     sha1: Optional[SHA1],
     ref: Optional[str],
-) -> WrapperType:
-    critic = repository.critic
-    repository_id = int(repository)
-
-    async def commit_id_from_sha1() -> int:
-        assert sha1
-        async with api.critic.Query[int](
-            critic,
-            """SELECT id
-                 FROM commits
-                WHERE sha1={sha1}""",
-            sha1=sha1,
-        ) as result:
-            try:
-                return await result.scalar()
-            except result.ZeroRowsInResult:
-                raise api.commit.InvalidSHA1(value=sha1)
-
-    async def sha1_from_commit_id() -> SHA1:
-        assert commit_id
-        async with api.critic.Query[SHA1](
-            critic,
-            """SELECT sha1
-                 FROM commits
-                WHERE id={commit_id}""",
-            commit_id=commit_id,
-        ) as result:
-            try:
-                return await result.scalar()
-            except result.ZeroRowsInResult:
-                raise api.commit.InvalidId(invalid_id=commit_id)
-
+) -> PublicType:
+    if commit_id is not None:
+        return await Commit.ensureOne((repository, commit_id), fetch_by_id)
     if ref is not None:
         sha1 = await repository.resolveRef(ref, expect="commit")
-
-    if commit_id is not None:
-        try:
-            return Commit.get_cached(critic, (repository_id, commit_id))
-        except KeyError:
-            pass
-
-        if sha1 is None:
-            sha1 = await sha1_from_commit_id()
-    else:
-        assert sha1
-
-        try:
-            return Commit.get_cached(critic, (repository_id, sha1))
-        except KeyError:
-            pass
-
-        commit_id = await commit_id_from_sha1()
-
-    return Commit.create(
-        critic,
-        (
-            repository,
-            commit_id,
-            await repository.low_level.fetchone(sha1, wanted_object_type="commit"),
-        ),
-    )
+    assert sha1
+    return await Commit.ensureOne((repository, sha1), fetch_by_sha1)
 
 
 @public.fetchManyImpl
@@ -298,114 +424,43 @@ async def fetchMany(
     commit_ids: Optional[Iterable[int]],
     sha1s: Optional[Iterable[SHA1]],
     low_levels: Optional[Iterable[gitaccess.GitCommit]],
-) -> Sequence[WrapperType]:
+) -> Sequence[PublicType]:
     critic = repository.critic
 
-    Critic.fromWrapper(critic).initializeObjects(Commit)
-    all_cached_commits = Commit.get_all_cached(critic)
-
-    repository_id = int(repository)
-
     if commit_ids is not None:
-        commits = {
-            commit_id: all_cached_commits[(repository_id, commit_id)]
-            for commit_id in commit_ids
-            if (repository_id, commit_id) in all_cached_commits
-        }
-
-        missing_commit_ids = set(
-            commit_id for commit_id in commit_ids if commit_id not in commits
+        return await Commit.ensure(
+            [(repository, commit_id) for commit_id in commit_ids], fetch_by_ids
         )
 
-        if missing_commit_ids:
-            async with api.critic.Query[Tuple[int, SHA1]](
-                critic,
-                """SELECT id, sha1
-                     FROM commits
-                    WHERE {id=commit_ids:array}""",
-                commit_ids=list(missing_commit_ids),
-            ) as result:
-                rows = await result.all()
+    if sha1s is not None:
+        return await Commit.ensure(
+            [(repository, sha1) for sha1 in sha1s], fetch_by_sha1s
+        )
 
-            if len(rows) != len(missing_commit_ids):
-                found_ids = set(commit_id for commit_id, _ in rows)
-                for commit_id in found_ids - missing_commit_ids:
-                    raise api.commit.InvalidId(invalid_id=commit_id)
+    assert low_levels is not None
+    low_levels = [*low_levels]
+    sha1s = [low_level.sha1 for low_level in low_levels]
+    low_level_by_sha1 = {low_level.sha1: low_level for low_level in low_levels}
+    commit_id_by_sha1 = dict(await lookup_ids(critic, sha1s))
+    decode = await repository.getDecode()
 
-            sha1s = [sha1 for _, sha1 in rows]
-            commit_id_from_sha1 = {sha1: commit_id for commit_id, sha1 in rows}
-
-            async for _, low_level in repository.low_level.fetch(
-                *sha1s, object_factory=gitaccess.GitCommit
-            ):
-                if isinstance(low_level, gitaccess.GitFetchError):
-                    raise low_level
-                commit_id = commit_id_from_sha1[low_level.sha1]
-                commits[commit_id] = Commit.create(
-                    critic, (repository, commit_id, low_level)
-                )
-
-        return [commits[commit_id] for commit_id in commit_ids]
-
-    low_level_from_sha1: Optional[Mapping[SHA1, gitaccess.GitCommit]] = None
-
-    if low_levels is not None:
-        sha1s = [low_level.sha1 for low_level in low_levels]
-        low_level_from_sha1 = {low_level.sha1: low_level for low_level in low_levels}
-    else:
-        assert sha1s
-        sha1s = list(sha1s)
-
-    async with api.critic.Query[Tuple[int, SHA1]](
-        critic,
-        """SELECT id, sha1
-             FROM commits
-            WHERE {sha1=sha1s:array}""",
-        sha1s=list(sha1s),
-    ) as result:
-        rows = await result.all()
-
-    if len(rows) != len(set(sha1s)):
-        found_sha1s = set(sha1 for _, sha1 in rows)
-        for sha1 in sha1s:
-            if sha1 not in found_sha1s:
-                raise api.commit.InvalidSHA1(value=sha1)
-
-    commit_id_from_sha1 = {}
-    missing_sha1s = set()
-
-    for commit_id, sha1 in rows:
-        commit_id_from_sha1[sha1] = commit_id
-        if (repository_id, commit_id) not in all_cached_commits:
-            missing_sha1s.add(sha1)
-
-    if missing_sha1s:
-        if low_levels:
-            assert low_level_from_sha1 is not None
-            for sha1 in missing_sha1s:
-                commit_id = commit_id_from_sha1[sha1]
-                Commit.create(
-                    critic, (repository, commit_id, low_level_from_sha1[sha1])
-                )
-        else:
-            async for _, low_level in repository.low_level.fetch(
-                *missing_sha1s, object_factory=gitaccess.GitCommit
-            ):
-                if isinstance(low_level, gitaccess.GitFetchError):
-                    raise low_level
-                commit_id = commit_id_from_sha1[low_level.sha1]
-                Commit.create(critic, (repository, commit_id, low_level))
-
-    return [
-        all_cached_commits[(repository_id, commit_id_from_sha1[sha1])] for sha1 in sha1s
-    ]
+    return Commit.store(
+        [
+            Commit(
+                repository,
+                commit_id_by_sha1[sha1],
+                await CommitMetadata.make(decode, low_level_by_sha1[sha1]),
+            )
+            for sha1 in sha1s
+        ]
+    )
 
 
 @public.fetchRangeImpl
 async def fetchRange(
-    from_commit: Optional[api.commit.Commit],
-    to_commit: api.commit.Commit,
-    order: api.commit.Order,
+    from_commit: Optional[public.Commit],
+    to_commit: public.Commit,
+    order: public.Order,
     offset: Optional[int],
     count: Optional[int],
 ) -> api.commitset.CommitSet:
@@ -420,8 +475,8 @@ async def fetchRange(
     include = [str(to_commit)]
     exclude = [str(from_commit)] if from_commit else []
 
-    git_commits = {}
-    async for _, git_object in repository.low_level.fetch(
+    low_levels = []
+    async for _, gitobject in repository.low_level.fetch(
         include=include,
         exclude=exclude,
         order=order,
@@ -429,28 +484,15 @@ async def fetchRange(
         limit=count,
         wanted_object_type="commit",
     ):
-        if isinstance(git_object, gitaccess.GitFetchError):
-            raise git_object
-        git_commit = git_object.asCommit()
-        git_commits[git_commit.sha1] = git_commit
-    if not git_commits:
+        if isinstance(gitobject, gitaccess.GitFetchError):
+            raise gitobject
+        low_levels.append(gitobject.asCommit())
+    if not low_levels:
         return api.commitset.empty(critic)
 
-    async with api.critic.Query[Tuple[int, SHA1]](
-        critic,
-        """SELECT id, sha1
-             FROM commits
-            WHERE {sha1=sha1s:array}""",
-        sha1s=list(git_commits.keys()),
-    ) as result:
-        commits = [
-            Commit.create(critic, (repository, commit_id, git_commits[sha1]))
-            async for commit_id, sha1 in result
-        ]
-
-    assert len(commits) == len(git_commits)
-
-    return await api.commitset.create(critic, commits)
+    return await api.commitset.create(
+        critic, await fetchMany(repository, None, None, low_levels)
+    )
 
 
 @public.prefetchImpl
@@ -458,25 +500,20 @@ async def prefetch(
     repository: api.repository.Repository, commit_ids: Iterable[int]
 ) -> None:
     critic = repository.critic
-    repository_id = repository.id
 
     async with api.critic.Query[int](
         critic,
         """SELECT DISTINCT parent
              FROM edges
-            WHERE {child=commit_ids:array}""",
+            WHERE child=ANY({commit_ids})""",
         commit_ids=list(commit_ids),
     ) as result:
         commit_ids = set(commit_ids) | set(await result.scalars())
 
-    try:
-        all_cached = Commit.get_all_cached(critic)
-        commit_ids = [
-            commit_id
-            for commit_id in commit_ids
-            if (repository_id, commit_id) not in all_cached
-        ]
-    except KeyError:
-        pass
+    cached = Commit.allCached()
+    missing_ids = set(
+        commit_id for commit_id in commit_ids if (repository, commit_id) not in cached
+    )
 
-    await fetchMany(repository, commit_ids, None, None)
+    if missing_ids:
+        await fetchMany(repository, missing_ids, None, None)

@@ -7,7 +7,6 @@ import Button from "@material-ui/core/Button"
 
 import Registry from "."
 import { createReview } from "../actions/review"
-import { resetSelectionScope } from "../actions/uiSelectionScope"
 import { useRepository, useReview, useSignedInUser } from "../utils"
 import { ActionProps } from "./Commit.List.Actions.types"
 import { useDispatch } from "../store"
@@ -39,7 +38,7 @@ const CreateReview: FunctionComponent<ActionProps & Props> = ({
         selectedCommits.map((commit) => commit.id),
       ),
     ).then((review) => {
-      dispatch(resetSelectionScope())
+      dispatch({ type: "RESET_SELECTION_SCOPE" })
       if (review) history.push(`/review/${review.id}`)
     })
   return (

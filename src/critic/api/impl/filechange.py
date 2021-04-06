@@ -16,85 +16,161 @@
 
 from __future__ import annotations
 
-from typing import Tuple, Optional, Any, Sequence, List, Iterable
+from dataclasses import dataclass
+from typing import Collection, Mapping, Tuple, Optional, Sequence
 
 from critic import api
 from critic.api import filechange as public
+from critic.api.apiobject import Actual
 from critic.gitaccess import SHA1
-from . import apiobject
+from .apiobject import APIObjectImpl
+from .file import create as createFiles
+from .queryhelper import QueryHelper
 
 
-WrapperType = api.filechange.FileChange
-ArgumentsType = Tuple[
-    api.changeset.Changeset,
-    api.file.File,
-    Optional[SHA1],
-    Optional[int],
-    Optional[SHA1],
-    Optional[int],
-]
+PublicType = public.FileChange
 CacheKeyType = Tuple[int, int]
 
 
-class FileChange(apiobject.APIObject[WrapperType, ArgumentsType, CacheKeyType]):
+class FileChange(PublicType, APIObjectImpl, module=public):
     wrapper_class = api.filechange.FileChange
 
-    def __init__(self, args: ArgumentsType):
-        (
-            self.changeset,
-            self.file,
-            old_sha1,
-            self.old_mode,
-            new_sha1,
-            self.new_mode,
-        ) = args
+    def __init__(
+        self,
+        changeset: api.changeset.Changeset,
+        file: api.file.File,
+        old_sha1: Optional[SHA1],
+        old_mode: Optional[int],
+        new_sha1: Optional[SHA1],
+        new_mode: Optional[int],
+    ):
+        super().__init__(changeset.critic)
+        self.__changeset = changeset
+        self.__file = file
+        self.__old_sha1 = old_sha1 if old_sha1 != "0" * 40 else None
+        self.__old_mode = old_mode
+        self.__new_sha1 = new_sha1 if new_sha1 != "0" * 40 else None
+        self.__new_mode = new_mode
 
-        self.old_sha1 = old_sha1 if old_sha1 != "0" * 40 else None
-        self.new_sha1 = new_sha1 if new_sha1 != "0" * 40 else None
+    def __hash__(self) -> int:
+        return hash((self.__changeset, self.__file))
 
-    @staticmethod
-    def cacheKey(wrapper: WrapperType) -> CacheKeyType:
-        return (wrapper.changeset.id, wrapper.file.id)
+    def __eq__(self, other: object) -> bool:
+        return (
+            isinstance(other, FileChange)
+            and self.__changeset == other.__changeset
+            and self.__file == other.__file
+        )
 
-    @classmethod
-    def makeCacheKey(cls, args: ArgumentsType) -> CacheKeyType:
-        changeset, file, *_ = args
-        return (changeset.id, file.id)
+    def __lt__(self, other: object) -> bool:
+        return isinstance(other, FileChange) and (
+            self.__changeset < other.__changeset
+            or (self.changeset == other.changeset and self.file < other.file)
+        )
 
-    @staticmethod
-    def fetchCacheKey(
-        critic: api.critic.Critic, *args: Any
-    ) -> Tuple[api.critic.Critic, Optional[CacheKeyType]]:
-        changeset: api.changeset.Changeset = args[0]
-        file: api.file.File = args[1]
-        return critic, (changeset.id, file.id)
+    def getCacheKeys(self) -> Collection[object]:
+        return ((self.__changeset, self.__file),)
 
-    @staticmethod
-    def fetchManyCacheKeys(
-        critic: api.critic.Critic, *args: Any
-    ) -> Tuple[
-        api.critic.Critic, Optional[List[CacheKeyType]], Optional[Iterable[Any]]
-    ]:
-        changeset: api.changeset.Changeset = args[0]
-        files: Sequence[api.file.File] = args[1]
-        return (changeset.critic, [(changeset.id, file.id) for file in files], files)
+    @property
+    def changeset(self) -> api.changeset.Changeset:
+        return self.__changeset
+
+    @property
+    def file(self) -> api.file.File:
+        return self.__file
+
+    @property
+    def old_sha1(self) -> Optional[SHA1]:
+        return self.__old_sha1
+
+    @property
+    def old_mode(self) -> Optional[int]:
+        return self.__old_mode
+
+    @property
+    def new_sha1(self) -> Optional[SHA1]:
+        return self.__new_sha1
+
+    @property
+    def new_mode(self) -> Optional[int]:
+        return self.__new_mode
+
+    async def refresh(self: Actual) -> Actual:
+        return self
+
+
+RowType = Tuple[int, int, Optional[SHA1], Optional[int], Optional[SHA1], Optional[int]]
+
+queries = QueryHelper[RowType](
+    FileChange.getTableName(),
+    "changeset",
+    "file",
+    "old_sha1",
+    "old_mode",
+    "new_sha1",
+    "new_mode",
+)
+
+
+@dataclass
+class MakeOne:
+    changeset: api.changeset.Changeset
+    file: api.file.File
+
+    def __call__(self, critic: api.critic.Critic, args: RowType) -> FileChange:
+        changeset_id, file_id, old_sha1, old_mode, new_sha1, new_mode = args
+        assert changeset_id == self.changeset.id
+        assert file_id == self.file.id
+        return FileChange(
+            self.changeset, self.file, old_sha1, old_mode, new_sha1, new_mode
+        )
+
+
+@dataclass
+class MakeMultiple:
+    changeset: api.changeset.Changeset
+    files: Mapping[int, api.file.File]
+
+    def __call__(self, critic: api.critic.Critic, args: RowType) -> FileChange:
+        changeset_id, file_id, old_sha1, old_mode, new_sha1, new_mode = args
+        assert changeset_id == self.changeset.id
+        assert file_id in self.files
+        file = self.files[file_id]
+        return FileChange(self.changeset, file, old_sha1, old_mode, new_sha1, new_mode)
+
+
+@dataclass
+class FetchOne:
+    critic: api.critic.Critic
+
+    async def __call__(
+        self, args: Tuple[api.changeset.Changeset, api.file.File]
+    ) -> FileChange:
+        changeset, file = args
+        return await queries.query(self.critic, changeset=changeset, file=file).makeOne(
+            MakeOne(changeset, file)
+        )
+
+
+@dataclass
+class FetchMultiple:
+    critic: api.critic.Critic
+
+    async def __call__(
+        self, args: Sequence[Tuple[api.changeset.Changeset, api.file.File]]
+    ) -> Sequence[FileChange]:
+        changeset = args[0][0]
+        files = [file for _, file in args]
+        return await queries.query(self.critic, changeset=changeset, file=files).make(
+            MakeMultiple(changeset, {file.id: file for file in files})
+        )
 
 
 @public.fetchImpl
-@FileChange.cached
 async def fetch(
     critic: api.critic.Critic, changeset: api.changeset.Changeset, file: api.file.File
-) -> WrapperType:
-    critic = changeset.critic
-    async with critic.query(
-        """SELECT old_sha1, old_mode, new_sha1, new_mode
-             FROM changesetfiles
-            WHERE changeset={changeset}
-              AND file={file}""",
-        changeset=changeset,
-        file=file,
-    ) as result:
-        return await FileChange.makeOne(critic, (changeset, file) + await result.one())
+) -> PublicType:
+    return await FileChange.ensureOne((changeset, file), FetchOne(critic))
 
 
 @public.fetchManyImpl
@@ -102,44 +178,26 @@ async def fetchMany(
     critic: api.critic.Critic,
     changeset: api.changeset.Changeset,
     files: Sequence[api.file.File],
-) -> Sequence[WrapperType]:
-    async with api.critic.Query[
-        Tuple[int, Optional[SHA1], Optional[int], Optional[SHA1], Optional[int]]
-    ](
-        critic,
-        """SELECT file, old_sha1, old_mode, new_sha1, new_mode
-             FROM changesetfiles
-            WHERE changeset={changeset}
-              AND {file=file_ids:array}""",
-        changeset=changeset,
-        file_ids=[file.id for file in files],
-    ) as result:
-        rows = {row[0]: row[1:] async for row in result}
-    if len(rows) < len(files):
-        invalid_files = set(file for file in files if file not in rows)
-        raise api.filechange.InvalidIds(
-            invalid_ids=[(changeset.id, file.id) for file in invalid_files]
-        )
-    return await FileChange.make(
-        critic, ((changeset, file) + rows[file.id] for file in files)  # type: ignore
+) -> Sequence[PublicType]:
+    return await FileChange.ensure(
+        [(changeset, file) for file in files], FetchMultiple(critic)
     )
 
 
 @public.fetchAllImpl
-async def fetchAll(changeset: api.changeset.Changeset) -> Sequence[WrapperType]:
+async def fetchAll(changeset: api.changeset.Changeset) -> Sequence[PublicType]:
     critic = changeset.critic
 
-    async with api.critic.Query[int](
+    async with api.critic.Query[Tuple[int, str]](
         critic,
-        """SELECT file
-             FROM changesetfiles
+        """SELECT id, path
+             FROM files
+             JOIN changesetfiles ON (file=id)
             WHERE changeset={changeset}""",
         changeset=changeset,
     ) as result:
-        file_ids = await result.scalars()
+        files = await result.all()
 
-    files = sorted(
-        await api.file.fetchMany(critic, file_ids), key=lambda file: file.path
-    )
+    sorted_files = sorted(createFiles(critic, files), key=lambda file: file.path)
 
-    return await fetchMany(critic, changeset, files)
+    return await fetchMany(critic, changeset, sorted_files)

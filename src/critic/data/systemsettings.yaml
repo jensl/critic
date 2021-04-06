@@ -5,6 +5,10 @@ system:
     description:
       Primary fully qualified domain name of the Critic system. If null, the
       name is determined on start-up by running `hostname --fqdn`.
+  http_prefix:
+    value: null
+    description: HTTP URL prefix including scheme but no trailing slash. e.g.
+      "https://critic.mydomain" or "http://localhost:8080".
   is_development:
     value: false
     description:
@@ -359,6 +363,29 @@ repositories:
     description:
       List of candidate documentation (entry point) paths. The first one in the
       list that exists in a repository is picked as its documentation path.
+  default_encodings:
+    files:
+      value:
+        - "utf8"
+      description:
+        Default encodings for contents of text files in repositories. All but
+        last one in the list are attempted with `errors="strict"`, while the
+        last one is used with `errors="replace"`.
+    commits:
+      value:
+        - "utf8"
+      description:
+        Default encodings for contents of commit metadata (e.g. author/committer
+        names, and commit messages) in repositories. All but last one in the
+        list are attempted with `errors="strict"`, while the last one is used
+        with `errors="replace"`.
+    paths:
+      value:
+        - "utf8"
+      description:
+        Default encodings for paths of files in repositories. All but last one
+        in the list are attempted with `errors="strict"`, while the last one is
+        used with `errors="replace"`.
 
 # Content and encodings
 content:

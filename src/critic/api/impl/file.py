@@ -18,46 +18,50 @@ from __future__ import annotations
 
 import hashlib
 import logging
-from typing import Iterable, Dict, Tuple, Sequence, List, Optional
+from typing import Collection, Iterable, Dict, Tuple, Sequence, List, Optional
+
+from .queryhelper import QueryHelper
 
 logger = logging.getLogger(__name__)
 
-from . import apiobject
 from critic import api
 from critic.api import file as public
 from critic import base
 from critic import dbaccess
+from .apiobject import APIObjectImplWithId
 
 
-WrapperType = api.file.File
+PublicType = public.File
 ArgumentsType = Tuple[int, str]
 
 
-class File(apiobject.APIObject[WrapperType, ArgumentsType, int]):
-    wrapper_class = api.file.File
+class File(PublicType, APIObjectImplWithId, module=public):
+    wrapper_class = public.File
 
-    def __init__(self, args: ArgumentsType) -> None:
-        self.id, self.path = args
+    def update(self, args: ArgumentsType) -> int:
+        self.__id, self.__path = args
+        return self.__id
 
+    @property
+    def id(self) -> int:
+        return self.__id
 
-async def _fetch_by_ids(
-    critic: api.critic.Critic, file_ids: Iterable[int]
-) -> Sequence[Tuple[int, str]]:
-    async with api.critic.Query[Tuple[int, str]](
-        critic,
-        """SELECT id, path
-             FROM files
-            WHERE {id=file_ids:array}""",
-        file_ids=list(file_ids),
-    ) as result:
-        return await result.all()
+    @property
+    def path(self) -> str:
+        return self.__path
+
+    @classmethod
+    async def doRefreshAll(
+        cls, critic: api.critic.Critic, files: Collection[object], /
+    ) -> None:
+        pass
 
 
 def _check_path(path: str) -> None:
     if path.startswith("/"):
-        raise api.file.InvalidPath(path, "leading path separator")
+        raise public.InvalidPath(path, "leading path separator")
     if path.endswith("/"):
-        raise api.file.InvalidPath(path, "trailing path separator")
+        raise public.InvalidPath(path, "trailing path separator")
 
 
 async def _translate_paths(
@@ -112,8 +116,8 @@ async def _ensure_paths(
 
 
 async def _resolve_paths(
-    critic: api.critic.Critic, paths: Iterable[str], create_if_missing: bool
-) -> List[int]:
+    critic: api.critic.Critic, paths: Sequence[str], create_if_missing: bool
+) -> List[ArgumentsType]:
     if create_if_missing:
         translated_paths = await _ensure_paths(critic, paths)
     else:
@@ -121,36 +125,43 @@ async def _resolve_paths(
         translated_paths = await _translate_paths(critic, paths_set)
         missing_paths = paths_set.difference(translated_paths)
         if missing_paths:
-            raise api.file.MissingPaths(missing_paths)
-    return list(translated_paths.values())
+            raise public.MissingPaths(missing_paths)
+    return [(translated_paths[path], path) for path in paths]
+
+
+queries = QueryHelper[ArgumentsType](PublicType.getTableName(), "id", "path")
 
 
 @public.fetchImpl
-@File.cached
 async def fetch(
     critic: api.critic.Critic,
     file_id: Optional[int],
     path: Optional[str],
     create_if_missing: bool,
-) -> WrapperType:
-    if file_id is None:
-        assert path is not None
-        file_id = (await _resolve_paths(critic, [path], create_if_missing))[0]
-    items = await _fetch_by_ids(critic, [file_id])
-    if not items:
-        raise api.file.InvalidId(invalid_id=file_id)
-    return await File.makeOne(critic, values=items[0])
+) -> PublicType:
+    if file_id is not None:
+        return await File.ensureOne(file_id, queries.idFetcher(critic, File))
+    assert path is not None
+    file_id, _ = (await _resolve_paths(critic, [path], create_if_missing))[0]
+    return File.storeOne(File(critic, (file_id, path)))
 
 
 @public.fetchManyImpl
-@File.cachedMany
 async def fetchMany(
     critic: api.critic.Critic,
     file_ids: Optional[Iterable[int]],
     paths: Optional[Iterable[str]] = None,
     create_if_missing: bool = False,
-) -> Sequence[WrapperType]:
-    if file_ids is None:
-        assert paths is not None
-        file_ids = await _resolve_paths(critic, paths, create_if_missing)
-    return await File.make(critic, await _fetch_by_ids(critic, file_ids))
+) -> Sequence[PublicType]:
+    if file_ids is not None:
+        return await File.ensure([*file_ids], queries.idsFetcher(critic, File))
+    assert paths is not None
+    return File.store(
+        create(critic, await _resolve_paths(critic, [*paths], create_if_missing))
+    )
+
+
+def create(
+    critic: api.critic.Critic, files: Sequence[Tuple[int, str]]
+) -> Sequence[File]:
+    return [File(critic, (file_id, path)) for file_id, path in files]

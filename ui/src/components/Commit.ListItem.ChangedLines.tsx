@@ -30,10 +30,7 @@ const CommitListItemChangedLines: FunctionComponent<Props> = ({
   const classes = useStyles()
   const review = useReview()
   const rfcsPerReview = useSelector(getReviewableFileChangesPerReviewAndCommit)
-  if (!review) return null
-  const rfcsPerCommit = rfcsPerReview.get(review.id)
-  if (!rfcsPerCommit) return null
-  const rfcs = rfcsPerCommit.get(commit.id)
+  const rfcs = rfcsPerReview.get(review?.id)?.get(commit.id)
   if (!rfcs) return null
   var deletedLines = 0
   var insertedLines = 0
@@ -50,5 +47,5 @@ const CommitListItemChangedLines: FunctionComponent<Props> = ({
 
 export default Registry.add(
   "Commit.ListItem.ChangedLines",
-  CommitListItemChangedLines
+  CommitListItemChangedLines,
 )

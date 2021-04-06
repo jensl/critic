@@ -15,32 +15,48 @@
 # the License.
 
 from __future__ import annotations
-
-from typing import Tuple
+from typing import Collection
 
 from critic import api
 from critic.api import tutorial as public
+from critic.api.apiobject import Actual
 from critic import dbaccess
 from critic import tutorials
-from . import apiobject
+from .apiobject import APIObjectImpl
 
 
-WrapperType = api.tutorial.Tutorial
-ArgumentsType = Tuple[str, str]
+PublicType = public.Tutorial
 
 
-class Tutorial(apiobject.APIObject[WrapperType, ArgumentsType, str]):
-    wrapper_class = WrapperType
+class Tutorial(PublicType, APIObjectImpl, module=public):
+    wrapper_class = PublicType
 
-    def __init__(self, args: ArgumentsType):
-        self.id, self.source = args
+    def __init__(self, critic: api.critic.Critic, name: str, source: str):
+        self.__name = name
+        self.__source = source
+
+    def getCacheKeys(self) -> Collection[str]:
+        return (self.__name,)
+
+    async def refresh(self: Actual) -> Actual:
+        return self
+
+    @property
+    def name(self) -> str:
+        return self.__name
+
+    @property
+    def source(self) -> str:
+        return self.__source
 
 
 @public.fetchImpl
-@Tutorial.cached
-async def fetch(critic: api.critic.Critic, tutorial_id: str) -> WrapperType:
-    try:
-        source = tutorials.load(tutorial_id)
-    except ValueError:
-        raise dbaccess.ZeroRowsInResult
-    return await Tutorial.makeOne(critic, values=(tutorial_id, source))
+async def fetch(critic: api.critic.Critic, name: str) -> PublicType:
+    async def make(name: str) -> Tutorial:
+        try:
+            source = tutorials.load(name)
+        except ValueError:
+            raise dbaccess.ZeroRowsInResult
+        return Tutorial(critic, name, source)
+
+    return await Tutorial.ensureOne(name, make)

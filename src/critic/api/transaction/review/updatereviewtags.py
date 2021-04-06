@@ -19,7 +19,7 @@ from __future__ import annotations
 import logging
 import itertools
 from collections import defaultdict
-from typing import Set, Dict, Tuple
+from typing import Optional, Set, Dict, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +31,10 @@ from critic import dbaccess
 
 
 async def update_review_tags(
-    review: api.review.Review, cursor: dbaccess.TransactionCursor
+    review: api.review.Review,
+    cursor: dbaccess.TransactionCursor,
+    *,
+    raised_issues: bool = False,
 ) -> None:
     """Update the review tags relating to review file assignments
 
@@ -58,76 +61,106 @@ async def update_review_tags(
     #   { |users.id| }
     unseen: Set[int] = set()
 
-    async with dbaccess.Query[Tuple[int, int, bool, bool]](
+    # Set of active reviewers.
+    #
+    #   { |users.id| }
+    active_published: Set[int] = set()
+    active_unpublished: Set[int] = set()
+
+    # Users that have reviewed changes, per file.
+    #
+    #   { |files.id|: { |users.id| } }
+    published_per_file: Dict[int, Set[int]] = defaultdict(set)
+    unpublished_per_file: Dict[int, Set[int]] = defaultdict(set)
+
+    async with dbaccess.Query[Tuple[int, int, bool, bool, Optional[bool]]](
         cursor,
-        """SELECT reviewuserfiles.uid, reviewfiles.id,
-                  NOT reviewfiles.reviewed, reviewuserfiles.reviewed
+        """SELECT reviewuserfiles.uid, reviewfiles.id, reviewfiles.reviewed,
+                  reviewuserfiles.reviewed, reviewuserfilechanges.to_reviewed
              FROM reviewuserfiles
              JOIN reviewfiles ON (reviewfiles.id=reviewuserfiles.file)
+  LEFT OUTER JOIN reviewuserfilechanges ON (
+                    reviewuserfilechanges.file=reviewuserfiles.file AND
+                    reviewuserfilechanges.uid=reviewuserfiles.uid AND
+                    reviewuserfilechanges.batch IS NULL
+                  )
             WHERE reviewfiles.review={review}""",
         review=review,
     ) as result1:
         # is_pending = no-one has reviewed the change
         # has_reviewed = this user has reviewed it (implies `not is_pending`)
-        async for reviewer_id, file_id, is_pending, has_reviewed in result1:
+        async for (
+            reviewer_id,
+            file_id,
+            is_reviewed,
+            is_reviewed_published,
+            is_reviewed_unpublished,
+        ) in result1:
             assigned.add(reviewer_id)
             assigned_per_file[file_id].add(reviewer_id)
-            if is_pending:
+            if not is_reviewed:
                 pending_files.add(file_id)
-            if not has_reviewed:
-                unseen.add(reviewer_id)
-
-    # Set of active reviewers.
-    #
-    #   { |users.id| }
-    active = set()
-
-    # Users that have reviewed changes, per file.
-    #
-    #   { |files.id|: { |users.id| } }
-    active_per_file: Dict[int, Set[int]] = defaultdict(set)
-
-    async with dbaccess.Query[Tuple[int, int]](
-        cursor,
-        """SELECT DISTINCT reviewfiles.id, reviewuserfiles.uid
-             FROM reviewfiles
-             JOIN reviewuserfiles ON (reviewuserfiles.file=reviewfiles.id)
-            WHERE review={review}
-              AND reviewuserfiles.reviewed""",
-        review=review,
-    ) as result2:
-        async for file_id, reviewer_id in result2:
-            active.add(reviewer_id)
-            active_per_file[file_id].add(reviewer_id)
+            if is_reviewed_published:
+                active_published.add(reviewer_id)
+                published_per_file[file_id].add(reviewer_id)
+            if is_reviewed_unpublished:
+                active_unpublished.add(reviewer_id)
+                unpublished_per_file[file_id].add(reviewer_id)
 
     # Users that should have the |pending| tag.
     pending: Set[int] = set()
     # Users that should have the |single| tag.
     single: Set[int] = set()
     # Users that should have the |available| tag.
-    available: Set[int] = set()
+    available: Set[int] = set(assigned)
     # Users that should have the |primary| tag.
     primary: Set[int] = set()
 
     for file_id, file_assigned in assigned_per_file.items():
-        if file_id in pending_files:
-            pending.update(file_assigned)
         if len(file_assigned) == 1:
+            # Only a single user is assigned to review this file. Add the
+            # |single| tag for this user.
             single.update(file_assigned)
 
-        file_assigned_active = file_assigned & active
+        # Set of assigned users for whom the changes in this file are pending,
+        # i.e. who haven't marked the changes as reviewed (published or not).
+        file_pending_for_users = (
+            file_assigned - published_per_file[file_id] - unpublished_per_file[file_id]
+        )
 
-        # If no assigned reviewer is also an active reviewer, then all assigned
-        # reviewers should have the |available| tag.
-        if not file_assigned_active:
-            available.update(file_assigned)
-        # Otherwise, if a single assigned reviewer is also an active reviewer,
-        # then that reviewer should have the |primary| tag.
-        elif len(file_assigned_active) == 1:
-            primary.update(file_assigned_active)
+        if file_id in pending_files:
+            # File is pending. Add the |pending| tag for any assigned reviewer
+            # that hasn't marked the file as reviewed (published or not).
+            pending.update(file_pending_for_users)
+        else:
+            # File is not pending (i.e. it has been marked as reviewed by enough
+            # users already). Add the |unseen| tag for any assigned reviewer
+            # that hasn't marked it as reviewed (published or not) themselves
+            # yet.
+            unseen.update(file_pending_for_users)
+
+        # If this file has been reviewed by anyone, subtract all assigned
+        # reviewers from the set of users that should have the |available| tag.
+        if published_per_file[file_id]:
+            available.difference_update(file_assigned)
+
+        # Otherwise, if a single assigned reviewer is also a (published or
+        # unpublished) active reviewer, then that reviewer should have the
+        # |primary| tag.
+        active_per_file = published_per_file[file_id] | unpublished_per_file[file_id]
+        for reviewer_id in active_per_file:
+            if (file_assigned & active_published).issubset({reviewer_id}):
+                primary.add(reviewer_id)
+
+    # The |unseen| tag implies not |pending|, so remove all users that should
+    # have the |pending| tag.
+    unseen -= pending
+
+    # Users that should have the |active| tag.
+    active = active_published | active_unpublished
 
     # Users that should have the |watching| tag.
-    watching = set()
+    watching: Set[int]
 
     async with dbaccess.Query[int](
         cursor,
@@ -137,52 +170,52 @@ async def update_review_tags(
               AND NOT owner""",
         review=review,
     ) as result3:
-        watching.update(set(await result3.scalars()) - (assigned | active))
+        watching = set(await result3.scalars()) - assigned - active
 
     # Users tag should have the |unpublished| tag.
     unpublished: Set[int] = set()
 
     async with dbaccess.Query[int](
         cursor,
-        """SELECT DISTINCT reviewfilechanges.uid
-             FROM reviewfilechanges
-             JOIN reviewfiles ON (reviewfilechanges.file=reviewfiles.id)
+        """SELECT DISTINCT reviewuserfilechanges.uid
+             FROM reviewuserfilechanges
+             JOIN reviewfiles ON (reviewuserfilechanges.file=reviewfiles.id)
             WHERE reviewfiles.review={review}
-              AND reviewfilechanges.state='draft'""",
+              AND reviewuserfilechanges.state='draft'""",
         review=review,
     ) as result3:
         unpublished.update(await result3.scalars())
     async with dbaccess.Query[int](
         cursor,
-        """SELECT DISTINCT comments.uid
-             FROM comments
-             JOIN commentchains ON (comments.chain=commentchains.id)
-            WHERE commentchains.review={review}
-              AND comments.batch IS NULL""",
+        """SELECT DISTINCT replies.author
+             FROM replies
+             JOIN comments ON (replies.comment=comments.id)
+            WHERE comments.review={review}
+              AND replies.batch IS NULL""",
         review=review,
     ) as result3:
         unpublished.update(await result3.scalars())
     async with dbaccess.Query[int](
         cursor,
-        """SELECT DISTINCT commentchainchanges.uid
-             FROM commentchainchanges
-             JOIN commentchains ON (
-                    commentchainchanges.chain=commentchains.id
+        """SELECT DISTINCT commentchanges.author
+             FROM commentchanges
+             JOIN comments ON (
+                    commentchanges.comment=comments.id
                   )
-            WHERE commentchains.review={review}
-              AND commentchainchanges.state='draft'""",
+            WHERE comments.review={review}
+              AND commentchanges.state='draft'""",
         review=review,
     ) as result3:
         unpublished.update(await result3.scalars())
     async with dbaccess.Query[int](
         cursor,
-        """SELECT DISTINCT commentchainlines.uid
-             FROM commentchainlines
-             JOIN commentchains ON (
-                    commentchainlines.chain=commentchains.id
+        """SELECT DISTINCT commentlines.author
+             FROM commentlines
+             JOIN comments ON (
+                    commentlines.comment=comments.id
                   )
-            WHERE commentchains.review={review}
-              AND commentchainlines.state='draft'""",
+            WHERE comments.review={review}
+              AND commentlines.state='draft'""",
         review=review,
     ) as result3:
         unpublished.update(await result3.scalars())
@@ -201,6 +234,7 @@ async def update_review_tags(
     primary_id = tag_ids["primary"]
     watching_id = tag_ids["watching"]
     unpublished_id = tag_ids["unpublished"]
+    would_be_accepted_id = tag_ids["would_be_accepted"]
 
     relevant_tag_ids = [
         assigned_id,
@@ -213,6 +247,9 @@ async def update_review_tags(
         watching_id,
         unpublished_id,
     ]
+
+    if raised_issues:
+        relevant_tag_ids.append(would_be_accepted_id)
 
     await cursor.execute(
         """DELETE
@@ -247,11 +284,12 @@ async def update_review_tags(
 class UpdateReviewTags(Finalizer):
     tables = frozenset({"reviewusertags"})
 
-    def __init__(self, review: api.review.Review) -> None:
+    def __init__(
+        self, review: api.review.Review, *, raised_issues: bool = False
+    ) -> None:
         self.__review = review
-
-    def __hash__(self) -> int:
-        return hash((UpdateReviewTags, self.__review))
+        self.__raised_issues = raised_issues
+        super().__init__(self.__review)
 
     def should_run_after(self, other: object) -> bool:
         return isinstance(other, FinalizeAssignments)
@@ -259,4 +297,6 @@ class UpdateReviewTags(Finalizer):
     async def __call__(
         self, _: TransactionBase, cursor: dbaccess.TransactionCursor
     ) -> None:
-        await update_review_tags(self.__review, cursor)
+        await update_review_tags(
+            self.__review, cursor, raised_issues=self.__raised_issues
+        )

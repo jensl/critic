@@ -19,7 +19,12 @@ import { immerable } from "immer"
 
 import { assertNumber } from "../debug"
 import { ResourceData } from "../types"
-import { Action, AutomaticMode } from "../actions"
+import {
+  Action,
+  AutomaticChangesetEmpty,
+  AutomaticChangesetImpossible,
+  AutomaticMode,
+} from "../actions"
 import { lookupManyMap, primaryMap } from "../reducers/resource"
 import {
   ChangesetID,
@@ -88,8 +93,13 @@ type ChangesetRequestOptions = {
   onlyIfComplete?: false | string
 }
 
-const automatic = produce<Map<string, ChangesetID>>(
-  (draft: Map<string, ChangesetID>, action: Action) => {
+type AutomaticMap = Map<
+  string,
+  ChangesetID | AutomaticChangesetEmpty | AutomaticChangesetImpossible
+>
+
+const automatic = produce<AutomaticMap>(
+  (draft: AutomaticMap, action: Action) => {
     if (action.type === SET_AUTOMATIC_CHANGESET)
       draft.set(`${action.reviewID}:${action.automatic}`, action.changesetID)
   },
@@ -198,8 +208,6 @@ class Changeset {
     }
 
     options.push(expectStatuses(200, 202))
-
-    console.error(options)
     return options
   }
 

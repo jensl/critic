@@ -16,19 +16,165 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 import logging
-from typing import Collection, Iterable, Optional
+import stat
+from typing import AsyncIterable, Collection, Iterable, Optional
 
 logger = logging.getLogger(__name__)
 
 from critic import api
 from critic import dbaccess
-from critic import changeset
-from critic.gitaccess import SHA1, GitTreeEntry
+from critic import gitaccess
+from critic.gitaccess import SHA1, GitRepository, GitTreeEntry
 
 from .changedfile import ChangedFile
 from .examinefiles import ExamineFiles
 from .job import Job, GroupType
+
+
+def _join_paths(dirname: Optional[bytes], basename: bytes) -> bytes:
+    return dirname + b"/" + basename if dirname else basename
+
+
+@dataclass
+class ChangedEntry:
+    path: bytes
+    old_entry: Optional[GitTreeEntry]
+    new_entry: Optional[GitTreeEntry]
+
+
+async def _removed_tree(
+    repository: GitRepository, path: Optional[bytes], sha1: SHA1
+) -> AsyncIterable[ChangedEntry]:
+    tree = (await repository.fetchone(sha1, wanted_object_type="tree")).asTree()
+    for entry in tree.entries:
+        async for changed_entry in _removed_entry(repository, path, entry):
+            yield changed_entry
+
+
+async def _removed_entry(
+    repository: GitRepository, path: Optional[bytes], entry: GitTreeEntry
+) -> AsyncIterable[ChangedEntry]:
+    path = _join_paths(path, entry.name)
+    if stat.S_ISDIR(entry.mode):
+        async for changed_entry in _removed_tree(repository, path, entry.sha1):
+            yield changed_entry
+    else:
+        yield ChangedEntry(path, entry, None)
+
+
+async def _added_tree(
+    repository: GitRepository, path: Optional[bytes], sha1: SHA1
+) -> AsyncIterable[ChangedEntry]:
+    tree = (await repository.fetchone(sha1, wanted_object_type="tree")).asTree()
+    for entry in tree.entries:
+        async for changed_entry in _added_entry(repository, path, entry):
+            yield changed_entry
+
+
+async def _added_entry(
+    repository: GitRepository, path: Optional[bytes], entry: GitTreeEntry
+) -> AsyncIterable[ChangedEntry]:
+    path = _join_paths(path, entry.name)
+    if stat.S_ISDIR(entry.mode):
+        async for changed_entry in _added_tree(repository, path, entry.sha1):
+            yield changed_entry
+    else:
+        yield ChangedEntry(path, None, entry)
+
+
+async def diff_trees(
+    repository: GitRepository,
+    old_tree_sha1: SHA1,
+    new_tree_sha1: SHA1,
+    path: Optional[bytes] = None,
+) -> AsyncIterable[ChangedEntry]:
+    """Compare two trees and return a list of differing entries
+
+    The return value is a list of ChangedEntry objects."""
+
+    old_tree = (
+        await repository.fetchone(old_tree_sha1, wanted_object_type="tree")
+    ).asTree()
+    new_tree = (
+        await repository.fetchone(new_tree_sha1, wanted_object_type="tree")
+    ).asTree()
+
+    old_names = set(old_tree.by_name.keys())
+    new_names = set(new_tree.by_name.keys())
+
+    common_names = old_names & new_names
+    removed_names = old_names - common_names
+    added_names = new_names - common_names
+
+    for name in removed_names:
+        async for changed_entry in _removed_entry(
+            repository, path, old_tree.by_name[name]
+        ):
+            yield changed_entry
+    for name in added_names:
+        async for changed_entry in _added_entry(
+            repository, path, new_tree.by_name[name]
+        ):
+            yield changed_entry
+
+    for name in common_names:
+        old_entry = old_tree.by_name[name]
+        old_sha1 = old_entry.sha1
+        old_mode = old_entry.mode
+
+        new_entry = new_tree.by_name[name]
+        new_sha1 = new_entry.sha1
+        new_mode = new_entry.mode
+
+        if old_sha1 != new_sha1 or old_mode != new_mode:
+            changed_path = _join_paths(path, name)
+
+            common_mode = old_mode & new_mode
+            removed_mode = old_mode - common_mode
+            added_mode = new_mode - common_mode
+
+            if stat.S_ISDIR(common_mode):
+                assert old_sha1 != new_sha1
+                async for changed_entry in diff_trees(
+                    repository, old_sha1, new_sha1, changed_path
+                ):
+                    yield changed_entry
+            elif stat.S_ISDIR(removed_mode):
+                # Directory replaced by non-directory.
+                async for changed_entry in _removed_tree(
+                    repository, changed_path, old_sha1
+                ):
+                    yield changed_entry
+                yield ChangedEntry(changed_path, None, new_entry)
+            elif stat.S_ISDIR(added_mode):
+                # Non-directory replaced by directory.
+                yield ChangedEntry(changed_path, old_entry, None)
+                async for changed_entry in _added_tree(
+                    repository, changed_path, new_sha1
+                ):
+                    yield changed_entry
+            else:
+                yield ChangedEntry(changed_path, old_entry, new_entry)
+
+
+async def compare_commits(
+    repository: GitRepository,
+    from_commit_sha1: SHA1,
+    to_commit_sha1: SHA1,
+) -> Collection[ChangedEntry]:
+    if from_commit_sha1 is None:
+        from_tree_sha1 = gitaccess.EMPTY_TREE_SHA1
+    else:
+        from_tree_sha1 = await repository.revparse(from_commit_sha1, object_type="tree")
+
+    to_tree_sha1 = await repository.revparse(to_commit_sha1, object_type="tree")
+
+    return [
+        changed_entry
+        async for changed_entry in diff_trees(repository, from_tree_sha1, to_tree_sha1)
+    ]
 
 
 class CalculateStructureDifference(Job):
@@ -51,9 +197,11 @@ class CalculateStructureDifference(Job):
         self.for_merge = for_merge
 
     async def execute(self) -> None:
-        async with self.group.repository() as repository:
-            changed_entries = await changeset.structure.compare_commits(
-                repository, self.from_commit_sha1, self.to_commit_sha1
+        async with self.group.repository() as gitrepository:
+            changed_entries = await compare_commits(
+                gitrepository,
+                self.from_commit_sha1,
+                self.to_commit_sha1,
             )
 
         def sha1(entry: Optional[GitTreeEntry]) -> Optional[SHA1]:
@@ -62,10 +210,12 @@ class CalculateStructureDifference(Job):
         def mode(entry: Optional[GitTreeEntry]) -> Optional[int]:
             return None if entry is None else entry.mode
 
+        decode = self.group.as_changeset.decode_new
+
         self.changed_files = [
             ChangedFile(
                 None,
-                changed_entry.path,
+                decode.path(changed_entry.path),
                 sha1(changed_entry.old_entry),
                 mode(changed_entry.old_entry),
                 sha1(changed_entry.new_entry),

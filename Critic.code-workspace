@@ -30,7 +30,6 @@
       "typing-generic-arguments"
     ],
     "python.jediEnabled": false,
-    "python.pythonPath": "/usr/local/bin/python",
-    "python.analysis.typeCheckingMode": "strict"
+    "python.pythonPath": "/usr/local/bin/python"
   }
 }

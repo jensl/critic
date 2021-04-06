@@ -36,21 +36,7 @@ export const sum = <T>(items: Iterable<T>, reducer: (v: T) => number) => {
   return sum
 }
 
-type SoonCallback = <T extends any[]>(args: T) => void
-
-// Call function "soon", and ignore repeated calls while one call is pending.
-export const soon = (fn: SoonCallback): SoonCallback => {
-  var callPending = false
-  return (...args) => {
-    if (!callPending) {
-      callPending = true
-      setTimeout(() => {
-        callPending = false
-        fn(...args)
-      }, 0)
-    }
-  }
-}
+export const soon = (fn: () => void) => setTimeout(fn, 0)
 
 export const safe = (object: any) =>
   object || new Proxy({}, { get: () => null })
@@ -143,6 +129,11 @@ export const filteredSet = <T>(
   predicate: (item: T) => boolean,
 ): ReadonlySet<T> => new Set([...items].filter(predicate))
 
+export const mappedSet = <T, U>(
+  items: Iterable<T>,
+  mapper: (item: T) => U,
+): ReadonlySet<U> => new Set([...items].map(mapper))
+
 export const mergedSets = <T>(...items: Iterable<T>[]): ReadonlySet<T> =>
   new Set(items.flatMap((iterable) => [...iterable]))
 
@@ -150,4 +141,17 @@ export const identicalSets = <T>(a: ReadonlySet<T>, b: ReadonlySet<T>) => {
   if (a.size !== b.size) return false
   const merged = new Set([...a, ...b])
   return merged.size === a.size
+}
+
+export const filterInPlace = <T>(
+  items: T[],
+  predicate: (item: T) => boolean,
+): T[] => {
+  const filtered = items.filter(predicate)
+  if (filtered.length < items.length) {
+    items.length = filtered.length
+    for (let index = 0; index < items.length; ++index)
+      items[index] = filtered[index]
+  }
+  return items
 }

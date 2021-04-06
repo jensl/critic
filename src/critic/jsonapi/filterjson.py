@@ -19,11 +19,12 @@ from typing import (
 
 logger = logging.getLogger(__name__)
 
+from critic import api
 from critic.base.profiling import timed
 
 from .linked import Linked
 from .parameters import Parameters
-from .resourceclass import ResourceClass, APIObject, VALUE_CLASSES
+from .resourceclass import ResourceClass, APIObject
 from .types import JSONResult
 from .utils import maybe_await
 from .valuewrapper import ValueWrapper, PlainWrapper, BasicListWrapper
@@ -69,9 +70,9 @@ async def filter_json(
             return api_object_cache[id(json_object)]
         except KeyError:
             pass
-        resource_path = VALUE_CLASSES.get(type(json_object))
-        if resource_path is None:
+        if not isinstance(json_object, api.APIObject):
             return json_object
+        resource_path = f"v1/{json_object.getResourceName()}"
         resource_class = linked.add(resource_path, json_object)
         resource_id = resource_class.resource_id(json_object)
         api_object_cache[id(json_object)] = resource_id

@@ -24,6 +24,7 @@ from typing import (
     Collection,
     Optional,
     Protocol,
+    Tuple,
     TypeVar,
     Any,
     Dict,
@@ -61,6 +62,15 @@ class Shared:
 
 class Finalizer:
     tables: Iterable[str] = ()
+
+    def __init__(self, *key: object):
+        self.__key = (type(self), *key)
+
+    def __hash__(self) -> int:
+        return hash(self.__key)
+
+    def __eq__(self, other: object) -> bool:
+        return isinstance(other, Finalizer) and self.__key == other.__key
 
     def should_run_after(self, other: Finalizer) -> bool:
         return False
@@ -123,20 +133,27 @@ class Savepoint(Protocol):
 
 
 class TransactionBase(ABC):
-    tables: Set[str]
     pre_commit_callbacks: List[AsyncCallback]
     post_commit_callbacks: List[AsyncCallback]
 
     def __init__(self, critic: api.critic.Critic) -> None:
         self.critic = critic
-        self.tables = set()
-        self.shared = Shared()
         self.pre_commit_callbacks = []
         self.post_commit_callbacks = []
 
     @property
     @abstractmethod
+    def tables(self) -> Set[str]:
+        ...
+
+    @property
+    @abstractmethod
     def finalizers(self) -> Finalizers:
+        ...
+
+    @property
+    @abstractmethod
+    def shared(self) -> Shared:
         ...
 
     @abstractmethod

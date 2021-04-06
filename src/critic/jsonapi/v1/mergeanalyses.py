@@ -19,12 +19,13 @@ from __future__ import annotations
 import logging
 from typing import (
     Awaitable,
-    Collection,
     Mapping,
     List,
     Sequence,
     TypedDict,
 )
+
+from critic.jsonapi.valuewrapper import ValueWrapper
 
 logger = logging.getLogger(__name__)
 
@@ -38,17 +39,14 @@ from ..resourceclass import ResourceClass
 from ..parameters import Parameters
 from ..types import JSONResult
 from ..utils import sorted_by_id
-from ..valuewrapper import ValueWrapper
 
 MacroChunks = Mapping[str, Sequence[Chunk]]
-ChangesRelativeParent = TypedDict(
-    "ChangesRelativeParent",
-    {
-        "parent": api.commit.Commit,
-        "files": Awaitable[ValueWrapper[Collection[api.file.File]]],
-        "macro_chunks": Awaitable[MacroChunks],
-    },
-)
+
+
+class ChangesRelativeParent(TypedDict):
+    parent: api.commit.Commit
+    files: Awaitable[ValueWrapper[Sequence[api.file.File]]]
+    macro_chunks: Awaitable[MacroChunks]
 
 
 class MergeAnalyses(
@@ -60,7 +58,7 @@ class MergeAnalyses(
     async def json(
         parameters: Parameters, value: api.mergeanalysis.MergeAnalysis
     ) -> JSONResult:
-        await value.ensure(block=False)
+        await value.ensure_availability(block=False)
 
         reduce_chunk = select_reduce_chunk(parameters)
 
@@ -72,13 +70,20 @@ class MergeAnalyses(
                 for file, chunks in (await changeset.getMacroChunks()).items()
             }
 
+        async def sorted_files(
+            changeset: api.mergeanalysis.MergeChangeset,
+        ) -> ValueWrapper[Sequence[api.file.File]]:
+            files = await changeset.files
+            assert files is not None
+            return await sorted_by_id(files)
+
         async def changes_relative_parents() -> List[ChangesRelativeParent]:
             return [
-                {
-                    "parent": changeset.parent,
-                    "files": sorted_by_id(changeset.files),
-                    "macro_chunks": macro_chunks(changeset),
-                }
+                ChangesRelativeParent(
+                    parent=changeset.parent,
+                    files=sorted_files(changeset),
+                    macro_chunks=macro_chunks(changeset),
+                )
                 for changeset in await value.changes_relative_parents
             ]
 

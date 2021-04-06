@@ -17,57 +17,91 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Tuple, Optional, Sequence
+from typing import Callable, Tuple, Optional, Sequence
 
 from critic import api
 from critic.api import trackedbranch as public
-from . import apiobject
+from critic.api.impl.queryhelper import QueryHelper, QueryResult
+from .apiobject import APIObjectImplWithId
 
 
 @dataclass(frozen=True)
 class Source:
-    url: str
-    name: str
+    __url: str
+    __name: str
+
+    @property
+    def url(self) -> str:
+        return self.__url
+
+    @property
+    def name(self) -> str:
+        return self.__name
 
 
-WrapperType = api.trackedbranch.TrackedBranch
+PublicType = public.TrackedBranch
 ArgumentsType = Tuple[int, int, str, str, str, bool, bool]
 
 
-class TrackedBranch(apiobject.APIObject[WrapperType, ArgumentsType, int]):
-    table_name = "trackedbranches"
-    wrapper_class = api.trackedbranch.TrackedBranch
-    column_names = [
-        "id",
-        "repository",
-        "local_name",
-        "remote",
-        "remote_name",
-        "forced",
-        "disabled",
-    ]
-
-    def __init__(self, args: ArgumentsType):
+class TrackedBranch(PublicType, APIObjectImplWithId, module=public):
+    def update(self, args: ArgumentsType) -> int:
         (
-            self.id,
+            self.__id,
             self.__repository_id,
-            self.name,
+            self.__name,
             source_url,
             source_name,
-            self.is_forced,
-            self.is_disabled,
+            self.__is_forced,
+            self.__is_disabled,
         ) = args
 
-        self.source = Source(source_url, source_name)
+        self.__source = Source(source_url, source_name)
+        return self.__id
 
-    async def getRepository(
-        self, critic: api.critic.Critic
-    ) -> api.repository.Repository:
-        return await api.repository.fetch(critic, self.__repository_id)
+    @property
+    def id(self) -> int:
+        return self.__id
+
+    @property
+    def is_disabled(self) -> bool:
+        return self.__is_disabled
+
+    @property
+    def is_forced(self) -> bool:
+        return self.__is_forced
+
+    @property
+    def name(self) -> str:
+        return self.__name
+
+    @property
+    async def repository(self) -> api.repository.Repository:
+        return await api.repository.fetch(self.critic, self.__repository_id)
+
+    @property
+    def source(self) -> PublicType.Source:
+        return self.__source
+
+    @classmethod
+    def getQueryByIds(
+        cls,
+    ) -> Callable[[api.critic.Critic, Sequence[int]], QueryResult[ArgumentsType]]:
+        return queries.queryByIds
+
+
+queries = QueryHelper[ArgumentsType](
+    TrackedBranch.getTableName(),
+    "id",
+    "repository",
+    "local_name",
+    "remote",
+    "remote_name",
+    "forced",
+    "disabled",
+)
 
 
 @public.fetchImpl
-@TrackedBranch.cached
 async def fetch(
     critic: api.critic.Critic,
     trackedbranch_id: Optional[int],
@@ -75,31 +109,24 @@ async def fetch(
     name: Optional[str],
     branch: Optional[api.branch.Branch],
     review: Optional[api.review.Review],
-) -> WrapperType:
+) -> PublicType:
+    if trackedbranch_id is not None:
+        return await TrackedBranch.ensureOne(
+            trackedbranch_id, queries.idFetcher(critic, TrackedBranch)
+        )
+
     if review:
         branch = await review.branch
     if branch:
         repository = await branch.repository
         name = branch.name
-    if repository and name is not None:
-        conditions = ["repository={repository}", "local_name={name}"]
-    else:
-        assert trackedbranch_id is not None
-        conditions = ["id={trackedbranch_id}"]
 
-    async with TrackedBranch.query(
-        critic,
-        conditions,
-        trackedbranch_id=trackedbranch_id,
-        repository=repository,
-        name=name,
-    ) as result:
-        try:
-            return await TrackedBranch.makeOne(critic, result)
-        except result.ZeroRowsInResult:
-            if repository and name is not None:
-                raise api.trackedbranch.NotFound()
-            raise
+    assert repository is not None and name is not None
+    return TrackedBranch.storeOne(
+        await queries.query(critic, repository=repository, local_name=name).makeOne(
+            TrackedBranch, public.NotFound()
+        )
+    )
 
 
 @public.fetchAllImpl
@@ -107,21 +134,14 @@ async def fetchAll(
     critic: api.critic.Critic,
     repository: Optional[api.repository.Repository],
     include_review_branches: bool,
-) -> Sequence[WrapperType]:
-    conditions = ["TRUE"]
+) -> Sequence[PublicType]:
+    conditions = []
     if repository is not None:
         conditions.append("repository={repository}")
     if not include_review_branches:
         conditions.append("branches.type!='review'")
-    async with TrackedBranch.query(
-        critic,
-        f"""SELECT {TrackedBranch.columns()}
-              FROM {TrackedBranch.table()}
-   LEFT OUTER JOIN branches ON (
-                     branches.repository=trackedbranches.repository AND
-                     branches.name=trackedbranches.local_name
-                   )
-             WHERE {" AND ".join(conditions)}""",
-        repository=repository,
-    ) as result:
-        return await TrackedBranch.make(critic, result)
+    return TrackedBranch.store(
+        await queries.query(critic, *conditions, repository=repository).make(
+            TrackedBranch
+        )
+    )

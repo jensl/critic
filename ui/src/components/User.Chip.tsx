@@ -2,13 +2,13 @@ import React, { FunctionComponent } from "react"
 import clsx from "clsx"
 
 import { makeStyles } from "@material-ui/core/styles"
-import Chip from "@material-ui/core/Chip"
+import Chip, { ChipProps } from "@material-ui/core/Chip"
 import Avatar from "@material-ui/core/Avatar"
 import AccountCircleIcon from "@material-ui/icons/AccountCircle"
 
 import Registry from "."
 import { UserID } from "../resources/types"
-import { useResource } from "../utils"
+import { useResource, useSignedInUser } from "../utils"
 
 const useStyles = makeStyles({
   userChip: { marginTop: 2, marginBottom: 2 },
@@ -18,13 +18,19 @@ const useStyles = makeStyles({
   },
 })
 
-type Props = {
+export type Props = {
   className?: string
   userID: UserID
+  ChipProps?: Omit<ChipProps, "avatar" | "component" | "label">
 }
 
-const UserChip: FunctionComponent<Props> = ({ className, userID }) => {
+const UserChip: FunctionComponent<Props> = ({
+  className,
+  userID,
+  ChipProps,
+}) => {
   const classes = useStyles()
+  const signedInUser = useSignedInUser()
   const users = useResource("users")
   const user = users.byID.get(userID)
   if (!user) return null
@@ -38,6 +44,8 @@ const UserChip: FunctionComponent<Props> = ({ className, userID }) => {
         </Avatar>
       }
       label={user.fullname}
+      color={userID === signedInUser?.id ? "secondary" : undefined}
+      {...ChipProps}
     />
   )
 }

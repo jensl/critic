@@ -15,6 +15,7 @@
 # the License.
 
 from __future__ import annotations
+from abc import abstractmethod
 
 from typing import Any, Awaitable, Callable, Optional, Sequence, overload
 
@@ -62,36 +63,41 @@ class InvalidName(Error):
         self.name = name
 
 
-class BranchSetting(api.APIObject):
+class BranchSetting(api.APIObjectWithId):
     """Representation of a branch setting"""
 
     @property
+    @abstractmethod
     def id(self) -> int:
         """The setting's unique id"""
-        return self._impl.id
+        ...
 
     @property
+    @abstractmethod
     async def branch(self) -> api.branch.Branch:
         """The branch this setting affects"""
-        return await self._impl.getBranch(self.critic)
+        ...
 
     @property
+    @abstractmethod
     def scope(self) -> str:
         """The setting's scope"""
-        return self._impl.scope
+        ...
 
     @property
+    @abstractmethod
     def name(self) -> str:
         """The setting's name"""
-        return self._impl.name
+        ...
 
     @property
+    @abstractmethod
     def value(self) -> Any:
         """The setting's value
 
         The value is stored as JSON but returned in parsed form, and can thus
         be a dictionary, list, string, number, boolean or None."""
-        return self._impl.value
+        ...
 
 
 @overload

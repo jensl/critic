@@ -94,14 +94,14 @@ export const toggleReviewableFileChange = (
 
 export const markAllAsReviewed = (
   review: Review,
-  changeset: Changeset,
+  changeset: Changeset | null,
 ): AsyncThunk<ReviewableFileChange[]> =>
   updateResources(
     "reviewablefilechanges",
     { draft_changes: { new_is_reviewed: true } },
     withParameters({
       review: review.id,
-      changeset: changeset.id,
+      changeset: changeset?.id,
       assignee: "(me)",
       state: "pending",
     }),

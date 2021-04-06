@@ -15,6 +15,7 @@
 # the License.
 
 from __future__ import annotations
+from abc import abstractmethod
 
 from typing import Awaitable, Callable, Optional, Protocol, Sequence, overload
 
@@ -35,22 +36,31 @@ class NotFound(Error):
         super().__init__("No matching tracked branch found")
 
 
-class TrackedBranch(api.APIObject):
+class TrackedBranch(api.APIObjectWithId):
     @property
+    @abstractmethod
     def id(self) -> int:
-        return self._impl.id
+        ...
 
     @property
+    @abstractmethod
     def is_disabled(self) -> bool:
-        return self._impl.is_disabled
+        ...
 
     @property
+    @abstractmethod
+    def is_forced(self) -> bool:
+        ...
+
+    @property
+    @abstractmethod
     def name(self) -> str:
-        return self._impl.name
+        ...
 
     @property
+    @abstractmethod
     async def repository(self) -> api.repository.Repository:
-        return await self._impl.getRepository(self.critic)
+        ...
 
     @property
     async def branch(self) -> Optional[api.branch.Branch]:
@@ -78,8 +88,9 @@ class TrackedBranch(api.APIObject):
             ...
 
     @property
+    @abstractmethod
     def source(self) -> Source:
-        return self._impl.source
+        ...
 
 
 @overload

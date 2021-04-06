@@ -16,89 +16,112 @@
 
 from __future__ import annotations
 
-from typing import Tuple, Any, Sequence, Optional
+from typing import Callable, Collection, Tuple, Any, Sequence, Optional
 
 from critic import api
 from critic.api import systemsetting as public
-from critic import dbaccess
+from .apiobject import APIObjectImplWithId
+from .queryhelper import QueryHelper, QueryResult
 
-from . import apiobject
-
-WrapperType = api.systemsetting.SystemSetting
+PublicType = public.SystemSetting
 ArgumentsType = Tuple[int, str, str, Any, bool]
 
 
-class SystemSetting(apiobject.APIObject[WrapperType, ArgumentsType, str]):
-    wrapper_class = WrapperType
-    column_names = ["id", "key", "description", "value", "privileged"]
+class SystemSetting(PublicType, APIObjectImplWithId, module=public):
+    def __str__(self) -> str:
+        return self.key
 
-    def __init__(self, args: ArgumentsType) -> None:
-        (self.id, self.key, self.description, self.value, self.is_privileged) = args
+    def update(self, args: ArgumentsType) -> int:
+        (
+            self.__id,
+            self.__key,
+            self.__description,
+            self.__value,
+            self.__is_privileged,
+        ) = args
+        if self.__is_privileged:
+            api.PermissionDenied.raiseUnlessSystem(self.critic)
+        return self.__id
 
-    def wrap(self, critic: api.critic.Critic) -> WrapperType:
-        if self.is_privileged:
-            api.PermissionDenied.raiseUnlessSystem(critic)
-        return super().wrap(critic)
+    def getCacheKeys(self) -> Collection[object]:
+        return (self.__id, self.__key)
+
+    @property
+    def id(self) -> int:
+        """The setting's unique id"""
+        return self.__id
+
+    @property
+    def key(self) -> str:
+        """The setting's unique key"""
+        return self.__key
+
+    @property
+    def description(self) -> str:
+        """The setting's description"""
+        return self.__description
+
+    @property
+    def is_privileged(self) -> bool:
+        return self.__is_privileged
+
+    @property
+    def value(self) -> Any:
+        """The setting's value"""
+        return self.__value
+
+    @classmethod
+    def getQueryByIds(
+        cls,
+    ) -> Callable[[api.critic.Critic, Sequence[int]], QueryResult[ArgumentsType]]:
+        return queries.queryByIds
+
+
+queries = QueryHelper[ArgumentsType](
+    PublicType.getTableName(), "id", "key", "description", "value", "privileged"
+)
 
 
 @public.fetchImpl
-@SystemSetting.cached
 async def fetch(
     critic: api.critic.Critic, setting_id: Optional[int], key: Optional[str]
-) -> WrapperType:
+) -> PublicType:
     if setting_id is not None:
-        condition = "id={setting_id}"
-    else:
-        condition = "key={key}"
-    async with SystemSetting.query(
-        critic, [condition], setting_id=setting_id, key=key
-    ) as result:
-        try:
-            return await SystemSetting.makeOne(critic, result)
-        except dbaccess.ZeroRowsInResult:
-            assert key is not None
-            raise api.systemsetting.InvalidKey(value=key)
+        return await SystemSetting.ensureOne(
+            setting_id, queries.idFetcher(critic, SystemSetting)
+        )
+    assert key is not None
+    return await SystemSetting.ensureOne(
+        key, queries.itemFetcher(critic, SystemSetting, "key"), public.InvalidKey
+    )
 
 
 @public.fetchManyImpl
-@SystemSetting.cachedMany
 async def fetchMany(
     critic: api.critic.Critic,
     setting_ids: Optional[Sequence[int]],
     keys: Optional[Sequence[str]],
-) -> Sequence[WrapperType]:
+) -> Sequence[PublicType]:
     if setting_ids is not None:
-        condition = "id=ANY({setting_ids})"
-    else:
-        assert keys is not None
-        condition = "key=ANY({keys})"
-    async with SystemSetting.query(
-        critic, [condition], setting_ids=setting_ids, keys=keys
-    ) as result:
-        return await SystemSetting.make(critic, result)
+        return await SystemSetting.ensure(
+            setting_ids, queries.idsFetcher(critic, SystemSetting)
+        )
+    assert keys is not None
+    return await SystemSetting.ensure(
+        keys, queries.itemsFetcher(critic, SystemSetting, "key"), public.InvalidKeys
+    )
 
 
 @public.fetchAllImpl
 async def fetchAll(
     critic: api.critic.Critic, prefix: Optional[str]
-) -> Sequence[WrapperType]:
-    try:
-        async with critic.query("SELECT 1 FROM systemsettings WHERE FALSE") as result:
-            await result.ignore()
-    except dbaccess.ProgrammingError:
-        # The |systemsettings| table doesn't exist. This happens during upgrade
-        # from a pre-2.0 system. Ignore the error here. Any code that actually
-        # depends on specific settings will crash instead.
-        return []
+) -> Sequence[PublicType]:
+    conditions = []
 
     try:
         api.PermissionDenied.raiseUnlessSystem(critic)
     except api.PermissionDenied:
-        include_privileged = False
-    else:
-        include_privileged = True
-
-    conditions = ["(NOT privileged OR {include_privileged})"]
+        conditions.append("NOT privileged")
 
     if prefix is not None:
         if "%" in prefix:
@@ -106,7 +129,6 @@ async def fetchAll(
         conditions.append("key LIKE {prefix}")
         prefix += ".%"
 
-    async with SystemSetting.query(
-        critic, conditions, prefix=prefix, include_privileged=include_privileged
-    ) as result:
-        return await SystemSetting.make(critic, result)
+    return SystemSetting.store(
+        await queries.query(critic, *conditions, prefix=prefix).make(SystemSetting)
+    )

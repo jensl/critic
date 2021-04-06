@@ -98,14 +98,20 @@ class ExamineFiles(Job):
         async with self.group.repository() as repository:
             if old_paths:
                 old_file_status = await diff.parse.examine_files(
-                    repository, self.from_commit_sha1, old_paths
+                    repository,
+                    self.from_commit_sha1,
+                    old_paths,
+                    self.group.as_changeset.decode_old,
                 )
             else:
                 old_file_status = {}
 
             if new_paths:
                 new_file_status = await diff.parse.examine_files(
-                    repository, self.to_commit_sha1, new_paths
+                    repository,
+                    self.to_commit_sha1,
+                    new_paths,
+                    self.group.as_changeset.decode_new,
                 )
             else:
                 new_file_status = {}
@@ -166,10 +172,10 @@ class ExamineFiles(Job):
         def new_length(changed_file: ChangedFile) -> Optional[int]:
             return number_of_lines(self.file_status[changed_file][1], None)
 
-        changeset_id = self.group.changeset_id
         repository_id = self.group.repository_id
         language_ids = self.group.language_ids
-        conflicts = self.group.conflicts
+        changeset_id = self.group.as_changeset.changeset_id
+        conflicts = self.group.as_changeset.conflicts
 
         for changed_file in self.changed_files:
             old_status, new_status = self.file_status[changed_file]
@@ -366,7 +372,7 @@ class ExamineFiles(Job):
 
         yield from DetectFileLanguages.for_files(self.group, self.changed_files)
 
-        yield from SyntaxHighlightFile.for_files(self.group, self.changed_files)
+        # yield from SyntaxHighlightFile.for_files(self.group, self.changed_files)
 
     @staticmethod
     def for_files(

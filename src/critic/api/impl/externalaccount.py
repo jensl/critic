@@ -17,93 +17,158 @@
 from __future__ import annotations
 
 import logging
-from typing import Tuple, Optional, Sequence
+from typing import Callable, Tuple, Optional, Sequence
 
 logger = logging.getLogger(__name__)
 
 from critic import api
+from critic import auth
 from critic.api import externalaccount as public
-from .apiobject import APIObject
+from .apiobject import APIObjectImplWithId
+from .queryhelper import QueryHelper, QueryResult
 
-
-WrapperType = api.externalaccount.ExternalAccount
+PublicType = public.ExternalAccount
 ArgumentsType = Tuple[
     int, Optional[int], str, str, Optional[str], Optional[str], Optional[str]
 ]
 
 
-class ExternalAccount(APIObject[WrapperType, ArgumentsType, int]):
-    wrapper_class = WrapperType
-    table_name = "externalusers"
-    column_names = ["id", "uid", "provider", "account", "username", "fullname", "email"]
-
-    def __init__(self, args: ArgumentsType):
-        from critic import auth
-
+class ExternalAccount(PublicType, APIObjectImplWithId, module=public):
+    def update(self, args: ArgumentsType) -> int:
         (
-            self.id,
+            self.__id,
             self.__user_id,
-            self.provider_name,
-            self.account_id,
-            self.account_username,
-            self.account_fullname,
-            self.account_email,
+            self.__provider_name,
+            self.__account_id,
+            self.__account_username,
+            self.__account_fullname,
+            self.__account_email,
         ) = args
 
-        provider = auth.Provider.enabled().get(self.provider_name)
+        provider = auth.Provider.enabled().get(self.__provider_name)
 
-        self.enabled = provider is not None
-        self.provider_title = provider.getTitle() if provider else None
-        self.account_url = provider.getAccountURL(self.account_id) if provider else None
+        self.__enabled = provider is not None
+        self.__provider_title = provider.getTitle() if provider else None
+        self.__account_url = (
+            provider.getAccountURL(self.account_id) if provider else None
+        )
+        return self.__id
+
+    @property
+    def id(self) -> int:
+        return self.__id
+
+    @property
+    def enabled(self) -> bool:
+        return self.__enabled
+
+    @property
+    def provider_name(self) -> str:
+        return self.__provider_name
+
+    @property
+    def provider_title(self) -> Optional[str]:
+        return self.__provider_title
+
+    @property
+    def provider(self) -> Optional[public.Provider]:
+        """The internal auth.Provider instance, or None
+
+        None is returned if the provider is no longer enabled in system
+        configuration (or no longer present.)"""
+        return auth.Provider.enabled().get(self.provider_name)
+
+    @property
+    def account_id(self) -> str:
+        """The external account id"""
+        return self.__account_id
+
+    @property
+    def account_username(self) -> Optional[str]:
+        """The external account's username, or None'"""
+        return self.__account_username
+
+    @property
+    def account_fullname(self) -> Optional[str]:
+        """The external account's full name, or None'"""
+        return self.__account_fullname
+
+    @property
+    def account_email(self) -> Optional[str]:
+        """The external account's email address, or None'"""
+        return self.__account_email
+
+    @property
+    def account_url(self) -> Optional[str]:
+        """The external account's URL, or None
+
+        If the external authentication provider has a main page for the
+        account, this is its URL. It's meaningful to point a user towards
+        this URL for more information about the account.
+
+        None is returned if there is no such main page."""
+        return self.__account_url
 
     @property
     def is_connected(self) -> bool:
+        """True if this external account is connected to a Critic user
+
+        If True, the |user| attribute returns the user it is connected to."""
         return self.__user_id is not None
 
-    def getProvider(self) -> Optional[api.externalaccount.Provider]:
-        from critic import auth
-
-        return auth.Provider.enabled().get(self.provider_name)
-
-    async def getUser(self, critic: api.critic.Critic) -> Optional[api.user.User]:
+    @property
+    async def user(self) -> Optional[api.user.User]:
         if self.__user_id is None:
             return None
-        return await api.user.fetch(critic, self.__user_id)
+        return await api.user.fetch(self.critic, self.__user_id)
+
+    @classmethod
+    def getQueryByIds(
+        cls,
+    ) -> Callable[[api.critic.Critic, Sequence[int]], QueryResult[ArgumentsType]]:
+        return queries.queryByIds
+
+
+queries = QueryHelper[ArgumentsType](
+    ExternalAccount.getTableName(),
+    "id",
+    "uid",
+    "provider",
+    "account",
+    "username",
+    "fullname",
+    "email",
+)
 
 
 @public.fetchImpl
-@ExternalAccount.cached
 async def fetch(
     critic: api.critic.Critic,
     external_user_id: Optional[int],
     provider_name: Optional[str],
     user: Optional[api.user.User],
     account_id: Optional[str],
-) -> WrapperType:
-    conditions = []
+) -> PublicType:
     if external_user_id is not None:
-        conditions.append("id={external_user_id}")
+        return await ExternalAccount.ensureOne(
+            external_user_id, queries.idFetcher(critic, ExternalAccount)
+        )
+
+    assert provider_name is not None
+    conditions = ["provider={provider_name}"]
+    if user is not None:
+        conditions.append("uid={user}")
     else:
-        conditions.append("provider={provider_name}")
-        if user is not None:
-            conditions.append("uid={user}")
-        else:
-            conditions.append("account={account_id}")
-    async with ExternalAccount.query(
-        critic,
-        conditions,
-        external_user_id=external_user_id,
-        provider_name=provider_name,
-        user=user,
-        account_id=account_id,
-    ) as result:
-        try:
-            return await ExternalAccount.makeOne(critic, result)
-        except result.ZeroRowsInResult:
-            assert provider_name is not None
-            raise api.externalaccount.NotFound(
-                provider_name, user, account_id
-            ) from None
+        conditions.append("account={account_id}")
+    return ExternalAccount.storeOne(
+        await queries.query(
+            critic,
+            *conditions,
+            provider_name=provider_name,
+            user=user,
+            account_id=account_id,
+        ).makeOne(ExternalAccount, public.NotFound(provider_name, user, account_id))
+    )
 
 
 @public.fetchAllImpl
@@ -111,13 +176,9 @@ async def fetchAll(
     critic: api.critic.Critic,
     user: Optional[api.user.User],
     provider_name: Optional[str],
-) -> Sequence[WrapperType]:
-    conditions = []
-    if user is not None:
-        conditions.append("user_id={user}")
-    if provider_name is not None:
-        conditions.append("provider={provider_name}")
-    async with ExternalAccount.query(
-        critic, conditions, user=user, provider_name=provider_name
-    ) as result:
-        return await ExternalAccount.make(critic, result)
+) -> Sequence[PublicType]:
+    return ExternalAccount.store(
+        await queries.query(critic, uid=user, provider=provider_name).make(
+            ExternalAccount
+        )
+    )

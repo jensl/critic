@@ -82,7 +82,7 @@ async def update_review_files(
         """UPDATE reviewfiles
               SET reviewed=TRUE
             WHERE review={review}
-              AND {id=files:array}""",
+              AND id=ANY({files})""",
         review=review,
         files=change_to_reviewed,
     )
@@ -90,7 +90,7 @@ async def update_review_files(
         """UPDATE reviewfiles
               SET reviewed=FALSE
             WHERE review={review}
-              AND {id=files:array}""",
+              AND id=ANY({files})""",
         review=review,
         files=change_to_pending,
     )

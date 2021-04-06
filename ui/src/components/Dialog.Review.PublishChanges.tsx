@@ -2,6 +2,7 @@ import React, { FunctionComponent } from "react"
 
 import Alert from "@material-ui/lab/Alert"
 import AlertTitle from "@material-ui/lab/AlertTitle"
+import TextField from "@material-ui/core/TextField"
 import { makeStyles } from "@material-ui/core/styles"
 
 import Registry from "."
@@ -28,25 +29,42 @@ const PublishChanges: FunctionComponent<Props> = ({ className }) => {
   const dispatch = useDispatch()
   const review = useReview()
   const tags = useReviewTags()
+
+  const callback = () => {
+    const comment = (document.getElementById(
+      `${kDialogID}-comment`,
+    ) as HTMLInputElement | null)?.value
+    return dispatch(createBatch(review.id, comment))
+  }
+
   return (
     <Confirm
       className={className}
       dialogID={kDialogID}
       title="Publish changes?"
-      accept={{
-        label: "Publish changes",
-        callback: () => dispatch(createBatch(review.id)),
-      }}
+      accept={{ label: "Publish changes", callback }}
     >
-      <Alert className={classes.alert} severity="info">
-        Publishing your changes makes them visible to other users.
-      </Alert>
-      {tags.has("would_be_accepted") && (
+      {tags.has("would_be_accepted") ? (
         <Alert className={classes.alert} severity="success">
           <AlertTitle>Accepted</AlertTitle>
           With these changes published, the review will be accepted.
         </Alert>
+      ) : tags.has("would_be_unaccepted") ? (
+        <Alert className={classes.alert} severity="warning">
+          With these changes published, the review will NO LONGER be accepted.
+        </Alert>
+      ) : (
+        <Alert className={classes.alert} severity="info">
+          Publishing your changes makes them visible to other users.
+        </Alert>
       )}
+      <TextField
+        id={`${kDialogID}-comment`}
+        label="Comment"
+        placeholder="Explain yourself, or write something nice!"
+        fullWidth
+        multiline
+      />
     </Confirm>
   )
 }

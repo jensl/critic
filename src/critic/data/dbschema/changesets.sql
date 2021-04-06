@@ -262,9 +262,9 @@ CREATE TABLE changesetfiledifferences (
   FOREIGN KEY (changeset, file)
     REFERENCES changesetfiles ON DELETE CASCADE,
   FOREIGN KEY (old_highlightfile)
-    REFERENCES highlightfiles,
+    REFERENCES highlightfiles ON DELETE CASCADE,
   FOREIGN KEY (new_highlightfile)
-    REFERENCES highlightfiles
+    REFERENCES highlightfiles ON DELETE CASCADE
 );
 CREATE INDEX changesetfiledifferences_old_highlightfile
           ON changesetfiledifferences (old_highlightfile);

@@ -1,51 +1,31 @@
-import React, { useState } from "react"
-import clsx from "clsx"
-
-import { makeStyles } from "@material-ui/core/styles"
-import IconButton from "@material-ui/core/IconButton"
-import MoreVertIcon from "@material-ui/icons/MoreVert"
-import Menu from "@material-ui/core/Menu"
-import MenuItem from "@material-ui/core/MenuItem"
+import React from "react"
 
 import Registry from "."
-import PrimaryActions from "./Review.Actions.Primary"
-
-const useStyles = makeStyles((theme) => ({
-  reviewActions: {
-    margin: "1rem",
-    display: "flex",
-    flexDirection: "row",
-    justifyContent: "flex-end",
-    alignItems: "center",
-  },
-  moreButton: {},
-}))
+import { ReviewActionProps } from "./Review.Action"
+import PublishChanges from "./Review.Action.PublishChanges"
+import DiscardChanges from "./Review.Action.DiscardChanges"
+import PublishReview from "./Review.Action.PublishReview"
+import DeleteReview from "./Review.Action.DeleteReview"
+import CreateBranch from "./Review.Action.CreateBranch"
+import Integrate from "./Review.Action.Integrate"
+import CloseReview from "./Review.Action.CloseReview"
+import ReopenReview from "./Review.Action.ReopenReview"
 
 type Props = {
-  className?: string
+  getProps: (key: string) => ReviewActionProps
 }
 
-const ReviewActions: React.FunctionComponent<Props> = ({ className }) => {
-  const classes = useStyles()
-  const [anchorEl, setAnchorEl] = useState<Element | null>(null)
-  return (
-    <div className={clsx(className, classes.reviewActions)}>
-      <PrimaryActions />
-      <IconButton
-        className={classes.moreButton}
-        onClick={(ev) => setAnchorEl(ev.target as Element)}
-      >
-        <MoreVertIcon />
-      </IconButton>
-      <Menu
-        anchorEl={anchorEl}
-        open={anchorEl !== null}
-        onClose={() => setAnchorEl(null)}
-      >
-        <MenuItem>Drop review</MenuItem>
-      </Menu>
-    </div>
-  )
-}
+const ReviewActions: React.FunctionComponent<Props> = ({ getProps }) => (
+  <>
+    <PublishReview {...getProps("publishReview")} />
+    <PublishChanges {...getProps("publishChanges")} />
+    <DiscardChanges {...getProps("discardChanges")} />
+    <CreateBranch {...getProps("createBranch")} />
+    <DeleteReview {...getProps("deleteReview")} />
+    <Integrate {...getProps("integrate")} />
+    <CloseReview {...getProps("closeReview")} />
+    <ReopenReview {...getProps("reopenReview")} />
+  </>
+)
 
 export default Registry.add("Review.Actions", ReviewActions)

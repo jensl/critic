@@ -36,6 +36,7 @@ class Finalize(Finalizer):
         self, installation: api.extensioninstallation.ExtensionInstallation
     ) -> None:
         self.installation = installation
+        super().__init__(self.installation)
 
     async def __call__(
         self, transaction: TransactionBase, cursor: dbaccess.TransactionCursor

@@ -15,6 +15,7 @@
 # the License.
 
 from __future__ import annotations
+from abc import abstractmethod
 
 import datetime
 from typing import Awaitable, Callable, Sequence, Optional, Iterable
@@ -39,44 +40,50 @@ class InvalidIds(api.InvalidIdsError, Error):
     pass
 
 
-class Reply(api.APIObject):
+class Reply(api.APIObjectWithId):
     @property
+    @abstractmethod
     def id(self) -> int:
         """The reply's unique id"""
-        return self._impl.id
+        ...
 
     @property
+    @abstractmethod
     def is_draft(self) -> bool:
         """True if the reply is not yet published
 
         Unpublished replies are not displayed to other users."""
-        return self._impl.is_draft
+        ...
 
     @property
+    @abstractmethod
     async def comment(self) -> api.comment.Comment:
         """The comment this reply is a reply to
 
         The comment is returned as an api.comment.Comment object."""
-        return await self._impl.getComment(self.critic)
+        ...
 
     @property
+    @abstractmethod
     async def author(self) -> api.user.User:
         """The reply's author
 
         The author is returned as an api.user.User object."""
-        return await self._impl.getAuthor(self.critic)
+        ...
 
     @property
+    @abstractmethod
     def timestamp(self) -> datetime.datetime:
         """The reply's timestamp
 
         The return value is a datetime.datetime object."""
-        return self._impl.timestamp
+        ...
 
     @property
+    @abstractmethod
     def text(self) -> str:
         """The reply's text"""
-        return self._impl.text
+        ...
 
 
 async def fetch(critic: api.critic.Critic, reply_id: int) -> Reply:
@@ -107,8 +114,7 @@ async def fetchAll(
     return await fetchAllImpl.get()(critic, comment, author)
 
 
-resource_name = "replies"
-table_name = "comments"
+resource_name = table_name = "replies"
 
 
 fetchImpl: FunctionRef[

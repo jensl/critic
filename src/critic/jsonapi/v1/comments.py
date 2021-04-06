@@ -74,7 +74,7 @@ class CommitMessageLocation(LocationBase):
 class FileVersionLocation(LocationBase):
     file: Awaitable[api.file.File]
     changeset: Awaitable[Optional[api.changeset.Changeset]]
-    side: api.comment.Side
+    side: Optional[api.comment.Side]
     commit: Awaitable[Optional[api.commit.Commit]]
 
 
@@ -98,23 +98,23 @@ async def reduce_location(
 
     if location.type == "commit-message":
         commit_message_location = location.as_commit_message
-        return {
-            "type": commit_message_location.type,
-            "first_line": commit_message_location.first_line,
-            "last_line": commit_message_location.last_line,
-            "commit": commit_message_location.commit,
-        }
+        return CommitMessageLocation(
+            type=commit_message_location.type,
+            first_line=commit_message_location.first_line,
+            last_line=commit_message_location.last_line,
+            commit=commit_message_location.commit,
+        )
     else:
         file_version_location = location.as_file_version
-        return {
-            "type": file_version_location.type,
-            "first_line": file_version_location.first_line,
-            "last_line": file_version_location.last_line,
-            "file": file_version_location.file,
-            "changeset": file_version_location.changeset,
-            "side": file_version_location.side,
-            "commit": file_version_location.commit,
-        }
+        return FileVersionLocation(
+            type=file_version_location.type,
+            first_line=file_version_location.first_line,
+            last_line=file_version_location.last_line,
+            file=file_version_location.file,
+            changeset=file_version_location.changeset,
+            side=file_version_location.side,
+            commit=file_version_location.commit,
+        )
 
 
 async def reduce_main_location(value: api.comment.Comment) -> Optional[Location]:
@@ -484,7 +484,7 @@ class Comments(
                 review = await comment.review
                 reviews.add(review)
                 modifier = await transaction.modifyReview(review).modifyComment(comment)
-                await modifier.deleteComment()
+                await modifier.delete()
 
         if len(reviews) == 1:
             await includeUnpublished(parameters, reviews.pop())

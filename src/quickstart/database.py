@@ -57,7 +57,28 @@ class Database:
             json.dump(password, password_file)
         return password
 
-    async def start(self) -> None:
+    @property
+    def container_name(self) -> str:
+        return "critic_quickstart_database"
+
+    async def find_container(self) -> Optional[str]:
+        process = await asyncio.create_subprocess_exec(
+            "docker",
+            "ps",
+            "--filter",
+            f"name={self.container_name}",
+            "--quiet",
+            stdout=asyncio.subprocess.PIPE,
+        )
+        stdout, _ = await process.communicate()
+        return stdout.decode().strip() or None
+
+    async def start(self) -> bool:
+        if (container_id := await self.find_container()) :
+            logger.error("Database container already running!")
+            logger.info("Hint: Run `docker stop %s` to stop it.", container_id)
+            return False
+
         env = os.environ.copy()
         env_args = []
 
@@ -109,6 +130,7 @@ class Database:
             logger.error("Failed!")
             if stderr:
                 logger.error(stderr)
+            return False
 
         self.container_id = stdout.decode().strip()
         logger.debug("database_container_id: %s", self.container_id)
@@ -126,10 +148,13 @@ class Database:
             logger.error("Failed!")
             if stderr:
                 logger.error(stderr)
+            return False
 
         data = json.loads(stdout)
         self.host = data[0]["NetworkSettings"]["IPAddress"]
         logger.debug("database_host: %s", self.host)
+
+        return True
 
     async def stop(self):
         if self.container_id is None:

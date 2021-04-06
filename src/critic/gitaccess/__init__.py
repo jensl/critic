@@ -22,8 +22,6 @@ from typing import Literal, Mapping, NewType, Optional, Type, cast
 
 logger = logging.getLogger(__name__)
 
-from critic import base
-
 SHA1 = NewType("SHA1", str)
 
 
@@ -55,6 +53,8 @@ from .gitobject import (
     GitTreeEntry,
     GitTree,
 )
+
+from .gitusertime import GitUserTime
 
 SHA1_PATTERN = re.compile("^[0-9a-fA-F]{40}$")
 
@@ -146,6 +146,7 @@ __all__ = [
     "GitTag",
     "GitTree",
     "GitTreeEntry",
+    "GitUserTime",
     "RevlistFlag",
     "RevlistOrder",
     "StreamCommand",

@@ -110,7 +110,7 @@ CREATE TABLE scheduledreviewbrancharchivals
 CREATE TABLE batches (
   id SERIAL PRIMARY KEY,
   event INTEGER NOT NULL REFERENCES reviewevents ON DELETE CASCADE,
-  comment INTEGER -- REFERENCES commentchains
+  comment INTEGER -- REFERENCES comments
 );
 CREATE INDEX batches_event
           ON batches (event);
@@ -398,7 +398,7 @@ CREATE VIEW reviewfilesharing
       WHERE users.status='current'
    GROUP BY reviewfiles.review, reviewfiles.id;
 
-CREATE TYPE reviewfilechangestate AS ENUM (
+CREATE TYPE reviewuserfilechangestate AS ENUM (
 
   'draft',     -- This change hasn't been performed yet.
   'performed', -- The change has been performed.
@@ -407,14 +407,14 @@ CREATE TYPE reviewfilechangestate AS ENUM (
 
 );
 
-CREATE TABLE reviewfilechanges (
+CREATE TABLE reviewuserfilechanges (
 
   batch INTEGER REFERENCES batches,
   file INTEGER NOT NULL REFERENCES reviewfiles ON DELETE CASCADE,
   uid INTEGER NOT NULL REFERENCES users,
 
   time TIMESTAMP NOT NULL DEFAULT NOW(),
-  state reviewfilechangestate NOT NULL DEFAULT 'draft',
+  state reviewuserfilechangestate NOT NULL DEFAULT 'draft',
   from_reviewed BOOLEAN NOT NULL,
   to_reviewed BOOLEAN NOT NULL,
 
@@ -422,10 +422,10 @@ CREATE TABLE reviewfilechanges (
 
 );
 
-CREATE INDEX reviewfilechanges_batch ON reviewfilechanges (batch);
-CREATE INDEX reviewfilechanges_file ON reviewfilechanges (file);
-CREATE INDEX reviewfilechanges_uid_state ON reviewfilechanges (uid, state);
-CREATE INDEX reviewfilechanges_time ON reviewfilechanges (time);
+CREATE INDEX reviewuserfilechanges_batch ON reviewuserfilechanges (batch);
+CREATE INDEX reviewuserfilechanges_file ON reviewuserfilechanges (file);
+CREATE INDEX reviewuserfilechanges_uid_state ON reviewuserfilechanges (uid, state);
+CREATE INDEX reviewuserfilechanges_time ON reviewuserfilechanges (time);
 
 CREATE TABLE lockedreviews (
 

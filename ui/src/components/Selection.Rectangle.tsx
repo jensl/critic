@@ -3,6 +3,7 @@ import clsx from "clsx"
 
 import { makeStyles } from "@material-ui/core/styles"
 import { useSelector } from "../store"
+import { useMousePosition } from "../utils/Mouse"
 
 const useStyles = makeStyles((theme) => ({
   root: { position: "absolute", ...theme.critic.selectionRectangle },
@@ -20,14 +21,14 @@ const SelectionRectangle: FunctionComponent<Props> = ({ className }) => {
     absoluteY,
     downAbsoluteX,
     downAbsoluteY,
-  } = useSelector((state) => state.ui.mouse)
+  } = useMousePosition()
   const { isRangeSelecting, boundingRect } = useSelector(
-    (state) => state.ui.selectionScope
+    (state) => state.ui.selectionScope,
   )
   if (!isDown || !isRangeSelecting || !boundingRect) return null
   const left = Math.max(
     Math.min(absoluteX, downAbsoluteX) + 1,
-    boundingRect.left
+    boundingRect.left,
   )
   const width =
     Math.min(Math.max(absoluteX, downAbsoluteX), boundingRect.right) - left - 1

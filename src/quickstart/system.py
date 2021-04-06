@@ -339,6 +339,14 @@ class System:
                 return_when=asyncio.FIRST_COMPLETED,
             )
 
+            http_prefix = f"http://{self.server_host}:{self.server_port}"
+
+            await self.criticctl(
+                "settings",
+                "set",
+                f"system.http_prefix:{json.dumps(http_prefix)}",
+            )
+
             if self.run_frontend.done():
                 logger.error("Failed to start HTTP front-end!")
                 return False

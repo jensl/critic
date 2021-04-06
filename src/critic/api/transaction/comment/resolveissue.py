@@ -22,7 +22,8 @@ logger = logging.getLogger(__name__)
 
 from ..base import TransactionBase
 from ..item import Delete, Insert
-from ..review import ReviewUserTag, has_unpublished_changes
+from ..review.updateunpublishedtag import UpdateUnpublishedTag
+from ..review.updatewouldbeacceptedtag import UpdateWouldBeAcceptedTag
 from critic import api
 
 
@@ -37,17 +38,13 @@ async def resolve_issue(
     if issue.is_draft:
         raise api.comment.Error("Unpublished issues cannot be resolved")
 
-    transaction.tables.add("commentchainchanges")
-
-    ReviewUserTag.ensure(
-        transaction,
-        await issue.review,
-        critic.effective_user,
-        "unpublished",
-        has_unpublished_changes,
-    )
+    transaction.tables.add("commentchanges")
 
     draft_changes = await issue.draft_changes
+    review = await issue.review
+
+    transaction.finalizers.add(UpdateUnpublishedTag(review))
+    transaction.finalizers.add(UpdateWouldBeAcceptedTag(review))
 
     if draft_changes:
         new_state = draft_changes.new_state
@@ -57,8 +54,8 @@ async def resolve_issue(
 
         if new_state == "open":
             await transaction.execute(
-                Delete("commentchainchanges").where(
-                    uid=critic.effective_user, chain=issue
+                Delete("commentchanges").where(
+                    author=critic.effective_user, comment=issue
                 )
             )
             return
@@ -67,10 +64,10 @@ async def resolve_issue(
         raise api.comment.Error("Only open issues can be resolved")
 
     await transaction.execute(
-        Insert("commentchainchanges").values(
-            chain=issue,
-            uid=critic.effective_user,
+        Insert("commentchanges").values(
+            comment=issue,
+            author=critic.effective_user,
             from_state="open",
-            to_state="closed",
+            to_state="resolved",
         )
     )

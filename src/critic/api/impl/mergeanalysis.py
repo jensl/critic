@@ -17,12 +17,14 @@
 from __future__ import annotations
 
 import logging
-from typing import Optional, Any, Tuple, FrozenSet, Dict, Sequence, Iterator
+from typing import Collection, Optional, Tuple, FrozenSet, Dict, Sequence, Iterator
 
 logger = logging.getLogger(__name__)
 
-from .apiobject import APIObject
 from critic import api
+from critic.api import mergeanalysis as public
+from critic.api.apiobject import Actual
+from .apiobject import APIObjectImpl
 
 
 def filter_blocks(
@@ -70,23 +72,44 @@ ArgumentsType = Tuple[
 ]
 
 
-class MergeChangeset(APIObject[api.mergeanalysis.MergeChangeset, ArgumentsType, Any]):
+class MergeChangeset(public.MergeChangeset, APIObjectImpl, module=public):
     wrapper_class = api.mergeanalysis.MergeChangeset
 
     __files: Optional[FrozenSet[api.file.File]]
 
-    def __init__(self, args: ArgumentsType) -> None:
-        (
-            self.merge,
-            self.parent,
-            self.__primary_changeset,
-            self.__reference_changeset,
-        ) = args
+    def __init__(
+        self,
+        merge: api.commit.Commit,
+        parent: api.commit.Commit,
+        primary_changeset: api.changeset.Changeset,
+        reference_changeset: api.changeset.Changeset,
+    ):
+        super().__init__(merge.critic)
+        self.__merge = merge
+        self.__parent = parent
+        self.__primary_changeset = primary_changeset
+        self.__reference_changeset = reference_changeset
         self.__files = None
 
-    async def getFiles(
-        self, critic: api.critic.Critic
-    ) -> Optional[FrozenSet[api.file.File]]:
+    def __repr__(self) -> str:
+        return f"MergeChangeset(merge={self.merge!r}, parent={self.parent!r})"
+
+    def getCacheKeys(self) -> Collection[object]:
+        return ((self.__merge, self.__parent),)
+
+    async def refresh(self: Actual) -> Actual:
+        return self
+
+    @property
+    def merge(self) -> api.commit.Commit:
+        return self.__merge
+
+    @property
+    def parent(self) -> api.commit.Commit:
+        return self.__parent
+
+    @property
+    async def files(self) -> Optional[FrozenSet[api.file.File]]:
         if self.__files is None:
             primary_files = await self.__primary_changeset.files
             if primary_files is None:
@@ -95,7 +118,7 @@ class MergeChangeset(APIObject[api.mergeanalysis.MergeChangeset, ArgumentsType, 
         return self.__files
 
     async def getMacroChunks(
-        self, critic: api.critic.Critic, adjacency_limit: int, context_lines: int
+        self, *, adjacency_limit: int = 2, context_lines: int = 3
     ) -> Dict[api.file.File, Sequence[api.filediff.MacroChunk]]:
         result: Dict[api.file.File, Sequence[api.filediff.MacroChunk]] = {}
 
@@ -105,7 +128,7 @@ class MergeChangeset(APIObject[api.mergeanalysis.MergeChangeset, ArgumentsType, 
             filechange = await api.filechange.fetch(changeset, file)
             return await api.filediff.fetch(filechange)
 
-        files = await self.getFiles(critic)
+        files = await self.files
 
         if files is None:
             return result
@@ -135,76 +158,84 @@ class MergeChangeset(APIObject[api.mergeanalysis.MergeChangeset, ArgumentsType, 
 
         return result
 
-    async def ensure(self, critic: api.critic.Critic, block: bool) -> bool:
-        primary_ready = await self.__primary_changeset.ensure(block=block)
-        reference_ready = await self.__reference_changeset.ensure(
+    async def ensure_availability(self, *, block: bool = True) -> bool:
+        primary_ready = await self.__primary_changeset.ensure_completion_level(
+            block=block
+        )
+        reference_ready = await self.__reference_changeset.ensure_completion_level(
             "changedlines", block=block
         )
         return primary_ready and reference_ready
 
 
-WrapperType = api.mergeanalysis.MergeAnalysis
+PublicType = public.MergeAnalysis
 
 
-class MergeAnalysis(APIObject[WrapperType, api.commit.Commit, api.commit.Commit]):
-    wrapper_class = api.mergeanalysis.MergeAnalysis
-
+class MergeAnalysis(PublicType, APIObjectImpl, module=public):
     __replay: Optional[api.commit.Commit]
 
-    def __init__(self, merge: api.commit.Commit) -> None:
-        self.merge = merge
+    def __init__(self, merge: api.commit.Commit):
+        self.__merge = merge
         self.__replay = None
 
-    async def getChangesRelativeParent(
-        self, critic: api.critic.Critic
-    ) -> Sequence[api.mergeanalysis.MergeChangeset]:
-        from critic.changeset.structure import request_merge
+    def getCacheKeys(self) -> Collection[object]:
+        return ((self.__merge, self.__replay),)
 
+    async def refresh(self: Actual) -> Actual:
+        return self
+
+    @property
+    def merge(self) -> api.commit.Commit:
+        return self.__merge
+
+    @property
+    async def changes_relative_parents(self) -> Sequence[public.MergeChangeset]:
         changesets = []
 
-        for parent in await self.merge.parents:
-            primary_changeset_id, reference_changeset_id = await request_merge(
-                parent, self.merge
-            )
+        async with api.transaction.start(self.critic) as transaction:
+            for parent in await self.merge.parents:
+                (
+                    primary_modifier,
+                    reference_modifier,
+                ) = await transaction.ensureMergeChangeset(parent, self.merge)
 
-            primary_changeset = await api.changeset.fetch(critic, primary_changeset_id)
-            reference_changeset = await api.changeset.fetch(
-                critic, reference_changeset_id
-            )
+                await primary_modifier.requestContent()
+                await primary_modifier.requestHighlight()
+                primary_changeset = primary_modifier.subject
 
-            changesets.append(
-                MergeChangeset(
-                    (self.merge, parent, primary_changeset, reference_changeset)
-                ).wrap(critic)
-            )
+                await reference_modifier.requestContent()
+                reference_changeset = reference_modifier.subject
+
+                changesets.append(
+                    MergeChangeset(
+                        self.merge, parent, primary_changeset, reference_changeset
+                    )
+                )
 
         return changesets
 
-    async def getConflictResolutions(
-        self, critic: api.critic.Critic
-    ) -> api.changeset.Changeset:
-        # from critic.changeset import mergereplay
-
+    @property
+    async def conflict_resolutions(self) -> api.changeset.Changeset:
         if self.__replay is None:
             raise api.mergeanalysis.Error("NOT IMPLEMENTED")
             # self.__replay = await mergereplay.request(self.merge)
             # if self.__replay is None:
             #     raise api.mergeanalysis.Delayed()
         return await api.changeset.fetch(
-            critic, from_commit=self.__replay, to_commit=self.merge, conflicts=True
+            self.critic, from_commit=self.__replay, to_commit=self.merge, conflicts=True
         )
 
-    async def ensure(self, critic: api.critic.Critic, block: bool) -> bool:
-        conflict_resolutions = await self.getConflictResolutions(critic)
-        if not await conflict_resolutions.ensure(block=block):
+    async def ensure_availability(self, *, block: bool = True) -> bool:
+        conflict_resolutions = await self.conflict_resolutions
+        if not await conflict_resolutions.ensure_completion_level(block=block):
             return False
-        for changeset in await self.getChangesRelativeParent(critic):
-            if not await changeset.ensure(block=block):
+        for changeset in await self.changes_relative_parents:
+            if not await changeset.ensure_availability(block=block):
                 return False
         return True
 
 
-async def fetch(merge: api.commit.Commit) -> WrapperType:
+async def fetch(merge: api.commit.Commit) -> PublicType:
     if not merge.is_merge:
         raise api.mergeanalysis.Error("commit is not a merge")
-    return await MergeAnalysis.makeOne(merge.critic, values=merge)
+    return MergeAnalysis(merge)

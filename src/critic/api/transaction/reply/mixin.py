@@ -17,13 +17,7 @@ class ModifyComment(Modifier[api.comment.Comment]):
         # Users are not (generally) allowed to create comments as other users.
         api.PermissionDenied.raiseUnlessUser(self.critic, author)
 
-        reply = await ModifyReply.create(self.transaction, self.subject, author, text)
-
-        ReviewUserTag.ensure(
-            self.transaction, await self.subject.review, author, "unpublished"
-        )
-
-        return reply
+        return await ModifyReply.create(self.transaction, self.subject, author, text)
 
     async def modifyReply(self, reply: api.reply.Reply) -> ModifyReply:
         if await reply.comment != self.subject:

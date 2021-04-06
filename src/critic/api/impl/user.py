@@ -19,6 +19,8 @@ from __future__ import annotations
 import logging
 from collections import defaultdict
 from typing import (
+    Callable,
+    Collection,
     Iterable,
     Optional,
     Set,
@@ -27,39 +29,39 @@ from typing import (
     DefaultDict,
     Tuple,
     FrozenSet,
-    Any,
     Sequence,
-    Dict,
-    Type,
-    Union,
+    cast,
 )
+
 
 logger = logging.getLogger(__name__)
 
 from critic import api
 from critic.api import user as public
-from . import apiobject
+from .apiobject import APIObjectImplWithId
+from .objectcache import ObjectCache
+from .queryhelper import QueryHelper, QueryResult
 
 
-async def _loadRoles(critic: api.critic.Critic, users: Iterable[api.user.User]) -> None:
+async def _loadRoles(critic: api.critic.Critic, users: Iterable[User]) -> None:
     roles: DefaultDict[int, Set[str]] = defaultdict(set)
 
     async with api.critic.Query[Tuple[int, str]](
         critic,
         """SELECT uid, role
              FROM userroles
-            WHERE {uid=user_ids:array}""",
+            WHERE uid=ANY({user_ids})""",
         user_ids=[user.id for user in users if user.id is not None],
     ) as result:
         async for user_id, role in result:
             roles[user_id].add(role)
     for user in users:
-        User.fromWrapper(user).setRoles(roles[int(user)])
+        user.setRoles(roles[int(user)])
 
 
-WrapperType = api.user.User
+PublicType = public.User
 ArgumentsType = Tuple[
-    Optional[int],
+    int,
     Optional[str],
     Optional[str],
     Optional[api.user.Status],
@@ -67,49 +69,96 @@ ArgumentsType = Tuple[
 ]
 
 
-class User(apiobject.APIObject[WrapperType, ArgumentsType, int]):
-    wrapper_class = api.user.User
-    column_names = ["id", "name", "fullname", "status", "password"]
+class Key:
+    pass
 
-    roles: Optional[FrozenSet[str]]
 
-    def __init__(
-        self,
-        args: ArgumentsType = (None, None, None, None, None),
-        *,
-        user_type: api.user.Type = "regular",
-    ) -> None:
+AnonymousId = -1
+AnonymousKey = Key()
+SystemId = -2
+SystemKey = Key()
+
+
+class User(PublicType, APIObjectImplWithId, module=public):
+    __type: api.user.Type
+    __roles: Optional[FrozenSet[str]]
+    __password_status: api.user.PasswordStatus
+
+    def __adapt__(self) -> Optional[int]:
+        return None if self.__id < 0 else self.__id
+
+    def update(self, args: ArgumentsType) -> int:
         (
-            self.id,
-            self.name,
-            self.fullname,
-            self.status,
+            self.__id,
+            self.__name,
+            self.__fullname,
+            self.__status,
             hashed_password,
         ) = args
 
-        self.type = user_type
-        self.roles = frozenset() if self.id is None else None
+        self.__type = "regular"
+        self.__roles = frozenset() if self.id is None else None
 
         if hashed_password:
-            self.password_status = "set"
+            self.__password_status = "set"
         elif (
-            self.status == "current"
+            self.__status == "current"
             and api.critic.settings().authentication.used_database == "internal"
         ):
-            self.password_status = "not-set"
+            self.__password_status = "not-set"
         else:
-            self.password_status = "disabled"
+            self.__password_status = "disabled"
+        return self.__id
+
+    def setType(self, new_type: api.user.Type) -> User:
+        self.__type = new_type
+        return self
+
+    @property
+    def type(self) -> api.user.Type:
+        return self.__type
+
+    @property
+    def id(self) -> int:
+        return self.__id
+
+    @property
+    def name(self) -> Optional[str]:
+        return self.__name
+
+    @property
+    def fullname(self) -> Optional[str]:
+        return self.__fullname
+
+    @property
+    def status(self) -> api.user.Status:
+        if self.__type == "anonymous":
+            return "anonymous"
+        elif self.__type == "system":
+            return "system"
+        assert self.__status is not None
+        return self.__status
+
+    @property
+    def password_status(self) -> api.user.PasswordStatus:
+        return self.__password_status
 
     def __repr__(self) -> str:
-        return "User(%r, roles=%r)" % (self.id, self.roles)
+        if self.is_regular:
+            return f"User({self.id}, {self.name!r}, roles={self.roles!r})"
+        elif self.is_anonymous:
+            return "User(anonymous)"
+        else:
+            return "User(system)"
 
     def setRoles(self, roles: Set[str]) -> None:
-        assert self.roles is None or self.roles == roles
-        self.roles = frozenset(roles)
+        assert self.__roles is None or self.__roles == roles
+        self.__roles = frozenset(roles)
 
-    async def getGitEmails(self, critic: api.critic.Critic) -> Set[str]:
+    @property
+    async def git_emails(self) -> Set[str]:
         async with api.critic.Query[str](
-            critic,
+            self.critic,
             """SELECT email
                  FROM usergitemails
                 WHERE uid={user_id}""",
@@ -117,98 +166,40 @@ class User(apiobject.APIObject[WrapperType, ArgumentsType, int]):
         ) as result:
             return set(await result.scalars())
 
-    async def getRepositoryFilters(
-        self, critic: api.critic.Critic
+    @property
+    async def repository_filters(
+        self,
     ) -> Mapping[
-        api.repository.Repository, List[api.repositoryfilter.RepositoryFilter]
+        api.repository.Repository, Sequence[api.repositoryfilter.RepositoryFilter]
     ]:
-        from .repositoryfilter import RepositoryFilter
-
         filters: DefaultDict[
             api.repository.Repository, List[api.repositoryfilter.RepositoryFilter]
         ] = defaultdict(list)
 
-        async with RepositoryFilter.query(
-            critic, ["uid={user_id}"], user_id=self.id
-        ) as result:
-            for repository_filter in await RepositoryFilter.make(critic, result):
-                filters[await repository_filter.repository].append(repository_filter)
+        for repository_filter in await api.repositoryfilter.fetchAll(
+            self.critic, subject=self
+        ):
+            filters[await repository_filter.repository].append(repository_filter)
 
         return filters
 
+    @property
+    def roles(self) -> Collection[str]:
+        assert self.__roles is not None
+        return self.__roles
+
     def hasRole(self, role: str) -> bool:
-        assert self.roles is not None
-        return role in self.roles
+        assert self.__roles is not None
+        return role in self.__roles
 
-    # async def getPreference(
-    #     self,
-    #     wrapper: WrapperType,
-    #     item: str,
-    #     repository: Optional[api.repository.Repository],
-    # ):
-    #     critic = wrapper.critic
-    #     async with api.critic.Query[str](
-    #         critic,
-    #         """SELECT type
-    #              FROM preferences
-    #             WHERE item={item}""",
-    #         item=item,
-    #     ) as result:
-    #         try:
-    #             preference_type = await result.scalar()
-    #         except result.ZeroRowsInResult:
-    #             raise api.preference.InvalidPreferenceItem(item)
-
-    #     arguments = {"item": item}
-    #     conditions = ["item={item}"]
-
-    #     if preference_type in ("boolean", "integer"):
-    #         column = "integer"
-    #     else:
-    #         column = "string"
-
-    #     if self.type == "regular":
-    #         arguments["user_id"] = self.id
-    #         conditions.append("(uid={user_id} OR uid IS NULL)")
-    #     else:
-    #         conditions.append("uid IS NULL")
-
-    #     if repository is not None:
-    #         arguments["repository_id"] = repository.id
-    #         conditions.append("(repository={repository_id} OR repository IS NULL)")
-    #     else:
-    #         conditions.append("repository IS NULL")
-
-    #     async with critic.query(
-    #         f"""SELECT {column},
-    #                    COALESCE(uid, -1),
-    #                    COALESCE(repository, -1)
-    #               FROM userpreferences
-    #              WHERE {" AND ".join(conditions)}""",
-    #         **arguments,
-    #     ) as result:
-    #         rows = await result.all()
-
-    #     row = sorted(rows, key=lambda row: row[1:])[-1]
-    #     value, user_id, repository_id = row
-
-    #     if preference_type == "boolean":
-    #         value = bool(value)
-
-    #     if user_id == -1:
-    #         wrapper = None
-    #     if repository_id == -1:
-    #         repository = None
-
-    #     return api.preference.Preference(item, value, wrapper, repository)
-
-    async def getURLPrefixes(self, wrapper: WrapperType) -> Sequence[str]:
+    @property
+    async def url_prefixes(self) -> Sequence[str]:
         url_types, _ = await api.usersetting.get(
-            wrapper.critic, "system", "urlTypes", default="main"
+            self.critic, "system", "urlTypes", default="main"
         )
 
         async with api.critic.Query[Tuple[str, str, str, str]](
-            wrapper.critic,
+            self.critic,
             """SELECT key, anonymous_scheme, authenticated_scheme, hostname
                  FROM systemidentities""",
         ) as result:
@@ -242,74 +233,70 @@ class User(apiobject.APIObject[WrapperType, ArgumentsType, int]):
         return {"users", "userroles"}
 
     @classmethod
-    async def refresh(
-        cls: Type[User],
+    async def doRefreshAll(
+        cls,
         critic: api.critic.Critic,
-        tables: Set[str],
-        cached_objects: Mapping[Any, WrapperType],
+        users: Collection[object],
+        /,
     ) -> None:
-        await super().refresh(critic, tables, cached_objects)
-        await _loadRoles(critic, cached_objects.values())
+        await super().doRefreshAll(critic, users)
+        await _loadRoles(critic, set(cast(Iterable[User], users)))
+
+    @classmethod
+    def getQueryByIds(
+        cls,
+    ) -> Callable[[api.critic.Critic, Sequence[int]], QueryResult[ArgumentsType]]:
+        return queries.queryByIds
+
+    def getCacheKeys(self) -> Collection[object]:
+        if self.__type == "anonymous":
+            return (AnonymousKey,)
+        elif self.__type == "system":
+            return (SystemKey,)
+        return (self.id, self.name)
+
+
+queries = QueryHelper[ArgumentsType](
+    PublicType.getTableName(), "id", "name", "fullname", "status", "password"
+)
 
 
 @public.fetchImpl
-@User.cached
 async def fetch(
     critic: api.critic.Critic, user_id: Optional[int], name: Optional[str]
-) -> WrapperType:
-    try:
-        user_ids = None if user_id is None else [user_id]
-        names = None if name is None else [name]
-        users = await fetchMany(critic, user_ids, names)
-    except api.user.InvalidIds as error:
-        raise api.user.InvalidId(invalid_id=error.values[0]) from None
-    except api.user.InvalidNames as error:
-        raise api.user.InvalidName(value=error.values[0]) from None
-    return users[0]
+) -> User:
+    if user_id is not None:
+        user = await User.ensureOne(
+            user_id,
+            queries.idFetcher(critic, User),
+            api.user.InvalidId,
+        )
+    else:
+        assert name is not None
+        user = await User.ensureOne(
+            name,
+            queries.itemFetcher(critic, User, "name"),
+            api.user.InvalidName,
+        )
+    await _loadRoles(critic, [user])
+    return user
 
 
 @public.fetchManyImpl
-@User.cachedMany
 async def fetchMany(
     critic: api.critic.Critic,
-    user_ids_iterable: Optional[Iterable[int]],
-    names_iterable: Optional[Iterable[str]] = None,
-) -> Sequence[WrapperType]:
-    user_ids: Optional[List[int]] = None
-    names: Optional[List[str]] = None
-
-    if user_ids_iterable is not None:
-        user_ids = list(user_ids_iterable)
-        condition = "users.id=ANY({user_ids})"
-    else:
-        assert names_iterable is not None
-        names = list(names_iterable)
-        condition = "users.name=ANY({names})"
-
-    async with User.query(
-        critic, [condition], user_ids=user_ids, names=names
-    ) as result:
-        rows = await result.all()
-
-    row_lookup: Dict[Optional[Union[int, str]], ArgumentsType]
-
+    user_ids: Optional[Sequence[int]],
+    names: Optional[Sequence[str]],
+) -> Sequence[User]:
     if user_ids is not None:
-        row_lookup = dict((row[0], row) for row in rows)
-        if len(rows) < len(user_ids):
-            raise api.user.InvalidIds(
-                invalid_ids=[
-                    user_id for user_id in user_ids if user_id not in row_lookup
-                ]
-            )
-        users = await User.make(critic, (row_lookup[key] for key in user_ids))
+        users = await User.ensure(
+            user_ids, queries.idsFetcher(critic, User), api.user.InvalidIds
+        )
     else:
         assert names is not None
-        row_lookup = dict((row[1], row) for row in rows)
-        if len(rows) < len(names):
-            raise api.user.InvalidNames(
-                values=[name for name in names if name not in row_lookup]
-            )
-        users = await User.make(critic, (row_lookup[key] for key in names))
+        users = await User.ensure(
+            names, queries.itemsFetcher(critic, User, "name"), api.user.InvalidNames
+        )
 
     await _loadRoles(critic, users)
     return users
@@ -318,22 +305,24 @@ async def fetchMany(
 @public.fetchAllImpl
 async def fetchAll(
     critic: api.critic.Critic, statuses: Optional[Iterable[api.user.Status]]
-) -> Sequence[WrapperType]:
-    conditions = ["TRUE"]
+) -> Sequence[User]:
+    conditions = []
     if statuses is not None:
-        conditions.append("{status=statuses:array}")
+        conditions.append("status=ANY({statuses})")
         statuses = list(statuses)
-    async with User.query(critic, conditions, statuses=statuses) as result:
-        users = await User.make(critic, result)
-    await _loadRoles(critic, users)
+    users, new_users = ObjectCache.get().store(
+        User.getCacheCategory(),
+        await queries.query(critic, *conditions, statuses=statuses).make(User),
+    )
+    await _loadRoles(critic, new_users)
     return users
 
 
 @public.anonymousImpl
-def anonymous(critic: api.critic.Critic) -> WrapperType:
-    return User(user_type="anonymous").wrap(critic)
+def anonymous(critic: api.critic.Critic) -> User:
+    return User(critic, (AnonymousId, None, None, None, None)).setType("anonymous")
 
 
 @public.systemImpl
-def system(critic: api.critic.Critic) -> WrapperType:
-    return User(user_type="system").wrap(critic)
+def system(critic: api.critic.Critic) -> User:
+    return User(critic, (SystemId, None, None, None, None)).setType("system")

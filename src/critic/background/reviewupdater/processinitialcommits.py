@@ -34,6 +34,27 @@ async def process_initial_commits(review: api.review.Review) -> None:
     for commit in initial_commits.topo_ordered:
         changesets.append(await api.changeset.fetch(critic, single_commit=commit))
 
+    # Ensure (i.e. wait for) processing of changed lines. We need to know the
+    # number of deleted/inserted lines when inserting rows into `reviewfiles`
+    # and assign changes to reviewers.
+    for changeset in changesets:
+        logger.debug(
+            "Waiting for changeset.ensure_completion_level('changedlines'): %d",
+            changeset.id,
+        )
+        await changeset.ensure_completion_level("changedlines")
+
+    event = await api.reviewevent.fetch(critic, review=review, event_type="created")
+
+    logger.debug(
+        "Adding changesets to review r/%d: %s",
+        review.id,
+        ", ".join(str(changeset.id) for changeset in changesets),
+    )
+    async with api.transaction.start(critic) as transaction:
+        modifier = transaction.modifyReview(review)
+        await modifier.addChangesets(event, changesets, commits=initial_commits)
+
     if len(initial_commits) > 1:
         # Also request that a changeset of the full changes is processed right
         # away, since this is likely to be wanted by reviewers.
@@ -43,19 +64,3 @@ async def process_initial_commits(review: api.review.Review) -> None:
             # This is sometimes not supported, e.g. if the first (oldest) commit
             # on the review branch is a merge. Nothing to worry about.
             pass
-
-    # Ensure (i.e. wait for) processing of changed lines. We need to know the
-    # number of deleted/inserted lines when inserting rows into `reviewfiles`
-    # and assign changes to reviewers.
-    for changeset in changesets:
-        logger.debug("Waiting for changeset.ensure('changedlines'): %d", changeset.id)
-        await changeset.ensure("changedlines")
-
-    logger.debug(
-        "Adding changesets to review r/%d: %s",
-        review.id,
-        ", ".join(str(changeset.id) for changeset in changesets),
-    )
-    async with api.transaction.start(critic) as transaction:
-        modifier = transaction.modifyReview(review)
-        await modifier.addChangesets(changesets, commits=initial_commits)

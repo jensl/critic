@@ -18,9 +18,8 @@ import { fetch, withArguments } from "../resources"
 import { Channel } from "../utils/WebSocket"
 import Changeset from "../resources/changeset"
 import { AsyncThunk } from "../state"
-import FileDiff from "../resources/filediff"
 import { assertNotNull } from "../debug"
-import { ChangesetID, FileID, RepositoryID, ReviewID } from "../resources/types"
+import { ChangesetID, FileID, ReviewID } from "../resources/types"
 import { waitForCompletionLevel } from "../utils/Changeset"
 import { withData } from "../resources/requestoptions"
 import { filteredSet } from "../utils/Functions"
@@ -38,12 +37,10 @@ export const loadFileDiffs = (
   {
     changeset,
     changesetID,
-    repositoryID,
     reviewID,
   }: {
     changeset?: Changeset
     changesetID?: ChangesetID
-    repositoryID?: RepositoryID
     reviewID?: ReviewID
   },
 ): AsyncThunk<void> => async (dispatch, getState) => {
@@ -74,7 +71,6 @@ export const loadFileDiffs = (
         changeset,
         changesetID,
         reviewID,
-        repositoryID,
       }),
     ),
   )
@@ -83,9 +79,6 @@ export const loadFileDiffs = (
     assertNotNull(channel)
 
     await waitForCompletionLevel(channel, { changeset })
-
-    await dispatch(
-      loadFileDiffs(neededFileIDs, { changesetID, repositoryID, reviewID }),
-    )
+    await dispatch(loadFileDiffs(neededFileIDs, { changesetID, reviewID }))
   }
 }

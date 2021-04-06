@@ -15,15 +15,17 @@
 # the License.
 
 from __future__ import annotations
+from abc import abstractmethod
 
 from typing import (
     Awaitable,
     Callable,
+    Collection,
     Optional,
+    Protocol,
     Sequence,
     Literal,
     FrozenSet,
-    Set,
     Iterable,
     overload,
     cast,
@@ -53,13 +55,20 @@ class Delayed(api.ResultDelayedError):
     pass
 
 
-class AutomaticChangesetEmpty(Error):
+class AutomaticChangesetEmpty(Error, code="AUTOMATIC_CHANGESET_EMPTY"):
     """Raised when fetching an automatic changeset, and no changes were found"""
 
     pass
 
 
-AutomaticMode = Literal["everything", "relevant", "reviewable", "pending"]
+class AutomaticChangesetImpossible(Error, code="AUTOMATIC_CHANGESET_IMPOSSIBLE"):
+    """Raised when fetching an automatic changeset, and a reasonable result is
+    not possible"""
+
+    pass
+
+
+AutomaticMode = Literal["everything", "relevant", "reviewable", "pending", "unseen"]
 AUTOMATIC_MODES: FrozenSet[AutomaticMode] = frozenset(
     [
         # All changes in the review.
@@ -72,6 +81,9 @@ AUTOMATIC_MODES: FrozenSet[AutomaticMode] = frozenset(
         # All pending changes in the review that are assigned to the current
         # user.
         "pending",
+        # All changes that are assigned to the current user that the current
+        # user hasn't marked as reviewed yet.
+        "unseen",
     ]
 )
 
@@ -111,48 +123,58 @@ def as_completion_level(value: str) -> CompletionLevel:
     return cast(CompletionLevel, value)
 
 
-class Changeset(api.APIObject):
+class Changeset(api.APIObjectWithId):
     """Representation of a diff"""
 
-    def __str__(self) -> str:
-        return str(self._impl.id) + " (" + str(self._impl.type) + ")"
-
     @property
+    @abstractmethod
     def id(self) -> int:
-        return self._impl.id
+        ...
 
     @property
+    @abstractmethod
     async def repository(self) -> api.repository.Repository:
         """The repository containing the compared commits"""
-        return await self._impl.getRepository(self.critic)
+        ...
 
     @property
+    @abstractmethod
     async def from_commit(self) -> Optional[api.commit.Commit]:
-        return await self._impl.getFromCommit(self.critic)
+        ...
 
     @property
+    @abstractmethod
     async def to_commit(self) -> api.commit.Commit:
-        return await self._impl.getToCommit(self.critic)
+        ...
 
     @property
+    @abstractmethod
     async def is_direct(self) -> bool:
         """True if this is a "direct" changeset
 
         A changeset is considered direct if it is between a commit and one of
         its immediate parent commits, in the natural direction (from parent
         to child.)"""
-        return await self._impl.isDirect(self.critic)
+        ...
 
     @property
+    @abstractmethod
+    def is_complete(self) -> bool:
+        """True if this changeset has been processed enough to know the set of
+        modified files"""
+        ...
+
+    @property
+    @abstractmethod
     def is_replay(self) -> bool:
-        """True if the `Changeset.from_commit` is a merge/rebase replay.
+        """True if the `Changeset.from_commit` is a merge/rebase replay
 
         The main significance of this is that this means the old side of commit
         is the result of "replaying" a merge or a review rebase, which means
         there might be checked in (added) conflict headers in this commit. Some
         custom syntax highlighting is applied to them, which is not applied in
         normal diffs."""
-        return self._impl.is_replay
+        ...
 
     @property
     async def is_empty(self) -> bool:
@@ -164,23 +186,24 @@ class Changeset(api.APIObject):
 
     @property
     async def files(self) -> Optional[Sequence[api.filechange.FileChange]]:
-        if not self._impl.is_complete:
+        if not self.is_complete:
             return None
         return await api.filechange.fetchAll(self)
 
     @property
+    @abstractmethod
     async def contributing_commits(self) -> Optional[api.commitset.CommitSet]:
-        return await self._impl.getContributingCommits(self.critic)
+        ...
 
     @property
-    async def completion_level(self) -> Set[CompletionLevel]:
+    async def completion_level(self) -> Collection[CompletionLevel]:
         """Changeset processing completion level
 
         The completion level is returned as a set of identifiers from the
         COMPLETION_LEVELS set."""
-        return await self._impl.getCompletionLevel(self)
+        ...
 
-    async def ensure(
+    async def ensure_completion_level(
         self, *completion_levels: CompletionLevel, block: bool = True
     ) -> bool:
         """Ensure complete processing of the changeset
@@ -198,13 +221,20 @@ class Changeset(api.APIObject):
         to check for an intermediate level than reading |completion_level|,
         since it can skip checks that are not needed to produce the requested
         answer."""
-        assert all(
-            completion_level in COMPLETION_LEVELS
-            for completion_level in completion_levels
-        )
-        return await self._impl.ensure(
-            self, frozenset(completion_levels or {"full"}), bool(block)
-        )
+        ...
+
+    class Automatic(Protocol):
+        @property
+        def review(self) -> api.review.Review:
+            ...
+
+        @property
+        def mode(self) -> AutomaticMode:
+            ...
+
+    @property
+    def automatic(self) -> Optional[Automatic]:
+        ...
 
 
 @overload

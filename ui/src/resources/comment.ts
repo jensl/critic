@@ -88,7 +88,6 @@ class Comment {
   ) {}
 
   static new(props: CommentProps) {
-    console.warn("Comment.new", { props })
     return new Comment(
       props.id,
       props.type,
@@ -108,14 +107,12 @@ class Comment {
   }
 
   static prepare(value: CommentData): CommentProps {
-    const prepared = {
+    return {
       ...value,
       location: Location.make(value.location),
       translated_location: Location.make(value.translated_location),
       draft_changes: DraftChanges.make(value.draft_changes),
     }
-    console.warn("Comment.prepare", { value, prepared })
-    return prepared
   }
 
   static reducer = primaryMap<Comment, CommentID>("comments")

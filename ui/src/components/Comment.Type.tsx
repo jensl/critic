@@ -24,15 +24,21 @@ type OwnProps = {
 }
 
 const ChangesetCommentType: FunctionComponent<OwnProps> = ({ comment }) => {
-  if (comment.type === "note") return <>Note by </>
-  switch (comment.state) {
-    case "open":
-      return <>Open issue by </>
-    case "addressed":
-      return <>Addressed issue by </>
-    case "resolved":
-      return <>Resolved issue by </>
+  if (comment.effectiveType === "note") return <>Note by </>
+
+  const qualifier = ({ state, effectiveState }: Comment) => {
+    const stateIsDraft = comment.state !== comment.effectiveState
+    switch (comment.effectiveState) {
+      case "open":
+        return stateIsDraft ? "Draft reopened" : "Open"
+      case "addressed":
+        return "Addressed"
+      case "resolved":
+        return stateIsDraft ? "Draft resolved" : "Resolved"
+    }
   }
+
+  return <>{qualifier(comment)} issue by </>
 }
 
 export default Registry.add("Changeset.Comment.Type", ChangesetCommentType)

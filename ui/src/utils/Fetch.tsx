@@ -176,12 +176,13 @@ export const fetchJSON = ({
   const resourceName =
     components[components.length - (2 - (components.length % 2))]
 
-  var url = "api/v1/" + path
-
-  if (queryParams.length > 0) url += "?" + queryParams.join("&")
+  const baseURL = "api/v1/" + path
+  const url =
+    queryParams.length > 0 ? `${baseURL}?${queryParams.join("&")}` : baseURL
 
   if (window.preloaded && url in window.preloaded) {
     const preloadedResult = window.preloaded[url]
+    console.info(`Using preloaded result: ${baseURL}`, { preloadedResult })
     delete window.preloaded[url]
     return { resourceName, status: 200, json: preloadedResult }
   }
@@ -222,7 +223,8 @@ export const fetchJSON = ({
       if ([400, 404].includes(status)) {
         const { error } = await response.json()
         if (error.code && handleError !== null && handleError[error.code]) {
-          handleError[error.code](error)
+          if (handleError[error.code](error))
+            return { resourceName, status, json: {} }
         } else {
           dispatch(
             showToast({

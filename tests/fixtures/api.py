@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import aiohttp
 import contextlib
 import json
 import logging
@@ -78,7 +77,7 @@ class JSONResponse:
             )
         return self
 
-    def to_json(self) -> dict:
+    def to_json(self) -> dict[Any, Any]:
         request: Dict[str, Any] = dict(method=self.method, path=self.path)
         if self.query:
             request["query"] = self.query
@@ -90,7 +89,7 @@ class JSONResponse:
         )
 
     @staticmethod
-    def from_json(value: dict) -> JSONResponse:
+    def from_json(value: dict[Any, Any]) -> JSONResponse:
         return JSONResponse(
             value["request"]["method"],
             value["request"]["path"],
@@ -130,6 +129,10 @@ class API:
     @property
     def frontend(self) -> Frontend:
         return self.__frontend
+
+    @property
+    def anonymizer(self) -> Anonymizer:
+        return self.__anonymizer
 
     @staticmethod
     def processed_query(query: Dict[str, Any]) -> Dict[str, Any]:

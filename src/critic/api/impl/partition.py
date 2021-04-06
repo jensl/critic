@@ -18,35 +18,69 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Optional, Any, Iterable, List, Tuple
+from typing import Collection, Optional, Iterable, List, Tuple
 
 logger = logging.getLogger(__name__)
 
-from . import apiobject
+from .apiobject import APIObjectImpl
 from critic import api
 from critic.api import partition as public
+from critic.api.apiobject import Actual
 
-WrapperType = api.partition.Partition
+PublicType = public.Partition
 
 
 @dataclass(frozen=True)
 class Edge:
-    rebase: api.rebase.Rebase
-    partition: WrapperType
+    __rebase: api.rebase.Rebase
+    __partition: PublicType
+
+    @property
+    def rebase(self) -> api.rebase.Rebase:
+        return self.__rebase
+
+    @property
+    def partition(self) -> PublicType:
+        return self.__partition
 
 
-class Partition(apiobject.APIObject[WrapperType, api.commitset.CommitSet, Any]):
+class Partition(PublicType, APIObjectImpl, module=public):
     wrapper_class = api.partition.Partition
 
-    preceding: Optional[WrapperType.Edge]
-    following: Optional[WrapperType.Edge]
+    __preceding: Optional[PublicType.Edge]
+    __following: Optional[PublicType.Edge]
 
     def __init__(self, commits: api.commitset.CommitSet) -> None:
         assert not commits or len(commits.heads) == 1
 
-        self.commits = commits
-        self.preceding = None
-        self.following = None
+        self.__commits = commits
+        self.__preceding = None
+        self.__following = None
+
+    def getCacheKeys(self) -> Collection[object]:
+        return ()
+
+    async def refresh(self: Actual) -> Actual:
+        return self
+
+    def setPreceding(self, rebase: api.rebase.Rebase, partition: Partition) -> None:
+        self.__preceding = Edge(rebase, partition)
+
+    def setFollowing(self, rebase: api.rebase.Rebase, partition: Partition) -> None:
+        self.__following = Edge(rebase, partition)
+
+    @property
+    def preceding(self) -> Optional[Partition.Edge]:
+        return self.__preceding
+
+    @property
+    def following(self) -> Optional[Partition.Edge]:
+        """The edge leading to the following (older) partition"""
+        return self.__following
+
+    @property
+    def commits(self) -> api.commitset.CommitSet:
+        return self.__commits
 
 
 @public.createImpl
@@ -54,24 +88,24 @@ async def create(
     critic: api.critic.Critic,
     commits: api.commitset.CommitSet,
     rebases: Iterable[api.rebase.Rebase],
-) -> WrapperType:
+) -> PublicType:
     if not commits:
-        return Partition(api.commitset.empty(critic)).wrap(critic)
+        return Partition(api.commitset.empty(critic))
 
     original_commits = commits
 
-    partitions: List[Tuple[api.rebase.Rebase, WrapperType]] = []
+    partitions: List[Tuple[api.rebase.Rebase, Partition]] = []
 
-    def add(rebase: Optional[api.rebase.Rebase], partition: WrapperType) -> WrapperType:
+    def add(rebase: Optional[api.rebase.Rebase], partition: Partition) -> Partition:
         if partitions:
             previous_rebase, previous_partition = partitions[-1]
-            previous_partition._impl.preceding = Edge(previous_rebase, partition)
-            partition._impl.following = Edge(previous_rebase, previous_partition)
+            previous_partition.setPreceding(previous_rebase, partition)
+            partition.setFollowing(previous_rebase, previous_partition)
         if rebase:
             partitions.append((rebase, partition))
         return partition
 
-    all_rebases = list(rebases)
+    all_rebases = [*rebases]
     rebase = None
 
     for rebase in reversed(all_rebases):
@@ -83,7 +117,7 @@ async def create(
             from_head, include_self=from_head in commits
         )
         commits = commits - partition_commits
-        add(rebase, Partition(partition_commits).wrap(critic))
+        add(rebase, Partition(partition_commits))
 
     if len(commits.heads) > 1:
         if all_rebases:
@@ -99,4 +133,4 @@ async def create(
             )
         raise api.partition.Error("Incompatible commits/rebases arguments")
 
-    return add(None, Partition(commits).wrap(critic))
+    return add(None, Partition(commits))

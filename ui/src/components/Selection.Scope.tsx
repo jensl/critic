@@ -1,12 +1,13 @@
 import React, { useEffect, MouseEvent } from "react"
 
+import Registry from "."
 import {
   ElementToIDFunc,
   defineSelectionScope,
-  resetSelectionScopeIf,
 } from "../actions/uiSelectionScope"
 import { useDispatch } from "../store"
-import Registry from "."
+import { ShortcutScope } from "../utils/KeyboardShortcuts"
+import { useMouseTracker } from "../utils/Mouse"
 
 type SelectorFunc = (ev: MouseEvent) => string | null
 
@@ -25,9 +26,10 @@ const SelectionScope: React.FunctionComponent<Props> = ({
   children,
 }) => {
   const dispatch = useDispatch()
+  const startMouseTracking = useMouseTracker()
   useEffect(
     () => () => {
-      dispatch(resetSelectionScopeIf(scopeID))
+      dispatch({ type: "RESET_SELECTION_SCOPE", scopeID })
     },
     [dispatch, scopeID],
   )
@@ -43,20 +45,32 @@ const SelectionScope: React.FunctionComponent<Props> = ({
     const elements = [
       ...document.querySelectorAll<HTMLElement>(`#${scopeID} ${useSelector}`),
     ]
-    dispatch(
-      defineSelectionScope({
-        event: event.nativeEvent,
-        scopeID,
-        elementType: "commit",
-        elements,
-        elementToID,
-      }),
-    )
+    if (elements.length) {
+      const monitor = dispatch(
+        defineSelectionScope({
+          scopeID,
+          elementType: "commit",
+          elements,
+          elementToID,
+        }),
+      )
+      if (monitor) startMouseTracking(event.nativeEvent, monitor)
+    }
   }
   return (
-    <div className={className} id={scopeID} onMouseDown={onMouseDown}>
+    <ShortcutScope
+      name={`SelectionScope:${scopeID}`}
+      handler={{
+        Escape: () => void dispatch({ type: "RESET_SELECTION_SCOPE", scopeID }),
+      }}
+      componentProps={{
+        className,
+        id: scopeID,
+        onMouseDown,
+      }}
+    >
       {children}
-    </div>
+    </ShortcutScope>
   )
 }
 

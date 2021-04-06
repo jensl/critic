@@ -5,9 +5,8 @@ import Button from "@material-ui/core/Button"
 import Registry from "."
 import { ActionProps } from "./Changeset.Action"
 import { useChangeset, useRepository, useResource, useReview } from "../utils"
-import { useExpandedFiles } from "../actions/uiFileDiff"
-import { useHistory, useLocation } from "react-router"
-import { generateLinkPath, pathWithExpandedFiles } from "../utils/Changeset"
+import { useHistory } from "react-router"
+import { pathWithExpandedFiles } from "../utils/Changeset"
 
 const SideBySide: React.FunctionComponent<ActionProps> = ({ integrated }) => {
   const history = useHistory()
@@ -30,7 +29,7 @@ const SideBySide: React.FunctionComponent<ActionProps> = ({ integrated }) => {
   return (
     <Button
       onClick={() =>
-        history.replace(
+        history.push(
           pathWithExpandedFiles(
             { pathname: `${prefix}/${diff}` },
             expandedFileIDs,

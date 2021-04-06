@@ -29,13 +29,24 @@ import {
   CommitID,
   RepositoryID,
 } from "../resources/types"
-import { InvalidItem, Action, AutomaticMode, SET_AUTOMATIC_CHANGESET } from "."
+import {
+  InvalidItem,
+  Action,
+  AutomaticMode,
+  SET_AUTOMATIC_CHANGESET,
+  AutomaticChangesetImpossible,
+  AutomaticChangesetEmpty,
+} from "."
 import { waitForCompletionLevel } from "../utils/Changeset"
+import { sortedBy } from "../utils"
 
 const setAutomaticChangeset = (
   reviewID: ReviewID,
   automatic: AutomaticMode,
-  changesetID: ChangesetID,
+  changesetID:
+    | ChangesetID
+    | AutomaticChangesetEmpty
+    | AutomaticChangesetImpossible,
 ): Action => ({
   type: SET_AUTOMATIC_CHANGESET,
   reviewID,
@@ -45,18 +56,17 @@ const setAutomaticChangeset = (
 
 type LoadFileDiffsForChangesetOptions = {
   reviewID?: number
-  repositoryID?: number
+  channel?: Channel
 }
 
-const loadFileDiffsForChangeset = (
+export const loadFileDiffsForChangeset = (
   changeset: Changeset,
-  channel: Channel | null,
-  { reviewID, repositoryID }: LoadFileDiffsForChangesetOptions,
+  { reviewID, channel }: LoadFileDiffsForChangesetOptions,
 ): AsyncThunk<void> => async (dispatch, getState) => {
-  console.log("loadFileDiffsForChangeset", { changeset })
+  console.log("loadFileDiffsForChangeset", { changeset, channel })
 
   if (!changeset.completionLevel.has("full")) {
-    assertNotNull(channel)
+    if (!channel) channel = await dispatch(Channel.monitorChangeset(changeset))
     while (!(await waitForCompletionLevel(channel, { changeset }))) {
       // Then check what the changeset's current completion level is. This is
       // done to avoid a race where we begin to listen for updates just after an
@@ -76,16 +86,21 @@ const loadFileDiffsForChangeset = (
     }
   }
 
+  changeset = getState().resource.changesets.byID.get(changeset.id)!
+
   console.log("loadFileDiffsForChangeset", { changeset })
 
-  if (channel !== null) channel.close()
+  if (channel) channel.close()
 
   const { files } = changeset
   assertNotNull(files)
 
   const filediffs = getState().resource.filediffs
-  const neededFilediffs = files.filter(
-    (fileID) => !filediffs.has(`${changeset.id}:${fileID}`),
+  const filesByID = getState().resource.files.byID
+
+  const neededFilediffs = sortedBy(
+    files.filter((fileID) => !filediffs.has(`${changeset.id}:${fileID}`)),
+    (fileID) => filesByID.get(fileID)?.path ?? fileID,
   )
 
   if (neededFilediffs.length === 0) return
@@ -101,7 +116,6 @@ const loadFileDiffsForChangeset = (
         loadFileDiffs(fileIDs, {
           changeset,
           reviewID,
-          repositoryID,
         }),
       ),
     )
@@ -217,8 +231,10 @@ const finishChangeset = (
   context: ContextIDParam,
 ): AsyncThunk<void> => async (dispatch) => {
   const channel = !changeset.completionLevel.has("full")
-    ? await dispatch(Channel.subscribe(`changesets/${changeset.id}`))
-    : null
+    ? await dispatch(Channel.monitorChangeset(changeset))
+    : undefined
+
+  console.log({ channel })
 
   if (!changeset.completionLevel.has("structure")) {
     assertNotNull(channel)
@@ -242,7 +258,7 @@ const finishChangeset = (
       }),
     )
   } else {
-    dispatch(loadFileDiffsForChangeset(changeset, channel, context))
+    dispatch(loadFileDiffsForChangeset(changeset, { ...context, channel }))
   }
 }
 
@@ -251,20 +267,19 @@ type LoadChangesetByIDOptions = {
   repositoryID?: RepositoryID
   onlyIfComplete?: false | CompletionLevel
   retryCount?: number
-  channel?: any
+  channel?: Channel
 }
 
 export const loadChangesetByID = (
   changesetID: ChangesetID,
   {
     reviewID,
-    repositoryID,
     onlyIfComplete = false,
     retryCount = 0,
-    channel = null,
+    channel,
   }: LoadChangesetByIDOptions = {},
 ): AsyncThunk<Changeset | null> => async (dispatch) => {
-  if (channel === null)
+  if (!channel)
     channel = await dispatch(Channel.subscribe(`changesets/${changesetID}`))
 
   const options = Changeset.requestOptions(
@@ -273,12 +288,9 @@ export const loadChangesetByID = (
     },
     {
       reviewID,
-      repositoryID,
       onlyIfComplete,
     },
   )
-
-  console.log({ options })
 
   const { primary, status } = await dispatch(fetch("changesets", ...options))
 
@@ -293,7 +305,6 @@ export const loadChangesetByID = (
     return await dispatch(
       loadChangesetByID(changesetID, {
         reviewID,
-        repositoryID,
         onlyIfComplete,
         retryCount,
         channel,
@@ -314,7 +325,6 @@ export const loadChangesetByID = (
     return await dispatch(
       loadChangesetByID(changesetID, {
         reviewID,
-        repositoryID,
         onlyIfComplete: "structure",
         retryCount,
         channel,
@@ -323,9 +333,9 @@ export const loadChangesetByID = (
   }
 
   dispatch(
-    loadFileDiffsForChangeset(changeset, channel, {
+    loadFileDiffsForChangeset(changeset, {
       reviewID,
-      repositoryID,
+      channel,
     }),
   )
 
@@ -335,49 +345,66 @@ export const loadChangesetByID = (
 export const loadAutomaticChangeset = (
   automatic: AutomaticMode,
   reviewID: ReviewID,
+  loadFilediffs: boolean = false,
 ) => async (dispatch: Dispatch): Promise<Changeset | null> => {
-  console.error({ automatic, reviewID })
-
-  const { primary } = await dispatch(
-    fetch(
-      "changesets",
-      ...Changeset.requestOptions({ automatic }, { reviewID }),
-    ),
-  )
-
-  const changeset = primary[0]
-  const channel = !changeset.completionLevel.has("full")
-    ? await dispatch(Channel.subscribe(`changesets/${changeset.id}`))
-    : null
-
-  dispatch(setAutomaticChangeset(reviewID, automatic, changeset.id))
-
-  if (!changeset.completionLevel.has("structure")) {
-    assertNotNull(channel)
-
-    // Use a short (200 ms) timeout here, since there's a race between our
-    // initial check and our subscription to status update message. This race is
-    // sort of unavoidable, since we don't know the changeset id before the
-    // initial check.
-    await waitForCompletionLevel(channel, {
-      completionLevel: "structure",
-      timeout: 200,
-      changeset,
-    })
-
-    return await dispatch(
-      loadChangesetByID(changeset.id, {
-        reviewID,
-        onlyIfComplete: "structure",
-        retryCount: 1,
-        channel,
-      }),
+  try {
+    const { primary } = await dispatch(
+      fetch(
+        "changesets",
+        ...Changeset.requestOptions({ automatic }, { reviewID }),
+        handleError("AUTOMATIC_CHANGESET_EMPTY", (error) => {
+          throw new AutomaticChangesetEmpty(error.message)
+        }),
+        handleError("AUTOMATIC_CHANGESET_IMPOSSIBLE", (error) => {
+          throw new AutomaticChangesetImpossible(error.message)
+        }),
+      ),
     )
+
+    const changeset = primary[0]
+    const channel = !changeset.completionLevel.has("full")
+      ? await dispatch(Channel.monitorChangeset(changeset))
+      : undefined
+
+    dispatch(setAutomaticChangeset(reviewID, automatic, changeset.id))
+
+    if (!changeset.completionLevel.has("structure")) {
+      assertNotNull(channel)
+
+      // Use a short (200 ms) timeout here, since there's a race between our
+      // initial check and our subscription to status update message. This race is
+      // sort of unavoidable, since we don't know the changeset id before the
+      // initial check.
+      await waitForCompletionLevel(channel, {
+        completionLevel: "structure",
+        timeout: 200,
+        changeset,
+      })
+
+      return await dispatch(
+        loadChangesetByID(changeset.id, {
+          reviewID,
+          onlyIfComplete: "structure",
+          retryCount: 1,
+          channel,
+        }),
+      )
+    }
+
+    if (loadFilediffs)
+      dispatch(loadFileDiffsForChangeset(changeset, { reviewID, channel }))
+
+    return changeset
+  } catch (error) {
+    if (
+      error instanceof AutomaticChangesetEmpty ||
+      error instanceof AutomaticChangesetImpossible
+    ) {
+      dispatch(setAutomaticChangeset(reviewID, automatic, error))
+      return null
+    }
+    throw error
   }
-
-  dispatch(loadFileDiffsForChangeset(changeset, channel, { reviewID }))
-
-  return changeset
 }
 
 export const loadMergeAnalysis = (

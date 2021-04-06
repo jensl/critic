@@ -34,7 +34,7 @@ async def render_commit(group, commit, context_lines):
     critic = commit.critic
     changeset = await api.changeset.fetch(critic, single_commit=commit)
 
-    await changeset.ensure("analysis")
+    await changeset.ensure_completion_level("analysis")
 
     filediffs = {
         filediff.filechange: filediff

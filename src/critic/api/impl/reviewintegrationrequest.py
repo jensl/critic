@@ -17,15 +17,17 @@
 from __future__ import annotations
 
 import logging
-from typing import Tuple, Optional, Sequence
+from typing import Callable, Tuple, Optional, Sequence
+
 
 logger = logging.getLogger(__name__)
 
 from critic import api
 from critic.api import reviewintegrationrequest as public
-from . import apiobject
+from .apiobject import APIObjectImplWithId
+from .queryhelper import QueryHelper, QueryResult
 
-WrapperType = api.reviewintegrationrequest.ReviewIntegrationRequest
+PublicType = public.ReviewIntegrationRequest
 ArgumentsType = Tuple[
     int,
     int,
@@ -37,71 +39,122 @@ ArgumentsType = Tuple[
     bool,
     bool,
     bool,
-    Optional[str],
+    Optional[api.review.IntegrationStrategy],
     Optional[bool],
     Optional[str],
 ]
 
 
-class ReviewIntegrationRequest(apiobject.APIObject[WrapperType, ArgumentsType, int]):
-    wrapper_class = WrapperType
-    column_names = [
-        "id",
-        "review",
-        "target",
-        "branchupdate",
-        "do_squash",
-        "squash_message",
-        "do_autosquash",
-        "do_integrate",
-        "squashed",
-        "autosquashed",
-        "strategy_used",
-        "successful",
-        "error_message",
-    ]
-
-    def __init__(self, args: ArgumentsType):
+class ReviewIntegrationRequest(PublicType, APIObjectImplWithId, module=public):
+    def update(self, args: ArgumentsType) -> int:
         (
-            self.id,
+            self.__id,
             self.__review_id,
             self.__target_branch_id,
             self.__branchupdate_id,
-            self.do_squash,
-            self.squash_message,
-            self.do_autosquash,
-            self.do_integrate,
-            self.squashed,
-            self.autosquashed,
-            self.strategy_used,
-            self.successful,
-            self.error_message,
+            self.__do_squash,
+            self.__squash_message,
+            self.__do_autosquash,
+            self.__do_integrate,
+            self.__squashed,
+            self.__autosquashed,
+            self.__strategy_used,
+            self.__successful,
+            self.__error_message,
         ) = args
 
-        self.integrated = self.strategy_used is not None
+        self.__integrated = self.strategy_used is not None
+        return self.__id
 
-    async def getReview(self, critic: api.critic.Critic) -> api.review.Review:
-        return await api.review.fetch(critic, self.__review_id)
+    @property
+    def id(self) -> int:
+        return self.__id
 
-    async def getTargetBranch(self, critic: api.critic.Critic) -> api.branch.Branch:
-        return await api.branch.fetch(critic, self.__target_branch_id)
+    @property
+    async def review(self) -> api.review.Review:
+        return await api.review.fetch(self.critic, self.__review_id)
 
-    async def getBranchUpdate(
-        self, critic: api.critic.Critic
-    ) -> api.branchupdate.BranchUpdate:
-        return await api.branchupdate.fetch(critic, self.__branchupdate_id)
+    @property
+    async def target_branch(self) -> api.branch.Branch:
+        return await api.branch.fetch(self.critic, self.__target_branch_id)
+
+    @property
+    async def branchupdate(self) -> api.branchupdate.BranchUpdate:
+        return await api.branchupdate.fetch(self.critic, self.__branchupdate_id)
+
+    @property
+    def squash_requested(self) -> bool:
+        return self.__do_squash
+
+    @property
+    def squash_message(self) -> Optional[str]:
+        return self.__squash_message
+
+    @property
+    def squash_performed(self) -> bool:
+        return self.__squashed
+
+    @property
+    def autosquash_requested(self) -> bool:
+        return self.__do_autosquash
+
+    @property
+    def autosquash_performed(self) -> bool:
+        return self.__autosquashed
+
+    @property
+    def integration_requested(self) -> bool:
+        return self.__do_integrate
+
+    @property
+    def integration_performed(self) -> bool:
+        """True if integration has been performed.
+
+        Note that "performed" here means "attempted", it might have failed."""
+        return self.__integrated
+
+    @property
+    def strategy_used(self) -> Optional[api.review.IntegrationStrategy]:
+        return self.__strategy_used
+
+    @property
+    def successful(self) -> Optional[bool]:
+        return self.__successful
+
+    @property
+    def error_message(self) -> Optional[str]:
+        return self.__error_message
+
+    @classmethod
+    def getQueryByIds(
+        cls,
+    ) -> Callable[[api.critic.Critic, Sequence[int]], QueryResult[ArgumentsType]]:
+        return queries.queryByIds
+
+
+queries = QueryHelper[ArgumentsType](
+    PublicType.getTableName(),
+    "id",
+    "review",
+    "target",
+    "branchupdate",
+    "do_squash",
+    "squash_message",
+    "do_autosquash",
+    "do_integrate",
+    "squashed",
+    "autosquashed",
+    "strategy_used",
+    "successful",
+    "error_message",
+)
 
 
 @public.fetchImpl
-@ReviewIntegrationRequest.cached
-async def fetch(critic: api.critic.Critic, request_id: int) -> WrapperType:
-    async with critic.query(
-        f"""SELECT {ReviewIntegrationRequest.columns()}
-              FROM {ReviewIntegrationRequest.table()}
-             WHERE id={{request_id}}""",
-        request_id=request_id,
-    ) as result:
-        return await ReviewIntegrationRequest.makeOne(critic, result)
+async def fetch(critic: api.critic.Critic, request_id: int) -> PublicType:
+    return await ReviewIntegrationRequest.ensureOne(
+        request_id, queries.idFetcher(critic, ReviewIntegrationRequest)
+    )
 
 
 @public.fetchAllImpl
@@ -111,7 +164,7 @@ async def fetchAll(
     target_branch: Optional[api.branch.Branch],
     performed: Optional[bool],
     successful: Optional[bool],
-) -> Sequence[WrapperType]:
+) -> Sequence[PublicType]:
     conditions = []
     if review is not None:
         conditions.append("review={review}")
@@ -122,14 +175,13 @@ async def fetchAll(
         conditions.append(f"strategy_used IS {what}")
     if successful is not None:
         conditions.append("successful={successful}")
-    logger.debug(repr(conditions))
-    async with critic.query(
-        f"""SELECT {ReviewIntegrationRequest.columns()}
-              FROM {ReviewIntegrationRequest.table()}
-             WHERE {" AND ".join(conditions)}""",
-        review=review,
-        target_branch=target_branch,
-        performed=performed,
-        successful=successful,
-    ) as result:
-        return await ReviewIntegrationRequest.make(critic, result)
+    return ReviewIntegrationRequest.store(
+        await queries.query(
+            critic,
+            *conditions,
+            review=review,
+            target_branch=target_branch,
+            performed=performed,
+            successful=successful,
+        ).make(ReviewIntegrationRequest)
+    )

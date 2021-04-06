@@ -46,7 +46,7 @@ class ResourceClass(Generic[APIObject], ABC):
     ) -> None:
         if api_module:
             cls.name = getattr(api_module, "resource_name")
-            cls.value_class = api.get_value_class(api_module)
+            cls.value_class = api.get_value_class(api_module)  # type: ignore
             cls.exceptions = (
                 getattr(api_module, "Error") if exceptions is None else exceptions
             )
@@ -65,8 +65,8 @@ class ResourceClass(Generic[APIObject], ABC):
                 nested_name = cls.name
             registerHandler(".../%s/%s" % (context, nested_name), cls)
 
-    @staticmethod
-    def resource_id(value: APIObject) -> Any:
+    @classmethod
+    def resource_id(cls, value: APIObject) -> Any:
         return getattr(value, "id")
 
     @staticmethod
@@ -121,8 +121,9 @@ class ResourceClass(Generic[APIObject], ABC):
         pass
 
     @staticmethod
-    def find(value: object) -> Type[ResourceClass[api.APIObject]]:
-        return HANDLERS[VALUE_CLASSES[type(value)]]
+    def find(value: api.APIObject) -> Type[ResourceClass[api.APIObject]]:
+        resource_path = f"v1/{value.getResourceName()}"
+        return HANDLERS[resource_path]
 
     @staticmethod
     def lookup(

@@ -46,7 +46,7 @@ async def create_branch(
     )
 
     if base_branch:
-        url_prefixes = await critic.effective_user.url_prefixes
+        url_prefixes = [api.critic.settings().system.http_prefix]
         output = textwrap.wrap(
             "Branch created based on '%s', with %s:"
             % (base_branch.name, associated_commits)

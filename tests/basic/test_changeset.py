@@ -1,8 +1,5 @@
-import asyncio
-import json
 import logging
 import pytest
-from typing import Any
 
 from ..fixtures.api import API
 from ..fixtures.websocket import WebSocket

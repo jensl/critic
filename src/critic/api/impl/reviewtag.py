@@ -16,67 +16,79 @@
 
 from __future__ import annotations
 
-from typing import Tuple, Optional, Iterable, Sequence
+from typing import Callable, Collection, Tuple, Optional, Iterable, Sequence
 
 from critic import api
 from critic.api import reviewtag as public
-from . import apiobject
+from .apiobject import APIObjectImplWithId
+from .queryhelper import QueryHelper, QueryResult
 
-WrapperType = api.reviewtag.ReviewTag
+PublicType = public.ReviewTag
 ArgumentsType = Tuple[int, str, str]
 
 
-class ReviewTag(apiobject.APIObject[WrapperType, ArgumentsType, int]):
-    wrapper_class = api.reviewtag.ReviewTag
-    column_names = ["id", "name", "description"]
+class ReviewTag(PublicType, APIObjectImplWithId, module=public):
+    def update(self, args: ArgumentsType) -> int:
+        (self.__id, self.__name, self.__description) = args
+        return self.__id
 
-    def __init__(self, args: ArgumentsType) -> None:
-        (self.id, self.name, self.description) = args
+    def getCacheKeys(self) -> Collection[object]:
+        return (self.__id, self.__name)
+
+    @property
+    def id(self) -> int:
+        return self.__id
+
+    @property
+    def name(self) -> str:
+        return self.__name
+
+    @property
+    def description(self) -> str:
+        return self.__description
+
+    @classmethod
+    def getQueryByIds(
+        cls,
+    ) -> Callable[[api.critic.Critic, Sequence[int]], QueryResult[ArgumentsType]]:
+        return queries.queryByIds
+
+
+queries = QueryHelper[ArgumentsType](
+    PublicType.getTableName(), "id", "name", "description"
+)
 
 
 @public.fetchImpl
-@ReviewTag.cached
 async def fetch(
     critic: api.critic.Critic, reviewtag_id: Optional[int], name: Optional[str]
-) -> WrapperType:
+) -> PublicType:
     if reviewtag_id is not None:
-        condition = "id={reviewtag_id}"
-    else:
-        assert name is not None
-        condition = "name={name}"
-    async with ReviewTag.query(
-        critic,
-        [condition],
-        reviewtag_id=reviewtag_id,
-        name=name,
-    ) as result:
-        return await ReviewTag.makeOne(critic, result)
+        return await ReviewTag.ensureOne(
+            reviewtag_id, queries.idFetcher(critic, ReviewTag)
+        )
+    assert name is not None
+    return await ReviewTag.ensureOne(
+        name, queries.itemFetcher(critic, ReviewTag, "name")
+    )
 
 
 @public.fetchManyImpl
-@ReviewTag.cachedMany
 async def fetchMany(
     critic: api.critic.Critic,
     reviewtag_ids: Optional[Iterable[int]],
     names: Optional[Iterable[str]] = None,
-) -> Sequence[WrapperType]:
+) -> Sequence[PublicType]:
     if reviewtag_ids is not None:
-        condition = "{id=reviewtag_ids:array}"
-        reviewtag_ids = list(reviewtag_ids)
-    else:
-        assert names is not None
-        condition = "{name=names:array}"
-        names = list(names)
-    async with ReviewTag.query(
-        critic,
-        [condition],
-        reviewtag_ids=reviewtag_ids,
-        names=names,
-    ) as result:
-        return await ReviewTag.make(critic, result)
+        return await ReviewTag.ensure(
+            [*reviewtag_ids], queries.idsFetcher(critic, ReviewTag)
+        )
+    assert names is not None
+    return await ReviewTag.ensure(
+        [*names], queries.itemsFetcher(critic, ReviewTag, "name")
+    )
 
 
 @public.fetchAllImpl
-async def fetchAll(critic: api.critic.Critic) -> Sequence[WrapperType]:
-    async with ReviewTag.query(critic) as result:
-        return await ReviewTag.make(critic, result)
+async def fetchAll(critic: api.critic.Critic) -> Sequence[PublicType]:
+    return ReviewTag.store(await queries.query(critic).make(ReviewTag))

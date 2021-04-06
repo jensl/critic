@@ -37,7 +37,8 @@ async def run(system: System) -> int:
     arguments = system.arguments
 
     with activity("Starting PostgreSQL"):
-        await system.database.start()
+        if not await system.database.start():
+            return 1
 
     if not system.installed:
         with activity("Installing Critic", blanklines=True):

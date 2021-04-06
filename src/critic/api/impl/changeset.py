@@ -17,106 +17,146 @@
 from __future__ import annotations
 
 import asyncio
+from dataclasses import dataclass
 import logging
-from typing import Tuple, Optional, FrozenSet, Set, Union, Iterable, List
+from typing import (
+    Awaitable,
+    Callable,
+    Collection,
+    Sequence,
+    Tuple,
+    Optional,
+    FrozenSet,
+    Set,
+    Iterable,
+    cast,
+)
+
+from critic.api.review import Review
+
 
 logger = logging.getLogger(__name__)
 
 from critic import api
 from critic.api import changeset as public
-from . import apiobject
-from ...syntaxhighlight.ranges import SyntaxHighlightRanges
+from critic.syntaxhighlight.ranges import SyntaxHighlightRanges
+from .apiobject import APIObjectImplWithId
+from .queryhelper import QueryHelper, QueryResult, join
 
 
-WrapperType = api.changeset.Changeset
+PublicType = public.Changeset
 ArgumentsType = Tuple[int, bool, bool, int, int, int]
 
 
-class Changeset(apiobject.APIObject[WrapperType, ArgumentsType, int]):
-    wrapper_class = api.changeset.Changeset
-    column_names = [
-        "id",
-        "complete",
-        "is_replay",
-        "repository",
-        "from_commit",
-        "to_commit",
-    ]
+@dataclass
+class CompletionLevelResult:
+    wanted_level_reached: bool
+    completion_level: Collection[public.CompletionLevel]
 
+
+@dataclass
+class Automatic:
+    __review: api.review.Review
+    __mode: public.AutomaticMode
+
+    @property
+    def review(self) -> api.review.Review:
+        return self.__review
+
+    @property
+    def mode(self) -> public.AutomaticMode:
+        return self.__mode
+
+
+class Changeset(PublicType, APIObjectImplWithId, module=public):
     __is_direct: Optional[bool]
+    __automatic: Optional[Tuple[api.review.Review, public.AutomaticMode]] = None
 
-    def __init__(self, args: ArgumentsType) -> None:
+    def update(self, args: ArgumentsType) -> int:
         (
-            self.id,
-            self.is_complete,
-            self.is_replay,
+            self.__id,
+            self.__is_complete,
+            self.__is_replay,
             self.__repository_id,
             self.__from_commit_id,
             self.__to_commit_id,
         ) = args
         self.__is_direct = None
+        return self.__id
 
     def set_is_direct(self, value: bool) -> None:
         self.__is_direct = value
 
-    async def isDirect(self, critic: api.critic.Critic) -> bool:
+    def set_automatic(
+        self, review: api.review.Review, mode: public.AutomaticMode
+    ) -> None:
+        self.__automatic = (review, mode)
+
+    @property
+    def id(self) -> int:
+        return self.__id
+
+    @property
+    async def repository(self) -> api.repository.Repository:
+        return await api.repository.fetch(self.critic, self.__repository_id)
+
+    @property
+    async def from_commit(self) -> Optional[api.commit.Commit]:
+        if self.__from_commit_id is None:
+            return None
+        return await api.commit.fetch(await self.repository, self.__from_commit_id)
+
+    @property
+    async def to_commit(self) -> api.commit.Commit:
+        return await api.commit.fetch(await self.repository, self.__to_commit_id)
+
+    @property
+    async def is_direct(self) -> bool:
         if self.__is_direct is None:
-            from_commit = await self.getFromCommit(critic)
-            to_commit = await self.getToCommit(critic)
+            from_commit = await self.from_commit
+            to_commit = await self.to_commit
             self.__is_direct = (
                 from_commit is not None
                 and from_commit.sha1 in to_commit.low_level.parents
             )
         return self.__is_direct
 
-    async def getRepository(
-        self, critic: api.critic.Critic
-    ) -> api.repository.Repository:
-        return await api.repository.fetch(critic, self.__repository_id)
+    @property
+    def is_complete(self) -> bool:
+        return self.__is_complete
 
-    async def getFromCommit(
-        self, critic: api.critic.Critic
-    ) -> Optional[api.commit.Commit]:
-        if self.__from_commit_id is None:
-            return None
-        return await api.commit.fetch(
-            await self.getRepository(critic), self.__from_commit_id
-        )
+    @property
+    def is_replay(self) -> bool:
+        return self.__is_replay
 
-    async def getToCommit(self, critic: api.critic.Critic) -> api.commit.Commit:
-        return await api.commit.fetch(
-            await self.getRepository(critic), self.__to_commit_id
-        )
-
-    async def getContributingCommits(
-        self, critic: api.critic.Critic
-    ) -> Optional[api.commitset.CommitSet]:
+    @property
+    async def contributing_commits(self) -> Optional[api.commitset.CommitSet]:
         try:
             return await api.commitset.calculateFromRange(
-                critic, await self.getFromCommit(critic), await self.getToCommit(critic)
+                self.critic, await self.from_commit, await self.to_commit
             )
         except api.commitset.InvalidCommitRange:
             return None
 
-    async def getCompletionLevel(
+    async def __getCompletionLevel(
         self,
-        wrapper: WrapperType,
-        wanted_levels: Set[api.changeset.CompletionLevel] = set(),
-    ) -> Union[bool, FrozenSet[api.changeset.CompletionLevel]]:
-        level: Set[api.changeset.CompletionLevel] = set()
+        wanted_levels: FrozenSet[public.CompletionLevel] = frozenset(),
+    ) -> CompletionLevelResult:
+        level: Set[public.CompletionLevel] = set()
 
-        def want_level(level: api.changeset.CompletionLevel) -> bool:
-            return not wanted_levels or bool(wanted_levels & {level, "full"})
+        def want_level(level: public.CompletionLevel) -> bool:
+            return not wanted_levels or bool(
+                wanted_levels.intersection({level, "full"})
+            )
 
         def wanted_reached() -> bool:
             return bool(wanted_levels) and wanted_levels.issubset(level)
 
-        def return_value() -> Union[bool, FrozenSet[api.changeset.CompletionLevel]]:
-            if wanted_levels:
-                return wanted_levels.issubset(level)
-            return frozenset(level)
+        def return_value() -> CompletionLevelResult:
+            return CompletionLevelResult(wanted_levels.issubset(level), level)
 
         if not self.is_complete:
+            logger.debug("not complete: %r", self)
             return return_value()
 
         level.add("structure")
@@ -125,7 +165,7 @@ class Changeset(apiobject.APIObject[WrapperType, ArgumentsType, int]):
             return return_value()
 
         async with api.critic.Query[bool](
-            wrapper.critic,
+            self.critic,
             """SELECT complete
                  FROM changesetcontentdifferences
                 WHERE changeset={changeset_id}""",
@@ -146,7 +186,7 @@ class Changeset(apiobject.APIObject[WrapperType, ArgumentsType, int]):
 
         if want_level("analysis") or want_level("syntaxhighlight"):
             async with api.critic.Query[int](
-                wrapper.critic,
+                self.critic,
                 """SELECT 1
                      FROM changesetchangedlines
                     WHERE changeset={changeset_id}
@@ -161,8 +201,8 @@ class Changeset(apiobject.APIObject[WrapperType, ArgumentsType, int]):
                 return return_value()
 
         if "analysis" in level and want_level("syntaxhighlight"):
-            repository = await wrapper.repository
-            filediffs = await api.filediff.fetchAll(wrapper)
+            repository = await self.repository
+            filediffs = await api.filediff.fetchAll(self)
 
             async with SyntaxHighlightRanges.make(repository) as ranges:
                 for filediff in filediffs:
@@ -194,35 +234,60 @@ class Changeset(apiobject.APIObject[WrapperType, ArgumentsType, int]):
 
         return return_value()
 
-    async def ensure(
-        self,
-        wrapper: WrapperType,
-        completion_levels: Set[api.changeset.CompletionLevel],
-        block: bool,
+    @property
+    async def completion_level(self) -> Collection[public.CompletionLevel]:
+        return (await self.__getCompletionLevel()).completion_level
+
+    async def ensure_completion_level(
+        self, *completion_levels: public.CompletionLevel, block: bool = True
     ) -> bool:
-        critic = wrapper.critic
-
-        async def refresh() -> Changeset:
-            await self.refresh(critic, {"changesets"}, {self.id: wrapper})
-            return Changeset.fromWrapper(wrapper)
-
+        if not completion_levels:
+            completion_levels = ("full",)
+        wanted_levels = frozenset(completion_levels)
         iterations = 1
 
         while True:
-            self = await refresh()
+            await self.refresh()
 
-            if await self.getCompletionLevel(wrapper, completion_levels):
+            result = await self.__getCompletionLevel(wanted_levels)
+
+            logger.debug(result)
+
+            if result.wanted_level_reached:
                 return True
 
             if not block:
                 return False
 
-            await asyncio.sleep(min(60, iterations * 0.2), loop=critic.loop)
+            await asyncio.sleep(min(60, iterations * 0.2))
             iterations += 1
+
+    @property
+    def automatic(self) -> Optional[PublicType.Automatic]:
+        if self.__automatic is None:
+            return None
+        review, mode = self.__automatic
+        return Automatic(review, mode)
+
+    @classmethod
+    def getQueryByIds(
+        cls,
+    ) -> Callable[[api.critic.Critic, Sequence[int]], QueryResult[ArgumentsType]]:
+        return queries.queryByIds
+
+
+queries = QueryHelper[ArgumentsType](
+    PublicType.getTableName(),
+    "id",
+    "complete",
+    "is_replay",
+    "repository",
+    "from_commit",
+    "to_commit",
+)
 
 
 @public.fetchImpl
-@Changeset.cached
 async def fetch(
     critic: api.critic.Critic,
     changeset_id: Optional[int],
@@ -230,38 +295,26 @@ async def fetch(
     to_commit: Optional[api.commit.Commit],
     single_commit: Optional[api.commit.Commit],
     conflicts: bool,
-) -> WrapperType:
-    if changeset_id is None:
-        if to_commit:
-            return await get_changeset(critic, from_commit, to_commit, conflicts)
-        elif single_commit:
-            parents = await single_commit.parents
-            parent = parents[0] if parents else None
-            return await get_changeset(critic, parent, single_commit)
-
-    async with Changeset.query(
-        critic, ["id={changeset_id}"], changeset_id=changeset_id
-    ) as result:
-        try:
-            changeset = await Changeset.makeOne(critic, result)
-        except result.ZeroRowsInResult:
-            raise api.changeset.InvalidId(invalid_id=changeset_id)
-
-    Changeset.fromWrapper(changeset).set_is_direct(
-        single_commit is not None
-        or bool(
-            from_commit and to_commit and from_commit in to_commit.low_level.parents
+) -> PublicType:
+    if changeset_id is not None:
+        return await Changeset.ensureOne(
+            changeset_id, queries.idFetcher(critic, Changeset)
         )
-    )
-
-    return changeset
+    if to_commit is not None:
+        return await get_changeset(critic, from_commit, to_commit, conflicts)
+    assert single_commit is not None
+    parents = await single_commit.parents
+    parent = parents[0] if parents else None
+    return await get_changeset(critic, parent, single_commit)
 
 
 @public.fetchAutomaticImpl
 async def fetchAutomatic(
-    review: api.review.Review, automatic: api.changeset.AutomaticMode
-) -> WrapperType:
-    async def full_changeset() -> WrapperType:
+    review: api.review.Review, mode: public.AutomaticMode
+) -> PublicType:
+    user = review.critic.effective_user
+
+    async def full_changeset() -> PublicType:
         branch = await review.branch
         if branch:
             commits = await branch.commits
@@ -270,22 +323,94 @@ async def fetchAutomatic(
         upstreams = await commits.filtered_tails
 
         if len(upstreams) != 1:
-            raise api.changeset.Error(
-                "Automatic mode failed: not a single upstream commit"
-            )
+            raise public.Error("Automatic mode failed: not a single upstream commit")
 
         (upstream,) = upstreams
         (head,) = commits.heads
 
-        return await api.changeset.fetch(
-            review.critic, from_commit=upstream, to_commit=head
+        return await public.fetch(review.critic, from_commit=upstream, to_commit=head)
+
+    async def filtered_changeset(
+        rfcs: Sequence[api.reviewablefilechange.ReviewableFileChange],
+        include: Callable[
+            [api.reviewablefilechange.ReviewableFileChange], Awaitable[bool]
+        ],
+    ) -> PublicType:
+        included_commits: Set[api.commit.Commit] = set()
+
+        for rfc in rfcs:
+            if not await include(rfc):
+                continue
+
+            changeset = await rfc.changeset
+            included_commits.add(await changeset.to_commit)
+
+        logger.debug(f"{included_commits=}")
+
+        if not included_commits:
+            raise public.AutomaticChangesetEmpty("No changes found")
+
+        first_commit: Optional[api.commit.Commit] = None
+        last_commit: Optional[api.commit.Commit] = None
+
+        partition = await review.first_partition
+        while partition:
+            for commit in partition.commits.topo_ordered:
+                if commit not in included_commits:
+                    continue
+
+                included_commits.remove(commit)
+                if last_commit is None:
+                    last_commit = commit
+                first_commit = commit
+
+            logger.debug(f"{first_commit=} {last_commit=}")
+
+            if first_commit and last_commit:
+                if included_commits:
+                    raise public.AutomaticChangesetImpossible("Review has been rebased")
+                if first_commit.is_merge:
+                    raise public.AutomaticChangesetImpossible("First commit is a merge")
+                return await public.fetch(
+                    review.critic,
+                    from_commit=(await first_commit.parents)[0],
+                    to_commit=last_commit,
+                )
+
+            if not partition.following:
+                break
+            partition = partition.following.partition
+
+        raise public.Error("Automatic mode failed")
+
+    async def is_pending(rfc: api.reviewablefilechange.ReviewableFileChange) -> bool:
+        return not rfc.is_reviewed
+
+    async def is_unseen(rfc: api.reviewablefilechange.ReviewableFileChange) -> bool:
+        return user in await rfc.reviewed_by
+
+    if mode == "everything":
+        changeset = await full_changeset()
+    elif mode == "pending":
+        changeset = await filtered_changeset(
+            await api.reviewablefilechange.fetchAll(review, is_reviewed=False),
+            is_pending,
         )
+    elif mode == "unseen":
+        if not user.is_regular:
+            raise public.AutomaticChangesetImpossible("Must be signed in")
+        changeset = await filtered_changeset(
+            await api.reviewablefilechange.fetchAll(
+                review, is_reviewed=False, assignee=user
+            ),
+            is_unseen,
+        )
+    else:
+        # Legacy code no longer works. Must be rewritten.
+        raise public.Error("Automatic mode failed")
 
-    if automatic == "everything":
-        return await full_changeset()
-
-    # Legacy code no longer works. Must be rewritten.
-    raise api.changeset.Error("Automatic mode failed")
+    cast(Changeset, changeset).set_automatic(review, mode)
+    return changeset
 
     # Handle automatic changesets using legacy code.
     # from critic import dbutils
@@ -306,10 +431,10 @@ async def fetchAutomatic(
     #     # FIXME: This error message could be better. The legacy code does
     #     # report more useful error messages, but does it in a way that's
     #     # pretty tied to the old HTML UI. Some refactoring is needed.
-    #     raise api.changeset.Error("Automatic mode failed")
+    #     raise public.Error("Automatic mode failed")
     # except page_showcommit.NoChangesFound:
     #     assert automatic != "everything"
-    #     raise api.changeset.AutomaticChangesetEmpty("No %s changes found"
+    #     raise public.AutomaticChangesetEmpty("No %s changes found"
     #                                                 % automatic)
 
     # from_commit = await api.commit.fetch(repository, sha1=from_sha1)
@@ -329,23 +454,23 @@ async def fetchMany(
     critic: api.critic.Critic,
     changeset_ids: Optional[Iterable[int]],
     branchupdate: Optional[api.branchupdate.BranchUpdate],
-) -> List[WrapperType]:
+) -> Sequence[PublicType]:
     if changeset_ids is not None:
-        async with Changeset.query(
-            critic, ["id=ANY ({changeset_ids})"], changeset_ids=list(changeset_ids)
-        ) as result:
-            return await Changeset.make(critic, result)
-    else:
-        async with Changeset.query(
+        return await Changeset.ensure(
+            [*changeset_ids], queries.idsFetcher(critic, Changeset)
+        )
+    return Changeset.store(
+        await queries.query(
             critic,
-            f"""SELECT {Changeset.columns()}
-                  FROM {Changeset.table()}
-                  JOIN reviewchangesets ON (changeset=id)
-                 WHERE branchupdate={{branchupdate}}
-              ORDER BY id""",
+            queries.formatQuery(
+                "rcs.branchupdate={branchupdate}",
+                joins=[
+                    join(reviewchangesets=["reviewchangesets.changeset=changesets.id"])
+                ],
+            ),
             branchupdate=branchupdate,
-        ) as result:
-            return await Changeset.make(critic, result)
+        ).make(Changeset)
+    )
 
 
 async def get_changeset(
@@ -353,7 +478,7 @@ async def get_changeset(
     from_commit: Optional[api.commit.Commit],
     to_commit: api.commit.Commit,
     conflicts: bool = False,
-) -> api.changeset.Changeset:
+) -> public.Changeset:
     async with api.transaction.start(critic) as transaction:
         modifier = await transaction.ensureChangeset(
             from_commit, to_commit, conflicts=conflicts

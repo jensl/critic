@@ -15,6 +15,7 @@
 # the License.
 
 from __future__ import annotations
+from abc import abstractmethod
 
 import aiohttp.web
 import logging
@@ -22,7 +23,6 @@ from typing import (
     Any,
     Awaitable,
     Callable,
-    Mapping,
     Optional,
     Protocol,
     Sequence,
@@ -91,10 +91,11 @@ class Provider(Protocol):
         ...
 
 
-class ExternalAccount(api.APIObject):
+class ExternalAccount(api.APIObjectWithId):
     """Representation of an external account used for authentication"""
 
     @property
+    @abstractmethod
     def id(self) -> int:
         """The external account representation's unique id
 
@@ -102,23 +103,26 @@ class ExternalAccount(api.APIObject):
         external account. The external account will invariable have another
         id, numeric or not, which is returned by the |account_id|
         attribute."""
-        return self._impl.id
+        ...
 
     @property
+    @abstractmethod
     def enabled(self) -> bool:
         """Whether the external provider is (still) enabled
 
         If False, this external account can not be used to authenticate
         a user in this Critic system."""
-        return self._impl.enabled
+        ...
 
     @property
+    @abstractmethod
     def provider_name(self) -> str:
         """The external authentication provider's internal name"""
-        return self._impl.provider_name
+        ...
 
     @property
-    def provider_title(self) -> str:
+    @abstractmethod
+    def provider_title(self) -> Optional[str]:
         """The external authentication provider's title
 
         The title is structured to make sense as the X in the expressions
@@ -129,37 +133,43 @@ class ExternalAccount(api.APIObject):
         Critic account Y".
 
         This will be None if the provider is not enabled."""
-        return self._impl.provider_title
+        ...
 
     @property
+    @abstractmethod
     def provider(self) -> Optional[Provider]:
         """The internal auth.Provider instance, or None
 
         None is returned if the provider is no longer enabled in system
         configuration (or no longer present.)"""
-        return self._impl.getProvider()
+        ...
 
     @property
+    @abstractmethod
     def account_id(self) -> str:
         """The external account id"""
-        return self._impl.account_id
+        ...
 
     @property
+    @abstractmethod
     def account_username(self) -> Optional[str]:
         """The external account's username, or None'"""
-        return self._impl.account_username
+        ...
 
     @property
+    @abstractmethod
     def account_fullname(self) -> Optional[str]:
         """The external account's full name, or None'"""
-        return self._impl.account_fullname
+        ...
 
     @property
+    @abstractmethod
     def account_email(self) -> Optional[str]:
         """The external account's email address, or None'"""
-        return self._impl.account_email
+        ...
 
     @property
+    @abstractmethod
     def account_url(self) -> Optional[str]:
         """The external account's URL, or None
 
@@ -168,16 +178,18 @@ class ExternalAccount(api.APIObject):
         this URL for more information about the account.
 
         None is returned if there is no such main page."""
-        return self._impl.account_url
+        ...
 
     @property
+    @abstractmethod
     def is_connected(self) -> bool:
         """True if this external account is connected to a Critic user
 
         If True, the |user| attribute returns the user it is connected to."""
-        return self._impl.is_connected
+        ...
 
     @property
+    @abstractmethod
     async def user(self) -> Optional[api.user.User]:
         """The Critic user connected to this external account, or None
 
@@ -185,7 +197,7 @@ class ExternalAccount(api.APIObject):
 
         This is the user that can sign into Critic using the external
         account, if there is one."""
-        return await self._impl.getUser(self.critic)
+        ...
 
 
 @overload

@@ -50,7 +50,6 @@ class AccessTokens(auth.Database, dbname="accesstokens"):
         password: Optional[str],
         token: Optional[str],
     ) -> api.user.User:
-        logger.debug(f"{username=} {password=} {token=}")
         if username is not None and password is not None:
             conditions = ["users.name={username}", "accesstokens.token={password}"]
         else:
@@ -83,20 +82,19 @@ class AccessTokens(auth.Database, dbname="accesstokens"):
 
         authentication_labels: Collection[str] = ()
 
-        if access_token.access_type == "anonymous":
-            user = api.user.anonymous(critic)
-        elif access_token.access_type == "system":
-            user = api.user.system(critic)
-        else:
-            user = await access_token.user
-            authentication_labels = await self.getAuthenticationLabels(user)
+        user = await access_token.user
+        if user is None:
+            if access_token.access_type == "anonymous":
+                user = api.user.anonymous(critic)
+            else:
+                assert access_token.access_type == "system"
+                user = api.user.system(critic)
+        authentication_labels = await self.getAuthenticationLabels(user)
 
         if not user.is_anonymous:
             await critic.setActualUser(user)
 
         await critic.setAccessToken(access_token)
-
-        logger.debug(f"{critic.access_token=} {critic.actual_user=}")
 
         critic.setAuthenticationLabels(authentication_labels)
 

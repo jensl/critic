@@ -213,14 +213,14 @@ class _GeneratedQuery(ABC):
     parameters: Optional[Dict[str, dbaccess.Parameter]]
     parameters_list: Optional[List[dbaccess.Parameters]]
 
-    def __init__(self, table_or_object: Union[str, api.APIObject]):
+    def __init__(self, table_or_object: Union[str, api.APIObjectWithId]):
         self.conditions: List[str] = []
         self.parameters = None
         self.parameters_list = None
-        if isinstance(table_or_object, api.APIObject):
+        if isinstance(table_or_object, api.APIObjectWithId):
             self.table_name = table_or_object.getTableName()
             self.id_column = table_or_object.getIdColumn()
-            self.where(**{self.id_column: table_or_object.id})
+            self.where(**{self.id_column: table_or_object})
         else:
             self.table_name = str(table_or_object)
             self.id_column = "*"
@@ -254,7 +254,7 @@ class _GeneratedQuery(ABC):
         if condition is not None:
             self.conditions.append(condition)
             for name, value in columns.items():
-                assert name not in self.parameters and not isinstance(value, SubQuery)
+                assert not isinstance(value, SubQuery)
                 self.set_parameter(name, value)
         else:
             for name, value in sorted(columns.items()):
@@ -369,7 +369,7 @@ class InsertMany(Insert):
 class Update(_GeneratedQuery):
     columns: Set[str]
 
-    def __init__(self, table_or_object: Union[str, api.APIObject]):
+    def __init__(self, table_or_object: Union[str, api.APIObjectWithId]):
         super().__init__(table_or_object)
         self.columns = set()
 
@@ -444,7 +444,7 @@ class Verify(_GeneratedQuery):
     column_names: List[str]
     expected_values: Dict[str, dbaccess.Parameter]
 
-    def __init__(self, table_or_object: Union[str, api.APIObject]):
+    def __init__(self, table_or_object: Union[str, api.APIObjectWithId]):
         super().__init__(table_or_object)
         self.column_names = []
         self.expected_values = {}
@@ -552,9 +552,9 @@ class Fetch(FetchBase, Generic[SQLValue]):
     ) -> SQLValue:
         statement = self.statement
         assert statement
-        async with dbaccess.Query[SQLValue](
-            cursor, statement, **self.parameters
-        ) as result:
+        parameters = self.parameters
+        assert parameters
+        async with dbaccess.Query[SQLValue](cursor, statement, **parameters) as result:
             return await result.scalar()
 
 
@@ -564,9 +564,9 @@ class FetchAll(FetchBase, Generic[RowType]):
     ) -> Sequence[RowType]:
         statement = self.statement
         assert statement
-        async with dbaccess.Query[RowType](
-            cursor, statement, **self.parameters
-        ) as result:
+        parameters = self.parameters
+        assert parameters
+        async with dbaccess.Query[RowType](cursor, statement, **parameters) as result:
             return await result.all()
 
 
@@ -579,7 +579,9 @@ class FetchScalars(FetchBase, Generic[ScalarType]):
     ) -> Sequence[ScalarType]:
         statement = self.statement
         assert statement
+        parameters = self.parameters
+        assert parameters
         async with dbaccess.Query[ScalarType](
-            cursor, statement, **self.parameters
+            cursor, statement, **parameters
         ) as result:
             return await result.scalars()

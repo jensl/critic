@@ -29,6 +29,7 @@ import {
   SelectionElementType,
 } from "."
 import { identicalSets } from "../utils/Functions"
+import { MouseMonitor } from "../utils/Mouse"
 
 const setSelectionScope = (
   scopeID: string,
@@ -79,33 +80,26 @@ const max = (values: number[]) => Math.max.apply(null, values)
 export type ElementToIDFunc = (el: HTMLElement) => string
 
 export type DefineSelectionScopeParams = {
-  event: MouseEvent
   scopeID: string
   elementType: SelectionElementType
-  elements: string[] | HTMLElement[]
-  elementToID: null | ElementToIDFunc
+  elements: HTMLElement[]
+  elementToID: ElementToIDFunc
 }
 
 export const defineSelectionScope = ({
-  event,
   scopeID,
   elementType,
   elements,
-  elementToID = null,
-}: DefineSelectionScopeParams) => (dispatch: Dispatch, getState: GetState) => {
-  if (!elementToID) elementToID = defaultElementToID
-
-  if (elements.length && typeof elements[0] === "string")
-    elements = (elements as string[]).map(
-      (id) => document.getElementById(id) as HTMLElement,
-    )
-
-  if (!elements.length) return
-
+  elementToID,
+}: DefineSelectionScopeParams) => (
+  dispatch: Dispatch,
+  getState: GetState,
+): MouseMonitor => {
   const elementIDs: string[] = []
   const elementsByID: { [id: string]: HTMLElement } = {}
   const allBoundingRects: BoundingRect[] = []
-  ;(elements as HTMLElement[]).forEach((element) => {
+
+  elements.forEach((element) => {
     const elementID = elementToID!(element)
     elementIDs.push(elementID)
     elementsByID[elementID] = element
@@ -143,109 +137,99 @@ export const defineSelectionScope = ({
     )
   }
 
-  dispatch(onMouseDown(event, updateSelection))
+  return ({ absoluteX, absoluteY, downAbsoluteX, downAbsoluteY, isDown }) => (
+    dispatch: Dispatch,
+    getState: GetState,
+  ) => {
+    const state = getState()
+    const {
+      scopeID,
+      elements,
+      elementIDs,
+      selectedIDs: currentSelectedIDs,
+      firstSelectedID: currentFirstSelectedID,
+      lastSelectedID: currentLastSelectedID,
+      isPending,
+      isRangeSelecting,
+      selectionAnchorID,
+    } = state.ui.selectionScope
 
-  event.preventDefault()
-}
+    if (scopeID === null) return null
 
-export const updateSelection = (x: number, y: number, isDown: boolean) => (
-  dispatch: Dispatch,
-  getState: GetState,
-) => {
-  const state = getState()
-  const { downAbsoluteX, downAbsoluteY } = state.ui.mouse
-  const {
-    scopeID,
-    elements,
-    elementIDs,
-    selectedIDs: currentSelectedIDs,
-    firstSelectedID: currentFirstSelectedID,
-    lastSelectedID: currentLastSelectedID,
-    isPending,
-    isRangeSelecting,
-    selectionAnchorID,
-  } = state.ui.selectionScope
+    const width = Math.abs(absoluteX - downAbsoluteX)
+    const height = Math.abs(absoluteY - downAbsoluteY)
 
-  if (scopeID === null) return
+    const newIsRangeSelecting = isRangeSelecting || width > 5 || height > 5
 
-  const width = Math.abs(x - downAbsoluteX)
-  const height = Math.abs(y - downAbsoluteY)
+    // Current selection rectangle.
+    const top = Math.min(absoluteY, downAbsoluteY) - window.scrollY
+    const right = Math.max(absoluteX, downAbsoluteX) - window.scrollX
+    const bottom = Math.max(absoluteY, downAbsoluteY) - window.scrollY
+    const left = Math.min(absoluteX, downAbsoluteX) - window.scrollX
 
-  const newIsRangeSelecting = isRangeSelecting || width > 5 || height > 5
+    var firstSelectedID = null
+    var lastSelectedID = null
+    const selectedIDs = new Set<string>()
+    var inSelection = false
 
-  // Current selection rectangle.
-  const top = Math.min(y, downAbsoluteY) - window.scrollY
-  const right = Math.max(x, downAbsoluteX) - window.scrollX
-  const bottom = Math.max(y, downAbsoluteY) - window.scrollY
-  const left = Math.min(x, downAbsoluteX) - window.scrollX
+    for (const elementID of elementIDs) {
+      const boundingRect = elements.get(elementID)!.getBoundingClientRect()
+      const isInRange =
+        top <= boundingRect.bottom &&
+        boundingRect.top <= bottom &&
+        left <= boundingRect.right &&
+        boundingRect.left <= right
+      var addToSelection = inSelection
 
-  var firstSelectedID = null
-  var lastSelectedID = null
-  const selectedIDs = new Set<string>()
-  var inSelection = false
+      if (selectionAnchorID !== null && !newIsRangeSelecting) {
+        if (elementID === selectionAnchorID || isInRange) {
+          addToSelection = true
+          if (elementID !== selectionAnchorID || !isInRange)
+            inSelection = !inSelection
+        }
+      } else addToSelection = isInRange
 
-  for (const elementID of elementIDs) {
-    const boundingRect = elements.get(elementID)!.getBoundingClientRect()
-    const isInRange =
-      top <= boundingRect.bottom &&
-      boundingRect.top <= bottom &&
-      left <= boundingRect.right &&
-      boundingRect.left <= right
-    var addToSelection = inSelection
-
-    if (selectionAnchorID !== null && !newIsRangeSelecting) {
-      if (elementID === selectionAnchorID || isInRange) {
-        addToSelection = true
-        if (elementID !== selectionAnchorID || !isInRange)
-          inSelection = !inSelection
+      if (addToSelection) {
+        if (firstSelectedID === null) firstSelectedID = elementID
+        selectedIDs.add(elementID)
+        lastSelectedID = elementID
       }
-    } else addToSelection = isInRange
-
-    if (addToSelection) {
-      if (firstSelectedID === null) firstSelectedID = elementID
-      selectedIDs.add(elementID)
-      lastSelectedID = elementID
     }
-  }
 
-  if (
-    !isDown &&
-    !newIsRangeSelecting &&
-    selectedIDs.size === 1 &&
-    state.ui.selectionScope.selectedIDs.size !== 0
-  )
-    return dispatch(resetSelectionScope())
+    console.log({ isDown, newIsRangeSelecting })
 
-  if (newIsRangeSelecting || selectedIDs.size > 1 || !isDown) {
-    const newIsPending = isDown
     if (
-      isPending !== newIsPending ||
-      isRangeSelecting !== newIsRangeSelecting ||
-      currentFirstSelectedID !== firstSelectedID ||
-      currentLastSelectedID !== lastSelectedID ||
-      !identicalSets(currentSelectedIDs, selectedIDs)
-    )
-      return dispatch(
-        setSelectedElements(
-          scopeID,
-          selectedIDs,
-          firstSelectedID,
-          lastSelectedID,
-          newIsPending,
-          newIsRangeSelecting,
-        ),
-      )
+      !isDown &&
+      !newIsRangeSelecting &&
+      selectedIDs.size === 1 &&
+      state.ui.selectionScope.selectedIDs.size !== 0
+    ) {
+      dispatch({ type: "RESET_SELECTION_SCOPE" })
+      return null
+    }
+
+    if (newIsRangeSelecting || selectedIDs.size > 1 || !isDown) {
+      const newIsPending = isDown
+      if (
+        isPending !== newIsPending ||
+        isRangeSelecting !== newIsRangeSelecting ||
+        currentFirstSelectedID !== firstSelectedID ||
+        currentLastSelectedID !== lastSelectedID ||
+        !identicalSets(currentSelectedIDs, selectedIDs)
+      ) {
+        dispatch(
+          setSelectedElements(
+            scopeID,
+            selectedIDs,
+            firstSelectedID,
+            lastSelectedID,
+            newIsPending,
+            newIsRangeSelecting,
+          ),
+        )
+      }
+    }
+
+    return null
   }
-}
-
-export const resetSelectionScope = (): ResetSelectionScopeAction => ({
-  type: RESET_SELECTION_SCOPE,
-})
-
-export const resetSelectionScopeIf = (scopeID: string): Thunk<void> => (
-  dispatch,
-  getState,
-) => () => {
-  if (getState().ui.selectionScope.scopeID === scopeID)
-    dispatch(resetSelectionScope())
 }

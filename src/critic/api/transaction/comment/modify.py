@@ -24,7 +24,8 @@ logger = logging.getLogger(__name__)
 
 from critic import api
 from critic.reviewing.comment.propagate import PropagationResult
-from ..review import ReviewUserTag, has_unpublished_changes
+from ..review.updateunpublishedtag import UpdateUnpublishedTag
+from ..review.updatewouldbeacceptedtag import UpdateWouldBeAcceptedTag
 from ..base import TransactionBase
 from ..item import Update
 from ..modifier import Modifier
@@ -50,6 +51,11 @@ class ModifyComment(ReplyMixin, Modifier[api.comment.Comment]):
     def __raiseUnlessDraft(self, action: str) -> None:
         if not self.subject.is_draft:
             raise api.comment.Error("Published comments cannot be " + action)
+
+    async def __updateTags(self) -> None:
+        review = await self.subject.review
+        self.transaction.finalizers.add(UpdateUnpublishedTag(review))
+        self.transaction.finalizers.add(UpdateWouldBeAcceptedTag(review))
 
     async def setText(self, new_text: str) -> None:
         self.__raiseUnlessDraft("edited")
@@ -78,6 +84,7 @@ class ModifyComment(ReplyMixin, Modifier[api.comment.Comment]):
         #             save_backup = True
 
         await self.transaction.execute(Update(self.subject).set(text=new_text))
+        await self.__updateTags()
 
         # if save_backup:
         #     self.transaction.items.append(
@@ -96,23 +103,18 @@ class ModifyComment(ReplyMixin, Modifier[api.comment.Comment]):
     ) -> None:
         await reopen_issue(self.transaction, self.subject, new_location)
 
-    async def deleteComment(self) -> None:
+    async def delete(self) -> None:
         self.__raiseUnlessDraft("deleted")
 
         critic = self.transaction.critic
+        review = await self.subject.review
         author = await self.subject.author
 
         api.PermissionDenied.raiseUnlessUser(critic, author)
 
         await super().delete()
 
-        ReviewUserTag.ensure(
-            self.transaction,
-            await self.subject.review,
-            author,
-            "unpublished",
-            has_unpublished_changes,
-        )
+        await self.__updateTags()
 
     @staticmethod
     async def create(

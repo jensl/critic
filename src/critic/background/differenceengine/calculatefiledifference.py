@@ -61,6 +61,8 @@ class CalculateFileDifference(Job):
         self.result = {}
 
     async def execute(self) -> None:
+        decode_old = self.group.as_changeset.decode_old
+        decode_new = self.group.as_changeset.decode_new
         async with self.group.repository() as repository:
             for changed_file in self.changed_files:
                 try:
@@ -69,6 +71,8 @@ class CalculateFileDifference(Job):
                         self.from_commit_sha1,
                         self.to_commit_sha1,
                         changed_file.path,
+                        decode_old,
+                        decode_new,
                     )
                 except diff.parse.ParseError as error:
                     raise Exception("%s: %s" % (changed_file.path, error))
@@ -91,7 +95,7 @@ class CalculateFileDifference(Job):
                               )""",
                     (
                         dbaccess.parameters(
-                            changeset_id=self.group.changeset_id,
+                            changeset_id=self.group.as_changeset.changeset_id,
                             file_id=changed_file.file_id,
                             index=index,
                             offset=offset,
@@ -123,7 +127,7 @@ class CalculateFileDifference(Job):
                               new_linebreak={new_linebreak}
                         WHERE changeset={changeset_id}
                           AND file={file_id}""",
-                    changeset_id=self.group.changeset_id,
+                    changeset_id=self.group.as_changeset.changeset_id,
                     file_id=changed_file.file_id,
                     old_linebreak=old_linebreak,
                     new_linebreak=new_linebreak,

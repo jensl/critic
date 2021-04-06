@@ -37,7 +37,7 @@ export interface ExcludeFields {
   [resource: string]: string[]
 }
 
-export type HandleError = { [code: string]: (error: any) => void }
+export type HandleError = { [code: string]: (error: any) => boolean | void }
 
 export interface FetchJSONParams {
   path: string

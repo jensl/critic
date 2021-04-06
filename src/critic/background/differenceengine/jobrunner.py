@@ -187,11 +187,10 @@ class JobRunner(RunnerType):
                 added_follow_ups = False
                 referenced_paths: Set[str] = set()
 
-                for job in finished_jobs:
-                    referenced_paths.update(job.referenced_paths())
-
                 # Ensure all referenced paths exist in the |files| table and in
                 # the file id cache.
+                for job in finished_jobs:
+                    referenced_paths.update(job.referenced_paths())
 
                 async with self.service.start_session() as critic:
                     await self.file_ids.ensure_paths(critic, referenced_paths)

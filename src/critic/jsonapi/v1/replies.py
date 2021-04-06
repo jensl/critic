@@ -153,11 +153,16 @@ class Replies(
         critic = parameters.critic
 
         converted = await convert(parameters, {"text": str}, data)
+        reviews = set()
 
         async with api.transaction.start(critic) as transaction:
             for reply in values:
-                _, _, modifier = await modify(transaction, reply)
+                review, _, modifier = await modify(transaction, reply)
                 await modifier.setText(converted["text"])
+                reviews.add(review)
+
+        for review in reviews:
+            await includeUnpublished(parameters, review)
 
     @classmethod
     async def delete(

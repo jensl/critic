@@ -16,7 +16,7 @@
 
 from __future__ import annotations
 
-from typing import Collection, Sequence, Optional, TypedDict
+from typing import Sequence, Optional, TypedDict
 
 from critic import api
 from ..check import convert
@@ -62,10 +62,10 @@ class ReviewableFileChanges(
           "new_reviewed_by": integer,
         }"""
 
-        async def reviewed_by() -> ValueWrapper[Collection[api.user.User]]:
+        async def reviewed_by() -> ValueWrapper[Sequence[api.user.User]]:
             return await sorted_by_id(await value.reviewed_by)
 
-        async def assigned_reviewers() -> ValueWrapper[Collection[api.user.User]]:
+        async def assigned_reviewers() -> ValueWrapper[Sequence[api.user.User]]:
             return await sorted_by_id(await value.assigned_reviewers)
 
         async def draft_changes() -> Optional[DraftChanges]:

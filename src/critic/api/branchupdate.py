@@ -15,6 +15,7 @@
 # the License.
 
 from __future__ import annotations
+from abc import abstractmethod
 
 import datetime
 from typing import Awaitable, Callable, Optional, Sequence, overload
@@ -43,39 +44,45 @@ class InvalidReviewEvent(Error):
         self.event = event
 
 
-class BranchUpdate(api.APIObject):
+class BranchUpdate(api.APIObjectWithId):
     """Representation of a single update of a Git branch"""
 
     @property
+    @abstractmethod
     def id(self) -> int:
         """The branch update's unique id"""
-        return self._impl.id
+        ...
 
     @property
+    @abstractmethod
     async def branch(self) -> api.branch.Branch:
         """The branch that was updated"""
-        return await self._impl.getBranch(self.critic)
+        ...
 
     @property
+    @abstractmethod
     async def updater(self) -> Optional[api.user.User]:
         """The user that performed the update
 
         None if this update was performed by the system."""
-        return await self._impl.getUpdater(self.critic)
+        ...
 
     @property
+    @abstractmethod
     async def from_head(self) -> Optional[api.commit.Commit]:
         """The old value of the branch's |head| property
 
         None if this update represents the branch being created."""
-        return await self._impl.getFromHead(self.critic)
+        ...
 
     @property
+    @abstractmethod
     async def to_head(self) -> api.commit.Commit:
         """The new value of the branch's |head| property"""
-        return await self._impl.getToHead(self.critic)
+        ...
 
     @property
+    @abstractmethod
     async def associated_commits(self) -> api.commitset.CommitSet:
         """The commits that were associated with the branch as of this update
 
@@ -83,14 +90,15 @@ class BranchUpdate(api.APIObject):
         the branch before the update.
 
         The return value is an api.commitset.CommitSet object."""
-        return await self._impl.getAssociatedCommits(self.critic)
+        ...
 
     @property
+    @abstractmethod
     async def disassociated_commits(self) -> api.commitset.CommitSet:
         """The commits that were disassociated with the branch as of this update
 
         The return value is an api.commitset.CommitSet object."""
-        return await self._impl.getDisassociatedCommits(self.critic)
+        ...
 
     @property
     async def rebase(self) -> Optional[api.rebase.Rebase]:
@@ -107,6 +115,7 @@ class BranchUpdate(api.APIObject):
             return None
 
     @property
+    @abstractmethod
     async def commits(self) -> api.commitset.CommitSet:
         """The set of commits associated with the branch after this update
 
@@ -117,19 +126,21 @@ class BranchUpdate(api.APIObject):
         other commits that were still associated with the branch after this
         update. None of the commits in |disassociated_commits| are included,
         of course."""
-        return await self._impl.getCommits(self.critic)
+        ...
 
     @property
+    @abstractmethod
     def timestamp(self) -> datetime.datetime:
         """The moment in time when the update was performed
 
         The timestamp is returned as a datetime.datetime object."""
-        return self._impl.timestamp
+        ...
 
     @property
+    @abstractmethod
     def output(self) -> Optional[str]:
         """The Git hook output of the update"""
-        return self._impl.output
+        ...
 
 
 @overload

@@ -17,10 +17,12 @@
 from __future__ import annotations
 
 import collections
+import itertools
 import logging
 from typing import (
     Iterable,
     FrozenSet,
+    List,
     Set,
     DefaultDict,
     Mapping,
@@ -28,87 +30,113 @@ from typing import (
     Iterator,
     Optional,
     Collection,
-    Tuple,
     Union,
 )
 
 logger = logging.getLogger(__name__)
 
-from . import apiobject
+from .apiobject import APIObjectImpl
 from critic import api
 from critic.api import commitset as public
+from critic.api.apiobject import Actual
 from critic.gitaccess import SHA1
 
-WrapperType = api.commitset.CommitSet
+PublicType = public.CommitSet
 
 
-class CommitSet(apiobject.APIObject[WrapperType, Tuple[()], int]):
-    wrapper_class = api.commitset.CommitSet
+class CommitSet(PublicType, APIObjectImpl, module=public):
+    __commits: FrozenSet[api.commit.Commit]
+    __heads: FrozenSet[api.commit.Commit]
+    __tails: FrozenSet[api.commit.Commit]
+    __children: DefaultDict[SHA1, Set[api.commit.Commit]]
+    __parents: DefaultDict[SHA1, List[api.commit.Commit]]
 
-    commits: FrozenSet[api.commit.Commit]
-    heads: FrozenSet[api.commit.Commit]
-    tails: FrozenSet[api.commit.Commit]
-    children: DefaultDict[SHA1, Set[api.commit.Commit]]
-    parents: DefaultDict[SHA1, Set[api.commit.Commit]]
+    def __init__(self, critic: api.critic.Critic) -> None:
+        super().__init__(critic)
+        self.__commits = frozenset()
+        self.__heads = frozenset()
+        self.__tails = frozenset()
+        self.__children = collections.defaultdict(set)
+        self.__parents = collections.defaultdict(list)
 
-    def __init__(self, args: Tuple[()] = ()) -> None:
-        self.commits = frozenset()
-        self.heads = frozenset()
-        self.tails = frozenset()
-        self.children = collections.defaultdict(set)
-        self.parents = collections.defaultdict(set)
+    def __adapt__(self) -> Sequence[int]:
+        return [int(commit) for commit in self]
+
+    def __repr__(self) -> str:
+        return "CommitSet(%r)" % list(self.topo_ordered)
+
+    def __iter__(self) -> Iterator[api.commit.Commit]:
+        return iter(self.__commits)
+
+    def __bool__(self) -> bool:
+        return bool(self.__commits)
+
+    def __len__(self) -> int:
+        return len(self.__commits)
+
+    def __contains__(self, item: Union[str, api.commit.Commit]) -> bool:
+        return str(item) in self.__commits
+
+    def __hash__(self) -> int:
+        return hash(self.__commits)
+
+    def __eq__(self, other: object) -> bool:
+        return isinstance(other, CommitSet) and self.__commits == other.__commits
+
+    def getCacheKeys(self) -> Collection[object]:
+        return ()
 
     def setNow(
         self,
         commits: Iterable[api.commit.Commit],
-        all_parents: Mapping[SHA1, Set[api.commit.Commit]],
+        all_parents: Mapping[SHA1, Sequence[api.commit.Commit]],
     ) -> CommitSet:
-        self.commits = frozenset(commits)
+        self.__commits = frozenset(commits)
 
         parents: Set[api.commit.Commit] = set()
-        for commit in self.commits:
+        for commit in self.__commits:
             commit_parents = all_parents[commit.sha1]
-            self.parents[commit.sha1] = commit_parents
+            self.__parents[commit.sha1] = [*commit_parents]
             parents.update(commit_parents)
             for parent in commit_parents:
-                self.children[parent.sha1].add(commit)
+                self.__children[parent.sha1].add(commit)
 
-        self.heads = frozenset(self.commits - parents)
-        self.tails = frozenset(parents - self.commits)
+        self.__heads = frozenset(self.__commits - parents)
+        self.__tails = frozenset(parents - self.__commits)
 
         return self
 
     async def set(self, commits: Iterable[api.commit.Commit]) -> CommitSet:
-        self.commits = frozenset(commits)
+        self.__commits = frozenset(commits)
 
-        if not self.commits:
+        if not self.__commits:
             return self
 
-        commits_by_sha1 = {commit.sha1: commit for commit in self.commits}
+        commits_by_sha1 = {commit.sha1: commit for commit in self.__commits}
 
-        repository = next(iter(self.commits)).repository
+        repository = next(iter(self.__commits)).repository
         all_parent_sha1s: Set[SHA1] = set()
-        tail_sha1s: DefaultDict[api.commit.Commit, Set[SHA1]] = collections.defaultdict(
-            set
-        )
+        tail_sha1s: DefaultDict[
+            api.commit.Commit, List[SHA1]
+        ] = collections.defaultdict(list)
 
-        for commit in self.commits:
+        for commit in self.__commits:
             assert repository == commit.repository
             parent_sha1s = commit.low_level.parents
             for parent_sha1 in parent_sha1s:
                 parent = commits_by_sha1.get(parent_sha1)
                 if parent:
-                    self.parents[commit.sha1].add(parent)
+                    self.__parents[commit.sha1].append(parent)
                 else:
-                    tail_sha1s[commit].add(parent_sha1)
-                self.children[parent_sha1].add(commit)
+                    tail_sha1s[commit].append(parent_sha1)
+                self.__children[parent_sha1].add(commit)
             all_parent_sha1s.update(parent_sha1s)
 
         if tail_sha1s:
             tails = {
                 tail.sha1: tail
                 for tail in await api.commit.fetchMany(
-                    repository, sha1s=set.union(*tail_sha1s.values())
+                    repository, sha1s=set(itertools.chain(*tail_sha1s.values()))
                 )
             }
         else:
@@ -116,40 +144,29 @@ class CommitSet(apiobject.APIObject[WrapperType, Tuple[()], int]):
 
         for commit, sha1s in tail_sha1s.items():
             for sha1 in sha1s:
-                self.parents[commit.sha1].add(tails[sha1])
+                self.__parents[commit.sha1].append(tails[sha1])
 
-        self.heads = frozenset(
-            commit for commit in self.commits if commit.sha1 not in all_parent_sha1s
+        self.__heads = frozenset(
+            commit for commit in self.__commits if commit.sha1 not in all_parent_sha1s
         )
-        self.tails = frozenset(tails.values())
+        self.__tails = frozenset(tails.values())
 
         return self
 
-    def __iter__(self) -> Iterator[api.commit.Commit]:
-        return iter(self.commits)
+    @property
+    def heads(self) -> FrozenSet[api.commit.Commit]:
+        return self.__heads
 
-    def __bool__(self) -> bool:
-        return bool(self.commits)
+    @property
+    def tails(self) -> FrozenSet[api.commit.Commit]:
+        return self.__tails
 
-    def __len__(self) -> int:
-        return len(self.commits)
-
-    def __contains__(self, item: Union[str, api.commit.Commit]) -> bool:
-        return str(item) in self.commits
-
-    def __hash__(self) -> int:
-        return hash(self.commits)
-
-    def __eq__(self, other: object) -> bool:
-        return isinstance(other, CommitSet) and self.commits == other.commits
-
-    async def getFilteredTails(
-        self, critic: api.critic.Critic
-    ) -> FrozenSet[api.commit.Commit]:
-        if not self.commits:
+    @property
+    async def filtered_tails(self) -> FrozenSet[api.commit.Commit]:
+        if not self.__commits:
             return frozenset()
 
-        repository = next(iter(self.commits)).repository
+        repository = next(iter(self.__commits)).repository
         candidates: Set[api.commit.Commit] = set(self.tails)
         result: Set[api.commit.Commit] = set()
 
@@ -178,16 +195,18 @@ class CommitSet(apiobject.APIObject[WrapperType, Tuple[()], int]):
 
         return frozenset(result)
 
-    async def getUpstream(self, critic: api.critic.Critic) -> api.commit.Commit:
+    @property
+    async def upstream(self) -> api.commit.Commit:
         try:
-            (upstream,) = await self.getFilteredTails(critic)
+            (upstream,) = await self.filtered_tails
         except ValueError:
             raise api.commitset.InvalidCommitRange() from None
         return upstream
 
-    def getDateOrdered(self) -> Iterator[api.commit.Commit]:
+    @property
+    def date_ordered(self) -> Iterator[api.commit.Commit]:
         queue = sorted(
-            self.commits, key=lambda commit: commit.committer.timestamp, reverse=True
+            self.__commits, key=lambda commit: commit.committer.timestamp, reverse=True
         )
         included: Set[api.commit.Commit] = set()
 
@@ -211,12 +230,13 @@ class CommitSet(apiobject.APIObject[WrapperType, Tuple[()], int]):
             yield commit
             included.add(commit)
 
-    def getTopoOrdered(self) -> Iterator[api.commit.Commit]:
+    @property
+    def topo_ordered(self) -> Iterator[api.commit.Commit]:
         if not self:
             return
 
         logger.debug(
-            "commitset.topo_ordered: size=%d, parents=%r", len(self), self.parents
+            "commitset.topo_ordered: size=%d, parents=%r", len(self), self.__parents
         )
 
         head = next(iter(self.heads))
@@ -256,16 +276,22 @@ class CommitSet(apiobject.APIObject[WrapperType, Tuple[()], int]):
             queue[:0] = parents
 
     def getChildrenOf(self, commit: api.commit.Commit) -> FrozenSet[api.commit.Commit]:
-        return frozenset(self.children.get(commit.sha1, set()))
+        return frozenset(self.__children.get(commit.sha1, set()))
 
-    def getParentsOf(self, commit: api.commit.Commit) -> FrozenSet[api.commit.Commit]:
-        return frozenset(
-            parent for parent in self.parents[commit.sha1] if parent in self
-        )
+    def getParentsOf(self, commit: api.commit.Commit) -> Sequence[api.commit.Commit]:
+        return [parent for parent in self.__parents[commit.sha1] if parent in self]
 
     def getDescendantsOf(
-        self, commits: Sequence[api.commit.Commit], include_self: bool
-    ) -> WrapperType:
+        self,
+        commit_or_commits: Union[api.commit.Commit, Iterable[api.commit.Commit]],
+        /,
+        *,
+        include_self: bool = False,
+    ) -> PublicType:
+        if isinstance(commit_or_commits, api.commit.Commit):
+            commits = [commit_or_commits]
+        else:
+            commits = [*commit_or_commits]
         descendants: Set[api.commit.Commit] = set()
         if include_self:
             descendants.update(commits)
@@ -278,11 +304,19 @@ class CommitSet(apiobject.APIObject[WrapperType, Tuple[()], int]):
             children = self.getChildrenOf(descendant)
             if children:
                 queue.update(children - descendants)
-        return createNow(commits[0].critic, descendants, self.parents)
+        return createNow(commits[0].critic, descendants, self.__parents)
 
     def getAncestorsOf(
-        self, commits: Sequence[api.commit.Commit], include_self: bool
-    ) -> WrapperType:
+        self,
+        commit_or_commits: Union[api.commit.Commit, Iterable[api.commit.Commit]],
+        /,
+        *,
+        include_self: bool = False,
+    ) -> PublicType:
+        if isinstance(commit_or_commits, api.commit.Commit):
+            commits = [commit_or_commits]
+        else:
+            commits = [*commit_or_commits]
         ancestors: Set[api.commit.Commit] = set()
         if include_self:
             ancestors.update(commits)
@@ -293,55 +327,62 @@ class CommitSet(apiobject.APIObject[WrapperType, Tuple[()], int]):
             ancestor = queue.pop()
             ancestors.add(ancestor)
             queue.update(set(self.getParentsOf(ancestor)) - ancestors)
-        return createNow(commits[0].critic, ancestors, self.parents)
+        return createNow(commits[0].critic, ancestors, self.__parents)
 
     async def union(
-        self, critic: api.critic.Critic, commits: Iterable[api.commit.Commit]
+        self, commits: Iterable[api.commit.Commit]
     ) -> api.commitset.CommitSet:
-        return await create(critic, self.commits.union(commits))
+        return await create(self.critic, self.__commits.union(commits))
 
     def intersection(
-        self, critic: api.critic.Critic, commits: Iterable[api.commit.Commit]
+        self, commits: Iterable[api.commit.Commit]
     ) -> api.commitset.CommitSet:
-        return createNow(critic, self.commits.intersection(commits), self.parents)
+        return createNow(
+            self.critic, self.__commits.intersection(commits), self.__parents
+        )
 
     def difference(
-        self, critic: api.critic.Critic, commits: Iterable[api.commit.Commit]
+        self, commits: Iterable[api.commit.Commit]
     ) -> api.commitset.CommitSet:
-        return createNow(critic, self.commits.difference(commits), self.parents)
+        return createNow(
+            self.critic, self.__commits.difference(commits), self.__parents
+        )
 
     async def symmetric_difference(
-        self, critic: api.critic.Critic, commits: Iterable[api.commit.Commit]
+        self, commits: Iterable[api.commit.Commit]
     ) -> api.commitset.CommitSet:
-        return await create(critic, self.commits.symmetric_difference(commits))
+        return await create(self.critic, self.__commits.symmetric_difference(commits))
 
     def contains(self, commit: Union[SHA1, api.commit.Commit]) -> bool:
         if isinstance(commit, str):
-            return commit in self.parents
-        return commit in self.commits
+            return commit in self.__parents
+        return commit in self.__commits
+
+    async def refresh(self: Actual) -> Actual:
+        return self
 
 
 def createNow(
     critic: api.critic.Critic,
     commits: Iterable[api.commit.Commit],
-    all_parents: Mapping[SHA1, Set[api.commit.Commit]],
-) -> WrapperType:
-    return CommitSet().setNow(commits, all_parents).wrap(critic)
+    all_parents: Mapping[SHA1, Sequence[api.commit.Commit]],
+) -> PublicType:
+    return CommitSet(critic).setNow(commits, all_parents)
 
 
 @public.emptyImpl
-def empty(critic: api.critic.Critic) -> WrapperType:
-    return CommitSet().wrap(critic)
+def empty(critic: api.critic.Critic) -> PublicType:
+    return CommitSet(critic)
 
 
 @public.createImpl
 async def create(
     critic: api.critic.Critic, commits: Iterable[api.commit.Commit]
-) -> WrapperType:
+) -> PublicType:
     if isinstance(commits, api.commitset.CommitSet):
         return commits
 
-    return (await CommitSet().set(commits)).wrap(critic)
+    return await CommitSet(critic).set(commits)
 
 
 @public.calculateFromRangeImpl
@@ -349,24 +390,24 @@ async def calculateFromRange(
     critic: api.critic.Critic,
     from_commit: Optional[api.commit.Commit],
     to_commit: api.commit.Commit,
-) -> WrapperType:
+) -> PublicType:
     return await api.commit.fetchRange(from_commit=from_commit, to_commit=to_commit)
 
 
 @public.calculateFromBranchUpdateImpl
 async def calculateFromBranchUpdate(
     critic: api.critic.Critic,
-    current_commits: Optional[WrapperType],
+    current_commits: Optional[Iterable[api.commit.Commit]],
     from_commit: api.commit.Commit,
     to_commit: api.commit.Commit,
     force_include: Optional[Iterable[api.commit.Commit]],
-) -> WrapperType:
+) -> PublicType:
     repository = from_commit.repository
     new_commits: Set[api.commit.Commit] = set()
 
     _current_commits: Collection[api.commit.Commit]
     if current_commits:
-        _current_commits = current_commits
+        _current_commits = set(current_commits)
     else:
         _current_commits = ()
 
@@ -375,7 +416,7 @@ async def calculateFromBranchUpdate(
     async def traverse(
         commit: api.commit.Commit,
         *,
-        restricted_to: Optional[Set[api.commit.Commit]] = None
+        restricted_to: Optional[Set[api.commit.Commit]] = None,
     ) -> None:
         while True:
             # Stop when we reach |from_commit|, a commit in

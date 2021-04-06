@@ -253,3 +253,28 @@ export function useResourceExtra<K extends keyof E, V>(
   const value = useSelector((state) => state.resource.extra[name])
   return map ? map(value) : value
 }
+
+export class DefaultMap<K, V> {
+  map: Map<K, V>
+
+  constructor(readonly factory: () => V) {
+    this.map = new Map()
+  }
+
+  has(key: K): boolean {
+    return this.map.has(key)
+  }
+
+  get(key: K): V {
+    const existingValue = this.map.get(key)
+    if (existingValue !== void 0) return existingValue
+    const newValue = this.factory()
+    this.map.set(key, newValue)
+    return newValue
+  }
+
+  set(key: K, value: V): DefaultMap<K, V> {
+    this.map.set(key, value)
+    return this
+  }
+}

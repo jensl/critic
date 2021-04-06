@@ -89,9 +89,9 @@ class ModifySystemSetting(Modifier[api.systemsetting.SystemSetting]):
             Update(self.subject).set(value=json.dumps(value))
         )
 
-    async def create_modified_payload(self) -> ModifiedSystemSetting:
+    async def create_modified_payload(self, object_id:int) -> ModifiedSystemSetting:
         return ModifiedSystemSetting(
-            self.resource_name, self.subject_id, self.updates, self.subject.key
+            self.resource_name, object_id, self.updates, self.subject.key
         )
 
     @staticmethod

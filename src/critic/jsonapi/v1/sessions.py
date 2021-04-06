@@ -23,6 +23,7 @@ from typing import Optional, Literal
 logger = logging.getLogger(__name__)
 
 from critic import api
+from critic.api.apiobject import Actual
 from critic import auth
 from ..exceptions import Error
 from ..check import convert
@@ -37,6 +38,7 @@ class Session(api.APIObject):
     session_type: Optional[Literal["accesstoken", "normal"]]
 
     def __init__(self, critic: api.critic.Critic):
+        self.__critic = critic
         self.user = critic.actual_user
         if critic.access_token:
             self.session_type = "accesstoken"
@@ -47,8 +49,15 @@ class Session(api.APIObject):
         self.external_account = critic.external_account
 
     @property
+    def critic(self) -> api.critic.Critic:
+        return self.__critic
+
+    @property
     def id(self) -> Literal["current"]:
         return "current"
+
+    async def refresh(self: Actual) -> Actual:
+        return self
 
 
 class SessionError(Error):
@@ -168,4 +177,6 @@ class Sessions(ResourceClass[Session], resource_name="sessions", value_class=Ses
 
     @classmethod
     async def delete(cls, parameters: Parameters, values: Values[Session]) -> None:
-        await auth.deleteSessionId(parameters.request, parameters.cookies)
+        request = parameters.request
+        assert isinstance(request, aiohttp.web.BaseRequest)
+        await auth.deleteSessionId(request, parameters.cookies)

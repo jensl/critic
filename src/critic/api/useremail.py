@@ -15,6 +15,7 @@
 # the License.
 
 from __future__ import annotations
+from abc import abstractmethod
 
 from typing import (
     Awaitable,
@@ -63,34 +64,31 @@ def as_status(value: str) -> Status:
     return cast(Status, value)
 
 
-class UserEmail(api.APIObject):
+class UserEmail(api.APIObjectWithId):
     @property
+    @abstractmethod
     def id(self) -> int:
-        return self._impl.id
+        ...
 
     @property
+    @abstractmethod
     async def user(self) -> api.user.User:
-        return await self._impl.getUser(self.critic)
+        ...
 
     @property
+    @abstractmethod
     def address(self) -> str:
-        return self._impl.address
+        ...
 
     @property
+    @abstractmethod
     def status(self) -> Status:
-        return self._impl.status
+        ...
 
     @property
+    @abstractmethod
     async def is_selected(self) -> bool:
-        return self._impl.isSelected(self.critic)
-
-    @property
-    def token(self) -> str:
-        """Current verification token
-
-        The most recently sent verification email will contain a link that
-        contains this token."""
-        return self._impl.token
+        ...
 
 
 @overload
@@ -123,7 +121,7 @@ async def fetchAll(
     status: Optional[Status] = None,
     selected: Optional[bool] = None,
 ) -> Sequence[UserEmail]:
-    return await fetchAllImpl.get()(critic, user, status, selected)
+    return await fetchAllImpl.get()(critic, user, status,selected)
 
 
 resource_name = table_name = "useremails"

@@ -141,7 +141,6 @@ export const getCommentsForChangeset = createSelector(
     changeset,
     fileDiffs,
   ): CommentsForChangeset => {
-    console.log({ commentLocations, commentsForReview })
     const inCommitMessage: Comment[] = []
     const byFile: MutableCommentsByFile = new Map()
     const result = {

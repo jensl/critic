@@ -14,158 +14,157 @@
 -- License for the specific language governing permissions and limitations under
 -- the License.
 
-CREATE TYPE commentchaintype AS ENUM (
-  'issue',  -- The comment chain, while open, blocks the review.
-  'note'    -- The comment chain doesn't block the review.
+CREATE TYPE commenttype AS ENUM (
+  'issue',  -- The comment comment, while open, blocks the review.
+  'note'    -- The comment comment doesn't block the review.
 );
-CREATE TYPE commentchainstate AS ENUM (
-  'open',     -- The comment chain is open.
+CREATE TYPE issuestate AS ENUM (
+  'open',     -- The comment comment is open.
   'addressed',-- The commented code was changed by a later commit.
-  'closed',   -- The comment chain is closed.
-  'empty'     -- The comment chain has no comments.
+  'resolved'  -- The comment comment is resolved.
 );
-CREATE TYPE commentchainorigin AS ENUM (
+CREATE TYPE commentside AS ENUM (
   'old',  -- The user commented the old/left-hand side in a diff.
   'new'   -- The user commented the new/right-hand side in a diff.
 );
 
-CREATE TABLE commentchains (
+CREATE TABLE comments (
   id SERIAL PRIMARY KEY,
 
-  type commentchaintype NOT NULL DEFAULT 'issue',
+  type commenttype NOT NULL,
   review INTEGER NOT NULL REFERENCES reviews ON DELETE CASCADE,
   batch INTEGER REFERENCES batches ON DELETE CASCADE,
-  uid INTEGER NOT NULL REFERENCES users,
+  author INTEGER NOT NULL REFERENCES users,
   text TEXT NOT NULL,
   time TIMESTAMP NOT NULL DEFAULT NOW(),
 
   -- Location
-  origin commentchainorigin,
+  side commentside,
   file INTEGER REFERENCES files,
   first_commit INTEGER REFERENCES commits,
   last_commit INTEGER REFERENCES commits,
 
-  -- State
-  state commentchainstate NOT NULL DEFAULT 'open',
+  -- State (issues only)
+  issue_state issuestate NOT NULL DEFAULT 'open',
   closed_by INTEGER REFERENCES users,
   addressed_by INTEGER REFERENCES commits,
   addressed_by_update INTEGER REFERENCES branchupdates
 );
-CREATE INDEX commentchains_review_file
-          ON commentchains(review, file);
-CREATE INDEX commentchains_review_type_state
-          ON commentchains(review, type, state);
-CREATE INDEX commentchains_batch
-          ON commentchains(batch);
+CREATE INDEX comments_review_file
+          ON comments(review, file);
+CREATE INDEX comments_review_type_state
+          ON comments(review, type, issue_state);
+CREATE INDEX comments_batch
+          ON comments(batch);
 
 -- FIXME: This circular relation is unnecessary.  Should have a separate table
 -- for mapping batches to comments intead.
-ALTER TABLE batches ADD CONSTRAINT batches_comment_fkey FOREIGN KEY (comment) REFERENCES commentchains ON DELETE CASCADE;
+ALTER TABLE batches ADD CONSTRAINT batches_comment_fkey FOREIGN KEY (comment) REFERENCES comments ON DELETE CASCADE;
 
-CREATE TYPE commentchainchangestate AS ENUM
+CREATE TYPE commentchangestate AS ENUM
   ( 'draft',     -- This change hasn't been performed yet.
     'performed', -- The change has been performed.
-    'rejected'   -- The change was rejected; affected comment chain wasn't in
+    'rejected'   -- The change was rejected; affected comment comment wasn't in
                  -- expected state.
   );
-CREATE TABLE commentchainchanges
+CREATE TABLE commentchanges
   ( batch INTEGER REFERENCES batches ON DELETE CASCADE,
-    uid INTEGER NOT NULL REFERENCES users ON DELETE CASCADE,
-    chain INTEGER NOT NULL REFERENCES commentchains ON DELETE CASCADE,
+    author INTEGER NOT NULL REFERENCES users ON DELETE CASCADE,
+    comment INTEGER NOT NULL REFERENCES comments ON DELETE CASCADE,
     time TIMESTAMP NOT NULL DEFAULT NOW(),
-    state commentchainchangestate NOT NULL DEFAULT 'draft',
-    from_type commentchaintype,
-    to_type commentchaintype,
-    from_state commentchainstate,
-    to_state commentchainstate,
+    state commentchangestate NOT NULL DEFAULT 'draft',
+    from_type commenttype,
+    to_type commenttype,
+    from_state issuestate,
+    to_state issuestate,
     from_last_commit INTEGER REFERENCES commits,
     to_last_commit INTEGER REFERENCES commits,
     from_addressed_by INTEGER REFERENCES commits,
     to_addressed_by INTEGER REFERENCES commits );
-CREATE INDEX commentchainchanges_batch ON commentchainchanges(batch);
-CREATE INDEX commentchainchanges_chain ON commentchainchanges(chain);
+CREATE INDEX commentchanges_batch ON commentchanges(batch);
+CREATE INDEX commentchanges_comment ON commentchanges(comment);
 
-CREATE VIEW effectivecommentchains (review, chain, uid, type, state ) AS
-     SELECT cc.review, ccc.chain, ccc.uid,
+CREATE VIEW effectivecomments (review, comment, author, type, state ) AS
+     SELECT cc.review, ccc.comment, ccc.author,
             CASE WHEN ccc.from_type=cc.type THEN ccc.from_type
                  ELSE cc.type
             END,
-            CASE WHEN ccc.from_state=cc.state THEN ccc.to_state
-                 ELSE cc.state
+            CASE WHEN ccc.from_state=cc.issue_state THEN ccc.to_state
+                 ELSE cc.issue_state
             END
-       FROM commentchains AS cc
-       JOIN commentchainchanges AS ccc ON (ccc.chain=cc.id)
+       FROM comments AS cc
+       JOIN commentchanges AS ccc ON (ccc.comment=cc.id)
       WHERE ccc.state='draft';
 
-CREATE TYPE commentchainlinesstate AS ENUM
+CREATE TYPE commentlinesstate AS ENUM
   ( 'draft',
     'current'
   );
 
-CREATE TABLE commentchainlines
-  ( chain INTEGER NOT NULL REFERENCES commentchains ON DELETE CASCADE,
-    uid INTEGER REFERENCES users,
+CREATE TABLE commentlines
+  ( comment INTEGER NOT NULL REFERENCES comments ON DELETE CASCADE,
+    author INTEGER REFERENCES users,
     time TIMESTAMP NOT NULL DEFAULT NOW(),
-    state commentchainlinesstate NOT NULL DEFAULT 'draft',
+    state commentlinesstate NOT NULL DEFAULT 'draft',
     sha1 CHAR(40) NOT NULL,
     first_line INTEGER NOT NULL,
     last_line INTEGER NOT NULL,
 
     -- This UNIQUE constraint is a bit fishy; it means two different users
-    -- can't have a draft "reopening" of the commentchain at the same time,
+    -- can't have a draft "reopening" of the comment at the same time,
     -- which strictly speaking wouldn't necessarily be a problem.
-    UNIQUE (chain, sha1) );
-CREATE INDEX commentchainlines_chain_sha1 ON commentchainlines(chain, sha1);
+    UNIQUE (comment, sha1) );
+CREATE INDEX commentlines_comment_sha1 ON commentlines(comment, sha1);
 
-CREATE TABLE commentchainusers
-  ( chain INTEGER NOT NULL REFERENCES commentchains ON DELETE CASCADE,
-    uid INTEGER NOT NULL REFERENCES users,
+CREATE TABLE commentusers
+  ( comment INTEGER NOT NULL REFERENCES comments ON DELETE CASCADE,
+    author INTEGER NOT NULL REFERENCES users,
 
-    PRIMARY KEY (chain, uid) );
+    PRIMARY KEY (comment, author) );
 
-CREATE TABLE comments (
+CREATE TABLE replies (
   id SERIAL PRIMARY KEY,
 
-  chain INTEGER NOT NULL REFERENCES commentchains ON DELETE CASCADE,
+  comment INTEGER NOT NULL REFERENCES comments ON DELETE CASCADE,
   batch INTEGER REFERENCES batches ON DELETE CASCADE,
-  uid INTEGER NOT NULL REFERENCES users,
+  author INTEGER NOT NULL REFERENCES users,
   text TEXT NOT NULL,
   time TIMESTAMP NOT NULL DEFAULT NOW()
 );
-CREATE INDEX comments_chain_uid ON comments (chain, uid);
-CREATE INDEX comments_batch ON comments(batch);
-CREATE INDEX comments_id_chain ON comments(id, chain);
+CREATE INDEX replies_comment_author ON replies (comment, author);
+CREATE INDEX replies_batch ON replies(batch);
+CREATE INDEX replies_id_comment ON replies(id, comment);
 
-CREATE TABLE commentstoread (
-  uid INTEGER NOT NULL REFERENCES users ON DELETE CASCADE,
-  comment INTEGER NOT NULL REFERENCES comments ON DELETE CASCADE,
+-- CREATE TABLE commentstoread (
+--   author INTEGER NOT NULL REFERENCES users ON DELETE CASCADE,
+--   comment INTEGER NOT NULL REFERENCES comments ON DELETE CASCADE,
 
-  PRIMARY KEY (uid, comment)
-);
-CREATE INDEX commentstoread_comment ON commentstoread(comment);
+--   PRIMARY KEY (author, comment)
+-- );
+-- CREATE INDEX commentstoread_comment ON commentstoread(comment);
 
-CREATE TABLE commentmessageids (
-  uid INTEGER NOT NULL REFERENCES users ON DELETE CASCADE,
-  comment INTEGER NOT NULL REFERENCES comments ON DELETE CASCADE,
-  messageid CHAR(24) NOT NULL,
+-- CREATE TABLE commentmessageids (
+--   author INTEGER NOT NULL REFERENCES users ON DELETE CASCADE,
+--   comment INTEGER NOT NULL REFERENCES comments ON DELETE CASCADE,
+--   messageid CHAR(24) NOT NULL,
 
-  PRIMARY KEY (uid, comment)
-);
-CREATE INDEX commentmessageids_comment ON commentmessageids(comment);
+--   PRIMARY KEY (author, comment)
+-- );
+-- CREATE INDEX commentmessageids_comment ON commentmessageids(comment);
 
-CREATE TABLE commenttextbackups (
-  id SERIAL PRIMARY KEY,
+-- CREATE TABLE commenttextbackups (
+--   id SERIAL PRIMARY KEY,
 
-  uid INTEGER NOT NULL,
-  comment INTEGER NOT NULL,
-  reply INTEGER,
+--   author INTEGER NOT NULL,
+--   comment INTEGER NOT NULL,
+--   reply INTEGER,
 
-  value TEXT NOT NULL,
-  timestamp TIMESTAMP NOT NULL DEFAULT NOW(),
+--   value TEXT NOT NULL,
+--   timestamp TIMESTAMP NOT NULL DEFAULT NOW(),
 
-  FOREIGN KEY (uid) REFERENCES users ON DELETE CASCADE,
-  FOREIGN KEY (comment) REFERENCES commentchains ON DELETE CASCADE,
-  FOREIGN KEY (reply) REFERENCES comments ON DELETE CASCADE
-);
-CREATE UNIQUE INDEX commenttextbackups_uid_comment
-                 ON commenttextbackups (uid, comment);
+--   FOREIGN KEY (author) REFERENCES users ON DELETE CASCADE,
+--   FOREIGN KEY (comment) REFERENCES comments ON DELETE CASCADE,
+--   FOREIGN KEY (reply) REFERENCES comments ON DELETE CASCADE
+-- );
+-- CREATE UNIQUE INDEX commenttextbackups_author_comment
+--                  ON commenttextbackups (author, comment);

@@ -15,8 +15,9 @@
  */
 
 import { immerable } from "immer"
-import { ADD_ITEM_TO_LIST, ItemList } from "../actions"
+import { ItemList } from "../actions"
 import { ExtensionID } from "../resources/types"
+import { filterInPlace } from "../utils/Functions"
 
 import produce from "./immer"
 
@@ -33,11 +34,23 @@ class Item {
 }
 
 const itemLists = produce<Map<ItemList, Item[]>>((draft, action) => {
-  if (action.type === ADD_ITEM_TO_LIST) {
-    const { list, extensionID, itemID, render, before, after } = action
-    let items = draft.get(list)
-    if (!items) draft.set(list, (items = []))
-    items.push(new Item(extensionID, itemID, render, before, after))
+  switch (action.type) {
+    case "ADD_ITEM_TO_LIST":
+      {
+        const { list, extensionID, itemID, render, before, after } = action
+        let items = draft.get(list)
+        if (!items) draft.set(list, (items = []))
+        items.push(new Item(extensionID, itemID, render, before, after))
+      }
+      break
+
+    case "RESET_EXTENSION":
+      {
+        const { extensionID } = action
+        for (const items of draft.values())
+          filterInPlace(items, (item) => item.extensionID !== extensionID)
+      }
+      break
   }
 }, new Map())
 

@@ -29,6 +29,7 @@ import { longestCommonPathPrefix } from "../utils/Strings"
 import { setReviewIssuesMode } from "../actions/uiReview"
 import { assertNotNull } from "../debug"
 import { ReviewFilterInput, createReviewFilters } from "../actions/reviewfilter"
+import { FileID } from "../resources/types"
 
 export const kDialogID = "createBranch"
 
@@ -50,14 +51,23 @@ const useStyles = makeStyles((theme) => ({
 export type AssignChangesReason = "nothing-assigned" | "something-unassigned"
 export type AssignChangesMode = "all" | "prefix" | "files"
 
-type Props = {
+type DialogProps = {
   open: boolean
   onClose: () => void
-
+}
+type ReasonProp = {
   reason: AssignChangesReason
 }
+type FileIDProp = {
+  fileID: FileID
+}
+type Props = DialogProps & (ReasonProp | FileIDProp)
 
-const AssignChanges: FunctionComponent<Props> = ({ open, onClose, reason }) => {
+const AssignChanges: FunctionComponent<Props> = ({
+  open,
+  onClose,
+  ...props
+}) => {
   const classes = useStyles()
   const dispatch = useDispatch()
   const signedInUser = useSignedInUser()
@@ -71,6 +81,10 @@ const AssignChanges: FunctionComponent<Props> = ({ open, onClose, reason }) => {
   const prefix = longestCommonPathPrefix(paths)
 
   if (!signedInUser || !review) return null
+
+  const reason = "reason" in props ? props.reason : null
+  const path =
+    "fileID" in props ? filesByID.get(props.fileID)?.path ?? null : null
 
   const assignChanges = mode
     ? async () => {
@@ -104,12 +118,17 @@ const AssignChanges: FunctionComponent<Props> = ({ open, onClose, reason }) => {
       <DialogContent>
         {reason === "nothing-assigned" && (
           <Alert className={classes.reason} severity="info">
-            You are not currently assigned to review any of these changes.
+            You are currently not assigned to review any of these changes.
           </Alert>
         )}
         {reason === "something-unassigned" && (
           <Alert className={classes.reason} severity="info">
-            You are not currently assigned to review all of these changes.
+            You are currently not assigned to review all of these changes.
+          </Alert>
+        )}
+        {path !== null && (
+          <Alert className={classes.reason} severity="info">
+            You are currently not assigned to review the changes in this file.
           </Alert>
         )}
         <FormControl component="fieldset">
@@ -134,23 +153,34 @@ const AssignChanges: FunctionComponent<Props> = ({ open, onClose, reason }) => {
                 control={<Radio />}
               />
             )}
-            {paths.length > 1 && (
+            {path !== null ? (
+              <FormControlLabel
+                value="files"
+                label={
+                  <>
+                    in <span className={classes.path}>{path}</span>
+                  </>
+                }
+                control={<Radio />}
+              />
+            ) : paths.length > 1 ? (
               <FormControlLabel
                 value="files"
                 label={<>in these {paths.length} files</>}
                 control={<Radio />}
               />
-            )}
-            {paths.length === 1 && (
-              <FormControlLabel
-                value="files"
-                label={
-                  <>
-                    in <span className={classes.path}>{paths[0]}</span>
-                  </>
-                }
-                control={<Radio />}
-              />
+            ) : (
+              paths.length === 1 && (
+                <FormControlLabel
+                  value="files"
+                  label={
+                    <>
+                      in <span className={classes.path}>{paths[0]}</span>
+                    </>
+                  }
+                  control={<Radio />}
+                />
+              )
             )}
           </RadioGroup>
         </FormControl>

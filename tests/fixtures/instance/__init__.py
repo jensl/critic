@@ -10,7 +10,8 @@ from typing import (
     AsyncContextManager,
     AsyncIterator,
     Dict,
-    Literal, Protocol,
+    Literal,
+    Protocol,
     Sequence,
     Tuple,
 )
@@ -54,6 +55,7 @@ class Instance(abc.ABC):
         )
         for user_data in users:
             user = User(**user_data, password=user_data["name"])
+            logger.debug(repr(user))
             self.users_by_name[user.name] = self.users_by_id[user.id] = user
 
     async def get_or_create_user(
@@ -109,7 +111,9 @@ class Instance(abc.ABC):
 
 @pytest.fixture(scope="session")
 async def instance(
-    event_loop: asyncio.AbstractEventLoop, request: Any, workdir: str,
+    event_loop: asyncio.AbstractEventLoop,
+    request: Any,
+    workdir: str,
 ) -> AsyncIterator[Instance]:
     from .quickstart import Quickstart
     from .docker import Docker

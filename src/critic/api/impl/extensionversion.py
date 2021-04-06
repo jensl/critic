@@ -17,16 +17,16 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal, Tuple, Optional, Sequence
+from typing import Callable, Literal, Tuple, Optional, Sequence
 
 from critic import api
 from critic.api import extensionversion as public
 from critic import extensions
-from critic.extensions import getExtensionSnapshotPath
+from .queryhelper import QueryHelper, QueryResult
 from critic.extensions.manifest.pythonpackage import PythonPackage
 from critic.gitaccess import SHA1
 from critic.background import extensiontasks
-from . import apiobject
+from .apiobject import APIObjectImplWithId
 
 
 @dataclass
@@ -45,7 +45,7 @@ class EntrypointImpl:
 
 @dataclass
 class PythonPackageImpl:
-    __entrypoints: Sequence[api.extensionversion.ExtensionVersion.Entrypoint]
+    __entrypoints: Sequence[PublicType.Entrypoint]
     __dependencies: Sequence[str]
 
     @property
@@ -55,7 +55,7 @@ class PythonPackageImpl:
     @property
     def entrypoints(
         self,
-    ) -> Sequence[api.extensionversion.ExtensionVersion.Entrypoint]:
+    ) -> Sequence[PublicType.Entrypoint]:
         return self.__entrypoints
 
     @property
@@ -125,28 +125,28 @@ class SubscriptionImpl(ExecutesServerSide):
 
 @dataclass
 class ManifestImpl:
-    __package: api.extensionversion.ExtensionVersion.PythonPackage
-    __endpoints: Sequence[api.extensionversion.ExtensionVersion.Endpoint]
-    __ui_addons: Sequence[api.extensionversion.ExtensionVersion.UIAddon]
-    __subscriptions: Sequence[api.extensionversion.ExtensionVersion.Subscription]
+    __package: PublicType.PythonPackage
+    __endpoints: Sequence[PublicType.Endpoint]
+    __ui_addons: Sequence[PublicType.UIAddon]
+    __subscriptions: Sequence[PublicType.Subscription]
     __low_level: extensions.extension.Manifest
 
     @property
-    def package(self) -> api.extensionversion.ExtensionVersion.PythonPackage:
+    def package(self) -> PublicType.PythonPackage:
         return self.__package
 
     @property
-    def endpoints(self) -> Sequence[api.extensionversion.ExtensionVersion.Endpoint]:
+    def endpoints(self) -> Sequence[PublicType.Endpoint]:
         return self.__endpoints
 
     @property
-    def ui_addons(self) -> Sequence[api.extensionversion.ExtensionVersion.UIAddon]:
+    def ui_addons(self) -> Sequence[PublicType.UIAddon]:
         return self.__ui_addons
 
     @property
     def subscriptions(
         self,
-    ) -> Sequence[api.extensionversion.ExtensionVersion.Subscription]:
+    ) -> Sequence[PublicType.Subscription]:
         return self.__subscriptions
 
     @property
@@ -154,33 +154,39 @@ class ManifestImpl:
         return self.__low_level
 
 
-WrapperType = api.extensionversion.ExtensionVersion
-ArgumentsType = Tuple[int, int, str, str]
+PublicType = public.ExtensionVersion
+ArgumentsType = Tuple[int, int, str, SHA1]
 
 
-class ExtensionVersion(apiobject.APIObject[WrapperType, ArgumentsType, int]):
-    wrapper_class = api.extensionversion.ExtensionVersion
-    column_names = ["id", "extension", "name", "sha1"]
+class ExtensionVersion(PublicType, APIObjectImplWithId, module=public):
+    __manifest: Optional[public.ExtensionVersion.Manifest]
 
-    __manifest: Optional[api.extensionversion.ExtensionVersion.Manifest]
-
-    def __init__(self, args: ArgumentsType):
-        (self.id, self.__extension_id, self.name, self.sha1) = args
+    def update(self, args: ArgumentsType) -> int:
+        (self.__id, self.__extension_id, self.__name, self.__sha1) = args
         self.__manifest = None
-
-    async def getExtension(self, critic: api.critic.Critic) -> api.extension.Extension:
-        return await api.extension.fetch(critic, self.__extension_id)
+        return self.__id
 
     @property
-    def snapshot_path(self) -> str:
-        return getExtensionSnapshotPath(self.sha1)
+    def id(self) -> int:
+        return self.__id
 
-    async def getManifest(
-        self, wrapper: WrapperType
-    ) -> api.extensionversion.ExtensionVersion.Manifest:
+    @property
+    async def extension(self) -> api.extension.Extension:
+        return await api.extension.fetch(self.critic, self.__extension_id)
+
+    @property
+    def name(self) -> Optional[str]:
+        return self.__name
+
+    @property
+    def sha1(self) -> SHA1:
+        return self.__sha1
+
+    @property
+    async def manifest(self) -> public.ExtensionVersion.Manifest:
         if self.__manifest is None:
-            critic = wrapper.critic
-            low_level = await extensiontasks.read_manifest(wrapper)
+            critic = self.critic
+            low_level = await extensiontasks.read_manifest(self)
             assert isinstance(low_level.package, PythonPackage)
             package = PythonPackageImpl(
                 [
@@ -231,50 +237,62 @@ class ExtensionVersion(apiobject.APIObject[WrapperType, ArgumentsType, int]):
             )
         return self.__manifest
 
+    @classmethod
+    def getQueryByIds(
+        cls,
+    ) -> Callable[[api.critic.Critic, Sequence[int]], QueryResult[ArgumentsType]]:
+        return queries.queryByIds
+
+
+queries = QueryHelper[ArgumentsType](
+    PublicType.getTableName(), "id", "extension", "name", "sha1"
+)
+
 
 @public.fetchImpl
-@ExtensionVersion.cached
 async def fetch(
     critic: api.critic.Critic,
     version_id: Optional[int],
     extension: Optional[api.extension.Extension],
     name: Optional[str],
     sha1: Optional[SHA1],
-) -> WrapperType:
+) -> PublicType:
     if version_id is not None:
-        condition = "id={version_id}"
-    elif name is not None:
+        return await ExtensionVersion.ensureOne(
+            version_id, queries.idFetcher(critic, ExtensionVersion)
+        )
+
+    error: Optional[Exception]
+    if name is not None:
         condition = "extension={extension} AND name={name}"
+        error = public.InvalidName(value=name)
     elif sha1 is not None:
         condition = "extension={extension} AND sha1={sha1}"
+        error = public.InvalidSHA1(value=name)
     else:
         condition = "extension={extension} AND name IS NULL"
-    async with ExtensionVersion.query(
-        critic,
-        [condition],
-        version_id=version_id,
-        extension=extension,
-        name=name,
-        sha1=sha1,
-    ) as result:
-        try:
-            return await ExtensionVersion.makeOne(critic, result)
-        except result.ZeroRowsInResult:
-            if name is not None:
-                raise api.extensionversion.InvalidName(value=name)
-            if sha1 is not None:
-                raise api.extensionversion.InvalidSHA1(value=name)
-            raise
+        error = None
+    return ExtensionVersion.storeOne(
+        await queries.query(
+            critic,
+            condition,
+            version_id=version_id,
+            extension=extension,
+            name=name,
+            sha1=sha1,
+        ).makeOne(ExtensionVersion, error)
+    )
 
 
 @public.fetchAllImpl
 async def fetchAll(
     critic: api.critic.Critic, extension: Optional[api.extension.Extension]
-) -> Sequence[WrapperType]:
+) -> Sequence[PublicType]:
     conditions = ["current"]
     if extension:
         conditions.append("extension={extension}")
-    async with ExtensionVersion.query(
-        critic, conditions, extension=extension
-    ) as result:
-        return await ExtensionVersion.make(critic, result)
+    return ExtensionVersion.store(
+        await queries.query(critic, *conditions, extension=extension).make(
+            ExtensionVersion
+        )
+    )

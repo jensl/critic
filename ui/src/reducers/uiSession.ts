@@ -14,6 +14,7 @@
  * the License.
  */
 
+import produce from "./immer"
 import { Action, LoginError } from "../actions"
 
 type State = {
@@ -22,26 +23,34 @@ type State = {
   signInError: LoginError | null
 }
 
-const defaultState = {
+const defaultState: State = {
   signInPending: false,
   signInSuccessful: false,
   signInError: null,
 }
 
-const session = (state: State = defaultState, action: Action): State => {
+const session = produce((draft: State, action: Action) => {
   switch (action.type) {
     case "LOGIN_REQUEST":
-      return { ...defaultState, signInPending: true }
+      draft.signInPending = true
+      draft.signInSuccessful = false
+      draft.signInError = null
+      break
 
     case "LOGIN_SUCCESS":
-      return { ...defaultState, signInSuccessful: true }
+      draft.signInPending = false
+      draft.signInSuccessful = true
+      break
 
     case "LOGIN_FAILURE":
-      return { ...defaultState, signInError: action.error }
+      draft.signInPending = false
+      draft.signInError = action.error
+      break
 
-    default:
-      return state
+    case "LOGOUT":
+      draft.signInSuccessful = false
+      break
   }
-}
+}, defaultState)
 
 export default session

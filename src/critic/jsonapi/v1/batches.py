@@ -76,19 +76,19 @@ class Batches(ResourceClass[api.batch.Batch], api_module=api.batch):
             )
 
         return {
-            "id": value.id,
+            "id": None if value.is_unpublished else value.id,
             "is_empty": value.is_empty,
             "review": value.review,
             "author": value.author,
             "timestamp": timestamp(value.timestamp),
             "comment": value.comment,
-            "created_comments": sorted_by_id(lambda: value.created_comments),
-            "written_replies": sorted_by_id(lambda: value.written_replies),
-            "resolved_issues": sorted_by_id(lambda: value.resolved_issues),
-            "reopened_issues": sorted_by_id(lambda: value.reopened_issues),
+            "created_comments": sorted_by_id(value.created_comments),
+            "written_replies": sorted_by_id(value.written_replies),
+            "resolved_issues": sorted_by_id(value.resolved_issues),
+            "reopened_issues": sorted_by_id(value.reopened_issues),
             "morphed_comments": morphed_comments(),
-            "reviewed_changes": sorted_by_id(lambda: value.reviewed_file_changes),
-            "unreviewed_changes": sorted_by_id(lambda: value.unreviewed_file_changes),
+            "reviewed_changes": sorted_by_id(value.reviewed_file_changes),
+            "unreviewed_changes": sorted_by_id(value.unreviewed_file_changes),
         }
 
     @classmethod
@@ -180,22 +180,25 @@ class Batches(ResourceClass[api.batch.Batch], api_module=api.batch):
 
         unpublished_batch = await api.batch.fetchUnpublished(review)
 
-        async with api.transaction.start(critic) as transaction:
-            modifier = transaction.modifyReview(review)
-            note: Optional[api.comment.Comment]
+        try:
+            async with api.transaction.start(critic) as transaction:
+                modifier = transaction.modifyReview(review)
+                note: Optional[api.comment.Comment]
 
-            if comment_text:
-                note = (
-                    await modifier.createComment(
-                        comment_type="note",
-                        author=critic.effective_user,
-                        text=comment_text,
-                    )
-                ).subject
-            else:
-                note = None
+                if comment_text:
+                    note = (
+                        await modifier.createComment(
+                            comment_type="note",
+                            author=critic.effective_user,
+                            text=comment_text,
+                        )
+                    ).subject
+                else:
+                    note = None
 
-            return await modifier.submitChanges(unpublished_batch, note)
+                return await modifier.submitChanges(unpublished_batch, note)
+        finally:
+            parameters.addLinked(await api.batch.fetchUnpublished(review))
 
     @classmethod
     async def delete(
@@ -214,13 +217,15 @@ class Batches(ResourceClass[api.batch.Batch], api_module=api.batch):
             )
 
         for batch in values:
-            if batch.id is not None:
+            if not batch.is_unpublished:
                 raise UsageError("Only draft changes can be deleted")
 
         async with api.transaction.start(critic) as transaction:
             for batch in values:
-                modifier = transaction.modifyReview(await batch.review)
+                review = await batch.review
+                modifier = transaction.modifyReview(review)
                 await modifier.discardChanges(discard)
+                await includeUnpublished(parameters, review)
 
     @classmethod
     async def deduce(cls, parameters: Parameters) -> Optional[api.batch.Batch]:

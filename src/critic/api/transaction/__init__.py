@@ -30,7 +30,7 @@ from typing import (
 
 logger = logging.getLogger(__name__)
 
-from .base import Executable, Finalizers, ReturnType, TransactionBase
+from .base import Executable, Finalizers, ReturnType, Shared, TransactionBase
 from .item import Lock
 from .protocol import PublishedMessage
 from .types import Publisher, SimplePublisher
@@ -39,10 +39,6 @@ from .utils import requireAdministrator
 from critic import api
 from critic import dbaccess
 from critic import pubsub
-
-from ..impl.critic import Critic
-
-T = TypeVar("T")
 
 from .accesscontrolprofile.mixin import Transaction as AccessControlProfileMixin
 from .accesstoken.mixin import Transaction as AccessTokenMixin
@@ -56,12 +52,16 @@ from .reviewscope.mixin import Transaction as ReviewScopeMixin
 from .reviewscopefilter.mixin import Transaction as ReviewScopeFilterMixin
 from .user.mixin import Transaction as UserMixin
 
+T = TypeVar("T")
+
 
 class NoCommit(Exception):
     pass
 
 
 class Savepoint:
+    __tables: Set[str]
+
     def __init__(
         self,
         transaction: TransactionBase,
@@ -72,10 +72,20 @@ class Savepoint:
         self.__cursor = cursor
         self.name = name
         self.__finalizers = Finalizers()
+        self.__shared = Shared()
+        self.__tables = set()
+
+    @property
+    def tables(self) -> Set[str]:
+        return self.__tables
 
     @property
     def finalizers(self) -> Finalizers:
         return self.__finalizers
+
+    @property
+    def shared(self) -> Shared:
+        return self.__shared
 
     async def run_finalizers(self) -> None:
         for finalizer in self.__finalizers:
@@ -98,6 +108,7 @@ class Transaction(
 ):
     __publishers: List[Publisher]
     __wakeup_services: Set[str]
+    __tables: Set[str]
     __savepoint: Optional[Savepoint]
 
     def __init__(
@@ -111,8 +122,9 @@ class Transaction(
         self.__cursor = cursor
         self.__pubsub_client = pubsub_client
         self.__no_commit = no_commit
-        self.tables = set()
+        self.__tables = set()
         self.__finalizers = Finalizers()
+        self.__shared = Shared()
         self.__publishers = []
         self.pre_commit_callbacks = []
         self.post_commit_callbacks = []
@@ -123,10 +135,22 @@ class Transaction(
         await self.execute(Lock(table).where(**columns))
 
     @property
+    def tables(self) -> Set[str]:
+        if self.__savepoint:
+            return self.__savepoint.tables
+        return self.__tables
+
+    @property
     def finalizers(self) -> Finalizers:
         if self.__savepoint:
             return self.__savepoint.finalizers
         return self.__finalizers
+
+    @property
+    def shared(self) -> Shared:
+        if self.__savepoint:
+            return self.__savepoint.shared
+        return self.__shared
 
     @property
     def has_savepoint(self) -> bool:
@@ -141,6 +165,7 @@ class Transaction(
             try:
                 yield self.__savepoint
             finally:
+                await self.critic.transactionEnded(self.__savepoint.tables)
                 self.__savepoint = None
 
     def publish(
@@ -246,7 +271,7 @@ class Transaction(
             await self.__commit()
 
     async def __post_commit(self) -> None:
-        await Critic.fromWrapper(self.critic).transactionEnded(self.critic, self.tables)
+        await self.critic.transactionEnded(self.tables)
         for service_name in self.__wakeup_services:
             await self.critic.wakeup_service(service_name)
         for callback in self.post_commit_callbacks:
@@ -275,7 +300,6 @@ class Transaction(
             )
 
         for message in messages:
-            logger.debug("publish: %r", message)
             await self.__pubsub_client.publish(cursor, message)
 
     async def execute(self, executable: Executable[ReturnType]) -> ReturnType:

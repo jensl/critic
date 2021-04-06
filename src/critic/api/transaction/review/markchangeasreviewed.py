@@ -22,18 +22,20 @@ logger = logging.getLogger(__name__)
 
 from critic import api
 from . import ReviewUserTag, has_unpublished_changes
+from .updatereviewtags import UpdateReviewTags
 from .updatewouldbeacceptedtag import UpdateWouldBeAcceptedTag
+from ..base import TransactionBase
 from ..item import Delete, Insert
 from ..modifier import Modifier
 
 
 async def mark_change_as_reviewed(
-    modifier: Modifier[api.review.Review],
+    transaction: TransactionBase,
     rfc: api.reviewablefilechange.ReviewableFileChange,
 ) -> None:
-    transaction = modifier.transaction
     critic = transaction.critic
 
+    review = await rfc.review
     draft_changes = await rfc.draft_changes
     reviewed_by = await rfc.reviewed_by
 
@@ -54,12 +56,12 @@ async def mark_change_as_reviewed(
             "Specified file change is not assigned to current user", code="NOT_ASSIGNED"
         )
 
-    transaction.tables.add("reviewfilechanges")
+    transaction.tables.add("reviewuserfilechanges")
 
     if draft_changes:
         logger.debug("%r: unmarking as reviewed", rfc)
         await transaction.execute(
-            Delete("reviewfilechanges").where(
+            Delete("reviewuserfilechanges").where(
                 file=rfc, uid=critic.effective_user, to_reviewed=False
             )
         )
@@ -67,7 +69,7 @@ async def mark_change_as_reviewed(
     if critic.effective_user not in reviewed_by:
         logger.debug("%r: marking as reviewed", rfc)
         await transaction.execute(
-            Insert("reviewfilechanges").values(
+            Insert("reviewuserfilechanges").values(
                 file=rfc,
                 uid=critic.effective_user,
                 from_reviewed=False,
@@ -77,10 +79,11 @@ async def mark_change_as_reviewed(
 
     ReviewUserTag.ensure(
         transaction,
-        await rfc.review,
+        review,
         critic.effective_user,
         "unpublished",
         has_unpublished_changes,
     )
 
-    transaction.finalizers.add(UpdateWouldBeAcceptedTag(modifier))
+    transaction.finalizers.add(UpdateWouldBeAcceptedTag(review))
+    transaction.finalizers.add(UpdateReviewTags(review))

@@ -65,8 +65,8 @@ class ModifyRepository(
             transaction, await CreateRepository.make(transaction, name, path)
         )
 
-    async def create_deleted_payload(self) -> DeletedRepository:
+    async def create_deleted_payload(self, object_id: int) -> DeletedRepository:
         repository = self.subject
         return DeletedRepository(
-            self.resource_name, repository.id, repository.name, repository.path
+            self.resource_name, object_id, repository.name, repository.path
         )

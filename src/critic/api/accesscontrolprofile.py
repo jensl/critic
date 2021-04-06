@@ -15,6 +15,8 @@
 # the License.
 
 from __future__ import annotations
+from abc import abstractmethod
+from dataclasses import dataclass
 
 from typing import (
     Awaitable,
@@ -74,46 +76,34 @@ HTTP_METHODS: FrozenSet[HTTPMethod] = frozenset(
 )
 
 
-class HTTPException(Protocol):
-    """Representation of an exception for the "http" category
+@dataclass(frozen=True)
+class HTTPException:
+    id: int
+    request_method: Optional[HTTPMethod]
+    path_pattern: Optional[str]
 
-    The exception consists of the HTTP request method and a regular expression
-    that must match the entire request path."""
 
-    @property
-    def id(self) -> int:
-        ...
-
-    @property
-    def request_method(self) -> Optional[HTTPMethod]:
-        ...
-
-    @property
-    def path_pattern(self) -> Optional[str]:
-        ...
+@dataclass(frozen=True)
+class HTTPCategory:
+    rule: RuleValue
+    exceptions: Sequence[HTTPException]
 
 
 RepositoryAccessType = Literal["read", "modify"]
 REPOSITORY_ACCESS_TYPES: FrozenSet[RepositoryAccessType] = frozenset(["read", "modify"])
 
 
-class RepositoryException(Protocol):
-    """Representation of an exception for the "repositories" category
+@dataclass(frozen=True)
+class RepositoryException:
+    id: int
+    access_type: Optional[RepositoryAccessType]
+    repository: Optional[api.repository.Repository]
 
-    The exception consists of the access type ("read" or "modify") and the
-    repository."""
 
-    @property
-    def id(self) -> int:
-        ...
-
-    @property
-    def access_type(self) -> Optional[RepositoryAccessType]:
-        ...
-
-    @property
-    def repository(self) -> Optional[api.repository.Repository]:
-        ...
+@dataclass(frozen=True)
+class RepositoryCategory:
+    rule: RuleValue
+    exceptions: Sequence[RepositoryException]
 
 
 ExtensionAccessType = Literal["install", "execute"]
@@ -122,26 +112,20 @@ EXTENSION_ACCESS_TYPES: FrozenSet[ExtensionAccessType] = frozenset(
 )
 
 
-class ExtensionException(Protocol):
-    """Representation of an exception for the "extensions" category
-
-    The exception consists of the access type ("install" or "execute")
-    and the extension."""
-
-    @property
-    def id(self) -> int:
-        ...
-
-    @property
-    def access_type(self) -> Optional[ExtensionAccessType]:
-        ...
-
-    @property
-    def extension(self) -> Optional[api.extension.Extension]:
-        ...
+@dataclass(frozen=True)
+class ExtensionException:
+    id: int
+    access_type: Optional[ExtensionAccessType]
+    extension: Optional[api.extension.Extension]
 
 
-class AccessControlProfile(api.APIObject):
+@dataclass(frozen=True)
+class ExtensionCategory:
+    rule: RuleValue
+    exceptions: Sequence[ExtensionException]
+
+
+class AccessControlProfile(api.APIObjectWithId):
     """Representation of a an access control profile"""
 
     def __hash__(self) -> int:
@@ -149,36 +133,41 @@ class AccessControlProfile(api.APIObject):
         return hash(self.id)
 
     @property
-    def id(self) -> Optional[int]:
-        """The profile's unique id, or None
+    @abstractmethod
+    def id(self) -> int:
+        """The profile's unique id, or negative
 
         None is returned for ephemeral profiles used when no actual profile
         is found to match the situation; e.g. the "allow everything" profile
         that is return by |fetch()| for the current session if no restricting
         profile is configured."""
-        return self._impl.id
+        ...
 
     @property
+    @abstractmethod
     def title(self) -> Optional[str]:
         """The profile's title, or None"""
-        return self._impl.title
+        ...
 
     @property
+    @abstractmethod
     async def access_token(self) -> Optional[api.accesstoken.AccessToken]:
         """The access token that owns this profile, or None"""
-        return await self._impl.getAccessToken(self.critic)
+        ...
 
     @property
-    async def http(self) -> Category[HTTPException]:
+    @abstractmethod
+    async def http(self) -> HTTPCategory:
         """Access control category "http"
 
         This category controls web frontend requests.
 
         Exceptions are of the type HTTPException."""
-        return await self._impl.getHTTP(self.critic)
+        ...
 
     @property
-    async def repositories(self) -> Category[RepositoryException]:
+    @abstractmethod
+    async def repositories(self) -> RepositoryCategory:
         """Access control category "repositories"
 
         This category controls access to Git repositories, both via the web
@@ -186,17 +175,18 @@ class AccessControlProfile(api.APIObject):
         is not controlled by access control.
 
         Exceptions are of the type RepositoryException."""
-        return await self._impl.getRepositories(self.critic)
+        ...
 
     @property
-    async def extensions(self) -> Category[ExtensionException]:
+    @abstractmethod
+    async def extensions(self) -> ExtensionCategory:
         """Access control category "extensions"
 
         This category controls access to any functionality provided by an
         extension.
 
         Exceptions are of the type ExtensionException."""
-        return await self._impl.getExtensions(self.critic)
+        ...
 
 
 async def fetch(

@@ -19,6 +19,7 @@ import { ChangesetID, FileID } from "../resources/types"
 import { SelectionScope } from "../reducers/uiSelectionScope"
 import { pure } from "recompose"
 import { LineComments } from "../selectors/fileDiff"
+import { locationFromSelectionScope } from "../utils/Comment"
 
 const useStyles = makeStyles((theme) => ({
   changesetDiffUnifiedLine: {
@@ -82,6 +83,11 @@ type OwnProps = {
   inView: boolean
 }
 
+const LINE_ID_PATTERN = {
+  old: "fd+:o(d+)(?::nd+)?",
+  new: "fd+(?::od+)?:n(d+)",
+}
+
 const UnifiedLine: FunctionComponent<OwnProps> = ({
   className,
   changesetID,
@@ -101,9 +107,8 @@ const UnifiedLine: FunctionComponent<OwnProps> = ({
   const classes = useStyles()
 
   const {
-    selectedIDs = null,
-    firstSelectedID = null,
     lastSelectedID = null,
+    selectedIDs = null,
     isRangeSelecting = false,
   } = selectionScope || {}
 
@@ -149,27 +154,14 @@ const UnifiedLine: FunctionComponent<OwnProps> = ({
           />
         ))) ?? []
 
-  if (
-    isSelected &&
-    firstSelectedID !== null &&
-    lastSelectedID === lineID &&
-    !isRangeSelecting
-  ) {
-    const firstLine = parseInt(
-      (/^f\d+:[on](\d+)$/.exec(firstSelectedID) || ["", "0"])[1],
-      10,
-    )
-    const lastLine = side === "old" ? oldOffset : newOffset
+  if (selectionScope && lastSelectedID === lineID && !isRangeSelecting) {
     commentItems.push(
       <ChangesetComment
         key="new-comment"
         className={classes.comment}
         location={{
           changesetID,
-          fileID,
-          side: side || "new",
-          firstLine,
-          lastLine,
+          ...locationFromSelectionScope(selectionScope),
         }}
       />,
     )

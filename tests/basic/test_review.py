@@ -16,6 +16,7 @@ async def test_create_review(
     websocket: WebSocket,
     api: API,
     critic_repo: CriticRepository,
+    admin: User,
     alice: User,
     bob: User,
     snapshot: Snapshot,
@@ -81,10 +82,10 @@ async def test_create_review(
         )
 
         await websocket.expect(
-            action="created",
-            resource_name="reviewevents",
-            review_id=review_id,
-            event_type="ready",
+            action="modified",
+            resource_name="reviews",
+            object_id=review_id,
+            updates={"is_ready": True},
         )
 
         ready_review = raise_for_status(
@@ -100,19 +101,12 @@ async def test_create_review(
         # messages about it. They should all already have arrived, since the
         # "review ready" event has been created.
         for changeset_id in ready_review.data["reviews"][0]["changesets"]:
-            message = await websocket.pop_noblock(
+            assert await websocket.pop_noblock(
                 action="modified",
                 resource_name="changesets",
                 object_id=changeset_id,
                 updates=dict(completion_level=SetContaining("full")),
             )
-            assert message
-            while message:
-                message = await websocket.pop_noblock(
-                    action="modified",
-                    resource_name="changesets",
-                    object_id=changeset_id,
-                )
 
         async with api.session(alice) as as_alice:
             snapshot.assert_match(
@@ -234,3 +228,14 @@ async def test_create_review(
                 ),
                 "review state (as alice)",
             )
+
+        async with api.session(admin) as as_admin:
+            anonymizer.assert_match(
+                raise_for_status(
+                    await as_admin.delete(f"reviews/{review_id}"),
+                ),
+                "delete review",
+            )
+
+    await websocket.pop_all(resource_name="changesets")
+    await websocket.assert_match()

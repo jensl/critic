@@ -58,7 +58,7 @@ def setup(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--format",
         "-f",
-        choices=sorted(FORMATS.keys()),
+        choices=sorted(["json", *FORMATS.keys()]),
         default="table",
         help="Output format",
     )

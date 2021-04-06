@@ -26,7 +26,18 @@ import {
   REMOVE_WEB_SOCKET_LISTENER,
   ChannelCallback,
 } from "."
-import { Dispatch, GetState } from "../state"
+import { AsyncThunk, Dispatch, GetState } from "../state"
+import { ChangesetID } from "../resources/types"
+import { CompletionLevel } from "../resources/changeset"
+
+type WebSocketMessage = {
+  subscribed?: string[]
+  unsubscribed?: string[]
+  monitor_changeset?: {
+    changeset_id: number
+    completion_level: CompletionLevel[]
+  }
+}
 
 export const webSocketConnected = (connection: WebSocket): Action => ({
   type: WEB_SOCKET_CONNECTED,
@@ -106,10 +117,9 @@ export const connectWebSocket = () => (
   }
 }
 
-export const subscribeToChannel = (
-  channel: string,
+export const subscribeToChannel = (channel: string) => (
   callback: ChannelCallback,
-) => (dispatch: Dispatch, getState: GetState) =>
+): AsyncThunk<boolean> => (dispatch: Dispatch, getState: GetState) =>
   new Promise<boolean>((resolve) => {
     const { webSocket } = getState().ui
     const alreadySubscribed = webSocket.channels.has(channel)
@@ -124,7 +134,7 @@ export const subscribeToChannel = (
       resolve(false)
     } else {
       dispatch(
-        addListener((payload: { subscribed?: string[] }) => {
+        addListener((payload: WebSocketMessage) => {
           if (payload.subscribed && payload.subscribed.includes(channel)) {
             resolve(true)
             return "remove"
@@ -140,7 +150,7 @@ export const subscribeToChannel = (
 export const unsubscribeFromChannel = (
   channel: string,
   callback: ChannelCallback,
-) => (dispatch: Dispatch, getState: GetState) =>
+): AsyncThunk<boolean> => (dispatch: Dispatch, getState: GetState) =>
   new Promise((resolve) => {
     dispatch({
       type: UNSUBSCRIBE_FROM_CHANNEL,
@@ -151,7 +161,7 @@ export const unsubscribeFromChannel = (
     const { webSocket } = getState().ui
     if (webSocket.connection && !webSocket.channels.has(channel)) {
       dispatch(
-        addListener((payload) => {
+        addListener((payload: WebSocketMessage) => {
           if (payload.unsubscribed && payload.unsubscribed.includes(channel)) {
             resolve(true)
             return "remove"
@@ -161,4 +171,47 @@ export const unsubscribeFromChannel = (
 
       webSocket.connection.send(JSON.stringify({ unsubscribe: channel }))
     } else resolve(false)
+  })
+
+export const monitorChangesetByID = (
+  changesetID: ChangesetID,
+  requiredLevels: CompletionLevel[],
+) => (callback: ChannelCallback): AsyncThunk<boolean> => (
+  dispatch: Dispatch,
+  getState: GetState,
+) =>
+  new Promise((resolve) => {
+    const { webSocket } = getState().ui
+    const channel = `changesets/${changesetID}`
+    const alreadySubscribed = webSocket.channels.has(channel)
+
+    dispatch({
+      type: SUBSCRIBE_TO_CHANNEL,
+      channel,
+      callback,
+    })
+
+    if (alreadySubscribed) {
+      resolve(false)
+    } else {
+      dispatch(
+        addListener((payload: WebSocketMessage) => {
+          if (payload.monitor_changeset?.changeset_id === changesetID) {
+            resolve(true)
+            return "remove"
+          }
+        }),
+      )
+
+      if (webSocket.connection) {
+        webSocket.connection.send(
+          JSON.stringify({
+            monitor_changeset: {
+              changeset_id: changesetID,
+              required_levels: requiredLevels,
+            },
+          }),
+        )
+      } else resolve(false)
+    }
   })

@@ -103,14 +103,6 @@ class GroupType(Protocol):
         ...
 
     @property
-    def changeset_id(self) -> int:
-        ...
-
-    @property
-    def conflicts(self) -> bool:
-        ...
-
-    @property
     def repository_path(self) -> str:
         ...
 
@@ -124,6 +116,28 @@ class GroupType(Protocol):
         ...
 
     async def process_traceback(self, critic: api.critic.Critic, job: Job) -> None:
+        ...
+
+    @property
+    def as_changeset(self) -> ChangesetGroupType:
+        ...
+
+
+class ChangesetGroupType(Protocol):
+    @property
+    def changeset_id(self) -> int:
+        ...
+
+    @property
+    def conflicts(self) -> bool:
+        ...
+
+    @property
+    def decode_old(self) -> api.repository.Decode:
+        ...
+
+    @property
+    def decode_new(self) -> api.repository.Decode:
         ...
 
 
@@ -201,7 +215,7 @@ class Job(ABC):
     def follow_ups(self) -> Iterable[Job]:
         return set()
 
-    def split(self: JobType) -> Optional[Collection[JobType]]:
+    def split(self) -> Optional[Collection[Job]]:
         return None
 
     async def process_result(self, critic: api.critic.Critic) -> Collection[Job]:
