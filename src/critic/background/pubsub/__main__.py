@@ -288,8 +288,10 @@ class PubSubService(
             protocol.ChannelName, Set[protocol.ReservationId]
         ] = defaultdict(set)
         async with self.start_session() as critic:
-            async with critic.query(
-                "SELECT reservation_id, channel FROM pubsubreservations"
+            async with api.critic.Query[
+                Tuple[protocol.ReservationId, protocol.ChannelName]
+            ](
+                critic, "SELECT reservation_id, channel FROM pubsubreservations"
             ) as result:
                 async for reservation_id, channel_name in result:
                     per_channel[channel_name].add(reservation_id)

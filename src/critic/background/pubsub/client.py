@@ -613,7 +613,6 @@ class ClientImpl:
         if exc_type is not None:
             return
         if self.__mode == "lazy" and self.__futures:
-            logger.debug("lazy connect...")
             try:
                 await self.ready
             except Exception:
@@ -621,7 +620,6 @@ class ClientImpl:
                     logger.info("Failed to establish pub/sub connection")
                     return
                 raise
-            logger.debug("lazy connected!")
         if self.__connection and not self.__closed.done():
             if self.__futures:
                 await asyncio.wait(self.__futures.values())

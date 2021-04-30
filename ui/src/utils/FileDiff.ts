@@ -1,8 +1,9 @@
-import FileDiff, {
+import FileDiff from "../resources/filediff"
+import {
   kContextLine,
   kDeletedLine,
   kInsertedLine,
-} from "../resources/filediff"
+} from "../resources/diffcommon"
 
 export const countChangedLines = (filediff: FileDiff) => {
   var deleted = 0

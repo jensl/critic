@@ -16,7 +16,7 @@ from typing import (
 logger = logging.getLogger(__name__)
 
 from critic import api
-from critic.background.extensionhost import (
+from critic.protocol.extensionhost import (
     CallResponseItem,
     CallError,
     CommandPackage,

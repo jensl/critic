@@ -77,7 +77,7 @@ class Filediff(api.APIObject):
 
     @property
     @abstractmethod
-    async def old_count(self) -> int:
+    async def delete_count(self) -> int:
         """The number of "deleted" lines in the diff"""
         ...
 
@@ -112,7 +112,7 @@ class Filediff(api.APIObject):
 
     @property
     @abstractmethod
-    async def new_count(self) -> int:
+    async def insert_count(self) -> int:
         """The number of "inserted" lines in the diff"""
         ...
 

@@ -2,18 +2,14 @@ import React, { FunctionComponent } from "react"
 
 import Registry from "."
 import Inline from "./Markdown.Inline"
-import { InlineContent } from "../utils/Markdown"
+import { InlineContentProps } from "./Markdown.types"
 
-type OwnProps = {
-  content: InlineContent
-}
-
-const MarkdownInlineContent: FunctionComponent<OwnProps> = ({ content }) => (
+const InlineContent: FunctionComponent<InlineContentProps> = ({ content }) => (
   <>
     {content.map((item, index) => (
-      <Inline key={index} item={item} />
+      <Inline key={index} item={item} InlineContent={InlineContent} />
     ))}
   </>
 )
 
-export default Registry.add("Markdown.InlineContent", MarkdownInlineContent)
+export default Registry.add("Markdown.InlineContent", InlineContent)

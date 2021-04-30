@@ -16,6 +16,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 from typing import Collection
 
@@ -59,11 +60,16 @@ class CreateExtensionVersion(
     async def make(
         transaction: TransactionBase,
         extension: api.extension.Extension,
+        name: str,
         sha1: SHA1,
         manifest: Manifest,
     ) -> api.extensionversion.ExtensionVersion:
         version = await CreateExtensionVersion(transaction).insert(
-            extension=extension, sha1=sha1, invalid=False
+            extension=extension,
+            name=name,
+            sha1=sha1,
+            invalid=False,
+            manifest=json.dumps(manifest.configuration),
         )
 
         await transaction.execute(InsertManifest(version, manifest))

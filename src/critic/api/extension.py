@@ -99,7 +99,7 @@ class Extension(api.APIObjectWithId):
 
     @property
     @abstractmethod
-    def default_version(self) -> api.extensionversion.ExtensionVersion:
+    async def default_version(self) -> api.extensionversion.ExtensionVersion:
         """The default extension version
 
         This is typically the version whose extension description and other

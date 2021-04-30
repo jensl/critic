@@ -7,21 +7,21 @@ behavior, given our configuration of it, is law. Most of the following is thus
 just consequence of that. When editing code, most of these rules can be ignored
 since Prettier will fix almost everything.
 
-* Lines should be no longer than 80 characters. The exception is imports that
+- Lines should be no longer than 80 characters. The exception is imports that
   import a single item, which Prettier intentionally formats on a single line,
   regardless of the length.
 
-* No semicolons at the end of statements.
+- No semicolons at the end of statements.
 
-* Include trailing commas in contexts (like array and object literals) where
+- Include trailing commas in contexts (like array and object literals) where
   this is supported in ECMAScript 5.
 
-* Define functions using the arrow function syntax, except in the following
+- Define functions using the arrow function syntax, except in the following
   cases:
 
-* Member functions in classes, which use the `name() { ... }` short-form.
+- Member functions in classes, which use the `name() { ... }` short-form.
 
-* Generators, which use the `function* () { ... }` syntax (no arrow function
+- Generators, which use the `function* () { ... }` syntax (no arrow function
   syntax is available for generators.)
 
 ### Small compound statements
@@ -75,12 +75,12 @@ this:
 
 Imports are divided into three blocks, separated by a blank line:
 
-* External imports, from packages such as `"react"` and `"redux"`.
+- External imports, from packages such as `"react"` and `"redux"`.
 
-* Internal imports, from directories such as `ui/src/components/` and
+- Internal imports, from directories such as `ui/src/components/` and
   `ui/src/containers/`.
 
-* Non-JS imports, such as CSS files.
+- Non-JS imports, such as CSS files.
 
 Naturally, any of the three blocks may be omitted.
 
@@ -110,18 +110,3 @@ Examples of such higher order components are `withSubscriptions()` in
 `ui/src/utils/ResourceSubscriber.js` that loads resources when mounted, and
 `withKeyboardShortcuts()` in `ui/src/utils/KeyboardShortcuts.js` that registers
 keyboard shortcuts while mounted.
-
-## Immutable
-
-The [Immutable](https://facebook.github.io/immutable-js/) library is used for
-much of the state stored in the Redux store. The state objects should never be
-mutated, so it is a rather good fit.
-
-To avoid shadowing builtins like `Map` and `Set` when using the variants from
-the Immutable, we prefer to import Immutable as
-
-```
-import Immutable from "immutable"
-```
-
-and then use e.g. `new Immutable.Map()` in the code.

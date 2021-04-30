@@ -46,6 +46,8 @@ class Changeset(JobGroup):
         self.__changeset_id = changeset_id
         self.__conflicts = conflicts
         self.syntax_highlight = False
+        self.structure_complete = False
+        self.content_complete = False
 
     @property
     def repository_path(self) -> str:
@@ -76,6 +78,29 @@ class Changeset(JobGroup):
 
     def start(self) -> None:
         self.runner.service.monitor_changeset(self.changeset_id)
+
+    def should_calculate_remaining(self) -> bool:
+        from .analyzechangedlines import AnalyzeChangedLines
+        from .calculatefiledifference import CalculateFileDifference
+        from .calculatestructuredifference import CalculateStructureDifference
+        from .detectfilelanguages import DetectFileLanguages
+        from .examinefiles import ExamineFiles
+        from .syntaxhighlightfile import SyntaxHighlightFile
+
+        if not self.structure_complete or not self.content_complete:
+            structure_complete = True
+            content_complete = True
+            for job in self.not_started:
+                if isinstance(job, CalculateStructureDifference):
+                    structure_complete = False
+                if isinstance(job, (CalculateFileDifference, ExamineFiles)):
+                    content_complete = False
+            if structure_complete and not self.structure_complete:
+                return True
+            if content_complete and not self.content_complete:
+                return True
+
+        return super().should_calculate_remaining()
 
     async def calculate_remaining(
         self, critic: api.critic.Critic, initial_calculation: bool = False
@@ -120,7 +145,7 @@ class Changeset(JobGroup):
         ) as pending_changesets:
             (
                 structure_difference_processed,
-                _,  # structure_difference_complete
+                structure_difference_complete,
                 to_commit_id,
                 to_commit_sha1,
                 from_commit_id,
@@ -128,6 +153,9 @@ class Changeset(JobGroup):
                 for_merge_id,
                 content_difference_requested,
             ) = await pending_changesets.one()
+
+        if structure_difference_complete:
+            self.structure_complete = True
 
         if for_merge_id is not None:
             # For merge differences, we want to filter the set of changed files
@@ -256,7 +284,8 @@ class Changeset(JobGroup):
                             csfd.old_highlightfile=hlf.id OR
                             csfd.new_highlightfile=hlf.id
                           )
-                    WHERE NOT hlf.highlighted
+                    WHERE hlf.language IS NOT NULL
+                      AND NOT hlf.highlighted
                       AND csfd.changeset={changeset_id}
                     LIMIT 1""",
                 changeset_id=self.changeset_id,
@@ -284,12 +313,12 @@ class Changeset(JobGroup):
         ) as content_difference:
             content_difference_complete_before = await content_difference.scalar()
 
-        if initial_calculation:
-            # No Changeset group should have been created if all work is done
-            # already.
-            assert not (
-                content_difference_complete_before and syntax_highlight_complete_before
-            )
+        # if initial_calculation:
+        #     # No Changeset group should have been created if all work is done
+        #     # already.
+        #     assert not (
+        #         content_difference_complete_before and syntax_highlight_complete_before
+        #     )
 
         content_difference_jobs: Set[Job] = set()
 
@@ -322,6 +351,8 @@ class Changeset(JobGroup):
             all_files_examined = False
         else:
             all_files_examined = True
+
+        logger.debug(f"{all_files_examined=}")
 
         # Search for any row in |changesetfiledifferences| whose
         # |comparison_pending| is true.
@@ -362,6 +393,8 @@ class Changeset(JobGroup):
                     ChangedFile(file_id, path, old_sha1, old_mode, new_sha1, new_mode),
                     [],
                 )
+
+        analyze_changed_lines_jobs: Set[Job] = set()
 
         # For each such file, fetch all blocks. We need all blocks to get
         # absolute per-block offsets, which is necessary to process each block
@@ -411,7 +444,7 @@ class Changeset(JobGroup):
                 delete_offset += delete_length
                 insert_offset += insert_length
         for changed_file, blocks in per_file.values():
-            content_difference_jobs.update(
+            analyze_changed_lines_jobs.update(
                 AnalyzeChangedLines.for_blocks(self, changed_file, blocks)
             )
 
@@ -437,9 +470,19 @@ class Changeset(JobGroup):
                     changeset_id=self.changeset_id,
                 )
 
+            self.content_complete = True
+
             # Publish a message to notify interested parties about the updated
             # completion level.
             self.runner.service.update_changeset(self.changeset_id)
+
+        # Remove any previous failed jobs.  We shouldn't try them again.
+        analyze_changed_lines_jobs = {
+            job for job in analyze_changed_lines_jobs if job.key not in self.failed
+        }
+
+        if analyze_changed_lines_jobs:
+            self.add_jobs(analyze_changed_lines_jobs)
 
         # Search for any files that need to be syntax highlighted.
         if all_files_examined and not syntax_highlight_complete_before:
@@ -471,17 +514,23 @@ class Changeset(JobGroup):
                     ) in changed_files_with_lengths
                 ]
 
-            logger.debug("changed_files=%r", changed_files)
+            # logger.debug("changed_files=%r", changed_files)
 
             syntax_highlight_jobs: Set[Job] = set()
             detect_file_language_jobs: Set[Job] = set()
 
-            async with api.critic.Query[Tuple[int, SHA1, bool, bool, str, str]](
+            async with api.critic.Query[Tuple[int, str]](
+                critic,
+                """SELECT id, label
+                     FROM highlightlanguages""",
+            ) as highlight_languages_result:
+                highlight_language_labels = dict(await highlight_languages_result.all())
+
+            async with api.critic.Query[Tuple[int, SHA1, bool, bool, int, str]](
                 critic,
                 """SELECT DISTINCT csfd.file, hlf.sha1, hlf.conflicts,
-                                   hlf.highlighted, hll.label, files.path
+                                   hlf.highlighted, hlf.language, files.path
                      FROM highlightfiles AS hlf
-                     JOIN highlightlanguages AS hll ON (hll.id=hlf.language)
                      JOIN changesetfiledifferences AS csfd ON (
                             csfd.old_highlightfile=hlf.id
                           )
@@ -490,12 +539,11 @@ class Changeset(JobGroup):
                 changeset_id=self.changeset_id,
             ) as highlight_files:
                 old_highlight_files_rows = await highlight_files.all()
-            async with api.critic.Query[Tuple[int, SHA1, bool, bool, str, str]](
+            async with api.critic.Query[Tuple[int, SHA1, bool, bool, int, str]](
                 critic,
                 """SELECT DISTINCT csfd.file, hlf.sha1, hlf.conflicts,
-                                   hlf.highlighted, hll.label, files.path
+                                   hlf.highlighted, hlf.language, files.path
                      FROM highlightfiles AS hlf
-                     JOIN highlightlanguages AS hll ON (hll.id=hlf.language)
                      JOIN changesetfiledifferences AS csfd ON (
                             csfd.new_highlightfile=hlf.id
                           )
@@ -514,26 +562,26 @@ class Changeset(JobGroup):
                 SyntaxHighlightFile(
                     self,
                     sha1,
-                    language_label,
+                    highlight_language_labels[language_id],
                     conflicts,
                     self.decode_old.getFileContentEncodings(path),
                 )
-                for _, sha1, conflicts, is_highlighted, language_label, path in old_highlight_files_rows
-                if not is_highlighted
+                for _, sha1, conflicts, is_highlighted, language_id, path in old_highlight_files_rows
+                if language_id is not None and not is_highlighted
             )
             syntax_highlight_jobs.update(
                 SyntaxHighlightFile(
                     self,
                     sha1,
-                    language_label,
+                    highlight_language_labels[language_id],
                     conflicts,
                     self.decode_new.getFileContentEncodings(path),
                 )
-                for _, sha1, conflicts, is_highlighted, language_label, path in new_highlight_files_rows
-                if not is_highlighted
+                for _, sha1, conflicts, is_highlighted, language_id, path in new_highlight_files_rows
+                if language_id is not None and not is_highlighted
             )
 
-            logger.debug("evaluated_files=%r", evaluated_files)
+            # logger.debug("evaluated_files=%r", evaluated_files)
             logger.debug("syntax_highlight_jobs=%r", syntax_highlight_jobs)
 
             # cursor.execute("""SELECT file, sha1
@@ -552,6 +600,7 @@ class Changeset(JobGroup):
             }
 
             if syntax_highlight_jobs:
+                logger.debug("adding jobs: %r", syntax_highlight_jobs)
                 self.add_jobs(syntax_highlight_jobs)
 
             if not syntax_highlight_evaluated_before:
@@ -622,29 +671,32 @@ class Changeset(JobGroup):
     ) -> Collection[Changeset]:
         # First, find all changesets with an incomplete structure difference,
         # skipping the reference changeset for merges.
-        async with critic.query(
+        async with api.critic.Query[Tuple[int, int, bool]](
+            critic,
             """SELECT changesets.id, repository, is_replay
                  FROM changesets
                 WHERE NOT complete
-                  AND (for_merge IS NULL OR for_merge=to_commit)"""
+                  AND (for_merge IS NULL OR for_merge=to_commit)""",
         ) as result:
             changesets = set(await result.all())
 
         # Second, find all changesets with an incomplete content difference.
-        async with critic.query(
+        async with api.critic.Query[Tuple[int, int, bool]](
+            critic,
             """SELECT changesets.id, repository, is_replay
                  FROM changesets
                  JOIN changesetcontentdifferences AS cscd ON (
                         cscd.changeset=changesets.id
                       )
                 WHERE changesets.complete
-                  AND NOT cscd.complete"""
+                  AND NOT cscd.complete""",
         ) as result:
             changesets.update(await result.all())
 
         # Third, find all changesets that haven't been completely syntax
         # highlighted.
-        async with critic.query(
+        async with api.critic.Query[Tuple[int, int, bool]](
+            critic,
             """SELECT changesets.id, repository, is_replay
                  FROM changesets
                  JOIN changesethighlightrequests AS cshlr ON (
@@ -652,10 +704,11 @@ class Changeset(JobGroup):
                       )
                 WHERE changesets.complete
                   AND cshlr.requested
-                  AND NOT cshlr.evaluated"""
+                  AND NOT cshlr.evaluated""",
         ) as result:
             changesets.update(await result.all())
-        async with critic.query(
+        async with api.critic.Query[Tuple[int, int, bool]](
+            critic,
             """SELECT DISTINCT changesets.id, changesets.repository,
                                is_replay
                  FROM changesets
@@ -671,7 +724,7 @@ class Changeset(JobGroup):
                       )
                 WHERE changesets.complete
                   AND cshlr.requested
-                  AND NOT hlf.highlighted"""
+                  AND NOT hlf.highlighted""",
         ) as result:
             changesets.update(await result.all())
 

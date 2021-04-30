@@ -14,43 +14,44 @@
  * the License.
  */
 
-import Immutable from "immutable"
+import { immerable } from "immer"
+
+import produce from "./immer"
 
 import { SET_MOUSE_IS_DOWN, SET_MOUSE_POSITION, Action } from "../actions"
 
-type Props = {
-  isDown: boolean
-  absoluteX: number
-  absoluteY: number
-  downAbsoluteX: number
-  downAbsoluteY: number
-}
+class UIMouseState {
+  [immerable] = true
 
-class UIMouseState extends Immutable.Record<Props>({
-  isDown: false,
-  absoluteX: 0,
-  absoluteY: 0,
-  downAbsoluteX: 0,
-  downAbsoluteY: 0,
-}) {}
+  constructor(
+    readonly isDown: boolean,
+    readonly absoluteX: number,
+    readonly absoluteY: number,
+    readonly downAbsoluteX: number,
+    readonly downAbsoluteY: number,
+  ) {}
 
-const reducer = (state = new UIMouseState(), action: Action) => {
-  switch (action.type) {
-    case SET_MOUSE_IS_DOWN:
-      return action.value
-        ? state.merge({
-            isDown: true,
-            downAbsoluteX: state.absoluteX,
-            downAbsoluteY: state.absoluteY,
-          })
-        : state.set("isDown", false)
-
-    case SET_MOUSE_POSITION:
-      return state.merge({ absoluteX: action.x, absoluteY: action.y })
-
-    default:
-      return state
+  static default() {
+    return new UIMouseState(false, 0, 0, 0, 0)
   }
 }
+
+const reducer = produce<UIMouseState>((draft, action) => {
+  switch (action.type) {
+    case SET_MOUSE_IS_DOWN:
+      if (action.value)
+        Object.assign({
+          isDown: true,
+          downAbsoluteX: draft.absoluteX,
+          downAbsoluteY: draft.absoluteY,
+        })
+      else draft.isDown = false
+      break
+
+    case SET_MOUSE_POSITION:
+      Object.assign(draft, { absoluteX: action.x, absoluteY: action.y })
+      break
+  }
+}, UIMouseState.default())
 
 export default reducer

@@ -28,7 +28,7 @@ import {
   SetSelectedElementsAction,
   SelectionElementType,
 } from "."
-import { identicalSets } from "../utils/Functions"
+import { identicalSets, outerBoundingRect } from "../utils/Functions"
 import { MouseMonitor } from "../utils/Mouse"
 
 const setSelectionScope = (
@@ -36,6 +36,7 @@ const setSelectionScope = (
   elementType: SelectionElementType,
   elements: { [id: string]: HTMLElement },
   elementIDs: string[],
+  boundingRectsByID: { [id: string]: BoundingRect },
   boundingRect: BoundingRect,
 ): SetSelectionScopeAction => ({
   type: SET_SELECTION_SCOPE,
@@ -43,6 +44,7 @@ const setSelectionScope = (
   elementType,
   elements,
   elementIDs,
+  boundingRectsByID,
   boundingRect,
 })
 
@@ -79,68 +81,79 @@ const max = (values: number[]) => Math.max.apply(null, values)
 
 export type ElementToIDFunc = (el: HTMLElement) => string
 
+export type SelectorFunc = (
+  anchor: HTMLElement,
+  focus: HTMLElement | null,
+) => string | null
+
 export type DefineSelectionScopeParams = {
   scopeID: string
   elementType: SelectionElementType
-  elements: HTMLElement[]
   elementToID: ElementToIDFunc
+  selector: SelectorFunc
+  anchor: HTMLElement
 }
 
 export const defineSelectionScope = ({
   scopeID,
   elementType,
-  elements,
   elementToID,
+  selector,
+  anchor,
 }: DefineSelectionScopeParams) => (
   dispatch: Dispatch,
   getState: GetState,
-): MouseMonitor => {
-  const elementIDs: string[] = []
-  const elementsByID: { [id: string]: HTMLElement } = {}
-  const allBoundingRects: BoundingRect[] = []
+): MouseMonitor | null => {
+  let previousSelector: string | null = null
 
-  elements.forEach((element) => {
-    const elementID = elementToID!(element)
-    elementIDs.push(elementID)
-    elementsByID[elementID] = element
-    allBoundingRects.push(element.getBoundingClientRect())
-  })
+  const updateElements = (focus: HTMLElement | null) => {
+    let useSelector = selector(anchor, focus)
 
-  var top = min(allBoundingRects.map((rect) => rect.top))
-  var right = max(allBoundingRects.map((rect) => rect.right))
-  var bottom = max(allBoundingRects.map((rect) => rect.bottom))
-  var left = min(allBoundingRects.map((rect) => rect.left))
+    if (!useSelector) return false
+    if (useSelector !== previousSelector) {
+      const elements: HTMLElement[] = [
+        ...document.querySelectorAll<HTMLElement>(useSelector),
+      ]
+      const elementIDs: string[] = []
+      const elementsByID: { [id: string]: HTMLElement } = {}
+      const boundingRectsByID: { [id: string]: BoundingRect } = {}
+      const allBoundingRects: BoundingRect[] = []
 
-  top += window.scrollY
-  right += window.scrollX
-  bottom += window.scrollY
-  left += window.scrollX
+      elements.forEach((element) => {
+        const elementID = elementToID!(element)
+        elementIDs.push(elementID)
+        elementsByID[elementID] = element
+        const boundingRect = element.getBoundingClientRect()
+        boundingRectsByID[elementID] = boundingRect
+        allBoundingRects.push(boundingRect)
+      })
 
-  const boundingRect = {
-    top,
-    right,
-    bottom,
-    left,
+      dispatch(
+        setSelectionScope(
+          scopeID,
+          elementType,
+          elementsByID,
+          elementIDs,
+          boundingRectsByID,
+          outerBoundingRect(allBoundingRects),
+        ),
+      )
+
+      previousSelector = useSelector
+    }
+
+    return true
   }
 
-  if (getState().ui.selectionScope.scopeID === scopeID)
-    dispatch(setSelectionRect(boundingRect))
-  else {
-    dispatch(
-      setSelectionScope(
-        scopeID,
-        elementType,
-        elementsByID,
-        elementIDs,
-        boundingRect,
-      ),
-    )
-  }
+  if (!updateElements(null)) return null
 
-  return ({ absoluteX, absoluteY, downAbsoluteX, downAbsoluteY, isDown }) => (
-    dispatch: Dispatch,
-    getState: GetState,
-  ) => {
+  let timerID: number | null = null
+  let focus: HTMLElement | null = null
+
+  return (
+    target,
+    { absoluteX, absoluteY, downAbsoluteX, downAbsoluteY, isDown },
+  ) => (dispatch: Dispatch, getState: GetState) => {
     const state = getState()
     const {
       scopeID,
@@ -156,6 +169,14 @@ export const defineSelectionScope = ({
 
     if (scopeID === null) return null
 
+    if (target !== focus) {
+      if (!updateElements(target)) {
+        dispatch({ type: "RESET_SELECTION_SCOPE" })
+        return null
+      }
+      focus = target
+    }
+
     const width = Math.abs(absoluteX - downAbsoluteX)
     const height = Math.abs(absoluteY - downAbsoluteY)
 
@@ -167,8 +188,8 @@ export const defineSelectionScope = ({
     const bottom = Math.max(absoluteY, downAbsoluteY) - window.scrollY
     const left = Math.min(absoluteX, downAbsoluteX) - window.scrollX
 
-    var firstSelectedID = null
-    var lastSelectedID = null
+    var firstSelectedID: string | null = null
+    var lastSelectedID: string | null = null
     const selectedIDs = new Set<string>()
     var inSelection = false
 
@@ -196,8 +217,6 @@ export const defineSelectionScope = ({
       }
     }
 
-    console.log({ isDown, newIsRangeSelecting })
-
     if (
       !isDown &&
       !newIsRangeSelecting &&
@@ -217,15 +236,20 @@ export const defineSelectionScope = ({
         currentLastSelectedID !== lastSelectedID ||
         !identicalSets(currentSelectedIDs, selectedIDs)
       ) {
-        dispatch(
-          setSelectedElements(
-            scopeID,
-            selectedIDs,
-            firstSelectedID,
-            lastSelectedID,
-            newIsPending,
-            newIsRangeSelecting,
-          ),
+        if (timerID) window.clearTimeout(timerID)
+        timerID = window.setTimeout(
+          () =>
+            dispatch(
+              setSelectedElements(
+                scopeID,
+                selectedIDs,
+                firstSelectedID,
+                lastSelectedID,
+                newIsPending,
+                newIsRangeSelecting,
+              ),
+            ),
+          newIsRangeSelecting && !isRangeSelecting ? 0 : 10,
         )
       }
     }

@@ -15,8 +15,9 @@
 # the License.
 
 from __future__ import annotations
-from abc import abstractmethod
 
+from abc import abstractmethod
+from datetime import datetime
 from typing import Awaitable, Callable, Optional, Protocol, Sequence, overload
 
 from critic import api
@@ -90,6 +91,16 @@ class TrackedBranch(api.APIObjectWithId):
     @property
     @abstractmethod
     def source(self) -> Source:
+        ...
+
+    @property
+    @abstractmethod
+    def last_update(self) -> Optional[datetime]:
+        ...
+
+    @property
+    @abstractmethod
+    def next_update(self) -> Optional[datetime]:
         ...
 
 

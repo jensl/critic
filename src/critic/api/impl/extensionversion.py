@@ -17,16 +17,35 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import logging
 from typing import Callable, Literal, Tuple, Optional, Sequence
+
+logger = logging.getLogger()
 
 from critic import api
 from critic.api import extensionversion as public
 from critic import extensions
+from critic.extensions.manifest.error import ManifestError
 from .queryhelper import QueryHelper, QueryResult
+from critic.extensions.manifest import Manifest
 from critic.extensions.manifest.pythonpackage import PythonPackage
 from critic.gitaccess import SHA1
 from critic.background import extensiontasks
 from .apiobject import APIObjectImplWithId
+
+
+@dataclass
+class AuthorImpl:
+    __name: str
+    __email: Optional[str]
+
+    @property
+    def name(self) -> str:
+        return self.__name
+
+    @property
+    def email(self) -> Optional[str]:
+        return self.__email
 
 
 @dataclass
@@ -47,6 +66,7 @@ class EntrypointImpl:
 class PythonPackageImpl:
     __entrypoints: Sequence[PublicType.Entrypoint]
     __dependencies: Sequence[str]
+    __data_globs: Sequence[str]
 
     @property
     def package_type(self) -> Literal["python"]:
@@ -61,6 +81,10 @@ class PythonPackageImpl:
     @property
     def dependencies(self) -> Sequence[str]:
         return self.__dependencies
+
+    @property
+    def data_globs(self) -> Sequence[str]:
+        return self.__data_globs
 
 
 @dataclass
@@ -125,11 +149,21 @@ class SubscriptionImpl(ExecutesServerSide):
 
 @dataclass
 class ManifestImpl:
+    __description: str
+    __authors: Sequence[PublicType.Author]
     __package: PublicType.PythonPackage
     __endpoints: Sequence[PublicType.Endpoint]
     __ui_addons: Sequence[PublicType.UIAddon]
     __subscriptions: Sequence[PublicType.Subscription]
     __low_level: extensions.extension.Manifest
+
+    @property
+    def description(self) -> str:
+        return self.__description
+
+    @property
+    def authors(self) -> Sequence[PublicType.Author]:
+        return self.__authors
 
     @property
     def package(self) -> PublicType.PythonPackage:
@@ -155,14 +189,19 @@ class ManifestImpl:
 
 
 PublicType = public.ExtensionVersion
-ArgumentsType = Tuple[int, int, str, SHA1]
+ArgumentsType = Tuple[int, int, str, SHA1, object]
 
 
 class ExtensionVersion(PublicType, APIObjectImplWithId, module=public):
     __manifest: Optional[public.ExtensionVersion.Manifest]
 
     def update(self, args: ArgumentsType) -> int:
-        (self.__id, self.__extension_id, self.__name, self.__sha1) = args
+        (self.__id, self.__extension_id, self.__name, self.__sha1, manifest) = args
+        self.__manifest_low_level = Manifest(manifest)
+        try:
+            self.__manifest_low_level.parse()
+        except ManifestError:
+            logger.exception("Failed to parse extension manifest!")
         self.__manifest = None
         return self.__id
 
@@ -186,14 +225,18 @@ class ExtensionVersion(PublicType, APIObjectImplWithId, module=public):
     async def manifest(self) -> public.ExtensionVersion.Manifest:
         if self.__manifest is None:
             critic = self.critic
-            low_level = await extensiontasks.read_manifest(self)
-            assert isinstance(low_level.package, PythonPackage)
+            authors = [
+                AuthorImpl(author.name, author.email)
+                for author in self.__manifest_low_level.authors
+            ]
+            assert isinstance(self.__manifest_low_level.package, PythonPackage)
             package = PythonPackageImpl(
                 [
                     EntrypointImpl(name, target)
-                    for name, target in low_level.package.entrypoints.items()
+                    for name, target in self.__manifest_low_level.package.entrypoints.items()
                 ],
-                low_level.package.dependencies,
+                self.__manifest_low_level.package.dependencies,
+                self.__manifest_low_level.package.data_globs,
             )
             pages = []
             ui_addons = []
@@ -233,7 +276,13 @@ class ExtensionVersion(PublicType, APIObjectImplWithId, module=public):
                         SubscriptionImpl(description, entrypoint, channel, reserved)
                     )
             self.__manifest = ManifestImpl(
-                package, pages, ui_addons, subscriptions, low_level
+                self.__manifest_low_level.description,
+                authors,
+                package,
+                pages,
+                ui_addons,
+                subscriptions,
+                self.__manifest_low_level,
             )
         return self.__manifest
 
@@ -245,7 +294,7 @@ class ExtensionVersion(PublicType, APIObjectImplWithId, module=public):
 
 
 queries = QueryHelper[ArgumentsType](
-    PublicType.getTableName(), "id", "extension", "name", "sha1"
+    PublicType.getTableName(), "id", "extension", "name", "sha1", "manifest"
 )
 
 
@@ -256,26 +305,40 @@ async def fetch(
     extension: Optional[api.extension.Extension],
     name: Optional[str],
     sha1: Optional[SHA1],
+    current: bool,
 ) -> PublicType:
     if version_id is not None:
         return await ExtensionVersion.ensureOne(
             version_id, queries.idFetcher(critic, ExtensionVersion)
         )
 
+    conditions = []
+
+    assert extension is not None
+    conditions.append("extension={extension}")
+
     error: Optional[Exception]
+    distinct_on: Optional[Sequence[str]] = None
+    order_by: Optional[Sequence[str]] = None
     if name is not None:
-        condition = "extension={extension} AND name={name}"
+        conditions.append("extension={extension} AND name={name}")
         error = public.InvalidName(value=name)
     elif sha1 is not None:
-        condition = "extension={extension} AND sha1={sha1}"
+        conditions.append("extension={extension} AND sha1={sha1}")
         error = public.InvalidSHA1(value=name)
-    else:
-        condition = "extension={extension} AND name IS NULL"
-        error = None
+    elif current:
+        distinct_on = ["extension"]
+        order_by = ["extension, id DESC"]
+        error = public.NoCurrentVersion("no current version")
+
     return ExtensionVersion.storeOne(
         await queries.query(
             critic,
-            condition,
+            queries.formatQuery(
+                *conditions,
+                distinct_on=distinct_on,
+                order_by=order_by,
+            ),
             version_id=version_id,
             extension=extension,
             name=name,
@@ -288,7 +351,7 @@ async def fetch(
 async def fetchAll(
     critic: api.critic.Critic, extension: Optional[api.extension.Extension]
 ) -> Sequence[PublicType]:
-    conditions = ["current"]
+    conditions = []
     if extension:
         conditions.append("extension={extension}")
     return ExtensionVersion.store(

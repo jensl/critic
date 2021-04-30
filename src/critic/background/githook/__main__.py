@@ -37,6 +37,7 @@ from critic import api
 from critic import base
 from critic import dbaccess
 from critic import gitaccess
+from critic.gitaccess import as_sha1
 from critic import background
 
 from . import (
@@ -483,7 +484,8 @@ class GitHookClient(LineProtocolClient):
         updates = {}
 
         for ref in refs:
-            async with critic.query(
+            async with api.critic.Query[int](
+                critic,
                 """SELECT id
                      FROM pendingrefupdates
                     WHERE repository={repository}
@@ -549,7 +551,8 @@ class GitHookClient(LineProtocolClient):
             slept_time += sleep_time
             sleep_time = min(sleep_time * 2, 1)
 
-            async with critic.query(
+            async with api.critic.Query[int](
+                critic,
                 """SELECT COUNT(*)
                      FROM pendingrefupdates
                     WHERE id=ANY({pendingrefupdate_ids})
@@ -558,14 +561,15 @@ class GitHookClient(LineProtocolClient):
             ) as result:
                 remaining = await result.scalar()
 
-            async with critic.query(
+            async with api.critic.Query[Tuple[int, int, str]](
+                critic,
                 """SELECT pendingrefupdate, id, output
                      FROM pendingrefupdateoutputs
                     WHERE pendingrefupdate=ANY({pendingrefupdate_ids})
                  ORDER BY pendingrefupdate, id""",
                 pendingrefupdate_ids=list(updates.keys()),
-            ) as result:
-                async for update_id, output_id, output in result:
+            ) as output_result:
+                async for update_id, output_id, output in output_result:
                     update = updates[update_id]
                     if output_id <= update.output_seen:
                         # Already seen.
@@ -632,38 +636,43 @@ class GitHookClient(LineProtocolClient):
 
         revert_branchupdate_ids = []
 
-        async with critic.query(
+        async with api.critic.Query[Tuple[str, str, str, int]](
+            critic,
             """SELECT name, old_sha1, new_sha1, branchupdate
                  FROM pendingrefupdates
                 WHERE id=ANY({pendingrefupdate_ids})
                   AND state='failed'""",
             pendingrefupdate_ids=list(updates.keys()),
-        ) as result:
-            async for ref_name, old_sha1, new_sha1, update_id in result:
+        ) as pending_result:
+            async for ref_name, old_sha1, new_sha1, update_id in pending_result:
                 # Revert failed ref update.
 
                 if new_sha1 != "0" * 40:
                     # Make sure the new commits are preserved, to enable
                     # debugging.
                     await repository.low_level.updateref(
-                        "refs/keepalive/" + new_sha1, new_value=new_sha1
+                        "refs/keepalive/" + new_sha1, new_value=as_sha1(new_sha1)
                     )
 
                 if old_sha1 == "0" * 40:
                     # Ref was created: delete it, so that it can be created
                     # again.
                     await repository.low_level.updateref(
-                        ref_name, old_value=new_sha1, delete=True
+                        ref_name, old_value=as_sha1(new_sha1), delete=True
                     )
                     restored_to = "oblivion"
                 elif new_sha1 == "0" * 40:
                     # Ref was deleted: recreate it.
-                    await repository.low_level.updateref(ref_name, new_value=old_sha1)
+                    await repository.low_level.updateref(
+                        ref_name, new_value=as_sha1(old_sha1)
+                    )
                     restored_to = old_sha1[:8]
                 else:
                     # Ref was updated: reset it back to the old value.
                     await repository.low_level.updateref(
-                        ref_name, old_value=new_sha1, new_value=old_sha1
+                        ref_name,
+                        old_value=as_sha1(new_sha1),
+                        new_value=as_sha1(old_sha1),
                     )
                     restored_to = old_sha1[:8]
 

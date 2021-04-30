@@ -33,6 +33,10 @@ CREATE TABLE extensions (
 
 );
 
+ALTER TABLE settings
+  ADD CONSTRAINT settings_extension
+    FOREIGN KEY (extension) REFERENCES extensions (id) ON DELETE CASCADE;
+
 -- Individual extension versions.
 --
 -- There will be one row per commit that has (or might have been) installed of
@@ -43,22 +47,22 @@ CREATE TABLE extensionversions (
 
   -- The extension this is a version of.
   extension INTEGER NOT NULL,
-  -- The version name, e.g. "stable". NULL means "live" version.
-  name VARCHAR(256),
+  -- The version name, e.g. "v1.0.5".
+  name VARCHAR(256) NOT NULL,
   -- The SHA-1 of the commit.
   sha1 CHAR(40) NOT NULL,
-  -- True if this is the current version of the extension, i.e. the one users
-  -- would typically install when installing the named version.
-  current BOOLEAN NOT NULL DEFAULT TRUE,
   -- True if the extension was invalid at this point, and thus can't be
   -- installed.
   invalid BOOLEAN NOT NULL,
   -- Error message if `invalid` is true.
   message TEXT,
 
+  -- The extension's manifest.
+  manifest JSON NOT NULL,
+
   PRIMARY KEY (id),
   FOREIGN KEY (extension) REFERENCES extensions ON DELETE CASCADE,
-  UNIQUE (extension, name, sha1)
+  UNIQUE (extension, sha1)
 
 );
 
@@ -189,3 +193,27 @@ CREATE TABLE extensionpubsubreservations (
   PRIMARY KEY (install_id, reservation_id)
 
 );
+
+CREATE TABLE extensioncalls (
+
+  id BIGINT PRIMARY KEY,
+
+  version INTEGER NOT NULL REFERENCES extensionversions ON DELETE CASCADE,
+  uid INTEGER REFERENCES users ON DELETE CASCADE,
+  accesstoken INTEGER REFERENCES accesstokens ON DELETE CASCADE,
+
+  -- Pickled `critic.background.extensionhost.CallRequest` object.
+  request BYTEA NOT NULL,
+  -- Pickled `critic.background.extensionhost.CallResponse` object.
+  response BYTEA,
+  -- True if the response is successful, false if it is an error, and NULL if no
+  -- response has been processed yet.
+  successful BOOLEAN,
+
+  request_time TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  response_time TIMESTAMPTZ
+
+);
+CREATE INDEX extensioncalls_version ON extensioncalls (version);
+CREATE INDEX extensioncalls_uid ON extensioncalls (uid);
+CREATE INDEX extensioncalls_accesstoken ON extensioncalls (accesstoken);

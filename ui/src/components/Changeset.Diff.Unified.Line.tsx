@@ -6,6 +6,7 @@ import { makeStyles } from "@material-ui/core/styles"
 import Registry from "."
 import Line from "./Changeset.Diff.Line"
 import ChangesetComment from "./Changeset.Comment"
+import { Location } from "../actions/comment"
 import {
   kContextLine,
   kDeletedLine,
@@ -14,12 +15,8 @@ import {
   kReplacedLine,
   kWhitespaceLine,
   DiffLine,
-} from "../resources/filediff"
-import { ChangesetID, FileID } from "../resources/types"
-import { SelectionScope } from "../reducers/uiSelectionScope"
-import { pure } from "recompose"
+} from "../resources/diffcommon"
 import { LineComments } from "../selectors/fileDiff"
-import { locationFromSelectionScope } from "../utils/Comment"
 
 const useStyles = makeStyles((theme) => ({
   changesetDiffUnifiedLine: {
@@ -74,12 +71,13 @@ const useStyles = makeStyles((theme) => ({
 
 type OwnProps = {
   className?: string
-  changesetID: ChangesetID
-  fileID: FileID
+  lineID: string
   line: DiffLine
   side?: "old" | "new"
   comments: LineComments | null
-  selectionScope: SelectionScope | null
+  isSelected: boolean
+  hasSelection: boolean
+  showCommentAt: Location | null
   inView: boolean
 }
 
@@ -90,29 +88,17 @@ const LINE_ID_PATTERN = {
 
 const UnifiedLine: FunctionComponent<OwnProps> = ({
   className,
-  changesetID,
-  fileID,
+  lineID,
   line,
   side,
   comments,
-  selectionScope,
+  isSelected,
+  hasSelection,
+  showCommentAt,
   inView,
 }) => {
-  const { type, oldID, oldOffset, newID, newOffset } = line
-
-  let lineID = `f${fileID}`
-  if (side !== "new") lineID += ":" + oldID
-  if (side !== "old") lineID += ":" + newID
-
+  const { type, oldOffset, newOffset } = line
   const classes = useStyles()
-
-  const {
-    lastSelectedID = null,
-    selectedIDs = null,
-    isRangeSelecting = false,
-  } = selectionScope || {}
-
-  const isSelected = selectedIDs?.has(lineID) ?? false
 
   const { oldSide = null, newSide = null } = comments ?? {}
   const oldMarkerClass = clsx(
@@ -154,15 +140,12 @@ const UnifiedLine: FunctionComponent<OwnProps> = ({
           />
         ))) ?? []
 
-  if (selectionScope && lastSelectedID === lineID && !isRangeSelecting) {
+  if (showCommentAt) {
     commentItems.push(
       <ChangesetComment
         key="new-comment"
         className={classes.comment}
-        location={{
-          changesetID,
-          ...locationFromSelectionScope(selectionScope),
-        }}
+        location={showCommentAt}
       />,
     )
   }
@@ -189,6 +172,7 @@ const UnifiedLine: FunctionComponent<OwnProps> = ({
           line={line}
           side={side}
           isSelected={isSelected}
+          hasSelection={hasSelection}
           inView={inView}
         />
         <span className={newMarkerClass} />
@@ -201,4 +185,9 @@ const UnifiedLine: FunctionComponent<OwnProps> = ({
   )
 }
 
-export default Registry.add("Changeset.Diff.Unified.Line", pure(UnifiedLine))
+// export default Registry.add(
+//   "Changeset.Diff.Unified.Line",
+//   React.memo(UnifiedLine),
+// )
+
+export default React.memo(UnifiedLine)

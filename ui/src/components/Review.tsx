@@ -21,7 +21,7 @@ import PublishChangesDialog from "./Dialog.Review.PublishChanges"
 import DiscardChangesDialog from "./Dialog.Review.DiscardChanges"
 import PublishReviewDialog from "./Dialog.Review.PublishReview"
 import { loadAutomaticChangeset } from "../actions/changeset"
-import { useSubscription } from "../utils"
+import { usePrefix, useSubscription } from "../utils"
 
 const useStyles = makeStyles((theme) => ({
   container: {
@@ -66,9 +66,10 @@ const Review: React.FunctionComponent<Props> = ({ className }) => {
   const classes = useStyles()
   const { activeTab, reviewID: reviewIDString } = useRouteMatch<Params>().params
   const reviewID = parseInt(reviewIDString, 10)
-  useSubscription(loadAutomaticChangeset, "everything", reviewID)
-  useSubscription(loadAutomaticChangeset, "pending", reviewID)
-  if (!activeTab) return <Redirect to={`/review/${reviewID}/commits`} />
+  useSubscription(loadAutomaticChangeset, ["everything", reviewID])
+  useSubscription(loadAutomaticChangeset, ["pending", reviewID])
+  const prefix = usePrefix()
+  if (!activeTab) return <Redirect to={`${prefix}/commits`} />
   return (
     <>
       <Container className={clsx(className, classes.container)} maxWidth="lg">
@@ -86,31 +87,31 @@ const Review: React.FunctionComponent<Props> = ({ className }) => {
           >
             <Tab
               component={Link}
-              to={`/review/${reviewID}/commits`}
+              to={`${prefix}/commits`}
               value="commits"
               label="Commits"
             />
             <Tab
               component={Link}
-              to={`/review/${reviewID}/changes`}
+              to={`${prefix}/changes`}
               value="changes"
               label="Changes"
             />
             <Tab
               component={Link}
-              to={`/review/${reviewID}/discussions`}
+              to={`${prefix}/discussions`}
               value="discussions"
               label="Discussions"
             />
           </Tabs>
           <Switch>
-            <Route path="/review/:reviewID/commits" component={ReviewCommits} />
+            <Route path={`${prefix}/commits`} component={ReviewCommits} />
             <Route
-              path="/review/:reviewID/changes/:mode?"
+              path={`${prefix}/changes/:mode?`}
               component={ReviewChanges}
             />
             <Route
-              path="/review/:reviewID/discussions"
+              path={`${prefix}/discussions`}
               component={ReviewDiscussions}
             />
           </Switch>

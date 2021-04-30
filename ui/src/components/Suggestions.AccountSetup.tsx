@@ -35,22 +35,22 @@ type Props = {
 const kEnableSSHAccess = "authentication.enable_ssh_access"
 
 const SuggestionsAccountSetup: FunctionComponent<Props> = ({ className }) => {
-  useSubscription(loadSystemSettingByKey, kEnableSSHAccess)
+  useSubscription(loadSystemSettingByKey, [kEnableSSHAccess])
   const systemSettings = useResource("systemsettings")
   const enableSSHAccess = systemSettings.byKey.get(kEnableSSHAccess)
   const reasons = [
-    <Reason linkTo="/settings/account/personal-details">
+    <Reason key="personal-details" linkTo="/settings/account/personal-details">
       Review your personal details and email address
     </Reason>,
   ]
   if (enableSSHAccess)
     reasons.push(
-      <Reason linkTo="/settings/account/ssh-keys">
+      <Reason key="ssh-keys" linkTo="/settings/account/ssh-keys">
         Add one or more SSH keys to access Git repositories
       </Reason>,
     )
   reasons.push(
-    <Reason linkTo="/settings/account/">
+    <Reason key="filters" linkTo="/settings/account/filters">
       Add filters to be notified about changes in code you're interested in
     </Reason>,
   )

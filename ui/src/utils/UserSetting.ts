@@ -59,10 +59,10 @@ export class UserSetting<T> {
     if (overrideValue !== undefined) return overrideValue
     const session = state.resource.sessions.get("current")
     if (!session || session.user === null) return this.fallbackValue
-    const { byName, byID } = state.resource.usersettings
+    const { byName, byID } = state.resource.settings
     if (state.resource.extra.userSettings.loadedFor !== session.user)
       return this.fallbackValue
-    const userSetting = byID.get(byName.get(this.name) ?? -1)
+    const userSetting = byID.get(byName.get(`ui::${this.name}`) ?? -1)
     if (!userSetting) return this.fallbackValue
     return this.convert.fromJSON(userSetting.value as JSONData)
   }

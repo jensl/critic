@@ -257,6 +257,22 @@ class Repository(api.APIObjectWithId):
         ...
 
     @abstractmethod
+    async def countCommits(
+        self,
+        *,
+        include: Optional[Refs] = None,
+        exclude: Optional[Refs] = None,
+        paths: Optional[Iterable[str]] = None,
+        min_parents: Optional[int] = None,
+        max_parents: Optional[int] = None,
+    ) -> int:
+        """Count commits using 'git rev-list'
+
+        Call 'git rev-list' to count commits reachable from the commits in
+        'include' but not reachable from the commits in 'exclude'."""
+        ...
+
+    @abstractmethod
     async def listCommits(
         self,
         *,
@@ -269,9 +285,7 @@ class Repository(api.APIObjectWithId):
         """List commits using 'git rev-list'
 
         Call 'git rev-list' to list commits reachable from the commits in
-        'include' but not reachable from the commits in 'exclude'.
-
-        The return value is a list of api.commit.Commit objects."""
+        'include' but not reachable from the commits in 'exclude'."""
         ...
 
     @abstractmethod

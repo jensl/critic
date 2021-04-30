@@ -128,11 +128,8 @@ class ObjectCache:
         cached = cast(Dict[object, ObjectType], self.__values[category])
         misses = [key for key in keys if key not in cached]
         if misses:
-            new_objects = await fetcher(misses)
-            for new_object in new_objects:
+            for new_object in await fetcher(misses):
                 for key in new_object.getCacheKeys():
-                    if key in misses:
-                        misses.remove(cast(KeyType, key))
                     assert key not in cached
                     cached[key] = new_object
         try:

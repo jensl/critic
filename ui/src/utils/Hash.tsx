@@ -14,30 +14,31 @@
  * the License.
  */
 
-import React, { useContext } from "react"
-import Immutable from "immutable"
+import React, { useContext, useMemo } from "react"
 
 import { maybeParseInt } from "./Strings"
 import { useLocation, useHistory } from "react-router"
+import { filtered, sorted, map, chain } from "./Functions"
 
-type ParsedHash = Immutable.OrderedMap<string, number | string | boolean>
-type HashUpdates = { [key: string]: string | null }
+type HashKey = string
+type HashValue = number | string | boolean
+type HashEntry = [HashKey, HashValue]
+
+type ParsedHash = Map<HashKey, HashValue>
+type HashUpdates = { [key: string]: HashValue | null }
 type History = ReturnType<typeof useHistory>
 
 export const parseHash = (hash: string) => {
-  return (Immutable.OrderedMap() as ParsedHash).withMutations((result) => {
-    for (const component of hash.substring(1).split("/")) {
-      if (!component.trim() || component.startsWith(":")) continue
-      const match = /([^:]+)(?::(.*))?/.exec(component)
-      if (match) {
-        const [, name, value = true] = match
-        result.set(
-          name,
-          typeof value === "string" ? maybeParseInt(value) : value,
-        )
-      }
+  const result = new Map()
+  for (const component of hash.substring(1).split("/")) {
+    if (!component.trim() || component.startsWith(":")) continue
+    const match = /([^:]+)(?::(.*))?/.exec(component)
+    if (match) {
+      const [, name, value = true] = match
+      result.set(name, typeof value === "string" ? maybeParseInt(value) : value)
     }
-  })
+  }
+  return result
 }
 
 export const updateHash = (
@@ -45,70 +46,62 @@ export const updateHash = (
   history: History,
   updates: HashUpdates,
 ) => {
-  const components = hash
-    .toKeyedSeq()
-    .filterNot((_, key) => updates.hasOwnProperty(key) && updates[key] === null)
-    .map((value, key) => (updates.hasOwnProperty(key) ? updates[key] : value))
-    .toOrderedMap()
-    .withMutations((components) => {
-      for (const key of Object.keys(updates)) {
-        if (hash.has(key)) continue
-        const value = updates[key]
-        if (value === null) continue
-        components.set(key, value)
-      }
-    })
+  console.log({ hash, updates })
+  const newHash = sorted(
+    map(
+      filtered(
+        chain(
+          map(hash.entries(), ([key, value]): [HashKey, HashValue | null] => [
+            key,
+            updates.hasOwnProperty(key) ? updates[key] : value,
+          ]),
+          filtered(Object.entries(updates), ([key]) => !hash.has(key)),
+        ),
+        ([_, value]) => value !== null,
+      ),
+      ([key, value]) => (value === true ? key : `${key}:${value}`),
+    ),
+  ).join("/")
 
-  const newHash = components
-    .toKeyedSeq()
-    .map((value, key) => (value === true ? key : `${key}:${value}`))
-    .join("/")
+  console.log({ newHash })
 
   history.replace(history.location.pathname + (newHash ? "#" + newHash : ""))
 }
 
 export type UpdateHash = (updates: HashUpdates) => void
 
-type Props = {
-  location: ReturnType<typeof useLocation> | null
-  history: ReturnType<typeof useHistory> | null
-  hash: ParsedHash
-  updateHash: UpdateHash
+class HashContextValue {
+  constructor(
+    readonly location: ReturnType<typeof useLocation> | null,
+    readonly history: ReturnType<typeof useHistory> | null,
+    readonly hash: ParsedHash,
+    readonly updateHash: UpdateHash,
+  ) {}
+
+  static default() {
+    return new HashContextValue(null, null, new Map(), () => null)
+  }
 }
 
-class HashContextValue extends Immutable.Record<Props>(
-  {
-    location: null,
-    history: null,
-    hash: Immutable.Map(),
-    updateHash: () => null,
-  },
-  "HashContextValue",
-) {}
-
-const HashContext = React.createContext(new HashContextValue())
+const HashContext = React.createContext(HashContextValue.default())
 
 export const ProvideHashContext: React.FunctionComponent = ({ children }) => {
-  const currentValue = new HashContextValue()
   const location = useLocation()
   const history = useHistory()
 
-  const makeHashContextValue = () => {
-    if (currentValue.location === location) return currentValue
-    const hash = parseHash(location.hash)
-    return new HashContextValue({
-      location,
-      history,
-      hash,
-      updateHash: updateHash.bind(null, hash, history),
-    })
-  }
-
-  return (
-    <HashContext.Provider value={makeHashContextValue()}>
-      {children}
-    </HashContext.Provider>
+  const hash = useMemo(() => parseHash(location.hash), [location])
+  const value = useMemo(
+    () =>
+      new HashContextValue(
+        location,
+        history,
+        hash,
+        updateHash.bind(null, hash, history),
+      ),
+    [location, history, hash],
   )
+
+  return <HashContext.Provider value={value}>{children}</HashContext.Provider>
 }
 
 export const useHash = () => {

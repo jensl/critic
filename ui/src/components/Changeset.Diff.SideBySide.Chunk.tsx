@@ -7,7 +7,6 @@ import Registry from "."
 import SelectionScope from "./Selection.Scope"
 import Line from "./Changeset.Diff.SideBySide.Line"
 import { ChunkProps } from "./Changeset.Diff.Chunk"
-import { pure } from "recompose"
 
 const useStyles = makeStyles((theme: Theme) => ({
   changesetDiffSideBySideChunk: {
@@ -53,8 +52,9 @@ const SideBySideChunk: FunctionComponent<ChunkProps> = ({
         className,
         classes.changesetDiffSideBySideChunk,
         "side-by-side",
+        selectionScope !== null && "has-selection",
       )}
-      selector={(ev: MouseEvent) => calculateSelector(ev.target as HTMLElement)}
+      selector={(anchor, focus) => calculateSelector(anchor)}
       elementToID={(element: HTMLElement) => element.dataset.lineId!}
     >
       {lines}
@@ -64,5 +64,5 @@ const SideBySideChunk: FunctionComponent<ChunkProps> = ({
 
 export default Registry.add(
   "Changeset.Diff.SideBySide.Chunk",
-  pure(SideBySideChunk),
+  React.memo(SideBySideChunk),
 )

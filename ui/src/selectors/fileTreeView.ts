@@ -19,7 +19,7 @@ import { createSelector } from "reselect"
 import { State } from "../state"
 import File from "../resources/file"
 import { FileID } from "../resources/types"
-import { map } from "../utils"
+import { map, setWithoutAll } from "../utils/Functions"
 
 const getFilesByID = (state: State) => state.resource.files.byID
 const getSelectedFolderPaths = (state: State) =>
@@ -34,41 +34,43 @@ const getLockedFileIDs = (state: State) =>
 export const getNewSelectedFolderPaths = createSelector(
   getSelectedFolderPaths,
   getLockedFolderPaths,
-  (selectedFolders, lockedFolders) => selectedFolders.subtract(lockedFolders)
+  (selectedFolders, lockedFolders) =>
+    setWithoutAll(selectedFolders, lockedFolders),
 )
 
 export const getNewSelectedFileIDs = createSelector(
   getSelectedFileIDs,
   getLockedFileIDs,
-  (selectedFileIDs, lockedFileIDs) => selectedFileIDs.subtract(lockedFileIDs)
+  (selectedFileIDs, lockedFileIDs) =>
+    setWithoutAll(selectedFileIDs, lockedFileIDs),
 )
 
 const fileIDsToPaths = (
   filesByID: ReadonlyMap<FileID, File>,
-  fileIDs: ReadonlySet<FileID>
+  fileIDs: ReadonlySet<FileID>,
 ): ReadonlySet<string> =>
   new Set(
     map(fileIDs, (fileID) => filesByID.get(fileID))
       .filter((value): value is File => !!value)
-      .map((file) => file.path)
+      .map((file) => file.path),
   )
 
 export const getSelectedFilePaths = createSelector(
   getFilesByID,
   getSelectedFileIDs,
-  fileIDsToPaths
+  fileIDsToPaths,
 )
 
 export const getLockedFilePaths = createSelector(
   getFilesByID,
   getLockedFileIDs,
-  fileIDsToPaths
+  fileIDsToPaths,
 )
 
 export const getNewSelectedFilePaths = createSelector(
   getFilesByID,
   getNewSelectedFileIDs,
-  fileIDsToPaths
+  fileIDsToPaths,
 )
 
 export const getNewFilterPaths = createSelector(
@@ -78,7 +80,7 @@ export const getNewFilterPaths = createSelector(
     if (folderPaths.has("/")) {
       return ["/"]
     }
-    const allPaths = [...folderPaths.map((path) => path + "/"), ...filePaths]
+    const allPaths = [...map(folderPaths, (path) => path + "/"), ...filePaths]
     allPaths.sort()
     return allPaths.reduce((filteredPaths: string[], path) => {
       if (filteredPaths.length) {
@@ -93,5 +95,5 @@ export const getNewFilterPaths = createSelector(
       filteredPaths.push(path)
       return filteredPaths
     }, [])
-  }
+  },
 )

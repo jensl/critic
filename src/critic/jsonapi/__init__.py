@@ -216,6 +216,10 @@ async def finishGET(
         if linked is not None:
             top_json["linked"] = linked
 
+    pagination_total = parameters.getPaginationTotal()
+    if pagination_total is not None:
+        top_json["pagination"] = {"total": pagination_total}
+
     if "dbqueries" in parameters.debug:
         # from ..base import profiling
         # # Sort items by accumulated time.

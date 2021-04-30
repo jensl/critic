@@ -21,10 +21,11 @@ from typing import Optional
 from critic import api
 from ..base import TransactionBase
 from ..modifier import Modifier
+from ..extensionversion.mixin import ModifyExtension as ExtensionVersionMixin
 from .create import CreateExtension
 
 
-class ModifyExtension(Modifier[api.extension.Extension]):
+class ModifyExtension(ExtensionVersionMixin, Modifier[api.extension.Extension]):
     def __init__(
         self,
         transaction: TransactionBase,

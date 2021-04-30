@@ -49,9 +49,24 @@ ArgumentsType = Tuple[int, bool, bool, int, int, int]
 
 
 @dataclass
+class Progress:
+    __analysis: float
+    __syntax_highlight: float
+
+    @property
+    def analysis(self) -> float:
+        return self.__analysis
+
+    @property
+    def syntax_highlight(self) -> float:
+        return self.__syntax_highlight
+
+
+@dataclass
 class CompletionLevelResult:
     wanted_level_reached: bool
     completion_level: Collection[public.CompletionLevel]
+    progress: Optional[Progress]
 
 
 @dataclass
@@ -71,6 +86,7 @@ class Automatic:
 class Changeset(PublicType, APIObjectImplWithId, module=public):
     __is_direct: Optional[bool]
     __automatic: Optional[Tuple[api.review.Review, public.AutomaticMode]] = None
+    __completion_level_result: Optional[CompletionLevelResult]
 
     def update(self, args: ArgumentsType) -> int:
         (
@@ -82,6 +98,7 @@ class Changeset(PublicType, APIObjectImplWithId, module=public):
             self.__to_commit_id,
         ) = args
         self.__is_direct = None
+        self.__completion_level_result = None
         return self.__id
 
     def set_is_direct(self, value: bool) -> None:
@@ -138,7 +155,7 @@ class Changeset(PublicType, APIObjectImplWithId, module=public):
         except api.commitset.InvalidCommitRange:
             return None
 
-    async def __getCompletionLevel(
+    async def __calculateCompletionLevel(
         self,
         wanted_levels: FrozenSet[public.CompletionLevel] = frozenset(),
     ) -> CompletionLevelResult:
@@ -152,12 +169,18 @@ class Changeset(PublicType, APIObjectImplWithId, module=public):
         def wanted_reached() -> bool:
             return bool(wanted_levels) and wanted_levels.issubset(level)
 
-        def return_value() -> CompletionLevelResult:
-            return CompletionLevelResult(wanted_levels.issubset(level), level)
+        def return_value(progress: Optional[Progress] = None) -> CompletionLevelResult:
+            return CompletionLevelResult(wanted_levels.issubset(level), level, progress)
 
-        if not self.is_complete:
-            logger.debug("not complete: %r", self)
-            return return_value()
+        async with api.critic.Query[bool](
+            self.critic,
+            """SELECT complete
+                 FROM changesets
+                WHERE id={changeset_id}""",
+            changeset_id=self.id,
+        ) as structure_complete_result:
+            if not await structure_complete_result.scalar():
+                return return_value()
 
         level.add("structure")
 
@@ -184,23 +207,40 @@ class Changeset(PublicType, APIObjectImplWithId, module=public):
         if wanted_reached():
             return return_value()
 
-        if want_level("analysis") or want_level("syntaxhighlight"):
-            async with api.critic.Query[int](
+        analysis_done = 0
+        analysis_total = 0
+
+        if want_level("analysis"):
+            async with api.critic.Query[Tuple[bool, int]](
                 self.critic,
-                """SELECT 1
-                     FROM changesetchangedlines
-                    WHERE changeset={changeset_id}
-                      AND analysis IS NULL
-                    LIMIT 1""",
+                """SELECT is_analyzed, COUNT(*)
+                     FROM (
+                       SELECT analysis IS NOT NULL AS is_analyzed, "file", "index"
+                         FROM changesetchangedlines
+                        WHERE changeset={changeset_id}
+                     ) AS intermediate
+                 GROUP BY is_analyzed""",
                 changeset_id=self.id,
             ) as analysis_result:
-                if await analysis_result.empty():
+                anaysis_remaining = 0
+                rows = await analysis_result.all()
+                logger.debug(f"{rows=}")
+                for is_analyzed, count in rows:
+                    if is_analyzed:
+                        analysis_done = count
+                    else:
+                        anaysis_remaining = count
+                if anaysis_remaining == 0:
                     level.add("analysis")
+                analysis_total = analysis_done + anaysis_remaining
 
             if wanted_reached():
                 return return_value()
 
-        if "analysis" in level and want_level("syntaxhighlight"):
+        highlight_done = 0
+        highlight_total = 0
+
+        if want_level("syntaxhighlight"):
             repository = await self.repository
             filediffs = await api.filediff.fetchAll(self)
 
@@ -220,10 +260,13 @@ class Changeset(PublicType, APIObjectImplWithId, module=public):
                         )
                 await ranges.fetch()
 
-            for file_version in ranges.file_versions:
-                if not file_version.is_highlighted:
-                    break
-            else:
+            highlight_total = len(ranges.file_versions)
+            highlight_done = sum(
+                int(file_version.is_highlighted)
+                for file_version in ranges.file_versions
+            )
+
+            if highlight_done == highlight_total:
                 level.add("syntaxhighlight")
 
             if wanted_reached():
@@ -232,11 +275,24 @@ class Changeset(PublicType, APIObjectImplWithId, module=public):
         if {"analysis", "syntaxhighlight"}.issubset(level):
             level.add("full")
 
-        return return_value()
+        return return_value(
+            Progress(
+                float(analysis_done) / analysis_total if analysis_total != 0 else 0,
+                float(highlight_done) / highlight_total if highlight_total != 0 else 0,
+            )
+        )
 
     @property
     async def completion_level(self) -> Collection[public.CompletionLevel]:
-        return (await self.__getCompletionLevel()).completion_level
+        if self.__completion_level_result is None:
+            self.__completion_level_result = await self.__calculateCompletionLevel()
+        return self.__completion_level_result.completion_level
+
+    @property
+    async def progress(self) -> Optional[public.Progress]:
+        if self.__completion_level_result is None:
+            self.__completion_level_result = await self.__calculateCompletionLevel()
+        return self.__completion_level_result.progress
 
     async def ensure_completion_level(
         self, *completion_levels: public.CompletionLevel, block: bool = True
@@ -247,13 +303,11 @@ class Changeset(PublicType, APIObjectImplWithId, module=public):
         iterations = 1
 
         while True:
-            await self.refresh()
-
-            result = await self.__getCompletionLevel(wanted_levels)
-
-            logger.debug(result)
+            result = await self.__calculateCompletionLevel(wanted_levels)
 
             if result.wanted_level_reached:
+                if iterations > 1:
+                    await self.refresh()
                 return True
 
             if not block:

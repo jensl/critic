@@ -4,7 +4,13 @@ import Button from "@material-ui/core/Button"
 
 import Registry from "."
 import { ActionProps } from "./Changeset.Action"
-import { count, sum, useChangeset, useReview, useSignedInUser } from "../utils"
+import {
+  count,
+  sum,
+  useChangeset,
+  useOptionalReview,
+  useSignedInUser,
+} from "../utils"
 import { useDispatch, useSelector } from "../store"
 import { markAllAsReviewed } from "../actions/reviewableFilechange"
 import { useRequireSession } from "./Dialog.SignIn"
@@ -18,7 +24,7 @@ const MarkAllAsReviewed: React.FunctionComponent<ActionProps> = ({
 }) => {
   const dispatch = useDispatch()
   const signedInUser = useSignedInUser()
-  const review = useReview()
+  const review = useOptionalReview()
   const { changeset } = useChangeset()
   const rfcsByFile = useSelector((state) =>
     getReviewableFileChangesForChangeset(state, {

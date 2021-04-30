@@ -16,7 +16,6 @@
 
 import { combineReducers } from "redux"
 
-// import { resources } from "../resources"
 import {
   InvalidItem,
   Action,
@@ -25,7 +24,10 @@ import {
   USER_SETTINGS_LOADED,
   DATA_UPDATE,
 } from "../actions"
+
 import ui from "./ui"
+import produce from "./immer"
+
 import Changeset from "../resources/changeset"
 import Commit from "../resources/commit"
 import Branch from "../resources/branch"
@@ -58,7 +60,8 @@ import Tutorial from "../resources/tutorial"
 import UserEmail from "../resources/useremail"
 import UserSSHKey from "../resources/usersshkey"
 import { CommitID, RebaseID, BranchID, UserID } from "../resources/types"
-import produce from "./immer"
+import ExtensionCall from "../resources/extensioncall"
+import Setting from "../resources/setting"
 
 export const assignNewData = (array: any[]) => {
   return array.reduce((accumulator: any, currentValue: any) => {
@@ -66,207 +69,6 @@ export const assignNewData = (array: any[]) => {
     return accumulator
   }, {})
 }
-
-/*
-const batches = createCollection(
-  "batches",
-  {
-    byID,
-    unpublished: batch => {
-      if (batch.id === null) {
-        return [
-          {
-            key: batch.review,
-            value: batch,
-          },
-        ]
-      }
-      return []
-    },
-  },
-  { reducer: batchReducer }
-)
-
-const branches = createCollection<number, Branch>(
-  "branches",
-  {
-    byID,
-    byName: branch => [
-      { key: `${branch.repository}:${branch.name}`, value: branch.id },
-    ],
-  },
-  { reducer: branchReducer }
-)
-
-const changesets = createCollection<number, Changeset>(
-  "changesets",
-  {
-    byID,
-    byCommits: changeset => {
-      const value = changeset.id
-      const { is_direct, from_commit, to_commit } = changeset
-      const keys = []
-      if (is_direct) keys.push({ key: to_commit, value })
-      var key
-      if (from_commit) key = `${from_commit}..${to_commit}`
-      else key = `..${to_commit}`
-      keys.push({ key, value })
-      return keys
-    },
-  },
-  { reducer: changesetReducer }
-)
-
-const comments = createCollection<number, Comment>(
-  "comments",
-  {
-    byID: (comment: Comment) => [
-      {
-        key: comment.id,
-        value: comment.set("translated_location", null),
-      },
-    ],
-    forChangeset: comment => {
-      const result: { key: string; value: Location }[] = []
-      const add = (location: Location) => {
-        if (location && location.changeset) {
-          result.push({
-            key: `${location.changeset}_${comment.id}`,
-            value: location,
-          })
-        }
-      }
-      add(comment.location)
-      add(comment.translated_location)
-      return result
-    },
-    forCommit: comment => {
-      const result: { key: string; value: Location }[] = []
-      const add = (location: Location) => {
-        if (location && location.commit) {
-          result.push({
-            key: `${location.commit}_${comment.id}`,
-            value: location,
-          })
-        }
-      }
-      add(comment.location)
-      add(comment.translated_location)
-      return result
-    },
-  },
-  { reducer: commentReducer, lookupByID: (state, id) => state.byID.get(id) }
-)
-
-const commits = createCollection<number, Commit>(
-  "commits",
-  {
-    byID: byIDImmutable,
-    bySHA1: commit => [
-      { key: commit.sha1, value: commit.id, isImmutable: true },
-    ],
-    description: commit => {
-      if (commit.description)
-        return [{ key: commit.id, value: commit.description }]
-      return []
-    },
-  },
-  { reducer: commitReducer }
-)
-
-const extensions = createCollection("extensions", {
-  byID,
-  byKey: lookup("key"),
-})
-
-const extensioninstallations = createCollection(
-  "extensioninstallations",
-  {
-    byID,
-  },
-  { reducer: extensioninstallationReducer }
-)
-
-const files = createCollection("files", {
-  byID: byIDImmutable,
-  byPath: lookupImmutable("path"),
-})
-
-const filechanges = createCollection("filechanges", {
-  "": fileChange => [
-    {
-      key: `${fileChange.changeset}:${fileChange.file}`,
-      value: fileChange,
-    },
-  ],
-})
-
-const filecontents = createCollection(
-  "filecontents",
-  { "": fileContents => [] },
-  { reducer: filecontentReducer }
-)
-
-const filediffs = createCollection(
-  "filediffs",
-  {
-    "": fileDiff => [
-      {
-        key: `${fileDiff.changeset}_${fileDiff.file}`,
-        value: fileDiff,
-        isImmutable: true,
-      },
-    ],
-  },
-  { reducer: fileDiffReducer }
-)
-
-const mergeanalyses = createCollection("mergeanalyses", {
-  "": mergeAnalysis => [{ key: mergeAnalysis.merge, value: mergeAnalysis }],
-})
-
-const repositories = createCollection("repositories", {
-  byID,
-  byName: lookup("name"),
-})
-
-const reviews = createSimpleCollection<number, Review>("reviews")
-
-const reviewtags = createCollection("reviewtags", {
-  byID,
-  byName: lookup("name"),
-})
-
-const sessions = createCollection("sessions", {
-  "": session => [{ key: "current", value: session }],
-})
-
-const trackedbranches = createCollection("trackedbranches", {
-  byID,
-})
-
-const trees = createCollection(
-  "trees",
-  {
-    byKey: tree => [{ key: `${tree.repository}:${tree.sha1}`, value: tree }],
-  },
-  { reducer: treeReducer }
-)
-
-const users = createCollection("users", {
-  byID,
-  byName: lookup("name"),
-})
-
-const usersettings = createCollection(
-  "usersettings",
-  {
-    byID,
-    byName: lookup("name"),
-  },
-  { reducer: usersettingReducer }
-)
-*/
 
 const commitRefs = produce(
   (draft: Map<string, CommitID | InvalidItem>, action: Action) => {
@@ -351,7 +153,9 @@ const userSettings = produce<UserSettingsExtra>(
 
       case DATA_UPDATE:
         if (
-          (action.updates && action.updates.has("sessions")) ||
+          (action.updates &&
+            action.updates.has("sessions") &&
+            action.updates.get("sessions")?.[0]?.user !== draft.loadedFor) ||
           (action.deleted && action.deleted.has("sessions"))
         )
           draft.loadedFor = null
@@ -376,6 +180,7 @@ export const resource = combineReducers({
   comments: Comment.reducer,
   commits: Commit.reducer,
   extensions: Extension.reducer,
+  extensioncalls: ExtensionCall.reducer,
   extensioninstallations: ExtensionInstallation.reducer,
   extensionversions: ExtensionVersion.reducer,
   files: File.reducer,
@@ -392,6 +197,7 @@ export const resource = combineReducers({
   reviewfilters: ReviewFilter.reducer,
   reviewtags: ReviewTag.reducer,
   sessions: Session.reducer,
+  settings: Setting.reducer,
   systemevents: SystemEvent.reducer,
   systemsettings: SystemSetting.reducer,
   trackedbranches: TrackedBranch.reducer,

@@ -1,3 +1,7 @@
 [submodule "extensions/email-delivery"]
 	path = extensions/email-delivery
 	url = ../critic-email-delivery.git
+[submodule "extensions/email-notifications"]
+	path = extensions/email-notifications
+	url = ../critic-email-notifications.git
+	branch = main

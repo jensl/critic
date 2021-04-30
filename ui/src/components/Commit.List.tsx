@@ -9,7 +9,6 @@ import { useSelector } from "../store"
 
 type Props = {
   className?: string
-  pathPrefix: string
   scopeID: string
   withProgress?: boolean
   commitIDs: readonly CommitID[]
@@ -17,7 +16,6 @@ type Props = {
 
 const CommitList: FunctionComponent<Props> = ({
   className,
-  pathPrefix,
   scopeID,
   commitIDs,
   withProgress = false,
@@ -43,7 +41,7 @@ const CommitList: FunctionComponent<Props> = ({
           />
         ))}
       </SelectionScope>
-      <Popup pathPrefix={pathPrefix} selectionScope={thisSelectionScope} />
+      <Popup selectionScope={thisSelectionScope} />
     </>
   )
 }

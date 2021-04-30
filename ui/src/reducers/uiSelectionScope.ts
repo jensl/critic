@@ -27,6 +27,7 @@ import {
   SelectionElementID,
   SelectionScopeID,
 } from "../actions"
+import { map, filterNulls, outerBoundingRect } from "../utils/Functions"
 import produce from "./immer"
 
 type ScopeID = SelectionScopeID
@@ -41,7 +42,9 @@ type SelectionScopeProps = {
   firstSelectedID: ElementID | null
   lastSelectedID: ElementID | null
   selectedIDs: ReadonlySet<ElementID>
+  boundingRectsByID: ReadonlyMap<ElementID, BoundingRect>
   boundingRect: BoundingRect | null
+  selectedOutlineRect: BoundingRect | null
   isPending: boolean
   isRangeSelecting: boolean
 }
@@ -57,7 +60,9 @@ class _SelectionScope {
   firstSelectedID: ElementID | null = null
   lastSelectedID: ElementID | null = null
   selectedIDs: Set<ElementID> = new Set()
+  boundingRectsByID: ReadonlyMap<ElementID, BoundingRect> = new Map()
   boundingRect: BoundingRect | null = null
+  selectedOutlineRect: BoundingRect | null = null
   isPending: boolean = false
   isRangeSelecting: boolean = false
 
@@ -70,13 +75,25 @@ class _SelectionScope {
     this.firstSelectedID = null
     this.lastSelectedID = null
     this.selectedIDs = new Set()
+    this.boundingRectsByID = new Map()
     this.boundingRect = null
+    this.selectedOutlineRect = null
     this.isPending = false
     this.isRangeSelecting = false
   }
 
   update(updates: Partial<SelectionScopeProps>) {
     Object.assign(this, updates)
+  }
+
+  calculateSelectedOutlineRect() {
+    this.selectedOutlineRect = outerBoundingRect(
+      filterNulls(
+        map(this.selectedIDs, (elementID) =>
+          this.boundingRectsByID.get(elementID),
+        ),
+      ),
+    )
   }
 }
 
@@ -88,6 +105,10 @@ export const selectionScope = produce<_SelectionScope>((draft, action) => {
         elements: new Map<ElementID, HTMLElement>(
           Object.entries(action.elements),
         ),
+        boundingRectsByID: new Map<ElementID, BoundingRect>(
+          Object.entries(action.boundingRectsByID),
+        ),
+        isPending: true,
       })
       break
 
@@ -111,6 +132,7 @@ export const selectionScope = produce<_SelectionScope>((draft, action) => {
       if (action.isRangeSelecting) draft.selectionAnchorID = null
       else if (action.selectedIDs.size === 1 && !action.isPending)
         draft.selectionAnchorID = action.firstSelectedID
+      draft.calculateSelectedOutlineRect()
       break
   }
 }, castImmutable(new _SelectionScope()))

@@ -149,6 +149,9 @@ class JobGroup(ABC):
     def start(self) -> None:
         ...
 
+    def should_calculate_remaining(self) -> bool:
+        return not (self.not_started or self.in_progress)
+
     @abstractmethod
     async def calculate_remaining(
         self, critic: api.critic.Critic, initial_calculation: bool = False

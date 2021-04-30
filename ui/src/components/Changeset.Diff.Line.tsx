@@ -3,15 +3,15 @@ import clsx from "clsx"
 
 import Registry from "."
 import Parts from "./Changeset.Diff.Line.SimpleParts"
-import { DiffLine, Part } from "../resources/filediff"
-import { pure } from "recompose"
+import { DiffLine } from "../resources/diffcommon"
 
 type Props = {
   className?: string
   lineID: string
   line: DiffLine | null
   side?: "old" | "new" | null
-  isSelected?: boolean
+  isSelected: boolean
+  hasSelection: boolean
   inView: boolean
 }
 
@@ -20,14 +20,17 @@ const ChangesetLine: FunctionComponent<Props> = ({
   lineID,
   line,
   side = null,
-  isSelected = false,
+  isSelected,
+  hasSelection,
   inView,
 }: Props) => {
   if (line === null) return <span className={clsx(className)} />
-
   return (
     <span
-      className={clsx(className, "code", { selected: isSelected })}
+      className={clsx(className, "code", {
+        selected: isSelected,
+        unselected: hasSelection && !isSelected,
+      })}
       data-line-id={lineID}
     >
       {inView ? (
@@ -41,4 +44,6 @@ const ChangesetLine: FunctionComponent<Props> = ({
   )
 }
 
-export default Registry.add("Changeset.Diff.Line", pure(ChangesetLine))
+// export default Registry.add("Changeset.Diff.Line", React.memo(ChangesetLine))
+
+export default React.memo(ChangesetLine)

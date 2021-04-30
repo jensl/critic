@@ -154,9 +154,7 @@ class MessageChannel(Generic[InputMessage, OutputMessage]):
             await self.client.disconnect()
         try:
             if self.__reading:
-                logger.debug("waiting for reading to stop")
                 await self.__reading
-                logger.debug("reading stopped")
         except (asyncio.CancelledError, ConnectionClosed):
             pass
 

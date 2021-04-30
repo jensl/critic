@@ -12,7 +12,6 @@ import Reviewers from "./Commit.ListItem.Reviewers"
 import ChangedLines from "./Commit.ListItem.ChangedLines"
 import { useResource } from "../utils"
 import { SelectionScope } from "../reducers/uiSelectionScope"
-import { pure } from "recompose"
 
 const useStyles = makeStyles((theme) => ({
   commitListitem: {

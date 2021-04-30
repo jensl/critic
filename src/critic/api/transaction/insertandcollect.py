@@ -75,8 +75,10 @@ class InsertAndCollect(Generic[IntermediateType, FinalType]):
     ) -> InsertAndCollect[IntermediateType, FinalType]:
         column_names = sorted(values.keys())
         parameters = ["{%s}" % name for name in column_names]
-        self.__statement = f"""INSERT
-                               INTO {self.table_name} ({", ".join(column_names)})
-                             VALUES ({", ".join(parameters)})"""
+        self.__statement = f"""
+            INSERT
+              INTO {self.table_name} ({", ".join(f'"{name}"' for name in column_names)})
+            VALUES ({", ".join(parameters)})
+        """
         self.__values = values
         return self

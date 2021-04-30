@@ -14,6 +14,8 @@
  * the License.
  */
 
+import { Draft } from "immer"
+
 import produce from "./immer"
 
 import { DATA_UPDATE, Action } from "../actions"
@@ -28,22 +30,26 @@ function defaultGetID<ID, T extends ResourceWithID<ID>>(resource: T): ID {
 
 //type Reducer<State> = (state: State, action: Action) => State
 
-/* Reducer for the primary mapping of resoucre ID to resource object. */
+/* Reducer for the primary mapping of resource ID to resource object. */
 export const primaryMap = <T, ID extends number | string>(
   resourceName: string,
   getID: (resource: T) => ID | null = defaultGetID as (resource: T) => ID,
+  customReducer:
+    | ((draft: Draft<Map<ID, T>>, action: Action) => void)
+    | null = null,
 ) =>
-  produce<Map<ID, T>>((draft: Map<ID, T>, action: Action) => {
+  produce<Map<ID, T>>((draft, action: Action) => {
     if (action.type === DATA_UPDATE) {
       const updates = action.updates.get(resourceName) as T[]
       if (updates)
         for (const item of updates) {
           const id = getID(item)
-          if (id !== null) draft.set(id, item)
+          if (id !== null) draft.set(id as Draft<ID>, item as Draft<T>)
         }
       const deleted = action.deleted?.get(resourceName) as Set<ID> | undefined
-      if (deleted) for (const id of deleted) draft.delete(id)
+      if (deleted) for (const id of deleted) draft.delete(id as Draft<ID>)
     }
+    if (customReducer) customReducer(draft, action)
   }, new Map())
 
 const lookupDelete = <Key, ID>(draft: Map<Key, ID>, deleted?: Set<ID>) => {
@@ -61,17 +67,18 @@ export const lookupMap = <T, Key, ID extends number | string>(
   getKey: (resource: T) => null | Key,
   getID: (resource: T) => ID = defaultGetID as (resource: T) => ID,
 ) =>
-  produce<Map<Key, ID>>((draft: Map<Key, ID>, action: Action) => {
+  produce<Map<Key, ID>>((draft, action) => {
     if (action.type === DATA_UPDATE) {
       const updates = action.updates.get(resourceName) as T[]
       if (updates)
         for (const item of updates) {
           const key = getKey(item)
-          if (key !== null) draft.set(key, getID(item))
+          if (key !== null)
+            draft.set(key as Draft<Key>, getID(item) as Draft<ID>)
         }
       lookupDelete(
         draft,
-        action.deleted?.get(resourceName) as Set<ID> | undefined,
+        action.deleted?.get(resourceName) as Set<Draft<ID>> | undefined,
       )
     }
   }, new Map())
@@ -82,17 +89,18 @@ export const lookupManyMap = <T, Key, ID extends number | string>(
   getKeys: (resource: T) => Key[],
   getID: (resource: T) => ID = defaultGetID as (resource: T) => ID,
 ) =>
-  produce<Map<Key, ID>>((draft: Map<Key, ID>, action: Action) => {
+  produce<Map<Key, ID>>((draft, action) => {
     if (action.type === DATA_UPDATE) {
       const updates = action.updates.get(resourceName) as T[]
       if (updates)
         for (const item of updates) {
           const id = getID(item)
-          for (const key of getKeys(item)) draft.set(key, id)
+          for (const key of getKeys(item))
+            draft.set(key as Draft<Key>, id as Draft<ID>)
         }
       lookupDelete(
         draft,
-        action.deleted?.get(resourceName) as Set<ID> | undefined,
+        action.deleted?.get(resourceName) as Set<Draft<ID>> | undefined,
       )
     }
   }, new Map())
@@ -102,15 +110,16 @@ export const auxilliaryMap = <T, ID, Auxilliary>(
   resourceName: string,
   mapper: (resource: T) => [ID, Auxilliary | null],
 ) =>
-  produce<Map<ID, Auxilliary>>((draft: Map<ID, Auxilliary>, action: Action) => {
+  produce<Map<ID, Auxilliary>>((draft, action) => {
     if (action.type === DATA_UPDATE) {
       const updates = action.updates.get(resourceName)
       if (updates)
         for (const item of updates) {
           const [id, auxilliary] = mapper(item)
-          if (auxilliary) draft.set(id, auxilliary)
+          if (auxilliary)
+            draft.set(id as Draft<ID>, auxilliary as Draft<Auxilliary>)
         }
       const deleted = action.deleted?.get(resourceName) as Set<ID> | undefined
-      if (deleted) for (const id of deleted) draft.delete(id)
+      if (deleted) for (const id of deleted) draft.delete(id as Draft<ID>)
     }
   }, new Map())

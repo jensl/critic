@@ -31,37 +31,54 @@ import {
   sortedBy,
   setWith,
   setWithout,
+  filtered,
 } from "./Functions"
 import Hash, { useHash } from "./Hash"
 import { useRepository } from "./RepositoryContext"
-import { useSubscription, useSubscriptionIf } from "./ResourceSubscriber"
-import { useReview } from "./ReviewContext"
+import {
+  useSubscription,
+  useSubscriptionIf,
+  useResource,
+  useResourceExtra,
+} from "./ResourceSubscriber"
+import { useReview, useOptionalReview } from "./ReviewContext"
 import { maybeParseInt } from "./Strings"
 import Value, { useValue } from "./Value"
 import UserSetting, { useUserSetting } from "./UserSetting"
 import { useSignedInUser } from "./SessionContext"
+import { useExtension } from "./ExtensionContext"
+import { usePrefix } from "./PrefixContext"
 import { State } from "../state"
-import { extra, resource } from "../reducers"
 import Review from "../resources/review"
 import User from "../resources/user"
-import { useSelector } from "../store"
+import { assertTrue } from "../debug"
 
 export {
-  Flag,
-  Hash,
-  id,
   all,
   any,
   count,
-  sum,
+  filtered,
+  Flag,
   getProperty,
+  Hash,
+  id,
   map,
   maybeParseInt,
+  setWith,
+  setWithout,
+  sorted,
+  sortedBy,
+  sum,
   useBranch,
   useChangeset,
+  useExtension,
   useFlag,
   useHash,
+  useOptionalReview,
+  usePrefix,
   useRepository,
+  useResource,
+  useResourceExtra,
   useReview,
   UserSetting,
   useSignedInUser,
@@ -70,10 +87,6 @@ export {
   useUserSetting,
   useValue,
   Value,
-  sorted,
-  sortedBy,
-  setWith,
-  setWithout,
 }
 
 /*export const stopIf = (...checks) => WrappedComponent => props => {
@@ -222,38 +235,6 @@ export const SidebarContext = React.createContext<{
   hideIfTemporary: () => void
 }>({ variant: "persistent", hideIfTemporary: () => void 0 })
 
-type R = ReturnType<typeof resource>
-
-export function useResource<K extends keyof R>(name: K): R[K]
-export function useResource<K extends keyof R, V>(
-  name: K,
-  map: (value: R[K]) => V,
-): V
-
-export function useResource<K extends keyof R, V>(
-  name: K,
-  map?: (value: R[K]) => V,
-): R[K] | V {
-  const value = useSelector((state) => state.resource[name])
-  return map ? map(value) : value
-}
-
-type E = ReturnType<typeof extra>
-
-export function useResourceExtra<K extends keyof E>(name: K): E[K]
-export function useResourceExtra<K extends keyof E, V>(
-  name: K,
-  map: (value: E[K]) => V,
-): V
-
-export function useResourceExtra<K extends keyof E, V>(
-  name: K,
-  map?: (value: E[K]) => V,
-): E[K] | V {
-  const value = useSelector((state) => state.resource.extra[name])
-  return map ? map(value) : value
-}
-
 export class DefaultMap<K, V> {
   map: Map<K, V>
 
@@ -277,4 +258,9 @@ export class DefaultMap<K, V> {
     this.map.set(key, value)
     return this
   }
+}
+
+export const last = <T>(items: T[]): T => {
+  assertTrue(items.length > 0)
+  return items[items.length - 1]
 }

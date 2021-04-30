@@ -4,22 +4,24 @@ import Button from "@material-ui/core/Button"
 
 import Registry from "."
 import { ActionProps } from "./Changeset.Action"
-import { useChangeset, useRepository, useResource, useReview } from "../utils"
+import {
+  useChangeset,
+  useRepository,
+  useResource,
+  useOptionalReview,
+  usePrefix,
+} from "../utils"
 import { useHistory } from "react-router"
 import { pathWithExpandedFiles } from "../utils/Changeset"
 
 const SideBySide: React.FunctionComponent<ActionProps> = ({ integrated }) => {
   const history = useHistory()
-  const review = useReview()
+  const review = useOptionalReview()
   const repository = useRepository()
   const { changeset, expandedFileIDs } = useChangeset()
   const commitByID = useResource("commits", ({ byID }) => byID)
   if (!integrated) return null
-  const prefix = review
-    ? `/review/${review.id}`
-    : repository
-    ? `/repository/${repository.id}`
-    : null
+  const prefix = usePrefix()
   const toCommit = commitByID.get(changeset.toCommit)
   const fromCommit = commitByID.get(changeset.fromCommit)
   if (!prefix || !toCommit || !fromCommit) return null

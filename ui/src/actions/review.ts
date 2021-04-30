@@ -40,6 +40,7 @@ import {
 } from "."
 import { ResourceData } from "../types"
 import { disableDefaults } from "../resources/requestoptions"
+import Repository from "../components/Repository"
 
 export const updateReviewCategory = (
   category: ReviewCategory,
@@ -53,7 +54,8 @@ export const updateReviewCategory = (
 export const createReview = (
   repository: RepositoryID,
   commits: readonly CommitID[],
-) => createResource("reviews", { repository, commits })
+  summary: string = "",
+) => createResource("reviews", { repository, commits, summary })
 
 export const deleteReview = (reviewID: ReviewID) =>
   deleteResource("reviews", withArgument(reviewID))
@@ -131,25 +133,27 @@ export const loadReview = (reviewID: ReviewID): AsyncThunk<Review> => async (
   return primary[0]
 }
 
+const listOptions: RequestOptions[] = [
+  include("reviewtags", "users"),
+  includeFields("reviews", [
+    "id",
+    "state",
+    "last_changed",
+    "owners",
+    "progress.reviewing",
+    "progress.open_issues",
+    "summary",
+    "tags",
+    "branch",
+  ]),
+]
+
 export const loadReviewCategory = (
   category: ReviewCategory,
   // This fetch implicitly depends on the signed in user.
   _: SessionID,
 ): AsyncThunk<void> => async (dispatch) => {
-  const options: RequestOptions[] = [
-    include("reviewtags", "users"),
-    includeFields("reviews", [
-      "id",
-      "state",
-      "last_changed",
-      "owners",
-      "progress.reviewing",
-      "progress.open_issues",
-      "summary",
-      "tags",
-      "branch",
-    ]),
-  ]
+  const options: RequestOptions[] = [...listOptions]
   switch (category) {
     case "incoming":
     case "outgoing":
@@ -173,6 +177,17 @@ export const loadReviewCategory = (
       primary.map((review: Review) => review.id),
     ),
   )
+}
+
+export const loadRepositoryReviews = (
+  repositoryID: RepositoryID,
+  offset: number,
+  count: number,
+): AsyncThunk<Review[]> => async (dispatch) => {
+  const options: RequestOptions[] = [...listOptions]
+  options.push(withParameters({ repository: repositoryID, offset, count }))
+  const { primary } = await dispatch(fetch("reviews", ...options))
+  return primary
 }
 
 export type ReviewAction = UpdateReviewCategoryAction

@@ -27,8 +27,10 @@ class Outputter:
             self._writePart(token_type, parts[-1])
 
     def writeSingleline(self, token_type: PartType, content: str) -> None:
-        assert "\n" not in content
-        self._writePart(token_type, content)
+        if "\n" not in content:
+            self._writePart(token_type, content)
+        else:
+            self.writeMultiline(token_type, content)
 
     def writePlain(self, content: str) -> None:
         parts = content.split("\n")

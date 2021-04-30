@@ -17,8 +17,16 @@
 import { commitRefsUpdate } from "./commit"
 import { loadFileDiffs } from "./filediff"
 import { assertString, assertNotNull, assertTrue } from "../debug"
-import { fetch, handleError, include, withParameters } from "../resources"
-import Changeset, { CompletionLevel } from "../resources/changeset"
+import {
+  fetch,
+  fetchOne,
+  handleError,
+  include,
+  includeFields,
+  withArgument,
+  withParameters,
+} from "../resources"
+import Changeset, { CompletionLevel, Progress } from "../resources/changeset"
 import { fetchJSON } from "../utils/Fetch"
 import { Channel } from "../utils/WebSocket"
 import { AsyncThunk, Dispatch, GetState } from "../state"
@@ -37,8 +45,10 @@ import {
   AutomaticChangesetImpossible,
   AutomaticChangesetEmpty,
 } from "."
-import { waitForCompletionLevel } from "../utils/Changeset"
+import { CommitRefs, waitForCompletionLevel } from "../utils/Changeset"
 import { sortedBy } from "../utils"
+
+const WAIT_FOR_COMPLETION_LEVEL_TIMEOUT = 60000
 
 const setAutomaticChangeset = (
   reviewID: ReviewID,
@@ -54,43 +64,18 @@ const setAutomaticChangeset = (
   changesetID,
 })
 
-type LoadFileDiffsForChangesetOptions = {
-  reviewID?: number
-  channel?: Channel
-}
+const FILEDIFFS_LIMIT = 50
 
 export const loadFileDiffsForChangeset = (
-  changeset: Changeset,
-  { reviewID, channel }: LoadFileDiffsForChangesetOptions,
+  changesetID: ChangesetID,
+  reviewID: ReviewID | undefined,
 ): AsyncThunk<void> => async (dispatch, getState) => {
-  console.log("loadFileDiffsForChangeset", { changeset, channel })
-
-  if (!changeset.completionLevel.has("full")) {
-    if (!channel) channel = await dispatch(Channel.monitorChangeset(changeset))
-    while (!(await waitForCompletionLevel(channel, { changeset }))) {
-      // Then check what the changeset's current completion level is. This is
-      // done to avoid a race where we begin to listen for updates just after an
-      // update.
-      const { status } = await dispatch(
-        fetchJSON({
-          path: `changesets/${changeset.id}`,
-          params: {
-            fields: "id",
-            only_if_complete: "full",
-          },
-          expectStatus: [200, 202],
-        }),
-      )
-
-      if (status === 200) break
-    }
-  }
-
-  changeset = getState().resource.changesets.byID.get(changeset.id)!
+  let changeset = getState().resource.changesets.byID.get(changesetID)
 
   console.log("loadFileDiffsForChangeset", { changeset })
 
-  if (channel) channel.close()
+  assertNotNull(changeset)
+  assertTrue(changeset.completionLevel.has("full"))
 
   const { files } = changeset
   assertNotNull(files)
@@ -99,13 +84,15 @@ export const loadFileDiffsForChangeset = (
   const filesByID = getState().resource.files.byID
 
   const neededFilediffs = sortedBy(
-    files.filter((fileID) => !filediffs.has(`${changeset.id}:${fileID}`)),
+    files.filter((fileID) => !filediffs.has(`${changesetID}:${fileID}`)),
     (fileID) => filesByID.get(fileID)?.path ?? fileID,
   )
 
   if (neededFilediffs.length === 0) return
 
-  const chunkCount = Math.ceil(neededFilediffs.length / 10)
+  console.log({ neededFilediffs })
+
+  const chunkCount = Math.ceil(neededFilediffs.length / 50)
   const chunkSize = Math.ceil(neededFilediffs.length / chunkCount)
   const promises = []
 
@@ -116,6 +103,7 @@ export const loadFileDiffsForChangeset = (
         loadFileDiffs(fileIDs, {
           changeset,
           reviewID,
+          limited: neededFilediffs.length > FILEDIFFS_LIMIT,
         }),
       ),
     )
@@ -126,7 +114,7 @@ export const loadFileDiffsForChangeset = (
 
 type RepositoryIDParam = { repositoryID: RepositoryID }
 type ReviewIDParam = { reviewID: ReviewID }
-type ContextIDParam = RepositoryIDParam | ReviewIDParam
+export type ContextIDParam = RepositoryIDParam | ReviewIDParam
 
 const isRepositoryID = (
   context: ContextIDParam,
@@ -145,21 +133,12 @@ const getRepositoryID = (getState: GetState, context: ContextIDParam) => {
   }
 }
 
-type SingleCommitRef = {
-  singleCommitRef: string
-}
-type CommitRangeRefs = {
-  fromCommitRef?: string
-  toCommitRef: string
-}
-type CommitRefs = { refs: SingleCommitRef | CommitRangeRefs }
-
-type LoadChangesetBySHA1Params = ContextIDParam & CommitRefs
+type LoadChangesetBySHA1Params = ContextIDParam & { refs: CommitRefs }
 
 export const loadChangesetBySHA1 = ({
   refs,
   ...context
-}: LoadChangesetBySHA1Params): AsyncThunk<void> => async (
+}: LoadChangesetBySHA1Params): AsyncThunk<Changeset | null> => async (
   dispatch,
   getState,
 ) => {
@@ -185,7 +164,7 @@ export const loadChangesetBySHA1 = ({
     if (error!.code === "MERGE_COMMIT") {
       assertTrue("singleCommitRef" in refs)
       await dispatch(loadMergeAnalysis(refs.singleCommitRef, { repositoryID }))
-      return
+      return null
     }
     if ("singleCommitRef" in refs) {
       const { singleCommitRef } = refs
@@ -204,84 +183,73 @@ export const loadChangesetBySHA1 = ({
     }
 
     dispatch(commitRefsUpdate(commitRefs))
-    return
+    return null
   }
 
   const changeset = primary[0]
 
-  if (!changeset) return
+  if (!changeset) return null
 
   if ("singleCommitRef" in refs) {
     const { singleCommitRef } = refs
     commitRefs.set(commitRefKey(singleCommitRef), changeset.toCommit)
   } else {
     const { fromCommitRef, toCommitRef } = refs
-    if (fromCommitRef)
+    if (fromCommitRef && changeset.fromCommit)
       commitRefs.set(commitRefKey(fromCommitRef), changeset.fromCommit)
     commitRefs.set(commitRefKey(toCommitRef), changeset.toCommit)
   }
 
   dispatch(commitRefsUpdate(commitRefs))
 
-  await dispatch(finishChangeset(changeset, context))
+  //await dispatch(finishChangeset(changeset, context))
+
+  return changeset
 }
 
 const finishChangeset = (
   changeset: Changeset,
   context: ContextIDParam,
 ): AsyncThunk<void> => async (dispatch) => {
-  const channel = !changeset.completionLevel.has("full")
-    ? await dispatch(Channel.monitorChangeset(changeset))
-    : undefined
+  if (changeset.completionLevel.has("full")) return
 
-  console.log({ channel })
+  const completionLevel = !changeset.completionLevel.has("structure")
+    ? "structure"
+    : "full"
 
-  if (!changeset.completionLevel.has("structure")) {
-    assertNotNull(channel)
+  const channel = await dispatch(
+    Channel.monitorChangeset(changeset.id, completionLevel),
+  )
 
-    // Use a short (200 ms) timeout here, since there's a race between our
-    // initial check and our subscription to status update message. This race is
-    // sort of unavoidable, since we don't know the changeset id before the
-    // initial check.
+  if (channel) {
+    console.log("finishChangeset", { channel, waitingFor: completionLevel })
+
     await waitForCompletionLevel(channel, {
-      completionLevel: "structure",
-      timeout: 200,
+      completionLevel: completionLevel,
+      timeout: WAIT_FOR_COMPLETION_LEVEL_TIMEOUT,
       changeset,
     })
-
-    dispatch(
-      loadChangesetByID(changeset.id, {
-        ...context,
-        onlyIfComplete: "structure",
-        retryCount: 1,
-        channel,
-      }),
-    )
-  } else {
-    dispatch(loadFileDiffsForChangeset(changeset, { ...context, channel }))
   }
+
+  dispatch(
+    loadChangesetByID(changeset.id, {
+      ...context,
+      onlyIfComplete: completionLevel,
+      retryCount: 1,
+      channel,
+    }),
+  )
 }
 
 type LoadChangesetByIDOptions = {
   reviewID?: ReviewID
-  repositoryID?: RepositoryID
   onlyIfComplete?: false | CompletionLevel
-  retryCount?: number
-  channel?: Channel
 }
 
 export const loadChangesetByID = (
   changesetID: ChangesetID,
-  {
-    reviewID,
-    onlyIfComplete = false,
-    retryCount = 0,
-    channel,
-  }: LoadChangesetByIDOptions = {},
+  { reviewID, onlyIfComplete = false }: LoadChangesetByIDOptions = {},
 ): AsyncThunk<Changeset | null> => async (dispatch) => {
-  if (!channel)
-    channel = await dispatch(Channel.subscribe(`changesets/${changesetID}`))
-
   const options = Changeset.requestOptions(
     {
       byID: changesetID,
@@ -294,58 +262,29 @@ export const loadChangesetByID = (
 
   const { primary, status } = await dispatch(fetch("changesets", ...options))
 
-  if (status === "delayed") {
-    await waitForCompletionLevel(channel, {
-      completionLevel: onlyIfComplete || "structure",
-      timeout: Math.min(10000, 1000 + 500 * retryCount),
-    })
+  if (status === "delayed") return null
 
-    retryCount += 1
+  return primary[0]
+}
 
-    return await dispatch(
-      loadChangesetByID(changesetID, {
-        reviewID,
-        onlyIfComplete,
-        retryCount,
-        channel,
-      }),
-    )
-  }
-
-  const changeset = primary[0]
-
-  if (!changeset.completionLevel.has("structure")) {
-    await waitForCompletionLevel(channel, {
-      completionLevel: onlyIfComplete || "structure",
-      timeout: Math.max(10000, 1000 + 500 * retryCount),
-    })
-
-    retryCount += 1
-
-    return await dispatch(
-      loadChangesetByID(changesetID, {
-        reviewID,
-        onlyIfComplete: "structure",
-        retryCount,
-        channel,
-      }),
-    )
-  }
-
-  dispatch(
-    loadFileDiffsForChangeset(changeset, {
-      reviewID,
-      channel,
-    }),
+export const loadChangesetStateByID = (
+  changesetID: ChangesetID,
+): AsyncThunk<[ReadonlySet<CompletionLevel>, Progress | null]> => async (
+  dispatch,
+) => {
+  const changeset = await dispatch(
+    fetchOne(
+      "changesets",
+      withArgument(changesetID),
+      includeFields("changesets", ["completion_level", "progress"]),
+    ),
   )
-
-  return changeset
+  return [changeset.completionLevel, changeset.progress]
 }
 
 export const loadAutomaticChangeset = (
   automatic: AutomaticMode,
   reviewID: ReviewID,
-  loadFilediffs: boolean = false,
 ) => async (dispatch: Dispatch): Promise<Changeset | null> => {
   try {
     const { primary } = await dispatch(
@@ -363,7 +302,7 @@ export const loadAutomaticChangeset = (
 
     const changeset = primary[0]
     const channel = !changeset.completionLevel.has("full")
-      ? await dispatch(Channel.monitorChangeset(changeset))
+      ? await dispatch(Channel.monitorChangeset(changeset.id, "full"))
       : undefined
 
     dispatch(setAutomaticChangeset(reviewID, automatic, changeset.id))
@@ -390,9 +329,6 @@ export const loadAutomaticChangeset = (
         }),
       )
     }
-
-    if (loadFilediffs)
-      dispatch(loadFileDiffsForChangeset(changeset, { reviewID, channel }))
 
     return changeset
   } catch (error) {

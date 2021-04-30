@@ -88,11 +88,13 @@ class Tree(PublicType, APIObjectImpl):
     def __init__(
         self,
         repository: api.repository.Repository,
+        decode: api.repository.Decode,
         sha1: SHA1,
         low_entries: Sequence[gitaccess.GitTreeEntry],
     ):
         super().__init__(repository.critic)
         self.__repository = repository
+        self.__decode = decode
         self.__sha1 = sha1
         self.__low_entries = low_entries
         self.__entries = None
@@ -129,7 +131,7 @@ class Tree(PublicType, APIObjectImpl):
                     Entry(
                         self,
                         low_entry.mode,
-                        low_entry.name,
+                        self.__decode.path(low_entry.name),
                         low_entry.sha1,
                         low_entry.size,
                     )
@@ -142,8 +144,7 @@ class Tree(PublicType, APIObjectImpl):
     async def readLink(self, entry: PublicType.Entry) -> str:
         contents = await self.__repository.getFileContents(sha1=entry.sha1)
         assert contents is not None
-        decode = await self.__repository.getDecode()
-        return decode.path(contents)
+        return self.__decode.path(contents)
 
 
 @public.fetchImpl
@@ -178,4 +179,6 @@ async def fetch(
     except gitaccess.GitFetchError:
         raise api.tree.InvalidSHA1(repository, sha1)
 
-    return Tree.storeOne(Tree(repository, sha1, entries))
+    return Tree.storeOne(
+        Tree(repository, await repository.getDecode(commit), sha1, entries)
+    )

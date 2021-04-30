@@ -27,10 +27,12 @@ from . import connect
 from . import delrole
 from . import deluser
 from . import disconnect
+from . import extension
 from . import interactive
 from . import listusers
 from . import lookup_ssh_key
 from . import passwd
+from . import psql
 from . import run_extensionhost
 from . import run_frontend
 from . import run_services
@@ -68,10 +70,12 @@ modules = cast(
         delrole,
         deluser,
         disconnect,
+        extension,
         interactive,
         listusers,
         lookup_ssh_key,
         passwd,
+        psql,
         run_extensionhost,
         run_frontend,
         run_services,

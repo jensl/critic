@@ -19,14 +19,18 @@ const useStyles = makeStyles((theme) => ({
 
 type Props = {
   className?: string
-  text: string
+  text?: string
 }
 
-const Blurb: React.FunctionComponent<Props> = ({ className, text }) => {
+const Blurb: React.FunctionComponent<Props> = ({
+  className,
+  text,
+  children,
+}) => {
   const classes = useStyles()
   return (
     <Container className={clsx(className, classes.blurb)} maxWidth="sm">
-      <MarkdownDocument>{text}</MarkdownDocument>
+      <MarkdownDocument>{text ?? children}</MarkdownDocument>
     </Container>
   )
 }

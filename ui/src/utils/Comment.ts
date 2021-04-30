@@ -74,8 +74,8 @@ export const sideFromLineIDs = (lineIDs: ReadonlySet<string>): DiffSide => {
 export const lineNumberFromLineID = (lineID: string, side: DiffSide): number =>
   parseInt(
     ((side === "old"
-      ? /^f\d+:o(\d+)(?::n\d+)?$/
-      : /^f\d+(?::o\d+)?:n(\d+)$/
+      ? /^f\d+:o(\d+)(?:n\d+)?$/
+      : /^f\d+:(?:o\d+)?n(\d+)$/
     ).exec(lineID) ?? ["", "0"])[1],
     10,
   )
@@ -88,13 +88,17 @@ export const locationFromSelectionScope = ({
   assertNotNull(firstSelectedID)
   assertNotNull(lastSelectedID)
 
+  console.log({ firstSelectedID, lastSelectedID })
+
   const fileID = fileIDFromLineID(firstSelectedID)
   const side =
     sideFromLineID(firstSelectedID) ??
     sideFromLineID(lastSelectedID) ??
     sideFromLineIDs(selectedIDs)
+  console.log({ side })
   const firstLine = lineNumberFromLineID(firstSelectedID, side)
   const lastLine = lineNumberFromLineID(lastSelectedID, side)
+  console.log({ firstLine, lastLine })
 
   return { fileID, side, firstLine, lastLine }
 }

@@ -244,7 +244,6 @@ class System:
                         "run-task", "calibrate-pwhash", "--hash-time", "0.01"
                     )
 
-                if not self.arguments.testing:
                     await self.criticctl(
                         "adduser",
                         "--username",
@@ -351,7 +350,8 @@ class System:
                 logger.error("Failed to start HTTP front-end!")
                 return False
 
-        await self.generate_extensions_profile()
+        if not self.arguments.testing:
+            await self.generate_extensions_profile()
 
         self.controlpipe.write({"event": "started"})
         return True
@@ -400,8 +400,7 @@ class System:
             await self.criticctl(
                 "run-task",
                 "generate-extensions-profile",
-                "--extensions-dir",
-                os.path.join(self.arguments.root_dir, "extensions"),
                 "--autocommit",
                 "--discover",
+                os.path.join(self.arguments.root_dir, "extensions"),
             )

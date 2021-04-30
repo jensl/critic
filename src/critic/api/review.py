@@ -31,6 +31,7 @@ from abc import abstractmethod
 import datetime
 import logging
 from typing import (
+    AsyncIterator,
     Awaitable,
     Callable,
     Optional,
@@ -362,6 +363,16 @@ class Review(api.APIObjectWithId):
         return await api.partition.create(
             self.critic, await self.commits, await self.rebases
         )
+
+    @property
+    async def partitions(self) -> AsyncIterator[api.partition.Partition]:
+        partition = await self.first_partition
+        while True:
+            yield partition
+            if partition.following:
+                partition = partition.following.partition
+            else:
+                return
 
     @abstractmethod
     async def isReviewableCommit(self, commit: api.commit.Commit) -> bool:

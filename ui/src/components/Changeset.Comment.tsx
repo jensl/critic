@@ -17,7 +17,7 @@ const useStyles = makeStyles((theme) => ({
 type OwnProps = {
   className?: string
   comment?: Comment
-  location?: Location
+  location?: Location | null
 }
 
 const ChangesetComment: FunctionComponent<OwnProps> = ({
@@ -28,7 +28,7 @@ const ChangesetComment: FunctionComponent<OwnProps> = ({
   const classes = useStyles()
   return (
     <div className={clsx(className, classes.changesetComment)}>
-      <Discussion comment={comment} location={location} />
+      <Discussion comment={comment} location={location ?? null} />
     </div>
   )
 }

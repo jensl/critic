@@ -1,5 +1,4 @@
 from __future__ import annotations
-from email.message import EmailMessage
 
 import aiosmtpd.handlers
 import aiosmtpd.smtp
@@ -7,10 +6,13 @@ import asyncio
 import email.message
 import email.policy
 import functools
+import logging
 import pytest
 import snapshottest
 from socket import AF_INET
 from typing import Any, AsyncIterator, List
+
+logger = logging.getLogger(__name__)
 
 from .api import API
 from .instance import User

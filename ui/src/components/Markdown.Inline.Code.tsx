@@ -4,8 +4,8 @@ import clsx from "clsx"
 import { makeStyles } from "@material-ui/core/styles"
 
 import Registry from "."
-import InlineContent from "./Markdown.InlineContent"
 import { Code } from "../utils/Markdown"
+import { InlineContent } from "./Markdown.types"
 
 const useStyles = makeStyles((theme) => ({
   markdownInlineCode: {
@@ -20,9 +20,14 @@ const useStyles = makeStyles((theme) => ({
 type OwnProps = {
   className?: string
   item: Code
+  InlineContent: InlineContent
 }
 
-const MarkdownCode: FunctionComponent<OwnProps> = ({ className, item }) => {
+const MarkdownCode: FunctionComponent<OwnProps> = ({
+  className,
+  item,
+  InlineContent,
+}) => {
   const classes = useStyles()
   return (
     <code className={clsx(className, classes.markdownInlineCode)}>

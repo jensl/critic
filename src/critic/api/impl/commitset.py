@@ -235,19 +235,12 @@ class CommitSet(PublicType, APIObjectImpl, module=public):
         if not self:
             return
 
-        logger.debug(
-            "commitset.topo_ordered: size=%d, parents=%r", len(self), self.__parents
-        )
-
         head = next(iter(self.heads))
-        logger.debug("commitset.topo_ordered: head=%r", head)
-
         queue = [head]
         included: Set[api.commit.Commit] = set()
 
         while queue:
             commit = queue.pop(0)
-            logger.debug("commitset.topo_ordered: commit=%r, queue=%r", commit, queue)
             if commit in included:
                 continue
             if commit not in self.heads:
@@ -260,9 +253,6 @@ class CommitSet(PublicType, APIObjectImpl, module=public):
                     continue
             yield commit
             included.add(commit)
-            logger.debug(
-                "commitset.topo_ordered: getParentsOf()=%r", self.getParentsOf(commit)
-            )
             parents = sorted(
                 (
                     parent
@@ -272,7 +262,6 @@ class CommitSet(PublicType, APIObjectImpl, module=public):
                 key=lambda commit: commit.committer.timestamp,
                 reverse=False,
             )
-            logger.debug("commitset.topo_ordered: parents=%r", parents)
             queue[:0] = parents
 
     def getChildrenOf(self, commit: api.commit.Commit) -> FrozenSet[api.commit.Commit]:

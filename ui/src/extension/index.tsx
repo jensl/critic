@@ -2,11 +2,9 @@ import React, { useContext, useEffect, useState } from "react"
 
 import { useDispatch } from "../store"
 import { ItemList } from "../actions"
-// import Extension from "../resources/extension"
 import { Dispatch } from "../state"
 import { assertNotNull } from "../debug"
 import { useResource } from "../utils"
-import { extension } from "../reducers/uiExtension"
 import Extension from "../resources/extension"
 import { WithExtension } from "../utils/ExtensionContext"
 

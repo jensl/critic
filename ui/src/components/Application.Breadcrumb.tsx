@@ -23,7 +23,7 @@ const useStyles = makeStyles({
 
 type OwnProps = {
   className?: string
-  category: string
+  category: string | null
   label: string
   path: string | null
 }
@@ -38,10 +38,12 @@ const ApplicationBreadcrumb: FunctionComponent<OwnProps> = ({
   const location = useLocation()
   const content = (
     <>
-      <Typography className={classes.category} variant="caption">
-        {category}
-        {": "}
-      </Typography>
+      {category && (
+        <Typography className={classes.category} variant="caption">
+          {category}
+          {": "}
+        </Typography>
+      )}
       <Typography className={classes.label} variant="body1">
         {label}
       </Typography>

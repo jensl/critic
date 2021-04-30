@@ -21,11 +21,11 @@ import Action, { ActionProps } from "./Discussion.Action"
 import { createComment } from "../actions/comment"
 import { useDispatch } from "../store"
 import { useDiscussionContext } from "../utils/DiscussionContext"
-import { useReview } from "../utils"
+import { useOptionalReview } from "../utils"
 
 const WriteNote: React.FunctionComponent<ActionProps> = ({ ...props }) => {
   const dispatch = useDispatch()
-  const review = useReview()
+  const review = useOptionalReview()
   const { comment, location } = useDiscussionContext()
   if (review === null || comment !== null || location === null) return null
   const onClick = async () => {

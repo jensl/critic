@@ -176,7 +176,10 @@ export const useRequireSession = (
       })
     })
 
-  return [requireSession, <SignIn callback={callback} reason={reason} />]
+  return [
+    requireSession,
+    <SignIn key="signin" callback={callback} reason={reason} />,
+  ]
 }
 
 export default Registry.add("Dialog.SignIn", SignIn)

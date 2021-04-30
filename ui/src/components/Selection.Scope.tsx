@@ -4,12 +4,11 @@ import Registry from "."
 import {
   ElementToIDFunc,
   defineSelectionScope,
+  SelectorFunc,
 } from "../actions/uiSelectionScope"
 import { useDispatch } from "../store"
 import { ShortcutScope } from "../utils/KeyboardShortcuts"
 import { useMouseTracker } from "../utils/Mouse"
-
-type SelectorFunc = (ev: MouseEvent) => string | null
 
 type Props = {
   className?: string
@@ -33,28 +32,29 @@ const SelectionScope: React.FunctionComponent<Props> = ({
     },
     [dispatch, scopeID],
   )
-  const onMouseDown = (event: MouseEvent) => {
-    if (event.ctrlKey) return
+  const useSelector: SelectorFunc = (anchor, focus) => {
     let useSelector
     if (typeof selector === "function") {
-      useSelector = selector(event)
-      if (useSelector === null) return
+      useSelector = selector(anchor, focus)
+      if (useSelector === null) return null
     } else useSelector = selector
-    event.stopPropagation()
-    event.preventDefault()
-    const elements = [
-      ...document.querySelectorAll<HTMLElement>(`#${scopeID} ${useSelector}`),
-    ]
-    if (elements.length) {
-      const monitor = dispatch(
-        defineSelectionScope({
-          scopeID,
-          elementType: "commit",
-          elements,
-          elementToID,
-        }),
-      )
-      if (monitor) startMouseTracking(event.nativeEvent, monitor)
+    return `#${scopeID} ${useSelector}`
+  }
+  const onMouseDown = (event: MouseEvent) => {
+    if (event.ctrlKey) return
+    const monitor = dispatch(
+      defineSelectionScope({
+        scopeID,
+        elementType: "commit",
+        elementToID,
+        selector: useSelector,
+        anchor: event.target as HTMLElement,
+      }),
+    )
+    if (monitor) {
+      event.stopPropagation()
+      event.preventDefault()
+      startMouseTracking(event.nativeEvent, monitor)
     }
   }
   return (

@@ -86,6 +86,7 @@ const ReviewDetailsActions: React.FunctionComponent<Props> = ({
     if ("onClick" in effect) {
       effect.onClick()
     } else {
+      console.log({ updateHash })
       updateHash({ dialog: effect.dialogID })
     }
     setAnchorEl(null)

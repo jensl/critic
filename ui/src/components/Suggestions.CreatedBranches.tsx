@@ -26,7 +26,7 @@ type Props = {
 const CreatedBranches: React.FunctionComponent<Props> = ({ className }) => {
   const classes = useStyles()
   const signedInUser = useSignedInUser()
-  useSubscriptionIf(signedInUser !== null, loadCreated, id(signedInUser))
+  useSubscriptionIf(signedInUser !== null, loadCreated, [id(signedInUser)])
   const branches = useResource("branches", ({ created }) => created)
   if (branches.length === 0) return null
   return (
@@ -38,7 +38,7 @@ const CreatedBranches: React.FunctionComponent<Props> = ({ className }) => {
       reasons={branches.map((branchID) => (
         <Branch key={branchID} branchID={branchID} />
       ))}
-    ></Panel>
+    />
   )
 }
 

@@ -8,6 +8,7 @@ import Button from "@material-ui/core/Button"
 import Registry from "."
 import { ActionProps } from "./Commit.List.Actions.types"
 import { ShortcutScope } from "../utils/KeyboardShortcuts"
+import { usePrefix } from "../utils"
 
 const useStyles = makeStyles({
   commitListActionsShowDiff: {},
@@ -19,11 +20,11 @@ type OwnProps = {
 
 const ShowDiff: FunctionComponent<ActionProps & OwnProps> = ({
   className,
-  pathPrefix,
   selectedCommits,
 }) => {
   const classes = useStyles()
   const history = useHistory()
+  const prefix = usePrefix()
 
   if (selectedCommits.length === 0) return null
 
@@ -32,8 +33,8 @@ const ShowDiff: FunctionComponent<ActionProps & OwnProps> = ({
 
   const diffPath =
     selectedCommits.length === 1
-      ? `${pathPrefix}/commit/${selectedCommits[0].sha1}`
-      : `${pathPrefix}/diff/${firstCommit().sha1}^..${lastCommit().sha1}`
+      ? `${prefix}/commit/${selectedCommits[0].sha1}`
+      : `${prefix}/diff/${firstCommit().sha1}^..${lastCommit().sha1}`
 
   console.log({ diffPath })
 

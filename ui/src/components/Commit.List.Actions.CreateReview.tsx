@@ -7,7 +7,7 @@ import Button from "@material-ui/core/Button"
 
 import Registry from "."
 import { createReview } from "../actions/review"
-import { useRepository, useReview, useSignedInUser } from "../utils"
+import { useRepository, useOptionalReview, useSignedInUser } from "../utils"
 import { ActionProps } from "./Commit.List.Actions.types"
 import { useDispatch } from "../store"
 
@@ -27,7 +27,7 @@ const CreateReview: FunctionComponent<ActionProps & Props> = ({
   const history = useHistory()
   const dispatch = useDispatch()
   const repository = useRepository()
-  const review = useReview()
+  const review = useOptionalReview()
   const signedInUser = useSignedInUser()
   if (repository === null) return null
   if (review !== null) return null

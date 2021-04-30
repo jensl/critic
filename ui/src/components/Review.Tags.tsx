@@ -15,6 +15,11 @@ const useStyles = makeStyles((theme) => ({
       marginRight: theme.spacing(1),
     },
   },
+
+  tag: {
+    fontWeight: "bold",
+    padding: theme.spacing(0, 1),
+  },
 }))
 
 type OwnProps = {
@@ -28,7 +33,14 @@ const ReviewTags: FunctionComponent<OwnProps> = ({ className }) => {
   return (
     <div className={clsx(className, classes.root)}>
       {map(review.tags, (tagID) => reviewTagByID.get(tagID)).map((tag) =>
-        tag ? <Chip key={tag.id} label={tag.name} size="small" /> : null,
+        tag ? (
+          <Chip
+            className={classes.tag}
+            key={tag.id}
+            label={tag.name}
+            size="small"
+          />
+        ) : null,
       )}
     </div>
   )

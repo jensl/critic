@@ -37,6 +37,7 @@ class Trees(ResourceClass[api.tree.Tree], api_module=api.tree):
 
     @staticmethod
     async def json(parameters: Parameters, value: api.tree.Tree) -> JSONResult:
+        decode = await value.repository.getDecode()
         json_entries = [
             {
                 "mode": entry.mode,
@@ -49,6 +50,7 @@ class Trees(ResourceClass[api.tree.Tree], api_module=api.tree):
         for json_entry, entry in zip(json_entries, value.entries):
             if entry.isSymbolicLink:
                 json_entry["target"] = await value.readLink(entry)
+        logger.debug(repr(json_entries))
         return {
             "repository": value.repository,
             "sha1": value.sha1,

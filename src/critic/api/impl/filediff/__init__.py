@@ -36,6 +36,7 @@ from typing import (
 logger = logging.getLogger(__name__)
 
 from critic import api
+from critic.base.profiling import timed
 from critic.api import filediff as public
 from critic.api.apiobject import Actual
 from critic.syntaxhighlight.ranges import SyntaxHighlightRanges
@@ -118,21 +119,29 @@ class Filediff(PublicType, APIObjectImpl, module=public):
                 ] = filechange
 
         for changeset, filechanges in cached_by_changeset.items():
+            logger.info(
+                "Populating counts for changesets/%d: %d files",
+                changeset.id,
+                len(filechanges),
+            )
+
             async with api.critic.Query[Tuple[int, int, int]](
                 critic,
                 """SELECT file, SUM(delete_count), SUM(insert_count)
-                     FROM changesetchangedlines
-                    WHERE changeset={changeset}
-                      AND file=ANY({files})
-                 GROUP BY file""",
+                         FROM changesetchangedlines
+                        WHERE changeset={changeset}
+                          AND file=ANY({files})
+                     GROUP BY file""",
                 changeset=changeset,
                 files=[*filechanges.keys()],
             ) as result:
-                async for file_id, delete_count, insert_count in result:
-                    cached_objects[filechanges.pop(file_id)].__counts = (
-                        delete_count,
-                        insert_count,
-                    )
+                rows = await result.all()
+
+            for file_id, delete_count, insert_count in rows:
+                cached_objects[filechanges.pop(file_id)].__counts = (
+                    delete_count,
+                    insert_count,
+                )
 
             for filechange in filechanges.values():
                 cached_objects[filechange].__counts = (0, 0)
@@ -158,7 +167,7 @@ class Filediff(PublicType, APIObjectImpl, module=public):
         return self.__old_linebreak
 
     @property
-    async def old_count(self) -> int:
+    async def delete_count(self) -> int:
         if self.__counts is None:
             await self.__populateCounts(self.critic)
             assert self.__counts is not None
@@ -181,7 +190,7 @@ class Filediff(PublicType, APIObjectImpl, module=public):
         return self.__new_linebreak
 
     @property
-    async def new_count(self) -> int:
+    async def insert_count(self) -> int:
         if self.__counts is None:
             await self.__populateCounts(self.critic)
             assert self.__counts is not None

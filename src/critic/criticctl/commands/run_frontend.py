@@ -23,6 +23,7 @@ import argparse
 import asyncio
 import collections
 import cProfile
+import io
 import logging
 import multiprocessing
 import os
@@ -38,7 +39,6 @@ logger = logging.getLogger(__name__)
 from critic import api
 from critic import auth
 from critic import frontend
-from critic import jsonapi
 from ..utils import as_root
 
 
@@ -122,13 +122,8 @@ async def run_worker(
         except frontend.NotHandled:
             pass
 
-        try:
-            return await frontend.download.handle(critic, request)
-        except frontend.NotHandled:
-            pass
-
         if request.path.startswith("/api/"):
-            return await jsonapi.handleRequest(critic, request)
+            return await frontend.api.handle(critic, request)
 
         if request.path == "/ws":
             return await frontend.websocket.serve(request)
@@ -197,9 +192,11 @@ async def run_worker(
         finally:
             if profile:
                 profile.disable()
-                stats = pstats.Stats(profile)
+                output = io.StringIO()
+                stats = pstats.Stats(profile, stream=output)
                 stats.sort_stats("time")
                 stats.print_callers(5)
+                logger.info("%s", output.getvalue())
         if response is None:
             logger.debug("no response returned")
             raise aiohttp.web.HTTPServiceUnavailable()

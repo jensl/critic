@@ -16,6 +16,7 @@
 
 import asyncio
 import collections
+import logging
 import re
 from typing import (
     Callable,
@@ -30,6 +31,8 @@ from typing import (
     Tuple,
     Union,
 )
+
+logger = logging.getLogger(__name__)
 
 from critic import api
 from critic import gitaccess
@@ -544,7 +547,7 @@ class FileDifference(NamedTuple):
     new_linebreak: bool
 
 
-async def file_difference(
+async def file_difference_impl(
     repository: gitaccess.GitRepository,
     from_commit: SHA1,
     to_commit: SHA1,
@@ -584,6 +587,10 @@ async def file_difference(
     old_lines, old_linebreak = fetch_lines(old_blob, decode_old.fileContent(path))
     assert isinstance(new_blob, gitaccess.GitBlob)
     new_lines, new_linebreak = fetch_lines(new_blob, decode_new.fileContent(path))
+
+    if old_lines == new_lines:
+        assert old_linebreak != new_linebreak
+        return FileDifference([], old_linebreak, new_linebreak)
 
     # Complete the list of blocks by inserting additional blocks for white-space
     # only changes in the "context" between blocks (or before the first, or
@@ -629,3 +636,20 @@ async def file_difference(
         # Yield to the event loop.
         await asyncio.sleep(0)
     return FileDifference(result, old_linebreak, new_linebreak)
+
+
+async def file_difference(
+    repository: gitaccess.GitRepository,
+    from_commit: SHA1,
+    to_commit: SHA1,
+    path: str,
+    decode_old: api.repository.Decode,
+    decode_new: api.repository.Decode,
+) -> FileDifference:
+    try:
+        return await file_difference_impl(
+            repository, from_commit, to_commit, path, decode_old, decode_new
+        )
+    except Exception:
+        logger.exception("failed to process file differences: %s", path)
+        raise

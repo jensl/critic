@@ -116,3 +116,62 @@ CREATE TABLE pubsubreservedmessages (
   PRIMARY KEY (reservation_id, message_id)
 
 );
+
+CREATE TABLE settings (
+
+  "id" SERIAL PRIMARY KEY,
+
+  -- Setting scope, e.g. "ui".
+  "scope" VARCHAR(64) NOT NULL,
+  -- Setting name.
+  "name" VARCHAR(64) NOT NULL,
+
+  -- Setting value, JSON encoded.
+  "value" JSON NOT NULL,
+  -- Setting value, binary.
+  "value_bytes" BYTEA,
+
+  -- Connections to other objects:
+  --
+  --   Any set of `user_id`, `repository_id` and `extension_id` can be non-NULL,
+  --   meaning a setting can be associated to e.g. a user and a repository, or a
+  --   repository and an extension, or all three, or nothing.
+  --
+  --   If `branch_id` or `review_id` is non-NULL, then so must `repository_id`
+  --   be, and the repository must be the branch's/review's repository.
+  --
+  --   A similar restriction exists in spirit between `branch_id` and
+  --   `review_id`, but since a review's branch can be created after the review,
+  --   a review can exist that has no branch, and the restriction is thus a bit
+  --   complicated to express.
+  --
+  -- Foreign keys are set up elsewhere.
+
+  -- User for which the setting applies, or NULL if not specific to any user.
+  "user" INTEGER,
+  -- Repository for which the setting applies, or NULL if not specific to any repository.
+  "repository" INTEGER,
+  -- Branch for which the setting applies, or NULL if not specific to any branch.
+  "branch" INTEGER,
+  -- Review for which the setting applies, or NULL if not specific to any review.
+  "review" INTEGER,
+  -- Extension for which the setting applies, or NULL if not specific to any extension.
+  "extension" INTEGER
+
+);
+
+CREATE INDEX settings_user ON settings ("user") WHERE "user" IS NOT NULL;
+CREATE INDEX settings_repository ON settings ("repository") WHERE "repository" IS NOT NULL;
+CREATE INDEX settings_branch ON settings ("branch") WHERE "branch" IS NOT NULL;
+CREATE INDEX settings_review ON settings ("review") WHERE "review" IS NOT NULL;
+CREATE INDEX settings_extension ON settings ("extension") WHERE "extension" IS NOT NULL;
+
+CREATE UNIQUE INDEX settings_unique ON settings (
+  "scope",
+  "name",
+  COALESCE("user", -1),
+  COALESCE("repository", -1),
+  COALESCE("branch", -1),
+  COALESCE("review", -1),
+  COALESCE("extension", -1)
+);

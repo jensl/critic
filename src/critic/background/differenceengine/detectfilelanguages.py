@@ -74,7 +74,7 @@ class DetectFileLanguages(Job):
 
     result_type = (type(None), str)
 
-    language_by_sha1: Dict[SHA1, Language]
+    language_by_sha1: Dict[SHA1, Optional[Language]]
 
     def __init__(self, group: GroupType, file_versions: Sequence[FileVersion]):
         super().__init__(
@@ -121,7 +121,7 @@ class DetectFileLanguages(Job):
                     )
                     if label is not None:
                         language_id = self.group.language_ids.get_id(label)
-                        if language_id is not None:
+                        if language_id:
                             self.language_by_sha1[file_version.sha1] = Language(
                                 label, language_id
                             )
@@ -141,11 +141,16 @@ class DetectFileLanguages(Job):
                     dbaccess.parameters(
                         repository_id=repository_id,
                         sha1=file_version.sha1,
-                        language_id=self.language_by_sha1[file_version.sha1].id,
+                        language_id=(
+                            language.id
+                            if (
+                                language := self.language_by_sha1.get(file_version.sha1)
+                            )
+                            else None
+                        ),
                         conflicts=file_version.conflicts,
                     )
                     for file_version in self.file_versions
-                    if file_version.sha1 in self.language_by_sha1
                 ),
             )
 
@@ -153,8 +158,6 @@ class DetectFileLanguages(Job):
             new_highlightfile_updates: List[Parameters] = []
 
             for file_version in self.file_versions:
-                if file_version.sha1 not in self.language_by_sha1:
-                    continue
                 if file_version.sha1 == file_version.changed_file.old_sha1:
                     updates = old_highlightfile_updates
                 else:
@@ -165,7 +168,9 @@ class DetectFileLanguages(Job):
                         file_id=file_version.changed_file.file_id,
                         repository_id=repository_id,
                         sha1=file_version.sha1,
-                        language_id=self.language_by_sha1[file_version.sha1].id,
+                        language_id=language.id
+                        if (language := self.language_by_sha1.get(file_version.sha1))
+                        else -1,
                         conflicts=file_version.conflicts,
                     )
                 )
@@ -181,7 +186,7 @@ class DetectFileLanguages(Job):
                                    FROM highlightfiles
                                   WHERE repository={{repository_id}}
                                     AND sha1={{sha1}}
-                                    AND language={{language_id}}
+                                    AND COALESCE(language, -1)={{language_id}}
                                     AND conflicts={{conflicts}}
                                )
                          WHERE changeset={{changeset_id}}
@@ -219,7 +224,7 @@ class DetectFileLanguages(Job):
         decode_new = group.as_changeset.decode_new
 
         for changed_file in changed_files:
-            logger.debug(f"{changed_file=}")
+            # logger.debug(f"{changed_file=}")
             if process_all or identify_language_from_path(changed_file.path) is None:
                 if (
                     not changed_file.is_added
@@ -230,6 +235,9 @@ class DetectFileLanguages(Job):
                     )
                 ):
                     assert changed_file.old_sha1
+                    logger.debug(
+                        f"detect file language: {changed_file.path} {changed_file.old_sha1} (old)"
+                    )
                     file_versions.append(
                         FileVersion(
                             changed_file, changed_file.old_sha1, conflicts, decode_old
@@ -244,6 +252,9 @@ class DetectFileLanguages(Job):
                     )
                 ):
                     assert changed_file.new_sha1
+                    logger.debug(
+                        f"detect file language: {changed_file.path} {changed_file.new_sha1} (new)"
+                    )
                     file_versions.append(
                         FileVersion(
                             changed_file, changed_file.new_sha1, False, decode_new

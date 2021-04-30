@@ -16,6 +16,23 @@ module.exports = {
         exclude: /node_modules/,
         use: [
           {
+            loader: "babel-loader",
+            options: {
+              presets: ["@babel/preset-typescript"],
+            },
+          },
+        ],
+      },
+      {
+        test: /\.md$/,
+        type: "asset/source",
+      },
+
+      /*{
+        test: /\.tsx?$/,
+        exclude: /node_modules/,
+        use: [
+          {
             loader: "ts-loader",
           },
         ],
@@ -59,7 +76,41 @@ module.exports = {
   optimization: {
     splitChunks: {
       chunks: "all",
-      name: "vendor",
+      //name: "vendor",
+
+      name: (module, chunks, cacheGroupKey) => {
+        if (chunks.length === 1) {
+          if (chunks[0].name === "Markdown-Document-lazy")
+            return "vendor-markdown-document"
+          if (chunks[0].name === "Extension-Calls")
+            return "vendor-extension-calls"
+          if (chunks[0].name === "Tree-lazy") return "vendor-tree"
+        }
+
+        return "vendor-main"
+      },
+
+      cacheGroups: {
+        default: false,
+      },
+
+      // cacheGroups: {
+      //   dataGrid: {
+      //     test: /[\\/]node_modules[\\/]@material-ui[\\/]data-grid[\\/]/,
+      //     name: "data-grid",
+      //     chunks: "all",
+      //   },
+      //   markdownIt: {
+      //     test: /[\\/]node_modules[\\/](markdown-it|entities)[\\/]/,
+      //     name: (module, chunks, cacheGroupKey) => {
+      //       console.error("module", Object.keys(module))
+      //       console.error("chunks", chunks)
+      //       console.error("cacheGroupKey", cacheGroupKey)
+      //       return "markdown-it"
+      //     },
+      //     chunks: "all",
+      //   },
+      // },
     },
   },
 }

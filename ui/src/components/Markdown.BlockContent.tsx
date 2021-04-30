@@ -2,18 +2,14 @@ import React, { FunctionComponent } from "react"
 
 import Registry from "."
 import Block from "./Markdown.Block"
-import { BlockContent } from "../utils/Markdown"
+import { BlockContentProps } from "./Markdown.types"
 
-type OwnProps = {
-  content: BlockContent
-}
-
-const MarkdownBlockContent: FunctionComponent<OwnProps> = ({ content }) => (
+const BlockContent: FunctionComponent<BlockContentProps> = ({ content }) => (
   <>
     {content.map((item, index) => (
-      <Block key={index} item={item} />
+      <Block key={index} item={item} BlockContent={BlockContent} />
     ))}
   </>
 )
 
-export default Registry.add("Markdown.BlockContent", MarkdownBlockContent)
+export default Registry.add("Markdown.BlockContent", BlockContent)

@@ -4,7 +4,9 @@ import clsx from "clsx"
 import { makeStyles } from "@material-ui/core/styles"
 
 import Registry from "."
+import Breadcrumb from "./Breadcrumb"
 import ReviewList from "./Review.List"
+import SetPrefix from "../utils/PrefixContext"
 import { loadReviewCategory } from "../actions/review"
 import { useSubscription } from "../utils"
 import { useSessionID } from "../utils/SessionContext"
@@ -21,14 +23,19 @@ type Props = {
 const DashboardOutgoing: FunctionComponent<Props> = ({ className }) => {
   const classes = useStyles()
   const reviewIDs = useSelector((state) =>
-    state.ui.rest.reviewCategories.get("outgoing", null),
+    state.ui.rest.reviewCategories.get("outgoing"),
   )
-  useSubscription(loadReviewCategory, "outgoing", useSessionID())
+  useSubscription(loadReviewCategory, ["outgoing", useSessionID()])
   if (!reviewIDs) return null
+  const prefix = "/dashboard/outgoing"
   return (
-    <div className={clsx(className, classes.dashboardOutgoing)}>
-      <ReviewList reviewIDs={reviewIDs} />
-    </div>
+    <Breadcrumb category="dashboard" label="outgoing" path={prefix}>
+      <SetPrefix prefix={prefix}>
+        <div className={clsx(className, classes.dashboardOutgoing)}>
+          <ReviewList reviewIDs={reviewIDs} />
+        </div>
+      </SetPrefix>
+    </Breadcrumb>
   )
 }
 

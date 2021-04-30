@@ -80,5 +80,5 @@ class Files(ResourceClass[api.file.File], api_module=api.file):
         if file_parameter is not None:
             if file_obj is not None:
                 raise UsageError.redundantParameter("file")
-            return await parameters.fromParameter(api.file.File, file_parameter)
+            return await Files.fromParameterValue(parameters, file_parameter)
         return file_obj

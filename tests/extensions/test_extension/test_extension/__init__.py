@@ -73,15 +73,16 @@ async def echo(
 async def handle_endpoint(critic: api.critic.Critic, endpoint: Endpoint) -> None:
     request_counter = 0
 
-    async for request in endpoint.requests:
-        if request.path == "send-email":
-            await send_email(critic, request)
-        elif request.path == "echo":
-            await echo(critic, request, request_counter)
-        else:
-            async with request.response(
-                400, headers={"content-type": "text/plain"}
-            ) as response:
-                await response.write(f"Invalid request path: {request.path!r}")
+    async for request_handle in endpoint.requests:
+        async with request_handle as request:
+            if request.path == "send-email":
+                await send_email(critic, request)
+            elif request.path == "echo":
+                await echo(critic, request, request_counter)
+            else:
+                async with request.response(
+                    400, headers={"content-type": "text/plain"}
+                ) as response:
+                    await response.write(f"Invalid request path: {request.path!r}")
 
-        request_counter += 1
+            request_counter += 1

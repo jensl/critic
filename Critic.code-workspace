@@ -18,7 +18,6 @@
       "**/site-packages/**/*.py",
       "testing/tests/**/*.py"
     ],
-    "editor.formatOnSave": true,
     "typescript.tsserver.maxTsServerMemory": 8192,
     "typescript.tsdk": "ui/node_modules/typescript/lib",
     "python.linting.mypyEnabled": true,
@@ -30,6 +29,8 @@
       "typing-generic-arguments"
     ],
     "python.jediEnabled": false,
-    "python.pythonPath": "/usr/local/bin/python"
+    "python.pythonPath": "/usr/local/bin/python",
+    "editor.codeLens": false,
+    "editor.formatOnSave": true
   }
 }

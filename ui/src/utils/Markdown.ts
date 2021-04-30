@@ -15,9 +15,13 @@
  */
 
 import MarkdownIt from "markdown-it"
-import Immutable, { Record, List, Map } from "immutable"
 
-import { assertEqual, assertNotEqual, assertNotReached } from "../debug"
+import {
+  assertEqual,
+  assertNotEqual,
+  assertNotReached,
+  assertString,
+} from "../debug"
 
 const parse = (source: string) => process(new MarkdownIt().parse(source, {}))
 
@@ -34,7 +38,7 @@ interface TokenType<Token> {
 const process = <Token extends TokenType<Token>>(tokens: Token[]) => {
   const findAttribute = (
     attributes: [string, string][] | null,
-    name: string
+    name: string,
   ): string | undefined => {
     if (attributes)
       for (const [attributeName, attributeValue] of attributes)
@@ -69,10 +73,8 @@ const process = <Token extends TokenType<Token>>(tokens: Token[]) => {
     content?: string
   }): InlineContent => {
     if (!token.children) {
-      assertEqual(typeof token.content, "string")
-      return makeInlineContent([
-        new Markdown.Inline.Text({ value: token.content }),
-      ])
+      assertString(token.content)
+      return makeInlineContent([new Markdown.Inline.Text(token.content)])
     }
     const children: (string | InlineContentItem)[] = []
     const addText = (value: string) => {
@@ -99,19 +101,15 @@ const process = <Token extends TokenType<Token>>(tokens: Token[]) => {
           const linkTokens = containedTokens(token.children, index)
           index += linkTokens.length + 1
           addChild(
-            new Markdown.Inline.Link({
-              href: findAttribute(item.attrs, "href"),
-              content: makeInline({ children: linkTokens }),
-            })
+            new Markdown.Inline.Link(
+              makeInline({ children: linkTokens }),
+              findAttribute(item.attrs, "href") ?? "#",
+            ),
           )
           break
         }
         case "code_inline":
-          addChild(
-            new Markdown.Inline.Code({
-              content: makeInline(item),
-            })
-          )
+          addChild(new Markdown.Inline.Code(makeInline(item)))
           break
         case "inline":
           for (const child of makeInline(item)) children.push(child)
@@ -121,10 +119,10 @@ const process = <Token extends TokenType<Token>>(tokens: Token[]) => {
           const emTokens = containedTokens(token.children, index)
           index += emTokens.length + 1
           addChild(
-            new Markdown.Inline.Emphasis({
-              content: makeInline({ children: emTokens }),
-              strong: item.type === "strong_open",
-            })
+            new Markdown.Inline.Emphasis(
+              makeInline({ children: emTokens }),
+              item.type === "strong_open",
+            ),
           )
           break
         default:
@@ -135,7 +133,7 @@ const process = <Token extends TokenType<Token>>(tokens: Token[]) => {
     const postProcess = (children: (string | InlineContentItem)[]) =>
       children.map((child) => {
         if (typeof child !== "string") return child
-        return new Markdown.Inline.Text({ value: child })
+        return new Markdown.Inline.Text(child)
       })
     return makeInlineContent(postProcess(children))
   }
@@ -147,9 +145,9 @@ const process = <Token extends TokenType<Token>>(tokens: Token[]) => {
         case "list_item_open": {
           const itemTokens = containedTokens(tokens, index)
           index += itemTokens.length + 1
-          yield new Markdown.ListItem({
-            content: makeBlockContent(processBlockTokens(itemTokens)),
-          })
+          yield new Markdown.ListItem(
+            makeBlockContent(processBlockTokens(itemTokens)),
+          )
           break
         }
         default:
@@ -165,47 +163,38 @@ const process = <Token extends TokenType<Token>>(tokens: Token[]) => {
         case "heading_open": {
           const headingTokens = containedTokens(tokens, index)
           index += headingTokens.length + 1
-          yield new Markdown.Heading({
-            tag: token.tag as HeadingTag,
-            content: makeInline({ children: headingTokens }),
-          })
+          yield new Markdown.Heading(
+            token.tag as HeadingTag,
+            makeInline({ children: headingTokens }),
+          )
           break
         }
         case "paragraph_open": {
           const paragraphTokens = containedTokens(tokens, index)
           index += paragraphTokens.length + 1
-          yield new Markdown.Paragraph({
-            content: makeInline({ children: paragraphTokens }),
-          })
+          yield new Markdown.Paragraph(
+            makeInline({ children: paragraphTokens }),
+          )
           break
         }
         case "bullet_list_open": {
           const listTokens = containedTokens(tokens, index)
           index += listTokens.length + 1
-          yield new Markdown.BulletList({
-            items: Immutable.List(processListTokens(listTokens)),
-          })
+          yield new Markdown.BulletList([...processListTokens(listTokens)])
           break
         }
         case "ordered_list_open": {
           const listTokens = containedTokens(tokens, index)
           index += listTokens.length + 1
-          yield new Markdown.OrderedList({
-            items: Immutable.List(processListTokens(listTokens)),
-          })
+          yield new Markdown.OrderedList([...processListTokens(listTokens)])
           break
         }
         case "code_block": {
-          yield new Markdown.Preformatted({
-            value: token.content,
-          })
+          yield new Markdown.Preformatted(null, token.content)
           break
         }
         case "fence": {
-          yield new Markdown.Preformatted({
-            language: token.info,
-            value: token.content,
-          })
+          yield new Markdown.Preformatted(token.info, token.content)
           break
         }
         default:
@@ -218,30 +207,26 @@ const process = <Token extends TokenType<Token>>(tokens: Token[]) => {
   const inlineAsString = (content: InlineContent): string =>
     content
       .map((item) =>
-        (item.type === "text"
+        (item instanceof Text
           ? item.value
           : inlineAsString(item.content)
-        ).trim()
+        ).trim(),
       )
       .join(" ")
 
-  const content = Immutable.List<BlockContentItem>(processBlockTokens(tokens))
-  const firstItem = content.first<BlockContentItem | null>()
+  const content = [...processBlockTokens(tokens)]
+  const firstItem = content[0]
   const title =
-    firstItem && firstItem.type === "heading"
-      ? inlineAsString(firstItem.content)
-      : null
+    firstItem instanceof Heading ? inlineAsString(firstItem.content) : null
 
-  return new Markdown.Document({
-    title,
-    content,
-  })
+  return new Markdown.Document(title, content, new Map())
 }
 
 export type InlineContentItem = Text | Link | Code | Emphasis
-export type InlineContent = Immutable.List<InlineContentItem>
-const makeInlineContent = (items: Iterable<InlineContentItem> = []) =>
-  Immutable.List<InlineContentItem>(items)
+export type InlineContent = InlineContentItem[]
+const makeInlineContent = (items: Iterable<InlineContentItem> = []) => [
+  ...items,
+]
 
 export type BlockContentItem =
   | Heading
@@ -249,164 +234,77 @@ export type BlockContentItem =
   | Preformatted
   | BulletList
   | OrderedList
-export type BlockContent = Immutable.List<BlockContentItem>
-const makeBlockContent = (items: Iterable<BlockContentItem> = []) =>
-  Immutable.List<BlockContentItem>(items)
+export type BlockContent = BlockContentItem[]
+const makeBlockContent = (items: Iterable<BlockContentItem> = []) => [...items]
 
-type DocumentProps = {
-  title: string | null
-  content: BlockContent
-  links: Immutable.Map<string, Link>
+export class Document {
+  constructor(
+    readonly title: string | null,
+    readonly content: BlockContent,
+    readonly links: ReadonlyMap<string, Link>,
+  ) {}
 }
-
-export class Document extends Record<DocumentProps>(
-  {
-    title: null,
-    content: makeBlockContent(),
-    links: Immutable.Map<string, Link>(),
-  },
-  "Markdown.Document"
-) {}
 
 type HeadingTag = "h1" | "h2" | "h3" | "h4" | "h5" | "h6"
-type HeadingProps = {
-  type: "heading"
-  tag: HeadingTag
-  content: InlineContent
-}
-export class Heading extends Immutable.Record<HeadingProps>(
-  {
-    type: "heading",
-    tag: "h1",
-    content: makeInlineContent(),
-  },
-  "Markdown.Heading"
-) {}
+export class Heading {
+  static type = "heading"
 
-type ParagraphProps = {
-  type: "paragraph"
-  content: InlineContent
+  constructor(readonly tag: HeadingTag, readonly content: InlineContent) {}
 }
-export class Paragraph extends Immutable.Record<ParagraphProps>(
-  {
-    type: "paragraph",
-    content: makeInlineContent(),
-  },
-  "Markdown.Paragraph"
-) {}
 
-type PreformattedProps = {
-  type: "preformatted"
-  language: string
-  value: string
-}
-export class Preformatted extends Immutable.Record<PreformattedProps>(
-  {
-    type: "preformatted",
-    language: "",
-    value: "",
-  },
-  "Markdown.Preformatted"
-) {}
+export class Paragraph {
+  static type = "paragraph"
 
-type BulletListProps = {
-  type: "bullet-list"
-  items: Immutable.List<ListItem>
+  constructor(readonly content: InlineContent) {}
 }
-export class BulletList extends Immutable.Record<BulletListProps>(
-  {
-    type: "bullet-list",
-    items: Immutable.List<ListItem>(),
-  },
-  "Markdown.BulletList"
-) {}
 
-type OrderedListProps = {
-  type: "ordered-list"
-  items: Immutable.List<ListItem>
-}
-export class OrderedList extends Immutable.Record<OrderedListProps>(
-  {
-    type: "ordered-list",
-    items: Immutable.List<ListItem>(),
-  },
-  "Markdown.OrderedList"
-) {}
+export class Preformatted {
+  static type = "preformatted"
 
-type ListItemProps = {
-  type: "list-item"
-  content: BlockContent
+  constructor(readonly language: string | null, readonly value: string) {}
 }
-export class ListItem extends Immutable.Record<ListItemProps>(
-  {
-    type: "list-item",
-    content: makeBlockContent(),
-  },
-  "Markdown.ListItem"
-) {}
 
-/* type InlineProps = {
-children: Immutable.Link
-}
-export class Inline extends Immutable.Record<>(
-  {
-    children: Immutable.List(),
-  },
-  "Markdown.Inline"
-)
- */
+export class BulletList {
+  static type = "bullet-list"
 
-type TextProps = {
-  type: "text"
-  value: string
+  constructor(readonly items: readonly ListItem[]) {}
 }
-export class Text extends Immutable.Record<TextProps>(
-  {
-    type: "text",
-    value: "",
-  },
-  "Markdown.Inline.Text"
-) {}
 
-type LinkProps = {
-  type: "link"
-  content: InlineContent
-  href: string
-}
-export class Link extends Immutable.Record<LinkProps>(
-  {
-    type: "link",
-    content: makeInlineContent(),
-    href: "",
-  },
-  "Markdown.Inline.Link"
-) {}
+export class OrderedList {
+  static type = "ordered-list"
 
-type CodeProps = {
-  type: "code"
-  content: InlineContent
+  constructor(readonly items: readonly ListItem[]) {}
 }
-export class Code extends Immutable.Record<CodeProps>(
-  {
-    type: "code",
-    content: makeInlineContent(),
-  },
-  "Markdown.Inline.Code"
-) {}
 
-type EmphasisProps = {
-  type: "emphasis"
-  content: InlineContent
-  strong: boolean
+export class ListItem {
+  static type = "list-item"
+
+  constructor(readonly content: BlockContent) {}
 }
-export class Emphasis extends Immutable.Record<EmphasisProps>(
-  {
-    type: "emphasis",
-    content: makeInlineContent(),
-    strong: false,
-  },
-  "Markdown.Inline.Emphasis"
-) {}
+
+export class Text {
+  static type = "text"
+
+  constructor(readonly value: string) {}
+}
+
+export class Link {
+  static type = "link"
+
+  constructor(readonly content: InlineContent, readonly href: string) {}
+}
+
+export class Code {
+  static type = "code"
+
+  constructor(readonly content: InlineContent) {}
+}
+
+export class Emphasis {
+  static type = "emphasis"
+
+  constructor(readonly content: InlineContent, readonly strong: boolean) {}
+}
 
 const Inline = {
   Text,

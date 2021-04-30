@@ -25,10 +25,13 @@ from ..parameters import Parameters
 from .filediffs import Parts, reduce_parts
 
 
-Line = TypedDict("Line", {"type": str, "offset": int, "content": Parts})
+class ReadableLine(TypedDict):
+    type: str
+    offset: int
+    content: Parts
 
 
-def reduce_line(line: api.filecontent.Line) -> Line:
+def reduce_line_readable(line: api.filecontent.Line) -> ReadableLine:
     return {
         "type": api.filediff.LINE_TYPE_STRINGS[api.filediff.LINE_TYPE_CONTEXT],
         "offset": line.offset,
@@ -36,11 +39,22 @@ def reduce_line(line: api.filecontent.Line) -> Line:
     }
 
 
+CompactLine = Parts
+
+
+def reduce_line_compact(line: api.filecontent.Line) -> CompactLine:
+    return reduce_parts(line.content)
+
+
+Lines = Union[Sequence[str], Sequence[ReadableLine], Sequence[CompactLine]]
+
+
 class JSONResult(TypedDict):
     repository: api.repository.Repository
     sha1: str
     file: Optional[api.file.File]
-    lines: Union[Sequence[str], Sequence[Line]]
+    offset: int
+    lines: Lines
 
 
 class FileContents(
@@ -54,19 +68,24 @@ class FileContents(
     async def json(
         parameters: Parameters, value: api.filecontent.FileContent
     ) -> JSONResult:
-        first = parameters.query.get("first", converter=int)
+        first = parameters.query.get("first", "1", converter=int)
         last = parameters.query.get("last", converter=int)
 
-        lines: Union[Sequence[str], Sequence[Line]]
+        lines: Lines
         if parameters.query.get("plain") == "yes":
             lines = await value.getLines(first, last, plain=True)
         else:
-            lines = [reduce_line(line) for line in await value.getLines(first, last)]
+            api_lines = await value.getLines(first, last)
+            if parameters.query.get("compact", choices=("yes", "no")) == "yes":
+                lines = [reduce_line_compact(line) for line in api_lines]
+            else:
+                lines = [reduce_line_readable(line) for line in api_lines]
 
         return JSONResult(
             repository=value.repository,
             sha1=value.sha1,
             file=value.file,
+            offset=first,
             lines=lines,
         )
 

@@ -76,7 +76,7 @@ export function assertNumber(
   message = "Expected number",
 ): asserts actual is number {
   if (typeof actual !== "number") {
-    console.error("assertNumber failed", { actual })
+    console.error("assertNumber failed", { actual, message })
     throw new DebugError(`asssertNumber(): ${message}`)
   }
 }
@@ -95,7 +95,7 @@ export function assertNotNull<T>(
   message: string = "Expected not null",
 ): asserts actual is NonNullable<T> {
   if (actual === null || actual === undefined) {
-    console.error("assertFalse failed", { actual })
+    console.error("assertFalse failed", { actual, message })
     throw new DebugError(`assertFalse(): ${message}`)
   }
 }
@@ -119,4 +119,9 @@ export function assertIsObject<T>(
     console.error("assertIsObject failed", { actual })
     throw new DebugError(`assertIsObject(): ${message}`)
   }
+}
+
+export const nullBecause = (reason: string) => {
+  console.log("RepositoryDiff returning null: ", { reason })
+  return null
 }

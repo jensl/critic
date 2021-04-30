@@ -15,6 +15,7 @@
  */
 
 import React, { useContext, FunctionComponent } from "react"
+import { assertNotNull } from "../debug"
 import Branch from "../resources/branch"
 
 const BranchContext = React.createContext<Branch | null>(null)
@@ -25,6 +26,12 @@ export const SetBranch: FunctionComponent<Props> = ({ branch, children }) => (
   <BranchContext.Provider value={branch}>{children}</BranchContext.Provider>
 )
 
-export const useBranch = () => useContext(BranchContext)
+export const useBranch = () => {
+  const branch = useContext(BranchContext)
+  assertNotNull(branch)
+  return branch
+}
+
+export const useOptionalBranch = () => useContext(BranchContext)
 
 export default SetBranch

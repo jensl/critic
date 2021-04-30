@@ -55,7 +55,9 @@ export type CompletionLevel =
 type ChangesetData = {
   id: ChangesetID
   completion_level: CompletionLevel[]
-  from_commit: CommitID
+  progress: ProgressData | null
+  repository: RepositoryID
+  from_commit: CommitID | null
   to_commit: CommitID
   is_direct: boolean
   files: FileID[]
@@ -66,7 +68,9 @@ type ChangesetData = {
 type ChangesetProps = {
   id: ChangesetID
   completion_level: ReadonlySet<CompletionLevel>
-  from_commit: CommitID
+  progress: Progress | null
+  repository: RepositoryID
+  from_commit: CommitID | null
   to_commit: CommitID
   is_direct: boolean
   files: readonly FileID[] | null
@@ -112,7 +116,9 @@ class Changeset {
   constructor(
     readonly id: ChangesetID,
     readonly completionLevel: ReadonlySet<CompletionLevel>,
-    readonly fromCommit: CommitID,
+    readonly progress: Progress | null,
+    readonly repository: RepositoryID,
+    readonly fromCommit: CommitID | null,
     readonly toCommit: CommitID,
     readonly isDirect: boolean,
     readonly files: readonly FileID[] | null,
@@ -124,6 +130,8 @@ class Changeset {
     return new Changeset(
       props.id,
       props.completion_level,
+      props.progress,
+      props.repository,
       props.from_commit,
       props.to_commit,
       props.is_direct,
@@ -137,6 +145,7 @@ class Changeset {
     return {
       ...value,
       completion_level: new Set(value.completion_level || []),
+      progress: Progress.make(value.progress),
       review_state: ReviewState.make(value.review_state),
     }
   }
@@ -202,8 +211,11 @@ class Changeset {
           "users",
         ),
       )
-    } else {
-      assertNumber(repositoryID)
+    } else if (!("byID" in argument)) {
+      assertNumber(
+        repositoryID,
+        "Changeset.requestOptions() expected a repositoryID",
+      )
       options.push(withParameters({ repository: repositoryID }))
     }
 
@@ -215,12 +227,34 @@ class Changeset {
     return {
       ...this,
       completion_level: this.completionLevel,
+      progress: this.progress,
       from_commit: this.fromCommit,
       to_commit: this.toCommit,
       is_direct: this.isDirect,
       contributing_commits: this.contributingCommits,
       review_state: this.reviewState,
     }
+  }
+}
+
+type ProgressData = {
+  analysis: number
+  syntax_highlight: number
+}
+
+type ProgressProps = ProgressData
+
+export class Progress {
+  [immerable] = true
+
+  constructor(readonly analysis: number, readonly syntaxHighlight: number) {}
+
+  static new(props: ProgressProps) {
+    return new Progress(props.analysis, props.syntax_highlight)
+  }
+
+  static make(value: ProgressData | null) {
+    return value && Progress.new(value as ProgressProps)
   }
 }
 

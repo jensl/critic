@@ -24,25 +24,23 @@ import { waitForCompletionLevel } from "../utils/Changeset"
 import { withData } from "../resources/requestoptions"
 import { filteredSet } from "../utils/Functions"
 
-export const loadFileDiff = (
-  changesetID: ChangesetID,
-  fileID: FileID,
-): AsyncThunk<void> => async (dispatch, getState) => {
-  if (!getState().resource.filediffs.has(`${changesetID}:${fileID}`))
-    await dispatch(loadFileDiffs([fileID], { changesetID }))
+type LoadFileDiffOptions = {
+  changeset?: Changeset
+  changesetID?: ChangesetID
+  reviewID?: ReviewID
+  limited?: boolean
 }
+
+export const loadFileDiff = (
+  fileID: FileID,
+  options: LoadFileDiffOptions,
+): AsyncThunk<void> => loadFileDiffs([fileID], options)
+
+const FILEDIFFS_LIMIT = 50
 
 export const loadFileDiffs = (
   fileIDs: Iterable<FileID>,
-  {
-    changeset,
-    changesetID,
-    reviewID,
-  }: {
-    changeset?: Changeset
-    changesetID?: ChangesetID
-    reviewID?: ReviewID
-  },
+  { changeset, changesetID, reviewID, limited = false }: LoadFileDiffOptions,
 ): AsyncThunk<void> => async (dispatch, getState) => {
   let isComplete = false
 
@@ -54,14 +52,12 @@ export const loadFileDiffs = (
   const filediffs = getState().resource.filediffs
   const neededFileIDs = filteredSet(
     fileIDs,
-    (fileID) => !filediffs.has(`${changesetID}:${fileID}`),
+    (fileID) => !filediffs.get(`${changesetID}:${fileID}`)?.macroChunks,
   )
 
-  if (neededFileIDs.size === 0) return
+  console.log({ fileIDs, neededFileIDs })
 
-  const channel = !isComplete
-    ? await dispatch(Channel.subscribe(`changesets/${changesetID}`))
-    : null
+  if (neededFileIDs.size === 0 || neededFileIDs.size > FILEDIFFS_LIMIT) return
 
   const { status, primary } = await dispatch(
     fetch(
@@ -71,14 +67,8 @@ export const loadFileDiffs = (
         changeset,
         changesetID,
         reviewID,
+        limited,
       }),
     ),
   )
-
-  if (status === "delayed") {
-    assertNotNull(channel)
-
-    await waitForCompletionLevel(channel, { changeset })
-    await dispatch(loadFileDiffs(neededFileIDs, { changesetID, reviewID }))
-  }
 }

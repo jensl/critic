@@ -21,7 +21,10 @@ import {
   fetch,
   updateResource,
   withArgument,
+  withContext,
+  withParameters,
 } from "../resources"
+import Setting from "../resources/setting"
 import { UserID } from "../resources/types"
 import UserSetting from "../resources/usersetting"
 import { AsyncThunk } from "../state"
@@ -36,37 +39,46 @@ const userSettingsLoaded = (userID: UserID): Action => ({
 export const loadUserSettings = (userID: UserID): AsyncThunk<void> => async (
   dispatch,
 ) => {
-  const { primary: settings } = await dispatch(fetch("usersettings"))
-  if (all(settings, (setting) => setting.user === userID))
-    dispatch(userSettingsLoaded(userID))
+  await dispatch(
+    fetch(
+      "settings",
+      withContext("users", userID),
+      withParameters({ scope: "ui" }),
+    ),
+  )
+  //if (all(settings, (setting) => setting.user === userID))
+  dispatch(userSettingsLoaded(userID))
 }
 
 export const defineUserSetting = (name: string, value: JSONData) =>
-  createResource("usersettings", { scope: "ui", name, value })
+  createResource(
+    "settings",
+    { scope: "ui", name, value },
+    withContext("users", "me"),
+  )
 
-export const updateUserSetting = (userSetting: UserSetting, value: JSONData) =>
-  updateResource("usersettings", { value }, withArgument(userSetting.id))
+export const updateUserSetting = (setting: Setting, value: JSONData) =>
+  updateResource("settings", { value }, withArgument(setting.id))
 
 export const setUserSetting = (
-  userSetting: UserSetting | string,
+  setting: Setting | string,
   value: JSONData,
-): AsyncThunk<UserSetting | null> => async (dispatch, getState) => {
+): AsyncThunk<Setting | null> => async (dispatch, getState) => {
   const {
-    resource: { sessions, usersettings },
+    resource: { sessions, settings },
   } = getState()
 
   if (typeof sessions.get("current")?.user !== "number") return null
 
-  if (typeof userSetting === "string") {
-    const existingID = usersettings.byName.get(userSetting)
+  if (typeof setting === "string") {
+    const existingID = settings.byName.get(`ui::${setting}`)
     if (existingID) {
-      const existing = usersettings.byID.get(existingID)
+      const existing = settings.byID.get(existingID)
       assertNotNull(existing)
       return await dispatch(updateUserSetting(existing, value))
     }
-  } else {
-    return await dispatch(updateUserSetting(userSetting, value))
+    return await dispatch(defineUserSetting(setting, value))
   }
 
-  return await dispatch(defineUserSetting(userSetting, value))
+  return await dispatch(updateUserSetting(setting, value))
 }

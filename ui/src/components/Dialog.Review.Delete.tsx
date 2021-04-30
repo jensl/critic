@@ -1,4 +1,5 @@
 import React, { FunctionComponent } from "react"
+import { useHistory } from "react-router"
 
 import Typography from "@material-ui/core/Typography"
 
@@ -16,8 +17,11 @@ type Props = {
 
 const DeleteReview: FunctionComponent<Props> = ({ className }) => {
   const dispatch = useDispatch()
+  const history = useHistory()
   const review = useReview()
   if (!review) return null
+  const callback = () =>
+    dispatch(deleteReview(review.id)).then(() => history.replace("/"))
   return (
     <Confirm
       className={className}
@@ -25,7 +29,7 @@ const DeleteReview: FunctionComponent<Props> = ({ className }) => {
       title="Delete review?"
       accept={{
         label: "Delete review",
-        callback: () => dispatch(deleteReview(review.id)),
+        callback,
       }}
     >
       <Typography variant="body1">

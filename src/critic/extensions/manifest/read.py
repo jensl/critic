@@ -66,6 +66,7 @@ class Setting:
     key: str
     description: str
     value: object
+    validate: Optional[str]
     privileged: bool
 
 
@@ -109,9 +110,10 @@ class Accessor:
 
 
 class Manifest(object):
+    configuration: Any
     name: str
     authors: List[Author]
-    description: Optional[str]
+    description: str
     flavor: Optional[str]
     package: Optional[Package]
     roles: List[Role]
@@ -119,19 +121,24 @@ class Manifest(object):
 
     def __init__(
         self,
+        configuration: Optional[object] = None,
+        /,
         *,
-        filename: str,
-        source: str,
+        filename: Optional[str] = None,
+        source: Optional[str] = None,
         path: Optional[str] = None,
     ):
         self.filename = filename
         self.source = source
+        self.configuration = configuration
         if path:
+            assert filename
             self.context = os.path.join(path, filename)
-        else:
+        elif filename:
             self.context = filename
+        else:
+            self.context = "<extension manifest>"
         self.authors = []
-        self.description = None
         self.flavor = None
         self.package = None
         self.roles = []
@@ -146,9 +153,13 @@ class Manifest(object):
     def read(self) -> None:
         assert self.source is not None
 
-        configuration = yaml.safe_load(self.source)
+        self.configuration = yaml.safe_load(self.source)
+        self.parse()
 
-        accessor = Accessor(configuration)
+    def parse(self) -> None:
+        assert self.configuration is not None
+
+        accessor = Accessor(self.configuration)
 
         self.name = accessor.required("name", str)
         self.authors = [
@@ -156,8 +167,8 @@ class Manifest(object):
         ]
         self.description = accessor.required("description", str)
 
-        if "package" in configuration:
-            package_accessor = Accessor(configuration["package"], "package")
+        if "package" in self.configuration:
+            package_accessor = Accessor(self.configuration["package"], "package")
 
             package_type = package_accessor.required("type", str)
 
@@ -183,6 +194,11 @@ class Manifest(object):
                     for dependency in dependencies:
                         self.package.add_dependency(dependency)
 
+                data_globs = package_accessor.get("data_globs", List[str], list)
+                if data_globs:
+                    for glob in data_globs:
+                        self.package.add_data_glob(glob)
+
         def process_settings(prefix: str, settings: Dict[str, Any]) -> None:
             if all(isinstance(value, dict) for value in settings.values()):
                 for key, value in settings.items():
@@ -192,14 +208,23 @@ class Manifest(object):
                 settings_accessor = Accessor(settings, f"settings.{key}")
                 description = settings_accessor.required("description", str)
                 value = settings_accessor.get("value", object)
+                validate = settings_accessor.get("validate", str)
                 privileged = settings_accessor.get("privileged", bool) or False
-                self.settings.append(Setting(key, description, value, privileged))
 
-        settings_configuration = configuration.get("settings")
+                if validate and not (
+                    self.package and self.package.has_entrypoint(validate)
+                ):
+                    raise ManifestError(f"invalid setting validate: {validate}")
+
+                self.settings.append(
+                    Setting(key, description, value, validate, privileged)
+                )
+
+        settings_configuration = self.configuration.get("settings")
         if settings_configuration:
             process_settings("", settings_configuration)
 
-        default_flavor = configuration.get("flavor", "native")
+        default_flavor = self.configuration.get("flavor", "native")
 
         for index, role_configuration in enumerate(
             accessor.required("roles", List[object], list)

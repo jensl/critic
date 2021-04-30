@@ -98,7 +98,7 @@ const AccountSSHKeys: FunctionComponent = () => {
   const [selectedKey, setSelectedKey] = useState<UserSSHKey | null>(null)
   const [parsedSSHKey, setParsedSSHKey] = useState<ParsedSSHKey | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
-  useSubscriptionIf(user !== null, loadUserSSHKeys, id(user))
+  useSubscriptionIf(user !== null, loadUserSSHKeys, [id(user)])
   useEffect(() => {
     if (!rawKey) {
       setErrorMessage(null)
@@ -128,15 +128,10 @@ const AccountSSHKeys: FunctionComponent = () => {
   }
   return (
     <Section id="ssh-keys" title="SSH keys">
-      <Blurb
-        className={classes.blurb}
-        text={`
-
-SSH keys allow you to access Git repositories over SSH, without needing to type
-in your password or set up a Git credentials helper.
-
-      `}
-      />
+      <Blurb className={classes.blurb}>
+        SSH keys allow you to access Git repositories over SSH, without needing
+        to type in your password or set up a Git credentials helper.
+      </Blurb>
       <TextField
         InputProps={{ className: classes.rawKeyInput }}
         label="Public key"

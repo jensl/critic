@@ -14,7 +14,13 @@
  * the License.
  */
 
-import { fetch, include, withArgument, withParameters } from "../resources"
+import {
+  fetch,
+  include,
+  withArgument,
+  withContext,
+  withParameters,
+} from "../resources"
 import { AsyncThunk, Dispatch, Thunk } from "../state"
 import {
   BRANCH_COMMITS_UPDATE,
@@ -23,8 +29,19 @@ import {
   SET_RECENT_BRANCHES,
   Action,
 } from "."
-import { BranchID, CommitID, UserID, RepositoryID } from "../resources/types"
+import {
+  BranchID,
+  CommitID,
+  UserID,
+  RepositoryID,
+  RebaseID,
+} from "../resources/types"
 import { RequestParams } from "../utils/Fetch.types"
+import Branch from "../resources/branch"
+import { PaginationInfo } from "../resources/fetch"
+import { assertNotNull } from "../debug"
+import { PaginationThunk } from "../utils/Pagination"
+import Commit from "../resources/commit"
 
 export const setCreatedBranches = (branchIDs: BranchID[]): Action => ({
   type: SET_CREATED_BRANCHES,
@@ -113,20 +130,13 @@ export const loadBranchesForDashboard = (userID: UserID): Thunk<void> => (
   dispatch(loadUpdated(userID))
 }
 
-type BranchByIDParam = { branchID: BranchID }
 type BranchByNameParams = { repositoryID: RepositoryID; name: string }
 
-const isBranchByIDParam = (
-  input: BranchByIDParam | BranchByNameParams,
-): input is BranchByIDParam => "branchID" in input
+export const loadBranch = (branchID: BranchID) =>
+  fetch("branches", withArgument(branchID))
 
-export const loadBranch = (input: BranchByIDParam | BranchByNameParams) =>
-  fetch(
-    "branches",
-    isBranchByIDParam(input)
-      ? withArgument(input.branchID)
-      : withParameters({ repository: input.repositoryID, name: input.name }),
-  )
+export const loadBranchByName = (repository: RepositoryID, name: string) =>
+  fetch("branches", withParameters({ repository, name }))
 
 type BranchCommitsOptions = {
   afterRebaseID?: number | null
@@ -136,22 +146,40 @@ type BranchCommitsOptions = {
 
 export const loadBranchCommits = (
   branchID: BranchID,
-  { afterRebaseID = null, offset = 0, count = 25 }: BranchCommitsOptions = {},
-) => async (dispatch: Dispatch) => {
-  const params: RequestParams = { offset, count, branch: branchID }
-  if (afterRebaseID !== null) params.after_rebase = afterRebaseID
-  const { primary } = await dispatch(fetch("commits", withParameters(params)))
+  offset: number,
+  count: number,
+): PaginationThunk<Commit> => async (dispatch) => {
+  const { primary, pagination } = await dispatch(
+    fetch(
+      "commits",
+      withContext("branches", branchID),
+      withParameters({ offset, count }),
+    ),
+  )
+  assertNotNull(pagination)
+  return [primary, pagination]
+}
+
+export const loadBranchCommitsAfterRebase = (
+  branchID: BranchID,
+  afterRebaseID: RebaseID,
+): AsyncThunk<Commit[]> => async (dispatch) => {
+  const { primary } = await dispatch(
+    fetch(
+      "commits",
+      withContext("branches", branchID),
+      withParameters({ after_rebase: afterRebaseID }),
+    ),
+  )
   if (primary) {
-    const key: BranchCommitsUpdateKey =
-      afterRebaseID !== null ? { branchID, afterRebaseID } : { branchID }
-    Object.assign(key, { offset, count })
     dispatch(
       branchCommitsUpdate(
-        key,
+        { branchID, afterRebaseID },
         primary.map((commit) => commit.id),
       ),
     )
   }
+  return primary
 }
 
 export const loadRecentBranches = (
@@ -174,4 +202,20 @@ export const loadRecentBranches = (
     const branchIDs = primary.map((branch) => branch.id)
     dispatch(setRecentBranches(repositoryID, offset, count, branchIDs))
   }
+}
+
+export const loadRepositoryBranches = (
+  repositoryID: RepositoryID,
+  offset: number,
+  count: number,
+): AsyncThunk<[Branch[], PaginationInfo]> => async (dispatch) => {
+  const { primary, pagination } = await dispatch(
+    fetch(
+      "branches",
+      withContext("repositories", repositoryID),
+      withParameters({ offset, count }),
+    ),
+  )
+  assertNotNull(pagination)
+  return [primary, pagination]
 }

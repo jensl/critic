@@ -1,8 +1,10 @@
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
+from traceback import format_exc
 from typing import AsyncIterator
 
-from critic.background.extensionhost import (
+from critic.protocol.extensionhost import (
+    CallError,
     SubscriptionMessage,
     SubscriptionResponseItem,
 )
@@ -33,9 +35,9 @@ async def message_handle(
     try:
         yield MessageImpl(message.channel, message.payload)
     except Exception as error:
-        await write_response(SubscriptionResponseItem(message.request_id, str(error)))
+        await write_response(SubscriptionResponseItem(CallError.from_exception(error)))
     else:
-        await write_response(SubscriptionResponseItem(message.request_id))
+        await write_response(SubscriptionResponseItem(None))
 
 
 class SubscriptionImpl(Runner):

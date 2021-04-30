@@ -26,7 +26,7 @@ from ..extension.mixin import ModifyUser as ExtensionMixin
 from ..extensioninstallation.mixin import ModifyUser as ExtensionInstallationMixin
 from ..repositoryfilter.mixin import ModifyUser as RepositoryFilterMixin
 from ..useremail.mixin import ModifyUser as UserEmailMixin
-from ..usersetting.mixin import ModifyUser as UserSettingMixin
+from ..setting.mixin import ModifyUser as SettingMixin
 from ..usersshkey.mixin import ModifyUser as UserSSHKeyMixin
 from .create import CreatedUser
 
@@ -38,8 +38,8 @@ class ModifyUser(
     ExtensionMixin,
     ExtensionInstallationMixin,
     RepositoryFilterMixin,
+    SettingMixin,
     UserEmailMixin,
-    UserSettingMixin,
     UserSSHKeyMixin,
     Modifier[api.user.User],
 ):

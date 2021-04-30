@@ -15,10 +15,14 @@
  */
 
 import React, { FunctionComponent, useContext } from "react"
+import { loadFileDiffsForChangeset } from "../actions/changeset"
 import { assertNotNull } from "../debug"
 
 import Changeset from "../resources/changeset"
 import MergeAnalysis from "../resources/mergeanalysis"
+import { useSubscriptionIf } from "./ResourceSubscriber"
+import { id } from "./Functions"
+import { useOptionalReview } from "./ReviewContext"
 
 type Props = {
   changeset: Changeset
@@ -43,4 +47,19 @@ export const useChangeset = () => {
   assertNotNull(changeset)
   assertNotNull(expandedFileIDs)
   return { changeset, expandedFileIDs, ...rest }
+}
+
+export const useFileDiffs = () => {
+  const { changeset } = useContext(ChangesetContext)
+  const review = useOptionalReview()
+  const isComplete = changeset?.completionLevel.has("full") ?? false
+
+  console.log({ changeset, isComplete })
+
+  useSubscriptionIf(
+    isComplete,
+    loadFileDiffsForChangeset,
+    [id(changeset), review?.id],
+    [isComplete],
+  )
 }

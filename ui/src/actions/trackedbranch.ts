@@ -14,8 +14,29 @@
  * the License.
  */
 
-import { fetch, withParameters } from "../resources"
+import {
+  fetch,
+  withParameters,
+  createResource,
+  withContext,
+} from "../resources"
 import { RepositoryID } from "../resources/types"
 
 export const loadTrackedBranches = (repositoryID: RepositoryID) =>
   fetch("trackedbranches", withParameters({ repository: repositoryID }))
+
+type Source = {
+  url: string
+  name: string
+}
+
+export const addTrackedBranch = (
+  repositoryID: RepositoryID,
+  name: string,
+  source: Source,
+) =>
+  createResource(
+    "trackedbranches",
+    { name, source },
+    withContext("repositories", repositoryID),
+  )

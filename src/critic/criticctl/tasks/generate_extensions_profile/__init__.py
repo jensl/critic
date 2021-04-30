@@ -45,9 +45,9 @@ class Arguments(Protocol):
 
 
 def setup(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument("--extensions-dir", required=True)
     parser.add_argument("--autocommit", action="store_true")
     parser.add_argument("--discover", action="store_true")
+    parser.add_argument("extensions_dir")
 
 
 @dataclass
@@ -55,7 +55,8 @@ class ExtensionInfo:
     source_dir: Path
 
     name: str
-    sha1: SHA1
+    version_name: str
+    version_sha1: SHA1
     manifest: extensions.manifest.Manifest
     uiaddon: bool
 
@@ -66,9 +67,9 @@ class ExtensionInfo:
 async def process_extension(arguments: Arguments, source_dir: Path) -> ExtensionInfo:
     async with gitaccess.GitRepository.direct(str(source_dir)) as repository:
         if arguments.autocommit:
-            sha1 = await autocommit(source_dir, repository)
+            (version_name, sha1) = await autocommit(source_dir, repository)
         else:
-            sha1 = await current_sha1(repository)
+            (version_name, sha1) = await current_sha1(repository)
         extension = extensions.extension.Extension(
             None, str(source_dir), None, source_dir.name, repository
         )
@@ -78,7 +79,12 @@ async def process_extension(arguments: Arguments, source_dir: Path) -> Extension
             fail(f"{source_dir}: invalid manifest:\n  {error}")
 
     return ExtensionInfo(
-        source_dir, manifest.name, sha1, manifest, (source_dir / "uiaddon").is_dir()
+        source_dir,
+        manifest.name,
+        version_name,
+        sha1,
+        manifest,
+        (source_dir / "uiaddon").is_dir(),
     )
 
 
@@ -112,12 +118,12 @@ async def ensure_extension(
 async def ensure_version(
     transaction: api.transaction.Transaction, info: ExtensionInfo
 ) -> None:
-    logger.info("Resolving extension version: %s :: %s", info.name, info.sha1)
+    logger.info("Resolving extension version: %s :: %s", info.name, info.version_sha1)
 
     assert info.extension
     try:
         info.version = await api.extensionversion.fetch(
-            transaction.critic, extension=info.extension, sha1=info.sha1
+            transaction.critic, extension=info.extension, sha1=info.version_sha1
         )
         logger.info("- found existing version: id=%d", info.version.id)
         return
@@ -126,7 +132,7 @@ async def ensure_version(
 
     info.version = (
         await transaction.createExtensionVersion(
-            info.extension, info.sha1, info.manifest
+            info.extension, info.version_name, info.version_sha1, info.manifest
         )
     ).subject
     logger.info("- created new version: id=%d", info.version.id)

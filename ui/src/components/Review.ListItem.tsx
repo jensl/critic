@@ -9,7 +9,7 @@ import Progress from "./Review.ListItem.Progress"
 import Title from "./Review.ListItem.Title"
 import Metadata from "./Review.ListItem.Metadata"
 import { ReviewID } from "../resources/types"
-import { useResource } from "../utils"
+import { usePrefix, useResource } from "../utils"
 
 const useStyles = makeStyles((theme) => ({
   reviewListItem: {
@@ -57,11 +57,12 @@ const ReviewListItem: FunctionComponent<OwnProps> = ({
   reviewID,
 }) => {
   const classes = useStyles()
-  const review = useResource("reviews").get(reviewID)
+  const prefix = usePrefix()
+  const review = useResource("reviews", (byID) => byID.get(reviewID))
   if (!review) return null
   return (
     <Link
-      to={`/review/${reviewID}`}
+      to={`${prefix}/review/${reviewID}`}
       className={clsx(className, classes.reviewListItem)}
     >
       <Progress review={review} />

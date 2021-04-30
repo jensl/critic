@@ -35,6 +35,7 @@ class Database:
         self.name = arguments.database_name
         self.password = self.get_password(arguments)
         self.username = arguments.database_username
+        self.is_testing = arguments.testing
 
         self.container_id = None
         self.host = None
@@ -59,7 +60,7 @@ class Database:
 
     @property
     def container_name(self) -> str:
-        return "critic_quickstart_database"
+        return f"critic_quickstart{self.state_dir.replace('/', '_')}"
 
     async def find_container(self) -> Optional[str]:
         process = await asyncio.create_subprocess_exec(
@@ -112,7 +113,7 @@ class Database:
             "docker",
             "run",
             "--name",
-            f"critic_quickstart_database",
+            self.container_name,
             "--rm",
             "--detach",
             *user_arg,

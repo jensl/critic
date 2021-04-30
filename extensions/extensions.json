@@ -1,3 +1,6 @@
 {
-  "extensions": [{ "name": "email-delivery" }]
+  "extensions": [
+    { "name": "email-delivery" },
+    { "name": "email-notifications" }
+  ]
 }

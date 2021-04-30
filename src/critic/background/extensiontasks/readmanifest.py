@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, overload
 
 logger = logging.getLogger(__name__)
 
@@ -48,9 +48,32 @@ class ReadManifest(Request[ReadManifestResult]):
         return ReadManifestResult(manifest.filename, manifest.source)
 
 
+@overload
 async def read_manifest(
+    *,
     version: api.extensionversion.ExtensionVersion,
 ) -> extensions.manifest.Manifest:
-    extension = await version.extension
-    result = await ReadManifest(extension.id, version.name, version.sha1).issue()
+    ...
+
+
+@overload
+async def read_manifest(
+    *,
+    extension: api.extension.Extension,
+    sha1: SHA1,
+) -> extensions.manifest.Manifest:
+    ...
+
+
+async def read_manifest(
+    version: Optional[api.extensionversion.ExtensionVersion] = None,
+    extension: Optional[api.extension.Extension] = None,
+    sha1: Optional[SHA1] = None,
+) -> extensions.manifest.Manifest:
+    if version is not None:
+        extension = await version.extension
+        sha1 = version.sha1
+    else:
+        assert extension is not None and sha1 is not None
+    result = await ReadManifest(extension.id, None, sha1).issue()
     return result.read_manifest()

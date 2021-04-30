@@ -14,40 +14,11 @@
  * the License.
  */
 
-import { immerable } from "immer"
-import { toPlainObject } from "lodash"
+import { Draft, immerable } from "immer"
+import { assertNotNull, assertTrue } from "../debug"
 
 import { primaryMap } from "../reducers/resource"
-
-export const kContextLine = 1
-export const kDeletedLine = 2
-export const kModifiedLine = 3
-export const kReplacedLine = 4
-export const kInsertedLine = 5
-export const kWhitespaceLine = 6
-export const kConflictLine = 7
-
-type DiffLineType =
-  | typeof kContextLine
-  | typeof kDeletedLine
-  | typeof kModifiedLine
-  | typeof kReplacedLine
-  | typeof kInsertedLine
-  | typeof kWhitespaceLine
-  | typeof kConflictLine
-
-export const kTokenTypes = [
-  null,
-  "operator",
-  "identifier",
-  "keyword",
-  "character",
-  "string",
-  "comment",
-  "integer",
-  "number",
-  "ppDirective",
-]
+import { DiffLine, DiffLineData } from "./diffcommon"
 
 type FileDiffData = {
   file: number
@@ -56,11 +27,13 @@ type FileDiffData = {
   old_syntax: string
   old_length: number
   old_linebreak: boolean
+  delete_count: number
   new_is_binary: boolean
   new_syntax: string
   new_length: number
   new_linebreak: boolean
-  macro_chunks: MacroChunkData[]
+  insert_count: number
+  macro_chunks?: MacroChunkData[]
 }
 
 type FileDiffProps = {
@@ -70,11 +43,13 @@ type FileDiffProps = {
   old_syntax: string
   old_length: number
   old_linebreak: boolean
+  delete_count: number
   new_is_binary: boolean
   new_syntax: string
   new_length: number
   new_linebreak: boolean
-  macro_chunks: readonly MacroChunk[]
+  insert_count: number
+  macro_chunks: readonly MacroChunk[] | null
 }
 
 class FileDiff {
@@ -87,11 +62,13 @@ class FileDiff {
     readonly oldSyntax: string,
     readonly oldLength: number,
     readonly oldLinebreak: boolean,
+    readonly deleteCount: number,
     readonly newIsBinary: boolean,
     readonly newSyntax: string,
     readonly newLength: number,
     readonly newLinebreak: boolean,
-    readonly macroChunks: readonly MacroChunk[],
+    readonly insertCount: number,
+    readonly macroChunks: readonly MacroChunk[] | null,
   ) {}
 
   static new(props: FileDiffProps) {
@@ -102,10 +79,12 @@ class FileDiff {
       props.old_syntax,
       props.old_length,
       props.old_linebreak,
+      props.delete_count,
       props.new_is_binary,
       props.new_syntax,
       props.new_length,
       props.new_linebreak,
+      props.insert_count,
       props.macro_chunks,
     )
   }
@@ -120,6 +99,24 @@ class FileDiff {
   static reducer = primaryMap<FileDiff, string>(
     "filediffs",
     (filediff) => `${filediff.changeset}:${filediff.file}`,
+    (draft, action) => {
+      if (action.type !== "FILEDIFFS_UPDATE") return
+      const { changesetID, fileID, chunkIndex, operation } = action
+      const filediffID = `${changesetID}:${fileID}`
+      const filediff = draft.get(filediffID)
+      if (!filediff || !filediff.macroChunks) return
+      const macroChunk = filediff.macroChunks[chunkIndex]
+      const lines = action.lines as readonly DiffLine[]
+      draft.set(
+        filediffID,
+        filediff.replaceChunk(
+          Math.max(0, chunkIndex),
+          operation === "append"
+            ? macroChunk.append(lines)
+            : macroChunk.prepend(lines),
+        ),
+      )
+    },
   )
 
   get props(): FileDiffProps {
@@ -129,12 +126,46 @@ class FileDiff {
       old_syntax: this.oldSyntax,
       old_length: this.oldLength,
       old_linebreak: this.oldLinebreak,
+      delete_count: this.deleteCount,
       new_is_binary: this.newIsBinary,
       new_syntax: this.newSyntax,
       new_length: this.newLength,
       new_linebreak: this.newLinebreak,
+      insert_count: this.insertCount,
       macro_chunks: this.macroChunks,
     }
+  }
+
+  replaceChunk(index: number, chunk: MacroChunk) {
+    assertNotNull(this.macroChunks)
+    let nextIndex = index + 1
+    if (nextIndex < this.macroChunks.length) {
+      const nextChunk = this.macroChunks[nextIndex]
+      if (chunk.newOffset + chunk.newCount === nextChunk.newOffset) {
+        assertTrue(chunk.oldOffset + chunk.oldCount === nextChunk.oldOffset)
+        chunk = chunk.append(nextChunk.content)
+        ++nextIndex
+      }
+    }
+    return new FileDiff(
+      this.file,
+      this.changeset,
+      this.oldIsBinary,
+      this.oldSyntax,
+      this.oldLength,
+      this.oldLinebreak,
+      this.deleteCount,
+      this.newIsBinary,
+      this.newSyntax,
+      this.newLength,
+      this.newLinebreak,
+      this.insertCount,
+      [
+        ...this.macroChunks.slice(0, index),
+        chunk,
+        ...this.macroChunks.slice(nextIndex),
+      ],
+    ) as Draft<FileDiff>
   }
 }
 
@@ -177,167 +208,49 @@ export class MacroChunk {
     )
   }
 
-  static make(macroChunks: MacroChunkData[]) {
+  static make(macroChunks?: MacroChunkData[]) {
+    if (!macroChunks) return null
     function* generate() {
-      if (macroChunks !== null)
-        for (const value of macroChunks) {
-          const [content, old_offset, new_offset, old_count, new_count] = value
-          yield MacroChunk.new({
-            content: DiffLine.make(content, old_offset, new_offset),
-            old_offset,
-            old_count,
-            new_offset,
-            new_count,
-          })
-        }
-    }
-    return Array.from(generate())
-  }
-}
-
-export const kNeutralPartType = 0
-export const kOperatorPartType = 1
-export const kIdentifierPartType = 2
-export const kKeywordPartType = 3
-export const kCharacterPartType = 4
-export const kStringPartType = 5
-export const kCommentPartType = 6
-export const kIntegerPartType = 7
-export const kFloatPartType = 8
-export const kPreprocessingPartType = 9
-
-export type PartType =
-  | typeof kNeutralPartType
-  | typeof kOperatorPartType
-  | typeof kIdentifierPartType
-  | typeof kKeywordPartType
-  | typeof kCharacterPartType
-  | typeof kStringPartType
-  | typeof kCommentPartType
-  | typeof kIntegerPartType
-  | typeof kFloatPartType
-  | typeof kPreprocessingPartType
-
-export const kDeletedPartState = -2
-export const kOldPartState = -1
-export const kNeutralPartState = 0
-export const kNewPartState = 1
-export const kInsertedPartState = 2
-
-export type PartState =
-  | typeof kDeletedPartState
-  | typeof kOldPartState
-  | typeof kNeutralPartState
-  | typeof kNewPartState
-  | typeof kInsertedPartState
-
-type PartData = string | [string, PartType, PartState]
-type DiffLineData = [DiffLineType, PartData[]]
-
-type DiffLineProps = {
-  type: DiffLineType
-  oldOffset: number
-  newOffset: number
-  content: readonly Part[]
-  oldPlain: string
-  newPlain: string
-}
-
-const toOldPlain = (content: PartData[]) =>
-  content
-    .map((part) =>
-      typeof part === "string" ? part : part[2] <= 0 ? part[0] : "",
-    )
-    .join("")
-const toNewPlain = (content: PartData[]) =>
-  content
-    .map((part) =>
-      typeof part === "string" ? part : part[2] >= 0 ? part[0] : "",
-    )
-    .join("")
-
-export class DiffLine {
-  [immerable] = true
-
-  constructor(
-    readonly type: DiffLineType,
-    readonly oldOffset: number,
-    readonly newOffset: number,
-    readonly content: readonly Part[],
-    readonly oldPlain: string,
-    readonly newPlain: string,
-  ) {}
-
-  static new(props: DiffLineProps) {
-    return new DiffLine(
-      props.type,
-      props.oldOffset,
-      props.newOffset,
-      props.content,
-      props.oldPlain,
-      props.newPlain,
-    )
-  }
-
-  static make(diffLines: DiffLineData[], oldOffset: number, newOffset: number) {
-    function* generate() {
-      for (const value of diffLines) {
-        const [type, content] = value
-        const oldPlain = toOldPlain(content)
-        const newPlain = type === kContextLine ? oldPlain : toNewPlain(content)
-        yield DiffLine.new({
-          type,
-          oldOffset,
-          newOffset,
-          content: Part.make(content),
-          oldPlain,
-          newPlain,
+      assertNotNull(macroChunks)
+      for (const value of macroChunks) {
+        const [content, old_offset, new_offset, old_count, new_count] = value
+        yield MacroChunk.new({
+          content: DiffLine.make(content, old_offset, new_offset),
+          old_offset,
+          old_count,
+          new_offset,
+          new_count,
         })
-        if (type !== kDeletedLine) ++newOffset
-        if (type !== kInsertedLine) ++oldOffset
       }
     }
     return Array.from(generate())
   }
 
-  get id() {
-    switch (this.type) {
-      case kDeletedLine:
-        return this.oldID
-      case kInsertedLine:
-        return this.newID
-      default:
-        return `${this.oldID}:${this.newID}`
-    }
+  get oldEnd() {
+    return this.oldOffset + this.oldCount
   }
 
-  get oldID() {
-    return this.type !== kInsertedLine ? `o${this.oldOffset}` : ""
-  }
-  get newID() {
-    return this.type !== kDeletedLine ? `n${this.newOffset}` : ""
+  get newEnd() {
+    return this.newOffset + this.newCount
   }
 
-  get oldLineNumber() {
-    return this.type !== kInsertedLine ? this.oldOffset : null
+  append(lines: readonly DiffLine[]) {
+    return new MacroChunk(
+      [...this.content, ...lines],
+      this.oldOffset,
+      this.oldCount + lines.length,
+      this.newOffset,
+      this.newCount + lines.length,
+    )
   }
-  get newLineNumber() {
-    return this.type !== kDeletedLine ? this.newOffset : null
-  }
-}
 
-export class Part {
-  [immerable] = true
-
-  constructor(
-    readonly content: string,
-    readonly type: PartType = kNeutralPartType,
-    readonly state: PartState = kNeutralPartState,
-  ) {}
-
-  static make(parts: PartData[]) {
-    return parts.map((part) =>
-      Array.isArray(part) ? new Part(...part) : new Part(part),
+  prepend(lines: readonly DiffLine[]) {
+    return new MacroChunk(
+      [...lines, ...this.content],
+      this.oldOffset - lines.length,
+      this.oldCount + lines.length,
+      this.newOffset - lines.length,
+      this.newCount + lines.length,
     )
   }
 }

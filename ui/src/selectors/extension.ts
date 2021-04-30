@@ -47,14 +47,14 @@ export const getVersionsPerExtension = createSelector(
       perExtension.add(version)
     }
     return castImmutable(result)
-  }
+  },
 )
 
 export const getVersionsForExtension = createSelector(
   getVersionsPerExtension,
   getExtension,
   (versionsPerExtension, extension) =>
-    extension ? versionsPerExtension.get(extension.id) : null
+    extension ? versionsPerExtension.get(extension.id) : null,
 )
 
 export const getCurrentVersions = createSelector(
@@ -68,7 +68,7 @@ export const getCurrentVersions = createSelector(
               const version = versions.get(versionID)
               return version ? [version.name, version] : null
             })
-            .filter((entry) => entry !== null) as [string, ExtensionVersion][]
+            .filter((entry) => entry !== null) as [string, ExtensionVersion][],
         )
-      : null
+      : null,
 )

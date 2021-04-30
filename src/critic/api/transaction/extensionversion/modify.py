@@ -21,18 +21,24 @@ from critic.gitaccess import SHA1
 from critic.extensions.manifest import Manifest
 from ..base import TransactionBase
 from ..modifier import Modifier
+from ..extensioncall.mixin import ModifyVersion as ExtensionCallMixin
 from .create import CreateExtensionVersion
 
 
-class ModifyExtensionVersion(Modifier[api.extensionversion.ExtensionVersion]):
+class ModifyExtensionVersion(
+    ExtensionCallMixin, Modifier[api.extensionversion.ExtensionVersion]
+):
     @staticmethod
     async def create(
         transaction: TransactionBase,
         extension: api.extension.Extension,
+        name: str,
         sha1: SHA1,
         manifest: Manifest,
     ) -> ModifyExtensionVersion:
         return ModifyExtensionVersion(
             transaction,
-            await CreateExtensionVersion.make(transaction, extension, sha1, manifest),
+            await CreateExtensionVersion.make(
+                transaction, extension, name, sha1, manifest
+            ),
         )

@@ -27,11 +27,12 @@ import {
   ADD_EXTENSION_LINKIFIER,
 } from "../actions"
 import { ExtensionID, ExtensionInstallationID } from "../resources/types"
+import { useResource } from "."
 
 const addPage = (
   uiAddon: UIAddon,
   path: string,
-  render: RenderPageFunc
+  render: RenderPageFunc,
 ): Action => ({
   type: ADD_EXTENSION_PAGE,
   uiAddon,
@@ -48,7 +49,7 @@ const addLinkifier = (
   }: {
     generateURL: GenerateURLFunc | null
     render: RenderLinkFunc | null
-  }
+  },
 ): Action => ({
   type: ADD_EXTENSION_LINKIFIER,
   uiAddon,
@@ -83,7 +84,7 @@ export class Critic {
     }: {
       generateURL: ((match: string[]) => string) | null
       render: (() => JSX.Element) | null
-    }
+    },
   ) {
     store.dispatch(addLinkifier(this.uiAddon, pattern, { generateURL, render }))
   }
@@ -103,7 +104,7 @@ export class UIAddonHandler implements UIAddon {
     readonly extensionID: ExtensionID,
     readonly installationID: ExtensionInstallationID,
     readonly name: string,
-    readonly implementation: Implementation
+    readonly implementation: Implementation,
   ) {
     this.key = `${installationID}_${name}`
     this.critic = new Critic(this)
@@ -141,7 +142,7 @@ export const createUIAddon = async (
   extension: Extension,
   installation: ExtensionInstallation,
   name: string,
-  source: string
+  source: string,
 ) => {
   /*eslint no-new-func: "off"*/
   const fn = new Function(source)
@@ -151,6 +152,15 @@ export const createUIAddon = async (
     extension.id,
     installation.id,
     name,
-    new scope.extension()
+    new scope.extension(),
+  )
+}
+
+export const useDeducedVersion = (extension: Extension | undefined) => {
+  const installation = useResource("extensioninstallations", (byID) =>
+    byID.get(extension?.installation ?? -1),
+  )
+  return useResource("extensionversions", (byID) =>
+    byID.get(installation?.version ?? extension?.defaultVersion ?? -1),
   )
 }

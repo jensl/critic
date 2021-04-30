@@ -1,4 +1,4 @@
-import React, { FunctionComponent } from "react"
+import React from "react"
 import clsx from "clsx"
 
 import Registry from "."
@@ -10,8 +10,7 @@ import {
   kTokenTypes,
   Part,
   kIdentifierPartType,
-} from "../resources/filediff"
-import { pure } from "recompose"
+} from "../resources/diffcommon"
 
 type ContentItem = null | string | JSX.Element
 type Content = ContentItem | ContentItem[]
@@ -40,10 +39,12 @@ const renderPart = (part: Part, isOldSide: boolean, index: number): Content => {
   )
 }
 
-const Parts: React.ComponentType<PartsProps> = pure(({ content, side }) => {
+const Parts: React.FunctionComponent<PartsProps> = ({ content, side }) => {
   const isOldSide = side === "old"
 
   return <>{content.map((part, index) => renderPart(part, isOldSide, index))}</>
-})
+}
 
-export default Registry.add("Changeset.Diff.Line.SimpleParts", Parts)
+// export default Registry.add("Changeset.Diff.Line.SimpleParts", React.memo(Parts))
+
+export default React.memo(Parts)

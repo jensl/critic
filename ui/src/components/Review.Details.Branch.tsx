@@ -31,7 +31,11 @@ const ReviewDetailsBranch: FunctionComponent<OwnProps> = ({ className }) => {
   ) : null
   return (
     <DetailsRow heading="Branch">
-      <BranchName branchID={review.branch} />
+      {review.branch === null ? (
+        <em>No branch created</em>
+      ) : (
+        <BranchName branchID={review.branch} />
+      )}
       {integrationTarget}
     </DetailsRow>
   )

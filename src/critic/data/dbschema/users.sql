@@ -39,6 +39,10 @@ CREATE TABLE users (
   status userstatus NOT NULL DEFAULT 'unknown'
 );
 
+ALTER TABLE settings
+  ADD CONSTRAINT settings_user
+    FOREIGN KEY ("user") REFERENCES users (id) ON DELETE CASCADE;
+
 CREATE TYPE useremailstatus AS ENUM (
   'trusted',
   'verified',
@@ -150,7 +154,7 @@ CREATE TYPE systemaccesstype AS ENUM
     'anonymous' );
 
 CREATE TABLE accesstokens (
-  
+
   id SERIAL PRIMARY KEY,
 
   -- The type of access granted by this access token.
@@ -168,7 +172,7 @@ CREATE TABLE accesstokens (
 
   CONSTRAINT valid_user CHECK ((access_type='user' AND uid IS NOT NULL) OR
                                 (access_type!='user' AND uid IS NULL))
-                                
+
 );
 
 CREATE TYPE accesscontrolrule AS ENUM

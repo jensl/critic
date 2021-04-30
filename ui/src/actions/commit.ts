@@ -96,15 +96,11 @@ export const loadCommitByID = (
   }
 }
 
-export const resolveRef = ({
-  ref,
-  repositoryID,
-  description = null,
-}: {
-  ref: string
-  repositoryID: RepositoryID
-  description?: null | "default"
-}) => async (dispatch: Dispatch, getState: GetState) => {
+export const resolveRef = (
+  ref: string,
+  repositoryID: RepositoryID,
+  description: "default" | null = null,
+) => async (dispatch: Dispatch, getState: GetState) => {
   const refKey = `${repositoryID}:${ref}`
   const commitID = getState().resource.extra.commitRefs.get(refKey)
 

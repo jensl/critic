@@ -33,7 +33,7 @@ from ..values import Values
 class Branches(
     ResourceClass[api.branch.Branch],
     api_module=api.branch,
-    exceptions=(api.branch.Error, api.repository.Error),
+    exceptions=(api.branch.Error, api.branch.Error),
 ):
     """Branches in the Git repositories."""
 
@@ -81,17 +81,17 @@ class Branches(
     ) -> Union[api.branch.Branch, Sequence[api.branch.Branch]]:
         """Retrieve all branches in the Git repositories.
 
-        repository : REPOSITORY : -
+        branch : REPOSITORY : -
 
-        Include only branches in one repository, identified by the
-        repository's unique numeric id or short-name.
+        Include only branches in one branch, identified by the
+        branch's unique numeric id or short-name.
 
         name : NAME : string
 
         Retrieve only the branch with the specified name. The name should
         <em>not</em> include the "refs/heads/" prefix. When this parameter
-        is specified a repository must be specified as well, either in the
-        resource path or using the <code>repository</code> parameter. Other
+        is specified a branch must be specified as well, either in the
+        resource path or using the <code>branch</code> parameter. Other
         filtering parameters are ignored.
 
         created_by : USER : -
@@ -110,7 +110,7 @@ class Branches(
         name_parameter = parameters.query.get("name")
         if name_parameter:
             if repository is None:
-                raise UsageError("Named branch access must have repository specified.")
+                raise UsageError.missingParameter("repository")
             return await api.branch.fetch(
                 parameters.critic, repository=repository, name=name_parameter
             )
@@ -154,17 +154,21 @@ class Branches(
                 raise UsageError(
                     "Redundant query parameter: branch=%s" % branch_parameter
                 )
-            branch_id, name = id_or_name(branch_parameter)
-            if branch_id is not None:
-                branch = await api.branch.fetch(parameters.critic, branch_id)
-            else:
-                repository = await parameters.deduce(api.repository.Repository)
-                if repository is None:
-                    raise UsageError(
-                        "Named branch access must have repository specified."
-                    )
-                branch = await api.branch.fetch(
-                    parameters.critic, repository=repository, name=name
-                )
-
+            return await Branches.fromParameterValue(parameters, branch_parameter)
         return branch
+
+    @staticmethod
+    async def fromParameterValue(
+        parameters: Parameters, value: str
+    ) -> api.branch.Branch:
+        branch_id, name = id_or_name(value)
+        if branch_id is not None:
+            return await api.branch.fetch(parameters.critic, branch_id)
+        else:
+            assert name is not None
+            repository = await parameters.deduce(api.repository.Repository)
+            if repository is None:
+                raise UsageError.missingParameter("repository")
+            return await api.branch.fetch(
+                parameters.critic, repository=repository, name=name
+            )

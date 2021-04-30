@@ -23,12 +23,19 @@ class NotHandled(Exception):
     pass
 
 
+from . import api
 from . import externalauth
 from . import gitrepository
 from . import ui
 from . import websocket
 from . import extensions
-from . import download
 
 
-__all__ = ["externalauth", "gitrepository", "ui", "websocket", "extensions", "download"]
+__all__ = [
+    "api",
+    "externalauth",
+    "gitrepository",
+    "ui",
+    "websocket",
+    "extensions",
+]

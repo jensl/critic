@@ -21,12 +21,12 @@ import Action, { ActionProps } from "./Discussion.Action"
 import { createComment } from "../actions/comment"
 import { useDispatch } from "../store"
 import { useDiscussionContext } from "../utils/DiscussionContext"
-import { useReview } from "../utils"
+import { useOptionalReview } from "../utils"
 import { useRequireSession } from "./Dialog.SignIn"
 
 const RaiseIssue: React.FunctionComponent<ActionProps> = ({ ...props }) => {
   const dispatch = useDispatch()
-  const review = useReview()
+  const review = useOptionalReview()
   const { comment, location } = useDiscussionContext()
   const [requireSession, signInDialog] = useRequireSession(
     "You need to sign in before you can raise an issue.",

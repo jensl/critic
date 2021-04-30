@@ -8,6 +8,7 @@ import Changeset from "./changeset"
 import Comment from "./comment"
 import Commit from "./commit"
 import Extension from "./extension"
+import ExtensionCall from "./extensioncall"
 import ExtensionInstallation from "./extensioninstallation"
 import ExtensionVersion from "./extensionversion"
 import File from "./file"
@@ -24,6 +25,7 @@ import ReviewableFileChange from "./reviewablefilechange"
 import ReviewFilter from "./reviewfilter"
 import ReviewTag from "./reviewtag"
 import Session from "./session"
+import Setting from "./setting"
 import SystemEvent from "./systemevent"
 import SystemSetting from "./systemsetting"
 import TrackedBranch from "./trackedbranch"
@@ -33,7 +35,8 @@ import User from "./user"
 import UserEmail from "./useremail"
 import UserSetting from "./usersetting"
 import UserSSHKey from "./usersshkey"
-import { ExcludeFields, ResourceTypes, RequestOptions } from "./types"
+import { ExcludeFields, RequestOptions } from "./types"
+import { ResourceTypes } from "./resourcetypes"
 
 interface ResourceMap {
   get(id: any, defaultValue: any): any
@@ -86,6 +89,10 @@ const resourceDefinitions: ResourceDefinitions = {
     recordType: Extension,
   },
 
+  extensioncalls: {
+    recordType: ExtensionCall,
+  },
+
   extensioninstallations: {
     recordType: ExtensionInstallation,
     defaultInclude: ["extensions", "extensionversions"],
@@ -100,6 +107,7 @@ const resourceDefinitions: ResourceDefinitions = {
   },
 
   filecontents: {
+    defaultParams: { compact: "yes" },
     recordType: FileContent,
   },
 
@@ -111,11 +119,13 @@ const resourceDefinitions: ResourceDefinitions = {
         changesetID,
         reviewID,
         repositoryID,
+        limited = false,
       }: {
         changeset?: Changeset
         changesetID?: number
         reviewID?: number
         repositoryID?: number
+        limited?: boolean
       } = options.data
       const params = options.params || {}
       const include = options.include || []
@@ -132,6 +142,7 @@ const resourceDefinitions: ResourceDefinitions = {
       options.params = params
       options.include = include
       options.expectedStatus = [200, 202]
+      if (limited) options.params["fields[filediffs]"] = "-macro_chunks"
     },
     recordType: FileDiff,
   },
@@ -211,6 +222,10 @@ const resourceDefinitions: ResourceDefinitions = {
   sessions: {
     defaultInclude: ["users"],
     recordType: Session,
+  },
+
+  settings: {
+    recordType: Setting,
   },
 
   systemevents: {

@@ -50,6 +50,15 @@ def extension_manager(
     return transaction
 
 
+async def modify_extension(
+    transaction: api.transaction.Transaction, extension: api.extension.Extension
+) -> ModifyExtension:
+    publisher = await extension.publisher
+    if publisher:
+        return await transaction.modifyUser(publisher).modifyExtension(extension)
+    return await transaction.modifyExtension(extension)
+
+
 class Extensions(ResourceClass[api.extension.Extension], api_module=api.extension):
     """Extensions."""
 
@@ -75,6 +84,7 @@ class Extensions(ResourceClass[api.extension.Extension], api_module=api.extensio
             "publisher": value.publisher,
             "url": value.url,
             "versions": value.versions,
+            "default_version": value.default_version,
             "installation": value.installation,
         }
 
@@ -186,7 +196,9 @@ class Extensions(ResourceClass[api.extension.Extension], api_module=api.extensio
                 raise UsageError(
                     "Redundant query parameter: extension=%s" % extension_parameter
                 )
-            extension = await Extensions.fromParameter(parameters, extension_parameter)
+            extension = await Extensions.fromParameterValue(
+                parameters, extension_parameter
+            )
         return extension
 
     @staticmethod

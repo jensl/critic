@@ -45,6 +45,7 @@ EventType = Literal[
     "assignments",
     "branchupdate",
     "batch",
+    "reviewuser",
 ]
 EVENT_TYPES: FrozenSet[EventType] = frozenset(
     [
@@ -57,6 +58,7 @@ EVENT_TYPES: FrozenSet[EventType] = frozenset(
         "assignments",
         "branchupdate",
         "batch",
+        "reviewuser",
     ]
 )
 """Review event types.

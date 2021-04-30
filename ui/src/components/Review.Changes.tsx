@@ -50,7 +50,7 @@ const ReviewChanges: FunctionComponent = () => {
     history.push(`/review/${review.id}/changes/${mode}`)
   }
 
-  useSubscription(loadAutomaticChangeset, automaticMode, review.id)
+  useSubscription(loadAutomaticChangeset, [automaticMode, review.id])
   useEffect(() => {
     if (
       automaticMode !== "everything" &&

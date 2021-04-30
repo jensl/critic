@@ -25,6 +25,7 @@ from . import changesets
 from . import comments
 from . import commits
 from . import extensions
+from . import extensioncalls
 from . import extensionversions
 from . import extensioninstallations
 from . import externalaccounts
@@ -49,6 +50,7 @@ from . import reviewscopes
 from . import reviewscopefilters
 from . import reviewtags
 from . import sessions
+from . import settings
 from . import systemevents
 from . import systemsettings
 from . import trackedbranches
@@ -70,6 +72,7 @@ __all__ = [
     "comments",
     "commits",
     "extensions",
+    "extensioncalls",
     "extensionversions",
     "extensioninstallations",
     "externalaccounts",
@@ -94,6 +97,7 @@ __all__ = [
     "reviewscopefilters",
     "reviewtags",
     "sessions",
+    "settings",
     "systemevents",
     "systemsettings",
     "trackedbranches",

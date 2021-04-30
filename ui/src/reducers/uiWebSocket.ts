@@ -14,7 +14,7 @@
  * the License.
  */
 
-import Immutable from "immutable"
+import { Draft, immerable } from "immer"
 
 import {
   WEB_SOCKET_CONNECTED,
@@ -25,60 +25,62 @@ import {
   REMOVE_WEB_SOCKET_LISTENER,
   ChannelCallback,
   WebSocketListener,
-  Action,
 } from "../actions"
+import produce from "./immer"
 
-type Props = {
-  connection: WebSocket | null
-  channels: Immutable.Map<string, Immutable.Set<ChannelCallback>>
-  listeners: Immutable.Set<WebSocketListener>
-}
+class State {
+  [immerable] = true
 
-class State extends Immutable.Record<Props>({
-  connection: null,
-  channels: Immutable.Map(),
-  listeners: Immutable.Set(),
-}) {}
+  constructor(
+    readonly connection: WebSocket | null,
+    readonly channels: ReadonlyMap<string, ReadonlySet<ChannelCallback>>,
+    readonly listeners: ReadonlySet<WebSocketListener>,
+  ) {}
 
-const reducer = (state = new State(), action: Action) => {
-  switch (action.type) {
-    case WEB_SOCKET_CONNECTED:
-      return state.set("connection", action.connection)
-
-    case WEB_SOCKET_DISCONNECTED:
-      return state.set("connection", null)
-
-    case SUBSCRIBE_TO_CHANNEL:
-      const callbacks = state.channels.get(action.channel, Immutable.Set())
-      return state.setIn(
-        ["channels", action.channel],
-        callbacks.add(action.callback)
-      )
-
-    case UNSUBSCRIBE_FROM_CHANNEL:
-      if (state.channels.has(action.channel)) {
-        const callbacks = state.channels
-          .get(action.channel)!
-          .delete(action.callback)
-        if (callbacks.size !== 0)
-          state = state.setIn(["channels", action.channel], callbacks)
-        else state = state.deleteIn(["channels", action.channel])
-      }
-      return state
-
-    case ADD_WEB_SOCKET_LISTENER:
-      return state.updateIn(["listeners"], (listeners) =>
-        listeners.add(action.listener)
-      )
-
-    case REMOVE_WEB_SOCKET_LISTENER:
-      return state.updateIn(["listeners"], (listeners) =>
-        listeners.delete(action.listener)
-      )
-
-    default:
-      return state
+  static default() {
+    return new State(null, new Map(), new Set())
   }
 }
+
+const getOrCreateChannel = (draft: Draft<State>, name: string) => {
+  const existing = draft.channels.get(name)
+  if (existing) return existing
+  const created: Set<ChannelCallback> = new Set()
+  draft.channels.set(name, created)
+  return created
+}
+
+const reducer = produce<State>((draft, action) => {
+  switch (action.type) {
+    case WEB_SOCKET_CONNECTED:
+      draft.connection = action.connection
+      break
+
+    case WEB_SOCKET_DISCONNECTED:
+      draft.connection = null
+      break
+
+    case SUBSCRIBE_TO_CHANNEL:
+      const callbacks = getOrCreateChannel(draft, action.channel)
+      callbacks.add(action.callback)
+      break
+
+    case UNSUBSCRIBE_FROM_CHANNEL:
+      const channel = draft.channels.get(action.channel)
+      if (channel) {
+        if (channel.delete(action.callback) && channel.size === 0)
+          draft.channels.delete(action.channel)
+      }
+      break
+
+    case ADD_WEB_SOCKET_LISTENER:
+      draft.listeners.add(action.listener)
+      break
+
+    case REMOVE_WEB_SOCKET_LISTENER:
+      draft.listeners.delete(action.listener)
+      break
+  }
+}, State.default())
 
 export default reducer

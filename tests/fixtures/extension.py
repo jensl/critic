@@ -2,18 +2,28 @@ from __future__ import annotations
 
 from contextlib import asynccontextmanager
 import json
+import logging
 import os
 import pytest
 import shutil
 import tempfile
-from typing import Any, AsyncIterator, Dict, Protocol, TypedDict, Union, cast
+from typing import Any, AsyncIterator, Dict, Optional, Protocol, TypedDict, Union, cast
+
+logger = logging.getLogger(__name__)
 
 from . import Request
 from .instance import User
 from .frontend import Frontend, FrontendResponse
 from .api import API
 from .websocket import WebSocket
-from ..utilities import Anonymizer, AccessToken, generate_name, git, raise_for_status
+from ..utilities import (
+    Anonymizer,
+    AccessToken,
+    generate_name,
+    git,
+    raise_for_status,
+    lsremote,
+)
 
 
 class ExtensionData(TypedDict):
@@ -108,7 +118,9 @@ class Extension(ExtensionFrontend):
         else:
             await self.websocket.pop(channel, **checks)
 
-    async def install(self, publisher: User, install_for: User = None) -> None:
+    async def install(
+        self, sha1: str, publisher: User, install_for: User = None
+    ) -> None:
         async with self.api.session(publisher) as as_publisher:
             self.data = cast(
                 ExtensionData,
@@ -122,9 +134,10 @@ class Extension(ExtensionFrontend):
 
             self.version_data = cast(
                 ExtensionVersionData,
-                await as_publisher.fetch(
+                await as_publisher.create(
                     self.name,
                     f"extensions/{self.data['id']}/extensionversions",
+                    {"sha1": sha1},
                     attributes=("id", "sha1"),
                 ),
             )
@@ -205,15 +218,22 @@ def create_extension(
 
     @asynccontextmanager
     async def create_extension(
-        name: str, url: str, *, publisher: User = None, install_for: User = None
+        name: str,
+        url: str,
+        *,
+        sha1: Optional[str] = None,
+        publisher: Optional[User] = None,
+        install_for: Optional[User] = None,
     ) -> AsyncIterator[Extension]:
         extension = Extension(
             frontend, api, websocket, admin, anonymizer, name, url, snapshot
         )
         anonymizer.replace_string(url, f"git://extensions/{name}.git")
+        if sha1 is None:
+            sha1 = await lsremote(url)
         if publisher is None:
             publisher = admin
-        await extension.install(publisher, install_for)
+        await extension.install(sha1, publisher, install_for)
         try:
             yield extension
         finally:

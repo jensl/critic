@@ -6,30 +6,41 @@ import CircularProgress from "@material-ui/core/CircularProgress"
 
 import Registry from "."
 
-const useStyles = makeStyles({
+const useStyles = makeStyles((theme) => ({
   loaderBlock: {
     width: "100%",
-    height: "50vh",
     display: "flex",
     justifyContent: "center",
     alignItems: "center",
   },
 
+  small: {
+    margin: theme.spacing(4, 0),
+  },
+  large: {
+    height: "50vh",
+  },
+
   progress: {},
-})
+}))
 
 type OwnProps = {
   className?: string
   waitingFor?: string
+  size?: "small" | "large"
 }
 
 const LoaderBlock: FunctionComponent<OwnProps> = ({
   className,
   waitingFor,
+  size = "large",
 }) => {
   const classes = useStyles()
   return (
-    <div className={classes.loaderBlock} title={waitingFor}>
+    <div
+      className={clsx(classes.loaderBlock, classes[size])}
+      title={waitingFor}
+    >
       <CircularProgress className={clsx(className, classes.progress)} />
     </div>
   )

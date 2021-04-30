@@ -1,11 +1,13 @@
+name: TestExtension
 authors:
   - Jens Widell <jens@critic-review.org>
-description: Email notifications
+description: Test extension
 
 package:
   type: python
   entrypoints:
-    handle_endpoint: test_extension:handle_endpoint
+    handle_endpoint:
+      target: test_extension:handle_endpoint
 
 roles:
   - type: endpoint

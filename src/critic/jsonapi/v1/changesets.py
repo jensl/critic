@@ -35,30 +35,31 @@ Comments = Sequence[api.comment.Comment]
 ReviewableFileChanges = ValueWrapper[
     Sequence[api.reviewablefilechange.ReviewableFileChange]
 ]
-ReviewState = TypedDict(
-    "ReviewState",
-    {
-        "review": api.review.Review,
-        "comments": Awaitable[Optional[Comments]],
-        "reviewablefilechanges": Awaitable[Optional[ReviewableFileChanges]],
-    },
-)
 
-ChangesetResult = TypedDict(
-    "ChangesetResult",
-    {
-        "id": int,
-        "completion_level": Awaitable[Collection[api.changeset.CompletionLevel]],
-        "repository": Awaitable[api.repository.Repository],
-        "from_commit": Awaitable[Optional[api.commit.Commit]],
-        "to_commit": Awaitable[api.commit.Commit],
-        "is_direct": Awaitable[bool],
-        "is_replay": bool,
-        "files": Awaitable[Optional[Files]],
-        "contributing_commits": Awaitable[Optional[ContributingCommits]],
-        "review_state": Awaitable[Optional[ReviewState]],
-    },
-)
+
+class ReviewState(TypedDict):
+    review: api.review.Review
+    comments: Awaitable[Optional[Comments]]
+    reviewablefilechanges: Awaitable[Optional[ReviewableFileChanges]]
+
+
+class Progress(TypedDict):
+    analysis: float
+    syntax_highlight: float
+
+
+class ChangesetResult(TypedDict):
+    id: int
+    completion_level: Awaitable[Collection[api.changeset.CompletionLevel]]
+    progress: Awaitable[Optional[Progress]]
+    repository: Awaitable[api.repository.Repository]
+    from_commit: Awaitable[Optional[api.commit.Commit]]
+    to_commit: Awaitable[api.commit.Commit]
+    is_direct: Awaitable[bool]
+    is_replay: bool
+    files: Awaitable[Optional[Files]]
+    contributing_commits: Awaitable[Optional[ContributingCommits]]
+    review_state: Awaitable[Optional[ReviewState]]
 
 
 class Changesets(ResourceClass[api.changeset.Changeset], api_module=api.changeset):
@@ -127,9 +128,19 @@ class Changesets(ResourceClass[api.changeset.Changeset], api_module=api.changese
                 return None
             return basic_list(list(commitset.topo_ordered))
 
+        async def progress() -> Optional[Progress]:
+            progress = await value.progress
+            if progress is None:
+                return None
+            return {
+                "analysis": progress.analysis,
+                "syntax_highlight": progress.syntax_highlight,
+            }
+
         return {
             "id": value.id,
             "completion_level": value.completion_level,
+            "progress": progress(),
             "repository": value.repository,
             "from_commit": value.from_commit,
             "to_commit": value.to_commit,

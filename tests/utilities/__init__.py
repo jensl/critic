@@ -89,6 +89,14 @@ async def git(command: str, *argv: str, cwd: str = None) -> ExecuteResult:
     )
 
 
+async def lsremote(url: str, ref: str = "HEAD") -> str:
+    for line in raise_for_status(await git("ls-remote", url, ref)).stdout.splitlines():
+        sha1, _, line_ref = line.partition("\t")
+        if line_ref == ref:
+            return sha1
+    raise Exception(f"ref {ref!r} not found in {url}")
+
+
 class AccessToken:
     __value: Optional[str]
 

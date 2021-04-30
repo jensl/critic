@@ -1,9 +1,15 @@
-import React, { useContext, useEffect } from "react"
+import React, { useContext, useEffect, useMemo } from "react"
 
 import { Breadcrumb } from "../actions"
+import { Thunk } from "../state"
 import { useDispatch } from "../store"
 
-const BreadcrumbContext = React.createContext<Breadcrumb[]>([])
+type BreadcrumbsSetter = (index: number, crumb: Breadcrumb) => Thunk<void>
+
+const setBreadcrumb: BreadcrumbsSetter = (index, crumb) => (dispatch) =>
+  dispatch({ type: "SET_BREADCRUMB", index, crumb })
+
+const BreadcrumbContext = React.createContext<number>(0)
 
 type Props = {
   crumb: Breadcrumb
@@ -14,20 +20,20 @@ export const PushBreadcrumb: React.FunctionComponent<Props> = ({
   children,
 }) => {
   const dispatch = useDispatch()
+  const index = useContext(BreadcrumbContext)
   const { category, label, path } = crumb
 
-  const previous = useContext(BreadcrumbContext)
-  const crumbs = [...previous, crumb]
-
   useEffect(() => {
-    dispatch({ type: "SET_BREADCRUMBS", crumbs })
-    return () => {
-      dispatch({ type: "SET_BREADCRUMBS", crumbs: previous })
-    }
-  }, [dispatch, previous, category, label, path])
+    dispatch(setBreadcrumb(index, crumb))
+  }, [dispatch, index, category, label, path])
+
+  useEffect(
+    () => () => void dispatch({ type: "TRIM_BREADCRUMBS", length: index }),
+    [],
+  )
 
   return (
-    <BreadcrumbContext.Provider value={crumbs}>
+    <BreadcrumbContext.Provider value={index + 1}>
       {children}
     </BreadcrumbContext.Provider>
   )

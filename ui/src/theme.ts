@@ -103,6 +103,12 @@ export const lightTheme = createMuiTheme({
       borderColor: "#888",
       borderRadius: 4,
     },
+    selectionHighlight: {
+      borderWidth: 2,
+      borderStyle: "solid",
+      borderColor: teal[400],
+      borderRadius: 4,
+    },
     standout: {
       backgroundColor: teal[50],
       borderColor: teal[100],

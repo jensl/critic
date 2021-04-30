@@ -17,7 +17,7 @@
 import React, { useEffect, FunctionComponent } from "react"
 
 import CssBaseline from "@material-ui/core/CssBaseline"
-import { ThemeProvider } from "@material-ui/core/styles"
+import { ThemeProvider, makeStyles } from "@material-ui/core/styles"
 
 import { loadExtensionInstallations } from "../actions/extension"
 import { loadSession } from "../actions/session"
@@ -31,6 +31,7 @@ import {
   useUserSetting,
 } from "../utils"
 import { ProvideHashContext } from "../utils/Hash"
+import WebSocket from "../utils/WebSocketContext"
 import { lightTheme, darkTheme } from "../theme"
 
 import Structure from "./Application.Structure"
@@ -53,11 +54,15 @@ const selectTheme = (name: string) => {
   }
 }
 
+const useStyles = makeStyles({
+  resourceSubscriptions: { height: "100%" },
+})
+
 const WithSessionInfo: FunctionComponent = () => {
   const [themeName] = useUserSetting(userSettings.theme)
   const theme = selectTheme(themeName)
 
-  useSubscription(loadExtensionInstallations)
+  useSubscription(loadExtensionInstallations, [])
 
   return (
     <ThemeProvider theme={theme}>
@@ -74,23 +79,26 @@ const WithSessionInfo: FunctionComponent = () => {
 const WithoutSessionInfo: FunctionComponent = () => {
   const { hasSessionInfo, signedInUser } = useSessionInfo()
   const started = useSelector((state) => state.ui.rest.started)
-  useSubscriptionIf(signedInUser !== null, loadUserSettings, id(signedInUser))
-  useSubscription(loadSession)
-  useSubscription(loadUsers)
+  useSubscriptionIf(signedInUser !== null, loadUserSettings, [id(signedInUser)])
+  useSubscription(loadSession, [])
+  useSubscription(loadUsers, [])
   return started && hasSessionInfo ? <WithSessionInfo /> : null
 }
 
 const Application: FunctionComponent = () => {
+  const classes = useStyles()
   const dispatch = useDispatch()
-  useEffect(() => dispatch(connectWebSocket()), [dispatch])
+  //useEffect(() => dispatch(connectWebSocket()), [dispatch])
   return (
-    <MouseTracker>
-      <KeyboardEventHandler>
-        <ResourceSubscriptions>
-          <WithoutSessionInfo />
-        </ResourceSubscriptions>
-      </KeyboardEventHandler>
-    </MouseTracker>
+    <WebSocket>
+      <MouseTracker>
+        <KeyboardEventHandler>
+          <ResourceSubscriptions className={classes.resourceSubscriptions}>
+            <WithoutSessionInfo />
+          </ResourceSubscriptions>
+        </KeyboardEventHandler>
+      </MouseTracker>
+    </WebSocket>
   )
 }
 

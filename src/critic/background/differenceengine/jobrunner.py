@@ -250,13 +250,14 @@ class JobRunner(RunnerType):
                     #     group.not_started,
                     #     group.in_progress,
                     # )
-                    if not (group.not_started or group.in_progress):
+                    if group.should_calculate_remaining():
                         # Recalculate remaining jobs.  May find new stuff now,
                         # or have other side-effects.
+                        pending_before = bool(group.not_started)
                         await group.calculate_remaining(critic)
                         if group.not_started:
-                            new_jobs = True
-                        else:
+                            new_jobs = not pending_before
+                        elif not group.in_progress:
                             # No new pending jobs were added => this group is
                             # finished.
                             self.all_groups.remove(group)

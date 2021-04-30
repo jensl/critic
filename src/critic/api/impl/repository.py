@@ -29,6 +29,7 @@ from typing import (
     Collection,
     Dict,
     Iterator,
+    Literal,
     Optional,
     Iterable,
     Tuple,
@@ -38,6 +39,7 @@ from typing import (
     TypeVar,
     Union,
     cast,
+    overload,
 )
 
 from .queryhelper import QueryHelper, QueryResult
@@ -392,15 +394,42 @@ class Repository(PublicType, APIObjectImplWithId, module=public):
                 error.argv, error.returncode, error.stdout, error.stderr
             )
 
-    async def listCommits(
+    @overload
+    async def __revlist(
         self,
+        include: Optional[public.Refs],
+        exclude: Optional[public.Refs],
+        paths: Optional[Iterable[str]],
+        min_parents: Optional[int],
+        max_parents: Optional[int],
         *,
-        include: Optional[public.Refs] = None,
-        exclude: Optional[public.Refs] = None,
-        paths: Optional[Iterable[str]] = None,
-        min_parents: Optional[int] = None,
-        max_parents: Optional[int] = None,
-    ) -> Sequence[api.commit.Commit]:
+        count: Literal[True],
+    ) -> int:
+        ...
+
+    @overload
+    async def __revlist(
+        self,
+        include: Optional[public.Refs],
+        exclude: Optional[public.Refs],
+        paths: Optional[Iterable[str]],
+        min_parents: Optional[int],
+        max_parents: Optional[int],
+        *,
+        count: Literal[False],
+    ) -> Sequence[SHA1]:
+        ...
+
+    async def __revlist(
+        self,
+        include: Optional[public.Refs],
+        exclude: Optional[public.Refs],
+        paths: Optional[Iterable[str]],
+        min_parents: Optional[int],
+        max_parents: Optional[int],
+        *,
+        count: bool,
+    ) -> Union[int, Sequence[SHA1]]:
         def is_valid_ref(ref: public.Refs) -> Optional[str]:
             if isinstance(ref, (api.commit.Commit, str)):
                 ref = str(ref)
@@ -434,7 +463,16 @@ class Repository(PublicType, APIObjectImplWithId, module=public):
         assert is_valid_refs(exclude_refs)
 
         try:
-            sha1s = await self.low_level.revlist(
+            if count:
+                return await self.low_level.revlist(
+                    include_refs,
+                    exclude_refs,
+                    count=True,
+                    paths=paths,
+                    min_parents=min_parents,
+                    max_parents=max_parents,
+                )
+            return await self.low_level.revlist(
                 include_refs,
                 exclude_refs,
                 paths=paths,
@@ -445,7 +483,35 @@ class Repository(PublicType, APIObjectImplWithId, module=public):
             raise api.repository.GitCommandError(
                 error.argv, error.returncode, error.stdout, error.stderr
             )
-        return await api.commit.fetchMany(self, sha1s=sha1s)
+
+    async def countCommits(
+        self,
+        *,
+        include: Optional[public.Refs] = None,
+        exclude: Optional[public.Refs] = None,
+        paths: Optional[Iterable[str]] = None,
+        min_parents: Optional[int] = None,
+        max_parents: Optional[int] = None,
+    ) -> int:
+        return await self.__revlist(
+            include, exclude, paths, min_parents, max_parents, count=True
+        )
+
+    async def listCommits(
+        self,
+        *,
+        include: Optional[public.Refs] = None,
+        exclude: Optional[public.Refs] = None,
+        paths: Optional[Iterable[str]] = None,
+        min_parents: Optional[int] = None,
+        max_parents: Optional[int] = None,
+    ) -> Sequence[api.commit.Commit]:
+        return await api.commit.fetchMany(
+            self,
+            sha1s=await self.__revlist(
+                include, exclude, paths, min_parents, max_parents, count=False
+            ),
+        )
 
     async def mergeBase(self, *commits: api.commit.Commit) -> api.commit.Commit:
         try:

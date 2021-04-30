@@ -10,6 +10,7 @@ import ChangesetFiles, { Props as ChangesetFilesProps } from "./Changeset.Files"
 import { AutomaticMode } from "../actions"
 import { useChangeset, useReview, useSubscription } from "../utils"
 import { loadFileDiffsForChangeset } from "../actions/changeset"
+import { useFileDiffs } from "../utils/ChangesetContext"
 
 const useStyles = makeStyles({
   changeset: {},
@@ -39,9 +40,7 @@ const Changeset: FunctionComponent<Props> = ({
   const useSideBySide = useMediaQuery(useTheme().breakpoints.up("lg"))
   const effectiveVariant =
     variant ?? (useSideBySide ? "side-by-side" : "unified")
-  const { changeset } = useChangeset()
-  const review = useReview()
-  useSubscription(loadFileDiffsForChangeset, changeset, { reviewID: review.id })
+  useFileDiffs()
   return (
     <div className={clsx(className, classes.changeset)}>
       <ChangesetActions

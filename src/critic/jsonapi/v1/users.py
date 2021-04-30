@@ -213,7 +213,7 @@ class Users(ResourceClass[api.user.User], api_module=api.user):
         if user_parameter is not None:
             if user is not None:
                 raise UsageError("Redundant query parameter: user=%s" % user_parameter)
-            user = await parameters.fromParameter(api.user.User, user_parameter)
+            user = await Users.fromParameterValue(parameters, user_parameter)
         return user
 
     @staticmethod

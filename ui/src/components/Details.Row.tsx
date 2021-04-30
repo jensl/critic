@@ -20,6 +20,7 @@ const useStyles = makeStyles((theme: Theme) => ({
     },
   },
   heading: {
+    fontWeight: "bold",
     [theme.breakpoints.up("md")]: {
       flexGrow: 0,
       textAlign: "right",

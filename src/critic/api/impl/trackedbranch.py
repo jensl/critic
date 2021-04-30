@@ -17,11 +17,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Callable, Tuple, Optional, Sequence
 
 from critic import api
 from critic.api import trackedbranch as public
-from critic.api.impl.queryhelper import QueryHelper, QueryResult
+from critic.api.impl.queryhelper import QueryHelper, QueryResult, join
 from .apiobject import APIObjectImplWithId
 
 
@@ -40,7 +41,9 @@ class Source:
 
 
 PublicType = public.TrackedBranch
-ArgumentsType = Tuple[int, int, str, str, str, bool, bool]
+ArgumentsType = Tuple[
+    int, int, str, str, str, bool, bool, Optional[datetime], Optional[datetime]
+]
 
 
 class TrackedBranch(PublicType, APIObjectImplWithId, module=public):
@@ -53,6 +56,8 @@ class TrackedBranch(PublicType, APIObjectImplWithId, module=public):
             source_name,
             self.__is_forced,
             self.__is_disabled,
+            self.__last_update,
+            self.__next_update,
         ) = args
 
         self.__source = Source(source_url, source_name)
@@ -82,6 +87,14 @@ class TrackedBranch(PublicType, APIObjectImplWithId, module=public):
     def source(self) -> PublicType.Source:
         return self.__source
 
+    @property
+    def last_update(self) -> Optional[datetime]:
+        return self.__last_update
+
+    @property
+    def next_update(self) -> Optional[datetime]:
+        return self.__next_update
+
     @classmethod
     def getQueryByIds(
         cls,
@@ -98,6 +111,8 @@ queries = QueryHelper[ArgumentsType](
     "remote_name",
     "forced",
     "disabled",
+    "previous",
+    "next",
 )
 
 
@@ -136,12 +151,21 @@ async def fetchAll(
     include_review_branches: bool,
 ) -> Sequence[PublicType]:
     conditions = []
+    joins = []
     if repository is not None:
-        conditions.append("repository={repository}")
+        conditions.append("trackedbranches.repository={repository}")
     if not include_review_branches:
         conditions.append("branches.type!='review'")
-    return TrackedBranch.store(
-        await queries.query(critic, *conditions, repository=repository).make(
-            TrackedBranch
+        joins.append(
+            join(
+                branches=[
+                    "branches.repository=trackedbranches.repository",
+                    "branches.name=trackedbranches.local_name",
+                ]
+            )
         )
+    return TrackedBranch.store(
+        await queries.query(
+            critic, queries.formatQuery(*conditions, joins=joins), repository=repository
+        ).make(TrackedBranch)
     )

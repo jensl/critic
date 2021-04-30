@@ -14,10 +14,9 @@ import {
   kReplacedLine,
   kWhitespaceLine,
   DiffLine,
-} from "../resources/filediff"
+} from "../resources/diffcommon"
 import { FileID, ChangesetID } from "../resources/types"
 import { SelectionScope } from "../reducers/uiSelectionScope"
-import { pure } from "recompose"
 import { LineComments } from "../selectors/fileDiff"
 import { locationFromSelectionScope } from "../utils/Comment"
 
@@ -108,10 +107,13 @@ const SideBySideLine: FunctionComponent<OwnProps> = ({
     selectedIDs = null,
     lastSelectedID = null,
     isRangeSelecting = false,
+    isPending = false,
   } = selectionScope || {}
 
   const oldIsSelected = selectedIDs?.has(oldID) ?? false
   const newIsSelected = selectedIDs?.has(newID) ?? false
+
+  const hasSelection = selectionScope !== null && !isPending
 
   const { type } = line
   const { oldSide = null, newSide = null } = comments ?? {}
@@ -184,6 +186,7 @@ const SideBySideLine: FunctionComponent<OwnProps> = ({
           line={type !== kInsertedLine ? line : null}
           side={type !== kContextLine ? "old" : null}
           isSelected={oldIsSelected}
+          hasSelection={hasSelection}
           inView={inView}
         />
         <span className={oldMarkerClass} />
@@ -194,6 +197,7 @@ const SideBySideLine: FunctionComponent<OwnProps> = ({
           line={type !== kDeletedLine ? line : null}
           side={type !== kContextLine ? "new" : null}
           isSelected={newIsSelected}
+          hasSelection={hasSelection}
           inView={inView}
         />
         <span className={newMarkerClass} />
@@ -230,5 +234,5 @@ const SideBySideLine: FunctionComponent<OwnProps> = ({
 
 export default Registry.add(
   "Changeset.Diff.SideBySide.Line",
-  pure(SideBySideLine),
+  React.memo(SideBySideLine),
 )

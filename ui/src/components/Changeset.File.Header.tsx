@@ -101,9 +101,8 @@ const ChangesetFileHeader: FunctionComponent<Props> = ({
   let deletedLines = null
   let insertedLines = null
   if (fileDiff) {
-    const { deleted, inserted } = countChangedLines(fileDiff)
-    deletedLines = `-${deleted}`
-    insertedLines = `+${inserted}`
+    deletedLines = `-${fileDiff.deleteCount}`
+    insertedLines = `+${fileDiff.insertCount}`
   }
   const toggleExpanded = isExpanded
     ? canCollapse

@@ -28,7 +28,7 @@ from critic.criticctl.utils import is_quickstarted
 logger = logging.getLogger(__name__)
 
 from critic import api
-from critic.background.extensionhost import (
+from critic.protocol.extensionhost import (
     CallError,
     CallResponseItem,
     EndpointRequest,
@@ -59,6 +59,7 @@ class Stopped(Exception):
 class Process:
     __response_queue: "asyncio.Queue[Optional[ResponsePackage]]"
     __stop_after: float
+    __log_capture: Optional[Callable[[binarylog.BinaryLogRecord], None]]
 
     def __init__(
         self,
@@ -85,6 +86,7 @@ class Process:
 
         self.__stdout_data = io.BytesIO()
         self.__stderr_data = io.BytesIO()
+        self.__log_capture = None
 
         asyncio.create_task(self.__read_logging(), name="read logging")
         asyncio.create_task(self.__read_responses(), name="read responses")
@@ -116,10 +118,13 @@ class Process:
     async def __read_logging(self) -> None:
         async for msg in binarylog.read(self.__log_reader):
             if isinstance(msg, dict) and "log" in msg:
+                record = cast(binarylog.BinaryLogRecord, msg["log"])
                 binarylog.emit(
-                    cast(binarylog.BinaryLogRecord, msg["log"]),
+                    record,
                     suffix=str(self.__process.pid),
                 )
+                if self.__log_capture:
+                    self.__log_capture(record)
 
     async def __read_responses(self) -> None:
         header_size = struct.calcsize(HEADER_FMT)
@@ -171,6 +176,7 @@ class Process:
         user_id: Union[Literal["anonymous", "system"], int],
         accesstoken_id: Optional[int],
         command: Union[EndpointRequest, SubscriptionMessage],
+        log_capture: Callable[[binarylog.BinaryLogRecord], None],
     ) -> AsyncIterator[CallResponseItem]:
         token = secrets.token_hex(4)
 
@@ -184,37 +190,43 @@ class Process:
             token,
         )
 
-        await self.__write_command(
-            CommandPackage(token, user_id, accesstoken_id, command)
-        )
+        assert self.__log_capture is None
+        self.__log_capture = log_capture
 
-        while True:
-            package = await self.__response_queue.get()
+        try:
+            await self.__write_command(
+                CommandPackage(token, user_id, accesstoken_id, command)
+            )
 
-            if not package:
-                stderr_output = self.__stderr_data.getvalue()
-                if stderr_output:
-                    logger.warn(
-                        "%s:%s:%s[pid=%d]: stderr:\n%s",
-                        self.__extension.extension_name,
-                        self.__role_type,
-                        self.__entrypoint.name,
-                        self.__process.pid,
-                        stderr_output.decode(),
-                    )
-                raise Exception("Unexpected EOF from extension process")
+            while True:
+                package = await self.__response_queue.get()
 
-            assert package.token == token
+                if not package:
+                    stderr_output = self.__stderr_data.getvalue()
+                    if stderr_output:
+                        logger.warn(
+                            "%s:%s:%s[pid=%d]: stderr:\n%s",
+                            self.__extension.extension_name,
+                            self.__role_type,
+                            self.__entrypoint.name,
+                            self.__process.pid,
+                            stderr_output.decode(),
+                        )
+                    raise Exception("Unexpected EOF from extension process")
 
-            if isinstance(package, ResponseItemPackage):
-                yield package.response_item
-            elif isinstance(package, ResponseErrorPackage):
-                yield package.error
-            else:
-                assert isinstance(package, ResponseFinalPackage)
-                break
+                assert package.token == token
 
-        self.__schedule_stop()
+                if isinstance(package, ResponseItemPackage):
+                    yield package.response_item
+                elif isinstance(package, ResponseErrorPackage):
+                    yield package.error
+                else:
+                    assert isinstance(package, ResponseFinalPackage)
+                    break
+        finally:
+            assert self.__log_capture is log_capture
+            self.__log_capture = None
+            self.__schedule_stop()
 
     def __schedule_stop(self) -> None:
         self.__stop_after = time.time() + MAXIMUM_IDLE_TIME
@@ -261,7 +273,7 @@ class SubscriptionProcess:
     entrypoint: str
 
 
-EXTENSIONS: Dict[int, Extension] = {}
+EXTENSIONS: Dict[int, "asyncio.Future[Extension]"] = {}
 
 
 class Extension:
@@ -281,8 +293,6 @@ class Extension:
         self.manifest = manifest
 
         self.__processes = {}
-
-        EXTENSIONS[version_id] = self
 
     @property
     def processes(self) -> Iterable[Process]:
@@ -383,12 +393,7 @@ class Extension:
 
     @staticmethod
     async def ensure(version_id: int) -> Extension:
-        async def inner() -> Extension:
-            try:
-                return EXTENSIONS[version_id]
-            except KeyError:
-                pass
-
+        async def create() -> Extension:
             async with api.critic.startSession(for_system=True) as critic:
                 version = await api.extensionversion.fetch(critic, version_id)
                 manifest = await version.manifest
@@ -422,15 +427,31 @@ class Extension:
                 )
                 return extension
 
-        extension = await inner()
-        await extension.__prepare_task
-        return extension
+        async def ensure() -> Extension:
+            try:
+                future = EXTENSIONS[version_id]
+            except KeyError:
+                logger.debug("preparing version: %r", version_id)
+                future = EXTENSIONS[
+                    version_id
+                ] = asyncio.get_running_loop().create_future()
+                future.set_result(await create())
+            else:
+                logger.debug("using version: %r", version_id)
+
+            extension = await future
+            logger.debug(f"{extension=}")
+            await extension.__prepare_task
+            logger.debug("prepared!")
+            return extension
+
+        return await ensure()
 
     @staticmethod
     async def shutdown():
         tasks = []
         for extension in EXTENSIONS.values():
-            for process in extension.processes:
+            for process in (await extension).processes:
                 tasks.append(asyncio.create_task(process.stop()))
         if tasks:
             await asyncio.wait(tasks)

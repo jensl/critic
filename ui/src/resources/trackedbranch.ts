@@ -26,6 +26,8 @@ type TrackedBranchData = {
   name: string
   branch: number | null
   source: SourceData
+  last_update: number | null
+  next_update: number | null
 }
 
 type TrackedBranchProps = {
@@ -35,6 +37,8 @@ type TrackedBranchProps = {
   name: string
   branch: number | null
   source: Source
+  last_update: number | null
+  next_update: number | null
 }
 
 class TrackedBranch {
@@ -47,6 +51,8 @@ class TrackedBranch {
     readonly name: string,
     readonly branch: number | null,
     readonly source: Source,
+    readonly lastUpdate: number | null,
+    readonly nextUpdate: number | null,
   ) {}
 
   static new(props: TrackedBranchProps) {
@@ -57,6 +63,8 @@ class TrackedBranch {
       props.name,
       props.branch,
       props.source,
+      props.last_update,
+      props.next_update,
     )
   }
 
@@ -80,7 +88,12 @@ class TrackedBranch {
   })
 
   get props(): TrackedBranchProps {
-    return { ...this, is_disabled: this.isDisabled }
+    return {
+      ...this,
+      is_disabled: this.isDisabled,
+      last_update: this.lastUpdate,
+      next_update: this.nextUpdate,
+    }
   }
 }
 

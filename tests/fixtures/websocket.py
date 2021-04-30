@@ -11,6 +11,7 @@ from typing import (
     AsyncIterator,
     List,
     Optional,
+    Sequence,
     Tuple,
     TypeVar,
     cast,
@@ -104,8 +105,14 @@ class WebSocket:
     def __find(
         self, channel: Optional[str], match: DictMatches
     ) -> Optional[Tuple[int, Dict[str, Any]]]:
+        def match_channel(expected: str, channels: Sequence[str]) -> bool:
+            for actual in channels:
+                if expected == actual or actual.startswith(expected + "/"):
+                    return True
+            return False
+
         for index, publish in enumerate(self.__messages):
-            if channel is not None and channel not in publish["channel"]:
+            if channel is not None and not match_channel(channel, publish["channel"]):
                 continue
             message = publish["message"]
             if match and match != message:
@@ -165,6 +172,10 @@ class WebSocket:
             index, message = found
             logger.debug("dropping message: %r", message)
             del self.__messages[index]
+
+    async def clear(self) -> None:
+        async with self.__condition:
+            self.__messages = []
 
     async def assert_match(self) -> None:
         self.__snapshot.assert_match(

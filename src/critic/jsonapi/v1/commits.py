@@ -219,11 +219,15 @@ class Commits(
             # `master` or some similar branch, and may be assumed to contain
             # very many commits. Use some custom code to support a range request
             # without, accessing all reachable commits first.
-            offset, count = parameters.getRange()
+            offset, end = parameters.getRange()
+            count = end - offset if offset is not None and end is not None else None
             order: api.commit.Order = "topo" if sort_parameter != "date" else "date"
+            head = await branch.head
             commits = await api.commit.fetchRange(
-                to_commit=await branch.head, order=order, offset=offset, count=count
+                to_commit=head, order=order, offset=offset, count=count
             )
+            repository = await branch.repository
+            parameters.setPagination(total=await repository.countCommits(include=head))
         else:
             commits = await branch.commits
 

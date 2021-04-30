@@ -16,7 +16,6 @@
 
 import aiohttp.web
 import logging
-import secrets
 from typing import Optional, Sequence, Tuple, Union
 
 from multidict import CIMultiDict
@@ -28,7 +27,7 @@ from critic import frontend
 from critic import pubsub
 
 # from critic.background import extensiontasks
-from critic.background.extensionhost import (
+from critic.protocol.extensionhost import (
     CallResponse,
     EndpointRequest,
     EndpointResponseBodyFragment,
@@ -81,7 +80,6 @@ async def handle_endpoint(
     async with pubsub.connect(
         f"extension endpoint: {await extension.key}::{name}"
     ) as client:
-        request_id = secrets.token_bytes(8)
         call = await client.request(
             pubsub.Payload(
                 CallRequest(
@@ -91,7 +89,6 @@ async def handle_endpoint(
                     EndpointRole(
                         name,
                         EndpointRequest(
-                            request_id,
                             request.method,
                             path,
                             list(request.query.items()),

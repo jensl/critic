@@ -27,7 +27,7 @@ const Tutorial: FunctionComponent<OwnProps & RouteComponentProps<Params>> = ({
   tutorials,
 }) => {
   const { tutorialID } = match.params
-  useSubscription(loadTutorial, tutorialID)
+  useSubscription(loadTutorial, [tutorialID])
   const tutorial = tutorials.get(tutorialID)
   if (!tutorial) return <LoaderBlock />
   return (
@@ -39,5 +39,7 @@ const Tutorial: FunctionComponent<OwnProps & RouteComponentProps<Params>> = ({
 
 export default Registry.add(
   "Tutorial",
-  connect((state: State) => ({ tutorials: state.resource.tutorials }))(Tutorial)
+  connect((state: State) => ({ tutorials: state.resource.tutorials }))(
+    Tutorial,
+  ),
 )

@@ -1,5 +1,4 @@
 import { MacroChunk } from "../resources/filediff"
-import Comment from "../resources/comment"
 import { ChangesetID, FileID } from "../resources/types"
 import { SelectionScope } from "../reducers/uiSelectionScope"
 import { ChunkComments } from "../selectors/fileDiff"

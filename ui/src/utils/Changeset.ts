@@ -16,14 +16,25 @@
 
 import { Location } from "history"
 import { match } from "react-router"
+import isEqual from "lodash/isEqual"
 
 import { FileID, ChangesetID, ReviewID } from "../resources/types"
 import Review from "../resources/review"
 import Repository from "../resources/repository"
 import Commit from "../resources/commit"
-import Changeset, { CompletionLevel } from "../resources/changeset"
+import Changeset, { CompletionLevel, Progress } from "../resources/changeset"
 import { Channel } from "./WebSocket"
-import { assertEqual } from "../debug"
+import { assertEqual, assertNotNull } from "../debug"
+import { useDispatch } from "../store"
+import { useEffect, useState } from "react"
+import {
+  ContextIDParam,
+  loadChangesetByID,
+  loadChangesetBySHA1,
+  loadChangesetStateByID,
+} from "../actions/changeset"
+import { useOptionalReview, useRepository } from "."
+import { useChannel } from "./WebSocketContext"
 
 const SHA1 = "[^.:]+"
 
@@ -248,4 +259,117 @@ export const waitForCompletionLevel = async (
     assertEqual(error, "timeout")
     return false
   }
+}
+
+export type SingleCommitRef = {
+  singleCommitRef: string
+}
+export type CommitRangeRefs = {
+  fromCommitRef?: string
+  toCommitRef: string
+}
+export type CommitRefs = SingleCommitRef | CommitRangeRefs
+
+export const useChangesetByRefs = (refs: CommitRefs) => {
+  const dispatch = useDispatch()
+  const repository = useRepository()
+  const review = useOptionalReview()
+  const [changeset, setChangeset] = useState<Changeset | null>(null)
+  const [hasStructure, setHasStructure] = useState(false)
+  const [hasFull, setHasFull] = useState(false)
+
+  let deps = []
+  if ("singleCommitRef" in refs) {
+    deps.push(refs.singleCommitRef)
+  } else {
+    deps.push(refs.fromCommitRef, refs.toCommitRef)
+  }
+
+  let context: ContextIDParam
+  if (review) context = { reviewID: review.id }
+  else context = { repositoryID: repository.id }
+
+  useEffect(() => {
+    console.log("useChangesetByRefs", { refs, context })
+    dispatch(loadChangesetBySHA1({ refs, ...context })).then(setChangeset)
+  }, deps)
+
+  useEffect(() => {
+    if (!changeset || !(hasStructure || hasFull)) return
+    console.log("useChangesetByRefs", { changeset, hasStructure, hasFull })
+    dispatch(
+      loadChangesetByID(
+        changeset.id,
+        review ? { reviewID: review.id } : undefined,
+      ),
+    ).then(setChangeset)
+  }, [changeset?.id, review?.id, hasStructure, hasFull])
+
+  const channelName =
+    !changeset || changeset.completionLevel.has("full")
+      ? null
+      : `changesets/${changeset.id}`
+
+  useChannel(
+    channelName,
+    (message) => {
+      if (
+        message.action === "modified" &&
+        message.resource_name === "changesets" &&
+        message.object_id === changeset?.id
+      ) {
+        const { updates } = message
+        if ("completion_level" in updates) {
+          const completionLevel = updates[
+            "completion_level"
+          ] as CompletionLevel[]
+          if (completionLevel.includes("full")) {
+            setHasFull(true)
+            return "remove"
+          }
+          if (completionLevel.includes("structure")) setHasStructure(true)
+        }
+      }
+    },
+    {
+      subscribeMessage: {
+        monitor_changeset: {
+          changeset_id: changeset?.id ?? -1,
+          required_levels: ["full"],
+        },
+      },
+    },
+  )
+
+  return changeset
+}
+
+const CHANGESET_PROGRESS_INTERVAL = 500
+
+type ChangesetState = {
+  completionLevel: ReadonlySet<CompletionLevel>
+  progress: Progress | null
+}
+
+export const useChangesetState = (changeset: Changeset) => {
+  const dispatch = useDispatch()
+  const [result, setResult] = useState<ChangesetState | null>(null)
+
+  useEffect(() => {
+    if (changeset.completionLevel.has("full")) return
+    const intervalID = window.setInterval(async () => {
+      const [completionLevel, progress] = await dispatch(
+        loadChangesetStateByID(changeset.id),
+      )
+      if (
+        !isEqual(completionLevel, result?.completionLevel) ||
+        !isEqual(progress, result?.progress)
+      )
+        setResult({ completionLevel, progress })
+      if (completionLevel.has("full")) window.clearInterval(intervalID)
+    }, CHANGESET_PROGRESS_INTERVAL)
+    return () => void window.clearInterval(intervalID)
+  }, [])
+
+  return result
 }

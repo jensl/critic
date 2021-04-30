@@ -57,6 +57,12 @@ class InvalidSHA1(api.InvalidItemError, Error, item_type="sha1"):
     pass
 
 
+class NoCurrentVersion(Error):
+    """Raised when no current version exists."""
+
+    pass
+
+
 PackageType = Literal["python"]
 
 
@@ -81,6 +87,15 @@ class ExtensionVersion(api.APIObjectWithId):
     def sha1(self) -> SHA1:
         ...
 
+    class Author(Protocol):
+        @property
+        def name(self) -> str:
+            ...
+
+        @property
+        def email(self) -> Optional[str]:
+            ...
+
     class Entrypoint(Protocol):
         @property
         def name(self) -> str:
@@ -101,6 +116,10 @@ class ExtensionVersion(api.APIObjectWithId):
 
         @property
         def dependencies(self) -> Collection[str]:
+            ...
+
+        @property
+        def data_globs(self) -> Collection[str]:
             ...
 
     class Role(Protocol):
@@ -142,6 +161,14 @@ class ExtensionVersion(api.APIObjectWithId):
 
     class Manifest(Protocol):
         @property
+        def description(self) -> str:
+            ...
+
+        @property
+        def authors(self) -> Sequence[ExtensionVersion.Author]:
+            ...
+
+        @property
         def package(self) -> Union[ExtensionVersion.PythonPackage]:
             ...
 
@@ -178,7 +205,7 @@ async def fetch(
     /,
     *,
     extension: api.extension.Extension,
-    name: Optional[str],
+    name: str,
 ) -> ExtensionVersion:
     ...
 
@@ -194,6 +221,17 @@ async def fetch(
     ...
 
 
+@overload
+async def fetch(
+    critic: api.critic.Critic,
+    /,
+    *,
+    extension: api.extension.Extension,
+    current: Literal[True],
+) -> ExtensionVersion:
+    ...
+
+
 async def fetch(
     critic: api.critic.Critic,
     version_id: Optional[int] = None,
@@ -201,8 +239,9 @@ async def fetch(
     extension: Optional[api.extension.Extension] = None,
     name: Optional[str] = None,
     sha1: Optional[SHA1] = None,
+    current: bool = False,
 ) -> ExtensionVersion:
-    return await fetchImpl.get()(critic, version_id, extension, name, sha1)
+    return await fetchImpl.get()(critic, version_id, extension, name, sha1, current)
 
 
 async def fetchAll(
@@ -222,6 +261,7 @@ fetchImpl: FunctionRef[
             Optional[api.extension.Extension],
             Optional[str],
             Optional[SHA1],
+            bool,
         ],
         Awaitable[ExtensionVersion],
     ]

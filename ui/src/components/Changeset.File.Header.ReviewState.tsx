@@ -1,7 +1,9 @@
 import React, { FunctionComponent, useState } from "react"
 import clsx from "clsx"
 
+import Alert from "@material-ui/lab/Alert"
 import Checkbox from "@material-ui/core/Checkbox"
+import Snackbar from "@material-ui/core/Snackbar"
 import Tooltip from "@material-ui/core/Tooltip"
 import Typography from "@material-ui/core/Typography"
 import CheckIcon from "@material-ui/icons/Check"
@@ -10,7 +12,7 @@ import { makeStyles } from "@material-ui/core/styles"
 import Registry from "."
 import AssignChanges from "./Dialog.Review.AssignChanges"
 import ReviewableFileChange from "../resources/reviewablefilechange"
-import { all, any, map, useSignedInUser } from "../utils"
+import { all, any, map, useOptionalReview, useSignedInUser } from "../utils"
 import { useDispatch } from "../store"
 import { setIsReviewed } from "../actions/reviewableFilechange"
 import { filteredSet, mergedSets } from "../utils/Functions"
@@ -45,12 +47,14 @@ const ReviewState: FunctionComponent<Props> = ({ className, file, rfcs }) => {
   const classes = useStyles()
   const dispatch = useDispatch()
   const signedInUser = useSignedInUser()
+  const review = useOptionalReview()
   const [requireSession, signInDialog] = useRequireSession(
     "You need to sign in before you can mark changes as reviewed.",
   )
   const [assignChanges, setAssignChanges] = useState(false)
+  const [message, setMessage] = useState<string | null>(null)
 
-  if (rfcs === null) return null
+  if (!review || rfcs === null) return null
 
   const isReviewed = all(rfcs, (rfc) => rfc.isReviewed)
   const isReviewedByOtherUsers = signedInUser
@@ -68,9 +72,15 @@ const ReviewState: FunctionComponent<Props> = ({ className, file, rfcs }) => {
     : new Set()
 
   const onToggle = async (value: boolean) => {
-    if (await requireSession()) {
-      if (assignedFiles.size !== 0) await dispatch(setIsReviewed(rfcs, value))
-      else setAssignChanges(true)
+    if (review.state === "open") {
+      if (await requireSession()) {
+        if (assignedFiles.size !== 0) await dispatch(setIsReviewed(rfcs, value))
+        else setAssignChanges(true)
+      }
+    } else if (review.state === "draft") {
+      setMessage(`The review has not been published yet!`)
+    } else {
+      setMessage(`The review is ${review.state}!`)
     }
   }
 
@@ -115,6 +125,13 @@ const ReviewState: FunctionComponent<Props> = ({ className, file, rfcs }) => {
           onClose={() => setAssignChanges(false)}
           fileID={file.id}
         />
+      )}
+      {message && (
+        <Snackbar open autoHideDuration={5000} onClose={() => setMessage(null)}>
+          <Alert severity="error" variant="filled">
+            {message}
+          </Alert>
+        </Snackbar>
       )}
     </span>
   )

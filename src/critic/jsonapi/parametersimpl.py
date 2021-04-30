@@ -118,6 +118,7 @@ class ParametersImpl(Parameters):
     __linked: Dict[str, Set[Any]]
     __primary_resource_type: Optional[str]
     __api_object_cache: Dict[int, Any]
+    __pagination_total: Optional[int]
 
     def __init__(self, critic: api.critic.Critic, request: Request):
         self.__critic = critic
@@ -151,6 +152,7 @@ class ParametersImpl(Parameters):
         self.__linked = defaultdict(set)
         self.__primary_resource_type = None
         self.__api_object_cache = {}
+        self.__pagination_total = None
 
     def __get_resource_type(self) -> Optional[str]:
         return self.__resource_type
@@ -257,6 +259,12 @@ class ParametersImpl(Parameters):
             return offset, offset + count
         return offset, count
 
+    def getPaginationTotal(self) -> Optional[int]:
+        return self.__pagination_total
+
+    def setPagination(self, total: int) -> None:
+        self.__pagination_total = total
+
     @contextlib.contextmanager
     def setSlice(self) -> Iterator[None]:
         begin, end = self.getRange()
@@ -295,11 +303,18 @@ class ParametersImpl(Parameters):
         )
         return self.__context.get(resource_class.name, default_value)
 
-    async def deduce(self, value_class: Type[APIObject]) -> Optional[APIObject]:
+    async def deduce(
+        self, value_class: Type[APIObject], provided: Optional[APIObject] = None
+    ) -> Optional[APIObject]:
         resource_class = cast(
             Type[ResourceClass[APIObject]], HANDLERS[VALUE_CLASSES[value_class]]
         )
-        return await resource_class.deduce(self)
+        deduced = await resource_class.deduce(self)
+        if deduced:
+            if provided and deduced != provided:
+                raise UsageError("Conflicting deduced and provided values")
+            return deduced
+        return provided
 
     async def fromParameter(
         self, value_class: Type[APIObject], name: str

@@ -39,10 +39,10 @@ const SelectionRectangle: FunctionComponent<Props> = ({ className }) => {
     <div
       className={clsx(className, classes.root)}
       style={{
-        left,
-        width,
-        top,
-        height,
+        top: top - 2,
+        left: left - 2,
+        width: width + 4,
+        height: height + 4,
       }}
     />
   )

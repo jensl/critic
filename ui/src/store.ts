@@ -35,7 +35,7 @@ import { Dispatch, State } from "./state"
 
 const middleware: Middleware[] = [thunkMiddleware]
 
-if (process.env.NODE_ENV === "development") middleware.push(createLogger())
+//if (process.env.NODE_ENV === "development") middleware.push(createLogger())
 
 const enhancer = applyMiddleware(...middleware)
 

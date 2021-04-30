@@ -24,9 +24,18 @@ type ExtensionVersionData = {
   extension: number
   name: string
   sha1: null | string
+  description: string
+  authors: AuthorData[]
 }
 
-type ExtensionVersionProps = ExtensionVersionData
+type ExtensionVersionProps = {
+  id: ExtensionVersionID
+  extension: number
+  name: string
+  sha1: null | string
+  description: string
+  authors: readonly Author[]
+}
 
 class ExtensionVersion {
   [immerable] = true
@@ -36,6 +45,8 @@ class ExtensionVersion {
     readonly extension: number,
     readonly name: string,
     readonly sha1: null | string,
+    readonly description: string,
+    readonly authors: readonly Author[],
   ) {}
 
   static new(props: ExtensionVersionProps) {
@@ -44,7 +55,16 @@ class ExtensionVersion {
       props.extension,
       props.name,
       props.sha1,
+      props.description,
+      props.authors,
     )
+  }
+
+  static prepare(value: ExtensionVersionData): ExtensionVersionProps {
+    return {
+      ...value,
+      authors: value.authors.map(Author.make),
+    }
   }
 
   static reducer = primaryMap<ExtensionVersion, ExtensionVersionID>(
@@ -52,6 +72,31 @@ class ExtensionVersion {
   )
 
   get props() {
+    return this
+  }
+}
+
+type AuthorData = {
+  name: string
+  email: string | null
+}
+
+type AuthorProps = AuthorData
+
+export class Author {
+  [immerable] = true
+
+  constructor(readonly name: string, readonly email: string | null) {}
+
+  static new(props: AuthorProps) {
+    return new Author(props.name, props.email)
+  }
+
+  static make(value: AuthorData) {
+    return Author.new(value)
+  }
+
+  get props(): AuthorProps {
     return this
   }
 }

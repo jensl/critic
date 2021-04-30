@@ -12,7 +12,13 @@ import { makeStyles } from "@material-ui/core/styles"
 
 import Registry from "."
 import { setBranch } from "../actions/review"
-import { useDialog, useReview, Value, useValue } from "../utils"
+import {
+  useDialog,
+  useReview,
+  Value,
+  useValue,
+  useSignedInUser,
+} from "../utils"
 import { useDispatch } from "../store"
 import { handleError } from "../resources"
 
@@ -24,17 +30,23 @@ const useStyles = makeStyles((theme) => ({
   branchName: {},
 }))
 
+const filterSummary = (summary: string) =>
+  summary
+    .replace(/[^\w\d]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .toLowerCase()
+
 const CreateBranch: FunctionComponent = () => {
   const classes = useStyles()
   const dispatch = useDispatch()
   const review = useReview()
+  const user = useSignedInUser()
   const { isOpen, closeDialog } = useDialog(kDialogID)
   const [errorMessage, setErrorMessage] = useValue(ErrorMessage)
   const branchName = useRef<HTMLInputElement>(null)
-  if (!review) return null
+  if (!user || !review) return null
   const createBranch = async () => {
     if (!branchName.current) return
-    console.error(branchName.current)
     await dispatch(
       setBranch(
         review.id,
@@ -47,8 +59,14 @@ const CreateBranch: FunctionComponent = () => {
     )
     closeDialog()
   }
+  const defaultValue = () => {
+    if (review.summary) {
+      return `r/${user.name}/${filterSummary(review.summary)}`
+    }
+    return ""
+  }
   return (
-    <Dialog open={isOpen}>
+    <Dialog open={isOpen} onClose={closeDialog}>
       <DialogTitle>Create branch</DialogTitle>
       <DialogContent>
         <Typography variant="body1">
@@ -63,6 +81,7 @@ const CreateBranch: FunctionComponent = () => {
           margin="normal"
           error={typeof errorMessage === "string"}
           helperText={errorMessage}
+          defaultValue={defaultValue()}
           fullWidth
         />
       </DialogContent>

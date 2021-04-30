@@ -24,7 +24,7 @@ from typing import Any, Awaitable, Dict, List, Literal, Tuple, cast
 
 logger = logging.getLogger("critic.background.extensionhost")
 
-from . import (
+from critic.protocol.extensionhost import (
     CallError,
     CallRequest,
     CallResponse,
@@ -80,7 +80,6 @@ class ExtensionHostService(BackgroundService):
         channel_name: pubsub.ChannelName,
         message: pubsub.Message,
     ) -> None:
-        request_id = secrets.token_bytes(8)
         client = await self.pubsub_client
         handle = await client.request(
             pubsub.Payload(
@@ -89,7 +88,7 @@ class ExtensionHostService(BackgroundService):
                     "system",
                     None,
                     SubscriptionRole(
-                        SubscriptionMessage(request_id, channel_name, message.payload)
+                        SubscriptionMessage(channel_name, message.payload)
                     ),
                 )
             ),

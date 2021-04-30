@@ -15,7 +15,6 @@
  */
 
 import {
-  ResourceError,
   fetch,
   fetchOne,
   createResources,
@@ -24,6 +23,7 @@ import {
   updateResource,
   deleteResource,
 } from "./fetch"
+import ResourceError from "./resourceerror"
 import {
   withArgument,
   withArguments,

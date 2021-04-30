@@ -32,6 +32,7 @@ type ExtensionData = {
   publisher: UserID
   url: string
   versions: ExtensionVersionID[]
+  default_version: ExtensionVersionID
   installation: ExtensionInstallationID | null
 }
 
@@ -42,6 +43,7 @@ type ExtensionProps = {
   publisher: UserID
   url: string
   versions: readonly ExtensionVersionID[]
+  default_version: ExtensionVersionID
   installation: ExtensionInstallationID | null
 }
 
@@ -55,6 +57,7 @@ class Extension {
     readonly publisher: UserID,
     readonly url: string,
     readonly versions: readonly ExtensionVersionID[],
+    readonly defaultVersion: ExtensionVersionID,
     readonly installation: ExtensionInstallationID | null,
   ) {}
 
@@ -66,6 +69,7 @@ class Extension {
       props.publisher,
       props.url,
       props.versions,
+      props.default_version,
       props.installation,
     )
   }
@@ -79,7 +83,7 @@ class Extension {
   })
 
   get props(): ExtensionProps {
-    return this
+    return { ...this, default_version: this.defaultVersion }
   }
 }
 

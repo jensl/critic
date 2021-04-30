@@ -50,7 +50,7 @@ ReadableLine = TypedDict(
         "type": str,
         "old_offset": int,
         "new_offset": int,
-        "content": Sequence[Part],
+        "content": Parts,
     },
 )
 ReadableChunk = TypedDict(
@@ -63,7 +63,7 @@ ReadableChunk = TypedDict(
         "new_count": int,
     },
 )
-CompactLine = Tuple[api.filediff.LineType, Sequence[Part]]
+CompactLine = Tuple[api.filediff.LineType, Parts]
 CompactChunk = Tuple[Sequence[CompactLine], int, int, int, int]
 Chunk = Union[ReadableChunk, CompactChunk]
 
@@ -189,10 +189,12 @@ class Filediffs(
             "old_syntax": value.old_syntax,
             "old_length": value.old_length,
             "old_linebreak": value.old_linebreak,
+            "delete_count": value.delete_count,
             "new_is_binary": value.new_is_binary,
             "new_syntax": value.new_syntax,
             "new_length": value.new_length,
             "new_linebreak": value.new_linebreak,
+            "insert_count": value.insert_count,
             "macro_chunks": macro_chunks(),
         }
 

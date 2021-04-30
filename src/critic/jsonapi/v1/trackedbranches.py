@@ -22,11 +22,13 @@ from typing import Sequence, Union
 logger = logging.getLogger(__name__)
 
 from critic import api
+from ..check import convert
 from ..exceptions import UsageError
 from ..resourceclass import ResourceClass
 from ..parameters import Parameters
-from ..types import JSONResult
+from ..types import JSONInput, JSONResult
 from ..utils import numeric_id
+from .timestamp import timestamp
 
 
 class TrackedBranches(
@@ -61,6 +63,8 @@ class TrackedBranches(
             "repository": value.repository,
             "branch": value.branch,
             "source": {"url": source.url, "name": source.name},
+            "last_update": timestamp(value.last_update),
+            "next_update": timestamp(value.next_update),
         }
 
     @classmethod
@@ -102,3 +106,37 @@ class TrackedBranches(
         return await api.trackedbranch.fetchAll(
             parameters.critic, repository=repository
         )
+
+    @staticmethod
+    async def create(
+        parameters: Parameters, data: JSONInput
+    ) -> api.trackedbranch.TrackedBranch:
+        critic = parameters.critic
+
+        converted = await convert(
+            parameters,
+            {
+                "repository?": api.repository.Repository,
+                "name": str,
+                "source": {"url": str, "name": str},
+            },
+            data,
+        )
+
+        repository = await parameters.deduce(api.repository.Repository)
+
+        if not repository:
+            if "repository" not in converted:
+                raise UsageError("No repository specified")
+            repository = converted["repository"]
+        elif "repository" in converted and repository != converted["repository"]:
+            raise UsageError("Conflicting repositorys specified")
+        assert repository is not None
+
+        source = converted["source"]
+
+        async with api.transaction.start(critic) as transaction:
+            modifier = await transaction.modifyRepository(repository).trackBranch(
+                source["url"], source["name"], converted["name"]
+            )
+            return modifier.subject

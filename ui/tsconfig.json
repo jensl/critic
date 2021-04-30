@@ -18,5 +18,5 @@
     "jsx": "react",
     "noFallthroughCasesInSwitch": false
   },
-  "include": ["src"]
+  "include": ["src", "index.d.ts"]
 }

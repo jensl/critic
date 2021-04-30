@@ -16,10 +16,14 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from typing import Collection, Mapping, Tuple, Optional, Sequence
 
+logger = logging.getLogger(__name__)
+
 from critic import api
+from critic.base.profiling import timed
 from critic.api import filechange as public
 from critic.api.apiobject import Actual
 from critic.gitaccess import SHA1
@@ -161,9 +165,10 @@ class FetchMultiple:
     ) -> Sequence[FileChange]:
         changeset = args[0][0]
         files = [file for _, file in args]
-        return await queries.query(self.critic, changeset=changeset, file=files).make(
-            MakeMultiple(changeset, {file.id: file for file in files})
-        )
+        with timed("filechange::FetchMultiple"):
+            return await queries.query(
+                self.critic, changeset=changeset, file=files
+            ).make(MakeMultiple(changeset, {file.id: file for file in files}))
 
 
 @public.fetchImpl
@@ -179,9 +184,10 @@ async def fetchMany(
     changeset: api.changeset.Changeset,
     files: Sequence[api.file.File],
 ) -> Sequence[PublicType]:
-    return await FileChange.ensure(
-        [(changeset, file) for file in files], FetchMultiple(critic)
-    )
+    with timed("filechange::fetchMany"):
+        return await FileChange.ensure(
+            [(changeset, file) for file in files], FetchMultiple(critic)
+        )
 
 
 @public.fetchAllImpl

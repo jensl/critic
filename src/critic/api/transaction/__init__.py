@@ -50,6 +50,7 @@ from .repository.mixin import Transaction as RepositoryMixin
 from .review.mixin import Transaction as ReviewMixin
 from .reviewscope.mixin import Transaction as ReviewScopeMixin
 from .reviewscopefilter.mixin import Transaction as ReviewScopeFilterMixin
+from .setting.mixin import Transaction as SettingMixin
 from .user.mixin import Transaction as UserMixin
 
 T = TypeVar("T")
@@ -103,6 +104,7 @@ class Transaction(
     ReviewMixin,
     ReviewScopeMixin,
     ReviewScopeFilterMixin,
+    SettingMixin,
     UserMixin,
     TransactionBase,
 ):

@@ -15,7 +15,6 @@
  */
 
 import React from "react"
-import fetch from "isomorphic-fetch"
 
 import { incrementCounter, decrementCounter } from "../actions/ui"
 import { showToast } from "../actions/uiToast"

@@ -1,10 +1,12 @@
 import { JSONData } from "../types"
 import { RequestParams, HTTPMethod } from "../utils/Fetch.types"
-import { ResourceTypes, RequestOptions } from "./types"
-import { ErrorCode, ResourceError } from "./fetch"
+import { RequestOptions } from "./types"
+import ResourceNames from "./resourcenames"
+import ResourceError from "./resourceerror"
+import { ErrorCode } from "./errorcode"
 
 export const withContext = (
-  resourceName: keyof ResourceTypes,
+  resourceName: keyof ResourceNames,
   argument: number | string,
 ): RequestOptions => ({ context: `${resourceName}/${argument}` })
 export const withArgument = (arg: number | string): RequestOptions => ({
@@ -18,18 +20,18 @@ export const withParameters = (params: RequestParams): RequestOptions => ({
 })
 export const withData = (data: any): RequestOptions => ({ data })
 export const include = (
-  ...include: (keyof ResourceTypes)[]
+  ...include: (keyof ResourceNames)[]
 ): RequestOptions => ({
   include,
 })
 export const includeFields = (
-  resourceName: keyof ResourceTypes,
+  resourceName: keyof ResourceNames,
   fields: string[],
 ): RequestOptions => ({
   params: { [`fields[${resourceName}]`]: fields.join(",") },
 })
 export const excludeFields = (
-  resourceName: keyof ResourceTypes,
+  resourceName: keyof ResourceNames,
   fields: string[],
 ): RequestOptions => ({
   params: { [`fields[${resourceName}]`]: `-${fields.join(",")}` },

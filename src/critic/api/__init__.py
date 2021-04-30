@@ -45,6 +45,7 @@ from . import commit
 from . import commitset
 from . import critic
 from . import extension
+from . import extensioncall
 from . import extensioninstallation
 from . import extensionversion
 from . import externalaccount
@@ -70,6 +71,7 @@ from . import reviewping
 from . import reviewscope
 from . import reviewscopefilter
 from . import reviewtag
+from . import setting
 from . import systemevent
 from . import systemsetting
 from . import trackedbranch
@@ -106,6 +108,7 @@ __all__ = [
     "commitset",
     # "critic",
     "extension",
+    "extensioncall",
     "extensioninstallation",
     "extensionversion",
     "externalaccount",
@@ -131,6 +134,7 @@ __all__ = [
     "reviewscope",
     "reviewscopefilter",
     "reviewtag",
+    "setting",
     "systemevent",
     "systemsetting",
     "trackedbranch",

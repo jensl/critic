@@ -1,6 +1,6 @@
 import { FunctionComponent } from "react"
+import { immerable } from "immer"
 
-import Token from "../utils/Token"
 import {
   BranchID,
   RebaseID,
@@ -12,8 +12,10 @@ import {
   UserID,
   CommentID,
   ChangesetID,
+  FileID,
 } from "../resources/types"
-import { immerable } from "immer"
+import { PublishedMessage } from "../protocol/WebSocket"
+import Token from "../utils/Token"
 
 export class InvalidItem {
   constructor(readonly id: number | string) {}
@@ -106,6 +108,7 @@ export interface SetSelectionScopeAction {
   elementType: SelectionElementType
   elements: { [id: string]: HTMLElement }
   elementIDs: SelectionElementID[]
+  boundingRectsByID: { [id: string]: BoundingRect }
   boundingRect: BoundingRect
 }
 
@@ -274,15 +277,28 @@ export interface DataUpdateAction extends DataUpdateParams {
 }
 
 export type Breadcrumb = {
-  category: string
+  category: string | null
   label: string
   path: string | null
 }
 
-export const SET_BREADCRUMBS = "SET_BREADCRUMBS"
-export interface SetBreadcrumbsAction {
-  type: typeof SET_BREADCRUMBS
-  crumbs: Breadcrumb[]
+export const ENSURE_BREADCRUMBS = "ENSURE_BREADCRUMBS"
+export interface EnsureBreadcrumbsAction {
+  type: typeof ENSURE_BREADCRUMBS
+  length: number
+}
+
+export const TRIM_BREADCRUMBS = "TRIM_BREADCRUMBS"
+export interface TrimBreadcrumbsAction {
+  type: typeof TRIM_BREADCRUMBS
+  length: number
+}
+
+export const SET_BREADCRUMB = "SET_BREADCRUMB"
+export interface SetBreadcrumbAction {
+  type: typeof SET_BREADCRUMB
+  index: number
+  crumb: Breadcrumb
 }
 
 export const PUSH_KEYBOARD_SHORTCUT_SCOPE = "PUSH_KEYBOARD_SHORTCUT_SCOPE"
@@ -339,36 +355,6 @@ export type SaveActionCreator = (
   controlValue: string,
   wasDismissed: boolean,
 ) => any
-
-export const REGISTER_CONNECTED_INPUT = "REGISTER_CONNECTED_INPUT"
-export interface RegisterConnectedInputAction {
-  type: typeof REGISTER_CONNECTED_INPUT
-  inputID: Token
-  saveActionCreator: SaveActionCreator
-  resourceValue: string
-  controlValue: string
-}
-
-export type ConnectedInputUpdates = {
-  resourceValue?: string
-  controlValue?: string
-  timeoutID?: number | null
-  saveInProgress?: boolean
-  saveFailed?: boolean
-}
-
-export const UPDATE_CONNECTED_INPUT = "UPDATE_CONNECTED_INPUT"
-export interface UpdateConnectedInputAction {
-  type: typeof UPDATE_CONNECTED_INPUT
-  inputID: Token
-  updates: ConnectedInputUpdates
-}
-
-export const UNREGISTER_CONNECTED_INPUT = "UNREGISTER_CONNECTED_INPUT"
-export interface UnregisterConnectedInputAction {
-  type: typeof UNREGISTER_CONNECTED_INPUT
-  inputID: Token
-}
 
 export const UNPUBLISHED_CHANGES_PUBLISHED = "UNPUBLISHED_CHANGES_PUBLISHED"
 export interface UnpublishedChangesPublishedAction {
@@ -483,6 +469,13 @@ export interface RemoveWebSocketListenerAction {
   listener: WebSocketListener
 }
 
+export const WEB_SOCKET_MESSAGE = "WEB_SOCKET_MESSAGE"
+export interface WebSocketMessageAction {
+  type: typeof WEB_SOCKET_MESSAGE
+  channel: string
+  message: PublishedMessage
+}
+
 export type AutomaticMode = "everything" | "relevant" | "reviewable" | "pending"
 
 export class AutomaticChangesetEmpty extends Error {}
@@ -588,6 +581,25 @@ export interface ResetExtension {
   extensionID: ExtensionID
 }
 
+export interface FileDiffsUpdate {
+  type: "FILEDIFFS_UPDATE"
+  changesetID: ChangesetID
+  fileID: FileID
+  chunkIndex: number
+  operation: "append" | "prepend"
+  lines: readonly any[]
+}
+
+export const UPDATE_PAGINATION_ACTION = "UPDATE_PAGINATION_ACTION"
+export type UpdatePaginationAction = {
+  type: typeof UPDATE_PAGINATION_ACTION
+
+  scope: string
+  offset: number
+  total: number
+  itemIDs: readonly number[]
+}
+
 export type Action =
   | StartAction
   | CommitRefsUpdateAction
@@ -613,7 +625,9 @@ export type Action =
   | DocumentClickedAction
   | AddLinkifierAction
   | RemoveLinkifierAction
-  | SetBreadcrumbsAction
+  | EnsureBreadcrumbsAction
+  | TrimBreadcrumbsAction
+  | SetBreadcrumbAction
   | PushKeyboardShortcutScopeAction
   | PopKeyboardShortcutScopeAction
   | SetSingleSpaceWidthAction
@@ -623,9 +637,6 @@ export type Action =
   | AddExtensionPageAction
   | AddExtensionLinkifierAction
   | UserSettingsLoadedAction
-  | RegisterConnectedInputAction
-  | UpdateConnectedInputAction
-  | UnregisterConnectedInputAction
   | ExpandCommentAction
   | CollapseCommentAction
   | ClearExpandedCommentsAction
@@ -651,3 +662,6 @@ export type Action =
   | TreesUpdate
   | AddItemToList
   | ResetExtension
+  | FileDiffsUpdate
+  | UpdatePaginationAction
+  | WebSocketMessageAction

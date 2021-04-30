@@ -6,7 +6,7 @@ import Typography from "@material-ui/core/Typography"
 
 import Registry from "."
 import { getReviewableFileChangesPerReviewAndCommit } from "../selectors/reviewableFileChange"
-import { useReview } from "../utils"
+import { useOptionalReview } from "../utils"
 import Commit from "../resources/commit"
 import { useSelector } from "../store"
 
@@ -28,9 +28,9 @@ const CommitListItemChangedLines: FunctionComponent<Props> = ({
   commit,
 }) => {
   const classes = useStyles()
-  const review = useReview()
+  const review = useOptionalReview()
   const rfcsPerReview = useSelector(getReviewableFileChangesPerReviewAndCommit)
-  const rfcs = rfcsPerReview.get(review?.id)?.get(commit.id)
+  const rfcs = rfcsPerReview.get(review?.id ?? -1)?.get(commit.id)
   if (!rfcs) return null
   var deletedLines = 0
   var insertedLines = 0

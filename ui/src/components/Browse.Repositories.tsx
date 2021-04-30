@@ -38,8 +38,7 @@ const useStyles = makeStyles({
 const BrowseRepositories: FunctionComponent = () => {
   const classes = useStyles()
   const repositories = useSelector((state) => state.resource.repositories.byID)
-  useSubscription(loadRepositories)
-  console.log({ repositories })
+  useSubscription(loadRepositories, [])
   return (
     <Paper>
       <Toolbar className={classes.toolbar}>

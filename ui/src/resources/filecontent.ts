@@ -18,12 +18,22 @@ import { immerable } from "immer"
 
 import { primaryMap } from "../reducers/resource"
 import { FileID, RepositoryID } from "./types"
+import { DiffLine, kContextLine, PartData } from "./diffcommon"
+import { map } from "../utils/Functions"
+
+type FileContentData = {
+  repository: RepositoryID
+  sha1: string
+  file: FileID | null
+  offset: number
+  lines: PartData[][]
+}
 
 type FileContentProps = {
   repository: RepositoryID
-  file: FileID
+  file: FileID | null
   sha1: string
-  lines: any[]
+  lines: readonly DiffLine[]
 }
 
 class FileContent {
@@ -31,18 +41,29 @@ class FileContent {
 
   constructor(
     readonly repository: RepositoryID,
-    readonly file: FileID,
     readonly sha1: string,
-    readonly lines: any[],
+    readonly file: FileID | null,
+    readonly lines: readonly DiffLine[],
   ) {}
 
   static new(props: FileContentProps) {
     return new FileContent(
       props.repository,
-      props.file,
       props.sha1,
+      props.file,
       props.lines,
     )
+  }
+
+  static prepare(value: FileContentData): FileContentProps {
+    return {
+      ...value,
+      lines: DiffLine.make(
+        map(value.lines, (parts) => [kContextLine, parts]),
+        value.offset,
+        value.offset,
+      ),
+    }
   }
 
   static reducer = primaryMap<FileContent, string>(

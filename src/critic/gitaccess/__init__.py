@@ -17,6 +17,7 @@
 import asyncio
 import logging
 import re
+from dataclasses import dataclass
 from distutils.spawn import find_executable
 from typing import Literal, Mapping, NewType, Optional, Type, cast
 
@@ -78,12 +79,10 @@ def git() -> str:
     return GIT_EXECUTABLE
 
 
+@dataclass
 class GitRemoteRefs:
-    def __init__(
-        self, refs: Mapping[str, SHA1], symbolic_refs: Mapping[str, str]
-    ) -> None:
-        self.refs = refs
-        self.symbolic_refs = symbolic_refs
+    refs: Mapping[str, SHA1]
+    symbolic_refs: Mapping[str, str]
 
 
 class FetchJob:

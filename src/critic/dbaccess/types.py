@@ -1,4 +1,5 @@
 from __future__ import annotations
+from dataclasses import dataclass
 
 import datetime
 from typing import (
@@ -20,11 +21,19 @@ class Adaptable(Protocol):
         ...
 
 
+@dataclass
+class SQLExpression:
+    value: str
+
+    def __str__(self):
+        return self.value
+
+
 SQLAtom = Union[bool, int, float, str, bytes, datetime.datetime, Adaptable]
 SQLValue = Optional[Union[SQLAtom, Sequence[SQLAtom]]]
 SQLRow = Tuple[SQLValue, ...]
 
-Parameter = Union[SQLValue, Adaptable]
+Parameter = Union[SQLValue, SQLExpression, Adaptable]
 Parameters = Mapping[str, Parameter]
 ExecuteArguments = Optional[Union[List[SQLValue], Parameters]]
 

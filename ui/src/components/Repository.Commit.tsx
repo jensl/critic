@@ -19,7 +19,7 @@ const RepositoryCommit: FunctionComponent = () => {
   const commits = useSelector((state) => state.resource.commits)
   const commitRefs = useSelector((state) => state.resource.extra.commitRefs)
   const { ref } = useRouteMatch<Params>().params
-  useSubscription(resolveRef, { ref, repositoryID: repository.id })
+  useSubscription(resolveRef, [ref, repository.id])
   const commitID = commitRefs.get(`${repository.id}:${ref}`)
   if (commitID === null)
     return <LoaderBlock waitingFor={`Resolving commit ref: ${ref}`} />

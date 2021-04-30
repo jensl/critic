@@ -1,7 +1,7 @@
 import React from "react"
 import { useRouteMatch, useHistory } from "react-router"
 
-import Accordion from "@material-ui/core/Accordion"
+import Accordion, { AccordionProps } from "@material-ui/core/Accordion"
 import AccordionSummary from "@material-ui/core/AccordionSummary"
 import AccordionDetails from "@material-ui/core/AccordionDetails"
 import Container, { ContainerProps } from "@material-ui/core/Container"
@@ -11,6 +11,7 @@ import { makeStyles } from "@material-ui/core/styles"
 
 import Registry from "."
 import { useOptionalExtension } from "../utils/ExtensionContext"
+import { usePrefix } from "../utils"
 
 const useStyles = makeStyles((theme) => ({
   heading: {
@@ -52,32 +53,34 @@ export type SectionProps = {
   id: string
   title: string
   ContainerProps?: Omit<ContainerProps, "children">
+  AccordionProps?: Omit<
+    AccordionProps,
+    "children" | "className" | "expanded" | "onChange" | "TransitionProps"
+  >
 }
 
-type Props = {
-  category: "account" | "system"
-}
-
-const Section: React.FunctionComponent<SectionProps & Props> = ({
+const Section: React.FunctionComponent<SectionProps> = ({
   className,
   id,
-  category,
   title,
   children,
+  AccordionProps = {},
   ContainerProps = { maxWidth: "md" },
 }) => {
   const classes = useStyles()
   const match = useRouteMatch<Params>()
   const history = useHistory()
   const { section } = match.params
+  const prefix = usePrefix()
   return (
     <Accordion
       className={className}
       expanded={id === section}
       onChange={(_, isExpanded) =>
-        history.replace(`/settings/${category}/${isExpanded ? id : ""}`)
+        history.replace(`${prefix}/${isExpanded ? id : ""}`)
       }
       TransitionProps={{ mountOnEnter: true, unmountOnExit: true }}
+      {...AccordionProps}
     >
       <AccordionSummary expandIcon={<ExpandMoreIcon />}>
         <Typography className={classes.heading}>

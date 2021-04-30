@@ -24,6 +24,10 @@ CREATE TABLE repositories (
 
 );
 
+ALTER TABLE settings
+  ADD CONSTRAINT settings_repository
+    FOREIGN KEY (repository) REFERENCES repositories (id) ON DELETE CASCADE;
+
 CREATE TABLE gitusers (
 
   id SERIAL PRIMARY KEY,
@@ -81,11 +85,24 @@ CREATE TABLE branches (
   -- result.
   size INTEGER NOT NULL,
 
-  UNIQUE (repository, name)
+  UNIQUE (repository, name),
+
+  -- Pointless, since `id` alone is unique, but required for `settings`
+  -- constraint below.
+  UNIQUE (repository, id)
 
 );
 CREATE INDEX branches_base
           ON branches (base);
+
+ALTER TABLE settings
+  ADD CONSTRAINT settings_repository_branch
+    FOREIGN KEY (repository, branch)
+      REFERENCES branches (repository, id)
+      ON DELETE CASCADE;
+ALTER TABLE settings
+  ADD CONSTRAINT settings_repository_branch_check
+    CHECK (branch IS NULL OR repository IS NOT NULL);
 
 -- Branch updates:
 --   One row per update (ff or not) of a branch.

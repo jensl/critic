@@ -24,9 +24,11 @@ import {
   withParameters,
   include,
   fetch,
+  fetchOne,
 } from "../resources"
 
 import Extension from "../resources/extension"
+import ExtensionCall from "../resources/extensioncall"
 import ExtensionVersion from "../resources/extensionversion"
 import ExtensionInstallation from "../resources/extensioninstallation"
 
@@ -119,6 +121,18 @@ export const fetchUIAddon = (extension, name, bundleType) => async (
 }
 */
 
+export const loadExtensions = () => fetch("extensions")
+
+export const loadExtensionByKey = (key: string) =>
+  fetchOne(
+    "extensions",
+    withParameters({ key }),
+    include("extensioninstallations"),
+  )
+
+export const loadExtensionCallsByVersion = (version: ExtensionVersion) =>
+  fetch("extensioncalls", withParameters({ version: version.id }))
+
 export const loadExtensionInstallations = () => fetch("extensioninstallations")
 
 export const installExtension = (
@@ -162,3 +176,6 @@ export const createExtension = (name: string, url: string) =>
 
 export const deleteExtension = (extension: Extension) =>
   deleteResource("extensions", withArgument(extension.id))
+
+export const repeatExtensionCall = (call: ExtensionCall) =>
+  createResource("extensioncalls", { repeat: call.id })

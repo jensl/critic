@@ -299,7 +299,7 @@ class Insert(_GeneratedQuery):
         await self.execute(cursor)
 
     def _set_column_names(self, column_names: Sequence[str]) -> None:
-        self.__column_names = column_names
+        self.__column_names = [f'"{name}"' for name in column_names]
         self.__value_names = ["{%s}" % name for name in column_names]
 
     def columns(self, *column_names: str) -> Insert:
@@ -368,10 +368,12 @@ class InsertMany(Insert):
 
 class Update(_GeneratedQuery):
     columns: Set[str]
+    set_values: Dict[str, str]
 
     def __init__(self, table_or_object: Union[str, api.APIObjectWithId]):
         super().__init__(table_or_object)
         self.columns = set()
+        self.set_values = {}
 
     async def __call__(
         self, transaction: TransactionBase, cursor: dbaccess.TransactionCursor, /
@@ -381,13 +383,18 @@ class Update(_GeneratedQuery):
         logger.debug("%s %r", re.sub(r"\s+", " ", statement), self.parameters)
         await self.execute(cursor)
 
-    def _set_updates(self, column_names: Sequence[str]) -> None:
+    def _set_updates(self, column_names: Collection[str]) -> None:
         self.columns.update(column_names)
 
     def set(self, **columns: dbaccess.Parameter) -> Update:
-        self._set_updates(sorted(columns.keys()))
+        self._set_updates(columns.keys())
         for name, value in columns.items():
-            self.set_parameter(f"set_{name}", value)
+            if isinstance(value, dbaccess.SQLExpression):
+                self.set_values[name] = str(value)
+            else:
+                parameter_name = f"set_{name}"
+                self.set_values[name] = "{%s}" % parameter_name
+                self.set_parameter(parameter_name, value)
         return self
 
     def set_if(self, **columns: dbaccess.Parameter) -> Update:
@@ -399,9 +406,12 @@ class Update(_GeneratedQuery):
     def statement(self) -> Optional[str]:
         if not self.columns:
             return None
+        set_expressions = ", ".join(
+            f'"{name}"={self.set_values[name]}' for name in sorted(self.columns)
+        )
         return f"""
             UPDATE {self.table_name}
-               SET {", ".join(("%s={set_%s}" % (name, name)) for name in sorted(self.columns))}
+               SET {set_expressions}
              WHERE {" AND ".join(self.conditions)}
         """
 

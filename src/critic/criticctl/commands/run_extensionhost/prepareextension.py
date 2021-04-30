@@ -101,74 +101,105 @@ async def prepare_extension(
         )
         await process.wait()
 
-    with tempfile.TemporaryDirectory() as temporary_dir:
-        completed, pending = await asyncio.wait(
-            [
-                asyncio.create_task(
-                    fetch_and_extract(temporary_dir), name="fetch and extract extension"
-                ),
-                asyncio.create_task(prepare_venv(), name="prepare virtual environment"),
-            ]
-        )
-        assert not pending
+    try:
+        with tempfile.TemporaryDirectory() as temporary_dir:
+            completed, pending = await asyncio.wait(
+                [
+                    asyncio.create_task(
+                        fetch_and_extract(temporary_dir),
+                        name="fetch and extract extension",
+                    ),
+                    asyncio.create_task(
+                        prepare_venv(), name="prepare virtual environment"
+                    ),
+                ]
+            )
 
-        failed = False
-        for task in completed:
-            try:
-                await task
-            except Exception as error:
-                logger.error(
-                    "Task failed: %s: %s",
-                    cast(asyncio.Task[None], task).get_name(),
-                    error,
+            assert not pending
+
+            failed = False
+            for task in completed:
+                try:
+                    await task
+                except Exception as error:
+                    logger.error(
+                        "Task failed: %s: %s",
+                        cast(asyncio.Task[None], task).get_name(),
+                        error,
+                    )
+                    failed = True
+
+            if failed:
+                raise Exception("Failed to prepare extension")
+
+            packages = [
+                name
+                for name in os.listdir(os.path.join(temporary_dir, "src"))
+                if os.path.exists(
+                    os.path.join(temporary_dir, "src", name, "__init__.py")
                 )
-                failed = True
+            ]
+            (package_name,) = packages
 
-        if failed:
-            raise Exception("Failed to prepare extension")
+            try:
+                package = manifest.package
 
-        package = manifest.package
+                assert package.package_type == "python"
 
-        assert package.package_type == "python"
+                with open(os.path.join(temporary_dir, "setup.py"), "w") as setup_py:
+                    print("from setuptools import setup", file=setup_py)
+                    print("setup()", file=setup_py)
 
-        with open(os.path.join(temporary_dir, "setup.py"), "w") as setup_py:
-            print("from setuptools import setup", file=setup_py)
-            print("setup()", file=setup_py)
+                with open(os.path.join(temporary_dir, "setup.cfg"), "w") as setup_cfg:
+                    print("[metadata]", file=setup_cfg)
+                    print(f"name={extension_name}", file=setup_cfg)
 
-        with open(os.path.join(temporary_dir, "setup.cfg"), "w") as setup_cfg:
-            print("[metadata]", file=setup_cfg)
-            print(f"name={extension_name}", file=setup_cfg)
+                    print("[options]", file=setup_cfg)
+                    print("package_dir=\n    =src", file=setup_cfg)
+                    print("packages=find:", file=setup_cfg)
 
-            print("[options]", file=setup_cfg)
-            print("package_dir=\n    =src", file=setup_cfg)
-            print("packages=find:", file=setup_cfg)
+                    if package.dependencies:
+                        print("install_requires=", file=setup_cfg)
+                        for dependency in package.dependencies:
+                            print(f"    {dependency}", file=setup_cfg)
 
-            if package.dependencies:
-                print("install_requires=", file=setup_cfg)
-                for dependency in package.dependencies:
-                    print(f"    {dependency}", file=setup_cfg)
+                    if package.data_globs:
+                        print("[options.package_data]", file=setup_cfg)
+                        print(
+                            f"{package_name}={', '.join(package.data_globs)}",
+                            file=setup_cfg,
+                        )
 
-            print("[options.packages.find]", file=setup_cfg)
-            print("where=src", file=setup_cfg)
+                    print("[options.packages.find]", file=setup_cfg)
+                    print("where=src", file=setup_cfg)
+            except:
+                logger.exception("WTF?")
+                raise
 
-            # if manifest.package.entrypoints:
-            #     print("[options.entry_points]", file=setup_cfg)
-            #     print("console_scripts=", file=setup_cfg)
-            #     for name, target in manifest.package.entrypoints.items():
-            #         print(f"    {name}={target}", file=setup_cfg)
+                # if manifest.package.entrypoints:
+                #     print("[options.entry_points]", file=setup_cfg)
+                #     print("console_scripts=", file=setup_cfg)
+                #     for name, target in manifest.package.entrypoints.items():
+                #         print(f"    {name}={target}", file=setup_cfg)
 
-        logger.debug("%s: installing extension...", target_dir)
-        process = await asyncio.create_subprocess_exec(
-            pip, "install", temporary_dir, stdout=asyncio.subprocess.DEVNULL
-        )
-        await process.wait()
+            logger.warning(open(os.path.join(temporary_dir, "setup.cfg")).read())
 
-    with open(prepared_path, "w") as file:
-        print(time.ctime(), file=file)
+            logger.debug("%s: installing extension...", target_dir)
+            process = await asyncio.create_subprocess_exec(
+                pip, "install", temporary_dir, stdout=asyncio.subprocess.DEVNULL
+            )
 
-    if critic_wheel:
-        critic_wheel_mtime = mtime(critic_wheel)
+            await process.wait()
 
-        os.utime(prepared_path, (critic_wheel_mtime, critic_wheel_mtime))
+        with open(prepared_path, "w") as file:
+            print(time.ctime(), file=file)
 
-    logger.debug("%s: finished", target_dir)
+        if critic_wheel:
+            critic_wheel_mtime = mtime(critic_wheel)
+
+            os.utime(prepared_path, (critic_wheel_mtime, critic_wheel_mtime))
+
+        logger.debug("%s: finished", target_dir)
+    except:
+        logger.exception("WTF?")
+        raise

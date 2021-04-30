@@ -82,13 +82,13 @@ type ManifestData = {
 }
 
 type ManifestProps = {
-  ui_addons: UIAddon[]
+  ui_addons: readonly UIAddon[]
 }
 
 class Manifest {
   [immerable] = true
 
-  constructor(readonly ui_addons: UIAddon[]) {}
+  constructor(readonly ui_addons: readonly UIAddon[]) {}
 
   static new(props: ManifestProps) {
     return new Manifest(props.ui_addons)

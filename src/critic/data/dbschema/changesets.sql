@@ -156,7 +156,9 @@ CREATE TABLE highlightfiles (
 
   repository INTEGER NOT NULL,
   sha1 CHAR(40) NOT NULL,
-  language INTEGER NOT NULL,
+  -- Language the file is or should be highlighted as. NULL means no language
+  -- could be detected, and that the file should not be highlighted.
+  language INTEGER,
   conflicts BOOLEAN NOT NULL,
 
   -- Whether this file is currently highlighted; IOW, whether lines exists in
@@ -165,7 +167,6 @@ CREATE TABLE highlightfiles (
   -- Whether this file should be highlighted, when it isn't.
   requested BOOLEAN DEFAULT TRUE,
 
-  UNIQUE (repository, sha1, language, conflicts),
   FOREIGN KEY (repository)
     REFERENCES repositories ON DELETE CASCADE,
   FOREIGN KEY (language)
@@ -175,8 +176,10 @@ CREATE TABLE highlightfiles (
   -- Both can be FALSE, or one of them TRUE, but never both.
   CHECK (NOT requested OR NOT highlighted)
 );
-CREATE INDEX highlightfiles_sha1_language
-          ON highlightfiles (sha1, language);
+CREATE UNIQUE INDEX highlightfiles_repository_sha1
+                 ON highlightfiles (
+                      repository, sha1, COALESCE(language, -1), conflicts
+                    );
 
 CREATE TABLE highlightlines (
   file INTEGER NOT NULL,

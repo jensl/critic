@@ -53,6 +53,7 @@ async def evaluateMultiple(
     if not parameters.range_accessed:
         begin, end = parameters.getRange()
         if begin is not None or end is not None:
+            parameters.setPagination(len(cast(Sequence[APIObject], values)))
             values = itertools.islice(values, begin, end)
 
     try:

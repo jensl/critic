@@ -141,9 +141,14 @@ class QueryHelper(Generic[RowType]):
         order_by: Optional[Sequence[str]] = None,
         joins: Optional[Sequence[str]] = None,
         limit: Optional[int] = None,
+        distinct_on: Optional[Sequence[str]] = None,
     ) -> Query:
+        if distinct_on is None:
+            use_distinct_on = ""
+        else:
+            use_distinct_on = f" DISTINCT ON ({', '.join(distinct_on)})"
         clauses: List[Optional[str]] = [
-            f"SELECT {self.columns}",
+            f"SELECT{use_distinct_on} {self.columns}",
             f"FROM {self.table_name}",
         ]
         if joins is None:
@@ -200,6 +205,7 @@ class QueryHelper(Generic[RowType]):
                     if value is not None
                 )
             query = self.formatQuery(*all_conditions)
+        # logger.debug("%s %r", query, parameters)
         return QueryResult(
             critic, api.critic.Query[RowType](critic, str(query), **parameters)
         )

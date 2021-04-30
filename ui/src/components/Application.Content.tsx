@@ -30,15 +30,21 @@ import AccountSettings from "./Settings.Account"
 import SystemSettings from "./Settings.System"
 import ReviewContext from "./Review.Context"
 import Dashboard from "./Dashboard"
+import DashboardReview from "./Dashboard.Review"
+import SelectionHighlight from "./Selection.Highlight"
 import SelectionRectangle from "./Selection.Rectangle"
 import Help from "./Help"
 import Tutorial from "./Tutorial"
 import RepositoryRouter from "./Repository.Router"
 import BrowseRepositories from "./Browse.Repositories"
+import BrowseExtensions from "./Browse.Extensions"
+import Extension from "./Extension"
 import { useSignedInUser, useUserSetting } from "../utils"
 
 const useStyles = makeStyles((theme) => ({
   applicationContent: {
+    display: "flex",
+    flexDirection: "column",
     flexGrow: 1,
     paddingLeft: theme.spacing(3),
     paddingRight: theme.spacing(3),
@@ -66,6 +72,9 @@ const useStyles = makeStyles((theme) => ({
   main: {
     paddingTop: theme.spacing(3),
     paddingBottom: theme.spacing(3),
+    display: "flex",
+    flexDirection: "column",
+    flexGrow: 1,
   },
 
   sidebarHeader: {
@@ -104,6 +113,10 @@ const Content: FunctionComponent = () => {
             component={ReviewContext}
           />
           <Route path="/repository/:name" component={RepositoryRouter} />
+          <Route
+            path="/dashboard/:category/review/:reviewID/:activeTab?"
+            component={DashboardReview}
+          />
           <Route path="/dashboard/:activeTab" component={Dashboard} />
           <Route
             path="/settings/account/:section?"
@@ -114,8 +127,11 @@ const Content: FunctionComponent = () => {
           <Route path="/help" component={Help} />
           <Route path="/tutorial/:tutorialID" component={Tutorial} />
           <Route path="/browse/repositories" component={BrowseRepositories} />
+          <Route path="/browse/extensions" component={BrowseExtensions} />
+          <Route path="/extension/:key/:activeTab?" component={Extension} />
           <Route component={NotFound} />
         </Switch>
+        <SelectionHighlight />
         <SelectionRectangle />
       </main>
     </div>

@@ -117,6 +117,27 @@ COMPLETION_LEVELS: FrozenSet[CompletionLevel] = frozenset(
 )
 
 
+class Progress(Protocol):
+    @property
+    def analysis(self) -> float:
+        """Diff analysis progress as a number between 0 and 1
+
+        The diff analysis stage looks at individual blocks of changed lines, and
+        figures out which lines in the new version are edits of which lines in
+        the old version."""
+        ...
+
+    @property
+    def syntax_highlight(self) -> float:
+        """Syntax highlight progress as a number between 0 and 1
+
+        The syntax highlight stage simply performs full-file syntax highlighting
+        of each relevant file version. Since any file version involved may have
+        also been involved in another diff and thus be cached, this number may
+        start at any point between 0 and 1."""
+        ...
+
+
 def as_completion_level(value: str) -> CompletionLevel:
     if value not in COMPLETION_LEVELS:
         raise Error(f"invalid completion level: {value!r}")
@@ -201,6 +222,20 @@ class Changeset(api.APIObjectWithId):
 
         The completion level is returned as a set of identifiers from the
         COMPLETION_LEVELS set."""
+        ...
+
+    @property
+    async def progress(self) -> Optional[Progress]:
+        """Changeset processing progress
+
+        The initial processing of a changeset, corresponding to the `structure`
+        and `changedlines` completion levels, is stepped, meaning it is not
+        meaningful to measure progress aside from whether the corresponding
+        completion level has been reached.
+
+        The remaning processing, corresponding to the `analysis` and
+        `syntaxhighlight` completion levels, is gradual, however. Thus, once
+        those stages have begun, their progress can be measured as a ratio."""
         ...
 
     async def ensure_completion_level(

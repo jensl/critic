@@ -58,11 +58,24 @@ CREATE TABLE reviews (
   FOREIGN KEY (origin) REFERENCES branches ON DELETE SET NULL,
   FOREIGN KEY (closed_by) REFERENCES users,
   FOREIGN KEY (dropped_by) REFERENCES users,
-  FOREIGN KEY (integration_target) REFERENCES branches
+  FOREIGN KEY (integration_target) REFERENCES branches,
+
+  -- Pointless, since `id` alone is unique, but required for `settings`
+  -- constraint below.
+  UNIQUE (repository, id)
 
 );
 CREATE INDEX reviews_branch ON reviews (branch);
 CREATE INDEX reviews_integration_target ON reviews (integration_target);
+
+ALTER TABLE settings
+  ADD CONSTRAINT settings_review
+    FOREIGN KEY (repository, review)
+      REFERENCES reviews (repository, id)
+      ON DELETE CASCADE;
+ALTER TABLE settings
+  ADD CONSTRAINT settings_repository_review_check
+    CHECK (review IS NULL OR repository IS NOT NULL);
 
 CREATE TYPE revieweventtype AS ENUM (
   'created',
@@ -74,7 +87,8 @@ CREATE TYPE revieweventtype AS ENUM (
   'pinged',
   'assignments',
   'branchupdate',
-  'batch'
+  'batch',
+  'reviewuser'
 );
 
 CREATE TABLE reviewevents (

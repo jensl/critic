@@ -30,9 +30,22 @@ import { AsyncThunk, Dispatch, GetState } from "../state"
 import { ChangesetID } from "../resources/types"
 import { CompletionLevel } from "../resources/changeset"
 
+export type CompletionLevelCallback = () => void
+export type CompletionLevelCallbacks = {
+  structure?: CompletionLevelCallback
+  changedlines?: CompletionLevelCallback
+  analysis?: CompletionLevelCallback
+  syntaxhighlight?: CompletionLevelCallback
+  full?: CompletionLevelCallback
+}
+
 type WebSocketMessage = {
   subscribed?: string[]
   unsubscribed?: string[]
+  publish: {
+    channel: string
+    message: any
+  }
   monitor_changeset?: {
     changeset_id: number
     completion_level: CompletionLevel[]
@@ -69,7 +82,7 @@ export const connectWebSocket = () => (
     dispatch(webSocketConnected(connection))
 
     const { webSocket } = getState().ui
-    const channels = webSocket.channels.keySeq().toJS()
+    const channels = [...webSocket.channels.keys()]
     if (channels.length)
       connection.send(
         JSON.stringify({
@@ -111,7 +124,7 @@ export const connectWebSocket = () => (
 
     if (payload.publish) {
       const { channel, message } = payload.publish
-      const callbacks = channels.get(channel, [])
+      const callbacks = channels.get(channel) ?? []
       for (const callback of callbacks) callback(channel, message)
     }
   }
@@ -175,7 +188,7 @@ export const unsubscribeFromChannel = (
 
 export const monitorChangesetByID = (
   changesetID: ChangesetID,
-  requiredLevels: CompletionLevel[],
+  callbacks: CompletionLevelCallbacks,
 ) => (callback: ChannelCallback): AsyncThunk<boolean> => (
   dispatch: Dispatch,
   getState: GetState,
@@ -192,12 +205,28 @@ export const monitorChangesetByID = (
     })
 
     if (alreadySubscribed) {
+      console.warn("already subscribed to channel", { channel })
       resolve(false)
     } else {
       dispatch(
         addListener((payload: WebSocketMessage) => {
-          if (payload.monitor_changeset?.changeset_id === changesetID) {
-            resolve(true)
+          const monitorChangeset = payload.monitor_changeset
+          if (monitorChangeset?.changeset_id === changesetID) {
+            let finished = false
+            for (const level of monitorChangeset.completion_level) {
+              const callback = callbacks[level]
+              if (callback && callback()) finished = true
+            }
+            if (!finished)
+              dispatch(
+                addListener((payload: WebSocketMessage) => {
+                  const publish = payload.publish
+                  if (publish)
+                    if (publish.channel === channel && publish.message) {
+                    }
+                }),
+              )
+            resolve(!finished)
             return "remove"
           }
         }),
@@ -208,7 +237,7 @@ export const monitorChangesetByID = (
           JSON.stringify({
             monitor_changeset: {
               changeset_id: changesetID,
-              required_levels: requiredLevels,
+              required_levels: Object.keys(callbacks),
             },
           }),
         )

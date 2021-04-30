@@ -14,7 +14,7 @@ export const useSystemSetting = <T>(
     byID.get(byKey.get(key) || -1),
   )
 
-  useSubscriptionIf(load, loadSystemSettingByKey, key)
+  useSubscriptionIf(load, loadSystemSettingByKey, [key])
 
   if (setting === undefined)
     return [undefined, async () => assertNotReached(), "N/A"]

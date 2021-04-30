@@ -14,6 +14,8 @@
  * the License.
  */
 
+import { BoundingRect } from "../actions"
+
 export const all = <T>(items: Iterable<T>, predicate: (v: T) => boolean) => {
   for (const v of items) if (!predicate(v)) return false
   return true
@@ -61,7 +63,7 @@ export function getProperty<T, K extends keyof T>(
   return object ? object[key] : defaultValue
 }
 
-export const id = <T extends ObjectWithID>(object: T | null) =>
+export const id = <T extends ObjectWithID>(object: T | null | undefined) =>
   getProperty(object, "id", -1)
 
 export const compareByProps = <T, K extends keyof T>(...props: K[]) => (
@@ -124,10 +126,28 @@ export const setWithout = <T>(set: ReadonlySet<T>, item: T): ReadonlySet<T> => {
   return result
 }
 
+export const setWithoutAll = <T>(
+  set: ReadonlySet<T>,
+  items: ReadonlySet<T>,
+): ReadonlySet<T> => filteredSet(set, (item) => items.has(item))
+
+export function* filtered<T>(
+  items: Iterable<T>,
+  predicate: (item: T) => boolean,
+): IterableIterator<T> {
+  for (const item of items) if (predicate(item)) yield item
+}
+
+export function* filterNulls<T>(
+  items: Iterable<T | null | undefined>,
+): IterableIterator<T> {
+  for (const item of items) if (item !== null && item !== undefined) yield item
+}
+
 export const filteredSet = <T>(
   items: Iterable<T>,
   predicate: (item: T) => boolean,
-): ReadonlySet<T> => new Set([...items].filter(predicate))
+): ReadonlySet<T> => new Set(filtered(items, predicate))
 
 export const mappedSet = <T, U>(
   items: Iterable<T>,
@@ -154,4 +174,31 @@ export const filterInPlace = <T>(
       items[index] = filtered[index]
   }
   return items
+}
+
+export const outerBoundingRect = (
+  rects: Iterable<BoundingRect>,
+): BoundingRect => {
+  let topMin = Number.MAX_SAFE_INTEGER
+  let rightMax = Number.MIN_SAFE_INTEGER
+  let bottomMax = Number.MIN_SAFE_INTEGER
+  let leftMin = Number.MAX_SAFE_INTEGER
+
+  for (const { top, right, bottom, left } of rects) {
+    if (top < topMin) topMin = top
+    if (right > rightMax) rightMax = right
+    if (bottom > bottomMax) bottomMax = bottom
+    if (left < leftMin) leftMin = left
+  }
+
+  const top = topMin + window.scrollY
+  const right = rightMax + window.scrollX
+  const bottom = bottomMax + window.scrollY
+  const left = leftMin + window.scrollX
+
+  return { top, right, bottom, left }
+}
+
+export function* chain<T>(...items: Iterable<T>[]) {
+  for (const someItems of items) for (const item of someItems) yield item
 }

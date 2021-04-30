@@ -25,6 +25,7 @@ import { useLocation } from "react-router"
 
 const useStyles = makeStyles((theme) => ({
   applicationNotFound: {
+    marginTop: theme.spacing(4),
     display: "flex",
     alignItems: "flex-start",
     lineHeight: "160px",

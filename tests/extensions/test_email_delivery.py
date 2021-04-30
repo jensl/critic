@@ -30,7 +30,11 @@ async def test_email_delivery(
         "email-delivery", instance.get_extension_url("email-delivery")
     ):
         async with settings(
-            {"smtp.address.host": "localhost", "smtp.address.port": smtpd.port}
+            {
+                "smtp.address.host": "localhost",
+                "smtp.address.port": smtpd.port,
+                "smtp.sender": "Critic <noreply@example.org>",
+            }
         ):
             message_id = generate_name("message-id")
             raise_for_status(
@@ -50,7 +54,10 @@ async def test_email_delivery(
                 )
             )
             await websocket.pop("email/outgoing")
-            await websocket.expect("email/sent", message_id=message_id)
+            anonymizer.assert_match(
+                await websocket.expect(f"email/sent/{message_id}"),
+                "delivery notification 1",
+            )
 
             message_id = generate_name("message-id")
             raise_for_status(
@@ -61,4 +68,7 @@ async def test_email_delivery(
                 )
             )
             await websocket.pop("email/outgoing")
-            await websocket.expect("email/sent", message_id=message_id)
+            anonymizer.assert_match(
+                await websocket.expect(f"email/sent/{message_id}"),
+                "delivery notification 2",
+            )

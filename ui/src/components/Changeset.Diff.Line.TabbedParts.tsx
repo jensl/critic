@@ -1,9 +1,8 @@
-import React, { FunctionComponent } from "react"
+import React from "react"
 import clsx from "clsx"
 
 import ArrowRightAltIcon from "@material-ui/icons/ArrowRightAlt"
 
-import Registry from "."
 import {
   kNeutralPartType,
   kNeutralPartState,
@@ -11,8 +10,7 @@ import {
   kInsertedPartState,
   kTokenTypes,
   Part,
-} from "../resources/filediff"
-import { pure } from "recompose"
+} from "../resources/diffcommon"
 
 type ContentItem = null | string | JSX.Element
 type Content = ContentItem | ContentItem[]
@@ -22,7 +20,7 @@ type PartsProps = {
   side: "old" | "new" | null
 }
 
-const Parts: React.ComponentType<PartsProps> = pure(({ content, side }) => {
+const Parts: React.FunctionComponent<PartsProps> = ({ content, side }) => {
   const tabSize = 4
 
   const tabify = (fragment: string, offset: number): [Content, number] => {
@@ -89,6 +87,8 @@ const Parts: React.ComponentType<PartsProps> = pure(({ content, side }) => {
       })}
     </>
   )
-})
+}
 
-export default Registry.add("Changeset.Diff.Line.SimpleParts", Parts)
+// export default Registry.add("Changeset.Diff.Line.SimpleParts", React.memo(Parts))
+
+export default React.memo(Parts)

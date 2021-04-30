@@ -19,9 +19,11 @@ import {
   monitorChangesetByID,
   subscribeToChannel,
   unsubscribeFromChannel,
+  CompletionLevelCallbacks,
 } from "../actions/uiWebSocket"
 import { assertNotNull } from "../debug"
-import Changeset from "../resources/changeset"
+import Changeset, { CompletionLevel } from "../resources/changeset"
+import { ChangesetID } from "../resources/types"
 import { AsyncThunk, Dispatch } from "../state"
 
 type Status = "success" | "timeout"
@@ -147,14 +149,15 @@ export class Channel {
   }
 
   static monitorChangeset = (
-    changeset: Changeset,
-  ): AsyncThunk<Channel> => async (dispatch) => {
+    changesetID: ChangesetID,
+    callbacks: CompletionLevelCallbacks,
+  ): AsyncThunk<Channel | null> => async (dispatch) => {
     const channel = new Channel(
       dispatch,
-      `changesets/${changeset.id}`,
-      monitorChangesetByID(changeset.id, ["full"]),
+      `changesets/${changesetID}`,
+      monitorChangesetByID(changesetID, callbacks),
     )
-    await channel.subscribed
-    return channel
+    const isSubscribed = await channel.subscribed
+    return isSubscribed ? channel : null
   }
 }

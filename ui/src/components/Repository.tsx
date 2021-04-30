@@ -20,7 +20,11 @@ import Registry from "."
 import RepositoryHeader from "./Repository.Header"
 import RepositoryDetails from "./Repository.Details"
 import RepositoryActions from "./Repository.Actions"
+import RepositoryBranches from "./Repository.Branches"
 import RepositoryFiles from "./Repository.Files"
+import RepositoryReviews from "./Repository.Reviews"
+import RepositorySettings from "./Repository.Settings"
+import SetPrefix from "../utils/PrefixContext"
 import { useRepository } from "../utils"
 
 const useStyles = makeStyles((theme) => ({
@@ -60,20 +64,15 @@ type Props = {
   className?: string
 }
 
-const Empty: React.FunctionComponent<RouteComponentProps> = ({ match }) => (
-  <div>{match.path}</div>
-)
-
 const Repository: React.FunctionComponent<Props> = ({ className }) => {
   const classes = useStyles()
   const { activeTab } = useRouteMatch<Params>().params
   const repository = useRepository()
   if (!repository) return null
-  console.log({ repository })
   const prefix = `/repository/${repository.name}`
   if (!activeTab) return <Redirect to={`${prefix}/files`} />
   return (
-    <>
+    <SetPrefix prefix={prefix}>
       <Container className={clsx(className, classes.container)} maxWidth="lg">
         <RepositoryHeader />
         <Paper className={classes.paper}>
@@ -102,14 +101,31 @@ const Repository: React.FunctionComponent<Props> = ({ className }) => {
               value="branches"
               label="Branches"
             />
+            <Tab
+              component={Link}
+              to={`${prefix}/reviews`}
+              value="reviews"
+              label="Reviews"
+            />
+            <Tab
+              component={Link}
+              to={`${prefix}/settings`}
+              value="settings"
+              label="Settings"
+            />
           </Tabs>
           <Switch>
             <Route path={`${prefix}/files`} component={RepositoryFiles} />
-            <Route path={`${prefix}/branches`} component={Empty} />
+            <Route path={`${prefix}/branches`} component={RepositoryBranches} />
+            <Route path={`${prefix}/reviews`} component={RepositoryReviews} />
+            <Route
+              path={`${prefix}/settings/:section?`}
+              component={RepositorySettings}
+            />
           </Switch>
         </Paper>
       </Container>
-    </>
+    </SetPrefix>
   )
 }
 

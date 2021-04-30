@@ -25,16 +25,15 @@ const ReviewCommit: FunctionComponent = () => {
   const commits = useResource("commits")
   const commitRefs = useResourceExtra("commitRefs")
   const review = useReview()
-  useSubscriptionIf(typeof review?.repository === "number", resolveRef, {
+  useSubscriptionIf(typeof review?.repository === "number", resolveRef, [
     ref,
-    repositoryID: review?.repository,
-  })
+    review?.repository,
+  ])
   if (!review) return null
   const commitID = commitRefs.get(`${review.repository}:${ref}`) ?? -1
   if (!(typeof commitID === "number")) return <NotFound />
   const commit = commits.byID.get(commitID)
   if (!commit) return <LoaderBlock />
-  console.warn("Review.Commit")
   return (
     <Breadcrumb category="commit" label={commit.sha1.substring(0, 8)}>
       <ChangesetSingleCommit commit={commit} />

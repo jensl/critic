@@ -12,6 +12,7 @@ import { useSelector } from "../store"
 import { useResource } from "../utils"
 import Commit from "../resources/commit"
 import { SelectionScope } from "../reducers/uiSelectionScope"
+import { countWithUnit } from "../utils/Strings"
 
 const useStyles = makeStyles((theme) => ({
   commitListSelectionPopup: {},
@@ -29,13 +30,11 @@ const useStyles = makeStyles((theme) => ({
 
 type Props = {
   className?: string
-  pathPrefix: string
   selectionScope: SelectionScope | null
 }
 
 const CommitListSelectionPopup: FunctionComponent<Props> = ({
   className,
-  pathPrefix,
   selectionScope,
 }) => {
   const classes = useStyles()
@@ -56,10 +55,10 @@ const CommitListSelectionPopup: FunctionComponent<Props> = ({
     >
       <Paper className={clsx(className, classes.snackbarPaper)}>
         <Typography variant="body1" className={classes.text}>
-          {selectedIDs.size} commits selected
+          {countWithUnit(selectedIDs.size, "commit")} selected
         </Typography>
         <div className={classes.buttons}>
-          <Actions selectedCommits={selectedCommits} pathPrefix={pathPrefix} />
+          <Actions selectedCommits={selectedCommits} />
         </div>
       </Paper>
     </Snackbar>

@@ -47,7 +47,7 @@ const SystemSettingTextField: React.FunctionComponent<
       className={className}
       label={label}
       defaultValue={currentValue}
-      margin="normal"
+      margin="dense"
       onChange={(ev) => setNewValue(ev.target.value)}
       helperText={description}
       {...TextFieldProps}

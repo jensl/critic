@@ -20,7 +20,7 @@ import Review from "../resources/review"
 
 const ReviewContext = React.createContext<Review | null>(null)
 
-export const SetReview: FunctionComponent<{ review: Review }> = ({
+const SetReview: FunctionComponent<{ review: Review }> = ({
   review,
   children,
 }) => <ReviewContext.Provider value={review}>{children}</ReviewContext.Provider>
@@ -31,4 +31,6 @@ export const useReview = () => {
   return review
 }
 
-export default ReviewContext
+export const useOptionalReview = () => useContext(ReviewContext)
+
+export default SetReview

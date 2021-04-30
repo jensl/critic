@@ -75,10 +75,10 @@ export const Sidebar: FunctionComponent = () => {
   const reviewCategories = useSelector(
     (state) => state.ui.rest.reviewCategories,
   )
-  useSubscription(loadReviewCategory, "incoming", sessionID)
-  useSubscription(loadReviewCategory, "outgoing", sessionID)
-  const incoming = reviewCategories.get("incoming", { size: null }).size
-  const outgoing = reviewCategories.get("outgoing", { size: null }).size
+  useSubscription(loadReviewCategory, ["incoming", sessionID])
+  useSubscription(loadReviewCategory, ["outgoing", sessionID])
+  const incoming = reviewCategories.get("incoming")?.length ?? null
+  const outgoing = reviewCategories.get("outgoing")?.length ?? null
   const hide = () => setIsVisible(false)
   const hideIfTemporary = () => void (usePersistent || hide())
   const variant = usePersistent ? "persistent" : "temporary"

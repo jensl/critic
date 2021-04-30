@@ -7,14 +7,12 @@ import { Partition } from "../resources/review"
 
 type Props = {
   className?: string
-  pathPrefix: string
   index: number
   partition: Partition
 }
 
 const ReviewCommitsPartition: FunctionComponent<Props> = ({
   className,
-  pathPrefix,
   index,
   partition,
 }) => {
@@ -24,7 +22,6 @@ const ReviewCommitsPartition: FunctionComponent<Props> = ({
     <>
       <CommitList
         className={className}
-        pathPrefix={pathPrefix}
         scopeID={`partition${index}`}
         commitIDs={partition.commits}
         withProgress

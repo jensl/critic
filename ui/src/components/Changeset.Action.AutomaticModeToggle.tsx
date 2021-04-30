@@ -8,7 +8,7 @@ import { makeStyles } from "@material-ui/core/styles"
 
 import Registry from "."
 import { ActionProps } from "./Changeset.Action"
-import { useResource, useReview, useValue } from "../utils"
+import { id, useResource, useOptionalReview } from "../utils"
 import {
   AutomaticChangesetEmpty,
   AutomaticChangesetImpossible,
@@ -29,12 +29,12 @@ const AutomaticModeToggle: React.FunctionComponent<ActionProps> = ({
   setAutomaticMode,
 }) => {
   const classes = useStyles()
-  const review = useReview()
+  const review = useOptionalReview()
   const dispatch = useDispatch()
   const pending = useResource("changesets", ({ automatic }) =>
-    automatic.get(`${review.id}:pending`),
+    automatic.get(`${id(review)}:pending`),
   )
-  if (!automaticMode || !setAutomaticMode) return null
+  if (!review || !automaticMode || !setAutomaticMode) return null
   let disabled = false
   let pendingMessage
   if (

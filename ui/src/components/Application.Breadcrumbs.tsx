@@ -27,20 +27,18 @@ const ApplicationBreadcrumbs: FunctionComponent<Props> = ({ className }) => {
   const classes = useStyles()
   const history = useHistory()
   const breadcrumbs = useSelector((state) => state.ui.rest.breadcrumbs)
-  if (breadcrumbs.size === 0) return null
+  if (breadcrumbs.length === 0) return null
   const items = breadcrumbs.map(({ category, label, path }) => (
     <Breadcrumb key={label} category={category} label={label} path={path} />
   ))
 
   const popLast = () => {
     console.log("popLast", { breadcrumbs, items })
-    if (breadcrumbs.size >= 2) {
-      const path = breadcrumbs.get(breadcrumbs.size - 2)?.path
+    if (breadcrumbs.length >= 2) {
+      const path = breadcrumbs[breadcrumbs.length - 2]?.path
       if (path) history.push(path)
     }
   }
-
-  console.log({ items })
 
   return (
     <ShortcutScope name="breadcrumbs" handler={{ u: popLast }}>

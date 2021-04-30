@@ -23,7 +23,7 @@ import { getCommentsForReview } from "./review"
 import { ChangesetID, FileID } from "../resources/types"
 import { assertNotNull } from "../debug"
 import { castImmutable } from "immer"
-import { kDeletedLine, kInsertedLine } from "../resources/filediff"
+import { kDeletedLine, kInsertedLine } from "../resources/diffcommon"
 import { any } from "../utils"
 
 const getCommentLocations = (state: State) =>
@@ -197,7 +197,7 @@ export const getCommentsForChangeset = createSelector(
     for (const fileID of changeset.files) {
       const { byLine, byLinePrimary, byChunk } = byFile.get(fileID)!
       const fileDiff = fileDiffs.get(`${changeset.id}:${fileID}`)
-      if (!fileDiff) continue
+      if (!fileDiff?.macroChunks) continue
       for (const chunk of fileDiff.macroChunks) {
         const result = new Map<string, LineComments>()
         for (const line of chunk.content) {

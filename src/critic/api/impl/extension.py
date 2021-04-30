@@ -79,8 +79,10 @@ class Extension(PublicType, APIObjectImplWithId, module=public):
         return self.__url
 
     @property
-    def default_version(self) -> api.extensionversion.ExtensionVersion:
-        raise Exception("NOT IMPLEMENTED")
+    async def default_version(self) -> api.extensionversion.ExtensionVersion:
+        return await api.extensionversion.fetch(
+            self.critic, extension=self, current=True
+        )
 
     @property
     async def low_level(self) -> Optional[extensions.extension.Extension]:

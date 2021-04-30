@@ -17,7 +17,7 @@
 import React, { useContext, FunctionComponent } from "react"
 
 import User from "../resources/user"
-import { useResource } from "."
+import { useResource } from "./ResourceSubscriber"
 
 export type SessionID = number
 

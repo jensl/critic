@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 
 from critic import api
 from critic import bootstrap as _
-from critic.background.extensionhost import CallError
+from critic.protocol.extensionhost import CallError
 from critic.base import asyncutils, binarylog
 
 from . import Runner, write_message

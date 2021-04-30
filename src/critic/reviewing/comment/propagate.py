@@ -17,7 +17,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Dict, Iterable, Mapping, Optional, Set, Tuple
+from typing import Dict, Iterable, Literal, Mapping, Optional, Set, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -213,6 +213,7 @@ class PropagationResult:
 
 
 Locations = Mapping[SHA1, Tuple[int, int]]
+Status = Literal["addressed", "open"]
 
 
 class PropagateInCommitSet:
@@ -265,11 +266,11 @@ class PropagateInCommitSet:
 
     async def forwards(
         self, commit: api.commit.Commit, location: Optional[Location]
-    ) -> None:
+    ) -> Status:
         if not location:
             logger.debug("propagate forwards: %s (N/A)", commit.sha1[:8])
             self.__addressed_by.add(commit)
-            return
+            return "addressed"
 
         logger.debug(
             "propagate forwards: %s (%d-%d)",
@@ -280,24 +281,31 @@ class PropagateInCommitSet:
 
         self.__processed.add(commit)
 
-        if commit in self.commits.heads:
+        children = self.commits.getChildrenOf(commit)
+        if not children:
             logger.debug("  - reached head of commit-set")
             self.final_locations[commit] = location
+            return "open"
         else:
-            for child in self.commits.getChildrenOf(commit):
+            status: Status = "addressed"
+            for child in children:
                 logger.debug("  child: %s", child.sha1[:8])
                 if child in self.__processed:
                     logger.debug("  - already processed")
                     continue
-                await self.forwards(
+                child_status = await self.forwards(
                     child, await self.__child_location(commit, location, child)
                 )
+                if child_status == "open":
+                    status = child_status
 
         # Also do backwards propagation. We won't go back up the same path we
         # got here, due to |self.__processed| checks, so we will only go back up
         # via other parents of merge commits.
         if commit in self.commits:
             await self.backwards(commit, location)
+
+        return status
 
     async def __parent_location(
         self, commit: api.commit.Commit, location: Location, parent: api.commit.Commit
@@ -433,6 +441,11 @@ async def propagate_new_comment(
         if commit in partition.commits or commit in partition.commits.tails:
             break
         assert partition.following
+        rebase = partition.following.rebase
+        branchupdate = await rebase.branchupdate
+        assert branchupdate
+        if commit == await branchupdate.to_head:
+            break
         partition = partition.following.partition
 
     primary_partition = partition
@@ -448,12 +461,12 @@ async def propagate_new_comment(
                 partition.commits, file, existing_locations
             )
 
-            await propagate.forwards(commit, location)
+            status = await propagate.forwards(commit, location)
 
             result.locations.update(propagate.locations.values())
             final_locations.update(propagate.final_locations)
 
-            if partition.commits.heads.difference(propagate.final_locations):
+            if status == "addressed":
                 result.addressed_by = propagate.addressed_by
                 break
 

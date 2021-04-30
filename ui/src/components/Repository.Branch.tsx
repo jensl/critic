@@ -6,40 +6,40 @@ import RepositoryBranchCommit from "./Repository.Branch.Commit"
 import RepositoryBranchCommits from "./Repository.Branch.Commits"
 import RepositoryBranchDiff from "./Repository.Branch.Diff"
 import Breadcrumb from "./Breadcrumb"
-import { loadBranch } from "../actions/branch"
-import { useRepository, useSubscription, useResource } from "../utils"
+import { loadBranchByName } from "../actions/branch"
+import {
+  useRepository,
+  useSubscription,
+  useResource,
+  usePrefix,
+} from "../utils"
 import { SetBranch } from "../utils/BranchContext"
+import Branch from "./Branch"
 
 type Params = {
   name: string
 }
 
 const RepositoryBranch: React.FunctionComponent = () => {
-  const branches = useResource("branches")
-  const {
-    params: { name },
-  } = useRouteMatch<Params>()
-  const { id: repositoryID, name: repositoryName } = useRepository()!
-  useSubscription(loadBranch, { repositoryID, name })
-  const branchID = branches.byName.get(`${repositoryID}:${name}`) ?? -1
-  const branch = branches.byID.get(branchID)
-  if (!branch) return null
-  const prefix = `/repository/${repositoryName}/branch/${branch.name}`
+  const prefix = usePrefix()
   return (
-    <Breadcrumb category="branch" label={branch.name} path={prefix}>
-      <SetBranch branch={branch}>
-        <Switch>
-          <Route
-            path={`${prefix}/commit/:ref`}
-            component={RepositoryBranchCommit}
-          />
-          <Route
-            path={`${prefix}/diff/:from([0-9a-f]{4,40}\\^*)..:to([0-9a-f]{4,40})`}
-            component={RepositoryBranchDiff}
-          />
-          <Route component={RepositoryBranchCommits} />
-        </Switch>
-      </SetBranch>
+    <Breadcrumb label="branches" path={`${prefix}/branches`}>
+      <Branch />
+      {/* <Breadcrumb category="branch" label={branch.name} path={branchPrefix}>
+        <SetBranch branch={branch}>
+          <Switch>
+            <Route
+              path={`${branchPrefix}/commit/:ref`}
+              component={RepositoryBranchCommit}
+            />
+            <Route
+              path={`${branchPrefix}/diff/:from([0-9a-f]{4,40}\\^*)..:to([0-9a-f]{4,40})`}
+              component={RepositoryBranchDiff}
+            />
+            <Route component={RepositoryBranchCommits} />
+          </Switch>
+        </SetBranch>
+      </Breadcrumb> */}
     </Breadcrumb>
   )
 }

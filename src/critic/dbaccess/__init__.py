@@ -62,6 +62,7 @@ from .types import (
     SQLAtom,
     SQLRow,
     SQLValue,
+    SQLExpression,
     adapt,
     parameters,
 )

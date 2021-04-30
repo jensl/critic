@@ -2,6 +2,7 @@ import asyncio
 import logging
 from pathlib import Path
 import shutil
+from typing import Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -16,8 +17,10 @@ async def git(*args: str, cwd: Path) -> str:
     return stdout.decode()
 
 
-async def current_sha1(repository: GitRepository) -> SHA1:
-    return as_sha1((await repository.run("rev-parse", "HEAD")).strip().decode())
+async def current_sha1(repository: GitRepository) -> Tuple[str, SHA1]:
+    name = (await repository.run("describe", "--always", "HEAD")).strip().decode()
+    sha1 = as_sha1((await repository.run("rev-parse", "HEAD")).strip().decode())
+    return name, sha1
 
 
 def timestamp(path: Path) -> int:
@@ -28,7 +31,7 @@ def timestamp(path: Path) -> int:
     return mtime
 
 
-async def autocommit(source_dir: Path, repository: GitRepository) -> SHA1:
+async def autocommit(source_dir: Path, repository: GitRepository) -> Tuple[str, SHA1]:
     if not (await repository.run("status", "--short")).strip():
         logger.debug("%s: no local changes detected", source_dir)
         return await current_sha1(repository)
@@ -52,8 +55,8 @@ async def autocommit(source_dir: Path, repository: GitRepository) -> SHA1:
         ):
             await repository.run("commit", "--message=Local uncommitted changes")
 
-        sha1 = await current_sha1(repository)
+        name, sha1 = await current_sha1(repository)
 
         await repository.run("branch", "-f", "autocommitted", sha1)
 
-        return sha1
+        return f"{name}-autocommit", sha1

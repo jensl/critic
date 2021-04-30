@@ -9,7 +9,7 @@ import UserChips from "./User.Chips"
 import Commit from "../resources/commit"
 import { useSelector } from "../store"
 import { getReviewableFileChangesPerReviewAndCommit } from "../selectors/reviewableFileChange"
-import { useReview } from "../utils"
+import { useOptionalReview } from "../utils"
 import { map, mergedSets } from "../utils/Functions"
 
 const useStyles = makeStyles({
@@ -26,9 +26,9 @@ type Props = {
 
 const Reviewers: FunctionComponent<Props> = ({ className, commit }) => {
   const classes = useStyles()
-  const review = useReview()
+  const review = useOptionalReview()
   const rfcsPerReview = useSelector(getReviewableFileChangesPerReviewAndCommit)
-  const rfcs = rfcsPerReview.get(review?.id)?.get(commit.id)
+  const rfcs = rfcsPerReview.get(review?.id ?? -1)?.get(commit.id)
   if (!rfcs) return null
   const userIDs = mergedSets(...map(rfcs, (rfc) => rfc.reviewedBy))
   if (userIDs.size === 0) return null

@@ -521,9 +521,9 @@ class APIObjectById(APIObject[int, APIObjectClass]):
 class APIObjectByKey(APIObject[str, APIObjectClass]):
     intermediate_checker = StringChecker()
 
-    key: str
+    key: Optional[str]
 
-    def __init_subclass__(cls, key: str, api_module: ModuleType):
+    def __init_subclass__(cls, api_module: ModuleType, key: Optional[str] = None):
         super().__init_subclass__(api_module=api_module)
         cls.key = key
 
@@ -540,6 +540,7 @@ class APIObjectByKey(APIObject[str, APIObjectClass]):
         return await self.intermediate_checker.check(context, value)
 
     async def convert(self, context: TypeCheckerContext, value: str) -> APIObjectClass:
+        assert self.key is not None
         return await getattr(self.api_module, "fetch")(
             context.critic, **{self.key: value}
         )
@@ -703,6 +704,13 @@ class Extension(
     pass
 
 
+class ExtensionCall(
+    APIObjectByKey[api.extensioncall.ExtensionCall], api_module=api.extensioncall
+):
+    async def convert(self, context: TypeCheckerContext, value: str) -> APIObjectClass:
+        return await api.extensioncall.fetch(context.critic, value)
+
+
 class ReviewScopeId(
     APIObjectById[api.reviewscope.ReviewScope], api_module=api.reviewscope
 ):
@@ -766,6 +774,7 @@ APIOBJECT_MAP: Mapping[APIObjectKey, Any] = {
     APIObjectKey(api.file.File): File(),
     APIObjectKey(api.changeset.Changeset): Changeset(),
     APIObjectKey(api.extension.Extension): Extension(),
+    APIObjectKey(api.extensioncall.ExtensionCall): ExtensionCall(),
     APIObjectKey(api.reviewscope.ReviewScope): ReviewScope(),
     APIObjectKey(api.branch.Branch): Branch(),
 }

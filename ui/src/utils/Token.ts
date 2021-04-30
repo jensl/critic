@@ -14,15 +14,20 @@
  * the License.
  */
 
-import Immutable from "immutable"
-
 var ID_COUNTER = 0
 
-class Token extends Immutable.Record<{ id: number }>({ id: -1 }, "Token") {
+class Token {
+  constructor(readonly id: number) {}
+
   static create() {
-    return new Token({ id: ++ID_COUNTER })
+    return new Token(++ID_COUNTER)
   }
-  static invalid = new Token()
+
+  static invalid = new Token(-1)
+
+  get isValid() {
+    return this.id > 0
+  }
 }
 
 export default Token

@@ -8,7 +8,12 @@ import { makeStyles, Theme } from "@material-ui/core/styles"
 import Registry from "."
 import LoaderBlock from "./Loader.Block"
 import ChangesetFile, { Props as ChangesetFileProps } from "./Changeset.File"
-import { sortedBy, useChangeset, useResource, useReview } from "../utils"
+import {
+  sortedBy,
+  useChangeset,
+  useResource,
+  useOptionalReview,
+} from "../utils"
 import { pathWithExpandedFiles } from "../utils/Changeset"
 import { useSelector } from "../store"
 import { getCommentsForChangeset } from "../selectors/fileDiff"
@@ -19,7 +24,11 @@ const kMountOnExpandLimit = 25
 
 const useStyles = makeStyles((theme: Theme) => ({
   ChangesetFiles: {
-    margin: `${theme.spacing(1)}px 0`,
+    margin: theme.spacing(1, 0),
+  },
+
+  divider: {
+    margin: theme.spacing(1, 0),
   },
 }))
 
@@ -41,7 +50,7 @@ const ChangesetFiles: FunctionComponent<Props> = ({
   const classes = useStyles()
   const location = useLocation()
   const { changeset, expandedFileIDs } = useChangeset()
-  const review = useReview()
+  const review = useOptionalReview()
   const fileByID = useResource("files", ({ byID }) => byID)
   const commentsForChangeset = useSelector((state) =>
     getCommentsForChangeset(state, { review, changeset }),
@@ -53,35 +62,38 @@ const ChangesetFiles: FunctionComponent<Props> = ({
       automaticMode,
     }),
   )
-  const { files } = changeset
-  if (files === null) return <LoaderBlock />
-  return files.length === 1 && expandedFileIDs.size === 0 ? (
-    <Redirect to={pathWithExpandedFiles(location, files)} />
-  ) : (
+  const { files: fileIDs } = changeset
+
+  if (fileIDs === null) return <LoaderBlock />
+  if (fileIDs.length === 1 && expandedFileIDs.size === 0)
+    return <Redirect to={pathWithExpandedFiles(location, fileIDs)} />
+
+  const sortedFileIDs = sortedBy(
+    fileIDs,
+    (fileID) => fileByID.get(fileID)?.path ?? "",
+  )
+
+  return (
     <div className={clsx(className, classes.ChangesetFiles)}>
-      {sortedBy(files, (fileID) => fileByID.get(fileID)?.path ?? "").map(
-        (fileID, index) => (
-          <React.Fragment key={fileID}>
-            <ChangesetFile
-              fileID={fileID}
-              variant={variant}
-              integrated={integrated}
-              mountOnExpand={files.length > kMountOnExpandLimit}
-              comments={
-                commentsForChangeset.byFile.get(fileID)?.byChunk ?? null
-              }
-              rfcs={rfcsByFile?.get(fileID) ?? null}
-              {...ChangesetFileProps}
-            />
-            {integrated &&
-              index < files.length - 1 &&
-              expandedFileIDs.has(fileID) &&
-              expandedFileIDs.has(files[index + 1]) && (
-                <Divider variant="middle" />
-              )}
-          </React.Fragment>
-        ),
-      )}
+      {sortedFileIDs.map((fileID, index) => (
+        <React.Fragment key={fileID}>
+          <ChangesetFile
+            fileID={fileID}
+            variant={variant}
+            integrated={integrated}
+            mountOnExpand={fileIDs.length > kMountOnExpandLimit}
+            comments={commentsForChangeset.byFile.get(fileID)?.byChunk ?? null}
+            rfcs={rfcsByFile?.get(fileID) ?? null}
+            {...ChangesetFileProps}
+          />
+          {integrated &&
+            index < fileIDs.length - 1 &&
+            expandedFileIDs.has(fileID) &&
+            expandedFileIDs.has(sortedFileIDs[index + 1]) && (
+              <Divider className={classes.divider} variant="middle" />
+            )}
+        </React.Fragment>
+      ))}
     </div>
   )
 }

@@ -285,7 +285,7 @@ class GitRepositoryDirect(GitRepositoryImpl):
             *argv,
             loop=self.loop,
             cwd=cwd,
-            env=self.__environ,
+            env=self.__environ | {"GIT_TERMINAL_PROMPT": "0"},
             stdin=stdin_mode,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,

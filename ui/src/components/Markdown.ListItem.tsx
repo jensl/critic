@@ -4,7 +4,7 @@ import clsx from "clsx"
 import { makeStyles } from "@material-ui/core/styles"
 
 import Registry from "."
-import BlockContent from "./Markdown.BlockContent"
+import { BlockContent } from "./Markdown.types"
 import { ListItem } from "../utils/Markdown"
 
 const useStyles = makeStyles((theme) => ({
@@ -14,9 +14,14 @@ const useStyles = makeStyles((theme) => ({
 type OwnProps = {
   className?: string
   item: ListItem
+  BlockContent: BlockContent
 }
 
-const MarkdownListItem: FunctionComponent<OwnProps> = ({ className, item }) => {
+const MarkdownListItem: FunctionComponent<OwnProps> = ({
+  className,
+  item,
+  BlockContent,
+}) => {
   const classes = useStyles()
   return (
     <li className={clsx(className, classes.markdownBlockListItem)}>

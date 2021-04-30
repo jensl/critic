@@ -10,36 +10,51 @@ import LoaderBlock from "./Loader.Block"
 import Breadcrumb from "./Breadcrumb"
 
 import { loadReview } from "../actions/review"
-import { SetReview } from "../utils/ReviewContext"
-import { useSubscription } from "../utils"
-import { useSelector } from "../store"
+import SetPrefix from "../utils/PrefixContext"
+import SetRepository from "../utils/RepositoryContext"
+import SetReview from "../utils/ReviewContext"
+import { id, usePrefix, useResource, useSubscription } from "../utils"
 
 type Params = {
   reviewID: string
 }
 
 const ReviewContext: FunctionComponent = () => {
-  const reviews = useSelector((state) => state.resource.reviews)
   const reviewID = parseInt(useParams<Params>().reviewID)
-  useSubscription(loadReview, reviewID)
-  const review = reviews.get(reviewID)
-  if (!review || review.isPartial) return <LoaderBlock />
-  const prefix = `/review/${review.id}`
+  useSubscription(loadReview, [reviewID])
+  const review = useResource("reviews", (byID) => byID.get(reviewID))
+  const repository = useResource("repositories", ({ byID }) =>
+    byID.get(review?.repository ?? -1),
+  )
+  const prefix = usePrefix()
+  if (!review || review.isPartial || !repository) return <LoaderBlock />
+  const reviewPrefix = `${prefix}/review/${review.id}`
   return (
-    <SetReview review={review}>
-      <Breadcrumb category="review" label={String(review.id)} path={prefix}>
-        <Switch>
-          <Route path={`${prefix}/commit/:ref`} component={ReviewCommit} />
-          <Route
-            path={`${prefix}/diff/:from([0-9a-f]{4,40}\\^*)..:to([0-9a-f]{4,40})`}
-            component={ReviewDiff}
-          />
-          <Route component={Review} />
-        </Switch>
-        <DeleteReviewDialog />
-        <DropReviewDialog />
-      </Breadcrumb>
-    </SetReview>
+    <SetPrefix prefix={`${reviewPrefix}`}>
+      <SetRepository repository={repository}>
+        <SetReview review={review}>
+          <Breadcrumb
+            category="review"
+            label={String(review.id)}
+            path={reviewPrefix}
+          >
+            <Switch>
+              <Route
+                path={`${reviewPrefix}/commit/:ref`}
+                component={ReviewCommit}
+              />
+              <Route
+                path={`${reviewPrefix}/diff/:from([0-9a-f]{4,40}\\^*)..:to([0-9a-f]{4,40})`}
+                component={ReviewDiff}
+              />
+              <Route render={() => <Review />} />
+            </Switch>
+            <DeleteReviewDialog />
+            <DropReviewDialog />
+          </Breadcrumb>
+        </SetReview>
+      </SetRepository>
+    </SetPrefix>
   )
 }
 

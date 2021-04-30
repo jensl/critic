@@ -37,6 +37,9 @@ const useStyles = makeStyles((theme) => ({
   entry: {
     margin: theme.spacing(1, 0),
   },
+  reply: {
+    marginLeft: theme.spacing(6),
+  },
   actions: {
     display: "flex",
     justifyContent: "flex-end",
@@ -47,7 +50,7 @@ const useStyles = makeStyles((theme) => ({
 type OwnProps = {
   className?: string
   comment?: Comment
-  location?: Location
+  location: Location | null
 }
 
 const Discussion: FunctionComponent<OwnProps> = ({
@@ -76,7 +79,7 @@ const Discussion: FunctionComponent<OwnProps> = ({
     if (comment.isDraft || draftReply) {
       currentText = new Value<string>(
         `Discussion/currentText:${comment.id}`,
-        draftReply ? draftReply.text : comment.text
+        draftReply ? draftReply.text : comment.text,
       )
       editable = new Flag(`Discussion/editable:${comment.id}`)
       wasDeleted = () => dispatch(currentText!.delete())
@@ -97,11 +100,11 @@ const Discussion: FunctionComponent<OwnProps> = ({
       ...replies.map((reply) => (
         <Entry
           key={reply.id}
-          className={classes.entry}
+          className={clsx(classes.entry, classes.reply)}
           isDraft={reply.isDraft}
           {...commonProps(reply)}
         />
-      ))
+      )),
     )
   }
   return (

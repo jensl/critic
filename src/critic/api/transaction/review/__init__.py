@@ -69,6 +69,12 @@ class CreateReviewEvent(
     def __eq__(self, other: object) -> bool:
         return isinstance(other, CreateReviewEvent) and self.review == other.review
 
+    def is_optional(self) -> bool:
+        # The `reviewuser` event is a placeholder event for associating a new
+        # user with a review. If the transaction adds another event, that event
+        # will be connected to the user association instead.
+        return self.type == "reviewuser"
+
     async def create_payload(
         self, resource_name: str, subject: api.reviewevent.ReviewEvent, /
     ) -> CreatedReviewEvent:
@@ -86,7 +92,7 @@ class CreateReviewEvent(
         return self.__created
 
     def check_compatibility(self, other: CreateReviewEvent) -> None:
-        if other.type and self.type != other.type:
+        if other.type and self.type != other.type and not other.is_optional():
             raise api.TransactionError(
                 f"Conflicting review event types in transaction: {self.type} != {other.type}"
             )
@@ -190,7 +196,9 @@ class ReviewUser(Finalizer):
                      INTO reviewusers (review, event, uid, owner)
                    VALUES ({review}, {event}, {user}, {owner})""",
                 review=self.review,
-                event=await CreateReviewEvent.ensure(transaction, self.review),
+                event=await CreateReviewEvent.ensure(
+                    transaction, self.review, event_type="reviewuser"
+                ),
                 user=self.user,
                 owner=bool(self.is_owner),
             )

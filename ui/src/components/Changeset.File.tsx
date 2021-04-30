@@ -89,7 +89,9 @@ const ChangesetFile: FunctionComponent<Props> = ({
         <ChangesetFileChanges
           {...commonProps}
           comments={comments}
-          variant={variant}
+          variant={
+            fileChange?.wasDeleted || fileChange?.wasAdded ? "unified" : variant
+          }
           mountOnExpand={mountOnExpand}
         />
         <ChangesetFileFooter {...commonProps} />

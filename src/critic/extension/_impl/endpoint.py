@@ -19,7 +19,8 @@ from typing import (
 logger = logging.getLogger(__name__)
 
 from critic import api
-from critic.background.extensionhost import (
+from critic.protocol.extensionhost import (
+    CallError,
     EndpointRequest,
     EndpointResponsePrologue,
     EndpointResponseBodyFragment,
@@ -56,7 +57,6 @@ class ResponseImpl:
 
 @dataclass
 class RequestImpl(Request):
-    request_id: bytes = field(repr=False)
     __method: Literal["GET", "PATCH", "POST", "PUT", "DELETE"]
     __path: str
     __query: MultiDictProxy[str]
@@ -112,7 +112,7 @@ class RequestImpl(Request):
 
         await self.write_response(
             EndpointResponsePrologue(
-                self.request_id,
+                None,
                 status_code,
                 status_text,
                 list(headers.items() if headers else []),
@@ -121,15 +121,17 @@ class RequestImpl(Request):
 
         async def write_body_fragment(data: bytes) -> None:
             await self.write_response(
-                EndpointResponseBodyFragment(self.request_id, data)
+                EndpointResponseBodyFragment(None, data)
             )
 
         try:
             yield ResponseImpl(write_body_fragment)
-        except Exception:
-            await self.write_response(EndpointResponseEnd(self.request_id, True))
+        except Exception as error:
+            await self.write_response(
+                EndpointResponseEnd(CallError.from_exception(error))
+            )
         else:
-            await self.write_response(EndpointResponseEnd(self.request_id))
+            await self.write_response(EndpointResponseEnd(None))
 
     def response(
         self,
@@ -172,7 +174,6 @@ class EndpointImpl(Runner, Endpoint):
         async for command, write_response in self.commands():
             assert isinstance(command, EndpointRequest)
             request = RequestImpl(
-                command.request_id,
                 command.method,
                 command.path,
                 MultiDictProxy(MultiDict(command.query)),

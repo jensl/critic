@@ -128,6 +128,12 @@ class Parameters(Protocol):
     def getRange(self) -> Tuple[Optional[int], Optional[int]]:
         ...
 
+    def getPaginationTotal(self) -> Optional[int]:
+        ...
+
+    def setPagination(self, total: int) -> None:
+        ...
+
     @contextlib.contextmanager
     def setSlice(self) -> Iterator[None]:
         ...
@@ -146,7 +152,9 @@ class Parameters(Protocol):
     ) -> Optional[APIObject]:
         ...
 
-    async def deduce(self, value_class: Type[APIObject]) -> Optional[APIObject]:
+    async def deduce(
+        self, value_class: Type[APIObject], provided: Optional[APIObject] = None
+    ) -> Optional[APIObject]:
         ...
 
     async def fromParameter(

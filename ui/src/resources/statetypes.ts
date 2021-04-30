@@ -4,6 +4,7 @@ import ChangesetResource from "./changeset"
 import CommentResource from "./comment"
 import CommitResource from "./commit"
 import ExtensionResource from "./extension"
+import ExtensionCallResource from "./extensioncall"
 import ExtensionInstallationResource from "./extensioninstallation"
 import ExtensionVersionResource from "./extensionversion"
 import FileResource from "./file"
@@ -36,6 +37,7 @@ export type Changeset = ReturnType<typeof ChangesetResource.reducer>
 export type Comment = ReturnType<typeof CommentResource.reducer>
 export type Commit = ReturnType<typeof CommitResource.reducer>
 export type Extension = ReturnType<typeof ExtensionResource.reducer>
+export type ExtensionCall = ReturnType<typeof ExtensionCallResource.reducer>
 export type ExtensionInstallation = ReturnType<
   typeof ExtensionInstallationResource.reducer
 >

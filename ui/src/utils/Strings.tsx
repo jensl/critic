@@ -14,6 +14,8 @@
  * the License.
  */
 
+import React from "react"
+
 export const getShortened = (string: string) => {
   var text = ""
   const split = string.split("\n")
@@ -108,3 +110,8 @@ export const maybeParseInt = (value: string) => {
   if (String(valueAsInt) === value) return valueAsInt
   return value
 }
+
+export const textFromChildren = (children: React.ReactNode) =>
+  React.Children.map(children, (child: unknown) =>
+    typeof child === "string" ? child : "",
+  )?.join("") ?? ""

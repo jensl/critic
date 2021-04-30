@@ -19,7 +19,7 @@ const Contents: React.FunctionComponent<{}> = () => {
     connectedControlProps,
   } = useConnectedControls()
 
-  useSubscription(loadSystemSettingByPrefix, "system")
+  useSubscription(loadSystemSettingByPrefix, ["system"])
 
   return (
     <>
@@ -50,7 +50,7 @@ const Contents: React.FunctionComponent<{}> = () => {
 }
 
 const Basic: React.FunctionComponent<{}> = () => (
-  <Section id="details" title="Basic system settings">
+  <Section id="details" title="Basic settings">
     <Contents />
   </Section>
 )

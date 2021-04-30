@@ -6,11 +6,13 @@ import { ChunkProps } from "./Changeset.Diff.Chunk"
 import Line from "./Changeset.Diff.Unified.Line"
 import SelectionScope from "./Selection.Scope"
 import {
+  DiffLine,
   kContextLine,
   kDeletedLine,
   kInsertedLine,
-} from "../resources/filediff"
-import { pure } from "recompose"
+} from "../resources/diffcommon"
+import { locationFromSelectionScope } from "../utils/Comment"
+import { SelectorFunc } from "../actions/uiSelectionScope"
 
 const UnifiedChunk: FunctionComponent<ChunkProps> = ({
   className,
@@ -23,54 +25,90 @@ const UnifiedChunk: FunctionComponent<ChunkProps> = ({
   inView,
 }) => {
   const lines = []
-  var deleted: null | JSX.Element[] = null
-  var inserted: null | JSX.Element[] = null
+  var deleted: JSX.Element[] = []
+  var inserted: JSX.Element[] = []
   var keyCounter = 0
 
   const flush = () => {
-    if (deleted !== null) lines.push(...deleted)
-    if (inserted !== null) lines.push(...inserted)
-    deleted = inserted = null
+    if (deleted.length !== 0) {
+      lines.push(...deleted)
+      deleted = []
+    }
+    if (inserted.length !== 0) {
+      lines.push(...inserted)
+      inserted = []
+    }
+  }
+
+  const {
+    lastSelectedID = null,
+    selectedIDs = null,
+    isRangeSelecting = false,
+    isPending = false,
+  } = selectionScope || {}
+
+  const hasSelection = selectionScope !== null && !isPending
+
+  const generateLine = (line: DiffLine, side?: "old" | "new") => {
+    let lineID = `f${fileID}:`
+    if (side !== "new") lineID += line.oldID
+    if (side !== "old") lineID += line.newID
+    const isSelected = selectedIDs?.has(lineID) ?? false
+    const showCommentAt =
+      selectionScope !== null && lastSelectedID === lineID && !isRangeSelecting
+        ? {
+            changesetID,
+            ...locationFromSelectionScope(selectionScope),
+          }
+        : null
+    return (
+      <Line
+        key={lineID}
+        lineID={lineID}
+        line={line}
+        side={side}
+        comments={comments?.get(line.id) ?? null}
+        isSelected={isSelected}
+        hasSelection={hasSelection}
+        showCommentAt={showCommentAt}
+        inView={inView}
+      />
+    )
   }
 
   for (const line of chunk.content) {
     const { type } = line
-    const commonProps = {
-      changesetID,
-      fileID,
-      line,
-      comments: comments?.get(line.id) ?? null,
-      selectionScope,
-      inView,
-    }
     if (type === kContextLine) {
       flush()
-      lines.push(<Line key={keyCounter++} {...commonProps} />)
+      lines.push(generateLine(line))
     } else {
-      if (type !== kInsertedLine)
-        (deleted || (deleted = [])).push(
-          <Line key={keyCounter++} {...commonProps} side="old" />,
-        )
-      if (type !== kDeletedLine)
-        (inserted || (inserted = [])).push(
-          <Line key={keyCounter++} {...commonProps} side="new" />,
-        )
+      if (type !== kInsertedLine) deleted.push(generateLine(line, "old"))
+      if (type !== kDeletedLine) inserted.push(generateLine(line, "new"))
     }
   }
 
   flush()
 
-  const selector = (event: MouseEvent) => {
-    let target: HTMLElement | null = event.target as HTMLElement
+  const getLineType = (target: HTMLElement | null) => {
     while (target) {
       const { classList } = target
       if (classList.contains("code")) {
-        if (classList.contains("old")) return ".code:not(.new)"
-        else if (classList.contains("new")) return ".code:not(.old)"
-        else return ".code"
+        if (classList.contains("old")) return "deleted"
+        else if (classList.contains("new")) return "inserted"
+        else return "context"
       } else if (classList.contains("unified")) break
       target = target.parentElement
     }
+    return null
+  }
+
+  const selector: SelectorFunc = (anchor, focus) => {
+    const anchorType = getLineType(anchor)
+    if (anchorType === "deleted") return ".code:not(.new)"
+    if (anchorType === "inserted") return ".code:not(.old)"
+    const focusType = getLineType(focus)
+    if (focusType === "deleted") return ".code:not(.new)"
+    if (anchorType || focusType) return ".code:not(.old)"
     return null
   }
 
@@ -86,4 +124,9 @@ const UnifiedChunk: FunctionComponent<ChunkProps> = ({
   )
 }
 
-export default Registry.add("Changeset.Diff.Unified.Chunk", pure(UnifiedChunk))
+// export default Registry.add(
+//   "Changeset.Diff.Unified.Chunk",
+//   React.memo(UnifiedChunk),
+// )
+
+export default React.memo(UnifiedChunk)

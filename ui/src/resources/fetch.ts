@@ -9,7 +9,8 @@ import { fetchJSON } from "../utils/Fetch"
 import { dataUpdate } from "../actions/data"
 import { DataUpdateParams } from "../actions"
 import { assertIsObject, assertNotReached, assertTrue } from "../debug"
-import { ResourceTypes, RequestOptions } from "./types"
+import { RequestOptions } from "./types"
+import { ResourceTypes } from "./resourcetypes"
 import resourceDefinitions from "./definitions"
 import {
   withParameters,
@@ -18,13 +19,8 @@ import {
   method,
   payload,
 } from "./requestoptions"
-import { any, sorted } from "../utils"
-
-export type ErrorCode =
-  | "BAD_BRANCH_NAME"
-  | "MERGE_COMMIT"
-  | "AUTOMATIC_CHANGESET_EMPTY"
-  | "AUTOMATIC_CHANGESET_IMPOSSIBLE"
+import { any, sorted } from "../utils/Functions"
+import ResourceError, { ErrorResponseJSON } from "./resourceerror"
 
 type BaseResponseJSON = {
   linked?: { [resourceName: string]: JSONData[] | "limited" }
@@ -36,11 +32,11 @@ type MainResponseJSON = {
   [resourceName: string]: JSONData[]
 }
 
-export type ErrorResponseJSON = {
-  error: { title: string; message: string; code: string }
-}
-
 type ResponseJSON = BaseResponseJSON & MainResponseJSON
+
+export interface PaginationInfo {
+  total: number
+}
 
 export interface FetchResult<T> {
   resourceName: keyof ResourceTypes
@@ -52,6 +48,7 @@ export interface FetchResult<T> {
   limited?: Set<string>
   deleted: Map<string, Set<number | string>> | null
   invalid: Map<string, Set<number | string>> | null
+  pagination: PaginationInfo | null
 }
 
 const mergeOptions = (current: RequestOptions, next: RequestOptions) => {
@@ -70,7 +67,8 @@ const mergeOptions = (current: RequestOptions, next: RequestOptions) => {
           )
           break
         case "include":
-          ;(currentValue as string[]).push(...(nextValue as string[]))
+          const include = currentValue as string[]
+          include.push(...(nextValue as string[]))
           break
         case "handleError":
           Object.assign(currentValue as HandleError, nextValue as HandleError)
@@ -184,6 +182,7 @@ export const fetch = <ResourceName extends keyof ResourceTypes>(
       primary: [],
       deleted: null,
       invalid: null,
+      pagination: null,
     })
 
     switch (status) {
@@ -218,6 +217,7 @@ type UpdatesFromJSONExtra<ResourceType> = {
   invalid: Map<string, Set<number | string>>
   limited: Set<string>
   primary: ResourceType[]
+  pagination: PaginationInfo | null
 }
 
 const updatesFromJSON = <ResourceName extends keyof ResourceTypes>(
@@ -280,6 +280,8 @@ const updatesFromJSON = <ResourceName extends keyof ResourceTypes>(
     ),
   )
 
+  const pagination = ((main["pagination"] as unknown) as PaginationInfo) ?? null
+
   return {
     resourceName: mainResourceName,
     updates,
@@ -301,21 +303,7 @@ const updatesFromJSON = <ResourceName extends keyof ResourceTypes>(
           new Set(ids),
         ]),
       ),
-  }
-}
-
-export class ResourceError extends Error {
-  readonly title: string
-  readonly code: string
-
-  constructor(
-    readonly status: number,
-    { error: { title, message, code } }: ErrorResponseJSON,
-  ) {
-    super(message)
-    this.title = title
-    this.message = message
-    this.code = code
+    pagination,
   }
 }
 
@@ -340,6 +328,7 @@ export const handleJSONResponse = <ResourceName extends keyof ResourceTypes>({
       json,
       deleted: null,
       invalid: null,
+      pagination: null,
     }
   }
   const updates = updatesFromJSON(

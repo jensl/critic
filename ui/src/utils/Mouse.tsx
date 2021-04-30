@@ -17,7 +17,10 @@ const MouseContext = React.createContext<
   [MouseState, React.Dispatch<React.SetStateAction<MouseState>>] | [null, null]
 >([null, null])
 
-export type MouseMonitor = (state: MouseState) => Thunk<MouseState | null>
+export type MouseMonitor = (
+  target: HTMLElement,
+  state: MouseState,
+) => Thunk<MouseState | null>
 
 export const useMouseTracker = () => {
   const dispatch = useDispatch()
@@ -30,10 +33,10 @@ export const useMouseTracker = () => {
     // Do nothing unless it's the primary mouse button being depressed.
     if (event.button !== 0) return
 
-    const callMonitor = (updates: Partial<MouseState>) =>
+    const callMonitor = (event: MouseEvent, updates: Partial<MouseState>) =>
       setState((currentState) => {
         const newState = { ...currentState, ...updates }
-        soon(() => dispatch(monitor(newState)))
+        soon(() => dispatch(monitor(event.target as HTMLElement, newState)))
         return newState
       })
 
@@ -46,23 +49,20 @@ export const useMouseTracker = () => {
 
     const onMouseMove = (event: MouseEvent) => {
       if (event.button !== 0) return
-      console.log("onMouseMove")
-      callMonitor(position(event))
+      callMonitor(event, position(event))
     }
 
     const onMouseUp = (event: MouseEvent) => {
       if (event.button !== 0) return
       document.removeEventListener("mouseup", onMouseUp, { capture: true })
       document.removeEventListener("mousemove", onMouseMove, { capture: true })
-      console.log("onMouseUp")
-      callMonitor({ ...position(event), isDown: false })
+      callMonitor(event, { ...position(event), isDown: false })
     }
 
     document.addEventListener("mouseup", onMouseUp, { capture: true })
     document.addEventListener("mousemove", onMouseMove, { capture: true })
 
-    console.log("initial")
-    callMonitor({
+    callMonitor(event, {
       isDown: true,
       absoluteX: event.pageX,
       absoluteY: event.pageY,

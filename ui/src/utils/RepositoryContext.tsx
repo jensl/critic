@@ -15,6 +15,7 @@
  */
 
 import React, { useContext, FunctionComponent } from "react"
+import { assertNotNull } from "../debug"
 import Repository from "../resources/repository"
 
 const RepositoryContext = React.createContext<Repository | null>(null)
@@ -28,17 +29,12 @@ const SetRepository: FunctionComponent<{ repository: Repository }> = ({
   </RepositoryContext.Provider>
 )
 
-export const useRepository = () => useContext(RepositoryContext)
-
-export function withRepository<P>(
-  WrappedComponent: React.ComponentType<P & { repository: Repository }>
-) {
-  return (props: P) => {
-    const repository = useRepository()
-    return repository ? (
-      <WrappedComponent {...props} repository={repository} />
-    ) : null
-  }
+export const useRepository = () => {
+  const repository = useContext(RepositoryContext)
+  assertNotNull(repository)
+  return repository
 }
+
+export const useOptionalRepository = () => useContext(RepositoryContext)
 
 export default SetRepository

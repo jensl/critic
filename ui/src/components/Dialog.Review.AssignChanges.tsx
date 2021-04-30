@@ -24,9 +24,7 @@ import {
   useSignedInUser,
 } from "../utils"
 import { useDispatch } from "../store"
-import { handleError } from "../resources"
 import { longestCommonPathPrefix } from "../utils/Strings"
-import { setReviewIssuesMode } from "../actions/uiReview"
 import { assertNotNull } from "../debug"
 import { ReviewFilterInput, createReviewFilters } from "../actions/reviewfilter"
 import { FileID } from "../resources/types"
